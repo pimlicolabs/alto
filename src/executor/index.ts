@@ -20,7 +20,7 @@ export abstract class Executor {
         this.beneficiary = beneficiary
     }
 
-    abstract bundle(ops: UserOp[]): Promise<ContractTransaction>
+    abstract bundle(_ops: UserOp[]): Promise<ContractTransaction>
 }
 
 export class BasicExecutor extends Executor {

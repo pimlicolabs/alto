@@ -1,4 +1,4 @@
-import { BigNumberish, ethers } from "ethers"
+import { BigNumberish } from "ethers"
 import { EntryPoint } from "../contracts"
 import { Mempool } from "../mempool"
 import { UserOp } from "../userOp"
@@ -23,8 +23,8 @@ export abstract class Validator {
         this.entryPoint = entryPoint
         this.mempool = mempool
     }
-    public abstract validate(userOp: UserOp): Promise<ValidationResult>
-    public abstract estimateGas(userOp: UserOp): Promise<GasEstimateResult>
+    public abstract validate(_userOp: UserOp): Promise<ValidationResult>
+    public abstract estimateGas(_userOp: UserOp): Promise<GasEstimateResult>
 }
 
 export class EmptyValidator extends Validator {
