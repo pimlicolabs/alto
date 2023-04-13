@@ -24,6 +24,7 @@
     "typescript": "^5.0.4"
   },
   "dependencies": {
-    "ethers": "5.7"
+    "ethers": "5.7",
+    "mongodb": "^5.2.0"
   }
 }

@@ -1,1 +1,1 @@
-export * from "./generated/Entrypoint"
+export * from "./generated/"
