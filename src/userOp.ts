@@ -1,18 +1,20 @@
+import { BigNumber } from "ethers"
+
 export interface UserOp {
-    sender: string;
-    nonce: string;
-    initCode: string;
-    callData: string;
-    callGasLimit: string;
-    verificationGasLimit : string;
-    preVerificationGas : string;
-    maxFeePerGas : string;
-    maxPriorityFeePerGas : string;
-    paymasterAndData : string;
-    signature : string;
+    sender: string
+    nonce: BigNumber
+    initCode: string
+    callData: string
+    callGasLimit: BigNumber
+    verificationGasLimit: BigNumber
+    preVerificationGas: BigNumber
+    maxFeePerGas: BigNumber
+    maxPriorityFeePerGas: BigNumber
+    paymasterAndData: string
+    signature: string
 }
 
 export interface UserOpRequest {
-    userOp : UserOp;
-    entrypoint : string;
+    userOp: UserOp
+    entrypoint: string
 }

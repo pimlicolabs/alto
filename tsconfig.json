@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
-    "target": "es2016",                      
-    "module": "commonjs",                    
-    "esModuleInterop": true,                  
+    "target": "es2022",
+    "module": "commonjs",
+    "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "noImplicitReturns": true,
