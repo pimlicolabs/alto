@@ -1,5 +1,5 @@
 import { BigNumber, ContractTransaction } from "ethers"
-import { UserOp } from "../userOp"
+import { UserOperation } from "../types"
 import { EntryPoint } from "../contracts"
 import { Mempool } from "../mempool"
 
@@ -20,11 +20,11 @@ export abstract class Executor {
         this.beneficiary = beneficiary
     }
 
-    abstract bundle(_ops: UserOp[]): Promise<ContractTransaction>
+    abstract bundle(_ops: UserOperation[]): Promise<ContractTransaction>
 }
 
 export class BasicExecutor extends Executor {
-    async bundle(ops: UserOp[]): Promise<ContractTransaction> {
+    async bundle(ops: UserOperation[]): Promise<ContractTransaction> {
         const gasLimit = this.entryPoint.estimateGas.handleOps(ops, this.beneficiary).then((gasLimit) => {
             return gasLimit.mul(12).div(10)
         })

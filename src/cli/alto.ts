@@ -1,0 +1,67 @@
+import yargs from "yargs"
+import { hideBin } from "yargs/helpers"
+import { CliCommand, registerCommandToYargs } from "./util"
+import { bundlerCommand, bundlerOptions } from "./options"
+import { bundlerHandler } from "../app"
+
+export const yarg = yargs((hideBin as (args: string[]) => string[])(process.argv))
+
+const topBanner = `🏔️ Alto: TypeScript ERC-4337 Bundler.
+  * by Pimlico, 2023`
+const bottomBanner = `📖 For more information, check the our docs:
+  * https://docs.pimlico.io/
+`
+
+export function getAltoCli(): yargs.Argv {
+    const alto = yarg
+        .wrap(null)
+        .env("ALTO")
+        .parserConfiguration({
+            // As of yargs v16.1.0 dot-notation breaks strictOptions()
+            // Manually processing options is typesafe tho more verbose
+            "dot-notation": true,
+        })
+        .options(bundlerOptions)
+        // blank scriptName so that help text doesn't display the cli name before each command
+        .scriptName("")
+        .demandCommand(1)
+        .usage(topBanner)
+        .epilogue(bottomBanner)
+        // Control show help behaviour below on .fail()
+        .showHelpOnFail(false)
+        .alias("h", "help")
+        .alias("v", "version")
+        .recommendCommands()
+
+    // throw an error if we see an unrecognized cmd
+    alto.recommendCommands().strict()
+    alto.config()
+
+    // yargs.command and all ./cmds
+    registerCommandToYargs(alto, bundlerCommand)
+
+    return alto
+}
+
+export class YargsError extends Error {}
+
+const alto = getAltoCli()
+
+// eslint-disable-next-line @typescript-eslint/no-floating-promises
+alto.fail((msg, err) => {
+    if (msg) {
+        // Show command help message when no command is provided
+        if (msg.includes("Not enough non-option arguments")) {
+            yarg.showHelp()
+            // eslint-disable-next-line no-console
+            console.log("\n")
+        }
+    }
+
+    const errorMessage =
+        err !== undefined ? (err instanceof YargsError ? err.message : err.stack) : msg || "Unknown error"
+
+    // eslint-disable-next-line no-console
+    console.error(` ✖ ${errorMessage!}\n`)
+    process.exit(1)
+}).parse()

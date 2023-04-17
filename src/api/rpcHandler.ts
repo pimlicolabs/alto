@@ -25,11 +25,11 @@ import {
     SupportedEntryPointsResponseResult,
 } from "./schemas"
 
-export interface RpcEndpoint {
+export interface IRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>
 }
 
-export class RpcHandler implements RpcEndpoint {
+export class RpcHandler implements IRpcEndpoint {
     async handleMethod(request: BundlerRequest): Promise<BundlerResponse> {
         // call the method with the params
         const method = request.method

@@ -1,6 +1,6 @@
 import { BigNumber } from "ethers"
 
-export interface UserOp {
+export interface UserOperation {
     sender: string
     nonce: BigNumber
     initCode: string
@@ -14,7 +14,7 @@ export interface UserOp {
     signature: string
 }
 
-export interface UserOpRequest {
-    userOp: UserOp
-    entrypoint: string
+export interface UserOperationRequest {
+    userOperation: UserOperation
+    entryPoint: string
 }

@@ -1,6 +1,7 @@
 import { getAddress } from "ethers/lib/utils"
 import { z } from "zod"
 import { BigNumber } from "ethers"
+import { UserOperation } from "../types"
 
 const hexNumberPattern = /^0x([1-9a-f]+[0-9a-f]*|0)$/
 const hexDataPattern = /^0x[0-9a-f]*$/
@@ -35,6 +36,9 @@ const userOperationSchema = z
         signature: hexDataSchema,
     })
     .strict()
+    .transform((val) => {
+        return val as UserOperation
+    })
 
 const jsonRpcSchema = z
     .object({
@@ -291,7 +295,6 @@ export type BundlerSendBundleNowRequestParams = z.infer<typeof bundlerSendBundle
 export type BundlerSetBundlingModeRequestParams = z.infer<typeof bundlerSetBundlingModeRequestSchema>["params"]
 
 export type BundlerRequest = z.infer<typeof bundlerRequestSchema>
-export type UserOperation = z.infer<typeof userOperationSchema>
 export type JSONRPCRequest = z.infer<typeof jsonRpcSchema>
 export type JSONRPCResponse = z.infer<typeof jsonRpcResultSchema>
 
@@ -312,3 +315,5 @@ export {
     jsonRpcResultSchema,
     userOperationSchema,
 }
+
+export { addressSchema, hexData32Schema, hexDataSchema }

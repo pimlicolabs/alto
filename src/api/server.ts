@@ -9,25 +9,28 @@ import cors from "cors"
 import { JSONRPCResponse, bundlerRequestSchema, jsonRpcSchema } from "./schemas"
 import { RpcError, ValidationErrors } from "../utils"
 import { fromZodError } from "zod-validation-error"
-import { RpcHandler } from "./rpcHandler"
+import { IRpcEndpoint } from "./rpcHandler"
+import { IBundlerArgs } from "../cli/options"
 
 export class Server {
     private app: Express
-    private rpcHandler: RpcHandler
+    private rpcEndpoint: IRpcEndpoint
+    private bundlerArgs: IBundlerArgs
 
-    constructor() {
+    constructor(rpcEndpoint: IRpcEndpoint, bundlerArgs: IBundlerArgs) {
         this.app = express()
         this.app.use(cors())
         this.app.use(express.json())
 
         this.app.post("/rpc", this.rpc.bind(this))
 
-        this.rpcHandler = new RpcHandler()
+        this.rpcEndpoint = rpcEndpoint
+        this.bundlerArgs = bundlerArgs
     }
 
     public async start(): Promise<void> {
-        this.app.listen(3000, () => {
-            console.log("Server listening on port 3000")
+        this.app.listen(this.bundlerArgs.port, () => {
+            console.log(`Server listening on port ${this.bundlerArgs.port}`)
         })
     }
 
@@ -37,7 +40,14 @@ export class Server {
 
     public async rpc(req: Request, res: Response): Promise<void> {
         try {
-            const jsonRpcResponse = await this.innerRpc(req, res)
+            const contentTypeHeader = req.headers["content-type"]
+            if (contentTypeHeader !== "application/json") {
+                throw new RpcError(
+                    "invalid content-type, content-type must be application/json",
+                    ValidationErrors.InvalidFields,
+                )
+            }
+            const jsonRpcResponse = await this.innerRpc(req.body)
             res.status(200).send(jsonRpcResponse)
         } catch (err) {
             if (err instanceof RpcError) {
@@ -56,11 +66,11 @@ export class Server {
         }
     }
 
-    public async innerRpc(req: Request, res: Response): Promise<JSONRPCResponse> {
-        console.log(req.body)
-        const jsonRpcParsing = jsonRpcSchema.safeParse(req.body)
+    public async innerRpc(body: unknown): Promise<JSONRPCResponse> {
+        const jsonRpcParsing = jsonRpcSchema.safeParse(body)
         if (!jsonRpcParsing.success) {
-            throw new RpcError("Invalid JSON-RPC request", ValidationErrors.InvalidFields)
+            const validationError = fromZodError(jsonRpcParsing.error)
+            throw new RpcError(`invalid JSON-RPC request ${validationError.message}`, ValidationErrors.InvalidFields)
         }
 
         const jsonRpcRequest = jsonRpcParsing.data
@@ -72,7 +82,7 @@ export class Server {
         }
 
         const bundlerRequest = bundlerRequestParsing.data
-        const result = await this.rpcHandler.handleMethod(bundlerRequest)
+        const result = await this.rpcEndpoint.handleMethod(bundlerRequest)
 
         const jsonRpcResponse: JSONRPCResponse = {
             jsonrpc: "2.0",

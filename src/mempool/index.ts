@@ -1,12 +1,12 @@
 import { EntryPoint__factory } from "../contracts/generated/EntryPoint__factory"
-import { UserOp } from "../userOp"
+import { UserOperation } from "../types"
 import { MongoClient, Collection, Filter } from "mongodb"
 import { JsonRpcProvider } from "@ethersproject/providers"
 import { EntryPoint } from "../contracts"
 
 export interface MempoolEntry {
     entrypoint: string
-    userOp: UserOp
+    userOperation: UserOperation
     opHash: string
     status: UserOpStatus
     transactionHash?: string
@@ -22,13 +22,13 @@ enum UserOpStatus {
 // mempool per network
 export abstract class Mempool {
     abstract currentSize(): Promise<number>
-    abstract add(_entrypoint: string, _userOp: UserOp): Promise<string> // return hash of userOp
+    abstract add(_entrypoint: string, _op: UserOperation): Promise<string> // return hash of userOp
     abstract include(_entrypoint: string, _opHashes: string[], _txhash: string): void
     abstract finalize(_entrypoint: string, _opHashes: string[], _txhash: string): void
     abstract get(_hash: string): Promise<MempoolEntry | null>
     abstract getAll(): Promise<MempoolEntry[]>
     abstract clear(): void
-    abstract getUserOpHash(_entrypoint: string, _op: UserOp): Promise<string>
+    abstract getUserOpHash(_entrypoint: string, _op: UserOperation): Promise<string>
 }
 
 export class MongoDBMempool extends Mempool {
@@ -45,9 +45,9 @@ export class MongoDBMempool extends Mempool {
         return this.collection.countDocuments()
     }
 
-    async add(entrypoint: string, userOp: UserOp): Promise<string> {
-        const opHash = await this.getUserOpHash(entrypoint, userOp)
-        await this.collection.insertOne({ userOp, entrypoint, opHash, status: UserOpStatus.NotIncluded })
+    async add(entrypoint: string, userOperation: UserOperation): Promise<string> {
+        const opHash = await this.getUserOpHash(entrypoint, userOperation)
+        await this.collection.insertOne({ userOperation, entrypoint, opHash, status: UserOpStatus.NotIncluded })
         return opHash
     }
 
@@ -73,9 +73,9 @@ export class MongoDBMempool extends Mempool {
         await this.collection.deleteMany({})
     }
 
-    async getUserOpHash(entrypoint: string, op: UserOp): Promise<string> {
+    async getUserOpHash(entryPoint: string, op: UserOperation): Promise<string> {
         // Your implementation here
-        const ep: EntryPoint = EntryPoint__factory.connect(entrypoint, this.provider) // TODO this can be optimized by branching based on the entrypoint version
+        const ep: EntryPoint = EntryPoint__factory.connect(entryPoint, this.provider) // TODO this can be optimized by branching based on the entrypoint version
         return ep.getUserOpHash(op)
     }
 }

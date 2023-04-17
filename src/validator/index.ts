@@ -1,7 +1,7 @@
 import { BigNumberish } from "ethers"
 import { EntryPoint } from "../contracts"
 import { Mempool } from "../mempool"
-import { UserOp } from "../userOp"
+import { UserOp } from "../types"
 
 interface ValidationResult {
     valid: boolean

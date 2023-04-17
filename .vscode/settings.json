@@ -9,5 +9,11 @@
     "editor.codeActionsOnSave": {
         "source.fixAll.eslint": true
     },
-    "eslint.validate": ["javascript", "json"]
+    "eslint.validate": [
+        "javascript",
+        "json"
+    ],
+    "[typescript]": {
+        "editor.defaultFormatter": "dbaeumer.vscode-eslint"
+    }
 }
