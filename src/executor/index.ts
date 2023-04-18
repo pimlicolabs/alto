@@ -1,33 +1,57 @@
-import { BigNumber, ContractTransaction } from "ethers"
-import { UserOperation } from "../types"
-import { EntryPoint } from "../contracts"
+import { EntryPointAbi } from "../contracts/EntryPoint"
 import { Mempool } from "../mempool"
+import { Address, HexData32, UserOperation } from "../api/schemas"
+import { PublicClient, WalletClient, getContract } from "viem"
 
 export interface GasEstimateResult {
-    preverificationGas: BigNumber
-    verificationGasLimit: BigNumber
-    callGasLimit: BigNumber
+    preverificationGas: bigint
+    verificationGasLimit: bigint
+    callGasLimit: bigint
 }
 
 export abstract class Executor {
-    entryPoint: EntryPoint
+    entryPointAddress: Address
     mempool: Mempool
-    beneficiary: string
+    beneficiary: Address
+    publicClient: PublicClient
+    walletClient: WalletClient
 
-    constructor(entryPoint: EntryPoint, mempool: Mempool, beneficiary: string) {
-        this.entryPoint = entryPoint
+    constructor(
+        entryPointAddress: Address,
+        mempool: Mempool,
+        beneficiary: Address,
+        publicClient: PublicClient,
+        walletClient: WalletClient
+    ) {
+        this.entryPointAddress = entryPointAddress
         this.mempool = mempool
         this.beneficiary = beneficiary
+        this.publicClient = publicClient
+        this.walletClient = walletClient
     }
 
-    abstract bundle(_ops: UserOperation[]): Promise<ContractTransaction>
+    abstract bundle(_ops: UserOperation[]): Promise<HexData32>
 }
 
 export class BasicExecutor extends Executor {
-    async bundle(ops: UserOperation[]): Promise<ContractTransaction> {
-        const gasLimit = this.entryPoint.estimateGas.handleOps(ops, this.beneficiary).then((gasLimit) => {
-            return gasLimit.mul(12).div(10)
+    async bundle(ops: UserOperation[]): Promise<HexData32> {
+        const ep = getContract({
+            abi: EntryPointAbi,
+            address: this.entryPointAddress,
+            publicClient: this.publicClient,
+            walletClient: this.walletClient
         })
-        return this.entryPoint.handleOps(ops, this.beneficiary, { gasLimit: gasLimit })
+
+        const gasLimit = await ep.estimateGas.handleOps([ops, this.beneficiary]).then((limit) => {
+            return (limit * 12n) / 10n
+        })
+
+        const tx = await ep.write.handleOps([ops, this.beneficiary], {
+            gas: gasLimit,
+            account: this.beneficiary,
+            chain: null
+        })
+
+        return tx
     }
 }

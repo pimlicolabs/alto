@@ -1,18 +1,18 @@
 #!/bin/bash  -e
-# launch bundler: also start geth, and deploy entrypoint.
+# launch bundler: also start anvil, and deploy entrypoint.
 cd `dirname $0`
 
-GETH=geth
-GETHPORT=8545
+ANVIL=anvil
+ANVILPORT=8545
 BUNDLERPORT=3000
-GETHPID=/tmp/aabundler.geth.pid
-BUNDLERPID=/tmp/aabundler.node.pid
-VERSION="aabundler-js-0.1"
+ANVILPID=/tmp/alto.anvil.pid
+BUNDLERPID=/tmp/alto.node.pid
+VERSION="alto-0.0.1"
 
-BUNDLERLOG=/tmp/aabundler.log
+BUNDLERLOG=/tmp/alto.log
 
 BUNDLERURL=http://localhost:$BUNDLERPORT/rpc
-NODEURL=http://localhost:$GETHPORT
+NODEURL=http://localhost:$ANVILPORT
 
 function fatal {
   echo "$@" 1>&2
@@ -31,46 +31,37 @@ function waitForPort {
 }
 
 function startBundler {
+  isPortFree $ANVILPORT || fatal port $ANVILPORT not free
+  isPortFree $BUNDLERPORT || fatal port $BUNDLERPORT not free
 
-isPortFree $GETHPORT || fatal port $GETHPORT not free
-isPortFree $BUNDLERPORT || fatal port $BUNDLERPORT not free
+  echo == starting anvil 1>&2
+  $ANVIL --version | 1>&2
 
-echo == starting geth 1>&2
-$GETH version | grep ^Version: 1>&2
+  $ANVIL & echo $! > $ANVILPID
 
-$GETH --dev --http.port $GETHPORT \
-        --http.api personal,eth,net,web3,debug \
-        --ignore-legacy-receipts \
-        --http \
-        --http.addr "0.0.0.0" \
-        --rpc.allow-unprotected-txs \
-        --allow-insecure-unlock \
-        --verbosity 1  & echo $! > $GETHPID
+  waitForPort $ANVILPORT
 
-waitForPort $GETHPORT
-
-cd packages/bundler
-echo == Deploying entrypoint 1>&2
-export TS_NODE_TRANSPILE_ONLY=1
-npx hardhat deploy --network localhost
-echo == Starting bundler 1>&2
-ts-node -T ./src/exec.ts --config ./localconfig/bundler.config.json --port $BUNDLERPORT --network http://localhost:$GETHPORT  & echo $! > $BUNDLERPID
-waitForPort $BUNDLERPORT
+  echo == Deploying entrypoint 1>&2
+  export TS_NODE_TRANSPILE_ONLY=1
+  yarn ts-node test/deployEntryPoint.ts
+  echo == Starting bundler 1>&2
+  ./alto run --config ./config.localhost.json & echo $! > $BUNDLERPID
+  waitForPort $BUNDLERPORT
 }
 
 function start {
-  isPortFree $GETPORTPORT || fatal port $GETHPORT not free
+  isPortFree $ANVILPORTPORT || fatal port $ANVILPORT not free
   isPortFree $BUNDLERPORT || fatal port $BUNDLERPORT not free
   startBundler > $BUNDLERLOG
-  echo == Bundler, Geth started. log to $BUNDLERLOG
+  echo == Bundler, Anvil started. log to $BUNDLERLOG
 }
 
 function stop {
   echo == stopping bundler
   test -r $BUNDLERPID && kill -9 `cat $BUNDLERPID`
-  test -r $GETHPID && kill -9 `cat $GETHPID`
-  rm $BUNDLERPID $GETHPID
-  echo == bundler, geth stopped
+  test -r $ANVILPID && kill -9 `cat $ANVILPID`
+  rm $BUNDLERPID $ANVILPID
+  echo == bundler, anvil stopped
 }
 
 function jsoncurl {

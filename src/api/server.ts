@@ -44,7 +44,7 @@ export class Server {
             if (contentTypeHeader !== "application/json") {
                 throw new RpcError(
                     "invalid content-type, content-type must be application/json",
-                    ValidationErrors.InvalidFields,
+                    ValidationErrors.InvalidFields
                 )
             }
             const jsonRpcResponse = await this.innerRpc(req.body)
@@ -54,7 +54,7 @@ export class Server {
                 res.status(400).send({
                     message: err.message,
                     data: err.data,
-                    code: err.code,
+                    code: err.code
                 })
             } else {
                 if (err instanceof Error) {
@@ -87,7 +87,7 @@ export class Server {
         const jsonRpcResponse: JSONRPCResponse = {
             jsonrpc: "2.0",
             id: jsonRpcRequest.id,
-            result: result.result,
+            result: result.result
         }
 
         return jsonRpcResponse

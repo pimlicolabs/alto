@@ -1,8 +1,7 @@
 import yargs from "yargs"
 import { hideBin } from "yargs/helpers"
-import { CliCommand, registerCommandToYargs } from "./util"
+import { registerCommandToYargs } from "./util"
 import { bundlerCommand, bundlerOptions } from "./options"
-import { bundlerHandler } from "../app"
 
 export const yarg = yargs((hideBin as (args: string[]) => string[])(process.argv))
 
@@ -19,7 +18,7 @@ export function getAltoCli(): yargs.Argv {
         .parserConfiguration({
             // As of yargs v16.1.0 dot-notation breaks strictOptions()
             // Manually processing options is typesafe tho more verbose
-            "dot-notation": true,
+            "dot-notation": true
         })
         .options(bundlerOptions)
         // blank scriptName so that help text doesn't display the cli name before each command

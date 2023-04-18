@@ -22,7 +22,7 @@ import {
     SendUserOperationRequestParams,
     SendUserOperationResponseResult,
     SupportedEntryPointsRequestParams,
-    SupportedEntryPointsResponseResult,
+    SupportedEntryPointsResponseResult
 } from "./schemas"
 
 export interface IRpcEndpoint {
@@ -37,34 +37,61 @@ export class RpcHandler implements IRpcEndpoint {
             case "eth_chainId":
                 return { method, result: await this.eth_chainId(request.params) }
             case "eth_supportedEntryPoints":
-                return { method, result: await this.eth_supportedEntryPoints(request.params) }
+                return {
+                    method,
+                    result: await this.eth_supportedEntryPoints(request.params)
+                }
             case "eth_coinbase":
                 return { method, result: await this.eth_coinbase(request.params) }
             case "eth_estimateUserOperationGas":
-                return { method, result: await this.eth_estimateUserOperationGas(request.params) }
+                return {
+                    method,
+                    result: await this.eth_estimateUserOperationGas(request.params)
+                }
             case "eth_sendUserOperation":
-                return { method, result: await this.eth_sendUserOperation(request.params) }
+                return {
+                    method,
+                    result: await this.eth_sendUserOperation(request.params)
+                }
             case "eth_getUserOperationByHash":
-                return { method, result: await this.eth_getUserOperationByHash(request.params) }
+                return {
+                    method,
+                    result: await this.eth_getUserOperationByHash(request.params)
+                }
             case "eth_getUserOperationReceipt":
-                return { method, result: await this.eth_getUserOperationReceipt(request.params) }
+                return {
+                    method,
+                    result: await this.eth_getUserOperationReceipt(request.params)
+                }
             case "debug_bundler_clearState":
-                return { method, result: await this.debug_bundler_clearState(request.params) }
+                return {
+                    method,
+                    result: await this.debug_bundler_clearState(request.params)
+                }
             case "debug_bundler_dumpMempool":
-                return { method, result: await this.debug_bundler_dumpMempool(request.params) }
+                return {
+                    method,
+                    result: await this.debug_bundler_dumpMempool(request.params)
+                }
             case "debug_bundler_sendBundleNow":
-                return { method, result: await this.debug_bundler_sendBundleNow(request.params) }
+                return {
+                    method,
+                    result: await this.debug_bundler_sendBundleNow(request.params)
+                }
             case "debug_bundler_setBundlingMode":
-                return { method, result: await this.debug_bundler_setBundlingMode(request.params) }
+                return {
+                    method,
+                    result: await this.debug_bundler_setBundlingMode(request.params)
+                }
         }
     }
 
     async eth_chainId(params: ChainIdRequestParams): Promise<ChainIdResponseResult> {
-        throw new Error("Method not implemented.")
+        return "0x7a69"
     }
 
     async eth_supportedEntryPoints(
-        params: SupportedEntryPointsRequestParams,
+        params: SupportedEntryPointsRequestParams
     ): Promise<SupportedEntryPointsResponseResult> {
         throw new Error("Method not implemented.")
     }
@@ -74,7 +101,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async eth_estimateUserOperationGas(
-        params: EstimateUserOperationGasRequestParams,
+        params: EstimateUserOperationGasRequestParams
     ): Promise<EstimateUserOperationGasResponseResult> {
         throw new Error("Method not implemented.")
     }
@@ -84,13 +111,13 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async eth_getUserOperationByHash(
-        params: GetUserOperationByHashRequestParams,
+        params: GetUserOperationByHashRequestParams
     ): Promise<GetUserOperationByHashResponseResult> {
         throw new Error("Method not implemented.")
     }
 
     async eth_getUserOperationReceipt(
-        params: GetUserOperationReceiptRequestParams,
+        params: GetUserOperationReceiptRequestParams
     ): Promise<GetUserOperationReceiptResponseResult> {
         throw new Error("Method not implemented.")
     }
@@ -100,19 +127,19 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async debug_bundler_dumpMempool(
-        params: BundlerDumpMempoolRequestParams,
+        params: BundlerDumpMempoolRequestParams
     ): Promise<BundlerDumpMempoolResponseResult> {
         throw new Error("Method not implemented.")
     }
 
     async debug_bundler_sendBundleNow(
-        params: BundlerSendBundleNowRequestParams,
+        params: BundlerSendBundleNowRequestParams
     ): Promise<BundlerSendBundleNowResponseResult> {
         throw new Error("Method not implemented.")
     }
 
     async debug_bundler_setBundlingMode(
-        params: BundlerSetBundlingModeRequestParams,
+        params: BundlerSetBundlingModeRequestParams
     ): Promise<BundlerSetBundlingModeResponseResult> {
         throw new Error("Method not implemented.")
     }

@@ -1,5 +1,4 @@
 import { Options, Argv } from "yargs"
-import { ZodObject, ZodType } from "zod"
 
 export type CliCommandOptions<OwnArgs> = Required<{ [key in keyof OwnArgs]: Options }>
 
@@ -39,6 +38,6 @@ export function registerCommandToYargs(yargs: Argv, cliCommand: CliCommand<any, 
             return yargs
         },
         // eslint-disable-next-line @typescript-eslint/no-empty-function
-        handler: cliCommand.handler || function emptyHandler(): void {},
+        handler: cliCommand.handler || function emptyHandler(): void {}
     })
 }

@@ -1,7 +1,5 @@
-import { getAddress } from "ethers/lib/utils"
+import { Hash, Hex, getAddress } from "viem"
 import { z } from "zod"
-import { BigNumber } from "ethers"
-import { UserOperation } from "../types"
 
 const hexNumberPattern = /^0x([1-9a-f]+[0-9a-f]*|0)$/
 const hexDataPattern = /^0x[0-9a-f]*$/
@@ -16,10 +14,21 @@ const hexNumberSchema = z
     .string()
     .regex(hexNumberPattern)
     .or(z.number())
-    .transform((val) => BigNumber.from(val))
+    .transform((val) => BigInt(val))
 const hexNumberRawSchema = z.string().regex(hexNumberPattern)
-const hexDataSchema = z.string().regex(hexDataPattern, { message: "not valid hex data" })
-const hexData32Schema = z.string().regex(hexData32Pattern, { message: "not valid 32-byte hex data" })
+const hexDataSchema = z
+    .string()
+    .regex(hexDataPattern, { message: "not valid hex data" })
+    .transform((val) => val as Hex)
+const hexData32Schema = z
+    .string()
+    .regex(hexData32Pattern, { message: "not valid 32-byte hex data" })
+    .transform((val) => val as Hash)
+
+export type Address = z.infer<typeof addressSchema>
+export type HexNumber = z.infer<typeof hexNumberSchema>
+export type HexData = z.infer<typeof hexDataSchema>
+export type HexData32 = z.infer<typeof hexData32Schema>
 
 const userOperationSchema = z
     .object({
@@ -33,19 +42,38 @@ const userOperationSchema = z
         maxPriorityFeePerGas: hexNumberSchema,
         maxFeePerGas: hexNumberSchema,
         paymasterAndData: hexDataSchema,
-        signature: hexDataSchema,
+        signature: hexDataSchema
     })
     .strict()
     .transform((val) => {
-        return val as UserOperation
+        return val
     })
+
+export type UserOperation = {
+    sender: Address
+    nonce: bigint
+    initCode: HexData
+    callData: HexData
+    callGasLimit: bigint
+    verificationGasLimit: bigint
+    preVerificationGas: bigint
+    maxFeePerGas: bigint
+    maxPriorityFeePerGas: bigint
+    paymasterAndData: HexData
+    signature: HexData
+}
+
+export type UserOperationRequest = {
+    userOperation: UserOperation
+    entryPoint: Address
+}
 
 const jsonRpcSchema = z
     .object({
         jsonrpc: z.literal("2.0"),
         id: z.number(),
         method: z.string(),
-        params: z.array(z.unknown()),
+        params: z.array(z.unknown())
     })
     .strict()
 
@@ -53,63 +81,63 @@ const jsonRpcResultSchema = z
     .object({
         jsonrpc: z.literal("2.0"),
         id: z.number(),
-        result: z.unknown(),
+        result: z.unknown()
     })
     .strict()
 
 const chainIdRequestSchema = z.object({
     method: z.literal("eth_chainId"),
-    params: z.tuple([]),
+    params: z.tuple([])
 })
 
 const supportedEntryPointsRequestSchema = z.object({
     method: z.literal("eth_supportedEntryPoints"),
-    params: z.tuple([]),
+    params: z.tuple([])
 })
 
 const coinbaseRequestSchema = z.object({
     method: z.literal("eth_coinbase"),
-    params: z.tuple([]),
+    params: z.tuple([])
 })
 
 const estimateUserOperationGasRequestSchema = z.object({
     method: z.literal("eth_estimateUserOperationGas"),
-    params: z.tuple([userOperationSchema, addressSchema]),
+    params: z.tuple([userOperationSchema, addressSchema])
 })
 
 const sendUserOperationRequestSchema = z.object({
     method: z.literal("eth_sendUserOperation"),
-    params: z.tuple([userOperationSchema, addressSchema]),
+    params: z.tuple([userOperationSchema, addressSchema])
 })
 
 const getUserOperationByHashRequestSchema = z.object({
     method: z.literal("eth_getUserOperationByHash"),
-    params: z.tuple([hexData32Schema]),
+    params: z.tuple([hexData32Schema])
 })
 
 const getUserOperationReceiptRequestSchema = z.object({
     method: z.literal("eth_getUserOperationReceipt"),
-    params: z.tuple([hexData32Schema]),
+    params: z.tuple([hexData32Schema])
 })
 
 const bundlerClearStateRequestSchema = z.object({
     method: z.literal("debug_bundler_clearState"),
-    params: z.tuple([]),
+    params: z.tuple([])
 })
 
 const bundlerDumpMempoolRequestSchema = z.object({
     method: z.literal("debug_bundler_dumpMempool"),
-    params: z.tuple([addressSchema]),
+    params: z.tuple([addressSchema])
 })
 
 const bundlerSendBundleNowRequestSchema = z.object({
     method: z.literal("debug_bundler_sendBundleNow"),
-    params: z.tuple([]),
+    params: z.tuple([])
 })
 
 const bundlerSetBundlingModeRequestSchema = z.object({
     method: z.literal("debug_bundler_setBundlingMode"),
-    params: z.tuple([z.enum(["manual", "auto"])]),
+    params: z.tuple([z.enum(["manual", "auto"])])
 })
 
 const bundlerRequestSchema = z.discriminatedUnion("method", [
@@ -123,22 +151,22 @@ const bundlerRequestSchema = z.discriminatedUnion("method", [
     bundlerClearStateRequestSchema,
     bundlerDumpMempoolRequestSchema,
     bundlerSendBundleNowRequestSchema,
-    bundlerSetBundlingModeRequestSchema,
+    bundlerSetBundlingModeRequestSchema
 ])
 
 const chainIdResponseSchema = z.object({
     method: z.literal("eth_chainId"),
-    result: hexNumberRawSchema,
+    result: hexNumberRawSchema
 })
 
 const supportedEntryPointsResponseSchema = z.object({
     method: z.literal("eth_supportedEntryPoints"),
-    result: z.array(addressSchema),
+    result: z.array(addressSchema)
 })
 
 const coinbaseResponseSchema = z.object({
     method: z.literal("eth_coinbase"),
-    result: addressSchema,
+    result: addressSchema
 })
 
 const estimateUserOperationGasResponseSchema = z.object({
@@ -146,13 +174,13 @@ const estimateUserOperationGasResponseSchema = z.object({
     result: z.object({
         callGasLimit: hexNumberRawSchema,
         preVerificationGas: hexNumberRawSchema,
-        verificationGas: hexNumberRawSchema,
-    }),
+        verificationGas: hexNumberRawSchema
+    })
 })
 
 const sendUserOperationResponseSchema = z.object({
     method: z.literal("eth_sendUserOperation"),
-    result: hexData32Schema,
+    result: hexData32Schema
 })
 
 const getUserOperationByHashResponseSchema = z.object({
@@ -163,9 +191,9 @@ const getUserOperationByHashResponseSchema = z.object({
             entryPoint: addressSchema,
             blockNumber: hexNumberRawSchema,
             blockHash: hexData32Schema,
-            transactionHash: hexData32Schema,
+            transactionHash: hexData32Schema
         })
-        .or(z.null()),
+        .or(z.null())
 })
 
 const logSchema = z.object({
@@ -177,7 +205,7 @@ const logSchema = z.object({
     blockNumber: hexNumberRawSchema.optional(),
     address: addressSchema,
     data: hexDataSchema,
-    topics: z.array(hexData32Schema),
+    topics: z.array(hexData32Schema)
 })
 
 const receiptSchema = z.object({
@@ -194,7 +222,7 @@ const receiptSchema = z.object({
     logsBloom: z.string().regex(/^0x[0-9a-f]{512}$/),
     root: hexData32Schema,
     status: hexNumberRawSchema.or(z.null()),
-    effectiveGasPrice: hexNumberRawSchema,
+    effectiveGasPrice: hexNumberRawSchema
 })
 
 const getUserOperationReceiptResponseSchema = z.object({
@@ -206,28 +234,28 @@ const getUserOperationReceiptResponseSchema = z.object({
         actualGasUsed: hexNumberRawSchema,
         success: z.boolean(),
         logs: z.array(logSchema),
-        receipt: receiptSchema,
-    }),
+        receipt: receiptSchema
+    })
 })
 
 const bundlerClearStateResponseSchema = z.object({
     method: z.literal("debug_bundler_clearState"),
-    result: z.literal("ok"),
+    result: z.literal("ok")
 })
 
 const bundlerDumpMempoolResponseSchema = z.object({
     method: z.literal("debug_bundler_dumpMempool"),
-    result: z.array(userOperationSchema),
+    result: z.array(userOperationSchema)
 })
 
 const bundlerSendBundleNowResponseSchema = z.object({
     method: z.literal("debug_bundler_sendBundleNow"),
-    result: hexData32Schema,
+    result: hexData32Schema
 })
 
 const bundlerSetBundlingModeResponseSchema = z.object({
     method: z.literal("debug_bundler_setBundlingMode"),
-    result: z.literal("ok"),
+    result: z.literal("ok")
 })
 
 const bundlerResponseSchema = z.discriminatedUnion("method", [
@@ -241,7 +269,7 @@ const bundlerResponseSchema = z.discriminatedUnion("method", [
     bundlerClearStateResponseSchema,
     bundlerDumpMempoolResponseSchema,
     bundlerSendBundleNowResponseSchema,
-    bundlerSetBundlingModeResponseSchema,
+    bundlerSetBundlingModeResponseSchema
 ])
 
 export type ChainIdResponse = z.infer<typeof chainIdResponseSchema>
@@ -313,7 +341,7 @@ export {
     bundlerRequestSchema,
     jsonRpcSchema,
     jsonRpcResultSchema,
-    userOperationSchema,
+    userOperationSchema
 }
 
 export { addressSchema, hexData32Schema, hexDataSchema }
