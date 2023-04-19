@@ -24,6 +24,7 @@
         "@alto/api": "*",
         "@alto/types": "*",
         "@alto/config": "*",
+        "@alto/validator": "*",
         "yargs": "^17.7.1"
     },
     "devDependencies": {

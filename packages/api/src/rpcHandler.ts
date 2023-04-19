@@ -1,4 +1,5 @@
 import {
+    Address,
     BundlerClearStateRequestParams,
     BundlerClearStateResponseResult,
     BundlerDumpMempoolRequestParams,
@@ -25,13 +26,17 @@ import {
     SupportedEntryPointsResponseResult
 } from "@alto/types"
 import { PublicClient, toHex } from "viem"
+import { IValidator } from "@alto/validator"
 
 export interface IRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>
 }
 
 export class RpcHandler implements IRpcEndpoint {
-    constructor(readonly publicClient: PublicClient){}
+    constructor(
+        readonly publicClient: PublicClient,
+        readonly validators: Map<Address, IValidator>
+        ){}
     async handleMethod(request: BundlerRequest): Promise<BundlerResponse> {
         // call the method with the params
         const method = request.method
