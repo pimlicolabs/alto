@@ -22,7 +22,7 @@ describe("api", () => {
     describe("rpcHandler", () => {
         it("eth_chainId", async function () {
             const anvilChainId = await client.getChainId()
-            const handler = new RpcHandler()
+            const handler = new RpcHandler(client)
             const chainId = await handler.eth_chainId([])
 
             expect(chainId).toEqual(toHex(anvilChainId))

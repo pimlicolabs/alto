@@ -24,12 +24,14 @@ import {
     SupportedEntryPointsRequestParams,
     SupportedEntryPointsResponseResult
 } from "@alto/types"
+import { PublicClient, toHex } from "viem"
 
 export interface IRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>
 }
 
 export class RpcHandler implements IRpcEndpoint {
+    constructor(readonly publicClient: PublicClient){}
     async handleMethod(request: BundlerRequest): Promise<BundlerResponse> {
         // call the method with the params
         const method = request.method
@@ -88,7 +90,7 @@ export class RpcHandler implements IRpcEndpoint {
 
     async eth_chainId(params: ChainIdRequestParams): Promise<ChainIdResponseResult> {
         console.log("GOT CHAIN ID REQUEST")
-        return "0x7a69"
+        return toHex( await this.publicClient.getChainId())
     }
 
     async eth_supportedEntryPoints(
