@@ -4,6 +4,9 @@ import { foundry } from "viem/chains"
 import { launchAnvil } from "./utils"
 import { expect } from "earl"
 import { RpcHandler } from "@alto/api"
+import { RpcHandlerConfig } from "@alto/config"
+import { Address } from "@alto/types"
+import { IValidator } from "@alto/validator"
 
 describe("api", () => {
     let client: PublicClient
@@ -22,8 +25,10 @@ describe("api", () => {
     describe("rpcHandler", () => {
         it("eth_chainId", async function () {
             const anvilChainId = await client.getChainId()
-            const handler = new RpcHandler(client)
-            const chainId = await handler.eth_chainId([])
+            const rpcHandlerConfig: RpcHandlerConfig = { publicClient: client, chainId: anvilChainId, entryPoints: [] }
+            const validators = new Map<Address, IValidator>()
+            const handler = new RpcHandler(rpcHandlerConfig, client, validators)
+            const chainId = await handler.eth_chainId()
 
             expect(chainId).toEqual(toHex(anvilChainId))
         })

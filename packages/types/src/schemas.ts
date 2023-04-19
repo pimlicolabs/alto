@@ -95,11 +95,6 @@ const supportedEntryPointsRequestSchema = z.object({
     params: z.tuple([])
 })
 
-const coinbaseRequestSchema = z.object({
-    method: z.literal("eth_coinbase"),
-    params: z.tuple([])
-})
-
 const estimateUserOperationGasRequestSchema = z.object({
     method: z.literal("eth_estimateUserOperationGas"),
     params: z.tuple([userOperationSchema, addressSchema])
@@ -143,7 +138,6 @@ const bundlerSetBundlingModeRequestSchema = z.object({
 const bundlerRequestSchema = z.discriminatedUnion("method", [
     chainIdRequestSchema,
     supportedEntryPointsRequestSchema,
-    coinbaseRequestSchema,
     estimateUserOperationGasRequestSchema,
     sendUserOperationRequestSchema,
     getUserOperationByHashRequestSchema,
@@ -162,11 +156,6 @@ const chainIdResponseSchema = z.object({
 const supportedEntryPointsResponseSchema = z.object({
     method: z.literal("eth_supportedEntryPoints"),
     result: z.array(addressSchema)
-})
-
-const coinbaseResponseSchema = z.object({
-    method: z.literal("eth_coinbase"),
-    result: addressSchema
 })
 
 const estimateUserOperationGasResponseSchema = z.object({
@@ -261,7 +250,6 @@ const bundlerSetBundlingModeResponseSchema = z.object({
 const bundlerResponseSchema = z.discriminatedUnion("method", [
     chainIdResponseSchema,
     supportedEntryPointsResponseSchema,
-    coinbaseResponseSchema,
     estimateUserOperationGasResponseSchema,
     sendUserOperationResponseSchema,
     getUserOperationByHashResponseSchema,
@@ -272,9 +260,10 @@ const bundlerResponseSchema = z.discriminatedUnion("method", [
     bundlerSetBundlingModeResponseSchema
 ])
 
+export type BundlingMode = z.infer<typeof bundlerSetBundlingModeRequestSchema>["params"][0]
+
 export type ChainIdResponse = z.infer<typeof chainIdResponseSchema>
 export type SupportedEntryPointsResponse = z.infer<typeof supportedEntryPointsResponseSchema>
-export type CoinbaseResponse = z.infer<typeof coinbaseResponseSchema>
 export type EstimateUserOperationGasResponse = z.infer<typeof estimateUserOperationGasResponseSchema>
 export type SendUserOperationResponse = z.infer<typeof sendUserOperationResponseSchema>
 export type GetUserOperationByHashResponse = z.infer<typeof getUserOperationByHashResponseSchema>
@@ -286,7 +275,6 @@ export type BundlerSetBundlingModeResponse = z.infer<typeof bundlerSetBundlingMo
 
 export type ChainIdResponseResult = z.infer<typeof chainIdResponseSchema>["result"]
 export type SupportedEntryPointsResponseResult = z.infer<typeof supportedEntryPointsResponseSchema>["result"]
-export type CoinbaseResponseResult = z.infer<typeof coinbaseResponseSchema>["result"]
 export type EstimateUserOperationGasResponseResult = z.infer<typeof estimateUserOperationGasResponseSchema>["result"]
 export type SendUserOperationResponseResult = z.infer<typeof sendUserOperationResponseSchema>["result"]
 export type GetUserOperationByHashResponseResult = z.infer<typeof getUserOperationByHashResponseSchema>["result"]
@@ -300,7 +288,6 @@ export type BundlerResponse = z.infer<typeof bundlerResponseSchema>
 
 export type ChainIdRequest = z.infer<typeof chainIdRequestSchema>
 export type SupportedEntryPointsRequest = z.infer<typeof supportedEntryPointsRequestSchema>
-export type CoinbaseRequest = z.infer<typeof coinbaseRequestSchema>
 export type EstimateUserOperationGasRequest = z.infer<typeof estimateUserOperationGasRequestSchema>
 export type SendUserOperationRequest = z.infer<typeof sendUserOperationRequestSchema>
 export type GetUserOperationByHashRequest = z.infer<typeof getUserOperationByHashRequestSchema>
@@ -312,7 +299,6 @@ export type BundlerSetBundlingModeRequest = z.infer<typeof bundlerSetBundlingMod
 
 export type ChainIdRequestParams = z.infer<typeof chainIdRequestSchema>["params"]
 export type SupportedEntryPointsRequestParams = z.infer<typeof supportedEntryPointsRequestSchema>["params"]
-export type CoinbaseRequestParams = z.infer<typeof coinbaseRequestSchema>["params"]
 export type EstimateUserOperationGasRequestParams = z.infer<typeof estimateUserOperationGasRequestSchema>["params"]
 export type SendUserOperationRequestParams = z.infer<typeof sendUserOperationRequestSchema>["params"]
 export type GetUserOperationByHashRequestParams = z.infer<typeof getUserOperationByHashRequestSchema>["params"]
@@ -329,7 +315,6 @@ export type JSONRPCResponse = z.infer<typeof jsonRpcResultSchema>
 export {
     chainIdRequestSchema,
     supportedEntryPointsRequestSchema,
-    coinbaseRequestSchema,
     estimateUserOperationGasRequestSchema,
     sendUserOperationRequestSchema,
     getUserOperationByHashRequestSchema,

@@ -12,6 +12,7 @@
         "start": "node packages/cli/lib/alto.js run",
         "start:dev": "ts-node packages/cli/src/alto.ts run",
         "test": "lerna run test --verbose=true",
+        "test:spec": "./test/run-spec-tests.sh",
         "lint": "eslint src/**/*.ts",
         "lint:fix": "eslint src/**/*.ts --fix"
     },
@@ -38,5 +39,8 @@
     },
     "workspaces": [
         "packages/*"
-    ]
+    ],
+    "dependencies": {
+        "eslint-plugin-import": "^2.27.5"
+    }
 }

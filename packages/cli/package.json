@@ -25,7 +25,8 @@
         "@alto/types": "*",
         "@alto/config": "*",
         "@alto/validator": "*",
-        "yargs": "^17.7.1"
+        "yargs": "^17.7.1",
+        "viem": "^0.3.4"
     },
     "devDependencies": {
         "@types/yargs": "^17.0.24"

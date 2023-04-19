@@ -1,10 +1,16 @@
 import { fromZodError } from "zod-validation-error"
-import { IBundlerArgs, IBundlerArgsInput, bundlerArgsSchema } from "@alto/config"
+import {
+    IBundlerArgs,
+    IBundlerArgsInput,
+    RpcHandlerConfig,
+    bundlerArgsSchema,
+    bundlerArgsToRpcHandlerConfig
+} from "@alto/config"
 import { RpcHandler, Server } from "@alto/api"
-import { EmptyValidator } from "@alto/validator"
-import { createPublicClient, http } from "viem"
+import { EmptyValidator, IValidator } from "@alto/validator"
 import { MemoryMempool } from "@alto/mempool"
 import { Address } from "@alto/types"
+import { createClient, http } from "viem"
 
 const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
     // validate every arg, make typesafe so if i add a new arg i have to validate it
@@ -19,21 +25,14 @@ const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
 
 export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => {
     const parsedArgs = parseArgs(args)
-    const client = createPublicClient(
-        {
-            transport: http(args.rpcUrl),
-        }
-    )
-    const addressToValidator = new Map()
+    const handlerConfig: RpcHandlerConfig = await bundlerArgsToRpcHandlerConfig(parsedArgs)
+    const client = handlerConfig.publicClient
+    const addressToValidator = new Map<Address, IValidator>()
     const mempool = new MemoryMempool(client)
-    parsedArgs.entryPoints.forEach((addr : Address) => {
-        addressToValidator.set(addr, new EmptyValidator(
-            client,
-            addr,
-            mempool
-        ))
-    });
-    const rpcEndpoint = new RpcHandler(client, addressToValidator)
+    parsedArgs.entryPoints.forEach((entryPoint: Address) => {
+        addressToValidator.set(entryPoint, new EmptyValidator(handlerConfig.publicClient, entryPoint, mempool))
+    })
+    const rpcEndpoint = new RpcHandler(handlerConfig, addressToValidator)
 
     const server = new Server(rpcEndpoint, parsedArgs)
     await server.start()

@@ -1,31 +1,23 @@
+import { RpcHandlerConfig } from "@alto/config"
 import {
     Address,
-    BundlerClearStateRequestParams,
     BundlerClearStateResponseResult,
-    BundlerDumpMempoolRequestParams,
     BundlerDumpMempoolResponseResult,
     BundlerRequest,
     BundlerResponse,
-    BundlerSendBundleNowRequestParams,
     BundlerSendBundleNowResponseResult,
-    BundlerSetBundlingModeRequestParams,
     BundlerSetBundlingModeResponseResult,
-    ChainIdRequestParams,
     ChainIdResponseResult,
-    CoinbaseRequestParams,
-    CoinbaseResponseResult,
-    EstimateUserOperationGasRequestParams,
     EstimateUserOperationGasResponseResult,
-    GetUserOperationByHashRequestParams,
     GetUserOperationByHashResponseResult,
-    GetUserOperationReceiptRequestParams,
     GetUserOperationReceiptResponseResult,
-    SendUserOperationRequestParams,
+    HexData32,
     SendUserOperationResponseResult,
-    SupportedEntryPointsRequestParams,
-    SupportedEntryPointsResponseResult
+    SupportedEntryPointsResponseResult,
+    UserOperation,
+    BundlingMode
 } from "@alto/types"
-import { PublicClient, toHex } from "viem"
+import { numberToHex } from "viem"
 import { IValidator } from "@alto/validator"
 
 export interface IRpcEndpoint {
@@ -33,122 +25,105 @@ export interface IRpcEndpoint {
 }
 
 export class RpcHandler implements IRpcEndpoint {
-    constructor(
-        readonly publicClient: PublicClient,
-        readonly validators: Map<Address, IValidator>
-        ){}
+    constructor(readonly config: RpcHandlerConfig, readonly validators: Map<Address, IValidator>) {}
+
     async handleMethod(request: BundlerRequest): Promise<BundlerResponse> {
         // call the method with the params
         const method = request.method
         switch (method) {
             case "eth_chainId":
-                return { method, result: await this.eth_chainId(request.params) }
+                return { method, result: await this.eth_chainId(...request.params) }
             case "eth_supportedEntryPoints":
                 return {
                     method,
-                    result: await this.eth_supportedEntryPoints(request.params)
+                    result: await this.eth_supportedEntryPoints(...request.params)
                 }
-            case "eth_coinbase":
-                return { method, result: await this.eth_coinbase(request.params) }
             case "eth_estimateUserOperationGas":
                 return {
                     method,
-                    result: await this.eth_estimateUserOperationGas(request.params)
+                    result: await this.eth_estimateUserOperationGas(...request.params)
                 }
             case "eth_sendUserOperation":
                 return {
                     method,
-                    result: await this.eth_sendUserOperation(request.params)
+                    result: await this.eth_sendUserOperation(...request.params)
                 }
             case "eth_getUserOperationByHash":
                 return {
                     method,
-                    result: await this.eth_getUserOperationByHash(request.params)
+                    result: await this.eth_getUserOperationByHash(...request.params)
                 }
             case "eth_getUserOperationReceipt":
                 return {
                     method,
-                    result: await this.eth_getUserOperationReceipt(request.params)
+                    result: await this.eth_getUserOperationReceipt(...request.params)
                 }
             case "debug_bundler_clearState":
                 return {
                     method,
-                    result: await this.debug_bundler_clearState(request.params)
+                    result: await this.debug_bundler_clearState(...request.params)
                 }
             case "debug_bundler_dumpMempool":
                 return {
                     method,
-                    result: await this.debug_bundler_dumpMempool(request.params)
+                    result: await this.debug_bundler_dumpMempool(...request.params)
                 }
             case "debug_bundler_sendBundleNow":
                 return {
                     method,
-                    result: await this.debug_bundler_sendBundleNow(request.params)
+                    result: await this.debug_bundler_sendBundleNow(...request.params)
                 }
             case "debug_bundler_setBundlingMode":
                 return {
                     method,
-                    result: await this.debug_bundler_setBundlingMode(request.params)
+                    result: await this.debug_bundler_setBundlingMode(...request.params)
                 }
         }
     }
 
-    async eth_chainId(params: ChainIdRequestParams): Promise<ChainIdResponseResult> {
-        console.log("GOT CHAIN ID REQUEST")
-        return toHex( await this.publicClient.getChainId())
+    async eth_chainId(): Promise<ChainIdResponseResult> {
+        return numberToHex(this.config.chainId)
     }
 
-    async eth_supportedEntryPoints(
-        params: SupportedEntryPointsRequestParams
-    ): Promise<SupportedEntryPointsResponseResult> {
-        throw new Error("Method not implemented.")
-    }
-
-    async eth_coinbase(params: CoinbaseRequestParams): Promise<CoinbaseResponseResult> {
-        throw new Error("Method not implemented.")
+    async eth_supportedEntryPoints(): Promise<SupportedEntryPointsResponseResult> {
+        return this.config.entryPoints
     }
 
     async eth_estimateUserOperationGas(
-        params: EstimateUserOperationGasRequestParams
+        userOperation: UserOperation,
+        entryPoint: Address
     ): Promise<EstimateUserOperationGasResponseResult> {
         throw new Error("Method not implemented.")
     }
 
-    async eth_sendUserOperation(params: SendUserOperationRequestParams): Promise<SendUserOperationResponseResult> {
+    async eth_sendUserOperation(
+        userOperation: UserOperation,
+        entryPoint: Address
+    ): Promise<SendUserOperationResponseResult> {
         throw new Error("Method not implemented.")
     }
 
-    async eth_getUserOperationByHash(
-        params: GetUserOperationByHashRequestParams
-    ): Promise<GetUserOperationByHashResponseResult> {
+    async eth_getUserOperationByHash(userOperationHash: HexData32): Promise<GetUserOperationByHashResponseResult> {
         throw new Error("Method not implemented.")
     }
 
-    async eth_getUserOperationReceipt(
-        params: GetUserOperationReceiptRequestParams
-    ): Promise<GetUserOperationReceiptResponseResult> {
+    async eth_getUserOperationReceipt(userOperationHash: HexData32): Promise<GetUserOperationReceiptResponseResult> {
         throw new Error("Method not implemented.")
     }
 
-    async debug_bundler_clearState(params: BundlerClearStateRequestParams): Promise<BundlerClearStateResponseResult> {
+    async debug_bundler_clearState(): Promise<BundlerClearStateResponseResult> {
         throw new Error("Method not implemented.")
     }
 
-    async debug_bundler_dumpMempool(
-        params: BundlerDumpMempoolRequestParams
-    ): Promise<BundlerDumpMempoolResponseResult> {
+    async debug_bundler_dumpMempool(entryPoint: Address): Promise<BundlerDumpMempoolResponseResult> {
         throw new Error("Method not implemented.")
     }
 
-    async debug_bundler_sendBundleNow(
-        params: BundlerSendBundleNowRequestParams
-    ): Promise<BundlerSendBundleNowResponseResult> {
+    async debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
         throw new Error("Method not implemented.")
     }
 
-    async debug_bundler_setBundlingMode(
-        params: BundlerSetBundlingModeRequestParams
-    ): Promise<BundlerSetBundlingModeResponseResult> {
+    async debug_bundler_setBundlingMode(bundlingMode: BundlingMode): Promise<BundlerSetBundlingModeResponseResult> {
         throw new Error("Method not implemented.")
     }
 }

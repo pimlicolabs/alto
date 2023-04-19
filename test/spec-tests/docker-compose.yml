@@ -3,7 +3,7 @@ version: "3.8"
 services:
     alto:
         container_name: alto
-        build: ../
+        build: ../../
         ports: ["3000:3000"]
         command: --config config.localhost.json
 
