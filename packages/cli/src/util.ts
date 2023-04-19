@@ -21,7 +21,7 @@ export interface CliCommand<OwnArgs = Record<never, never>, ParentArgs = Record<
  * @param cliCommand
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function registerCommandToYargs(yargs: Argv, cliCommand: CliCommand<any, any>): void {
+export function registerCommandToYargs(yargs: Argv<any>, cliCommand: CliCommand<any, any>): void {
     yargs.command({
         command: cliCommand.command,
         describe: cliCommand.describe,

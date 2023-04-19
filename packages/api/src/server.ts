@@ -6,11 +6,11 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import express, { Express, Response, Request } from "express"
 import cors from "cors"
-import { JSONRPCResponse, bundlerRequestSchema, jsonRpcSchema } from "./schemas"
-import { RpcError, ValidationErrors } from "../utils"
+import { JSONRPCResponse, bundlerRequestSchema, jsonRpcSchema } from "@alto/types"
+import { RpcError, ValidationErrors } from "@alto/types"
 import { fromZodError } from "zod-validation-error"
 import { IRpcEndpoint } from "./rpcHandler"
-import { IBundlerArgs } from "../cli/options"
+import { IBundlerArgs } from "@alto/config"
 
 export class Server {
     private app: Express

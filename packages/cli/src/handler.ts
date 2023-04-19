@@ -1,7 +1,6 @@
 import { fromZodError } from "zod-validation-error"
-import { Server } from "./api/server"
-import { IBundlerArgs, IBundlerArgsInput, bundlerArgsSchema } from "./cli/options"
-import { RpcHandler } from "./api/rpcHandler"
+import { IBundlerArgs, IBundlerArgsInput, bundlerArgsSchema } from "@alto/config"
+import { RpcHandler, Server } from "@alto/api"
 
 const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
     // validate every arg, make typesafe so if i add a new arg i have to validate it

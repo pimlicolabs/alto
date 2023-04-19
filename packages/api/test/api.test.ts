@@ -3,7 +3,7 @@ import { createPublicClient, http, PublicClient, toHex } from "viem"
 import { foundry } from "viem/chains"
 import { launchAnvil } from "./utils"
 import { expect } from "earl"
-import { RpcHandler } from "../src/api/rpcHandler"
+import { RpcHandler } from "@alto/api"
 
 describe("api", () => {
     let client: PublicClient

@@ -1,7 +1,7 @@
-import { MongoClient, Collection, Filter } from "mongodb"
-import { PublicClient, getContract } from "viem"
-import { EntryPointAbi } from "../contracts/EntryPoint"
-import { Address, UserOperation } from "../api/schemas"
+// import { MongoClient, Collection, Filter } from "mongodb"
+// import { PublicClient, getContract } from "viem"
+// import { EntryPointAbi } from "../types/EntryPoint"
+import { Address, UserOperation } from "@alto/types"
 
 export interface MempoolEntry {
     entrypointAddress: Address
@@ -29,7 +29,7 @@ export abstract class Mempool {
     abstract clear(): void
     abstract getUserOpHash(_entrypoint: string, _op: UserOperation): Promise<string>
 }
-
+/*
 export class MongoDBMempool extends Mempool {
     private collection: Collection<MempoolEntry>
     private publicClient: PublicClient
@@ -100,3 +100,4 @@ export class MongoDBMempool extends Mempool {
         return await ep.read.getUserOpHash([op])
     }
 }
+*/

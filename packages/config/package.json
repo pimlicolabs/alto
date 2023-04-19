@@ -1,0 +1,28 @@
+{
+    "name": "@alto/config",
+    "version": "0.0.1",
+    "description": "A performant and modular ERC-4337 Bundler written in Typescript",
+    "repository": "https://github.com/pimlicolabs/alto.git",
+    "author": "Pimlico",
+    "license": "GPL-3.0-or-later",
+    "main": "lib/index.js",
+    "types": "lib/index.d.ts",
+    "files": [
+        "lib/**/*.d.ts",
+        "lib/**/*.js",
+        "lib/**/*.js.map",
+        "*.d.ts",
+        "*.js"
+    ],
+    "scripts": {
+        "build": "tsc -p ./tsconfig.build.json",
+        "test": "test -d test && mocha test/**/*.test.ts || echo 'No test folder found. Skipping tests.'",
+        "lint": "eslint src/**/*.ts",
+        "lint:fix": "eslint src/**/*.ts --fix"
+    },
+    "dependencies": {
+        "viem": "^0.3.3",
+        "zod": "^3.21.4",
+        "@alto/types": "*"
+    }
+}

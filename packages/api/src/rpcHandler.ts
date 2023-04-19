@@ -23,7 +23,7 @@ import {
     SendUserOperationResponseResult,
     SupportedEntryPointsRequestParams,
     SupportedEntryPointsResponseResult
-} from "./schemas"
+} from "@alto/types"
 
 export interface IRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>

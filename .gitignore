@@ -4,3 +4,5 @@ node_modules
 .nyc
 dist
 .nyc_output
+**/lib
+**/.nyc_output
