@@ -16,7 +16,7 @@
         "declarationMap": true,
         "moduleResolution": "node"
     },
-    "include": ["packages/**/*, scripts/**/*"],
+    "include": ["packages/**/*"],
     "ts-node": {
         "swc": true
     }

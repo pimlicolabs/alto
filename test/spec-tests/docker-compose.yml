@@ -1,16 +1,11 @@
-# start a standlone bundler for testing.
-# bring up a the bundler with its own geth instance
-
-version: "2"
+version: "3.8"
 
 services:
-    bundler:
-        build: ../../
+    alto:
+        container_name: alto
+        build: ../
         ports: ["3000:3000"]
-        image: pimlicolabs/alto:$TAG
-        command: --network http://geth-dev:8545
-        volumes:
-            - ./workdir:/app/workdir:ro
+        command: --config config.localhost.json
 
         mem_limit: 300M
         logging:
@@ -18,7 +13,11 @@ services:
             options:
                 max-size: 10m
                 max-file: "10"
+        depends_on:
+            anvil:
+                condition: service_started
 
-    geth-dev:
-        build: geth-dev
+    anvil:
+        container_name: anvil
+        build: anvil
         ports: ["8545:8545"]

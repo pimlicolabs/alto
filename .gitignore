@@ -6,3 +6,5 @@ dist
 .nyc_output
 **/lib
 **/.nyc_output
+test/spec-tests/bundler-spec-tests
+test/build

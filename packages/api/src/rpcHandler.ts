@@ -87,6 +87,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async eth_chainId(params: ChainIdRequestParams): Promise<ChainIdResponseResult> {
+        console.log("GOT CHAIN ID REQUEST")
         return "0x7a69"
     }
 

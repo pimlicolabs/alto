@@ -3,18 +3,16 @@ FROM node:18-alpine
 
 # set working directory
 WORKDIR /app
+RUN apk update && apk add --no-cache g++ make python3 && rm -rf /var/cache/apk/*
 
-# copy
-COPY package.json ./
-COPY yarn.lock ./
 
-# install dependencies
-RUN yarn install --production
+COPY package.json yarn.lock ./
+COPY . .
+RUN yarn install --non-interactive --frozen-lockfile
 
 # copy source code
-COPY . .
-
 RUN yarn build
+RUN yarn install --non-interactive --frozen-lockfile --production
 
 # start app
-CMD ["yarn", "start"]
+ENTRYPOINT ["yarn", "start"]
