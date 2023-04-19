@@ -21,18 +21,18 @@ enum UserOpStatus {
 }
 
 // mempool per network
-export abstract class Mempool {
-    abstract currentSize(): Promise<number>
-    abstract add(_entrypoint: Address, _op: UserOperation): Promise<HexData32> // return hash of userOperation
-    abstract include(_opHashes: HexData32[], _txhash: HexData32): void
-    abstract finalize(_opHashes: HexData32[], _txhash: HexData32): void
-    abstract get(_hash: HexData32): Promise<MempoolEntry | null>
-    abstract getAll(): Promise<MempoolEntry[]>
-    abstract clear(): void
-    abstract getUserOpHash(_entrypoint: Address, _op: UserOperation): Promise<HexData32>
+export interface Mempool {
+    currentSize(): Promise<number>
+    add(_entrypoint: Address, _op: UserOperation): Promise<HexData32> // return hash of userOperation
+    include(_opHashes: HexData32[], _txhash: HexData32): void
+    finalize(_opHashes: HexData32[], _txhash: HexData32): void
+    get(_hash: HexData32): Promise<MempoolEntry | null>
+    getAll(): Promise<MempoolEntry[]>
+    clear(): void
+    getUserOpHash(_entrypoint: Address, _op: UserOperation): Promise<HexData32>
 }
 
-export class MemoryMempool {
+export class MemoryMempool implements Mempool {
     private mempool: Map<HexData32, MempoolEntry>
     private publicClient: PublicClient
 
