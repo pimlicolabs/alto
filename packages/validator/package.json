@@ -1,0 +1,30 @@
+{
+  "name": "@alto/validator",
+  "version": "0.0.1",
+  "description": "> TODO: description",
+  "author": "leekt <leekt216@gmail.com>",
+  "homepage": "https://github.com/pimlicolabs/alto#readme",
+  "license": "ISC",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pimlicolabs/alto.git"
+  },
+  "scripts": {
+    "build": "tsc -p ./tsconfig.build.json",
+    "test": "test -d test && mocha test/**/*.test.ts || echo 'No test folder found. Skipping tests.'",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix"
+},
+"bugs": {
+    "url": "https://github.com/pimlicolabs/alto/issues"
+  },
+  "dependencies": {
+    "@alto/types": "*",
+    "@alto/mempool": "*"
+  }
+}
