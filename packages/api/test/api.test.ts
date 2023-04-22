@@ -48,9 +48,12 @@ describe("rpcHandler", () => {
         anvilProcess.kill()
     })
 
-    describe("eth_chainId", () => {
-        it("matches rpc node chainId", async function () {
-            const anvilChainId = await clients.public.getChainId()
+    describe("rpcHandler", () => {
+        it("eth_chainId", async function () {
+            const anvilChainId = await client.getChainId()
+            const rpcHandlerConfig: RpcHandlerConfig = { publicClient: client, chainId: anvilChainId, entryPoints: [] }
+            const validators = new Map<Address, IValidator>()
+            const handler = new RpcHandler(rpcHandlerConfig, validators)
             const chainId = await handler.eth_chainId()
 
             expect(chainId).toEqual(toHex(anvilChainId))
@@ -103,7 +106,7 @@ describe("rpcHandler", () => {
 
             const opHash = getUserOpHash(op, entryPoint, foundry.id)
 
-            const signature = await clients.wallet.signMessage({ account: signer, message: opHash })
+            const signature = await clients.wallet.signMessage({ account: signer.address, message: opHash })
             op.signature = signature
 
             const gas = await handler.eth_estimateUserOperationGas(op, entryPoint)

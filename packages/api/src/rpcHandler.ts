@@ -159,7 +159,7 @@ export class RpcHandler implements IRpcEndpoint {
         userOperation: UserOperation,
         entryPoint: Address
     ): Promise<SendUserOperationResponseResult> {
-        throw new Error("Method not implemented.")
+        return await this.validators.get(entryPoint)?.validateUserOp(userOperation)!
     }
 
     async eth_getUserOperationByHash(userOperationHash: HexData32): Promise<GetUserOperationByHashResponseResult> {

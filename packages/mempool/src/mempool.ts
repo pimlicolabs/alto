@@ -13,7 +13,7 @@ export interface MempoolEntry {
     transactionHash?: string
 }
 
-enum UserOpStatus {
+export enum UserOpStatus {
     Invalid = 0,
     NotIncluded = 1,
     Included = 2,
