@@ -59,11 +59,8 @@ export class BasicExecutor extends Executor {
     }
 
     async processBundle() : Promise<void>{
-        console.log("hmm")
         const ops = await this.mempool.find((entry) => entry.status === UserOpStatus.NotIncluded)
-        console.log(ops)
         const groupedOps = this.groupOps(ops)
-        console.log(groupedOps)
         for (const [entrypoint, ops] of groupedOps) {
             const tx = await this.bundle(entrypoint, ops.map((op) => op.userOp))
             console.log(`Bundle ${tx} sent`)
@@ -103,14 +100,16 @@ export class BasicExecutor extends Executor {
             walletClient: this.walletClient
         })
 
-        const gasLimit = await ep.estimateGas.handleOps([ops, this.beneficiary]).then((limit) => {
+        const gasLimit = await ep.estimateGas.handleOps([ops, this.beneficiary],{
+            account: this.executeEOA,
+        }).then((limit) => {
             return (limit * 12n) / 10n
         })
 
         const tx = await ep.write.handleOps([ops, this.beneficiary], {
             gas: gasLimit,
             account: this.executeEOA,
-            chain: null
+            chain: this.walletClient.chain
         })
 
         return tx

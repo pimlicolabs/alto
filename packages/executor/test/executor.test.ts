@@ -38,6 +38,7 @@ describe("rpcHandler", () => {
             [entryPoint],
             SimpleAccountFactoryBytecode
         )
+        
         mempool = new MemoryMempool(
             clients.public,
         )
@@ -58,6 +59,12 @@ describe("rpcHandler", () => {
 
     describe("when there is a user operation", () => {
         before(async function () {
+            const factory = getContract({
+                address : simpleAccountFactory,
+                abi : SimpleAccountFactoryAbi,
+                publicClient : clients.public,
+                walletClient : clients.wallet
+            });
             const userOp: UserOperation = {
                 sender: signer.address,
                 callData: "0x",
