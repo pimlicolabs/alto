@@ -62,15 +62,17 @@ export const createClients = async (signer?: Account): Promise<Clients> => {
         mode: "anvil"
     })
 
-    const walletClient = signer? createWalletClient({
-        chain: foundry,
-        transport: http("http://127.0.0.1:8545"),
-        account: signer
-    }) : createWalletClient({
-        chain: foundry,
-        transport: http("http://127.0.0.1:8545"),
-        key: testClient.key
-    })
+    const walletClient = signer
+        ? createWalletClient({
+              chain: foundry,
+              transport: http("http://127.0.0.1:8545"),
+              account: signer
+          })
+        : createWalletClient({
+              chain: foundry,
+              transport: http("http://127.0.0.1:8545"),
+              key: testClient.key
+          })
 
     return {
         public: publicClient,

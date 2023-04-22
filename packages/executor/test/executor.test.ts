@@ -10,9 +10,9 @@ import { Address, EntryPoint_bytecode, EntryPointAbi, UserOperation } from "@alt
 import { IValidator } from "@alto/validator"
 import { SimpleAccountFactoryAbi, SimpleAccountFactoryBytecode } from "@alto/types/src/contracts/SimpleAccountFactory"
 import { MemoryMempool } from "@alto/mempool"
-import { BasicExecutor } from "../lib"
+import { BasicExecutor } from "../src"
 
-describe("rpcHandler", () => {
+describe("executor", () => {
     let clients: Clients
     let anvilProcess: ChildProcess
     let entryPoint: Address
@@ -20,14 +20,14 @@ describe("rpcHandler", () => {
 
     let signer: Account
 
-    let executor : BasicExecutor
+    let executor: BasicExecutor
 
     let mempool: MemoryMempool
 
     before(async function () {
         // destructure the return value
         anvilProcess = await launchAnvil()
-        const privateKey = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+        const privateKey = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
         signer = privateKeyToAccount(privateKey)
         clients = await createClients(signer)
         entryPoint = await deployContract(clients, signer.address, EntryPointAbi, [], EntryPoint_bytecode)
@@ -38,19 +38,10 @@ describe("rpcHandler", () => {
             [entryPoint],
             SimpleAccountFactoryBytecode
         )
-        
-        mempool = new MemoryMempool(
-            clients.public,
-        )
 
-        executor = new BasicExecutor(
-            mempool,
-            signer.address,
-            clients.public,
-            clients.wallet,
-            signer,
-            "* * * * * *"
-        )
+        mempool = new MemoryMempool(clients.public)
+
+        executor = new BasicExecutor(mempool, signer.address, clients.public, clients.wallet, signer)
     })
 
     after(function () {
@@ -60,11 +51,11 @@ describe("rpcHandler", () => {
     describe("when there is a user operation", () => {
         before(async function () {
             const factory = getContract({
-                address : simpleAccountFactory,
-                abi : SimpleAccountFactoryAbi,
-                publicClient : clients.public,
-                walletClient : clients.wallet
-            });
+                address: simpleAccountFactory,
+                abi: SimpleAccountFactoryAbi,
+                publicClient: clients.public,
+                walletClient: clients.wallet
+            })
             const userOp: UserOperation = {
                 sender: signer.address,
                 callData: "0x",
@@ -78,16 +69,8 @@ describe("rpcHandler", () => {
                 maxFeePerGas: 100n,
                 maxPriorityFeePerGas: 10n
             }
-            const userOpHash = await mempool.add(
-                entryPoint,
-                userOp,
-            )
+            const userOpHash = await mempool.add(entryPoint, userOp)
             console.log(userOpHash)
-        });
-
-        it("hello", async() => {
-            console.log("hello")
-            await executor.processBundle();
         })
     })
 })

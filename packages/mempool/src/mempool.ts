@@ -58,42 +58,39 @@ export class MemoryMempool implements Mempool {
         })
         return opHash
     }
-    
-    async markProcessed(
-        opHashes: HexData32[],
-        updatedData: Partial<MempoolEntry>
-    ): Promise<void> {
-        await this.mutex.acquire();
+
+    async markProcessed(opHashes: HexData32[], updatedData: Partial<MempoolEntry>): Promise<void> {
+        await this.mutex.acquire()
         try {
             for (const opHash of opHashes) {
-                const entry = this.mempool.get(opHash);
+                const entry = this.mempool.get(opHash)
                 if (entry) {
                     // Make a copy of the updatedData object without the userOperation property
-                    const { userOperation, ...safeUpdatedData } = updatedData;
-                    Object.assign(entry, safeUpdatedData);
+                    const { userOperation, ...safeUpdatedData } = updatedData
+                    Object.assign(entry, safeUpdatedData)
                 }
-                }
+            }
         } finally {
-            this.mutex.release();
+            this.mutex.release()
         }
     }
 
     async find(findFn: (entry: MempoolEntry) => boolean): Promise<Array<{ entry: MempoolEntry; opHash: HexData32 }>> {
-        await this.mutex.acquire();
+        await this.mutex.acquire()
         try {
-            const matchingEntries: Array<{ entry: MempoolEntry; opHash: HexData32 }> = [];
+            const matchingEntries: Array<{ entry: MempoolEntry; opHash: HexData32 }> = []
             for (const [opHash, entry] of this.mempool.entries()) {
                 if (entry.status !== UserOpStatus.Processing && findFn(entry)) {
-                    entry.status = UserOpStatus.Processing;
-                    matchingEntries.push({ entry, opHash });
+                    entry.status = UserOpStatus.Processing
+                    matchingEntries.push({ entry, opHash })
                 }
             }
-            return matchingEntries;
+            return matchingEntries
         } finally {
-            this.mutex.release();
+            this.mutex.release()
         }
     }
-    
+
     async get(opHash: HexData32): Promise<MempoolEntry | null> {
         return this.mempool.get(opHash) || null
     }
@@ -104,9 +101,9 @@ export class MemoryMempool implements Mempool {
 
     async getUserOpHash(entrypointAddress: Address, userOperation: UserOperation): Promise<HexData32> {
         const entrypoint = getContract({
-            publicClient : this.publicClient,
-            abi : EntryPointAbi,
-            address : entrypointAddress
+            publicClient: this.publicClient,
+            abi: EntryPointAbi,
+            address: entrypointAddress
         })
         return entrypoint.read.getUserOpHash([userOperation])
     }

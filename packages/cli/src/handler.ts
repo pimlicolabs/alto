@@ -9,9 +9,9 @@ import {
 import { RpcHandler, Server } from "@alto/api"
 import { EmptyValidator } from "@alto/validator"
 import { MemoryMempool } from "@alto/mempool"
-import { Address } from "@alto/types"
 import { BasicExecutor } from "@alto/executor"
 import { createWalletClient, http } from "viem"
+import { privateKeyToAccount } from "viem/accounts"
 
 const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
     // validate every arg, make typesafe so if i add a new arg i have to validate it
@@ -26,23 +26,16 @@ const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
 
 export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => {
     const parsedArgs = parseArgs(args)
-    const handlerConfig: RpcHandlerConfig = await bundlerArgsToRpcHandlerConfig(parsedArgs)
-    const client = handlerConfig.publicClient
-    const mempool = new MemoryMempool(client)
-    const validator = new EmptyValidator(handlerConfig.publicClient, parsedArgs.entryPoint, mempool)
-    const rpcEndpoint = new RpcHandler(handlerConfig, validator)
     const walletClient = createWalletClient({
         transport: http(parsedArgs.rpcUrl)
     })
-
-    const address : Address = (await walletClient.getAddresses())[0]
-    new BasicExecutor(
-        mempool,
-        parsedArgs.beneficiary,
-        client,
-        walletClient,
-        address
-    ) // TODO this needs to be attached to validator
+    const signerAccount = privateKeyToAccount(parsedArgs.signerPrivateKey)
+    const handlerConfig: RpcHandlerConfig = await bundlerArgsToRpcHandlerConfig(parsedArgs)
+    const client = handlerConfig.publicClient
+    const mempool = new MemoryMempool(client)
+    const validator = new EmptyValidator(handlerConfig.publicClient, parsedArgs.entryPoint)
+    const executor = new BasicExecutor(mempool, parsedArgs.beneficiary, client, walletClient, signerAccount)
+    const rpcEndpoint = new RpcHandler(handlerConfig, validator, executor)
 
     const server = new Server(rpcEndpoint, parsedArgs)
     await server.start()

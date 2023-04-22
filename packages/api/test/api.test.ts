@@ -3,13 +3,22 @@ import { createPublicClient, getContract, createWalletClient, http, parseEther, 
 import { privateKeyToAccount, Account } from "viem/accounts"
 import { foundry } from "viem/chains"
 import { Clients, createClients, deployContract, getUserOpHash, launchAnvil } from "@alto/utils"
-import { expect } from "earl"
+import { expect, mockObject } from "earl"
 import { RpcHandler } from "@alto/api"
 import { RpcHandlerConfig } from "@alto/config"
-import { Address, EntryPoint_bytecode, EntryPointAbi, UserOperation } from "@alto/types"
+import {
+    Address,
+    EntryPoint_bytecode,
+    EntryPointAbi,
+    estimateUserOperationGasResponseSchema,
+    UserOperation
+} from "@alto/types"
+import { z } from "zod"
 import { EmptyValidator, IValidator } from "@alto/validator"
 import { SimpleAccountFactoryAbi, SimpleAccountFactoryBytecode } from "@alto/types/src/contracts/SimpleAccountFactory"
 import { MemoryMempool } from "@alto/mempool"
+import { NullExecutor } from "@alto/executor/src"
+import { hexNumberRawSchema } from "@alto/types/src"
 
 describe("rpcHandler", () => {
     let clients: Clients
@@ -23,7 +32,7 @@ describe("rpcHandler", () => {
     before(async function () {
         // destructure the return value
         anvilProcess = await launchAnvil()
-        const privateKey = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+        const privateKey = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" // first private key in anvil
         signer = privateKeyToAccount(privateKey)
         clients = await createClients(signer)
         entryPoint = await deployContract(clients, signer.address, EntryPointAbi, [], EntryPoint_bytecode)
@@ -36,43 +45,23 @@ describe("rpcHandler", () => {
         )
 
         const anvilChainId = await clients.public.getChainId()
-        const mempool = new MemoryMempool(
-            clients.public,
-        )
-        const validator = new EmptyValidator(
-            clients.public,
-            entryPoint,
-            mempool
-        )
+        const mempool = new MemoryMempool(clients.public)
+        const validator = new EmptyValidator(clients.public, entryPoint)
         const rpcHandlerConfig: RpcHandlerConfig = {
             publicClient: clients.public,
             chainId: anvilChainId,
             entryPoint: entryPoint
         }
-        handler = new RpcHandler(rpcHandlerConfig, validator)
+        handler = new RpcHandler(rpcHandlerConfig, validator, new NullExecutor())
     })
 
     after(function () {
         anvilProcess.kill()
     })
 
-    describe("rpcHandler", () => {
-        it("eth_chainId", async function () {
+    describe("eth_chainId", () => {
+        it("matches rpc chainId", async function () {
             const anvilChainId = await clients.public.getChainId()
-            const mempool = new MemoryMempool(
-                clients.public,
-            )
-            const validator = new EmptyValidator(
-                clients.public,
-                entryPoint,
-                mempool
-            )
-            const rpcHandlerConfig: RpcHandlerConfig = {
-                publicClient: clients.public,
-                chainId: anvilChainId,
-                entryPoint: entryPoint
-            }
-            const handler = new RpcHandler(rpcHandlerConfig, validator)
             const chainId = await handler.eth_chainId()
 
             expect(chainId).toEqual(toHex(anvilChainId))
@@ -130,7 +119,13 @@ describe("rpcHandler", () => {
 
             const gas = await handler.eth_estimateUserOperationGas(op, entryPoint)
 
-            console.log(gas)
+            expect(gas).toMatchSchema(
+                z.object({
+                    callGasLimit: hexNumberRawSchema,
+                    preVerificationGas: hexNumberRawSchema,
+                    verificationGas: hexNumberRawSchema
+                })
+            )
         })
     })
 })

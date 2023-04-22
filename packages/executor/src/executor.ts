@@ -1,8 +1,7 @@
 import { EntryPointAbi } from "@alto/types"
-import { Mempool, MempoolEntry, UserOpStatus } from "@alto/mempool"
+import { Mempool } from "@alto/mempool"
 import { Address, HexData32, UserOperation } from "@alto/types"
 import { PublicClient, WalletClient, getContract, Account } from "viem"
-import { CronJob } from "cron"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -10,68 +9,51 @@ export interface GasEstimateResult {
     callGasLimit: bigint
 }
 
-export abstract class Executor {
-    mempool: Mempool
-    beneficiary: Address
-    publicClient: PublicClient
-    walletClient: WalletClient
-    executeEOA : Account | Address
-
-    constructor(
-        mempool: Mempool,
-        beneficiary: Address,
-        publicClient: PublicClient,
-        walletClient: WalletClient,
-        executeEOA: Account | Address
-    ) {
-        this.mempool = mempool
-        this.beneficiary = beneficiary
-        this.publicClient = publicClient
-        this.walletClient = walletClient
-        this.executeEOA = executeEOA
-    }
-
-    abstract bundle(_entryPoint: Address,_ops: UserOperation[]): Promise<HexData32>
+export interface IExecutor {
+    bundle(_entryPoint: Address, _ops: UserOperation[]): Promise<HexData32>
 }
 
-export class BasicExecutor extends Executor {
-    cronJob : CronJob
+export class NullExecutor implements IExecutor {
+    async bundle(_entryPoint: Address, _ops: UserOperation[]): Promise<HexData32> {
+        // return 32 byte long hex string
+        return "0x0000000000000000000000000000000000000000000000000000000000000000"
+    }
+}
+
+export class BasicExecutor implements IExecutor {
     constructor(
-        mempool: Mempool,
-        beneficiary: Address,
-        publicClient: PublicClient,
-        walletClient: WalletClient,
-        executeEOA: Account | Address,
-        cronSetting?: string
-    ){
-        super(mempool, beneficiary, publicClient, walletClient, executeEOA)
-        this.cronJob = new CronJob(cronSetting? cronSetting : "*/5 * * * *", async () => {
-            await this.processBundle()
-        })
-    }
+        readonly mempool: Mempool,
+        readonly beneficiary: Address,
+        readonly publicClient: PublicClient,
+        readonly walletClient: WalletClient,
+        readonly executeEOA: Account
+    ) {}
 
-    run() {
-        this.cronJob.start()
-    }
-
-    kill() {
-        this.cronJob.stop();
-    }
-
-    async processBundle() : Promise<void>{
+    /*
+    async processBundle(): Promise<void> {
         const ops = await this.mempool.find((entry) => entry.status === UserOpStatus.NotIncluded)
         const groupedOps = this.groupOps(ops)
         for (const [entrypoint, ops] of groupedOps) {
-            const tx = await this.bundle(entrypoint, ops.map((op) => op.userOp))
+            const tx = await this.bundle(
+                entrypoint,
+                ops.map((op) => op.userOp)
+            )
             console.log(`Bundle ${tx} sent`)
-            await this.mempool.markProcessed(ops.map((op) => op.opHash), {
-                status: UserOpStatus.Included,
-                transactionHash: tx
-            })
+            await this.mempool.markProcessed(
+                ops.map((op) => op.opHash),
+                {
+                    status: UserOpStatus.Included,
+                    transactionHash: tx
+                }
+            )
         }
     }
+    */
 
-    groupOps(ops:Array<{ entry: MempoolEntry; opHash: HexData32 }>): Map<Address, Array<{ userOp: UserOperation; opHash: HexData32 }>> {
+    /*
+    groupOps(
+        ops: Array<{ entry: MempoolEntry; opHash: HexData32 }>
+    ): Map<Address, Array<{ userOp: UserOperation; opHash: HexData32 }>> {
         const groupedOps = new Map<Address, Array<{ userOp: UserOperation; opHash: HexData32 }>>()
         for (const op of ops) {
             const entrypoint = op.entry.entrypointAddress
@@ -82,14 +64,17 @@ export class BasicExecutor extends Executor {
                     opHash: op.opHash
                 })
             } else {
-                groupedOps.set(entrypoint, [{
-                    userOp,
-                    opHash: op.opHash
-                }])
+                groupedOps.set(entrypoint, [
+                    {
+                        userOp,
+                        opHash: op.opHash
+                    }
+                ])
             }
         }
         return groupedOps
     }
+    */
 
     async bundle(entryPoint: Address, ops: UserOperation[]): Promise<HexData32> {
         console.log("Bundle", entryPoint, ops)
@@ -100,11 +85,13 @@ export class BasicExecutor extends Executor {
             walletClient: this.walletClient
         })
 
-        const gasLimit = await ep.estimateGas.handleOps([ops, this.beneficiary],{
-            account: this.executeEOA,
-        }).then((limit) => {
-            return (limit * 12n) / 10n
-        })
+        const gasLimit = await ep.estimateGas
+            .handleOps([ops, this.beneficiary], {
+                account: this.executeEOA
+            })
+            .then((limit) => {
+                return (limit * 12n) / 10n
+            })
 
         const tx = await ep.write.handleOps([ops, this.beneficiary], {
             gas: gasLimit,

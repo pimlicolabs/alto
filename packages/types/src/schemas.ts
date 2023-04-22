@@ -10,12 +10,12 @@ const addressSchema = z
     .string()
     .regex(addressPattern, { message: "not a valid hex address" })
     .transform((val) => getAddress(val))
-const hexNumberSchema = z
+export const hexNumberSchema = z
     .string()
     .regex(hexNumberPattern)
     .or(z.number())
     .transform((val) => BigInt(val))
-const hexNumberRawSchema = z.string().regex(hexNumberPattern)
+export const hexNumberRawSchema = z.string().regex(hexNumberPattern)
 const hexDataSchema = z
     .string()
     .regex(hexDataPattern, { message: "not valid hex data" })
@@ -327,6 +327,20 @@ export {
     jsonRpcSchema,
     jsonRpcResultSchema,
     userOperationSchema
+}
+
+export {
+    chainIdResponseSchema,
+    supportedEntryPointsResponseSchema,
+    estimateUserOperationGasResponseSchema,
+    sendUserOperationResponseSchema,
+    getUserOperationByHashResponseSchema,
+    getUserOperationReceiptResponseSchema,
+    bundlerClearStateResponseSchema,
+    bundlerDumpMempoolResponseSchema,
+    bundlerSendBundleNowResponseSchema,
+    bundlerSetBundlingModeResponseSchema,
+    bundlerResponseSchema
 }
 
 export { addressSchema, hexData32Schema, hexDataSchema }

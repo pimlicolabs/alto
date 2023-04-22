@@ -13,7 +13,7 @@
         "start:dev": "ts-node packages/cli/src/alto.ts run",
         "test": "lerna run test --verbose=true",
         "test:spec": "./test/run-spec-tests.sh",
-        "lint": "eslint src/**/*.ts",
+        "lint": "lerna run lint",
         "lint:fix": "eslint src/**/*.ts --fix"
     },
     "devDependencies": {
