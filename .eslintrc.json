@@ -3,8 +3,7 @@
     "extends": [
         "eslint:recommended",
         "plugin:@typescript-eslint/recommended",
-        "plugin:@typescript-eslint/recommended-requiring-type-checking",
-        "plugin:import/recommended"
+        "plugin:@typescript-eslint/recommended-requiring-type-checking"
     ],
     "ignorePatterns": ["package.json"],
     "parserOptions": {

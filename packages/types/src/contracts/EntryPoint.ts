@@ -1301,11 +1301,11 @@ export const EntryPointAbi = [
         outputs: [],
         stateMutability: "nonpayable",
         type: "function"
-    },
-    {
-        stateMutability: "payable",
-        type: "receive"
     }
+    // {
+    //     stateMutability: "payable",
+    //     type: "receive"
+    // }
 ] as const
 
 export const EntryPoint_bytecode =

@@ -21,6 +21,7 @@
         "lint:fix": "eslint src/**/*.ts --fix"
     },
     "dependencies": {
+        "abitype": "^0.8.0",
         "viem": "^0.3.4",
         "zod": "^3.21.4"
     }

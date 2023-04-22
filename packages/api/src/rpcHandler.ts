@@ -15,10 +15,16 @@ import {
     SendUserOperationResponseResult,
     SupportedEntryPointsResponseResult,
     UserOperation,
-    BundlingMode
+    BundlingMode,
+    EntryPointAbi,
+    RpcError,
+    ExecutionErrors
 } from "@alto/types"
-import { numberToHex } from "viem"
+import { numberToHex, getContract, toHex } from "viem"
 import { IValidator } from "@alto/validator"
+import { validationResultErrorSchema } from "@alto/types/src/validation"
+import { fromZodError } from "zod-validation-error"
+import { calcPreVerificationGas } from "@alto/utils"
 
 export interface IRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>
@@ -93,7 +99,60 @@ export class RpcHandler implements IRpcEndpoint {
         userOperation: UserOperation,
         entryPoint: Address
     ): Promise<EstimateUserOperationGasResponseResult> {
-        throw new Error("Method not implemented.")
+        // check if entryPoint is supported, if not throw
+        if (!this.config.entryPoints.includes(entryPoint)) {
+            throw new Error(
+                `EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.entryPoints.join(",")}`
+            )
+        }
+
+        const entryPointContract = getContract({
+            address: entryPoint,
+            abi: EntryPointAbi,
+            publicClient: this.config.publicClient
+        })
+
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        const errorResult = await entryPointContract.simulate.simulateValidation([userOperation]).catch((e) => {
+            if (e instanceof Error) return e
+        })
+
+        const validationResultErrorParsing = validationResultErrorSchema.safeParse(errorResult)
+
+        if (!validationResultErrorParsing.success) {
+            const err = fromZodError(validationResultErrorParsing.error)
+            throw err
+        }
+
+        const validationResultError = validationResultErrorParsing.data
+        const validationResult = validationResultError.cause.data.args
+
+        const verificationGas = toHex(validationResult.returnInfo.preOpGas)
+
+        const callGasLimit = await this.config.publicClient
+            .estimateGas({
+                to: userOperation.sender,
+                data: userOperation.callData,
+                account: entryPoint
+            })
+            .then((b) => toHex(b))
+            .catch((err) => {
+                if (err instanceof Error) {
+                    const message = err.message.match(/reason="(.*?)"/)?.at(1) ?? "execution reverted"
+                    throw new RpcError(message, ExecutionErrors.UserOperationReverted)
+                } else {
+                    throw err
+                }
+            })
+
+        const preVerificationGas = toHex(calcPreVerificationGas(userOperation))
+
+        return {
+            preVerificationGas,
+            verificationGas,
+            callGasLimit
+        }
     }
 
     async eth_sendUserOperation(

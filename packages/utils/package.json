@@ -1,5 +1,5 @@
 {
-    "name": "@alto/validator",
+    "name": "@alto/utils",
     "version": "0.0.1",
     "description": "A performant and modular ERC-4337 Bundler written in Typescript",
     "repository": "https://github.com/pimlicolabs/alto.git",
@@ -20,13 +20,9 @@
         "lint": "eslint src/**/*.ts",
         "lint:fix": "eslint src/**/*.ts --fix"
     },
-    "bugs": {
-        "url": "https://github.com/pimlicolabs/alto/issues"
-    },
     "dependencies": {
-        "@alto/mempool": "*",
-        "@alto/types": "*",
+        "@account-abstraction/utils": "^0.5.0",
         "abitype": "^0.8.0",
-        "viem": "^0.3.4"
+        "viem": "^0.3.6"
     }
 }

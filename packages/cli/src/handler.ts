@@ -10,7 +10,6 @@ import { RpcHandler, Server } from "@alto/api"
 import { EmptyValidator, IValidator } from "@alto/validator"
 import { MemoryMempool } from "@alto/mempool"
 import { Address } from "@alto/types"
-import { createClient, http } from "viem"
 
 const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
     // validate every arg, make typesafe so if i add a new arg i have to validate it

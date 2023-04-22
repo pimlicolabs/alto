@@ -7,7 +7,11 @@ export enum ValidationErrors {
     Reputation = -32504,
     InsufficientStake = -32505,
     UnsupportedSignatureAggregator = -32506,
-    InvalidSignature = -32507,
+    InvalidSignature = -32507
+}
+
+export enum ExecutionErrors {
+    UserOperationReverted = -32521
 }
 
 export class RpcError extends Error {
