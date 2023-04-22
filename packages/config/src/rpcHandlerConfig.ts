@@ -5,7 +5,7 @@ import { PublicClient, createPublicClient, http } from "viem"
 export type RpcHandlerConfig = {
     publicClient: PublicClient
     chainId: number
-    entryPoints: Address[]
+    entryPoint: Address
 }
 
 export const bundlerArgsToRpcHandlerConfig = async (args: IBundlerArgs): Promise<RpcHandlerConfig> => {
@@ -18,6 +18,6 @@ export const bundlerArgsToRpcHandlerConfig = async (args: IBundlerArgs): Promise
     return {
         publicClient: client,
         chainId,
-        entryPoints: args.entryPoints
+        entryPoint: args.entryPoint
     }
 }

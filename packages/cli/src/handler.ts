@@ -7,7 +7,7 @@ import {
     bundlerArgsToRpcHandlerConfig
 } from "@alto/config"
 import { RpcHandler, Server } from "@alto/api"
-import { EmptyValidator, IValidator } from "@alto/validator"
+import { EmptyValidator } from "@alto/validator"
 import { MemoryMempool } from "@alto/mempool"
 import { Address } from "@alto/types"
 import { BasicExecutor } from "@alto/executor"
@@ -28,25 +28,21 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     const parsedArgs = parseArgs(args)
     const handlerConfig: RpcHandlerConfig = await bundlerArgsToRpcHandlerConfig(parsedArgs)
     const client = handlerConfig.publicClient
-    const addressToValidator = new Map<Address, IValidator>()
     const mempool = new MemoryMempool(client)
-    parsedArgs.entryPoints.forEach((entryPoint: Address) => {
-        addressToValidator.set(entryPoint, new EmptyValidator(handlerConfig.publicClient, entryPoint, mempool))
-    })
-    const rpcEndpoint = new RpcHandler(handlerConfig, addressToValidator)
+    const validator = new EmptyValidator(handlerConfig.publicClient, parsedArgs.entryPoint, mempool)
+    const rpcEndpoint = new RpcHandler(handlerConfig, validator)
     const walletClient = createWalletClient({
         transport: http(parsedArgs.rpcUrl)
     })
 
     const address : Address = (await walletClient.getAddresses())[0]
-    const executor = new BasicExecutor(
+    new BasicExecutor(
         mempool,
         parsedArgs.beneficiary,
         client,
         walletClient,
         address
-    )
-    await executor.run()
+    ) // TODO this needs to be attached to validator
 
     const server = new Server(rpcEndpoint, parsedArgs)
     await server.start()

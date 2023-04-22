@@ -3,7 +3,7 @@ import { bundlerHandler } from "./handler"
 import { IBundlerArgsInput } from "@alto/config"
 
 export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
-    entryPoints: {
+    entryPoint: {
         description: "EntryPoint contract addresses split by commas",
         type: "string",
         require: true

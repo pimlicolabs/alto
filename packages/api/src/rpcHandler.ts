@@ -31,7 +31,7 @@ export interface IRpcEndpoint {
 }
 
 export class RpcHandler implements IRpcEndpoint {
-    constructor(readonly config: RpcHandlerConfig, readonly validators: Map<Address, IValidator>) {}
+    constructor(readonly config: RpcHandlerConfig, readonly validator:IValidator) {}
 
     async handleMethod(request: BundlerRequest): Promise<BundlerResponse> {
         // call the method with the params
@@ -92,7 +92,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async eth_supportedEntryPoints(): Promise<SupportedEntryPointsResponseResult> {
-        return this.config.entryPoints
+        return [this.config.entryPoint]
     }
 
     async eth_estimateUserOperationGas(
@@ -100,9 +100,9 @@ export class RpcHandler implements IRpcEndpoint {
         entryPoint: Address
     ): Promise<EstimateUserOperationGasResponseResult> {
         // check if entryPoint is supported, if not throw
-        if (!this.config.entryPoints.includes(entryPoint)) {
+        if (this.config.entryPoint !== entryPoint) {
             throw new Error(
-                `EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.entryPoints.join(",")}`
+                `EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.entryPoint}`
             )
         }
 
@@ -160,7 +160,7 @@ export class RpcHandler implements IRpcEndpoint {
         userOperation: UserOperation,
         entryPoint: Address
     ): Promise<SendUserOperationResponseResult> {
-        return await this.validators.get(entryPoint)?.validateUserOp(userOperation)!
+        return await this.validator.validateUserOp(userOperation)!
     }
 
     async eth_getUserOperationByHash(userOperationHash: HexData32): Promise<GetUserOperationByHashResponseResult> {

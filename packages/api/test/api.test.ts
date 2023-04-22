@@ -7,8 +7,9 @@ import { expect } from "earl"
 import { RpcHandler } from "@alto/api"
 import { RpcHandlerConfig } from "@alto/config"
 import { Address, EntryPoint_bytecode, EntryPointAbi, UserOperation } from "@alto/types"
-import { IValidator } from "@alto/validator"
+import { EmptyValidator, IValidator } from "@alto/validator"
 import { SimpleAccountFactoryAbi, SimpleAccountFactoryBytecode } from "@alto/types/src/contracts/SimpleAccountFactory"
+import { MemoryMempool } from "@alto/mempool"
 
 describe("rpcHandler", () => {
     let clients: Clients
@@ -35,14 +36,20 @@ describe("rpcHandler", () => {
         )
 
         const anvilChainId = await clients.public.getChainId()
-
+        const mempool = new MemoryMempool(
+            clients.public,
+        )
+        const validator = new EmptyValidator(
+            clients.public,
+            entryPoint,
+            mempool
+        )
         const rpcHandlerConfig: RpcHandlerConfig = {
             publicClient: clients.public,
             chainId: anvilChainId,
-            entryPoints: [entryPoint]
+            entryPoint: entryPoint
         }
-        const validators = new Map<Address, IValidator>()
-        handler = new RpcHandler(rpcHandlerConfig, validators)
+        handler = new RpcHandler(rpcHandlerConfig, validator)
     })
 
     after(function () {
@@ -52,9 +59,20 @@ describe("rpcHandler", () => {
     describe("rpcHandler", () => {
         it("eth_chainId", async function () {
             const anvilChainId = await clients.public.getChainId()
-            const rpcHandlerConfig: RpcHandlerConfig = { publicClient: clients.public, chainId: anvilChainId, entryPoints: [] }
-            const validators = new Map<Address, IValidator>()
-            const handler = new RpcHandler(rpcHandlerConfig, validators)
+            const mempool = new MemoryMempool(
+                clients.public,
+            )
+            const validator = new EmptyValidator(
+                clients.public,
+                entryPoint,
+                mempool
+            )
+            const rpcHandlerConfig: RpcHandlerConfig = {
+                publicClient: clients.public,
+                chainId: anvilChainId,
+                entryPoint: entryPoint
+            }
+            const handler = new RpcHandler(rpcHandlerConfig, validator)
             const chainId = await handler.eth_chainId()
 
             expect(chainId).toEqual(toHex(anvilChainId))
