@@ -1,7 +1,7 @@
 import { EntryPointAbi } from "@alto/types"
 import { Mempool, MempoolEntry, UserOpStatus } from "@alto/mempool"
 import { Address, HexData32, UserOperation } from "@alto/types"
-import { PublicClient, WalletClient, getContract } from "viem"
+import { PublicClient, WalletClient, getContract, Account } from "viem"
 import { CronJob } from "cron"
 
 export interface GasEstimateResult {
@@ -15,14 +15,14 @@ export abstract class Executor {
     beneficiary: Address
     publicClient: PublicClient
     walletClient: WalletClient
-    executeEOA : Address
+    executeEOA : Account | Address
 
     constructor(
         mempool: Mempool,
         beneficiary: Address,
         publicClient: PublicClient,
         walletClient: WalletClient,
-        executeEOA: Address
+        executeEOA: Account | Address
     ) {
         this.mempool = mempool
         this.beneficiary = beneficiary
@@ -35,35 +35,67 @@ export abstract class Executor {
 }
 
 export class BasicExecutor extends Executor {
-    async run(): Promise<void> {
-        console.log("Executor started")
-        const job = new CronJob("*/5 * * * * *", async () => {
-            const ops = await this.mempool.getAll()
-            const groupedOps = this.groupOps(ops)
-            for (const [entrypoint, ops] of groupedOps) {
-                const tx = await this.bundle(entrypoint, ops)
-                console.log(`Bundle ${tx} sent`)
-            }
+    cronJob : CronJob
+    constructor(
+        mempool: Mempool,
+        beneficiary: Address,
+        publicClient: PublicClient,
+        walletClient: WalletClient,
+        executeEOA: Account | Address,
+        cronSetting?: string
+    ){
+        super(mempool, beneficiary, publicClient, walletClient, executeEOA)
+        this.cronJob = new CronJob(cronSetting? cronSetting : "*/5 * * * *", async () => {
+            await this.processBundle()
         })
-        job.start()
     }
 
-    groupOps(ops: MempoolEntry[]): Map<Address, UserOperation[]> {
-        const groupedOps = new Map<Address, UserOperation[]>()
+    run() {
+        this.cronJob.start()
+    }
+
+    kill() {
+        this.cronJob.stop();
+    }
+
+    async processBundle() : Promise<void>{
+        console.log("hmm")
+        const ops = await this.mempool.find((entry) => entry.status === UserOpStatus.NotIncluded)
+        console.log(ops)
+        const groupedOps = this.groupOps(ops)
+        console.log(groupedOps)
+        for (const [entrypoint, ops] of groupedOps) {
+            const tx = await this.bundle(entrypoint, ops.map((op) => op.userOp))
+            console.log(`Bundle ${tx} sent`)
+            await this.mempool.markProcessed(ops.map((op) => op.opHash), {
+                status: UserOpStatus.Included,
+                transactionHash: tx
+            })
+        }
+    }
+
+    groupOps(ops:Array<{ entry: MempoolEntry; opHash: HexData32 }>): Map<Address, Array<{ userOp: UserOperation; opHash: HexData32 }>> {
+        const groupedOps = new Map<Address, Array<{ userOp: UserOperation; opHash: HexData32 }>>()
         for (const op of ops) {
-            if (op.status === UserOpStatus.NotIncluded) {
-                const entrypoint = op.entrypointAddress
-                const userOp = op.userOperation
-                if (groupedOps.has(entrypoint)) {
-                    groupedOps.get(entrypoint)?.push(userOp)
-                } else {
-                    groupedOps.set(entrypoint, [userOp])
-                }
+            const entrypoint = op.entry.entrypointAddress
+            const userOp = op.entry.userOperation
+            if (groupedOps.has(entrypoint)) {
+                groupedOps.get(entrypoint)?.push({
+                    userOp,
+                    opHash: op.opHash
+                })
+            } else {
+                groupedOps.set(entrypoint, [{
+                    userOp,
+                    opHash: op.opHash
+                }])
             }
         }
         return groupedOps
     }
+
     async bundle(entryPoint: Address, ops: UserOperation[]): Promise<HexData32> {
+        console.log("Bundle", entryPoint, ops)
         const ep = getContract({
             abi: EntryPointAbi,
             address: entryPoint,

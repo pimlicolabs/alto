@@ -2,6 +2,7 @@ import { HexData, UserOperation } from "@alto/types"
 import { Abi, parseAbiParameters } from "abitype"
 import { exec, type ChildProcess } from "child_process"
 import {
+    Account,
     Address,
     PublicClient,
     TestClient,
@@ -43,7 +44,7 @@ export const launchAnvil = async (): Promise<ChildProcess> => {
     return anvilProcess
 }
 
-export const createClients = async (): Promise<Clients> => {
+export const createClients = async (signer?: Account): Promise<Clients> => {
     const publicClient = createPublicClient({
         chain: foundry,
         transport: http("http://127.0.0.1:8545")
@@ -61,7 +62,11 @@ export const createClients = async (): Promise<Clients> => {
         mode: "anvil"
     })
 
-    const walletClient = createWalletClient({
+    const walletClient = signer? createWalletClient({
+        chain: foundry,
+        transport: http("http://127.0.0.1:8545"),
+        account: signer
+    }) : createWalletClient({
         chain: foundry,
         transport: http("http://127.0.0.1:8545"),
         key: testClient.key

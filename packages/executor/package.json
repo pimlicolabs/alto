@@ -21,7 +21,8 @@
         "lint:fix": "eslint src/**/*.ts --fix"
     },
     "dependencies": {
+        "@alto/mempool": "*",
         "@alto/types": "*",
-        "@alto/mempool": "*"
+        "async-mutex": "^0.4.0"
     }
 }

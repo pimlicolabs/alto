@@ -121,6 +121,7 @@ export class RpcHandler implements IRpcEndpoint {
         const validationResultErrorParsing = validationResultErrorSchema.safeParse(errorResult)
 
         if (!validationResultErrorParsing.success) {
+            console.log(validationResultErrorParsing.error)
             const err = fromZodError(validationResultErrorParsing.error)
             throw err
         }

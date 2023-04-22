@@ -4,6 +4,7 @@
 import { Address, EntryPointAbi, UserOperation } from "@alto/types"
 import { HexData32 } from "@alto/types"
 import { PublicClient, getContract } from "viem"
+import { Mutex } from "async-mutex"
 
 export interface MempoolEntry {
     entrypointAddress: Address
@@ -15,19 +16,19 @@ export interface MempoolEntry {
 
 export enum UserOpStatus {
     Invalid = 0,
-    NotIncluded = 1,
-    Included = 2,
-    Finalized = 3
+    Processing = 1,
+    NotIncluded = 2,
+    Included = 3,
+    Finalized = 4
 }
 
 // mempool per network
 export interface Mempool {
     currentSize(): Promise<number>
     add(_entrypoint: Address, _op: UserOperation): Promise<HexData32> // return hash of userOperation
-    include(_opHashes: HexData32[], _txhash: HexData32): void
-    finalize(_opHashes: HexData32[], _txhash: HexData32): void
+    find(findFn: (entry: MempoolEntry) => boolean): Promise<Array<{ entry: MempoolEntry; opHash: HexData32 }>>
+    markProcessed(_opHashes: HexData32[], updatedData: Partial<MempoolEntry>): Promise<void>
     get(_hash: HexData32): Promise<MempoolEntry | null>
-    getAll(): Promise<MempoolEntry[]>
     clear(): void
     getUserOpHash(_entrypoint: Address, _op: UserOperation): Promise<HexData32>
 }
@@ -35,10 +36,12 @@ export interface Mempool {
 export class MemoryMempool implements Mempool {
     private mempool: Map<HexData32, MempoolEntry>
     private publicClient: PublicClient
+    private mutex: Mutex
 
     constructor(publicClient: PublicClient) {
         this.publicClient = publicClient
         this.mempool = new Map()
+        this.mutex = new Mutex()
     }
 
     async currentSize(): Promise<number> {
@@ -55,33 +58,44 @@ export class MemoryMempool implements Mempool {
         })
         return opHash
     }
-
-    async include(opHashes: HexData32[], txhash: HexData32): Promise<void> {
-        opHashes.forEach(opHash => {
-            const entry = this.mempool.get(opHash)
-            if (entry && entry.status === UserOpStatus.NotIncluded) {
-                entry.status = UserOpStatus.Included
-                entry.transactionHash = txhash
-            }
-        })
+    
+    async markProcessed(
+        opHashes: HexData32[],
+        updatedData: Partial<MempoolEntry>
+    ): Promise<void> {
+        await this.mutex.acquire();
+        try {
+            for (const opHash of opHashes) {
+                const entry = this.mempool.get(opHash);
+                if (entry) {
+                    // Make a copy of the updatedData object without the userOperation property
+                    const { userOperation, ...safeUpdatedData } = updatedData;
+                    Object.assign(entry, safeUpdatedData);
+                }
+                }
+        } finally {
+            this.mutex.release();
+        }
     }
 
-    async finalize(opHashes: HexData32[], txhash: HexData32): Promise<void> {
-        opHashes.forEach(opHash => {
-            const entry = this.mempool.get(opHash)
-            if (entry && entry.status === UserOpStatus.Included) {
-                entry.status = UserOpStatus.Finalized
-                entry.transactionHash = txhash
+    async find(findFn: (entry: MempoolEntry) => boolean): Promise<Array<{ entry: MempoolEntry; opHash: HexData32 }>> {
+        await this.mutex.acquire();
+        try {
+            const matchingEntries: Array<{ entry: MempoolEntry; opHash: HexData32 }> = [];
+            for (const [opHash, entry] of this.mempool.entries()) {
+                if (entry.status !== UserOpStatus.Processing && findFn(entry)) {
+                    entry.status = UserOpStatus.Processing;
+                    matchingEntries.push({ entry, opHash });
+                }
             }
-        })
+            return matchingEntries;
+        } finally {
+            this.mutex.release();
+        }
     }
-
+    
     async get(opHash: HexData32): Promise<MempoolEntry | null> {
         return this.mempool.get(opHash) || null
-    }
-
-    async getAll(): Promise<MempoolEntry[]> {
-        return Array.from(this.mempool.values())
     }
 
     async clear(): Promise<void> {
@@ -97,75 +111,3 @@ export class MemoryMempool implements Mempool {
         return entrypoint.read.getUserOpHash([userOperation])
     }
 }
-/*
-export class MongoDBMempool extends Mempool {
-    private collection: Collection<MempoolEntry>
-    private publicClient: PublicClient
-
-    constructor(publicClient: PublicClient, mongoClient: MongoClient, dbName: string, collectionName: string) {
-        super()
-        this.publicClient = publicClient
-        this.collection = mongoClient.db(dbName).collection(collectionName)
-    }
-
-    async currentSize(): Promise<number> {
-        return this.collection.countDocuments()
-    }
-
-    async add(entrypointAddress: Address, userOperation: UserOperation): Promise<string> {
-        const opHash = await this.getUserOpHash(entrypointAddress, userOperation)
-        await this.collection.insertOne({
-            userOperation,
-            entrypointAddress,
-            opHash,
-            status: UserOpStatus.NotIncluded
-        })
-        return opHash
-    }
-
-    async include(entrypointAddress: Address, opHashes: string[], txhash: string): Promise<void> {
-        const filter: Filter<MempoolEntry> = {
-            opHash: { $in: opHashes },
-            status: UserOpStatus.NotIncluded
-        }
-        await this.collection.updateMany(filter, {
-            $set: { transactionHash: txhash, status: UserOpStatus.Included }
-        })
-    }
-
-    async finalize(entrypointAddress: Address, opHashes: string[], txhash: string): Promise<void> {
-        const filter: Filter<MempoolEntry> = {
-            opHash: { $in: opHashes },
-            status: UserOpStatus.Included
-        }
-        await this.collection.updateMany(filter, {
-            $set: { transactionHash: txhash, status: UserOpStatus.Finalized }
-        })
-    }
-
-    async get(hash: string): Promise<MempoolEntry | null> {
-        return this.collection.findOne({
-            opHash: hash
-        }) as Promise<MempoolEntry | null>
-    }
-
-    async getAll(): Promise<MempoolEntry[]> {
-        return this.collection.find().toArray() as Promise<MempoolEntry[]>
-    }
-
-    async clear(): Promise<void> {
-        await this.collection.deleteMany({})
-    }
-
-    async getUserOpHash(entryPointAddress: Address, op: UserOperation): Promise<string> {
-        // TODO this can be optimized by branching based on the entrypoint version
-        const ep = getContract({
-            abi: EntryPointAbi,
-            address: entryPointAddress,
-            publicClient: this.publicClient
-        })
-
-        return await ep.read.getUserOpHash([op])
-    }
-}
-*/
