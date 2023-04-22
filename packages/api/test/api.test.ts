@@ -22,8 +22,9 @@ describe("rpcHandler", () => {
     before(async function () {
         // destructure the return value
         anvilProcess = await launchAnvil()
-        clients = await createClients()
-        signer = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
+        const privateKey = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+        signer = privateKeyToAccount(privateKey)
+        clients = await createClients(signer)
         entryPoint = await deployContract(clients, signer.address, EntryPointAbi, [], EntryPoint_bytecode)
         simpleAccountFactory = await deployContract(
             clients,
@@ -48,9 +49,12 @@ describe("rpcHandler", () => {
         anvilProcess.kill()
     })
 
-    describe("eth_chainId", () => {
-        it("matches rpc node chainId", async function () {
+    describe("rpcHandler", () => {
+        it("eth_chainId", async function () {
             const anvilChainId = await clients.public.getChainId()
+            const rpcHandlerConfig: RpcHandlerConfig = { publicClient: clients.public, chainId: anvilChainId, entryPoints: [] }
+            const validators = new Map<Address, IValidator>()
+            const handler = new RpcHandler(rpcHandlerConfig, validators)
             const chainId = await handler.eth_chainId()
 
             expect(chainId).toEqual(toHex(anvilChainId))

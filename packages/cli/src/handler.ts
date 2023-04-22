@@ -10,6 +10,8 @@ import { RpcHandler, Server } from "@alto/api"
 import { EmptyValidator, IValidator } from "@alto/validator"
 import { MemoryMempool } from "@alto/mempool"
 import { Address } from "@alto/types"
+import { BasicExecutor } from "@alto/executor"
+import { createWalletClient, http } from "viem"
 
 const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
     // validate every arg, make typesafe so if i add a new arg i have to validate it
@@ -32,6 +34,19 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         addressToValidator.set(entryPoint, new EmptyValidator(handlerConfig.publicClient, entryPoint, mempool))
     })
     const rpcEndpoint = new RpcHandler(handlerConfig, addressToValidator)
+    const walletClient = createWalletClient({
+        transport: http(parsedArgs.rpcUrl)
+    })
+
+    const address : Address = (await walletClient.getAddresses())[0]
+    const executor = new BasicExecutor(
+        mempool,
+        parsedArgs.beneficiary,
+        client,
+        walletClient,
+        address
+    )
+    await executor.run()
 
     const server = new Server(rpcEndpoint, parsedArgs)
     await server.start()

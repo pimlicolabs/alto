@@ -42,5 +42,9 @@
     "workspaces": [
         "packages/*"
     ],
-    "dependencies": {}
+    "dependencies": {
+        "@types/cron": "^2.0.1",
+        "cron": "^2.3.0",
+        "eslint-plugin-import": "^2.27.5"
+    }
 }

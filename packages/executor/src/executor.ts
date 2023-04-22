@@ -1,7 +1,8 @@
 import { EntryPointAbi } from "@alto/types"
-import { Mempool } from "@alto/mempool"
+import { Mempool, MempoolEntry, UserOpStatus } from "@alto/mempool"
 import { Address, HexData32, UserOperation } from "@alto/types"
-import { PublicClient, WalletClient, getContract } from "viem"
+import { PublicClient, WalletClient, getContract, Account } from "viem"
+import { CronJob } from "cron"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -10,46 +11,105 @@ export interface GasEstimateResult {
 }
 
 export abstract class Executor {
-    entryPointAddress: Address
     mempool: Mempool
     beneficiary: Address
     publicClient: PublicClient
     walletClient: WalletClient
+    executeEOA : Account | Address
 
     constructor(
-        entryPointAddress: Address,
         mempool: Mempool,
         beneficiary: Address,
         publicClient: PublicClient,
-        walletClient: WalletClient
+        walletClient: WalletClient,
+        executeEOA: Account | Address
     ) {
-        this.entryPointAddress = entryPointAddress
         this.mempool = mempool
         this.beneficiary = beneficiary
         this.publicClient = publicClient
         this.walletClient = walletClient
+        this.executeEOA = executeEOA
     }
 
-    abstract bundle(_ops: UserOperation[]): Promise<HexData32>
+    abstract bundle(_entryPoint: Address,_ops: UserOperation[]): Promise<HexData32>
 }
 
 export class BasicExecutor extends Executor {
-    async bundle(ops: UserOperation[]): Promise<HexData32> {
+    cronJob : CronJob
+    constructor(
+        mempool: Mempool,
+        beneficiary: Address,
+        publicClient: PublicClient,
+        walletClient: WalletClient,
+        executeEOA: Account | Address,
+        cronSetting?: string
+    ){
+        super(mempool, beneficiary, publicClient, walletClient, executeEOA)
+        this.cronJob = new CronJob(cronSetting? cronSetting : "*/5 * * * *", async () => {
+            await this.processBundle()
+        })
+    }
+
+    run() {
+        this.cronJob.start()
+    }
+
+    kill() {
+        this.cronJob.stop();
+    }
+
+    async processBundle() : Promise<void>{
+        const ops = await this.mempool.find((entry) => entry.status === UserOpStatus.NotIncluded)
+        const groupedOps = this.groupOps(ops)
+        for (const [entrypoint, ops] of groupedOps) {
+            const tx = await this.bundle(entrypoint, ops.map((op) => op.userOp))
+            console.log(`Bundle ${tx} sent`)
+            await this.mempool.markProcessed(ops.map((op) => op.opHash), {
+                status: UserOpStatus.Included,
+                transactionHash: tx
+            })
+        }
+    }
+
+    groupOps(ops:Array<{ entry: MempoolEntry; opHash: HexData32 }>): Map<Address, Array<{ userOp: UserOperation; opHash: HexData32 }>> {
+        const groupedOps = new Map<Address, Array<{ userOp: UserOperation; opHash: HexData32 }>>()
+        for (const op of ops) {
+            const entrypoint = op.entry.entrypointAddress
+            const userOp = op.entry.userOperation
+            if (groupedOps.has(entrypoint)) {
+                groupedOps.get(entrypoint)?.push({
+                    userOp,
+                    opHash: op.opHash
+                })
+            } else {
+                groupedOps.set(entrypoint, [{
+                    userOp,
+                    opHash: op.opHash
+                }])
+            }
+        }
+        return groupedOps
+    }
+
+    async bundle(entryPoint: Address, ops: UserOperation[]): Promise<HexData32> {
+        console.log("Bundle", entryPoint, ops)
         const ep = getContract({
             abi: EntryPointAbi,
-            address: this.entryPointAddress,
+            address: entryPoint,
             publicClient: this.publicClient,
             walletClient: this.walletClient
         })
 
-        const gasLimit = await ep.estimateGas.handleOps([ops, this.beneficiary]).then((limit) => {
+        const gasLimit = await ep.estimateGas.handleOps([ops, this.beneficiary],{
+            account: this.executeEOA,
+        }).then((limit) => {
             return (limit * 12n) / 10n
         })
 
         const tx = await ep.write.handleOps([ops, this.beneficiary], {
             gas: gasLimit,
-            account: this.beneficiary,
-            chain: null
+            account: this.executeEOA,
+            chain: this.walletClient.chain
         })
 
         return tx
