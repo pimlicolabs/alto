@@ -1,5 +1,6 @@
 import { EntryPointAbi } from "@alto/types"
 import { Address, HexData32, UserOperation } from "@alto/types"
+import { Mutex } from "async-mutex"
 import { PublicClient, WalletClient, getContract, Account } from "viem"
 
 export interface GasEstimateResult {
@@ -20,37 +21,42 @@ export class NullExecutor implements IExecutor {
 }
 
 export class BasicExecutor implements IExecutor {
-    // TODO Mutex
+    mutex : Mutex
     constructor(
         readonly beneficiary: Address,
         readonly publicClient: PublicClient,
         readonly walletClient: WalletClient,
         readonly executeEOA: Account
-    ) {}
+    ) {
+        this.mutex = new Mutex()
+    }
 
     async bundle(entryPoint: Address, ops: UserOperation[]): Promise<HexData32> {
-        console.log("Bundle", entryPoint, ops)
-        const ep = getContract({
-            abi: EntryPointAbi,
-            address: entryPoint,
-            publicClient: this.publicClient,
-            walletClient: this.walletClient
-        })
-        const gasLimit = await ep.estimateGas
-            .handleOps([ops, this.beneficiary], {
-                account: this.executeEOA
+        const initialHash = await this.mutex.runExclusive(async () => {
+            const ep = getContract({
+                abi: EntryPointAbi,
+                address: entryPoint,
+                publicClient: this.publicClient,
+                walletClient: this.walletClient
             })
-            .then((limit) => {
-                return (limit * 12n) / 10n
+            const gasLimit = await ep.estimateGas
+                .handleOps([ops, this.beneficiary], {
+                    account: this.executeEOA
+                })
+                .then((limit) => {
+                    return (limit * 12n) / 10n
+                })
+
+            const tx = await ep.write.handleOps([ops, this.beneficiary], {
+                gas: gasLimit,
+                account: this.executeEOA,
+                chain: this.walletClient.chain
             })
-
-        const tx = ep.write.handleOps([ops, this.beneficiary], {
-            gas: gasLimit,
-            account: this.executeEOA,
-            chain: this.walletClient.chain
+            this.monitorTx(tx).catch((e) => {
+            })
+            return tx
         })
-
-        return tx
+        return initialHash
     }
 
     async monitorTx(tx: HexData32): Promise<void> {
@@ -58,39 +64,28 @@ export class BasicExecutor implements IExecutor {
             hash: tx
         })
         let dismissed = false
-        let checkedBlock : HexData32 = "0x0000000000000000000000000000000000000000000000000000000000000000";
+        let checkedBlock : HexData32 = "0x0000000000000000000000000000000000000000000000000000000000000000"
         while(!dismissed) {
             const block = await this.publicClient.getBlock({
                 blockTag: "latest",
                 includeTransactions: true
             })
             if(checkedBlock === block.hash!) {
-                console.log("checked block")
-                await new Promise((resolve) => setTimeout(resolve, 1000))
-                continue;
+                await new Promise((resolve) => setTimeout(resolve, 1000)) // wait for new block
+                continue
             } else {
-                checkedBlock = block.hash!;
+                checkedBlock = block.hash!
             }
-            console.log("=block", block)
-            console.log("=tx", tx)
-            setTimeout(
-                async () => {transaction = await this.publicClient.getTransaction({
-                    hash: tx
-                })},
-                1000
-            ) // tx might be dropped from mempool and not found, anvil does not respond in this case
-            console.log("=transaction", transaction)
+            await Promise.race([
+                async() : Promise<void> => { transaction = await this.publicClient.getTransaction({ hash: tx }) },
+                new Promise((resolve) => setTimeout(resolve, 1000))
+            ])
             if(transaction.blockNumber !== null) {
-                console.log("tx found")
                 dismissed = true
                 break
             }
-            console.log("=baseFeePerGas", block.baseFeePerGas)
-            console.log("=maxFeePerGas", transaction.maxFeePerGas)
-            console.log("=compare", block.baseFeePerGas! > transaction.maxFeePerGas!)
-            if(block.baseFeePerGas! > transaction.maxFeePerGas!) { // replace transaction
-                console.log("replace tx")
-                const gasPrice = await this.publicClient.getGasPrice();
+            if(block.baseFeePerGas !== null && transaction.maxFeePerGas !== null && transaction.maxFeePerGas !== undefined && block.baseFeePerGas > transaction.maxFeePerGas) { // replace transaction
+                const gasPrice = await this.publicClient.getGasPrice()
                 tx = await this.walletClient.sendTransaction({
                     account: this.executeEOA,
                     chain: this.walletClient.chain,
@@ -98,10 +93,11 @@ export class BasicExecutor implements IExecutor {
                     value: transaction.value,
                     gas: transaction.gas,
                     data: transaction.input,
-                    maxFeePerGas: gasPrice > transaction.maxFeePerGas! * 11n / 10n ? gasPrice : transaction.maxFeePerGas! * 11n / 10n,
+                    maxFeePerGas: gasPrice > transaction.maxFeePerGas * 11n / 10n ? gasPrice : transaction.maxFeePerGas * 11n / 10n,
                 })
+                continue
             }
-            await new Promise((resolve) => setTimeout(resolve, 1000))
+            await new Promise((resolve) => setTimeout(resolve, 1000)) // wait 1 second before checking again
         }
     }
 }
