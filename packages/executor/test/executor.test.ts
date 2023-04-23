@@ -1,15 +1,11 @@
 import { type ChildProcess } from "child_process"
-import { createPublicClient, getContract, createWalletClient, http, parseEther, toHex } from "viem"
+import { TestClient, createTestClient, getContract, http} from "viem"
 import { privateKeyToAccount, Account } from "viem/accounts"
 import { foundry } from "viem/chains"
 import { Clients, createClients, deployContract, getUserOpHash, launchAnvil } from "@alto/utils"
 import { expect } from "earl"
-import { RpcHandler } from "@alto/api"
-import { RpcHandlerConfig } from "@alto/config"
 import { Address, EntryPoint_bytecode, EntryPointAbi, UserOperation } from "@alto/types"
-import { IValidator } from "@alto/validator"
 import { SimpleAccountFactoryAbi, SimpleAccountFactoryBytecode } from "@alto/types/src/contracts/SimpleAccountFactory"
-import { MemoryMempool } from "@alto/mempool"
 import { BasicExecutor } from "../src"
 
 describe("executor", () => {
@@ -22,14 +18,13 @@ describe("executor", () => {
 
     let executor: BasicExecutor
 
-    let mempool: MemoryMempool
-
     before(async function () {
         // destructure the return value
         anvilProcess = await launchAnvil()
         const privateKey = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
         signer = privateKeyToAccount(privateKey)
         clients = await createClients(signer)
+        console.log(signer.address)
         entryPoint = await deployContract(clients, signer.address, EntryPointAbi, [], EntryPoint_bytecode)
         simpleAccountFactory = await deployContract(
             clients,
@@ -38,10 +33,8 @@ describe("executor", () => {
             [entryPoint],
             SimpleAccountFactoryBytecode
         )
-
-        mempool = new MemoryMempool(clients.public)
-
-        executor = new BasicExecutor(mempool, signer.address, clients.public, clients.wallet, signer)
+        executor = new BasicExecutor(signer.address, clients.public, clients.wallet, signer)
+        await clients.test.setAutomine(false)
     })
 
     after(function () {
@@ -56,21 +49,40 @@ describe("executor", () => {
                 publicClient: clients.public,
                 walletClient: clients.wallet
             })
-            const userOp: UserOperation = {
-                sender: signer.address,
-                callData: "0x",
-                initCode: "0x",
-                paymasterAndData: "0x",
-                signature: "0x",
-                nonce: 0n,
-                callGasLimit: 100_000n,
-                preVerificationGas: 10000n,
-                verificationGasLimit: 100_000n,
-                maxFeePerGas: 100n,
-                maxPriorityFeePerGas: 10n
-            }
-            const userOpHash = await mempool.add(entryPoint, userOp)
-            console.log(userOpHash)
+        })
+
+        it("should be able to send transaction", async function () {
+            this.timeout(20000)
+            expect(await clients.test.getAutomine()).toEqual(false);
+            await clients.test.setIntervalMining({
+                interval: 2,
+            })
+    
+            const tx = await executor.bundle(entryPoint, []);
+            executor.monitorTx(tx)
+
+            await new Promise((resolve) => setTimeout(resolve, 10000))        
+        })
+
+        it.only("should resend transaction is tx gas price is lower than current gas price", async function () {
+            this.timeout(200000)
+            expect(await clients.test.getAutomine()).toEqual(false);
+            const tx = await executor.bundle(entryPoint, []);
+            const maxFeePerGas = await clients.public.getTransaction({
+                hash: tx
+            }).then((t) => t.maxFeePerGas)
+            console.log("=maxFeePerGas", maxFeePerGas)
+            await clients.test.setNextBlockBaseFeePerGas({
+                baseFeePerGas: maxFeePerGas! + 1n
+            })
+            executor.monitorTx(tx)
+            // await clients.test.mine({
+            //     blocks: 1
+            // })
+            await clients.test.setIntervalMining({
+                interval: 1,
+            })
+            await new Promise((resolve) => setTimeout(resolve, 20000))        
         })
     })
 })
