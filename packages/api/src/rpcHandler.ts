@@ -112,7 +112,7 @@ export class RpcHandler implements IRpcEndpoint {
             throw new Error(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.entryPoint}`)
         }
 
-        const validationResult = await this.validator.validateUserOp(userOperation)
+        const validationResult = await this.validator.validateUserOperation(userOperation)
 
         const preVerificationGas = toHex(calcPreVerificationGas(userOperation))
         const verificationGas = toHex(validationResult.returnInfo.preOpGas)
@@ -147,7 +147,7 @@ export class RpcHandler implements IRpcEndpoint {
             throw new Error(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.entryPoint}`)
         }
 
-        await this.validator.validateUserOp(userOperation)
+        await this.validator.validateUserOperation(userOperation)
 
         await this.executor.bundle(entryPoint, [userOperation])
 

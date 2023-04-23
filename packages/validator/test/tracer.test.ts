@@ -1,8 +1,8 @@
 import { PublicClient, TestClient, createPublicClient, createTestClient, http } from "viem"
 import { type ChildProcess } from "child_process"
-import { launchAnvil } from "./utils"
 import { foundry } from "viem/chains"
 import { debug_traceCall } from "../src/tracer"
+import { launchAnvil } from "@alto/utils"
 
 describe("tracer", () => {
     let client: PublicClient
@@ -41,6 +41,5 @@ describe("tracer", () => {
         await testClient.setCode({ address: to, bytecode })
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const ret = await debug_traceCall(client, { from: from, to: to, data: "0x" }, { enableMemory: true })
-        console.log(ret)
     })
 })

@@ -1,5 +1,5 @@
 import { type ChildProcess } from "child_process"
-import { createPublicClient, getContract, createWalletClient, http, parseEther, toHex } from "viem"
+import { createPublicClient, getContract, concat, http, parseEther, toHex, encodeFunctionData } from "viem"
 import { privateKeyToAccount, Account } from "viem/accounts"
 import { foundry } from "viem/chains"
 import { Clients, createClients, deployContract, getUserOpHash, launchAnvil } from "@alto/utils"
@@ -14,13 +14,15 @@ import {
     UserOperation
 } from "@alto/types"
 import { z } from "zod"
-import { EmptyValidator, IValidator } from "@alto/validator"
+import { UnsafeValidator, IValidator } from "@alto/validator"
 import { SimpleAccountFactoryAbi, SimpleAccountFactoryBytecode } from "@alto/types/src/contracts/SimpleAccountFactory"
 import { MemoryMempool } from "@alto/mempool"
 import { NullExecutor } from "@alto/executor/src"
 import { hexNumberRawSchema } from "@alto/types/src"
+import { contractFunctionExecutionErrorSchema } from "@alto/types/src/validation"
+import { fromZodError } from "zod-validation-error"
 
-describe("rpcHandler", () => {
+describe("handler", () => {
     let clients: Clients
     let anvilProcess: ChildProcess
     let entryPoint: Address
@@ -45,8 +47,7 @@ describe("rpcHandler", () => {
         )
 
         const anvilChainId = await clients.public.getChainId()
-        const mempool = new MemoryMempool(clients.public)
-        const validator = new EmptyValidator(clients.public, entryPoint)
+        const validator = new UnsafeValidator(clients.public, entryPoint)
         const rpcHandlerConfig: RpcHandlerConfig = {
             publicClient: clients.public,
             chainId: anvilChainId,
@@ -69,11 +70,12 @@ describe("rpcHandler", () => {
     })
 
     describe("eth_estimateUserOperationGas", () => {
-        it("works", async function () {
+        it("correctly returns gas for valid op", async function () {
             const entryPointContract = getContract({
                 address: entryPoint,
                 abi: EntryPointAbi,
-                publicClient: clients.public
+                publicClient: clients.public,
+                walletClient: clients.wallet
             })
 
             const simpleAccountFactoryContract = getContract({
@@ -83,28 +85,53 @@ describe("rpcHandler", () => {
                 walletClient: clients.wallet
             })
 
-            const { result, request } = await simpleAccountFactoryContract.simulate.createAccount(
-                [signer.address, 0n],
-                {
-                    account: signer,
-                    chain: foundry
-                }
-            )
+            const initCode = concat([
+                simpleAccountFactory,
+                encodeFunctionData({
+                    abi: SimpleAccountFactoryAbi,
+                    functionName: "createAccount",
+                    args: [signer.address, 0n]
+                })
+            ])
 
-            const sender = result
+            const sender = await entryPointContract.simulate
+                .getSenderAddress([initCode])
+                .then((_) => {
+                    throw new Error("Expected error")
+                })
+                .catch((e) => {
+                    const contractFunctionExecutionErrorParsing = contractFunctionExecutionErrorSchema.safeParse(e)
+                    if (!contractFunctionExecutionErrorParsing.success) {
+                        throw fromZodError(contractFunctionExecutionErrorParsing.error)
+                    }
+                    const contractFunctionExecutionError = contractFunctionExecutionErrorParsing.data
+                    const errorData = contractFunctionExecutionError.cause.data
+                    if (errorData.errorName !== "SenderAddressResult") {
+                        throw e
+                    }
+                    return errorData.args.sender
+                })
+
+            // const { result, request } = await simpleAccountFactoryContract.simulate.createAccount(
+            //     [signer.address, 0n],
+            //     {
+            //         account: signer,
+            //         chain: foundry
+            //     }
+            // )
 
             await clients.test.setBalance({ address: sender, value: parseEther("1") })
 
-            await clients.wallet.writeContract(request)
-            await clients.test.mine({ blocks: 1 })
+            // await clients.wallet.writeContract(request)
+            // await clients.test.mine({ blocks: 1 })
 
             const op: UserOperation = {
-                sender: sender,
+                sender,
                 nonce: 0n,
-                initCode: "0x",
+                initCode: initCode,
                 callData: "0x",
                 callGasLimit: 100_000n,
-                verificationGasLimit: 100_000n,
+                verificationGasLimit: 1_000_000n,
                 preVerificationGas: 60_000n,
                 maxFeePerGas: 1n,
                 maxPriorityFeePerGas: 1n,

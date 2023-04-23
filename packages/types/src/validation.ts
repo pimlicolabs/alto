@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { HexData } from "./schemas"
+import { HexData, addressSchema } from "./schemas"
 
 export type StakeInfo = {
     addr: string
@@ -15,22 +15,63 @@ export type StorageMap = {
     [address: string]: string | SlotMap
 }
 
-export type ValsidationResult = {
-    returnInfo: {
-        preOpGas: bigint
-        prefund: bigint
-        sigFailed: boolean
-        deadline: number
-    }
-
-    senderInfo: StakeInfo
-    factoryInfo?: StakeInfo
-    paymasterInfo?: StakeInfo
-    aggregatorInfo?: StakeInfo
-}
-
 // hexnum regex
-const hexPattern = /^(0x)?[0-9a-f]*$/
+const hexPattern = /^0x[0-9a-f]*$/
+
+export const signatureValidationFailedSchema = z.tuple([addressSchema]).transform((val) => {
+    return { aggregator: val[0] }
+})
+
+export type SignatureValidationFailed = z.infer<typeof signatureValidationFailedSchema>
+
+export const signatureValidationFailedErrorSchema = z.object({
+    args: signatureValidationFailedSchema,
+    errorName: z.literal("SignatureValidationFailed")
+})
+
+export const senderAddressResultSchema = z.tuple([addressSchema]).transform((val) => {
+    return {
+        sender: val[0]
+    }
+})
+
+export type SenderAddressResult = z.infer<typeof senderAddressResultSchema>
+
+export const senderAddressResultErrorSchema = z.object({
+    args: senderAddressResultSchema,
+    errorName: z.literal("SenderAddressResult")
+})
+
+export const failedOpSchema = z.tuple([z.bigint(), z.string()]).transform((val) => {
+    return { opIndex: val[0], reason: val[1] }
+})
+
+export type FailedOp = z.infer<typeof failedOpSchema>
+
+export const failedOpErrorSchema = z.object({
+    args: failedOpSchema,
+    errorName: z.literal("FailedOp")
+})
+
+export const executionResultSchema = z
+    .tuple([z.bigint(), z.bigint(), z.number(), z.number(), z.boolean(), z.string().regex(hexPattern)])
+    .transform((val) => {
+        return {
+            preOpGas: val[0],
+            paid: val[1],
+            validAfter: val[2],
+            validUntil: val[3],
+            targetSuccess: val[4],
+            targetResult: val[5] as HexData
+        }
+    })
+
+export type ExecutionResult = z.infer<typeof executionResultSchema>
+
+export const executionResultErrorSchema = z.object({
+    args: executionResultSchema,
+    errorName: z.literal("ExecutionResult")
+})
 
 const stakeInfoSchema = z.object({
     stake: z.bigint(),
@@ -66,14 +107,24 @@ export const validationResultSchema = z
 export type ValidationResult = z.infer<typeof validationResultSchema>
 
 export const validationResultErrorSchema = z.object({
-    name: z.literal("ContractFunctionExecutionError"),
-    cause: z.object({
-        name: z.literal("ContractFunctionRevertedError"),
-        data: z.object({
-            args: validationResultSchema,
-            errorName: z.literal("ValidationResult")
-        })
-    })
+    args: validationResultSchema,
+    errorName: z.literal("ValidationResult")
 })
 
 export type ValidationResultError = z.infer<typeof validationResultErrorSchema>
+
+export const contractFunctionExecutionErrorSchema = z.object({
+    name: z.literal("ContractFunctionExecutionError"),
+    cause: z.object({
+        name: z.literal("ContractFunctionRevertedError"),
+        data: z.discriminatedUnion("errorName", [
+            validationResultErrorSchema,
+            executionResultErrorSchema,
+            failedOpErrorSchema,
+            senderAddressResultErrorSchema,
+            signatureValidationFailedErrorSchema
+        ])
+    })
+})
+
+export type ContractFunctionExecutionError = z.infer<typeof contractFunctionExecutionErrorSchema>

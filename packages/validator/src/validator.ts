@@ -1,14 +1,14 @@
 import { UserOperation, Address, EntryPointAbi, RpcError, ValidationErrors } from "@alto/types"
 import { PublicClient, getContract } from "viem"
-import { ValidationResult, validationResultErrorSchema } from "@alto/types/src/validation"
+import { ValidationResult, contractFunctionExecutionErrorSchema } from "@alto/types/src/validation"
 import { fromZodError } from "zod-validation-error"
 export interface IValidator {
-    validateUserOp(userOperation: UserOperation): Promise<ValidationResult>
+    validateUserOperation(userOperation: UserOperation): Promise<ValidationResult>
 }
 
-export class EmptyValidator implements IValidator {
+export class UnsafeValidator implements IValidator {
     constructor(readonly publicClient: PublicClient, readonly entryPoint: Address) {}
-    async validateUserOp(userOperation: UserOperation): Promise<ValidationResult> {
+    async validateUserOperation(userOperation: UserOperation): Promise<ValidationResult> {
         const entryPointContract = getContract({
             address: this.entryPoint,
             abi: EntryPointAbi,
@@ -22,15 +22,28 @@ export class EmptyValidator implements IValidator {
             }
         })
 
-        const validationResultErrorParsing = validationResultErrorSchema.safeParse(errorResult)
+        const contractFunctionExecutionErrorParsing = contractFunctionExecutionErrorSchema.safeParse(errorResult)
 
-        if (!validationResultErrorParsing.success) {
-            const err = fromZodError(validationResultErrorParsing.error)
+        if (!contractFunctionExecutionErrorParsing.success) {
+            const err = fromZodError(contractFunctionExecutionErrorParsing.error)
             throw err
         }
 
-        const validationResultError = validationResultErrorParsing.data
-        const validationResult = validationResultError.cause.data.args
+        const errorData = contractFunctionExecutionErrorParsing.data.cause.data
+
+        if (errorData.errorName === "FailedOp") {
+            const reason = errorData.args.reason
+            throw new RpcError(
+                `UserOperation reverted during simulation with reason: ${reason}`,
+                ValidationErrors.SimulateValidation
+            )
+        }
+
+        if (errorData.errorName !== "ValidationResult") {
+            throw new Error("Unexpected error")
+        }
+
+        const validationResult = errorData.args
 
         if (validationResult.returnInfo.sigFailed)
             throw new RpcError("Invalid UserOp signature or paymaster signature", ValidationErrors.InvalidSignature)
@@ -39,7 +52,5 @@ export class EmptyValidator implements IValidator {
             throw new RpcError("expires too soon", ValidationErrors.ExpiresShortly)
 
         return validationResult
-
-        //return await this.memPool.add(this.entrypoint, userOp)
     }
 }
