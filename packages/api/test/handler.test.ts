@@ -18,6 +18,7 @@ import {
     EntryPoint_bytecode,
     EntryPointAbi,
     estimateUserOperationGasResponseSchema,
+    hexNumberSchema,
     UserOperation
 } from "@alto/types"
 import { z } from "zod"
@@ -72,7 +73,7 @@ describe("handler", () => {
             const anvilChainId = await clients.public.getChainId()
             const chainId = await handler.eth_chainId()
 
-            expect(chainId).toEqual(toHex(anvilChainId))
+            expect(chainId).toEqual(BigInt(anvilChainId))
         })
     })
 
@@ -146,9 +147,9 @@ describe("handler", () => {
 
             expect(gas).toMatchSchema(
                 z.object({
-                    callGasLimit: hexNumberRawSchema,
-                    preVerificationGas: hexNumberRawSchema,
-                    verificationGas: hexNumberRawSchema
+                    callGasLimit: hexNumberSchema,
+                    preVerificationGas: hexNumberSchema,
+                    verificationGas: hexNumberSchema
                 })
             )
         })
