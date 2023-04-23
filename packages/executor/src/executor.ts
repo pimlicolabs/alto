@@ -10,13 +10,12 @@ export interface GasEstimateResult {
 }
 
 export interface IExecutor {
-    bundle(_entryPoint: Address, _ops: UserOperation[]): Promise<HexData32>
+    bundle(_entryPoint: Address, _ops: UserOperation[]): Promise<void>
 }
 
 export class NullExecutor implements IExecutor {
-    async bundle(_entryPoint: Address, _ops: UserOperation[]): Promise<HexData32> {
+    async bundle(_entryPoint: Address, _ops: UserOperation[]): Promise<void> {
         // return 32 byte long hex string
-        return "0x0000000000000000000000000000000000000000000000000000000000000000"
     }
 }
 
@@ -31,8 +30,8 @@ export class BasicExecutor implements IExecutor {
         this.mutex = new Mutex()
     }
 
-    async bundle(entryPoint: Address, ops: UserOperation[]): Promise<HexData32> {
-        const initialHash = await this.mutex.runExclusive(async () => {
+    async bundle(entryPoint: Address, ops: UserOperation[]): Promise<void> {
+        await this.mutex.runExclusive(async () => {
             const ep = getContract({
                 abi: EntryPointAbi,
                 address: entryPoint,
@@ -57,7 +56,6 @@ export class BasicExecutor implements IExecutor {
             })
             return tx
         })
-        return initialHash
     }
 
     async monitorTx(tx: HexData32): Promise<void> {

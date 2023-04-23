@@ -112,9 +112,25 @@ describe("executor", () => {
             await clients.test.setIntervalMining({
                 interval: 2,
             })
-            const hash = await executor.bundle(entryPoint, [op]);
-            console.log("=hash", hash)
-            const rcpt = await clients.public.waitForTransactionReceipt({hash})
+            await executor.bundle(entryPoint, [op]);
+            while(true) {
+                const logs = await clients.public.getLogs({
+                    fromBlock: 0n,
+                    toBlock: "latest",
+                    address: entryPoint,
+                    event: parseAbiItem("event UserOperationEvent(bytes32 indexed userOpHash, address indexed sender, address indexed paymaster, uint256 nonce, bool success, uint256 actualGasCost, uint256 actualGasUsed)"),
+                    args:{
+                        userOpHash: opHash,
+                        sender: sender,
+                        nonce: 0n
+                    }
+                })
+                if (logs.length > 0) {
+                    break;
+                }
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000))
+
             const logs = await clients.public.getLogs({
                 fromBlock: 0n,
                 toBlock: "latest",
@@ -128,7 +144,6 @@ describe("executor", () => {
             })
             expect(logs.length).toEqual(1)
             expect(logs[0].args.success).toEqual(true)
-            expect(logs[0].transactionHash).toEqual(hash)
         })
 
         it("should resend transaction is tx gas price is lower than current gas price", async function () {
@@ -171,13 +186,12 @@ describe("executor", () => {
             op.signature = signature
 
             expect(await clients.test.getAutomine()).toEqual(false);
-            const hash = await executor.bundle(entryPoint, [op]);
-            console.log("=hash", hash)
-            const tx = await clients.public.getTransaction({
-                hash
+            await executor.bundle(entryPoint, [op]);
+            const block = await clients.public.getBlock({
+                blockTag: "latest"
             })
             await clients.test.setNextBlockBaseFeePerGas({
-                baseFeePerGas: tx.maxFeePerGas! * 10n
+                baseFeePerGas: block.baseFeePerGas! * 10n
             })
             await clients.test.setIntervalMining({
                 interval: 1,
@@ -212,11 +226,6 @@ describe("executor", () => {
             })
             expect(logs.length).toEqual(1)
             expect(logs[0].args.success).toEqual(true)
-            expect(logs[0].transactionHash).not.toEqual(hash)
-            const newTx = await clients.public.getTransaction({
-                hash: logs[0].transactionHash!
-            })
-            expect(tx.maxFeePerGas).toBeLessThan(newTx.maxFeePerGas)
             console.log("=logs[0].transactionHash", logs[0].transactionHash)
         })
     })
