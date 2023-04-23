@@ -2,7 +2,14 @@ import { type ChildProcess } from "child_process"
 import { createPublicClient, getContract, concat, http, parseEther, toHex, encodeFunctionData } from "viem"
 import { privateKeyToAccount, Account } from "viem/accounts"
 import { foundry } from "viem/chains"
-import { Clients, createClients, deployContract, getUserOpHash, launchAnvil } from "@alto/utils"
+import {
+    Clients,
+    createClients,
+    deployContract,
+    getUserOpHash,
+    launchAnvil,
+    parseSenderAddressError
+} from "@alto/utils"
 import { expect, mockObject } from "earl"
 import { RpcHandler } from "@alto/api"
 import { RpcHandlerConfig } from "@alto/config"
@@ -99,17 +106,8 @@ describe("handler", () => {
                 .then((_) => {
                     throw new Error("Expected error")
                 })
-                .catch((e) => {
-                    const contractFunctionExecutionErrorParsing = contractFunctionExecutionErrorSchema.safeParse(e)
-                    if (!contractFunctionExecutionErrorParsing.success) {
-                        throw fromZodError(contractFunctionExecutionErrorParsing.error)
-                    }
-                    const contractFunctionExecutionError = contractFunctionExecutionErrorParsing.data
-                    const errorData = contractFunctionExecutionError.cause.data
-                    if (errorData.errorName !== "SenderAddressResult") {
-                        throw e
-                    }
-                    return errorData.args.sender
+                .catch((e: Error) => {
+                    return parseSenderAddressError(e)
                 })
 
             // const { result, request } = await simpleAccountFactoryContract.simulate.createAccount(

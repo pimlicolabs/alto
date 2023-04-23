@@ -32,21 +32,21 @@ export async function debug_traceCall(
         .request({ method: "debug_traceCall", params: [formatTransactionRequest(tx), "latest", traceOptions] })
         .catch((e) => {
             if (e instanceof Error) {
-                console.log("ex=", e.message)
-                console.log(
-                    "tracer=",
-                    traceOptions.tracer
-                        ?.toString()
-                        .split("\n")
-                        .map((line, index) => `${index + 1}: ${line}`)
-                        .join("\n")
-                )
+                // console.log("ex=", e.message)
+                // console.log(
+                //     "tracer=",
+                //     traceOptions.tracer
+                //         ?.toString()
+                //         .split("\n")
+                //         .map((line, index) => `${index + 1}: ${line}`)
+                //         .join("\n")
+                // )
                 throw e
             } else {
                 console.log("error", e)
             }
         })
-    console.log("ret=", ret)
+    // console.log("ret=", ret)
     return ret
 }
 

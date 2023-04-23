@@ -1,4 +1,5 @@
 import { HexData, UserOperation } from "@alto/types"
+import { contractFunctionExecutionErrorSchema } from "@alto/types/src/validation"
 import { Abi, parseAbiParameters } from "abitype"
 import { exec, type ChildProcess } from "child_process"
 import {
@@ -15,6 +16,7 @@ import {
     keccak256
 } from "viem"
 import { foundry } from "viem/chains"
+import { fromZodError } from "zod-validation-error"
 
 export type Clients = {
     public: PublicClient
@@ -152,4 +154,17 @@ export function getUserOpHash(op: UserOperation, entryPoint: Address, chainId: n
         BigInt(chainId)
     ])
     return keccak256(enc)
+}
+
+export const parseSenderAddressError = (e: Error): Address => {
+    const contractFunctionExecutionErrorParsing = contractFunctionExecutionErrorSchema.safeParse(e)
+    if (!contractFunctionExecutionErrorParsing.success) {
+        throw fromZodError(contractFunctionExecutionErrorParsing.error)
+    }
+    const contractFunctionExecutionError = contractFunctionExecutionErrorParsing.data
+    const errorData = contractFunctionExecutionError.cause.data
+    if (errorData.errorName !== "SenderAddressResult") {
+        throw e
+    }
+    return errorData.args.sender
 }
