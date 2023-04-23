@@ -113,8 +113,9 @@ describe("executor", () => {
                 interval: 2,
             })
             await executor.bundle(entryPoint, [op]);
+            let logs: any[] = []
             while(true) {
-                const logs = await clients.public.getLogs({
+                logs = await clients.public.getLogs({
                     fromBlock: 0n,
                     toBlock: "latest",
                     address: entryPoint,
@@ -130,18 +131,6 @@ describe("executor", () => {
                 }
             }
             await new Promise(resolve => setTimeout(resolve, 1000))
-
-            const logs = await clients.public.getLogs({
-                fromBlock: 0n,
-                toBlock: "latest",
-                address: entryPoint,
-                event: parseAbiItem("event UserOperationEvent(bytes32 indexed userOpHash, address indexed sender, address indexed paymaster, uint256 nonce, bool success, uint256 actualGasCost, uint256 actualGasUsed)"),
-                args:{
-                    userOpHash: opHash,
-                    sender: sender,
-                    nonce: 0n
-                }
-            })
             expect(logs.length).toEqual(1)
             expect(logs[0].args.success).toEqual(true)
         })
@@ -196,8 +185,9 @@ describe("executor", () => {
             await clients.test.setIntervalMining({
                 interval: 1,
             })
+            let logs: any[] = []
             while(true) {
-                const logs = await clients.public.getLogs({
+                logs = await clients.public.getLogs({
                     fromBlock: 0n,
                     toBlock: "latest",
                     address: entryPoint,
@@ -213,17 +203,6 @@ describe("executor", () => {
                 }
             }
             await new Promise(resolve => setTimeout(resolve, 1000))
-            const logs = await clients.public.getLogs({
-                fromBlock: 0n,
-                toBlock: "latest",
-                address: entryPoint,
-                event: parseAbiItem("event UserOperationEvent(bytes32 indexed userOpHash, address indexed sender, address indexed paymaster, uint256 nonce, bool success, uint256 actualGasCost, uint256 actualGasUsed)"),
-                args:{
-                    userOpHash: opHash,
-                    sender: sender,
-                    nonce: 0n
-                }
-            })
             expect(logs.length).toEqual(1)
             expect(logs[0].args.success).toEqual(true)
             console.log("=logs[0].transactionHash", logs[0].transactionHash)
