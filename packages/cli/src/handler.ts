@@ -8,7 +8,6 @@ import {
 } from "@alto/config"
 import { RpcHandler, Server } from "@alto/api"
 import { UnsafeValidator } from "@alto/validator"
-import { MemoryMempool } from "@alto/mempool"
 import { BasicExecutor } from "@alto/executor"
 import { createWalletClient, http } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
@@ -32,9 +31,8 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     const signerAccount = privateKeyToAccount(parsedArgs.signerPrivateKey)
     const handlerConfig: RpcHandlerConfig = await bundlerArgsToRpcHandlerConfig(parsedArgs)
     const client = handlerConfig.publicClient
-    const mempool = new MemoryMempool(client)
     const validator = new UnsafeValidator(handlerConfig.publicClient, parsedArgs.entryPoint)
-    const executor = new BasicExecutor(mempool, parsedArgs.beneficiary, client, walletClient, signerAccount)
+    const executor = new BasicExecutor(parsedArgs.beneficiary, client, walletClient, signerAccount)
     const rpcEndpoint = new RpcHandler(handlerConfig, validator, executor)
 
     const server = new Server(rpcEndpoint, parsedArgs)
