@@ -207,5 +207,54 @@ describe("executor", () => {
             expect(logs[0].args.success).toEqual(true)
             console.log("=logs[0].transactionHash", logs[0].transactionHash)
         })
+
+        it("should not send transaction if tx will fail", async function () {
+            this.timeout(200000)
+
+            const signer2 = privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d")
+
+            const initCode = concat([
+                simpleAccountFactory,
+                encodeFunctionData({
+                    abi: SimpleAccountFactoryAbi,
+                    functionName: "createAccount",
+                    args: [signer.address, 1n]
+                })
+            ])
+            
+            const entryPointContract = getContract({
+                address: entryPoint,
+                abi: EntryPointAbi,
+                publicClient: clients.public,
+                walletClient: clients.wallet
+            })
+
+            const sender = await entryPointContract.simulate
+                .getSenderAddress([initCode])
+                .then((_) => {
+                    throw new Error("Expected error")
+                })
+                .catch((e: Error) => {
+                    return parseSenderAddressError(e)
+                })
+
+            await clients.test.setBalance({ address: sender, value: parseEther("1") })
+
+            const op = TEST_OP
+            op.sender = sender
+            op.initCode = initCode
+
+            const opHash = getUserOpHash(op, entryPoint, foundry.id)
+
+            const signature = await clients.wallet.signMessage({ account: signer, message: opHash })
+            op.signature = signature
+
+            expect(await clients.test.getAutomine()).toEqual(false);
+            await entryPointContract.write.handleOps([[op], signer2.address], {
+                account: signer2,
+                chain: clients.wallet.chain
+            });
+            await executor.bundle(entryPoint, [op]);
+        })
     })
 })
