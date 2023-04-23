@@ -53,6 +53,7 @@ export class BasicExecutor implements IExecutor {
                 chain: this.walletClient.chain
             })
             this.monitorTx(tx).catch((e) => {
+                console.error(e)
             })
             return tx
         })
@@ -66,6 +67,7 @@ export class BasicExecutor implements IExecutor {
         let dismissed = false
         let checkedBlock : HexData32 = "0x0000000000000000000000000000000000000000000000000000000000000000"
         while(!dismissed) {
+            console.log("get block")
             const block = await this.publicClient.getBlock({
                 blockTag: "latest",
                 includeTransactions: true
@@ -76,11 +78,11 @@ export class BasicExecutor implements IExecutor {
             } else {
                 checkedBlock = block.hash!
             }
-            await Promise.race([
-                async() : Promise<void> => { transaction = await this.publicClient.getTransaction({ hash: tx }) },
-                new Promise((resolve) => setTimeout(resolve, 1000))
-            ])
-            if(transaction.blockNumber !== null) {
+            const rcpt = await this.publicClient.getTransactionReceipt({
+                hash: tx
+            }).catch(() => undefined)
+            if(rcpt !== undefined) {
+                console.log("found")
                 dismissed = true
                 break
             }
@@ -94,6 +96,9 @@ export class BasicExecutor implements IExecutor {
                     gas: transaction.gas,
                     data: transaction.input,
                     maxFeePerGas: gasPrice > transaction.maxFeePerGas * 11n / 10n ? gasPrice : transaction.maxFeePerGas * 11n / 10n,
+                })
+                transaction = await this.publicClient.getTransaction({
+                    hash: tx
                 })
                 continue
             }

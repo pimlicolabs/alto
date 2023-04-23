@@ -142,6 +142,7 @@ describe("executor", () => {
                     args: [signer.address, 1n]
                 })
             ])
+            
             const entryPointContract = getContract({
                 address: entryPoint,
                 abi: EntryPointAbi,
@@ -181,7 +182,23 @@ describe("executor", () => {
             await clients.test.setIntervalMining({
                 interval: 1,
             })
-            await new Promise((resolve) => setTimeout(resolve, 5000))
+            while(true) {
+                const logs = await clients.public.getLogs({
+                    fromBlock: 0n,
+                    toBlock: "latest",
+                    address: entryPoint,
+                    event: parseAbiItem("event UserOperationEvent(bytes32 indexed userOpHash, address indexed sender, address indexed paymaster, uint256 nonce, bool success, uint256 actualGasCost, uint256 actualGasUsed)"),
+                    args:{
+                        userOpHash: opHash,
+                        sender: sender,
+                        nonce: 0n
+                    }
+                })
+                if (logs.length > 0) {
+                    break;
+                }
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000))
             const logs = await clients.public.getLogs({
                 fromBlock: 0n,
                 toBlock: "latest",
