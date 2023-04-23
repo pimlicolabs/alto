@@ -186,12 +186,12 @@ const getUserOperationByHashResponseSchema = z.object({
 })
 
 const logSchema = z.object({
-    removed: z.boolean().optional(),
-    logIndex: hexNumberRawSchema.optional(),
-    transactionIndex: hexNumberRawSchema.optional(),
+    //removed: z.boolean().optional(),
+    logIndex: hexNumberSchema,
+    transactionIndex: hexNumberSchema,
     transactionHash: hexData32Schema,
-    blockHash: hexData32Schema.optional(),
-    blockNumber: hexNumberRawSchema.optional(),
+    blockHash: hexData32Schema,
+    blockNumber: hexNumberSchema,
     address: addressSchema,
     data: hexDataSchema,
     topics: z.array(hexData32Schema)
@@ -209,22 +209,25 @@ const receiptSchema = z.object({
     contractAddress: addressSchema.or(z.null()),
     logs: z.array(logSchema),
     logsBloom: z.string().regex(/^0x[0-9a-f]{512}$/),
-    root: hexData32Schema,
+    //root: hexData32Schema,
     status: hexNumberRawSchema.or(z.null()),
     effectiveGasPrice: hexNumberRawSchema
 })
 
 const getUserOperationReceiptResponseSchema = z.object({
     method: z.literal("eth_getUserOperationReceipt"),
-    result: z.object({
-        userOpHash: hexData32Schema,
-        nonce: hexNumberRawSchema,
-        actualGasCost: hexNumberRawSchema,
-        actualGasUsed: hexNumberRawSchema,
-        success: z.boolean(),
-        logs: z.array(logSchema),
-        receipt: receiptSchema
-    })
+    result: z
+        .object({
+            userOpHash: hexData32Schema,
+            sender: addressSchema,
+            nonce: hexNumberSchema,
+            actualGasCost: hexNumberSchema,
+            actualGasUsed: hexNumberSchema,
+            success: z.boolean(),
+            logs: z.array(logSchema),
+            receipt: receiptSchema
+        })
+        .or(z.null())
 })
 
 const bundlerClearStateResponseSchema = z.object({
@@ -343,4 +346,4 @@ export {
     bundlerResponseSchema
 }
 
-export { addressSchema, hexData32Schema, hexDataSchema }
+export { addressSchema, hexData32Schema, hexDataSchema, logSchema, receiptSchema }

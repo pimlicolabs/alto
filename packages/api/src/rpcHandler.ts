@@ -18,12 +18,15 @@ import {
     BundlingMode,
     EntryPointAbi,
     RpcError,
-    ExecutionErrors
+    ExecutionErrors,
+    logSchema,
+    receiptSchema
 } from "@alto/types"
-import { numberToHex, getContract, toHex } from "viem"
+import { numberToHex, getContract, toHex, decodeFunctionData } from "viem"
 import { IValidator } from "@alto/validator"
 import { calcPreVerificationGas } from "@alto/utils"
 import { IExecutor } from "@alto/executor"
+import { z } from "zod"
 
 export interface IRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>
@@ -161,11 +164,135 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async eth_getUserOperationByHash(userOperationHash: HexData32): Promise<GetUserOperationByHashResponseResult> {
-        throw new Error("Method not implemented.")
+        const entryPointContract = getContract({
+            address: this.config.entryPoint,
+            abi: EntryPointAbi,
+            publicClient: this.config.publicClient
+        })
+
+        const userOperationEventFilter = await entryPointContract.createEventFilter.UserOperationEvent({
+            userOpHash: userOperationHash
+        })
+
+        const filterResult = await this.config.publicClient.getFilterLogs({
+            filter: userOperationEventFilter
+        })
+
+        if (filterResult.length === 0) {
+            return null
+        }
+
+        const userOperationEvent = filterResult[0]
+        const txHash = userOperationEvent.transactionHash
+        if (txHash === null) {
+            // transaction pending
+            return null
+        }
+
+        const tx = await this.config.publicClient.getTransaction({ hash: txHash })
+        const decoded = decodeFunctionData({ abi: EntryPointAbi, data: tx.input })
+        if (decoded.functionName !== "handleOps") {
+            return null
+        }
+        const ops = decoded.args[0]
+        const op = ops.find(
+            (op: UserOperation) =>
+                op.sender === userOperationEvent.args.sender && op.nonce === userOperationEvent.args.nonce
+        )
+
+        if (op === undefined) {
+            return null
+        }
+
+        const result: GetUserOperationByHashResponseResult = {
+            userOperation: op,
+            entryPoint: this.config.entryPoint,
+            transactionHash: txHash,
+            blockHash: tx.blockHash ?? "0x",
+            blockNumber: toHex(tx.blockNumber ?? 0n)
+        }
+
+        return result
     }
 
     async eth_getUserOperationReceipt(userOperationHash: HexData32): Promise<GetUserOperationReceiptResponseResult> {
-        throw new Error("Method not implemented.")
+        const entryPointContract = getContract({
+            address: this.config.entryPoint,
+            abi: EntryPointAbi,
+            publicClient: this.config.publicClient
+        })
+
+        const userOperationEventFilter = await entryPointContract.createEventFilter.UserOperationEvent({
+            userOpHash: userOperationHash
+        })
+
+        const filterResult = await this.config.publicClient.getFilterLogs({
+            filter: userOperationEventFilter
+        })
+
+        if (filterResult.length === 0) {
+            return null
+        }
+
+        const userOperationEvent = filterResult[0]
+        const txHash = userOperationEvent.transactionHash
+        if (txHash === null) {
+            // transaction pending
+            return null
+        }
+
+        const receipt = await this.config.publicClient.getTransactionReceipt({ hash: txHash })
+        const logs = receipt.logs
+
+        if (
+            logs.some(
+                (log) =>
+                    log.blockHash === null ||
+                    log.blockNumber === null ||
+                    log.transactionIndex === null ||
+                    log.transactionHash === null ||
+                    log.logIndex === null ||
+                    log.topics.length === 0
+            )
+        ) {
+            // transaction pending
+            return null
+        }
+
+        let startIndex = -1
+        let endIndex = -1
+        logs.forEach((log, index) => {
+            if (log?.topics[0] === userOperationEvent.topics[0]) {
+                // process UserOperationEvent
+                if (log.topics[1] === userOperationEvent.topics[1]) {
+                    // it's our userOpHash. save as end of logs array
+                    endIndex = index
+                } else {
+                    // it's a different hash. remember it as beginning index, but only if we didn't find our end index yet.
+                    if (endIndex === -1) {
+                        startIndex = index
+                    }
+                }
+            }
+        })
+        if (endIndex === -1) {
+            throw new Error("fatal: no UserOperationEvent in logs")
+        }
+
+        const filteredLogs = logs.slice(startIndex + 1, endIndex)
+
+        const userOperationReceipt: GetUserOperationReceiptResponseResult = {
+            userOpHash: userOperationHash,
+            sender: userOperationEvent.args.sender,
+            nonce: userOperationEvent.args.nonce,
+            actualGasUsed: userOperationEvent.args.actualGasUsed,
+            actualGasCost: userOperationEvent.args.actualGasCost,
+            success: userOperationEvent.args.success,
+            logs: z.array(logSchema).parse(filteredLogs),
+            receipt: receiptSchema.parse(receipt)
+        }
+
+        return userOperationReceipt
     }
 
     async debug_bundler_clearState(): Promise<BundlerClearStateResponseResult> {

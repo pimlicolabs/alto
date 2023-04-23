@@ -12,6 +12,20 @@ import { fromZodError } from "zod-validation-error"
 import { expect } from "earl"
 import { parseSenderAddressError } from "@alto/utils/src"
 
+const TEST_OP: UserOperation = {
+    sender: "0x0000000000000000000000000000000000000000",
+    nonce: 0n,
+    initCode: "0x",
+    callData: "0x",
+    callGasLimit: 100_000n,
+    verificationGasLimit: 1_000_000n,
+    preVerificationGas: 60_000n,
+    maxFeePerGas: 1n,
+    maxPriorityFeePerGas: 1n,
+    paymasterAndData: "0x",
+    signature: "0x"
+}
+
 describe("validator", () => {
     describe("validateUserOperation", () => {
         let clients: Clients
@@ -71,19 +85,9 @@ describe("validator", () => {
 
             await clients.test.setBalance({ address: sender, value: parseEther("1") })
 
-            const op: UserOperation = {
-                sender,
-                nonce: 0n,
-                initCode: initCode,
-                callData: "0x",
-                callGasLimit: 100_000n,
-                verificationGasLimit: 1_000_000n,
-                preVerificationGas: 60_000n,
-                maxFeePerGas: 1n,
-                maxPriorityFeePerGas: 1n,
-                paymasterAndData: "0x",
-                signature: "0x"
-            }
+            const op = TEST_OP
+            op.sender = sender
+            op.initCode = initCode
 
             const opHash = getUserOpHash(op, entryPoint, foundry.id)
 
@@ -94,7 +98,7 @@ describe("validator", () => {
             expect(simulateValidationResult.returnInfo.sigFailed).toBeFalsy()
         })
 
-        it("should throw for invalid signature", async function () {
+        it("should throw on not enough payment", async function () {
             const entryPointContract = getContract({
                 address: entryPoint,
                 abi: EntryPointAbi,
@@ -107,7 +111,45 @@ describe("validator", () => {
                 encodeFunctionData({
                     abi: SimpleAccountFactoryAbi,
                     functionName: "createAccount",
-                    args: [signer.address, 0n]
+                    args: [signer.address, 1n]
+                })
+            ])
+
+            const sender = await entryPointContract.simulate
+                .getSenderAddress([initCode])
+                .then((_) => {
+                    throw new Error("Expected error")
+                })
+                .catch((e: Error) => {
+                    return parseSenderAddressError(e)
+                })
+
+            const op = TEST_OP
+            op.sender = sender
+            op.initCode = initCode
+
+            const opHash = getUserOpHash(op, entryPoint, foundry.id)
+
+            const signature = await clients.wallet.signMessage({ account: signer, message: opHash })
+            op.signature = signature
+
+            await expect(validator.validateUserOperation(op)).toBeRejectedWith(RpcError, /AA21 didn't pay prefund/)
+        })
+
+        it("should throw on invalid signature", async function () {
+            const entryPointContract = getContract({
+                address: entryPoint,
+                abi: EntryPointAbi,
+                publicClient: clients.public,
+                walletClient: clients.wallet
+            })
+
+            const initCode = concat([
+                simpleAccountFactory,
+                encodeFunctionData({
+                    abi: SimpleAccountFactoryAbi,
+                    functionName: "createAccount",
+                    args: [signer.address, 2n]
                 })
             ])
 
@@ -122,24 +164,13 @@ describe("validator", () => {
 
             await clients.test.setBalance({ address: sender, value: parseEther("1") })
 
-            const op: UserOperation = {
-                sender,
-                nonce: 0n,
-                initCode: initCode,
-                callData: "0x",
-                callGasLimit: 100_000n,
-                verificationGasLimit: 1_000_000n,
-                preVerificationGas: 60_000n,
-                maxFeePerGas: 1n,
-                maxPriorityFeePerGas: 1n,
-                paymasterAndData: "0x",
-                signature: "0x"
-            }
-
-            const opHash = getUserOpHash(op, entryPoint, foundry.id)
+            const op = TEST_OP
+            op.sender = sender
+            op.initCode = initCode
 
             // invalid signature
-            op.signature = `0x21fbf0696d5e0aa2ef41a2b4ffb623bcaf070461d61cf7251c74161f82fec3a4370854bc0a34b3ab487c1bc021cd318c734c51ae29374f2beb0e6f2dd49b4bf41c`
+            op.signature =
+                "0x21fbf0696d5e0aa2ef41a2b4ffb623bcaf070461d61cf7251c74161f82fec3a4370854bc0a34b3ab487c1bc021cd318c734c51ae29374f2beb0e6f2dd49b4bf41c"
 
             await expect(validator.validateUserOperation(op)).toBeRejectedWith(
                 RpcError,
