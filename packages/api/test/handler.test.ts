@@ -1,5 +1,5 @@
 import { type ChildProcess } from "child_process"
-import { createPublicClient, getContract, concat, http, parseEther, toHex, encodeFunctionData } from "viem"
+import { getContract, concat, parseEther, encodeFunctionData } from "viem"
 import { privateKeyToAccount, Account } from "viem/accounts"
 import { foundry } from "viem/chains"
 import {
@@ -10,25 +10,14 @@ import {
     launchAnvil,
     parseSenderAddressError
 } from "@alto/utils"
-import { expect, mockObject } from "earl"
+import { expect } from "earl"
 import { RpcHandler } from "@alto/api"
 import { RpcHandlerConfig } from "@alto/config"
-import {
-    Address,
-    EntryPoint_bytecode,
-    EntryPointAbi,
-    estimateUserOperationGasResponseSchema,
-    hexNumberSchema,
-    UserOperation
-} from "@alto/types"
+import { Address, EntryPoint_bytecode, EntryPointAbi, hexNumberSchema, UserOperation } from "@alto/types"
 import { z } from "zod"
-import { UnsafeValidator, IValidator } from "@alto/validator"
+import { UnsafeValidator } from "@alto/validator"
 import { SimpleAccountFactoryAbi, SimpleAccountFactoryBytecode } from "@alto/types/src/contracts/SimpleAccountFactory"
-import { MemoryMempool } from "@alto/mempool"
 import { NullExecutor } from "@alto/executor/src"
-import { hexNumberRawSchema } from "@alto/types/src"
-import { contractFunctionExecutionErrorSchema } from "@alto/types/src/validation"
-import { fromZodError } from "zod-validation-error"
 
 describe("handler", () => {
     let clients: Clients

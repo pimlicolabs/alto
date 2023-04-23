@@ -21,6 +21,7 @@
         "lint:fix": "eslint src/**/*.ts --fix"
     },
     "dependencies": {
+        "@alto/types": "*",
         "@account-abstraction/utils": "^0.5.0",
         "abitype": "^0.8.0",
         "viem": "^0.3.6",
