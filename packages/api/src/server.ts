@@ -11,6 +11,7 @@ import { RpcError, ValidationErrors } from "@alto/types"
 import { fromZodError } from "zod-validation-error"
 import { IRpcEndpoint } from "./rpcHandler"
 import { IBundlerArgs } from "@alto/config"
+import { toHex } from "viem"
 
 export class Server {
     private app: Express
@@ -48,7 +49,13 @@ export class Server {
                 )
             }
             const jsonRpcResponse = await this.innerRpc(req.body)
-            res.status(200).send(jsonRpcResponse)
+            console.log("jsonRpcResponse", jsonRpcResponse)
+            res.status(200).send(
+                JSON.stringify(jsonRpcResponse, (_, v) => {
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+                    return typeof v === "bigint" ? toHex(v) : v
+                })
+            )
         } catch (err) {
             if (err instanceof RpcError) {
                 res.status(400).send({

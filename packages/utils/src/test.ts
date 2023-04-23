@@ -1,5 +1,5 @@
 import { HexData, UserOperation } from "@alto/types"
-import { contractFunctionExecutionErrorSchema } from "@alto/types/src/validation"
+import { contractFunctionExecutionErrorSchema } from "@alto/types"
 import { Abi, parseAbiParameters } from "abitype"
 import { exec, type ChildProcess } from "child_process"
 import {

@@ -7,5 +7,5 @@
     "maxBundleSize": 3,
     "port": 3000,
     "signerPrivateKey": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
-    "entryPoints": ["0x5fbdb2315678afecb367f032d93f642f64180aa3"]
+    "entryPoint": "0x5fbdb2315678afecb367f032d93f642f64180aa3"
 }

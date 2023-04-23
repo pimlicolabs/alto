@@ -1,6 +1,6 @@
 import { UserOperation, Address, EntryPointAbi, RpcError, ValidationErrors } from "@alto/types"
 import { PublicClient, getContract } from "viem"
-import { ValidationResult, contractFunctionExecutionErrorSchema } from "@alto/types/src/validation"
+import { ValidationResult, contractFunctionExecutionErrorSchema } from "@alto/types"
 import { fromZodError } from "zod-validation-error"
 export interface IValidator {
     validateUserOperation(userOperation: UserOperation): Promise<ValidationResult>

@@ -1,7 +1,7 @@
 import { Hash, Hex, getAddress } from "viem"
 import { z } from "zod"
 
-const hexNumberPattern = /^0x([1-9a-f]+[0-9a-f]*|0)$/
+const hexNumberPattern = /^0x([0-9a-f]+[0-9a-f]*|0)$/
 const hexDataPattern = /^0x[0-9a-f]*$/
 const addressPattern = /^0x[0-9,a-f,A-F]{40}$/
 const hexData32Pattern = /^0x([0-9a-f][0-9a-f]){0,32}$/
@@ -14,8 +14,8 @@ export const hexNumberSchema = z
     .string()
     .regex(hexNumberPattern)
     .or(z.number())
+    .or(z.bigint())
     .transform((val) => BigInt(val))
-export const hexNumberRawSchema = z.string().regex(hexNumberPattern)
 const hexDataSchema = z
     .string()
     .regex(hexDataPattern, { message: "not valid hex data" })
@@ -150,7 +150,7 @@ const bundlerRequestSchema = z.discriminatedUnion("method", [
 
 const chainIdResponseSchema = z.object({
     method: z.literal("eth_chainId"),
-    result: hexNumberRawSchema
+    result: hexNumberSchema
 })
 
 const supportedEntryPointsResponseSchema = z.object({
@@ -161,9 +161,9 @@ const supportedEntryPointsResponseSchema = z.object({
 const estimateUserOperationGasResponseSchema = z.object({
     method: z.literal("eth_estimateUserOperationGas"),
     result: z.object({
-        callGasLimit: hexNumberRawSchema,
-        preVerificationGas: hexNumberRawSchema,
-        verificationGas: hexNumberRawSchema
+        callGasLimit: hexNumberSchema,
+        preVerificationGas: hexNumberSchema,
+        verificationGas: hexNumberSchema
     })
 })
 
@@ -178,7 +178,7 @@ const getUserOperationByHashResponseSchema = z.object({
         .object({
             userOperation: userOperationSchema,
             entryPoint: addressSchema,
-            blockNumber: hexNumberRawSchema,
+            blockNumber: hexNumberSchema,
             blockHash: hexData32Schema,
             transactionHash: hexData32Schema
         })
@@ -199,19 +199,20 @@ const logSchema = z.object({
 
 const receiptSchema = z.object({
     transactionHash: hexData32Schema,
-    transactionIndex: hexNumberRawSchema,
+    transactionIndex: hexNumberSchema,
     blockHash: hexData32Schema,
-    blockNumber: hexNumberRawSchema,
+    blockNumber: hexNumberSchema,
     from: addressSchema,
     to: addressSchema.or(z.null()),
-    cumulativeGasUsed: hexNumberRawSchema,
-    gasUsed: hexNumberRawSchema,
+    cumulativeGasUsed: hexNumberSchema,
+    gasUsed: hexNumberSchema,
     contractAddress: addressSchema.or(z.null()),
     logs: z.array(logSchema),
     logsBloom: z.string().regex(/^0x[0-9a-f]{512}$/),
     //root: hexData32Schema,
-    status: hexNumberRawSchema.or(z.null()),
-    effectiveGasPrice: hexNumberRawSchema
+    status: hexNumberSchema.or(z.null()),
+    effectiveGasPrice: hexNumberSchema
+    //type: hexNumberSchema
 })
 
 const getUserOperationReceiptResponseSchema = z.object({

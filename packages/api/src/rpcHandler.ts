@@ -22,11 +22,12 @@ import {
     logSchema,
     receiptSchema
 } from "@alto/types"
-import { numberToHex, getContract, toHex, decodeFunctionData } from "viem"
+import { getContract, decodeFunctionData, getAbiItem } from "viem"
 import { IValidator } from "@alto/validator"
 import { calcPreVerificationGas } from "@alto/utils"
 import { IExecutor } from "@alto/executor"
 import { z } from "zod"
+import { fromZodError } from "zod-validation-error"
 
 export interface IRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>
@@ -99,7 +100,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async eth_chainId(): Promise<ChainIdResponseResult> {
-        return numberToHex(this.config.chainId)
+        return BigInt(this.config.chainId)
     }
 
     async eth_supportedEntryPoints(): Promise<SupportedEntryPointsResponseResult> {
@@ -117,15 +118,15 @@ export class RpcHandler implements IRpcEndpoint {
 
         const validationResult = await this.validator.validateUserOperation(userOperation)
 
-        const preVerificationGas = toHex(calcPreVerificationGas(userOperation))
-        const verificationGas = toHex(validationResult.returnInfo.preOpGas)
+        const preVerificationGas = BigInt(calcPreVerificationGas(userOperation))
+        const verificationGas = BigInt(validationResult.returnInfo.preOpGas)
         const callGasLimit = await this.config.publicClient
             .estimateGas({
                 to: userOperation.sender,
                 data: userOperation.callData,
                 account: entryPoint
             })
-            .then((b) => toHex(b))
+            .then((b) => BigInt(b))
             .catch((err) => {
                 if (err instanceof Error) {
                     const message = err.message.match(/reason="(.*?)"/)?.at(1) ?? "execution reverted"
@@ -164,18 +165,16 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async eth_getUserOperationByHash(userOperationHash: HexData32): Promise<GetUserOperationByHashResponseResult> {
-        const entryPointContract = getContract({
+        const userOperationEventAbiItem = getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
+
+        const filterResult = await this.config.publicClient.getLogs({
             address: this.config.entryPoint,
-            abi: EntryPointAbi,
-            publicClient: this.config.publicClient
-        })
-
-        const userOperationEventFilter = await entryPointContract.createEventFilter.UserOperationEvent({
-            userOpHash: userOperationHash
-        })
-
-        const filterResult = await this.config.publicClient.getFilterLogs({
-            filter: userOperationEventFilter
+            event: userOperationEventAbiItem,
+            fromBlock: 0n,
+            toBlock: "latest",
+            args: {
+                userOpHash: userOperationHash
+            }
         })
 
         if (filterResult.length === 0) {
@@ -209,25 +208,23 @@ export class RpcHandler implements IRpcEndpoint {
             entryPoint: this.config.entryPoint,
             transactionHash: txHash,
             blockHash: tx.blockHash ?? "0x",
-            blockNumber: toHex(tx.blockNumber ?? 0n)
+            blockNumber: BigInt(tx.blockNumber ?? 0n)
         }
 
         return result
     }
 
     async eth_getUserOperationReceipt(userOperationHash: HexData32): Promise<GetUserOperationReceiptResponseResult> {
-        const entryPointContract = getContract({
+        const userOperationEventAbiItem = getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
+
+        const filterResult = await this.config.publicClient.getLogs({
             address: this.config.entryPoint,
-            abi: EntryPointAbi,
-            publicClient: this.config.publicClient
-        })
-
-        const userOperationEventFilter = await entryPointContract.createEventFilter.UserOperationEvent({
-            userOpHash: userOperationHash
-        })
-
-        const filterResult = await this.config.publicClient.getFilterLogs({
-            filter: userOperationEventFilter
+            event: userOperationEventAbiItem,
+            fromBlock: 0n,
+            toBlock: "latest",
+            args: {
+                userOpHash: userOperationHash
+            }
         })
 
         if (filterResult.length === 0) {
@@ -281,6 +278,21 @@ export class RpcHandler implements IRpcEndpoint {
 
         const filteredLogs = logs.slice(startIndex + 1, endIndex)
 
+        const logsParsing = z.array(logSchema).safeParse(filteredLogs)
+        if (!logsParsing.success) {
+            const err = fromZodError(logsParsing.error)
+            throw err
+        }
+
+        const receiptParsing = receiptSchema.safeParse({
+            ...receipt,
+            status: receipt.status === "success" ? 1 : 0
+        })
+        if (!receiptParsing.success) {
+            const err = fromZodError(receiptParsing.error)
+            throw err
+        }
+
         const userOperationReceipt: GetUserOperationReceiptResponseResult = {
             userOpHash: userOperationHash,
             sender: userOperationEvent.args.sender,
@@ -288,8 +300,8 @@ export class RpcHandler implements IRpcEndpoint {
             actualGasUsed: userOperationEvent.args.actualGasUsed,
             actualGasCost: userOperationEvent.args.actualGasCost,
             success: userOperationEvent.args.success,
-            logs: z.array(logSchema).parse(filteredLogs),
-            receipt: receiptSchema.parse(receipt)
+            logs: logsParsing.data,
+            receipt: receiptParsing.data
         }
 
         return userOperationReceipt

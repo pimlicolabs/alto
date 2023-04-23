@@ -7,8 +7,6 @@ import { privateKeyToAccount } from "viem/accounts"
 import { UnsafeValidator } from "../src"
 import { foundry } from "viem/chains"
 import { IValidator } from "../lib"
-import { contractFunctionExecutionErrorSchema } from "@alto/types/src/validation"
-import { fromZodError } from "zod-validation-error"
 import { expect } from "earl"
 import { parseSenderAddressError } from "@alto/utils/src"
 

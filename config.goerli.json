@@ -1,7 +1,5 @@
 {
-    "entryPoints": [
-        "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789"
-    ],
+    "entryPoint": "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789",
     "beneficiary": "0xa78fCd480107fBFAF84bDE5285A668396891d3E5",
     "rpcUrl": "http://localhost:8545",
     "minStake": 1,
