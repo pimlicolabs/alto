@@ -71,6 +71,10 @@ export class Server {
         // TODO
     }
 
+    public async healthCheck(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+        await reply.status(200).send("OK")
+    }
+
     public async rpc(request: FastifyRequest, reply: FastifyReply): Promise<void> {
         try {
             const contentTypeHeader = request.headers["content-type"]
