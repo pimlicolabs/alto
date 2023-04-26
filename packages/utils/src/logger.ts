@@ -4,7 +4,7 @@ import { toHex } from "viem"
 // customFormatter.ts
 type AnyObject = { [key: string]: any }
 
-function bigintToJson(key: string, value: any): any {
+function bigintToJson(_key: string, value: any): any {
     if (typeof value === "bigint") {
         return toHex(value)
     }

@@ -1,5 +1,5 @@
-import { z } from "zod"
 import { HexData, addressSchema } from "./schemas"
+import { z } from "zod"
 
 export type StakeInfo = {
     addr: string

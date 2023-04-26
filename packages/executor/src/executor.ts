@@ -1,8 +1,8 @@
 import { EntryPointAbi } from "@alto/types"
 import { Address, HexData32, UserOperation } from "@alto/types"
-import { Mutex } from "async-mutex"
-import { PublicClient, WalletClient, getContract, Account, WatchBlocksReturnType, Block } from "viem"
 import { Logger } from "@alto/utils"
+import { Mutex } from "async-mutex"
+import { Account, Block, PublicClient, WalletClient, WatchBlocksReturnType, getContract } from "viem"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -29,7 +29,7 @@ const transactionIncluded = async (txHash: HexData32, publicClient: PublicClient
     try {
         await publicClient.getTransactionReceipt({ hash: txHash })
         return true
-    } catch (e) {
+    } catch (_e) {
         return false
     }
 }
@@ -38,16 +38,32 @@ export class BasicExecutor implements IExecutor {
     monitoredTransactions: Record<HexData32, UserOperationStatus> = {}
     unWatch: WatchBlocksReturnType | undefined
 
+    beneficiary: Address
+    publicClient: PublicClient
+    walletClient: WalletClient
+    executeEOA: Account
+    entryPoint: Address
+    pollingInterval: number
+    logger: Logger
+
     mutex: Mutex
     constructor(
-        readonly beneficiary: Address,
-        readonly publicClient: PublicClient,
-        readonly walletClient: WalletClient,
-        readonly executeEOA: Account,
-        readonly entryPoint: Address,
-        readonly pollingInterval: number,
-        readonly logger: Logger
+        beneficiary: Address,
+        publicClient: PublicClient,
+        walletClient: WalletClient,
+        executeEOA: Account,
+        entryPoint: Address,
+        pollingInterval: number,
+        logger: Logger
     ) {
+        this.beneficiary = beneficiary
+        this.publicClient = publicClient
+        this.walletClient = walletClient
+        this.executeEOA = executeEOA
+        this.entryPoint = entryPoint
+        this.pollingInterval = pollingInterval
+        this.logger = logger
+
         this.mutex = new Mutex()
     }
 
@@ -84,7 +100,6 @@ export class BasicExecutor implements IExecutor {
 
     async checkAndReplaceTransactions(block: Block): Promise<void> {
         // typescript mistakenly doesn't believe this is HexData32
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
         const opHashes: HexData32[] = Object.keys(this.monitoredTransactions)
 
@@ -105,18 +120,15 @@ export class BasicExecutor implements IExecutor {
 
             childLogger.debug("transaction not included")
 
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             const transaction = opStatus.transactionRequest
             childLogger.debug(
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
                 { baseFeePerGas: block.baseFeePerGas, maxFeePerGas: transaction.maxFeePerGas },
                 "queried gas fee parameters"
             )
             if (
                 block.baseFeePerGas === null ||
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
                 transaction.maxFeePerGas === undefined ||
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+                transaction.maxPriorityFeePerGas === undefined ||
                 block.baseFeePerGas <= transaction.maxFeePerGas
             ) {
                 childLogger.debug("not replacing")
@@ -134,22 +146,16 @@ export class BasicExecutor implements IExecutor {
             const gasPrice = await this.publicClient.getGasPrice()
             delete this.monitoredTransactions[opHash]
 
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             const request = {
                 ...transaction,
                 maxFeePerGas:
-                    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
                     gasPrice > (transaction.maxFeePerGas * 11n) / 10n
                         ? gasPrice
-                        : // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                          (transaction.maxFeePerGas * 11n) / 10n,
-                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion, @typescript-eslint/no-unsafe-member-access
-                maxPriorityFeePerGas: (transaction.maxPriorityFeePerGas! * 11n) / 10n
+                        : (transaction.maxFeePerGas * 11n) / 10n,
+                maxPriorityFeePerGas: (transaction.maxPriorityFeePerGas * 11n) / 10n
             }
 
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-            const { chain, abi, ...loggingRequest } = request
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            const { chain: _chain, abi: _abi, ...loggingRequest } = request
             childLogger.debug({ request: { ...loggingRequest } }, "replacing transaction")
 
             // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
@@ -182,7 +188,7 @@ export class BasicExecutor implements IExecutor {
     async bundle(entryPoint: Address, op: UserOperation): Promise<void> {
         await this.mutex.runExclusive(async () => {
             const childLogger = this.logger.child({ userOperation: op, entryPoint, module: "executor" })
-            childLogger.debug(`bundling user operation`)
+            childLogger.debug("bundling user operation")
             const ep = getContract({
                 abi: EntryPointAbi,
                 address: entryPoint,
@@ -199,16 +205,16 @@ export class BasicExecutor implements IExecutor {
                     .then((limit) => {
                         return (limit * 12n) / 10n
                     })
-            } catch (e) {
-                this.logger.warn({ userOperation: op, entryPoint }, `user operation reverted during gas estimation`)
+            } catch (_e) {
+                this.logger.warn({ userOperation: op, entryPoint }, "user operation reverted during gas estimation")
                 return
             }
 
             const gasPrice = await this.publicClient.getGasPrice()
-            childLogger.debug({ gasPrice }, `got gas price`)
+            childLogger.debug({ gasPrice }, "got gas price")
 
             const nonce = await this.publicClient.getTransactionCount({ address: this.executeEOA.address })
-            childLogger.debug({ nonce }, `got nonce`)
+            childLogger.debug({ nonce }, "got nonce")
 
             const maxPriorityFeePerGas = 1_000_000_000n > gasPrice ? gasPrice : 1_000_000_000n
 
@@ -221,14 +227,14 @@ export class BasicExecutor implements IExecutor {
                 nonce: nonce
             })
 
-            const { chain, abi, ...loggingRequest } = request
-            childLogger.debug({ request: { ...loggingRequest } }, `got request`)
+            const { chain: _chain, abi: _abi, ...loggingRequest } = request
+            childLogger.debug({ request: { ...loggingRequest } }, "got request")
 
             const txHash = await this.walletClient.writeContract(request)
-            childLogger.info({ txHash }, `sent transaction`)
+            childLogger.info({ txHash }, "sent transaction")
 
             const opHash = await ep.read.getUserOpHash([op])
-            childLogger.debug({ opHash }, `got op hash`)
+            childLogger.debug({ opHash }, "got op hash")
 
             this.monitoredTransactions[opHash] = {
                 transactionHash: txHash,

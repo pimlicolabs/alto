@@ -1,6 +1,6 @@
-import { createPublicClient, http, createWalletClient, TestClient, createTestClient, getContract } from "viem"
-import { foundry } from "viem/chains"
 import { EntryPointAbi, EntryPoint_bytecode } from "@alto/types"
+import { createPublicClient, createTestClient, createWalletClient, http } from "viem"
+import { foundry } from "viem/chains"
 
 // deploy entryPoint locally
 const deployLocalEntryPoint = async function (): Promise<string> {

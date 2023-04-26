@@ -1,5 +1,5 @@
-import { CliCommand, CliCommandOptions } from "./util"
 import { bundlerHandler } from "./handler"
+import { CliCommand, CliCommandOptions } from "./util"
 import { IBundlerArgsInput } from "@alto/config"
 
 export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {

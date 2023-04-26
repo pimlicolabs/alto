@@ -1,17 +1,11 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
-/* eslint-disable @typescript-eslint/no-misused-promises */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/unbound-method */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-import { JSONRPCResponse, bundlerRequestSchema, jsonRpcSchema } from "@alto/types"
-import { RpcError, ValidationErrors } from "@alto/types"
-import { fromZodError } from "zod-validation-error"
 import { IRpcEndpoint } from "./rpcHandler"
 import { IBundlerArgs } from "@alto/config"
-import { toHex } from "viem"
+import { JSONRPCResponse, bundlerRequestSchema, jsonRpcSchema } from "@alto/types"
+import { RpcError, ValidationErrors } from "@alto/types"
 import { Logger } from "@alto/utils"
 import Fastify, { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
+import { toHex } from "viem"
+import { fromZodError } from "zod-validation-error"
 
 // jsonBigIntOverride.ts
 const originalJSONStringify = JSON.stringify
@@ -21,7 +15,7 @@ JSON.stringify = function (
     replacer?: ((this: any, key: string, value: any) => any) | (string | number)[] | null,
     space?: string | number
 ): string {
-    const bigintReplacer = (key: string, value: any): any => {
+    const bigintReplacer = (_key: string, value: any): any => {
         if (typeof value === "bigint") {
             return toHex(value)
         }
@@ -30,6 +24,7 @@ JSON.stringify = function (
 
     const wrapperReplacer = (key: string, value: any): any => {
         if (typeof replacer === "function") {
+            // rome-ignore lint: no other way to do this
             value = replacer(key, value)
         } else if (Array.isArray(replacer)) {
             if (!replacer.includes(key)) {
@@ -72,7 +67,7 @@ export class Server {
         // TODO
     }
 
-    public async healthCheck(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    public async healthCheck(_request: FastifyRequest, reply: FastifyReply): Promise<void> {
         await reply.status(200).send("OK")
     }
 
@@ -85,10 +80,10 @@ export class Server {
                     ValidationErrors.InvalidFields
                 )
             }
-            this.fastify.log.debug(request.body, `received request`)
+            this.fastify.log.debug(request.body, "received request")
             const jsonRpcResponse = await this.innerRpc(request.body)
             await reply.status(200).send(jsonRpcResponse)
-            this.fastify.log.info(jsonRpcResponse, `sent reply`)
+            this.fastify.log.info(jsonRpcResponse, "sent reply")
         } catch (err) {
             if (err instanceof RpcError) {
                 const rpcError = {
@@ -97,14 +92,14 @@ export class Server {
                     code: err.code
                 }
                 await reply.status(400).send(rpcError)
-                this.fastify.log.info(rpcError, `error reply`)
+                this.fastify.log.info(rpcError, "error reply")
             } else {
                 if (err instanceof Error) {
                     await reply.status(500).send(err.message)
-                    this.fastify.log.error(err, `error reply (non-rpc)`)
+                    this.fastify.log.error(err, "error reply (non-rpc)")
                 } else {
                     await reply.status(500).send("Unknown error")
-                    this.fastify.log.info(reply.raw, `error reply`)
+                    this.fastify.log.info(reply.raw, "error reply")
                 }
             }
         }

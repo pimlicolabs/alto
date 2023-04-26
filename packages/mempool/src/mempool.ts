@@ -3,8 +3,8 @@
 // import { EntryPointAbi } from "../types/EntryPoint"
 import { Address, EntryPointAbi, UserOperation } from "@alto/types"
 import { HexData32 } from "@alto/types"
-import { PublicClient, getContract } from "viem"
 import { Mutex } from "async-mutex"
+import { PublicClient, getContract } from "viem"
 
 export interface MempoolEntry {
     entrypointAddress: Address
@@ -26,7 +26,7 @@ export enum UserOpStatus {
 export interface Mempool {
     currentSize(): Promise<number>
     add(_entrypoint: Address, _op: UserOperation): Promise<HexData32> // return hash of userOperation
-    find(findFn: (entry: MempoolEntry) => boolean): Promise<Array<{ entry: MempoolEntry; opHash: HexData32 }>>
+    find(findFn: (entry: MempoolEntry) => boolean): Promise<{ entry: MempoolEntry; opHash: HexData32 }[]>
     markProcessed(_opHashes: HexData32[], updatedData: Partial<MempoolEntry>): Promise<void>
     get(_hash: HexData32): Promise<MempoolEntry | null>
     clear(): void
@@ -75,10 +75,10 @@ export class MemoryMempool implements Mempool {
         }
     }
 
-    async find(findFn: (entry: MempoolEntry) => boolean): Promise<Array<{ entry: MempoolEntry; opHash: HexData32 }>> {
+    async find(findFn: (entry: MempoolEntry) => boolean): Promise<{ entry: MempoolEntry; opHash: HexData32 }[]> {
         await this.mutex.acquire()
         try {
-            const matchingEntries: Array<{ entry: MempoolEntry; opHash: HexData32 }> = []
+            const matchingEntries: { entry: MempoolEntry; opHash: HexData32 }[] = []
             for (const [opHash, entry] of this.mempool.entries()) {
                 if (entry.status !== UserOpStatus.Processing && findFn(entry)) {
                     entry.status = UserOpStatus.Processing

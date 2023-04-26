@@ -1,4 +1,5 @@
 import { RpcHandlerConfig } from "@alto/config"
+import { IExecutor } from "@alto/executor"
 import {
     Address,
     BundlerClearStateResponseResult,
@@ -7,25 +8,24 @@ import {
     BundlerResponse,
     BundlerSendBundleNowResponseResult,
     BundlerSetBundlingModeResponseResult,
+    BundlingMode,
     ChainIdResponseResult,
+    EntryPointAbi,
     EstimateUserOperationGasResponseResult,
+    ExecutionErrors,
     GetUserOperationByHashResponseResult,
     GetUserOperationReceiptResponseResult,
     HexData32,
+    RpcError,
     SendUserOperationResponseResult,
     SupportedEntryPointsResponseResult,
     UserOperation,
-    BundlingMode,
-    EntryPointAbi,
-    RpcError,
-    ExecutionErrors,
     logSchema,
     receiptSchema
 } from "@alto/types"
-import { getContract, decodeFunctionData, getAbiItem } from "viem"
-import { IValidator } from "@alto/validator"
 import { Logger, calcPreVerificationGas } from "@alto/utils"
-import { IExecutor } from "@alto/executor"
+import { IValidator } from "@alto/validator"
+import { decodeFunctionData, getAbiItem, getContract } from "viem"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
 
@@ -43,12 +43,17 @@ export interface IRpcEndpoint {
 }
 
 export class RpcHandler implements IRpcEndpoint {
-    constructor(
-        readonly config: RpcHandlerConfig,
-        readonly validator: IValidator,
-        readonly executor: IExecutor,
-        readonly logger: Logger
-    ) {}
+    config: RpcHandlerConfig
+    validator: IValidator
+    executor: IExecutor
+    logger: Logger
+
+    constructor(config: RpcHandlerConfig, validator: IValidator, executor: IExecutor, logger: Logger) {
+        this.config = config
+        this.validator = validator
+        this.executor = executor
+        this.logger = logger
+    }
 
     async handleMethod(request: BundlerRequest): Promise<BundlerResponse> {
         // call the method with the params
@@ -104,14 +109,17 @@ export class RpcHandler implements IRpcEndpoint {
         }
     }
 
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
     async eth_chainId(): Promise<ChainIdResponseResult> {
         return BigInt(this.config.chainId)
     }
 
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
     async eth_supportedEntryPoints(): Promise<SupportedEntryPointsResponseResult> {
         return [this.config.entryPoint]
     }
 
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
     async eth_estimateUserOperationGas(
         userOperation: UserOperation,
         entryPoint: Address
@@ -148,6 +156,7 @@ export class RpcHandler implements IRpcEndpoint {
         }
     }
 
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
     async eth_sendUserOperation(
         userOperation: UserOperation,
         entryPoint: Address
@@ -169,6 +178,7 @@ export class RpcHandler implements IRpcEndpoint {
         return await entryPointContract.read.getUserOpHash([userOperation])
     }
 
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
     async eth_getUserOperationByHash(userOperationHash: HexData32): Promise<GetUserOperationByHashResponseResult> {
         const userOperationEventAbiItem = getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
 
@@ -219,6 +229,7 @@ export class RpcHandler implements IRpcEndpoint {
         return result
     }
 
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
     async eth_getUserOperationReceipt(userOperationHash: HexData32): Promise<GetUserOperationReceiptResponseResult> {
         const userOperationEventAbiItem = getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
 
@@ -312,19 +323,23 @@ export class RpcHandler implements IRpcEndpoint {
         return userOperationReceipt
     }
 
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
     async debug_bundler_clearState(): Promise<BundlerClearStateResponseResult> {
         throw new Error("Method not implemented.")
     }
 
-    async debug_bundler_dumpMempool(entryPoint: Address): Promise<BundlerDumpMempoolResponseResult> {
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
+    async debug_bundler_dumpMempool(_entryPoint: Address): Promise<BundlerDumpMempoolResponseResult> {
         throw new Error("Method not implemented.")
     }
 
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
     async debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
         throw new Error("Method not implemented.")
     }
 
-    async debug_bundler_setBundlingMode(bundlingMode: BundlingMode): Promise<BundlerSetBundlingModeResponseResult> {
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
+    async debug_bundler_setBundlingMode(_bundlingMode: BundlingMode): Promise<BundlerSetBundlingModeResponseResult> {
         throw new Error("Method not implemented.")
     }
 }

@@ -15,8 +15,14 @@ export enum ExecutionErrors {
 }
 
 export class RpcError extends Error {
+    code?: number
+    data?: any
+
     // error codes from: https://eips.ethereum.org/EIPS/eip-1474
-    constructor(msg: string, readonly code?: number, readonly data: any = undefined) {
+    constructor(msg: string, code?: number, data: any = undefined) {
         super(msg)
+
+        this.code = code
+        this.data = data
     }
 }

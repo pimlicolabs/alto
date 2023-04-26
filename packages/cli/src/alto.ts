@@ -1,8 +1,8 @@
-import yargs from "yargs"
-import dotenv from "dotenv"
-import { hideBin } from "yargs/helpers"
-import { registerCommandToYargs } from "./util"
 import { bundlerCommand, bundlerOptions } from "./options"
+import { registerCommandToYargs } from "./util"
+import dotenv from "dotenv"
+import yargs from "yargs"
+import { hideBin } from "yargs/helpers"
 
 // Load environment variables from .env file
 dotenv.config()
@@ -65,6 +65,6 @@ alto.fail((msg, err) => {
         err !== undefined ? (err instanceof YargsError ? err.message : err.stack) : msg || "Unknown error"
 
     // eslint-disable-next-line no-console
-    console.error(` ✖ ${errorMessage!}\n`)
+    console.error(` ✖ ${errorMessage}\n`)
     process.exit(1)
 }).parse()

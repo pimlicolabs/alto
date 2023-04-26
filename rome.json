@@ -1,0 +1,34 @@
+{
+    "$schema": "./node_modules/rome/configuration_schema.json",
+    "files": {
+        "ignore": [
+            "**/node_modules", "CHANGELOG.md", "cache", "coverage", "dist", "tsconfig.json", "tsconfig.*.json",
+            "generated.ts", "pnpm-lock.yaml", "**/lib", ".nyc_output", "test"
+        ]
+    },
+    "organizeImports": {
+        "enabled": true
+    },
+    "linter": {
+        "enabled": true,
+        "rules": {
+            "all": true,
+            "suspicious": {
+                "noExplicitAny": "warn"
+            }
+        }
+    },
+    "formatter": {
+        "enabled": true,
+        "formatWithErrors": true,
+        "lineWidth": 120,
+        "indentSize": 4,
+        "indentStyle": "space"
+    },
+    "javascript": {
+        "formatter": {
+            "semicolons": "asNeeded",
+            "trailingComma": "none"
+        }
+    }
+}

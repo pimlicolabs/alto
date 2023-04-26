@@ -1,5 +1,5 @@
-import { Address } from "@alto/types"
 import { IBundlerArgs } from "./bundler"
+import { Address } from "@alto/types"
 import { PublicClient, createPublicClient, http } from "viem"
 
 export type RpcHandlerConfig = {

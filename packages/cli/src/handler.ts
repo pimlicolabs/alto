@@ -1,4 +1,4 @@
-import { fromZodError } from "zod-validation-error"
+import { RpcHandler, Server } from "@alto/api"
 import {
     IBundlerArgs,
     IBundlerArgsInput,
@@ -6,24 +6,24 @@ import {
     bundlerArgsSchema,
     bundlerArgsToRpcHandlerConfig
 } from "@alto/config"
-import { RpcHandler, Server } from "@alto/api"
-import { UnsafeValidator } from "@alto/validator"
 import { BasicExecutor } from "@alto/executor"
+import { Logger, initDebugLogger, initProductionLogger } from "@alto/utils"
+import { UnsafeValidator } from "@alto/validator"
 import { Chain, PublicClient, createWalletClient, http } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
-import { Logger, initDebugLogger, initProductionLogger } from "@alto/utils"
 import {
+    arbitrum,
+    arbitrumGoerli,
+    baseGoerli,
     goerli,
     mainnet,
-    polygonMumbai,
-    polygon,
-    optimismGoerli,
     optimism,
-    arbitrumGoerli,
-    arbitrum,
-    baseGoerli,
+    optimismGoerli,
+    polygon,
+    polygonMumbai,
     scrollTestnet
 } from "viem/chains"
+import { fromZodError } from "zod-validation-error"
 
 const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
     // validate every arg, make typesafe so if i add a new arg i have to validate it
