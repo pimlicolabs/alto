@@ -62,7 +62,7 @@ export class Server {
     }
 
     public async start(): Promise<void> {
-        this.fastify.listen({ port: this.bundlerArgs.port }, () => {
+        this.fastify.listen({ port: this.bundlerArgs.port, host: "0.0.0.0" }, () => {
             this.logger.info(`Server listening on port ${this.bundlerArgs.port}`)
         })
     }
