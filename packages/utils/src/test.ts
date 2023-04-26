@@ -1,4 +1,4 @@
-import { HexData, UserOperation } from "@alto/types"
+import { HexData, HexData32, UserOperation } from "@alto/types"
 import { contractFunctionExecutionErrorSchema } from "@alto/types"
 import { Abi, parseAbiParameters } from "abitype"
 import { exec, type ChildProcess } from "child_process"
@@ -114,7 +114,7 @@ export const deployContract = async (
     return contractAddress
 }
 
-export function getUserOpHash(op: UserOperation, entryPoint: Address, chainId: number): string {
+export function getUserOpHash(op: UserOperation, entryPoint: Address, chainId: number): HexData32 {
     const hashedUserOp = {
         sender: op.sender,
         nonce: op.nonce,

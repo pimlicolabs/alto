@@ -18,11 +18,15 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "string",
         require: true
     },
+    minBalance: {
+        description: "Minimum balance required for the signer",
+        type: "string",
+        require: true
+    },
     rpcUrl: {
         description: "RPC url to connect to",
         type: "string",
-        require: true,
-        default: "http://localhost:8545"
+        require: true
     },
     minStake: {
         description: "Minimum stake required for a relay (in 10e18)",
@@ -53,6 +57,24 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "number",
         require: true,
         default: 3000
+    },
+    pollingInterval: {
+        description: "Polling interval for the executor module (ms)",
+        type: "number",
+        require: true,
+        default: 100
+    },
+    logLevel: {
+        description: "Log level",
+        type: "string",
+        require: true,
+        default: "info"
+    },
+    logEnvironment: {
+        description: "Log environment",
+        type: "string",
+        require: true,
+        default: "production"
     }
 }
 

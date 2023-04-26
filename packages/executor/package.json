@@ -23,6 +23,7 @@
     "dependencies": {
         "@alto/mempool": "*",
         "@alto/types": "*",
+        "@alto/utils": "*",
         "async-mutex": "^0.4.0"
     }
 }

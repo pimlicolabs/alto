@@ -40,7 +40,7 @@ export class UnsafeValidator implements IValidator {
         }
 
         if (errorData.errorName !== "ValidationResult") {
-            throw new Error("Unexpected error")
+            throw new Error("Unexpected error - errorName is not ValidationResult")
         }
 
         const validationResult = errorData.args

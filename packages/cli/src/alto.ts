@@ -1,7 +1,11 @@
 import yargs from "yargs"
+import dotenv from "dotenv"
 import { hideBin } from "yargs/helpers"
 import { registerCommandToYargs } from "./util"
 import { bundlerCommand, bundlerOptions } from "./options"
+
+// Load environment variables from .env file
+dotenv.config()
 
 export const yarg = yargs((hideBin as (args: string[]) => string[])(process.argv))
 

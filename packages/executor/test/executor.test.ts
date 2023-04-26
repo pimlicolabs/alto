@@ -1,11 +1,20 @@
 import { type ChildProcess } from "child_process"
-import {  concat, encodeFunctionData, parseEther, getContract, parseAbiItem } from "viem"
+import { concat, encodeFunctionData, parseEther, getContract, getAbiItem } from "viem"
 
 import { privateKeyToAccount, Account } from "viem/accounts"
 import { foundry } from "viem/chains"
-import { Clients, createClients, deployContract, getUserOpHash, launchAnvil, parseSenderAddressError } from "@alto/utils"
+import {
+    Clients,
+    createClients,
+    deployContract,
+    getUserOpHash,
+    initDebugLogger,
+    initProductionLogger,
+    launchAnvil,
+    parseSenderAddressError
+} from "@alto/utils"
 import { expect } from "earl"
-import { Address, EntryPoint_bytecode, EntryPointAbi, UserOperation } from "@alto/types"
+import { Address, EntryPoint_bytecode, EntryPointAbi, HexData32, UserOperation } from "@alto/types"
 import { SimpleAccountFactoryAbi, SimpleAccountFactoryBytecode } from "@alto/types/src/contracts/SimpleAccountFactory"
 import { BasicExecutor } from "../src"
 
@@ -23,7 +32,6 @@ const TEST_OP: UserOperation = {
     signature: "0x"
 }
 
-
 describe("executor", () => {
     let clients: Clients
     let anvilProcess: ChildProcess
@@ -40,7 +48,6 @@ describe("executor", () => {
         const privateKey = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
         signer = privateKeyToAccount(privateKey)
         clients = await createClients(signer)
-        console.log(signer.address)
         entryPoint = await deployContract(clients, signer.address, EntryPointAbi, [], EntryPoint_bytecode)
         simpleAccountFactory = await deployContract(
             clients,
@@ -49,16 +56,16 @@ describe("executor", () => {
             [entryPoint],
             SimpleAccountFactoryBytecode
         )
-        executor = new BasicExecutor(signer.address, clients.public, clients.wallet, signer)
-
-        simpleAccountFactory = await deployContract(
-            clients,
+        executor = new BasicExecutor(
             signer.address,
-            SimpleAccountFactoryAbi,
-            [entryPoint],
-            SimpleAccountFactoryBytecode
+            clients.public,
+            clients.wallet,
+            signer,
+            entryPoint,
+            100,
+            initDebugLogger()
         )
-        
+
         await clients.test.setAutomine(false)
     })
 
@@ -67,11 +74,15 @@ describe("executor", () => {
     })
 
     describe("when there is a user operation", () => {
-        before(async function () {
-        })
-
         it("should be able to send transaction", async function () {
-            this.timeout(20000)
+            this.timeout(10000)
+
+            const entryPointContract = getContract({
+                address: entryPoint,
+                abi: EntryPointAbi,
+                publicClient: clients.public,
+                walletClient: clients.wallet
+            })
 
             const initCode = concat([
                 simpleAccountFactory,
@@ -81,12 +92,6 @@ describe("executor", () => {
                     args: [signer.address, 0n]
                 })
             ])
-            const entryPointContract = getContract({
-                address: entryPoint,
-                abi: EntryPointAbi,
-                publicClient: clients.public,
-                walletClient: clients.wallet
-            })
 
             const sender = await entryPointContract.simulate
                 .getSenderAddress([initCode])
@@ -108,35 +113,37 @@ describe("executor", () => {
             const signature = await clients.wallet.signMessage({ account: signer, message: opHash })
             op.signature = signature
 
-            expect(await clients.test.getAutomine()).toEqual(false);
+            expect(await clients.test.getAutomine()).toEqual(false)
             await clients.test.setIntervalMining({
-                interval: 2,
+                interval: 2
             })
-            await executor.bundle(entryPoint, [op]);
-            let logs: any[] = []
-            while(true) {
+            await executor.bundle(entryPoint, op)
+
+            let logs
+            // eslint-disable-next-line no-constant-condition
+            while (true) {
                 logs = await clients.public.getLogs({
                     fromBlock: 0n,
                     toBlock: "latest",
                     address: entryPoint,
-                    event: parseAbiItem("event UserOperationEvent(bytes32 indexed userOpHash, address indexed sender, address indexed paymaster, uint256 nonce, bool success, uint256 actualGasCost, uint256 actualGasUsed)"),
-                    args:{
-                        userOpHash: opHash,
-                        sender: sender,
-                        nonce: 0n
+                    event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" }),
+                    args: {
+                        userOpHash: opHash
                     }
                 })
                 if (logs.length > 0) {
-                    break;
+                    break
                 }
+                // wait 1 sec
+                await new Promise((resolve) => setTimeout(resolve, 1000))
             }
-            await new Promise(resolve => setTimeout(resolve, 1000))
+
             expect(logs.length).toEqual(1)
             expect(logs[0].args.success).toEqual(true)
         })
 
         it("should resend transaction is tx gas price is lower than current gas price", async function () {
-            this.timeout(200000)
+            this.timeout(10000)
 
             const initCode = concat([
                 simpleAccountFactory,
@@ -146,7 +153,7 @@ describe("executor", () => {
                     args: [signer.address, 1n]
                 })
             ])
-            
+
             const entryPointContract = getContract({
                 address: entryPoint,
                 abi: EntryPointAbi,
@@ -174,42 +181,57 @@ describe("executor", () => {
             const signature = await clients.wallet.signMessage({ account: signer, message: opHash })
             op.signature = signature
 
-            expect(await clients.test.getAutomine()).toEqual(false);
-            await executor.bundle(entryPoint, [op]);
+            expect(await clients.test.getAutomine()).toEqual(false)
+            await executor.bundle(entryPoint, op)
+
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-ignore
+            const lowerCaseSigner: HexData32 = signer.address.toLowerCase()
+            const pendingTxs = Object.values((await clients.test.getTxpoolContent()).pending[lowerCaseSigner])
+            expect(pendingTxs).toHaveLength(1)
             const block = await clients.public.getBlock({
                 blockTag: "latest"
             })
             await clients.test.setNextBlockBaseFeePerGas({
                 baseFeePerGas: block.baseFeePerGas! * 10n
             })
-            await clients.test.setIntervalMining({
-                interval: 1,
-            })
-            let logs: any[] = []
-            while(true) {
-                logs = await clients.public.getLogs({
-                    fromBlock: 0n,
-                    toBlock: "latest",
-                    address: entryPoint,
-                    event: parseAbiItem("event UserOperationEvent(bytes32 indexed userOpHash, address indexed sender, address indexed paymaster, uint256 nonce, bool success, uint256 actualGasCost, uint256 actualGasUsed)"),
-                    args:{
-                        userOpHash: opHash,
-                        sender: sender,
-                        nonce: 0n
-                    }
-                })
-                if (logs.length > 0) {
-                    break;
+            await clients.test.mine({ blocks: 1 })
+            await new Promise((resolve) => setTimeout(resolve, 1000))
+            const logs = await clients.public.getLogs({
+                fromBlock: 0n,
+                toBlock: "latest",
+                address: entryPoint,
+                event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" }),
+                args: {
+                    userOpHash: opHash
                 }
-            }
-            await new Promise(resolve => setTimeout(resolve, 1000))
-            expect(logs.length).toEqual(1)
-            expect(logs[0].args.success).toEqual(true)
-            console.log("=logs[0].transactionHash", logs[0].transactionHash)
+            })
+            expect(logs).toHaveLength(0)
+            const repalcedPendingTxs = Object.values((await clients.test.getTxpoolContent()).pending[lowerCaseSigner])
+            expect(repalcedPendingTxs).toHaveLength(1)
+            expect(repalcedPendingTxs).not.toEqual(pendingTxs)
+            await clients.test.mine({ blocks: 1 })
+            await new Promise((resolve) => setTimeout(resolve, 1000))
+
+            const logsAgain = await clients.public.getLogs({
+                fromBlock: 0n,
+                toBlock: "latest",
+                address: entryPoint,
+                event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" }),
+                args: {
+                    userOpHash: opHash
+                }
+            })
+
+            const pendingTxsAfterMining = Object.keys((await clients.test.getTxpoolContent()).pending)
+            expect(pendingTxsAfterMining).toHaveLength(0)
+
+            expect(logsAgain.length).toEqual(1)
+            expect(logsAgain[0].args.success).toEqual(true)
         })
 
         it("should not send transaction if tx will fail", async function () {
-            this.timeout(200000)
+            this.timeout(10000)
 
             const signer2 = privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d")
 
@@ -218,10 +240,10 @@ describe("executor", () => {
                 encodeFunctionData({
                     abi: SimpleAccountFactoryAbi,
                     functionName: "createAccount",
-                    args: [signer.address, 1n]
+                    args: [signer.address, 2n]
                 })
             ])
-            
+
             const entryPointContract = getContract({
                 address: entryPoint,
                 abi: EntryPointAbi,
@@ -249,12 +271,30 @@ describe("executor", () => {
             const signature = await clients.wallet.signMessage({ account: signer, message: opHash })
             op.signature = signature
 
-            expect(await clients.test.getAutomine()).toEqual(false);
+            expect(await clients.test.getAutomine()).toEqual(false)
             await entryPointContract.write.handleOps([[op], signer2.address], {
                 account: signer2,
                 chain: clients.wallet.chain
-            });
-            await executor.bundle(entryPoint, [op]);
+            })
+            await clients.test.mine({ blocks: 1 })
+            await new Promise((resolve) => setTimeout(resolve, 100))
+            await executor.bundle(entryPoint, op)
+            const pendingTxsSenders = Object.keys((await clients.test.getTxpoolContent()).pending)
+            expect(pendingTxsSenders).not.toInclude(signer2.address)
+            await clients.test.mine({ blocks: 1 })
+            await new Promise((resolve) => setTimeout(resolve, 100))
+            const logsAgain = await clients.public.getLogs({
+                fromBlock: 0n,
+                toBlock: "latest",
+                address: entryPoint,
+                event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" }),
+                args: {
+                    userOpHash: opHash
+                }
+            })
+            expect(logsAgain.length).toEqual(1)
+            const successfulTx = await clients.public.getTransaction({ hash: logsAgain[0].transactionHash! })
+            expect(successfulTx.from.toLowerCase()).toEqual(signer2.address.toLowerCase())
         })
     })
 })

@@ -24,7 +24,7 @@ import {
 } from "@alto/types"
 import { getContract, decodeFunctionData, getAbiItem } from "viem"
 import { IValidator } from "@alto/validator"
-import { calcPreVerificationGas } from "@alto/utils"
+import { Logger, calcPreVerificationGas } from "@alto/utils"
 import { IExecutor } from "@alto/executor"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
@@ -43,7 +43,12 @@ export interface IRpcEndpoint {
 }
 
 export class RpcHandler implements IRpcEndpoint {
-    constructor(readonly config: RpcHandlerConfig, readonly validator: IValidator, readonly executor: IExecutor) {}
+    constructor(
+        readonly config: RpcHandlerConfig,
+        readonly validator: IValidator,
+        readonly executor: IExecutor,
+        readonly logger: Logger
+    ) {}
 
     async handleMethod(request: BundlerRequest): Promise<BundlerResponse> {
         // call the method with the params
@@ -153,7 +158,7 @@ export class RpcHandler implements IRpcEndpoint {
 
         await this.validator.validateUserOperation(userOperation)
 
-        await this.executor.bundle(entryPoint, [userOperation])
+        await this.executor.bundle(entryPoint, userOperation)
 
         const entryPointContract = getContract({
             address: entryPoint,

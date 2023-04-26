@@ -2,6 +2,7 @@
     "beneficiary": "0xa78fCd480107fBFAF84bDE5285A668396891d3E5",
     "rpcUrl": "http://localhost:8545",
     "minStake": 1,
+    "minBalance": "1000000000000000000",
     "minUnstakeDelay": 1,
     "maxBundleWaitTime": 3,
     "maxBundleSize": 3,

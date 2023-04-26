@@ -22,11 +22,12 @@
     },
     "dependencies": {
         "@alto/api": "*",
-        "@alto/types": "*",
         "@alto/config": "*",
+        "@alto/types": "*",
         "@alto/validator": "*",
-        "yargs": "^17.7.1",
-        "viem": "^0.3.7"
+        "dotenv": "^16.0.3",
+        "viem": "^0.3.7",
+        "yargs": "^17.7.1"
     },
     "devDependencies": {
         "@types/yargs": "^17.0.24"

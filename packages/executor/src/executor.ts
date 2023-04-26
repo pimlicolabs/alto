@@ -1,7 +1,8 @@
 import { EntryPointAbi } from "@alto/types"
 import { Address, HexData32, UserOperation } from "@alto/types"
 import { Mutex } from "async-mutex"
-import { PublicClient, WalletClient, getContract, Account } from "viem"
+import { PublicClient, WalletClient, getContract, Account, WatchBlocksReturnType, Block } from "viem"
+import { Logger } from "@alto/utils"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -10,97 +11,231 @@ export interface GasEstimateResult {
 }
 
 export interface IExecutor {
-    bundle(_entryPoint: Address, _ops: UserOperation[]): Promise<void>
+    bundle(_entryPoint: Address, _op: UserOperation): Promise<void>
 }
 
 export class NullExecutor implements IExecutor {
-    async bundle(_entryPoint: Address, _ops: UserOperation[]): Promise<void> {
+    async bundle(_entryPoint: Address, _op: UserOperation): Promise<void> {
         // return 32 byte long hex string
     }
 }
 
+type UserOperationStatus = {
+    transactionHash: HexData32
+    transactionRequest: any
+}
+
+const transactionIncluded = async (txHash: HexData32, publicClient: PublicClient): Promise<boolean> => {
+    try {
+        await publicClient.getTransactionReceipt({ hash: txHash })
+        return true
+    } catch (e) {
+        return false
+    }
+}
+
 export class BasicExecutor implements IExecutor {
-    mutex : Mutex
+    monitoredTransactions: Record<HexData32, UserOperationStatus> = {}
+    unWatch: WatchBlocksReturnType | undefined
+
+    mutex: Mutex
     constructor(
         readonly beneficiary: Address,
         readonly publicClient: PublicClient,
         readonly walletClient: WalletClient,
-        readonly executeEOA: Account
+        readonly executeEOA: Account,
+        readonly entryPoint: Address,
+        readonly pollingInterval: number,
+        readonly logger: Logger
     ) {
         this.mutex = new Mutex()
     }
 
-    async bundle(entryPoint: Address, ops: UserOperation[]): Promise<void> {
+    startWatchingBlocks(): void {
+        if (this.unWatch) {
+            return
+        }
+        this.unWatch = this.publicClient.watchBlocks({
+            onBlock: (block) => {
+                // Use an arrow function to ensure correct binding of `this`
+                this.checkAndReplaceTransactions(block)
+                    .then(() => {
+                        this.logger.trace("handled block")
+                        // Handle the resolution of the promise here, if needed
+                    })
+                    .catch((error) => {
+                        // Handle any errors that occur during the execution of the promise
+                        this.logger.error(error, "error while handling block")
+                    })
+            },
+            includeTransactions: false,
+            pollingInterval: this.pollingInterval
+        })
+
+        this.logger.debug("started watching blocks")
+    }
+
+    stopWatchingBlocks(): void {
+        if (this.unWatch) {
+            this.logger.debug("stopped watching blocks")
+            this.unWatch()
+        }
+    }
+
+    async checkAndReplaceTransactions(block: Block): Promise<void> {
+        // typescript mistakenly doesn't believe this is HexData32
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        const opHashes: HexData32[] = Object.keys(this.monitoredTransactions)
+
+        const transactionsReplaced = new Set()
+
+        opHashes.map(async (opHash) => {
+            const opStatus = this.monitoredTransactions[opHash]
+            const txIncluded = await transactionIncluded(opStatus.transactionHash, this.publicClient)
+            const childLogger = this.logger.child({ userOpHash: opHash, txHash: opStatus.transactionHash })
+            if (txIncluded) {
+                childLogger.debug("transaction included")
+                delete this.monitoredTransactions[opHash]
+                if (Object.keys(this.monitoredTransactions).length === 0) {
+                    this.stopWatchingBlocks()
+                }
+                return
+            }
+
+            childLogger.debug("transaction not included")
+
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            const transaction = opStatus.transactionRequest
+            childLogger.debug(
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+                { baseFeePerGas: block.baseFeePerGas, maxFeePerGas: transaction.maxFeePerGas },
+                "queried gas fee parameters"
+            )
+            if (
+                block.baseFeePerGas === null ||
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+                transaction.maxFeePerGas === undefined ||
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+                block.baseFeePerGas <= transaction.maxFeePerGas
+            ) {
+                childLogger.debug("not replacing")
+                return
+            }
+
+            if (transactionsReplaced.has(transaction)) {
+                childLogger.debug("already replaced")
+                return
+            }
+
+            childLogger.debug("replacing transaction")
+            transactionsReplaced.add(transaction)
+            // replace transaction
+            const gasPrice = await this.publicClient.getGasPrice()
+            delete this.monitoredTransactions[opHash]
+
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            const request = {
+                ...transaction,
+                maxFeePerGas:
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+                    gasPrice > (transaction.maxFeePerGas * 11n) / 10n
+                        ? gasPrice
+                        : // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+                          (transaction.maxFeePerGas * 11n) / 10n,
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion, @typescript-eslint/no-unsafe-member-access
+                maxPriorityFeePerGas: (transaction.maxPriorityFeePerGas! * 11n) / 10n
+            }
+
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            const { chain, abi, ...loggingRequest } = request
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            childLogger.debug({ request: { ...loggingRequest } }, "replacing transaction")
+
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+            const tx = await this.walletClient.writeContract(request)
+
+            this.monitoredTransactions[opHash] = {
+                transactionHash: tx,
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+                transactionRequest: request
+            }
+
+            childLogger.info(
+                {
+                    txHash: tx,
+                    oldTxHash: opStatus.transactionHash,
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+                    maxFeePerGas: request.maxFeePerGas,
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+                    oldMaxFeePerGas: transaction.maxFeePerGas,
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+                    maxPriorityFeePerGas: request.maxPriorityFeePerGas,
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+                    oldMaxPriorityFeePerGas: transaction.maxPriorityFeePerGas
+                },
+                "replaced transaction"
+            )
+        })
+    }
+
+    async bundle(entryPoint: Address, op: UserOperation): Promise<void> {
         await this.mutex.runExclusive(async () => {
+            const childLogger = this.logger.child({ userOperation: op, entryPoint, module: "executor" })
+            childLogger.debug(`bundling user operation`)
             const ep = getContract({
                 abi: EntryPointAbi,
                 address: entryPoint,
                 publicClient: this.publicClient,
                 walletClient: this.walletClient
             })
-            const gasLimit = await ep.estimateGas
-                .handleOps([ops, this.beneficiary], {
-                    account: this.executeEOA
-                })
-                .then((limit) => {
-                    return (limit * 12n) / 10n
-                })
 
-            const tx = await ep.write.handleOps([ops, this.beneficiary], {
+            let gasLimit: bigint
+            try {
+                gasLimit = await ep.estimateGas
+                    .handleOps([[op], this.beneficiary], {
+                        account: this.executeEOA
+                    })
+                    .then((limit) => {
+                        return (limit * 12n) / 10n
+                    })
+            } catch (e) {
+                this.logger.warn({ userOperation: op, entryPoint }, `user operation reverted during gas estimation`)
+                return
+            }
+
+            const gasPrice = await this.publicClient.getGasPrice()
+            childLogger.debug({ gasPrice }, `got gas price`)
+
+            const nonce = await this.publicClient.getTransactionCount({ address: this.executeEOA.address })
+            childLogger.debug({ nonce }, `got nonce`)
+
+            const maxPriorityFeePerGas = 1_000_000_000n > gasPrice ? gasPrice : 1_000_000_000n
+
+            const { request } = await ep.simulate.handleOps([[op], this.beneficiary], {
                 gas: gasLimit,
                 account: this.executeEOA,
-                chain: this.walletClient.chain
+                chain: this.walletClient.chain,
+                maxFeePerGas: gasPrice,
+                maxPriorityFeePerGas,
+                nonce: nonce
             })
-            this.monitorTx(tx).catch((e) => {
-                console.error(e)
-            })
-            return tx
-        })
-    }
 
-    async monitorTx(tx: HexData32): Promise<void> {
-        let transaction = await this.publicClient.getTransaction({
-            hash: tx
+            const { chain, abi, ...loggingRequest } = request
+            childLogger.debug({ request: { ...loggingRequest } }, `got request`)
+
+            const txHash = await this.walletClient.writeContract(request)
+            childLogger.info({ txHash }, `sent transaction`)
+
+            const opHash = await ep.read.getUserOpHash([op])
+            childLogger.debug({ opHash }, `got op hash`)
+
+            this.monitoredTransactions[opHash] = {
+                transactionHash: txHash,
+                transactionRequest: request
+            }
+
+            this.startWatchingBlocks()
         })
-        let dismissed = false
-        let checkedBlock : HexData32 = "0x0000000000000000000000000000000000000000000000000000000000000000"
-        while(!dismissed) {
-            console.log("get block")
-            const block = await this.publicClient.getBlock({
-                blockTag: "latest",
-                includeTransactions: true
-            })
-            if(checkedBlock === block.hash!) {
-                await new Promise((resolve) => setTimeout(resolve, 1000)) // wait for new block
-                continue
-            } else {
-                checkedBlock = block.hash!
-            }
-            const rcpt = await this.publicClient.getTransactionReceipt({
-                hash: tx
-            }).catch(() => undefined)
-            if(rcpt !== undefined) {
-                console.log("found")
-                dismissed = true
-                break
-            }
-            if(block.baseFeePerGas !== null && transaction.maxFeePerGas !== null && transaction.maxFeePerGas !== undefined && block.baseFeePerGas > transaction.maxFeePerGas) { // replace transaction
-                const gasPrice = await this.publicClient.getGasPrice()
-                tx = await this.walletClient.sendTransaction({
-                    account: this.executeEOA,
-                    chain: this.walletClient.chain,
-                    to: transaction.to!,
-                    value: transaction.value,
-                    gas: transaction.gas,
-                    data: transaction.input,
-                    maxFeePerGas: gasPrice > transaction.maxFeePerGas * 11n / 10n ? gasPrice : transaction.maxFeePerGas * 11n / 10n,
-                })
-                transaction = await this.publicClient.getTransaction({
-                    hash: tx
-                })
-                continue
-            }
-            await new Promise((resolve) => setTimeout(resolve, 1000)) // wait 1 second before checking again
-        }
     }
 }
