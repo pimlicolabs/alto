@@ -54,6 +54,7 @@ export class Server {
         })
 
         this.fastify.post("/rpc", this.rpc.bind(this))
+        this.fastify.get("/health", this.healthCheck.bind(this))
 
         this.rpcEndpoint = rpcEndpoint
         this.bundlerArgs = bundlerArgs
