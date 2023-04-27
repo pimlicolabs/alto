@@ -1735,7 +1735,7 @@ avvio@^8.2.0:
     debug "^4.0.0"
     fastq "^1.6.1"
 
-axios@^1.0.0:
+axios@^1.0.0, axios@^1.2.3, axios@^1.3.6:
   version "1.3.6"
   resolved "https://registry.yarnpkg.com/axios/-/axios-1.3.6.tgz#1ace9a9fb994314b5f6327960918406fa92c6646"
   integrity sha512-PEcdkk7JcdPiMDkvM4K6ZBRYq9keuVJsToxm2zQIM70Qqo2WHTdJZMXcG9X+RmRp2VPNUQC8W1RAGbgt6b1yMg==
@@ -2148,6 +2148,11 @@ combined-stream@^1.0.8:
   integrity sha512-FQN4MRfuJeHf7cBbBMJFXhKSDq+2kAArBlmRBvcvFE5BB1HZKXtSFASDhdlz9zOYwxh8lDdnvmMOe/+5cdoEdg==
   dependencies:
     delayed-stream "~1.0.0"
+
+commander@^9.4.0:
+  version "9.5.0"
+  resolved "https://registry.yarnpkg.com/commander/-/commander-9.5.0.tgz#bc08d1eb5cedf7ccb797a96199d41c7bc3e60d30"
+  integrity sha512-KRs7WVDKg86PWiuAqhDrAQnTXZKraVcCc6vFdL14qrZ/DcWwuRo7VoiYXalXO7S5GKpqYiVEwCbgFDfxNHKJBQ==
 
 common-ancestor-path@^1.0.1:
   version "1.0.1"
@@ -5153,6 +5158,16 @@ pino-http@^8.3.3:
     pino "^8.0.0"
     pino-std-serializers "^6.0.0"
     process-warning "^2.0.0"
+
+pino-loki@^2.0.4:
+  version "2.0.4"
+  resolved "https://registry.yarnpkg.com/pino-loki/-/pino-loki-2.0.4.tgz#3acffc9e896a2a662acdd02d3a8be68ea3123b94"
+  integrity sha512-M2NTHBK/gKAR8bYbWOo0lVxwwWMEhyQrsgEZaaeOIRXGhblWwaLJpj4Iqe36VVuSXZXb6FvAaA/QpadCh5I1Yg==
+  dependencies:
+    axios "^1.2.3"
+    commander "^9.4.0"
+    pino-abstract-transport "^1.0.0"
+    pump "^3.0.0"
 
 pino-pretty@^10.0.0:
   version "10.0.0"

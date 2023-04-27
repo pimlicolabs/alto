@@ -225,18 +225,6 @@ export class BasicExecutor implements IExecutor {
                 )
             }
 
-            if (op.maxFeePerGas < gasPrice) {
-                childLogger.debug(
-                    { gasPrice, userOperationMaxFeePerGas: op.maxFeePerGas },
-                    "user operation maxFeePerGas too low"
-                )
-                throw new RpcError(
-                    `user operation maxFeePerGas too low, got ${formatGwei(
-                        op.maxFeePerGas
-                    )} gwei expected at least ${formatGwei(gasPrice)} gwei`
-                )
-            }
-
             const nonce = await this.publicClient.getTransactionCount({ address: this.executeEOA.address })
             childLogger.debug({ nonce }, "got nonce")
 
