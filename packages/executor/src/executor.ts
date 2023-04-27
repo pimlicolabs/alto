@@ -219,9 +219,21 @@ export class BasicExecutor implements IExecutor {
                     "user operation maxFeePerGas too low"
                 )
                 throw new RpcError(
-                    `user operation maxFeePerGas too low, got ${formatGwei(op.maxFeePerGas)} gwei expected ${formatGwei(
-                        gasPrice
-                    )}`
+                    `user operation maxFeePerGas too low, got ${formatGwei(
+                        op.maxFeePerGas
+                    )} gwei expected at least ${formatGwei(gasPrice)} gwei`
+                )
+            }
+
+            if (op.maxFeePerGas < gasPrice) {
+                childLogger.debug(
+                    { gasPrice, userOperationMaxFeePerGas: op.maxFeePerGas },
+                    "user operation maxFeePerGas too low"
+                )
+                throw new RpcError(
+                    `user operation maxFeePerGas too low, got ${formatGwei(
+                        op.maxFeePerGas
+                    )} gwei expected at least ${formatGwei(gasPrice)} gwei`
                 )
             }
 
