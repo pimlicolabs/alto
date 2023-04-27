@@ -80,7 +80,14 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     if (parsedArgs.logEnvironment === "development") {
         logger = initDebugLogger(parsedArgs.logLevel)
     } else {
-        logger = initProductionLogger(parsedArgs.logLevel)
+        logger = initProductionLogger(
+            parsedArgs.logLevel,
+            chainId,
+            parsedArgs.environment,
+            parsedArgs.lokiHost,
+            parsedArgs.lokiUsername,
+            parsedArgs.lokiPassword
+        )
     }
     const signerAccount = privateKeyToAccount(parsedArgs.signerPrivateKey)
     const validator = new UnsafeValidator(handlerConfig.publicClient, parsedArgs.entryPoint)

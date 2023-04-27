@@ -18,8 +18,14 @@ export const bundlerArgsSchema = z.object({
     port: z.number().int().min(0),
     pollingInterval: z.number().int().min(0),
 
+    environment: z.enum(["production", "staging", "development"]),
+
     logLevel: z.enum(["trace", "debug", "info", "warn", "error", "fatal"]),
-    logEnvironment: z.enum(["production", "development"])
+    logEnvironment: z.enum(["production", "development"]),
+
+    lokiHost: z.string(),
+    lokiUsername: z.string(),
+    lokiPassword: z.string()
 })
 
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>

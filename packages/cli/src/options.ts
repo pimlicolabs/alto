@@ -68,13 +68,31 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description: "Log level",
         type: "string",
         require: true,
-        default: "info"
+        default: "debug"
+    },
+    environment: {
+        description: "Environment",
+        type: "string",
+        require: true,
+        default: "production"
     },
     logEnvironment: {
         description: "Log environment",
         type: "string",
         require: true,
         default: "production"
+    },
+    lokiHost: {
+        description: "Loki host",
+        type: "string"
+    },
+    lokiUsername: {
+        description: "Loki username",
+        type: "string"
+    },
+    lokiPassword: {
+        description: "Loki password",
+        type: "string"
     }
 }
 
