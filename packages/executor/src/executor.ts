@@ -1,8 +1,8 @@
-import { EntryPointAbi } from "@alto/types"
+import { EntryPointAbi, RpcError } from "@alto/types"
 import { Address, HexData32, UserOperation } from "@alto/types"
 import { Logger } from "@alto/utils"
 import { Mutex } from "async-mutex"
-import { Account, Block, PublicClient, WalletClient, WatchBlocksReturnType, getContract } from "viem"
+import { Account, Block, PublicClient, WalletClient, WatchBlocksReturnType, getContract, formatGwei } from "viem"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -212,6 +212,18 @@ export class BasicExecutor implements IExecutor {
 
             const gasPrice = await this.publicClient.getGasPrice()
             childLogger.debug({ gasPrice }, "got gas price")
+
+            if (op.maxFeePerGas < gasPrice) {
+                childLogger.debug(
+                    { gasPrice, userOperationMaxFeePerGas: op.maxFeePerGas },
+                    "user operation maxFeePerGas too low"
+                )
+                throw new RpcError(
+                    `user operation maxFeePerGas too low, got ${formatGwei(op.maxFeePerGas)} gwei expected ${formatGwei(
+                        gasPrice
+                    )}`
+                )
+            }
 
             const nonce = await this.publicClient.getTransactionCount({ address: this.executeEOA.address })
             childLogger.debug({ nonce }, "got nonce")
