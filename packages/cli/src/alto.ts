@@ -37,7 +37,7 @@ export function getAltoCli(): yargs.Argv {
         .recommendCommands()
 
     // throw an error if we see an unrecognized cmd
-    alto.recommendCommands().strict()
+    alto.recommendCommands() //.strict()
     alto.config()
 
     // yargs.command and all ./cmds
