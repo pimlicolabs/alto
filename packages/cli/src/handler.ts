@@ -21,8 +21,7 @@ import {
     optimismGoerli,
     polygon,
     polygonMumbai,
-    scrollTestnet,
-    defineChain
+    scrollTestnet
 } from "viem/chains"
 import { fromZodError } from "zod-validation-error"
 
@@ -50,31 +49,31 @@ const preFlightChecks = async (publicClient: PublicClient, args: IBundlerArgs): 
     }
 }
 
-declare const lineaTestnet: {
-    readonly id: 59140;
-    readonly name: "Linea Testnet";
-    readonly network: "linea-testnet";
-    readonly nativeCurrency: {
-        readonly name: "Ether";
-        readonly symbol: "ETH";
-        readonly decimals: 18;
-    };
-    readonly rpcUrls: {
-        readonly default: {
-            readonly http: readonly ["https://rpc.goerli.linea.build/"];
-        };
-        readonly public: {
-            readonly http: readonly ["https://rpc.goerli.linea.build/"];
-        };
-    };
-    readonly blockExplorers: {
-        readonly default: {
-            readonly name: "Linea Explorer";
-            readonly url: "https://explorer.goerli.linea.build/";
-        };
-    };
-    readonly testnet: true;
-};
+const lineaTestnet: Chain = {
+    id: 59140,
+    name: "Linea Testnet",
+    network: "linea-testnet",
+    nativeCurrency: {
+        name: "Ether",
+        symbol: "ETH",
+        decimals: 18
+    },
+    rpcUrls: {
+        default: {
+            http: ["https://rpc.goerli.linea.build/"]
+        },
+        public: {
+            http: ["https://rpc.goerli.linea.build/"]
+        }
+    },
+    blockExplorers: {
+        default: {
+            name: "Linea Explorer",
+            url: "https://explorer.goerli.linea.build/"
+        }
+    },
+    testnet: true
+}
 
 const chainIdToChain: Record<number, Chain> = {
     1: mainnet,
@@ -87,7 +86,7 @@ const chainIdToChain: Record<number, Chain> = {
     42161: arbitrum,
     84531: baseGoerli,
     534353: scrollTestnet,
-    59140: defineChain(lineaTestnet)
+    59140: lineaTestnet
 }
 
 export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => {
