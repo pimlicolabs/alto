@@ -1,4 +1,4 @@
-name: Node.js CI
+name: Run Tests
 
 on:
   push:
@@ -15,7 +15,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v2
@@ -25,11 +25,8 @@ jobs:
     - name: Install dependencies
       run: yarn install
 
-    - name: Install Foundry and Anvil
-      run: |
-        curl -L https://foundry.paradigm.xyz | bash
-        source ~/.bashrc
-        foundryup
+    - name: Install Foundry
+      uses: foundry-rs/foundry-toolchain@v1
 
     - name: Build
       run: yarn build
