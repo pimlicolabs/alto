@@ -17,6 +17,7 @@ import { expect } from "earl"
 import { Address, EntryPoint_bytecode, EntryPointAbi, HexData32, UserOperation } from "@alto/types"
 import { SimpleAccountFactoryAbi, SimpleAccountFactoryBytecode } from "@alto/types/src/contracts/SimpleAccountFactory"
 import { BasicExecutor } from "../src"
+import { getSender } from "./utils"
 
 const TEST_OP: UserOperation = {
     sender: "0x0000000000000000000000000000000000000000",
@@ -42,7 +43,7 @@ describe("executor", () => {
 
     let executor: BasicExecutor
 
-    before(async function () {
+    beforeEach(async function () {
         // destructure the return value
         anvilProcess = await launchAnvil()
         const privateKey = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
@@ -63,26 +64,19 @@ describe("executor", () => {
             signer,
             entryPoint,
             100,
-            initDebugLogger()
+            initDebugLogger("fatal")
         )
 
         await clients.test.setAutomine(false)
     })
 
-    after(function () {
+    afterEach(function () {
         anvilProcess.kill()
     })
 
     describe("when there is a user operation", () => {
         it("should be able to send transaction", async function () {
             this.timeout(10000)
-
-            const entryPointContract = getContract({
-                address: entryPoint,
-                abi: EntryPointAbi,
-                publicClient: clients.public,
-                walletClient: clients.wallet
-            })
 
             const initCode = concat([
                 simpleAccountFactory,
@@ -93,20 +87,14 @@ describe("executor", () => {
                 })
             ])
 
-            const sender = await entryPointContract.simulate
-                .getSenderAddress([initCode])
-                .then((_) => {
-                    throw new Error("Expected error")
-                })
-                .catch((e: Error) => {
-                    return parseSenderAddressError(e)
-                })
+            const sender = await getSender(entryPoint, initCode, clients)
 
             await clients.test.setBalance({ address: sender, value: parseEther("1") })
 
             const op = TEST_OP
             op.sender = sender
             op.initCode = initCode
+            op.maxFeePerGas = await clients.public.getGasPrice()
 
             const opHash = getUserOpHash(op, entryPoint, foundry.id)
 
@@ -114,32 +102,60 @@ describe("executor", () => {
             op.signature = signature
 
             expect(await clients.test.getAutomine()).toEqual(false)
-            await clients.test.setIntervalMining({
-                interval: 2
-            })
             await executor.bundle(entryPoint, op)
 
-            let logs
-            // eslint-disable-next-line no-constant-condition
-            while (true) {
-                logs = await clients.public.getLogs({
-                    fromBlock: 0n,
-                    toBlock: "latest",
-                    address: entryPoint,
-                    event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" }),
-                    args: {
-                        userOpHash: opHash
-                    }
-                })
-                if (logs.length > 0) {
-                    break
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-ignore
+            const lowerCaseSigner: HexData32 = signer.address.toLowerCase()
+            const pendingTxs = Object.values((await clients.test.getTxpoolContent()).pending[lowerCaseSigner])
+            expect(pendingTxs).toHaveLength(1)
+            await clients.test.mine({ blocks: 1 })
+            await new Promise((resolve) => setTimeout(resolve, 1000))
+            const logs = await clients.public.getLogs({
+                fromBlock: 0n,
+                toBlock: "latest",
+                address: entryPoint,
+                event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" }),
+                args: {
+                    userOpHash: opHash
                 }
-                // wait 1 sec
-                await new Promise((resolve) => setTimeout(resolve, 1000))
-            }
-
-            expect(logs.length).toEqual(1)
+            })
+            expect(logs).toHaveLength(1)
             expect(logs[0].args.success).toEqual(true)
+        })
+
+        it("should fail if op maxFeePerGas is lower than network gasPrice", async function () {
+            this.timeout(10000)
+
+            const initCode = concat([
+                simpleAccountFactory,
+                encodeFunctionData({
+                    abi: SimpleAccountFactoryAbi,
+                    functionName: "createAccount",
+                    args: [signer.address, 0n]
+                })
+            ])
+
+            const sender = await getSender(entryPoint, initCode, clients)
+
+            await clients.test.setBalance({ address: sender, value: parseEther("1") })
+
+            const op = TEST_OP
+            op.sender = sender
+            op.initCode = initCode
+            op.maxFeePerGas = 1n
+
+            const opHash = getUserOpHash(op, entryPoint, foundry.id)
+
+            const signature = await clients.wallet.signMessage({ account: signer, message: opHash })
+            op.signature = signature
+
+            expect(await clients.test.getAutomine()).toEqual(false)
+            await expect(executor.bundle(entryPoint, op)).toBeRejectedWith(/user operation maxFeePerGas too low/)
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-ignore
+            const pendingTxs = Object.keys((await clients.test.getTxpoolContent()).pending)
+            expect(pendingTxs).toHaveLength(0)
         })
 
         it("should resend transaction is tx gas price is lower than current gas price", async function () {
@@ -154,27 +170,14 @@ describe("executor", () => {
                 })
             ])
 
-            const entryPointContract = getContract({
-                address: entryPoint,
-                abi: EntryPointAbi,
-                publicClient: clients.public,
-                walletClient: clients.wallet
-            })
-
-            const sender = await entryPointContract.simulate
-                .getSenderAddress([initCode])
-                .then((_) => {
-                    throw new Error("Expected error")
-                })
-                .catch((e: Error) => {
-                    return parseSenderAddressError(e)
-                })
+            const sender = await getSender(entryPoint, initCode, clients)
 
             await clients.test.setBalance({ address: sender, value: parseEther("1") })
 
             const op = TEST_OP
             op.sender = sender
             op.initCode = initCode
+            op.maxFeePerGas = await clients.public.getGasPrice()
 
             const opHash = getUserOpHash(op, entryPoint, foundry.id)
 
@@ -251,20 +254,14 @@ describe("executor", () => {
                 walletClient: clients.wallet
             })
 
-            const sender = await entryPointContract.simulate
-                .getSenderAddress([initCode])
-                .then((_) => {
-                    throw new Error("Expected error")
-                })
-                .catch((e: Error) => {
-                    return parseSenderAddressError(e)
-                })
+            const sender = await getSender(entryPoint, initCode, clients)
 
             await clients.test.setBalance({ address: sender, value: parseEther("1") })
 
             const op = TEST_OP
             op.sender = sender
             op.initCode = initCode
+            op.maxFeePerGas = await clients.public.getGasPrice()
 
             const opHash = getUserOpHash(op, entryPoint, foundry.id)
 

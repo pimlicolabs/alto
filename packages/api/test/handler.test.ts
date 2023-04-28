@@ -7,6 +7,7 @@ import {
     createClients,
     deployContract,
     getUserOpHash,
+    initDebugLogger,
     launchAnvil,
     parseSenderAddressError
 } from "@alto/utils"
@@ -50,7 +51,7 @@ describe("handler", () => {
             chainId: anvilChainId,
             entryPoint: entryPoint
         }
-        handler = new RpcHandler(rpcHandlerConfig, validator, new NullExecutor())
+        handler = new RpcHandler(rpcHandlerConfig, validator, new NullExecutor(), initDebugLogger("fatal"))
     })
 
     after(function () {
