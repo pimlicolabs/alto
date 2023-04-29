@@ -25,7 +25,15 @@ import {
 } from "@alto/types"
 import { Logger, calcPreVerificationGas } from "@alto/utils"
 import { IValidator } from "@alto/validator"
-import { decodeFunctionData, getAbiItem, getContract } from "viem"
+import {
+    decodeFunctionData,
+    getAbiItem,
+    getContract,
+    TransactionNotFoundError,
+    TransactionReceiptNotFoundError,
+    Transaction,
+    TransactionReceipt
+} from "viem"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
 
@@ -203,7 +211,19 @@ export class RpcHandler implements IRpcEndpoint {
             return null
         }
 
-        const tx = await this.config.publicClient.getTransaction({ hash: txHash })
+        const getTransaction = async (txHash: HexData32): Promise<Transaction> => {
+            try {
+                return await this.config.publicClient.getTransaction({ hash: txHash })
+            } catch (e) {
+                if (e instanceof TransactionNotFoundError) {
+                    return getTransaction(txHash)
+                } else {
+                    throw e
+                }
+            }
+        }
+
+        const tx = await getTransaction(txHash)
         const decoded = decodeFunctionData({ abi: EntryPointAbi, data: tx.input })
         if (decoded.functionName !== "handleOps") {
             return null
@@ -254,7 +274,19 @@ export class RpcHandler implements IRpcEndpoint {
             return null
         }
 
-        const receipt = await this.config.publicClient.getTransactionReceipt({ hash: txHash })
+        const getTransactionReceipt = async (txHash: HexData32): Promise<TransactionReceipt> => {
+            try {
+                return await this.config.publicClient.getTransactionReceipt({ hash: txHash })
+            } catch (e) {
+                if (e instanceof TransactionReceiptNotFoundError) {
+                    return getTransactionReceipt(txHash)
+                } else {
+                    throw e
+                }
+            }
+        }
+
+        const receipt = await getTransactionReceipt(txHash)
         const logs = receipt.logs
 
         if (

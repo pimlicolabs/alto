@@ -41,7 +41,6 @@ export class Server {
     private fastify: FastifyInstance
     private rpcEndpoint: IRpcEndpoint
     private bundlerArgs: IBundlerArgs
-    private logger: Logger
 
     constructor(rpcEndpoint: IRpcEndpoint, bundlerArgs: IBundlerArgs, logger: Logger) {
         this.fastify = Fastify({
@@ -53,18 +52,14 @@ export class Server {
 
         this.rpcEndpoint = rpcEndpoint
         this.bundlerArgs = bundlerArgs
-
-        this.logger = logger
     }
 
     public async start(): Promise<void> {
-        this.fastify.listen({ port: this.bundlerArgs.port, host: "0.0.0.0" }, () => {
-            this.logger.info(`Server listening on port ${this.bundlerArgs.port}`)
-        })
+        this.fastify.listen({ port: this.bundlerArgs.port, host: "0.0.0.0" })
     }
 
     public async stop(): Promise<void> {
-        // TODO
+        await this.fastify.close()
     }
 
     public async healthCheck(_request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -99,7 +94,7 @@ export class Server {
                     this.fastify.log.error(err, "error reply (non-rpc)")
                 } else {
                     await reply.status(500).send("Unknown error")
-                    this.fastify.log.info(reply.raw, "error reply")
+                    this.fastify.log.info(reply.raw, "error reply (non-rpc)")
                 }
             }
         }

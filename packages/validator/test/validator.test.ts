@@ -34,7 +34,7 @@ describe("validator", () => {
 
 		let signer: Account
 
-		before(async function () {
+		beforeEach(async function () {
 			anvilProcess = await launchAnvil()
 			const privateKey = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" // first private key in anvil
 			signer = privateKeyToAccount(privateKey)
@@ -51,8 +51,10 @@ describe("validator", () => {
 			validator = new UnsafeValidator(clients.public, entryPoint)
 		})
 
-		after(function () {
+		afterEach(async function () {
 			anvilProcess.kill()
+			await new Promise((resolve) => setTimeout(resolve, 50))
+
 		})
 
 		it("should return true for a valid user operation", async function () {

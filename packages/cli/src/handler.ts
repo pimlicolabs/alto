@@ -6,11 +6,10 @@ import {
     bundlerArgsSchema,
     bundlerArgsToRpcHandlerConfig
 } from "@alto/config"
-import { BasicExecutor } from "@alto/executor"
+import { BasicExecutor, SenderManager } from "@alto/executor"
 import { Logger, initDebugLogger, initProductionLogger } from "@alto/utils"
 import { UnsafeValidator } from "@alto/validator"
 import { Chain, PublicClient, createWalletClient, http } from "viem"
-import { privateKeyToAccount } from "viem/accounts"
 import {
     arbitrum,
     arbitrumGoerli,
@@ -116,13 +115,21 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
             parsedArgs.lokiPassword
         )
     }
-    const signerAccount = privateKeyToAccount(parsedArgs.signerPrivateKey)
     const validator = new UnsafeValidator(handlerConfig.publicClient, parsedArgs.entryPoint)
+    const senderManager = new SenderManager(parsedArgs.signerPrivateKeys, logger, parsedArgs.maxSigners)
+
+    await senderManager.validateAndRefillWallets(
+        client,
+        walletClient,
+        parsedArgs.minBalance,
+        parsedArgs.utilityPrivateKey
+    )
+
     const executor = new BasicExecutor(
         parsedArgs.beneficiary,
         client,
         walletClient,
-        signerAccount,
+        senderManager,
         parsedArgs.entryPoint,
         parsedArgs.pollingInterval,
         logger

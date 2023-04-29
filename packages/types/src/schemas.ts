@@ -4,7 +4,7 @@ import { z } from "zod"
 const hexNumberPattern = /^0x([0-9a-f]+[0-9a-f]*|0)$/
 const hexDataPattern = /^0x[0-9a-f]*$/
 const addressPattern = /^0x[0-9,a-f,A-F]{40}$/
-const hexData32Pattern = /^0x([0-9a-f][0-9a-f]){0,32}$/
+export const hexData32Pattern = /^0x([0-9a-f][0-9a-f]){0,32}$/
 
 const addressSchema = z
     .string()

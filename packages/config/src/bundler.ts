@@ -1,11 +1,21 @@
 import { addressSchema, hexData32Schema } from "@alto/types"
+import { Account, privateKeyToAccount } from "viem/accounts"
 import { z } from "zod"
 
 export const bundlerArgsSchema = z.object({
     // allow both a comma separated list of addresses (better for cli and env vars) or an array of addresses (better for config files)
     entryPoint: addressSchema,
     beneficiary: addressSchema,
-    signerPrivateKey: hexData32Schema,
+    signerPrivateKeys: z.union([
+        z.array(hexData32Schema).transform((vals) => vals.map((val) => privateKeyToAccount(val) satisfies Account)),
+        z
+            .string()
+            .regex(/^0x(?:[0-9a-f]{2}){32}(?:,0x(?:[0-9a-f]{2}){32})*$/)
+            // @ts-ignore
+            .transform((val) => val.split(",").map((val) => privateKeyToAccount(val) satisfies Account))
+    ]),
+    utilityPrivateKey: hexData32Schema.transform((val) => privateKeyToAccount(val) satisfies Account),
+    maxSigners: z.number().int().min(0).optional(),
     rpcUrl: z.string().url(),
     minBalance: z.string().transform((val) => BigInt(val)),
 
@@ -23,9 +33,9 @@ export const bundlerArgsSchema = z.object({
     logLevel: z.enum(["trace", "debug", "info", "warn", "error", "fatal"]),
     logEnvironment: z.enum(["production", "development"]),
 
-    lokiHost: z.string(),
-    lokiUsername: z.string(),
-    lokiPassword: z.string()
+    lokiHost: z.string().optional(),
+    lokiUsername: z.string().optional(),
+    lokiPassword: z.string().optional()
 })
 
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>

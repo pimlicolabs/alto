@@ -54,7 +54,7 @@ describe("handler", () => {
         handler = new RpcHandler(rpcHandlerConfig, validator, new NullExecutor(), initDebugLogger("fatal"))
     })
 
-    after(function () {
+    after(async function () {
         anvilProcess.kill()
     })
 

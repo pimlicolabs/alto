@@ -1,7 +1,7 @@
 import { type ChildProcess } from "child_process"
-import { concat, encodeFunctionData, parseEther, getContract, getAbiItem } from "viem"
+import { concat, encodeFunctionData, parseEther, getContract, getAbiItem, RpcTransaction, TestClient } from "viem"
 
-import { privateKeyToAccount, Account } from "viem/accounts"
+import { privateKeyToAccount, Account, generatePrivateKey } from "viem/accounts"
 import { foundry } from "viem/chains"
 import {
     Clients,
@@ -17,20 +17,14 @@ import { expect } from "earl"
 import { Address, EntryPoint_bytecode, EntryPointAbi, HexData32, UserOperation } from "@alto/types"
 import { SimpleAccountFactoryAbi, SimpleAccountFactoryBytecode } from "@alto/types/src/contracts/SimpleAccountFactory"
 import { BasicExecutor } from "../src"
-import { getSender } from "./utils"
+import { TEST_OP, createOp, generateAccounts, getSender } from "./utils"
+import { SenderManager } from "../src/senderManager"
 
-const TEST_OP: UserOperation = {
-    sender: "0x0000000000000000000000000000000000000000",
-    nonce: 0n,
-    initCode: "0x",
-    callData: "0x",
-    callGasLimit: 100_000n,
-    verificationGasLimit: 1_000_000n,
-    preVerificationGas: 60_000n,
-    maxFeePerGas: 1n,
-    maxPriorityFeePerGas: 1n,
-    paymasterAndData: "0x",
-    signature: "0x"
+const MINE_WAIT_TIME = 200
+
+const getPendingTransactions = async (testClient: TestClient, ): Promise<RpcTransaction[]> => {
+    const pendingTxs = (await testClient.getTxpoolContent()).pending
+    return Object.values(pendingTxs).flatMap((txs) => Object.values(txs))
 }
 
 describe("executor", () => {
@@ -40,6 +34,7 @@ describe("executor", () => {
     let simpleAccountFactory: Address
 
     let signer: Account
+    let signer2: Account
 
     let executor: BasicExecutor
 
@@ -47,9 +42,19 @@ describe("executor", () => {
         // destructure the return value
         anvilProcess = await launchAnvil()
         const privateKey = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+        const privateKey2 = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+
+
         signer = privateKeyToAccount(privateKey)
+        signer2 = privateKeyToAccount(privateKey2)
         clients = await createClients(signer)
         entryPoint = await deployContract(clients, signer.address, EntryPointAbi, [], EntryPoint_bytecode)
+
+        const logger = initDebugLogger("silent")
+
+        const accounts: Account[] = await generateAccounts(clients)
+        const senderManager = new SenderManager(accounts, logger)
+
         simpleAccountFactory = await deployContract(
             clients,
             signer.address,
@@ -61,237 +66,337 @@ describe("executor", () => {
             signer.address,
             clients.public,
             clients.wallet,
-            signer,
+            senderManager,
             entryPoint,
             100,
-            initDebugLogger("fatal")
+            logger
         )
 
         await clients.test.setAutomine(false)
     })
 
-    afterEach(function () {
+    afterEach(async function () {
         anvilProcess.kill()
     })
 
-    describe("when there is a user operation", () => {
-        it("should be able to send transaction", async function () {
-            this.timeout(10000)
+    it("should be able to send transaction", async function () {
+        this.timeout(10000)
 
-            const initCode = concat([
-                simpleAccountFactory,
-                encodeFunctionData({
-                    abi: SimpleAccountFactoryAbi,
-                    functionName: "createAccount",
-                    args: [signer.address, 0n]
-                })
-            ])
+        const op = await createOp(entryPoint, simpleAccountFactory, signer, clients)
 
-            const sender = await getSender(entryPoint, initCode, clients)
+        expect(await clients.test.getAutomine()).toEqual(false)
+        await executor.bundle(entryPoint, op)
 
-            await clients.test.setBalance({ address: sender, value: parseEther("1") })
+        const pendingTxs = await getPendingTransactions(clients.test)
+        expect(pendingTxs).toHaveLength(1)
+        await clients.test.mine({ blocks: 1 })
+        await new Promise((resolve) => setTimeout(resolve, MINE_WAIT_TIME))
+        const logs = await clients.public.getLogs({
+            fromBlock: 0n,
+            toBlock: "latest",
+            address: entryPoint,
+            event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" }),
+            args: {
+                userOpHash: getUserOpHash(op, entryPoint, foundry.id)
+            }
+        })
+        expect(logs).toHaveLength(1)
+        expect(logs[0].args.success).toEqual(true)
 
-            const op = TEST_OP
-            op.sender = sender
-            op.initCode = initCode
-            op.maxFeePerGas = await clients.public.getGasPrice()
+        expect(executor.senderManager.wallets).toHaveLength(10)
+    })
 
-            const opHash = getUserOpHash(op, entryPoint, foundry.id)
+    it("should fail if op maxFeePerGas is lower than network gasPrice", async function () {
+        this.timeout(10000)
 
-            const signature = await clients.wallet.signMessage({ account: signer, message: opHash })
-            op.signature = signature
+        const op = await createOp(entryPoint, simpleAccountFactory, signer, clients, 1n)
 
-            expect(await clients.test.getAutomine()).toEqual(false)
-            await executor.bundle(entryPoint, op)
+        expect(await clients.test.getAutomine()).toEqual(false)
+        await expect(executor.bundle(entryPoint, op)).toBeRejectedWith(/user operation maxFeePerGas too low/)
+        const pendingTxs = await getPendingTransactions(clients.test)
+        expect(pendingTxs).toHaveLength(0)
 
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-ignore
-            const lowerCaseSigner: HexData32 = signer.address.toLowerCase()
-            const pendingTxs = Object.values((await clients.test.getTxpoolContent()).pending[lowerCaseSigner])
-            expect(pendingTxs).toHaveLength(1)
-            await clients.test.mine({ blocks: 1 })
-            await new Promise((resolve) => setTimeout(resolve, 1000))
-            const logs = await clients.public.getLogs({
-                fromBlock: 0n,
-                toBlock: "latest",
-                address: entryPoint,
-                event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" }),
-                args: {
-                    userOpHash: opHash
-                }
-            })
-            expect(logs).toHaveLength(1)
-            expect(logs[0].args.success).toEqual(true)
+        expect(executor.senderManager.wallets).toHaveLength(10)
+    })
+
+    it("should resend transaction is tx gas price is lower than current gas price", async function () {
+        this.timeout(10000)
+
+        const op = await createOp(entryPoint, simpleAccountFactory, signer, clients)
+        const opHash = getUserOpHash(op, entryPoint, foundry.id)
+
+        expect(await clients.test.getAutomine()).toEqual(false)
+        await executor.bundle(entryPoint, op)
+
+        const pendingTxs = await getPendingTransactions(clients.test)
+        expect(pendingTxs).toHaveLength(1)
+        const block = await clients.public.getBlock({
+            blockTag: "latest"
+        })
+        await clients.test.setNextBlockBaseFeePerGas({
+            baseFeePerGas: block.baseFeePerGas! * 10n
+        })
+        await clients.test.mine({ blocks: 1 })
+        await new Promise((resolve) => setTimeout(resolve, MINE_WAIT_TIME))
+        const logs = await clients.public.getLogs({
+            fromBlock: 0n,
+            toBlock: "latest",
+            address: entryPoint,
+            event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" }),
+            args: {
+                userOpHash: opHash
+            }
+        })
+        expect(logs).toHaveLength(0)
+        const replacedPendingTxs = await getPendingTransactions(clients.test)
+        expect(replacedPendingTxs).toHaveLength(1)
+        expect(replacedPendingTxs).not.toEqual(pendingTxs)
+        await clients.test.mine({ blocks: 1 })
+        await new Promise((resolve) => setTimeout(resolve, MINE_WAIT_TIME))
+
+        const logsAgain = await clients.public.getLogs({
+            fromBlock: 0n,
+            toBlock: "latest",
+            address: entryPoint,
+            event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" }),
+            args: {
+                userOpHash: opHash
+            }
         })
 
-        it("should fail if op maxFeePerGas is lower than network gasPrice", async function () {
-            this.timeout(10000)
+        const pendingTxsAfterMining = await getPendingTransactions(clients.test)
+        expect(pendingTxsAfterMining).toHaveLength(0)
 
-            const initCode = concat([
-                simpleAccountFactory,
-                encodeFunctionData({
-                    abi: SimpleAccountFactoryAbi,
-                    functionName: "createAccount",
-                    args: [signer.address, 0n]
-                })
-            ])
+        expect(logsAgain.length).toEqual(1)
+        expect(logsAgain[0].args.success).toEqual(true)
 
-            const sender = await getSender(entryPoint, initCode, clients)
+        expect(executor.senderManager.wallets).toHaveLength(10)
+    })
 
-            await clients.test.setBalance({ address: sender, value: parseEther("1") })
+    it("should not send transaction if tx will fail", async function () {
+        this.timeout(10000)
 
-            const op = TEST_OP
-            op.sender = sender
-            op.initCode = initCode
-            op.maxFeePerGas = 1n
+        const initCode = concat([
+            simpleAccountFactory,
+            encodeFunctionData({
+                abi: SimpleAccountFactoryAbi,
+                functionName: "createAccount",
+                args: [signer.address, 2n]
+            })
+        ])
 
-            const opHash = getUserOpHash(op, entryPoint, foundry.id)
-
-            const signature = await clients.wallet.signMessage({ account: signer, message: opHash })
-            op.signature = signature
-
-            expect(await clients.test.getAutomine()).toEqual(false)
-            await expect(executor.bundle(entryPoint, op)).toBeRejectedWith(/user operation maxFeePerGas too low/)
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-ignore
-            const pendingTxs = Object.keys((await clients.test.getTxpoolContent()).pending)
-            expect(pendingTxs).toHaveLength(0)
+        const entryPointContract = getContract({
+            address: entryPoint,
+            abi: EntryPointAbi,
+            publicClient: clients.public,
+            walletClient: clients.wallet
         })
 
-        it("should resend transaction is tx gas price is lower than current gas price", async function () {
-            this.timeout(10000)
+        const sender = await getSender(entryPoint, initCode, clients)
 
-            const initCode = concat([
-                simpleAccountFactory,
-                encodeFunctionData({
-                    abi: SimpleAccountFactoryAbi,
-                    functionName: "createAccount",
-                    args: [signer.address, 1n]
-                })
-            ])
+        await clients.test.setBalance({ address: sender, value: parseEther("1") })
 
-            const sender = await getSender(entryPoint, initCode, clients)
+        const op = TEST_OP
+        op.sender = sender
+        op.initCode = initCode
+        op.maxFeePerGas = await clients.public.getGasPrice()
 
-            await clients.test.setBalance({ address: sender, value: parseEther("1") })
+        const opHash = getUserOpHash(op, entryPoint, foundry.id)
 
-            const op = TEST_OP
-            op.sender = sender
-            op.initCode = initCode
-            op.maxFeePerGas = await clients.public.getGasPrice()
+        const signature = await clients.wallet.signMessage({ account: signer, message: opHash })
+        op.signature = signature
 
-            const opHash = getUserOpHash(op, entryPoint, foundry.id)
+        expect(await clients.test.getAutomine()).toEqual(false)
+        await entryPointContract.write.handleOps([[op], signer2.address], {
+            account: signer2,
+            chain: clients.wallet.chain
+        })
+        await clients.test.mine({ blocks: 1 })
+        await new Promise((resolve) => setTimeout(resolve, MINE_WAIT_TIME))
+        await executor.bundle(entryPoint, op)
+        const pendingTxs = await getPendingTransactions(clients.test)
+        expect(pendingTxs.map((val) => val.from)).not.toInclude(signer2.address)
+        await clients.test.mine({ blocks: 1 })
+        await new Promise((resolve) => setTimeout(resolve, MINE_WAIT_TIME))
+        const logsAgain = await clients.public.getLogs({
+            fromBlock: 0n,
+            toBlock: "latest",
+            address: entryPoint,
+            event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" }),
+            args: {
+                userOpHash: opHash
+            }
+        })
+        expect(logsAgain.length).toEqual(1)
+        const successfulTx = await clients.public.getTransaction({ hash: logsAgain[0].transactionHash! })
+        expect(successfulTx.from.toLowerCase()).toEqual(signer2.address.toLowerCase())
+    })
 
-            const signature = await clients.wallet.signMessage({ account: signer, message: opHash })
-            op.signature = signature
+    it("should be able to handle multiple ops from different senders", async function () {
+        this.timeout(10000)
 
-            expect(await clients.test.getAutomine()).toEqual(false)
-            await executor.bundle(entryPoint, op)
+        const op1 = await createOp(entryPoint, simpleAccountFactory, signer, clients)
+        const op2 = await createOp(entryPoint, simpleAccountFactory, signer2, clients)
 
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-ignore
-            const lowerCaseSigner: HexData32 = signer.address.toLowerCase()
-            const pendingTxs = Object.values((await clients.test.getTxpoolContent()).pending[lowerCaseSigner])
-            expect(pendingTxs).toHaveLength(1)
-            const block = await clients.public.getBlock({
-                blockTag: "latest"
-            })
-            await clients.test.setNextBlockBaseFeePerGas({
-                baseFeePerGas: block.baseFeePerGas! * 10n
-            })
-            await clients.test.mine({ blocks: 1 })
-            await new Promise((resolve) => setTimeout(resolve, 1000))
-            const logs = await clients.public.getLogs({
-                fromBlock: 0n,
-                toBlock: "latest",
-                address: entryPoint,
-                event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" }),
-                args: {
-                    userOpHash: opHash
-                }
-            })
-            expect(logs).toHaveLength(0)
-            const repalcedPendingTxs = Object.values((await clients.test.getTxpoolContent()).pending[lowerCaseSigner])
-            expect(repalcedPendingTxs).toHaveLength(1)
-            expect(repalcedPendingTxs).not.toEqual(pendingTxs)
-            await clients.test.mine({ blocks: 1 })
-            await new Promise((resolve) => setTimeout(resolve, 1000))
+        expect(await clients.test.getAutomine()).toEqual(false)
+        await Promise.all([
+            executor.bundle(entryPoint, op1),
+            executor.bundle(entryPoint, op2)
+        ])
 
-            const logsAgain = await clients.public.getLogs({
-                fromBlock: 0n,
-                toBlock: "latest",
-                address: entryPoint,
-                event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" }),
-                args: {
-                    userOpHash: opHash
-                }
-            })
+        const pendingTxs = await getPendingTransactions(clients.test)
+        expect(pendingTxs).toHaveLength(2)
 
-            const pendingTxsAfterMining = Object.keys((await clients.test.getTxpoolContent()).pending)
-            expect(pendingTxsAfterMining).toHaveLength(0)
+        await clients.test.mine({ blocks: 1 })
+        await new Promise((resolve) => setTimeout(resolve, MINE_WAIT_TIME))
 
-            expect(logsAgain.length).toEqual(1)
-            expect(logsAgain[0].args.success).toEqual(true)
+        const logs = await clients.public.getLogs({
+            fromBlock: 0n,
+            toBlock: "latest",
+            address: entryPoint,
+            event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
         })
 
-        it("should not send transaction if tx will fail", async function () {
-            this.timeout(10000)
+        const pendingTxsAfter = await getPendingTransactions(clients.test)
+        expect(pendingTxsAfter).toHaveLength(0)
 
-            const signer2 = privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d")
+        expect(logs).toHaveLength(2)
+        expect(logs[0].args.success).toEqual(true)
+        expect(logs[1].args.success).toEqual(true)
 
-            const initCode = concat([
-                simpleAccountFactory,
-                encodeFunctionData({
-                    abi: SimpleAccountFactoryAbi,
-                    functionName: "createAccount",
-                    args: [signer.address, 2n]
-                })
-            ])
+        expect(executor.senderManager.wallets).toHaveLength(10)
+    })
 
-            const entryPointContract = getContract({
-                address: entryPoint,
-                abi: EntryPointAbi,
-                publicClient: clients.public,
-                walletClient: clients.wallet
-            })
+    it("should be able to handle multiple ops from different senders after gas price increase", async function () {
+        this.timeout(10000)
 
-            const sender = await getSender(entryPoint, initCode, clients)
+        const op1 = await createOp(entryPoint, simpleAccountFactory, signer, clients)
+        const op2 = await createOp(entryPoint, simpleAccountFactory, signer2, clients)
 
-            await clients.test.setBalance({ address: sender, value: parseEther("1") })
+        expect(await clients.test.getAutomine()).toEqual(false)
+        await Promise.all([
+            executor.bundle(entryPoint, op1),
+            executor.bundle(entryPoint, op2)
+        ])
 
-            const op = TEST_OP
-            op.sender = sender
-            op.initCode = initCode
-            op.maxFeePerGas = await clients.public.getGasPrice()
+        const pendingTxs = await getPendingTransactions(clients.test)
+        expect(pendingTxs).toHaveLength(2)
 
-            const opHash = getUserOpHash(op, entryPoint, foundry.id)
-
-            const signature = await clients.wallet.signMessage({ account: signer, message: opHash })
-            op.signature = signature
-
-            expect(await clients.test.getAutomine()).toEqual(false)
-            await entryPointContract.write.handleOps([[op], signer2.address], {
-                account: signer2,
-                chain: clients.wallet.chain
-            })
-            await clients.test.mine({ blocks: 1 })
-            await new Promise((resolve) => setTimeout(resolve, 100))
-            await executor.bundle(entryPoint, op)
-            const pendingTxsSenders = Object.keys((await clients.test.getTxpoolContent()).pending)
-            expect(pendingTxsSenders).not.toInclude(signer2.address)
-            await clients.test.mine({ blocks: 1 })
-            await new Promise((resolve) => setTimeout(resolve, 100))
-            const logsAgain = await clients.public.getLogs({
-                fromBlock: 0n,
-                toBlock: "latest",
-                address: entryPoint,
-                event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" }),
-                args: {
-                    userOpHash: opHash
-                }
-            })
-            expect(logsAgain.length).toEqual(1)
-            const successfulTx = await clients.public.getTransaction({ hash: logsAgain[0].transactionHash! })
-            expect(successfulTx.from.toLowerCase()).toEqual(signer2.address.toLowerCase())
+        const block = await clients.public.getBlock({
+            blockTag: "latest"
         })
+        await clients.test.setNextBlockBaseFeePerGas({
+            baseFeePerGas: block.baseFeePerGas! * 10n
+        })
+
+        await clients.test.mine({ blocks: 1 })
+        await new Promise((resolve) => setTimeout(resolve, MINE_WAIT_TIME))
+
+        const logsFirst = await clients.public.getLogs({
+            fromBlock: 0n,
+            toBlock: "latest",
+            address: entryPoint,
+            event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
+        })
+
+        const pendingTxsAfterFirst = await getPendingTransactions(clients.test)
+        expect(pendingTxsAfterFirst).toHaveLength(2)
+
+        expect(logsFirst).toHaveLength(0)
+
+        await clients.test.mine({ blocks: 1 })
+        await new Promise((resolve) => setTimeout(resolve, MINE_WAIT_TIME))
+
+        const logsSecond = await clients.public.getLogs({
+            fromBlock: 0n,
+            toBlock: "latest",
+            address: entryPoint,
+            event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
+        })
+
+        const pendingTxsAfterSecond = await getPendingTransactions(clients.test)
+        expect(pendingTxsAfterSecond).toHaveLength(0)
+
+        expect(logsSecond).toHaveLength(2)
+        expect(logsSecond[0].args.success).toEqual(true)
+        expect(logsSecond[1].args.success).toEqual(true)
+
+        expect(executor.senderManager.wallets).toHaveLength(10)
+    })
+
+    it("should be able to handle exhaustion of wallets using ops from different senders after gas price increase and frontrunning", async function () {
+        this.timeout(10000)
+
+        const entryPointContract = getContract({
+            address: entryPoint,
+            abi: EntryPointAbi,
+            publicClient: clients.public,
+            walletClient: clients.wallet
+        })
+
+        expect(executor.senderManager.wallets).toHaveLength(10)
+        const signers = await generateAccounts(clients)
+
+        const ops = await Promise.all(signers.map(async (signer) => {
+            return await createOp(entryPoint, simpleAccountFactory, signer, clients)
+        }))
+
+        await Promise.all(ops.map(async (op) => executor.bundle(entryPoint, op)))
+        expect(executor.senderManager.wallets).toHaveLength(0)
+        expect(await getPendingTransactions(clients.test)).toHaveLength(10)
+
+        const extraOp = await createOp(entryPoint, simpleAccountFactory, signer2, clients)
+        const bundlePromise = executor.bundle(entryPoint, extraOp) // this can't fulfill yet because there are no wallets left
+        expect(executor.senderManager.wallets).toHaveLength(0)
+        expect(await getPendingTransactions(clients.test)).toHaveLength(10)
+
+        const block = await clients.public.getBlock({
+            blockTag: "latest"
+        })
+
+        await clients.test.setNextBlockBaseFeePerGas({
+            baseFeePerGas: block.baseFeePerGas! * 10n
+        })
+
+        // frontrun the first op
+        const frontrunTx = await entryPointContract.write.handleOps([[ops[0]], signer2.address], {
+            account: signer2,
+            chain: clients.wallet.chain,
+            maxFeePerGas: block.baseFeePerGas! * 100n
+        })
+
+        await clients.test.mine({ blocks: 1 })
+        await new Promise((resolve) => setTimeout(resolve, MINE_WAIT_TIME))
+
+        const logsFirst = await clients.public.getLogs({
+            fromBlock: 0n,
+            toBlock: "latest",
+            address: entryPoint,
+            event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
+        })
+
+        const pendingTxsAfterFirst = await getPendingTransactions(clients.test)
+        expect(pendingTxsAfterFirst).toHaveLength(10) // extraOp should have entered the mempool and the first op should have been frontrun and removed
+        expect(executor.senderManager.wallets).toHaveLength(0)
+
+        expect(logsFirst).toHaveLength(1)
+        expect(logsFirst[0].transactionHash).toEqual(frontrunTx)
+
+        await clients.test.mine({ blocks: 1 })
+        await new Promise((resolve) => setTimeout(resolve, MINE_WAIT_TIME))
+
+        const logsSecond = await clients.public.getLogs({
+            fromBlock: 0n,
+            toBlock: "latest",
+            address: entryPoint,
+            event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
+        })
+
+        const pendingTxsAfterSecond = await getPendingTransactions(clients.test)
+        expect(pendingTxsAfterSecond).toHaveLength(0)
+
+        expect(logsSecond).toHaveLength(10)
+        expect(logsSecond.map((log) => log.args.success)).toEqual([true, true, true, true, true, true, true, true, true, true])
+        expect(executor.senderManager.wallets).toHaveLength(10)
     })
 })

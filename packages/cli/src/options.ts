@@ -13,10 +13,19 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "string",
         require: true
     },
-    signerPrivateKey: {
+    signerPrivateKeys: {
         description: "Private key of the signer",
         type: "string",
         require: true
+    },
+    utilityPrivateKey: {
+        description: "Private key of the utility account",
+        type: "string",
+        require: true
+    },
+    maxSigners: {
+        description: "Maximum number of signers to use from the list of signer private keys",
+        type: "number"
     },
     minBalance: {
         description: "Minimum balance required for the signer",
