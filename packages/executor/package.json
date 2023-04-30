@@ -24,6 +24,7 @@
         "@alto/mempool": "*",
         "@alto/types": "*",
         "@alto/utils": "*",
-        "async-mutex": "^0.4.0"
+        "async-mutex": "^0.4.0",
+        "viem": "^0.3.14"
     }
 }

@@ -1,5 +1,5 @@
 import { Address, EntryPointAbi, EntryPoint_bytecode, RpcError, UserOperation } from "@alto/types"
-import { SimpleAccountFactoryAbi, SimpleAccountFactoryBytecode } from "@alto/types/src/contracts/SimpleAccountFactory"
+import { SimpleAccountFactoryAbi, SimpleAccountFactoryBytecode } from "@alto/types"
 import { Clients, createClients, deployContract, getUserOpHash, launchAnvil } from "@alto/utils"
 import { ChildProcess } from "child_process"
 import { Account, concat, encodeFunctionData, getContract, parseEther } from "viem"
@@ -8,7 +8,7 @@ import { UnsafeValidator } from "../src"
 import { foundry } from "viem/chains"
 import { IValidator } from "../lib"
 import { expect } from "earl"
-import { parseSenderAddressError } from "@alto/utils/src"
+import { parseSenderAddressError } from "@alto/utils"
 
 const TEST_OP: UserOperation = {
 	sender: "0x0000000000000000000000000000000000000000",

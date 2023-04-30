@@ -1,18 +1,34 @@
-# production ready dockerfile that runs yarn start
+# production ready dockerfile that runs pnpm start
 FROM node:18-alpine
 
 # set working directory
 WORKDIR /app
-RUN apk update && apk add --no-cache g++ make python3 && rm -rf /var/cache/apk/*
 
+# install pnpm
+RUN npm install -g pnpm
 
-COPY package.json yarn.lock ./
-COPY . .
-RUN yarn install --non-interactive --frozen-lockfile
+# install typescript
+RUN npm add -g typescript
+
+# copy package.json and pnpm-lock.yaml
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 # copy source code
-RUN yarn build
-RUN yarn install --non-interactive --frozen-lockfile --production
+COPY . .
+
+RUN pnpm fetch
+
+# install dependencies
+RUN pnpm install -r
+
+# copy source code
+RUN pnpm build
+
+# remove dev dependencies
+RUN pnpm clean-modules
+
+# install dependencies
+RUN pnpm install -r --prod
 
 # start app
-ENTRYPOINT ["yarn", "start"]
+ENTRYPOINT ["pnpm", "start"]

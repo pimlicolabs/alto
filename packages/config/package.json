@@ -21,8 +21,8 @@
         "lint:fix": "eslint src/**/*.ts --fix"
     },
     "dependencies": {
-        "viem": "^0.3.4",
-        "zod": "^3.21.4",
-        "@alto/types": "*"
+        "@alto/types": "*",
+        "viem": "^0.3.14",
+        "zod": "^3.21.4"
     }
 }

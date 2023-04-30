@@ -22,6 +22,8 @@
     },
     "dependencies": {
         "@alto/types": "*",
-        "mongodb": "^5.2.0"
+        "async-mutex": "^0.4.0",
+        "mongodb": "^5.2.0",
+        "viem": "^0.3.14"
     }
 }
