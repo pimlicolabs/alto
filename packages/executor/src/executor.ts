@@ -38,7 +38,7 @@ const transactionIncluded = async (txHash: HexData32, publicClient: PublicClient
 
 export class BasicExecutor implements IExecutor {
     monitoredTransactions: Record<HexData32, UserOperationStatus> = {}
-    unWatch: WatchBlocksReturnType | undefined
+    private unWatch: WatchBlocksReturnType | undefined
 
     beneficiary: Address
     publicClient: PublicClient
@@ -205,7 +205,7 @@ export class BasicExecutor implements IExecutor {
 
     async bundle(entryPoint: Address, op: UserOperation): Promise<void> {
         await this.mutex.runExclusive(async () => {
-            const childLogger = this.logger.child({ userOperation: op, entryPoint, module: "executor" })
+            const childLogger = this.logger.child({ userOperation: op, entryPoint })
             childLogger.debug("bundling user operation")
             const ep = getContract({
                 abi: EntryPointAbi,
@@ -213,6 +213,14 @@ export class BasicExecutor implements IExecutor {
                 publicClient: this.publicClient,
                 walletClient: this.walletClient
             })
+
+            const opHash = await ep.read.getUserOpHash([op])
+            childLogger.debug({ opHash }, "got op hash")
+
+            if (opHash in this.monitoredTransactions) {
+                childLogger.debug({ opHash }, "user operation already bundled")
+                throw new RpcError(`user operation ${opHash} already bundled`)
+            }
 
             const wallet = await this.senderManager.getWallet()
 
@@ -263,9 +271,6 @@ export class BasicExecutor implements IExecutor {
 
                 const { chain: _chain, abi: _abi, ...loggingRequest } = request
                 childLogger.debug({ request: { ...loggingRequest } }, "got request")
-
-                const opHash = await ep.read.getUserOpHash([op])
-                childLogger.debug({ opHash }, "got op hash")
 
                 const txHash = await this.walletClient.writeContract(request)
                 childLogger.info({ txHash, userOpHash: opHash }, "submitted bundle transaction")

@@ -399,4 +399,36 @@ describe("executor", () => {
         expect(logsSecond.map((log) => log.args.success)).toEqual([true, true, true, true, true, true, true, true, true, true])
         expect(executor.senderManager.wallets).toHaveLength(10)
     })
+
+    it("should reject op if it is already being bundled", async function () {
+        this.timeout(10000)
+
+        const op = await createOp(entryPoint, simpleAccountFactory, signer, clients)
+
+        await executor.bundle(entryPoint, op)
+
+        const pendingTxs = await getPendingTransactions(clients.test)
+        expect(pendingTxs).toHaveLength(1)
+
+        await expect(executor.bundle(entryPoint, op)).toBeRejected()
+
+        await clients.test.mine({ blocks: 1 })
+        await new Promise((resolve) => setTimeout(resolve, MINE_WAIT_TIME))
+
+        const latestBlock = await clients.public.getBlock()
+        expect(latestBlock.transactions).toHaveLength(1)
+        const logs = await clients.public.getLogs({
+            fromBlock: 0n,
+            toBlock: "latest",
+            address: entryPoint,
+            event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" }),
+            args: {
+                userOpHash: getUserOpHash(op, entryPoint, foundry.id)
+            }
+        })
+        expect(logs).toHaveLength(1)
+        expect(logs[0].args.success).toEqual(true)
+
+        expect(executor.senderManager.wallets).toHaveLength(10)
+    })
 })
