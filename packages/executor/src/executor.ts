@@ -101,6 +101,7 @@ export class BasicExecutor implements IExecutor {
         if (this.unWatch) {
             this.logger.debug("stopped watching blocks")
             this.unWatch()
+            this.unWatch = undefined
         }
     }
 

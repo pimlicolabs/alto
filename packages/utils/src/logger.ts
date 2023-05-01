@@ -82,7 +82,7 @@ export const initProductionLogger = (
                     username: lokiUsername,
                     password: lokiPassword
                 },
-                replaceTimestamp: true
+                replaceTimestamp: false
             }
         })
 
