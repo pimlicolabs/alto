@@ -104,6 +104,9 @@ export class BasicExecutor implements IExecutor {
         // typescript mistakenly doesn't believe this is HexData32
         // @ts-ignore
         const opHashes: HexData32[] = Object.keys(this.monitoredTransactions)
+
+        this.logger.debug({ opHashes }, "checking transactions for monitored ops")
+
         if (Object.keys(this.monitoredTransactions).length === 0) {
             this.stopWatchingBlocks()
             return
@@ -204,6 +207,8 @@ export class BasicExecutor implements IExecutor {
     }
 
     async bundle(entryPoint: Address, op: UserOperation): Promise<void> {
+        const wallet = await this.senderManager.getWallet()
+
         await this.mutex.runExclusive(async () => {
             const childLogger = this.logger.child({ userOperation: op, entryPoint })
             childLogger.debug("bundling user operation")
@@ -214,17 +219,15 @@ export class BasicExecutor implements IExecutor {
                 walletClient: this.walletClient
             })
 
-            const opHash = await ep.read.getUserOpHash([op])
-            childLogger.debug({ opHash }, "got op hash")
-
-            if (opHash in this.monitoredTransactions) {
-                childLogger.debug({ opHash }, "user operation already bundled")
-                throw new RpcError(`user operation ${opHash} already bundled`)
-            }
-
-            const wallet = await this.senderManager.getWallet()
-
             try {
+                const opHash = await ep.read.getUserOpHash([op])
+                childLogger.debug({ opHash }, "got op hash")
+
+                if (opHash in this.monitoredTransactions) {
+                    childLogger.debug({ opHash }, "user operation already bundled")
+                    throw new RpcError(`user operation ${opHash} already bundled`)
+                }
+
                 let gasLimit: bigint
                 try {
                     gasLimit = await ep.estimateGas
