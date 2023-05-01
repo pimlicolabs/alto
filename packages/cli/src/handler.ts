@@ -75,6 +75,7 @@ const lineaTestnet: Chain = {
     testnet: true
 }
 
+// @ts-ignore
 function getChain(chainId: number): Chain {
     for (const chain of Object.values(chains)) {
         if (chain.id === chainId) {
