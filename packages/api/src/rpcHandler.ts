@@ -173,7 +173,11 @@ export class RpcHandler implements IRpcEndpoint {
             throw new Error(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.entryPoint}`)
         }
 
+        this.logger.debug({ userOperation, entryPoint }, "beginning validation")
+
         await this.validator.validateUserOperation(userOperation)
+
+        this.logger.debug({ userOperation, entryPoint }, "beginning execution")
 
         await this.executor.bundle(entryPoint, userOperation)
 

@@ -22,6 +22,7 @@ import {
     polygonMumbai,
     scrollTestnet
 } from "viem/chains"
+import * as chains from "viem/chains"
 import { fromZodError } from "zod-validation-error"
 
 const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
@@ -72,6 +73,16 @@ const lineaTestnet: Chain = {
         }
     },
     testnet: true
+}
+
+function getChain(chainId: number): Chain {
+    for (const chain of Object.values(chains)) {
+        if (chain.id === chainId) {
+            return chain
+        }
+    }
+
+    throw new Error(`Chain with id ${chainId} not found`)
 }
 
 const chainIdToChain: Record<number, Chain> = {

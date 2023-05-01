@@ -112,7 +112,7 @@ export class SenderManager {
             throw new Error("no more wallets")
         }
 
-        this.logger.trace({ executor: wallet.address }, "got wallet from sender manager")
+        this.logger.debug({ executor: wallet.address }, "got wallet from sender manager")
 
         return wallet
     }
@@ -121,7 +121,7 @@ export class SenderManager {
         // push to the end of the queue
         this.wallets.push(wallet)
         this.semaphore.release()
-        this.logger.trace({ executor: wallet.address }, "pushed wallet to sender manager")
+        this.logger.debug({ executor: wallet.address }, "pushed wallet to sender manager")
         return
     }
 }
