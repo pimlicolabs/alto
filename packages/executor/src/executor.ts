@@ -86,6 +86,7 @@ export class BasicExecutor implements IExecutor {
                         this.logger.error({ error }, "error while handling block")
                     })
             },
+            emitMissed: true,
             includeTransactions: false,
             pollingInterval: this.pollingInterval
         })
