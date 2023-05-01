@@ -101,8 +101,11 @@ export class SenderManager {
     }
 
     async getWallet(): Promise<Account> {
+        this.logger.debug("about to wait for semaphore")
         await this.semaphore.waitForUnlock()
+        this.logger.debug("got semaphore")
         await this.semaphore.acquire()
+        this.logger.debug("got wallet")
         const wallet = this.wallets.shift()
 
         // should never happen because of semaphore
