@@ -4,8 +4,8 @@ services:
     alto:
         container_name: alto
         build: ../../
-        ports: ["3000:3000"]
-        command: --config config.localhost.json
+        ports: [ "3000:3000" ]
+        command: --config config.localhost.json --rpcUrl http://anvil:8545
 
         mem_limit: 300M
         logging:
@@ -20,4 +20,4 @@ services:
     anvil:
         container_name: anvil
         build: anvil
-        ports: ["8545:8545"]
+        ports: [ "8545:8545" ]

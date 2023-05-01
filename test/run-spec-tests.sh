@@ -3,7 +3,7 @@ root=`cd \`dirname $0\`; pwd`
 
 BUILD=$root/build
 OUT=$BUILD/out
-test -d bundler-spec-tests || git clone https://github.com/eth-infinitism/bundler-spec-tests.git spec-tests/bundler-spec-tests
+test -d ./spec-tests/bundler-spec-tests || git clone https://github.com/eth-infinitism/bundler-spec-tests.git spec-tests/bundler-spec-tests
 
 launcher="`pwd`/spec-tests/alto-launcher.sh"
 

@@ -10,7 +10,7 @@ case $1 in
  start)
 	docker-compose up -d
 	echo "deploying EntryPoint..."
-	(cd ../../bundler-spec-tests/@account-abstraction && yarn deploy --network localhost)
+	(cd ./bundler-spec-tests/@account-abstraction && yarn deploy --network localhost)
 	echo waiting for bundler to start
 	./waitForBundler.sh http://localhost:3000/rpc
 	;;
