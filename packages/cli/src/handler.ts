@@ -14,6 +14,8 @@ import {
     arbitrum,
     arbitrumGoerli,
     baseGoerli,
+    gnosis,
+    gnosisChiado,
     goerli,
     mainnet,
     optimism,
@@ -97,7 +99,9 @@ const chainIdToChain: Record<number, Chain> = {
     42161: arbitrum,
     84531: baseGoerli,
     534353: scrollTestnet,
-    59140: lineaTestnet
+    59140: lineaTestnet,
+    100: gnosis,
+    10200: gnosisChiado
 }
 
 export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => {
