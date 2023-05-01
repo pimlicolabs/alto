@@ -101,7 +101,8 @@ export class SenderManager {
     }
 
     async getWallet(): Promise<Account> {
-        this.logger.debug("about to wait for semaphore")
+        this.logger.debug(`about to wait for semaphore`)
+        this.logger.debug(`semaphore count ${this.semaphore.getValue()}`)
         await this.semaphore.waitForUnlock()
         this.logger.debug("got semaphore")
         await this.semaphore.acquire()
