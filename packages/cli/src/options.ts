@@ -77,7 +77,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description: "Log level",
         type: "string",
         require: true,
-        default: "debug"
+        default: "trace"
     },
     environment: {
         description: "Environment",

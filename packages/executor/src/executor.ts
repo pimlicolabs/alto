@@ -89,7 +89,7 @@ export class BasicExecutor implements IExecutor {
             onError: (error) => {
                 this.logger.error({ error }, "error while watching blocks")
             },
-            emitMissed: true,
+            emitMissed: false,
             includeTransactions: false,
             pollingInterval: this.pollingInterval
         })
@@ -135,7 +135,7 @@ export class BasicExecutor implements IExecutor {
             childLogger.debug("transaction not included")
 
             const transaction = opStatus.transactionRequest
-            childLogger.debug(
+            childLogger.trace(
                 { baseFeePerGas: block.baseFeePerGas, maxFeePerGas: transaction.maxFeePerGas },
                 "queried gas fee parameters"
             )
@@ -166,7 +166,7 @@ export class BasicExecutor implements IExecutor {
             }
 
             const { chain: _chain, abi: _abi, ...loggingRequest } = request
-            childLogger.debug({ request: { ...loggingRequest } }, "generated replacement transaction request")
+            childLogger.trace({ request: { ...loggingRequest } }, "generated replacement transaction request")
 
             try {
                 const tx = await this.walletClient.writeContract(request)
@@ -264,7 +264,7 @@ export class BasicExecutor implements IExecutor {
                     address: wallet.address,
                     blockTag: "pending"
                 })
-                childLogger.debug({ nonce }, "got nonce")
+                childLogger.trace({ nonce }, "got nonce")
 
                 const maxPriorityFeePerGas = 1_000_000_000n > gasPrice ? gasPrice : 1_000_000_000n
 
@@ -278,7 +278,7 @@ export class BasicExecutor implements IExecutor {
                 })
 
                 const { chain: _chain, abi: _abi, ...loggingRequest } = request
-                childLogger.debug({ request: { ...loggingRequest } }, "got request")
+                childLogger.trace({ request: { ...loggingRequest } }, "got request")
 
                 const txHash = await this.walletClient.writeContract(request)
                 childLogger.info({ txHash, userOpHash: opHash }, "submitted bundle transaction")

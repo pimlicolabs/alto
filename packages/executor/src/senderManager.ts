@@ -101,12 +101,9 @@ export class SenderManager {
     }
 
     async getWallet(): Promise<Account> {
-        this.logger.debug(`about to wait for semaphore`)
-        this.logger.debug(`semaphore count ${this.semaphore.getValue()}`)
+        this.logger.trace(`waiting for semaphore with count ${this.semaphore.getValue()}`)
         await this.semaphore.waitForUnlock()
-        this.logger.debug("got semaphore")
         await this.semaphore.acquire()
-        this.logger.debug("got wallet")
         const wallet = this.wallets.shift()
 
         // should never happen because of semaphore
@@ -116,7 +113,7 @@ export class SenderManager {
             throw new Error("no more wallets")
         }
 
-        this.logger.debug({ executor: wallet.address }, "got wallet from sender manager")
+        this.logger.trace({ executor: wallet.address }, "got wallet from sender manager")
 
         return wallet
     }
@@ -125,7 +122,7 @@ export class SenderManager {
         // push to the end of the queue
         this.wallets.push(wallet)
         this.semaphore.release()
-        this.logger.debug({ executor: wallet.address }, "pushed wallet to sender manager")
+        this.logger.trace({ executor: wallet.address }, "pushed wallet to sender manager")
         return
     }
 }
