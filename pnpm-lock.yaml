@@ -49,6 +49,9 @@ importers:
       fastify:
         specifier: ^4.16.0
         version: 4.16.0
+      fastify-cors:
+        specifier: 3.0.3
+        version: 3.0.3
       pino-http:
         specifier: ^8.3.3
         version: 8.3.3
@@ -1699,6 +1702,19 @@ packages:
     resolution: {integrity: sha512-cIusKBIt/R/oI6z/1nyfe2FvGKVTohVRfvkOhvx0nCEW+xf5NoCXjAHcWp93uOUBchzYcsvPlrapAdX1uW+YGg==}
     dev: false
 
+  /fastify-cors@3.0.3:
+    resolution: {integrity: sha512-SDMa+GtyTTAU7pWZwY4fukb/VwCZ4c30p0oEaE7/d/+VCvceB1+NzW2udp2dSZZfWR7J1kUookCpw2dLmtAsSw==}
+    dependencies:
+      fastify-plugin: 1.6.1
+      vary: 1.1.2
+    dev: false
+
+  /fastify-plugin@1.6.1:
+    resolution: {integrity: sha512-APBcb27s+MjaBIerFirYmBLatoPCgmHZM6XP0K+nDL9k0yX8NJPWDY1RAC3bh6z+AB5ULS2j31BUfLMT3uaZ4A==}
+    dependencies:
+      semver: 6.3.0
+    dev: false
+
   /fastify@4.16.0:
     resolution: {integrity: sha512-Js9VNCqQ2n82X1U49lQGff1bkmOvA2KtoN7nWw99f3AVA51sr20zfDkQyzjHiHU/DV2FLHdEiPUB12eA4CWTWA==}
     dependencies:
@@ -2698,7 +2714,6 @@ packages:
   /semver@6.3.0:
     resolution: {integrity: sha512-b39TBaTSfV6yBrapU89p5fKekE2m/NwnDocOVruQFS1/veMgdzuPcnOM34M6CwxW8jH/lxEa5rBoDeUwu5HHTw==}
     hasBin: true
-    dev: true
 
   /semver@7.5.0:
     resolution: {integrity: sha512-+XC0AD/R7Q2mPSRuy2Id0+CGTZ98+8f+KvwirxOKIEyid+XSx6HbC63p+O4IndTHuX5Z+JxQ0TghCkO5Cg/2HA==}
@@ -2963,6 +2978,11 @@ packages:
   /v8-compile-cache-lib@3.0.1:
     resolution: {integrity: sha512-wa7YjyUGfNZngI/vtK0UHAN+lgDCxBPCylVXGp0zu59Fz5aiGtNXaq3DhIov063MorB+VfufLh3JlF2KdTK3xg==}
     dev: true
+
+  /vary@1.1.2:
+    resolution: {integrity: sha512-BNGbWLfd0eUPabhkXUVm0j8uuvREyTh5ovRa/dyow/BqAbZJyC+5fU+IzQOzmAKzYqYRAISoRhdQr3eIZ/PXqg==}
+    engines: {node: '>= 0.8'}
+    dev: false
 
   /viem@0.3.14(typescript@5.0.4)(zod@3.21.4):
     resolution: {integrity: sha512-mjySHgD2nUT5bkE67TZ0CWxezixh31wqG6JvX7Rq4G7kXu67HgngvPBRW4wqBAqbqVwVZuENCU1hQ3qziX+TRA==}

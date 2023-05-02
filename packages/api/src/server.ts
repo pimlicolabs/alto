@@ -47,6 +47,11 @@ export class Server {
             logger
         })
 
+        this.fastify.register(require("fastify-cors"), {
+            origin: "*",
+            methods: ["POST", "GET", "OPTIONS"]
+        })
+
         this.fastify.post("/rpc", this.rpc.bind(this))
         this.fastify.get("/health", this.healthCheck.bind(this))
 
