@@ -7,6 +7,7 @@ import {
     bundlerArgsToRpcHandlerConfig
 } from "@alto/config"
 import { BasicExecutor, SenderManager } from "@alto/executor"
+import { Monitor } from "@alto/executor"
 import { Logger, initDebugLogger, initProductionLogger } from "@alto/utils"
 import { UnsafeValidator } from "@alto/validator"
 import { Chain, PublicClient, createWalletClient, http } from "viem"
@@ -42,12 +43,6 @@ const preFlightChecks = async (publicClient: PublicClient, args: IBundlerArgs): 
     const entryPointCode = await publicClient.getBytecode({ address: args.entryPoint })
     if (entryPointCode === "0x") {
         throw new Error(`entry point ${args.entryPoint} does not exist`)
-    }
-
-    // check self balance
-    const selfBalance = await publicClient.getBalance({ address: args.beneficiary })
-    if (selfBalance < args.minBalance) {
-        throw new Error(`self balance ${selfBalance} is less than minBalance ${args.minBalance}`)
     }
 }
 
@@ -141,16 +136,19 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         parsedArgs.utilityPrivateKey
     )
 
+    const monitor = new Monitor()
+
     const executor = new BasicExecutor(
         parsedArgs.beneficiary,
         client,
         walletClient,
         senderManager,
+        monitor,
         parsedArgs.entryPoint,
         parsedArgs.pollingInterval,
         logger
     )
-    const rpcEndpoint = new RpcHandler(handlerConfig, validator, executor, logger)
+    const rpcEndpoint = new RpcHandler(handlerConfig, validator, executor, monitor, logger)
 
     const server = new Server(rpcEndpoint, parsedArgs, logger)
     await server.start()

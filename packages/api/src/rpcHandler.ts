@@ -1,5 +1,6 @@
 import { RpcHandlerConfig } from "@alto/config"
 import { IExecutor } from "@alto/executor"
+import { Monitor } from "@alto/executor/"
 import {
     Address,
     BundlerClearStateResponseResult,
@@ -16,6 +17,7 @@ import {
     GetUserOperationByHashResponseResult,
     GetUserOperationReceiptResponseResult,
     HexData32,
+    PimlicoGetUserOperationStatusResponseResult,
     RpcError,
     SendUserOperationResponseResult,
     SupportedEntryPointsResponseResult,
@@ -54,12 +56,20 @@ export class RpcHandler implements IRpcEndpoint {
     config: RpcHandlerConfig
     validator: IValidator
     executor: IExecutor
+    monitor: Monitor
     logger: Logger
 
-    constructor(config: RpcHandlerConfig, validator: IValidator, executor: IExecutor, logger: Logger) {
+    constructor(
+        config: RpcHandlerConfig,
+        validator: IValidator,
+        executor: IExecutor,
+        monitor: Monitor,
+        logger: Logger
+    ) {
         this.config = config
         this.validator = validator
         this.executor = executor
+        this.monitor = monitor
         this.logger = logger
     }
 
@@ -113,6 +123,11 @@ export class RpcHandler implements IRpcEndpoint {
                 return {
                     method,
                     result: await this.debug_bundler_setBundlingMode(...request.params)
+                }
+            case "pimlico_getUserOperationStatus":
+                return {
+                    method,
+                    result: await this.pimlico_getUserOperationStatus(...request.params)
                 }
         }
     }
@@ -377,5 +392,12 @@ export class RpcHandler implements IRpcEndpoint {
     // rome-ignore lint/nursery/useCamelCase: <explanation>
     async debug_bundler_setBundlingMode(_bundlingMode: BundlingMode): Promise<BundlerSetBundlingModeResponseResult> {
         throw new Error("Method not implemented.")
+    }
+
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
+    async pimlico_getUserOperationStatus(
+        userOperationHash: HexData32
+    ): Promise<PimlicoGetUserOperationStatusResponseResult> {
+        return this.monitor.getUserOperationStatus(userOperationHash)
     }
 }

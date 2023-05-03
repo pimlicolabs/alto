@@ -135,6 +135,11 @@ const bundlerSetBundlingModeRequestSchema = z.object({
     params: z.tuple([z.enum(["manual", "auto"])])
 })
 
+const pimlicoGetUserOperationStatusRequestSchema = z.object({
+    method: z.literal("pimlico_getUserOperationStatus"),
+    params: z.tuple([hexData32Schema])
+})
+
 const bundlerRequestSchema = z.discriminatedUnion("method", [
     chainIdRequestSchema,
     supportedEntryPointsRequestSchema,
@@ -145,7 +150,8 @@ const bundlerRequestSchema = z.discriminatedUnion("method", [
     bundlerClearStateRequestSchema,
     bundlerDumpMempoolRequestSchema,
     bundlerSendBundleNowRequestSchema,
-    bundlerSetBundlingModeRequestSchema
+    bundlerSetBundlingModeRequestSchema,
+    pimlicoGetUserOperationStatusRequestSchema
 ])
 
 const chainIdResponseSchema = z.object({
@@ -251,6 +257,18 @@ const bundlerSetBundlingModeResponseSchema = z.object({
     result: z.literal("ok")
 })
 
+const userOperationStatus = z.object({
+    status: z.enum(["not_found", "submitted", "included", "failed"]),
+    transactionHash: hexData32Schema.or(z.null())
+})
+
+export type UserOperationStatus = z.infer<typeof userOperationStatus>
+
+const pimlicoGetUserOperationStatusResponseSchema = z.object({
+    method: z.literal("pimlico_getUserOperationStatus"),
+    result: userOperationStatus
+})
+
 const bundlerResponseSchema = z.discriminatedUnion("method", [
     chainIdResponseSchema,
     supportedEntryPointsResponseSchema,
@@ -261,7 +279,8 @@ const bundlerResponseSchema = z.discriminatedUnion("method", [
     bundlerClearStateResponseSchema,
     bundlerDumpMempoolResponseSchema,
     bundlerSendBundleNowResponseSchema,
-    bundlerSetBundlingModeResponseSchema
+    bundlerSetBundlingModeResponseSchema,
+    pimlicoGetUserOperationStatusResponseSchema
 ])
 
 export type BundlingMode = z.infer<typeof bundlerSetBundlingModeRequestSchema>["params"][0]
@@ -276,6 +295,7 @@ export type BundlerClearStateResponse = z.infer<typeof bundlerClearStateResponse
 export type BundlerDumpMempoolResponse = z.infer<typeof bundlerDumpMempoolResponseSchema>
 export type BundlerSendBundleNowResponse = z.infer<typeof bundlerSendBundleNowResponseSchema>
 export type BundlerSetBundlingModeResponse = z.infer<typeof bundlerSetBundlingModeResponseSchema>
+export type PimlicoGetUserOperationStatusResponse = z.infer<typeof pimlicoGetUserOperationStatusResponseSchema>
 
 export type ChainIdResponseResult = z.infer<typeof chainIdResponseSchema>["result"]
 export type SupportedEntryPointsResponseResult = z.infer<typeof supportedEntryPointsResponseSchema>["result"]
@@ -287,6 +307,9 @@ export type BundlerClearStateResponseResult = z.infer<typeof bundlerClearStateRe
 export type BundlerDumpMempoolResponseResult = z.infer<typeof bundlerDumpMempoolResponseSchema>["result"]
 export type BundlerSendBundleNowResponseResult = z.infer<typeof bundlerSendBundleNowResponseSchema>["result"]
 export type BundlerSetBundlingModeResponseResult = z.infer<typeof bundlerSetBundlingModeResponseSchema>["result"]
+export type PimlicoGetUserOperationStatusResponseResult = z.infer<
+    typeof pimlicoGetUserOperationStatusResponseSchema
+>["result"]
 
 export type BundlerResponse = z.infer<typeof bundlerResponseSchema>
 
@@ -300,6 +323,7 @@ export type BundlerClearStateRequest = z.infer<typeof bundlerClearStateRequestSc
 export type BundlerDumpMempoolRequest = z.infer<typeof bundlerDumpMempoolRequestSchema>
 export type BundlerSendBundleNowRequest = z.infer<typeof bundlerSendBundleNowRequestSchema>
 export type BundlerSetBundlingModeRequest = z.infer<typeof bundlerSetBundlingModeRequestSchema>
+export type PimlicoGetUserOperationStatusRequest = z.infer<typeof pimlicoGetUserOperationStatusRequestSchema>
 
 export type ChainIdRequestParams = z.infer<typeof chainIdRequestSchema>["params"]
 export type SupportedEntryPointsRequestParams = z.infer<typeof supportedEntryPointsRequestSchema>["params"]
@@ -327,6 +351,7 @@ export {
     bundlerDumpMempoolRequestSchema,
     bundlerSendBundleNowRequestSchema,
     bundlerSetBundlingModeRequestSchema,
+    pimlicoGetUserOperationStatusRequestSchema,
     bundlerRequestSchema,
     jsonRpcSchema,
     jsonRpcResultSchema,
@@ -344,6 +369,7 @@ export {
     bundlerDumpMempoolResponseSchema,
     bundlerSendBundleNowResponseSchema,
     bundlerSetBundlingModeResponseSchema,
+    pimlicoGetUserOperationStatusResponseSchema,
     bundlerResponseSchema
 }
 

@@ -4,6 +4,7 @@ import { Logger } from "@alto/utils"
 import { Mutex } from "async-mutex"
 import { Account, Block, PublicClient, WalletClient, WatchBlocksReturnType, getContract, formatGwei } from "viem"
 import { SenderManager } from "./senderManager"
+import { Monitor } from "./monitoring"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -44,6 +45,7 @@ export class BasicExecutor implements IExecutor {
     publicClient: PublicClient
     walletClient: WalletClient
     senderManager: SenderManager
+    monitor: Monitor
     entryPoint: Address
     pollingInterval: number
     logger: Logger
@@ -54,6 +56,7 @@ export class BasicExecutor implements IExecutor {
         publicClient: PublicClient,
         walletClient: WalletClient,
         senderManager: SenderManager,
+        monitor: Monitor,
         entryPoint: Address,
         pollingInterval: number,
         logger: Logger
@@ -62,6 +65,7 @@ export class BasicExecutor implements IExecutor {
         this.publicClient = publicClient
         this.walletClient = walletClient
         this.senderManager = senderManager
+        this.monitor = monitor
         this.entryPoint = entryPoint
         this.pollingInterval = pollingInterval
         this.logger = logger
@@ -128,6 +132,10 @@ export class BasicExecutor implements IExecutor {
             if (txIncluded) {
                 childLogger.info("transaction successfully included")
                 delete this.monitoredTransactions[opHash]
+                this.monitor.setUserOperationStatus(opHash, {
+                    status: "included",
+                    transactionHash: opStatus.transactionHash
+                })
                 this.senderManager.pushWallet(opStatus.executor)
                 return
             }
@@ -176,6 +184,8 @@ export class BasicExecutor implements IExecutor {
                     executor: opStatus.executor
                 }
 
+                this.monitor.setUserOperationStatus(opHash, { status: "submitted", transactionHash: tx })
+
                 childLogger.info(
                     {
                         txHash: tx,
@@ -201,6 +211,10 @@ export class BasicExecutor implements IExecutor {
                 if (pendingNonce === latestNonce) {
                     childLogger.warn(e, "error replacing transaction")
                     this.senderManager.pushWallet(opStatus.executor)
+                    this.monitor.setUserOperationStatus(opHash, {
+                        status: "failed",
+                        transactionHash: opStatus.transactionHash
+                    })
                 } else {
                     childLogger.warn(e, "error replacing transaction, but wallet is busy")
                     this.monitoredTransactions[opHash] = opStatus
@@ -242,6 +256,7 @@ export class BasicExecutor implements IExecutor {
                         })
                 } catch (_e) {
                     this.logger.warn({ userOperation: op, entryPoint }, "user operation reverted during gas estimation")
+                    this.monitor.setUserOperationStatus(opHash, { status: "failed", transactionHash: null })
                     return
                 }
 
@@ -288,6 +303,7 @@ export class BasicExecutor implements IExecutor {
                     transactionRequest: request,
                     executor: wallet
                 }
+                this.monitor.setUserOperationStatus(opHash, { status: "submitted", transactionHash: txHash })
             } catch (e) {
                 childLogger.error({ error: e }, "error bundling user operation")
                 await this.senderManager.pushWallet(wallet)
