@@ -2,7 +2,7 @@ import { EntryPointAbi, RpcError } from "@alto/types"
 import { Address, HexData32, UserOperation } from "@alto/types"
 import { Logger } from "@alto/utils"
 import { Mutex } from "async-mutex"
-import { Account, Block, PublicClient, WalletClient, WatchBlocksReturnType, getContract, formatGwei } from "viem"
+import { Account, Block, PublicClient, WalletClient, WatchBlocksReturnType, getContract } from "viem"
 import { SenderManager } from "./senderManager"
 import { Monitor } from "./monitoring"
 
@@ -263,19 +263,19 @@ export class BasicExecutor implements IExecutor {
                 const gasPrice = await this.publicClient.getGasPrice()
                 childLogger.debug({ gasPrice }, "got gas price")
 
-                const minGasPrice = (95n * gasPrice) / 100n
+                // const minGasPrice = (95n * gasPrice) / 100n
 
-                if (op.maxFeePerGas < minGasPrice) {
-                    childLogger.debug(
-                        { gasPrice, userOperationMaxFeePerGas: op.maxFeePerGas, minGasPrice },
-                        "user operation maxFeePerGas too low"
-                    )
-                    throw new RpcError(
-                        `user operation maxFeePerGas too low, got ${formatGwei(
-                            op.maxFeePerGas
-                        )} gwei expected at least ${formatGwei(minGasPrice)} gwei`
-                    )
-                }
+                // if (op.maxFeePerGas < minGasPrice) {
+                //     childLogger.debug(
+                //         { gasPrice, userOperationMaxFeePerGas: op.maxFeePerGas, minGasPrice },
+                //         "user operation maxFeePerGas too low"
+                //     )
+                //     throw new RpcError(
+                //         `user operation maxFeePerGas too low, got ${formatGwei(
+                //             op.maxFeePerGas
+                //         )} gwei expected at least ${formatGwei(minGasPrice)} gwei`
+                //     )
+                // }
 
                 const nonce = await this.publicClient.getTransactionCount({
                     address: wallet.address,
