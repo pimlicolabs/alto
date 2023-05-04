@@ -263,15 +263,17 @@ export class BasicExecutor implements IExecutor {
                 const gasPrice = await this.publicClient.getGasPrice()
                 childLogger.debug({ gasPrice }, "got gas price")
 
-                if (op.maxFeePerGas < gasPrice) {
+                const minGasPrice = (95n * gasPrice) / 100n
+
+                if (op.maxFeePerGas < minGasPrice) {
                     childLogger.debug(
-                        { gasPrice, userOperationMaxFeePerGas: op.maxFeePerGas },
+                        { gasPrice, userOperationMaxFeePerGas: op.maxFeePerGas, minGasPrice },
                         "user operation maxFeePerGas too low"
                     )
                     throw new RpcError(
                         `user operation maxFeePerGas too low, got ${formatGwei(
                             op.maxFeePerGas
-                        )} gwei expected at least ${formatGwei(gasPrice)} gwei`
+                        )} gwei expected at least ${formatGwei(minGasPrice)} gwei`
                     )
                 }
 
