@@ -113,18 +113,22 @@ export const validationResultErrorSchema = z.object({
 
 export type ValidationResultError = z.infer<typeof validationResultErrorSchema>
 
+export const errorCauseSchema = z.object({
+    name: z.literal("ContractFunctionRevertedError"),
+    data: z.discriminatedUnion("errorName", [
+        validationResultErrorSchema,
+        executionResultErrorSchema,
+        failedOpErrorSchema,
+        senderAddressResultErrorSchema,
+        signatureValidationFailedErrorSchema
+    ])
+})
+
+export type ErrorCause = z.infer<typeof errorCauseSchema>
+
 export const contractFunctionExecutionErrorSchema = z.object({
     name: z.literal("ContractFunctionExecutionError"),
-    cause: z.object({
-        name: z.literal("ContractFunctionRevertedError"),
-        data: z.discriminatedUnion("errorName", [
-            validationResultErrorSchema,
-            executionResultErrorSchema,
-            failedOpErrorSchema,
-            senderAddressResultErrorSchema,
-            signatureValidationFailedErrorSchema
-        ])
-    })
+    cause: errorCauseSchema
 })
 
 export type ContractFunctionExecutionError = z.infer<typeof contractFunctionExecutionErrorSchema>

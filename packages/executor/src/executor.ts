@@ -1,10 +1,20 @@
-import { EntryPointAbi, RpcError } from "@alto/types"
+import { EntryPointAbi, RpcError, errorCauseSchema } from "@alto/types"
 import { Address, HexData32, UserOperation } from "@alto/types"
 import { Logger } from "@alto/utils"
 import { Mutex } from "async-mutex"
-import { Account, Block, PublicClient, WalletClient, WatchBlocksReturnType, getContract } from "viem"
+import {
+    Account,
+    Block,
+    ContractFunctionExecutionError,
+    ContractFunctionRevertedError,
+    PublicClient,
+    WalletClient,
+    WatchBlocksReturnType,
+    getContract
+} from "viem"
 import { SenderManager } from "./senderManager"
 import { Monitor } from "./monitoring"
+import { fromZodError } from "zod-validation-error"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -243,22 +253,11 @@ export class BasicExecutor implements IExecutor {
                 childLogger.debug({ opHash }, "got op hash")
 
                 if (opHash in this.monitoredTransactions) {
-                    childLogger.debug({ opHash }, "user operation already bundled")
-                    throw new RpcError(`user operation ${opHash} already bundled`)
+                    childLogger.debug({ opHash }, "user operation already being bundled")
+                    throw new RpcError(`user operation ${opHash} already being bundled`)
                 }
 
-                let gasLimit: bigint
-                try {
-                    gasLimit = await ep.estimateGas
-                        .handleOps([[op], wallet.address], { account: wallet })
-                        .then((limit) => {
-                            return (limit * 12n) / 10n
-                        })
-                } catch (_e) {
-                    this.logger.warn({ userOperation: op, entryPoint }, "user operation reverted during gas estimation")
-                    this.monitor.setUserOperationStatus(opHash, { status: "failed", transactionHash: null })
-                    return
-                }
+                const gasLimit = ((op.preVerificationGas + 3n * op.verificationGasLimit + op.callGasLimit) * 12n) / 10n
 
                 const gasPrice = await this.publicClient.getGasPrice()
                 childLogger.debug({ gasPrice }, "got gas price")
@@ -306,12 +305,40 @@ export class BasicExecutor implements IExecutor {
                     executor: wallet
                 }
                 this.monitor.setUserOperationStatus(opHash, { status: "submitted", transactionHash: txHash })
-            } catch (e) {
-                childLogger.error({ error: e }, "error bundling user operation")
+            } catch (e: unknown) {
                 await this.senderManager.pushWallet(wallet)
-                throw e
-            }
 
+                if (e instanceof RpcError) {
+                    throw e
+                } else if (e instanceof ContractFunctionRevertedError) {
+                    childLogger.warn({ error: e }, "user operation reverted (ContractFunctionRevertedError)")
+
+                    throw new RpcError(`user operation reverted: ${e.message}`)
+                } else if (e instanceof ContractFunctionExecutionError) {
+                    const cause = e.cause
+
+                    const errorCauseParsing = errorCauseSchema.safeParse(cause)
+
+                    if (!errorCauseParsing.success) {
+                        throw new Error(`error parsing error cause: ${fromZodError(errorCauseParsing.error)}`)
+                    }
+
+                    const errorCause = errorCauseParsing.data.data
+
+                    if (errorCause.errorName !== "FailedOp") {
+                        throw new Error(`error cause is not FailedOp: ${JSON.stringify(errorCause)}`)
+                    }
+
+                    const reason = errorCause.args.reason
+
+                    childLogger.info({ error: reason }, "user operation reverted")
+
+                    throw new RpcError(`user operation reverted: ${reason}`)
+                } else {
+                    childLogger.error({ error: e }, "unknown error bundling user operation")
+                    throw e
+                }
+            }
             this.startWatchingBlocks()
         })
     }
