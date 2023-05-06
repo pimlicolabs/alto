@@ -174,13 +174,24 @@ export class BasicExecutor implements IExecutor {
             const gasPrice = await this.publicClient.getGasPrice()
             delete this.monitoredTransactions[opHash]
 
-            const request = {
-                ...transaction,
-                maxFeePerGas:
-                    gasPrice > (transaction.maxFeePerGas * 11n) / 10n
-                        ? gasPrice
-                        : (transaction.maxFeePerGas * 11n) / 10n,
-                maxPriorityFeePerGas: (transaction.maxPriorityFeePerGas * 11n) / 10n
+            let request
+            if (this.walletClient.chain?.id !== 534353) {
+                request = {
+                    ...transaction,
+                    maxFeePerGas:
+                        gasPrice > (transaction.maxFeePerGas * 11n) / 10n
+                            ? gasPrice
+                            : (transaction.maxFeePerGas * 11n) / 10n,
+                    maxPriorityFeePerGas: (transaction.maxPriorityFeePerGas * 11n) / 10n
+                }
+            } else {
+                request = {
+                    ...transaction,
+                    gasPrice:
+                        gasPrice > (transaction.gasPrice * 11n) / 10n
+                            ? gasPrice
+                            : (transaction.gasPrice * 11n) / 10n,
+                }
             }
 
             const { chain: _chain, abi: _abi, ...loggingRequest } = request
@@ -284,7 +295,7 @@ export class BasicExecutor implements IExecutor {
 
                 const maxPriorityFeePerGas = 1_000_000_000n > gasPrice ? gasPrice : 1_000_000_000n
 
-                const { request } = await ep.simulate.handleOps([[op], wallet.address], {
+                let { request } = await ep.simulate.handleOps([[op], wallet.address], {
                     gas: gasLimit,
                     account: wallet,
                     chain: this.walletClient.chain,
@@ -292,6 +303,13 @@ export class BasicExecutor implements IExecutor {
                     maxPriorityFeePerGas,
                     nonce: nonce
                 })
+
+                // scroll alpha testnet doesn't support eip-1559 txs yet
+                if (this.walletClient.chain?.id === 534353) {
+                    request.gasPrice = request.maxFeePerGas
+                    request.maxFeePerGas = undefined
+                    request.maxPriorityFeePerGas = undefined
+                }
 
                 const { chain: _chain, abi: _abi, ...loggingRequest } = request
                 childLogger.trace({ request: { ...loggingRequest } }, "got request")
