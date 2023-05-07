@@ -1,5 +1,5 @@
 import { Address, EntryPointAbi, RpcError, UserOperation, ValidationErrors } from "@alto/types"
-import { ValidationResult, contractFunctionExecutionErrorSchema } from "@alto/types"
+import { ValidationResult, entryPointExecutionErrorSchema } from "@alto/types"
 import { PublicClient, getContract } from "viem"
 import { fromZodError } from "zod-validation-error"
 export interface IValidator {
@@ -29,14 +29,15 @@ export class UnsafeValidator implements IValidator {
             }
         })
 
-        const contractFunctionExecutionErrorParsing = contractFunctionExecutionErrorSchema.safeParse(errorResult)
+        const entryPointExecutionErrorSchemaParsing = entryPointExecutionErrorSchema.safeParse(errorResult)
 
-        if (!contractFunctionExecutionErrorParsing.success) {
-            const err = fromZodError(contractFunctionExecutionErrorParsing.error)
+        if (!entryPointExecutionErrorSchemaParsing.success) {
+            const err = fromZodError(entryPointExecutionErrorSchemaParsing.error)
+            err.message = `User Operation simulation returned unexpected invalid response: ${err.message}`
             throw err
         }
 
-        const errorData = contractFunctionExecutionErrorParsing.data.cause.data
+        const errorData = entryPointExecutionErrorSchemaParsing.data
 
         if (errorData.errorName === "FailedOp") {
             const reason = errorData.args.reason

@@ -188,9 +188,7 @@ export class BasicExecutor implements IExecutor {
                 request = {
                     ...transaction,
                     gasPrice:
-                        gasPrice > (transaction.gasPrice * 11n) / 10n
-                            ? gasPrice
-                            : (transaction.gasPrice * 11n) / 10n,
+                        gasPrice > (transaction.gasPrice * 11n) / 10n ? gasPrice : (transaction.gasPrice * 11n) / 10n
                 }
             }
 
@@ -295,7 +293,7 @@ export class BasicExecutor implements IExecutor {
 
                 const maxPriorityFeePerGas = 1_000_000_000n > gasPrice ? gasPrice : 1_000_000_000n
 
-                let { request } = await ep.simulate.handleOps([[op], wallet.address], {
+                const { request } = await ep.simulate.handleOps([[op], wallet.address], {
                     gas: gasLimit,
                     account: wallet,
                     chain: this.walletClient.chain,
