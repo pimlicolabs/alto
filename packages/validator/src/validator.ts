@@ -38,6 +38,7 @@ export class UnsafeValidator implements IValidator {
 
         if (!entryPointExecutionErrorSchemaParsing.success) {
             console.log("errorResult", rest)
+            console.log("errorResult2", JSON.stringify(rest))
             const err = fromZodError(entryPointExecutionErrorSchemaParsing.error)
             err.message = `User Operation simulation returned unexpected invalid response: ${err.message}`
             throw err
