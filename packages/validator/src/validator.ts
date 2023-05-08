@@ -31,9 +31,13 @@ export class UnsafeValidator implements IValidator {
             }
         })
 
+        // @ts-ignore
+        const { abi: _abi, ...rest } = errorResult
+
         const entryPointExecutionErrorSchemaParsing = entryPointExecutionErrorSchema.safeParse(errorResult)
 
         if (!entryPointExecutionErrorSchemaParsing.success) {
+            console.log("errorResult", rest)
             const err = fromZodError(entryPointExecutionErrorSchemaParsing.error)
             err.message = `User Operation simulation returned unexpected invalid response: ${err.message}`
             throw err
