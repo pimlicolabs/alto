@@ -266,7 +266,9 @@ export class BasicExecutor implements IExecutor {
                     throw new RpcError(`user operation ${opHash} already being bundled`)
                 }
 
-                const gasLimit = ((op.preVerificationGas + 3n * op.verificationGasLimit + op.callGasLimit) * 12n) / 10n
+                const gasLimit =
+                    (((op.preVerificationGas + 3n * op.verificationGasLimit + op.callGasLimit) * 12n) / 10n) *
+                    (this.walletClient.chain?.id === 42161 ? 2n : 1n)
 
                 const gasPrice = await this.publicClient.getGasPrice()
                 childLogger.debug({ gasPrice }, "got gas price")
