@@ -3,6 +3,7 @@ import { ValidationResult, entryPointExecutionErrorSchema } from "@alto/types"
 import { PublicClient, getContract } from "viem"
 import { fromZodError } from "zod-validation-error"
 export interface IValidator {
+    getValidationResult(userOperation: UserOperation): Promise<ValidationResult>
     validateUserOperation(userOperation: UserOperation): Promise<ValidationResult>
 }
 
@@ -14,7 +15,8 @@ export class UnsafeValidator implements IValidator {
         this.publicClient = publicClient
         this.entryPoint = entryPoint
     }
-    async validateUserOperation(userOperation: UserOperation): Promise<ValidationResult> {
+
+    async getValidationResult(userOperation: UserOperation): Promise<ValidationResult> {
         const entryPointContract = getContract({
             address: this.entryPoint,
             abi: EntryPointAbi,
@@ -52,6 +54,12 @@ export class UnsafeValidator implements IValidator {
         }
 
         const validationResult = errorData.args
+
+        return validationResult
+    }
+
+    async validateUserOperation(userOperation: UserOperation): Promise<ValidationResult> {
+        const validationResult = await this.getValidationResult(userOperation)
 
         if (validationResult.returnInfo.sigFailed) {
             throw new RpcError("Invalid UserOp signature or paymaster signature", ValidationErrors.InvalidSignature)
