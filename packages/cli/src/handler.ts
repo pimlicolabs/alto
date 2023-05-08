@@ -72,6 +72,26 @@ const lineaTestnet: Chain = {
     testnet: true
 }
 
+const tenderlyFork: Chain = {
+    id: 36865,
+    name: "Tenderly Fork",
+    network: "tenderly-fork",
+    nativeCurrency: {
+        name: "Ether",
+        symbol: "ETH",
+        decimals: 18
+    },
+    rpcUrls: {
+        default: {
+            http: ["https://anvilscript-production.up.railway.app/"]
+        },
+        public: {
+            http: ["https://anvilscript-production.up.railway.app/"]
+        }
+    },
+    testnet: true
+}
+
 // @ts-ignore
 function getChain(chainId: number): Chain {
     for (const chain of Object.values(chains)) {
@@ -96,7 +116,8 @@ const chainIdToChain: Record<number, Chain> = {
     534353: scrollTestnet,
     59140: lineaTestnet,
     100: gnosis,
-    10200: gnosisChiado
+    10200: gnosisChiado,
+    36865: tenderlyFork
 }
 
 export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => {
