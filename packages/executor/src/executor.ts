@@ -336,6 +336,12 @@ export class BasicExecutor implements IExecutor {
                     const errorCauseParsing = errorCauseSchema.safeParse(cause)
 
                     if (!errorCauseParsing.success) {
+                        this.logger.error(
+                            {
+                                error: JSON.stringify(cause)
+                            },
+                            "error parsing error encountered during execution"
+                        )
                         throw new Error(`error parsing error cause: ${fromZodError(errorCauseParsing.error)}`)
                     }
 
