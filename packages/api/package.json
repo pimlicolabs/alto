@@ -27,6 +27,7 @@
         "@alto/utils": "*",
         "@alto/validator": "*",
         "fastify": "^4.16.0",
+        "fastify-cors": "3.0.3",
         "pino-http": "^8.3.3",
         "viem": "^0.3.14",
         "zod": "^3.21.4",
