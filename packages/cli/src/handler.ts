@@ -23,7 +23,8 @@ import {
     optimismGoerli,
     polygon,
     polygonMumbai,
-    scrollTestnet
+    scrollTestnet,
+    sepolia
 } from "viem/chains"
 import * as chains from "viem/chains"
 import { fromZodError } from "zod-validation-error"
@@ -96,7 +97,8 @@ const chainIdToChain: Record<number, Chain> = {
     534353: scrollTestnet,
     59140: lineaTestnet,
     100: gnosis,
-    10200: gnosisChiado
+    10200: gnosisChiado,
+    11155111: sepolia
 }
 
 export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => {
