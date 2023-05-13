@@ -1,4 +1,4 @@
-![](https://imgur.com/STYtirQ)
+![](https://imgur.com/STYtirQ.png)
 
 # ⛰️ Alto ⛰️ 
 
