@@ -2,9 +2,9 @@ import { Hash, Hex, getAddress } from "viem"
 import { z } from "zod"
 
 const hexNumberPattern = /^0x([0-9a-f]+[0-9a-f]*|0)$/
-const hexDataPattern = /^0x[0-9a-f]*$/
+const hexDataPattern = /^0x[0-9A-Fa-f]*$/
 const addressPattern = /^0x[0-9,a-f,A-F]{40}$/
-export const hexData32Pattern = /^0x([0-9a-f][0-9a-f]){0,32}$/
+export const hexData32Pattern = /^0x([0-9a-fA-F][0-9a-fA-F]){0,32}$/
 
 const addressSchema = z
     .string()
@@ -19,11 +19,11 @@ export const hexNumberSchema = z
 const hexDataSchema = z
     .string()
     .regex(hexDataPattern, { message: "not valid hex data" })
-    .transform((val) => val as Hex)
+    .transform((val) => val.toLowerCase() as Hex)
 const hexData32Schema = z
     .string()
     .regex(hexData32Pattern, { message: "not valid 32-byte hex data" })
-    .transform((val) => val as Hash)
+    .transform((val) => val.toLowerCase() as Hash)
 
 export type Address = z.infer<typeof addressSchema>
 export type HexNumber = z.infer<typeof hexNumberSchema>
