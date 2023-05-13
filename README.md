@@ -1,3 +1,5 @@
+![](https://imgur.com/STYtirQ)
+
 # ⛰️ Alto ⛰️ 
 
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/pimlicolabs/alto)
@@ -19,7 +21,7 @@ pnpm build
 Run the test suite with the following commands:
 ```bash
 pnpm build
-pnpm test
+pnpm test # note: foundry must be installed on the machine for this to work
 ```
 
 ## Prerequisites
@@ -27,10 +29,15 @@ pnpm test
 - :gear: [NodeJS](https://nodejs.org/) (LTS)
 - :toolbox: [Pnpm](https://pnpm.io/)
 
-# License
+## License
 
 Distributed under the GPL-3.0 License. See [LICENSE](./LICENSE) for more information.
 
-# Contact
+## Contact
 
 Feel free to ask any questions in our [Telegram group](https://t.me/pimlicoHQ)
+
+## Acknowledgements
+
+- [Eth-Infinitism bundler](https://github.com/eth-infinitism/bundler)
+- [Lodestar](https://github.com/ChainSafe/lodestar)
