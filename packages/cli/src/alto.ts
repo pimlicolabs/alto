@@ -1,7 +1,11 @@
+import { bundlerCommand, bundlerOptions } from "./options"
+import { registerCommandToYargs } from "./util"
+import dotenv from "dotenv"
 import yargs from "yargs"
 import { hideBin } from "yargs/helpers"
-import { registerCommandToYargs } from "./util"
-import { bundlerCommand, bundlerOptions } from "./options"
+
+// Load environment variables from .env file
+dotenv.config()
 
 export const yarg = yargs((hideBin as (args: string[]) => string[])(process.argv))
 
@@ -33,7 +37,7 @@ export function getAltoCli(): yargs.Argv {
         .recommendCommands()
 
     // throw an error if we see an unrecognized cmd
-    alto.recommendCommands().strict()
+    alto.recommendCommands() //.strict()
     alto.config()
 
     // yargs.command and all ./cmds
@@ -61,6 +65,6 @@ alto.fail((msg, err) => {
         err !== undefined ? (err instanceof YargsError ? err.message : err.stack) : msg || "Unknown error"
 
     // eslint-disable-next-line no-console
-    console.error(` ✖ ${errorMessage!}\n`)
+    console.error(` ✖ ${errorMessage}\n`)
     process.exit(1)
 }).parse()

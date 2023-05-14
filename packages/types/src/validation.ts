@@ -1,5 +1,8 @@
-import { z } from "zod"
+import { decodeErrorResult } from "viem"
 import { HexData, addressSchema } from "./schemas"
+import { z } from "zod"
+import { EntryPointAbi } from "./contracts/EntryPoint"
+import { RpcError } from "."
 
 export type StakeInfo = {
     addr: string
@@ -113,18 +116,51 @@ export const validationResultErrorSchema = z.object({
 
 export type ValidationResultError = z.infer<typeof validationResultErrorSchema>
 
-export const contractFunctionExecutionErrorSchema = z.object({
-    name: z.literal("ContractFunctionExecutionError"),
+export const entryPointErrorsSchema = z.discriminatedUnion("errorName", [
+    validationResultErrorSchema,
+    executionResultErrorSchema,
+    failedOpErrorSchema,
+    senderAddressResultErrorSchema,
+    signatureValidationFailedErrorSchema
+])
+
+export const errorCauseSchema = z.object({
+    name: z.literal("ContractFunctionRevertedError"),
+    data: entryPointErrorsSchema
+})
+
+export type ErrorCause = z.infer<typeof errorCauseSchema>
+
+export const vmExecutionError = z.object({
+    name: z.literal("CallExecutionError"),
     cause: z.object({
-        name: z.literal("ContractFunctionRevertedError"),
-        data: z.discriminatedUnion("errorName", [
-            validationResultErrorSchema,
-            executionResultErrorSchema,
-            failedOpErrorSchema,
-            senderAddressResultErrorSchema,
-            signatureValidationFailedErrorSchema
-        ])
+        name: z.literal("RpcRequestError"),
+        cause: z.object({
+            data: z.string().transform((val) => {
+                const errorHexData = val.split("Reverted ")[1] as HexData
+                if (errorHexData === "0x") {
+                    throw new RpcError(
+                        "User operation reverted on-chain with unknown error (some chains don't return revert reason)"
+                    )
+                }
+                const errorResult = decodeErrorResult({ abi: EntryPointAbi, data: errorHexData })
+                return entryPointErrorsSchema.parse(errorResult)
+            })
+        })
     })
 })
 
-export type ContractFunctionExecutionError = z.infer<typeof contractFunctionExecutionErrorSchema>
+export const entryPointExecutionErrorSchema = z
+    .object({
+        name: z.literal("ContractFunctionExecutionError"),
+        cause: z.discriminatedUnion("name", [errorCauseSchema, vmExecutionError])
+    })
+    .transform((val) => {
+        if (val.cause.name === "CallExecutionError") {
+            return val.cause.cause.cause.data
+        } else {
+            return val.cause.data
+        }
+    })
+
+export type EntryPointExecutionError = z.infer<typeof entryPointExecutionErrorSchema>

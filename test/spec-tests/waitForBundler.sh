@@ -9,8 +9,8 @@ fi
 
 for ((i=0; i<$timeout; i++ )); do
 
-  resp=`curl -s  -H "content-type: application/json" -d {} $rpcurl`
-  echo $resp | grep -q '"error"'  && exit 0
+  resp=`curl $rpcurl -s -H "content-type: application/json" -d '{"jsonrpc":"2.0", "id":1, "method":"eth_chainId", "params":[]}'`
+  echo $resp | jq 'if .result then true else false end' | grep -q 'true' && exit 0
   sleep 1
 
 done

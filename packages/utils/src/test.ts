@@ -1,5 +1,5 @@
-import { HexData, UserOperation } from "@alto/types"
-import { contractFunctionExecutionErrorSchema } from "@alto/types"
+import { HexData, HexData32, UserOperation } from "@alto/types"
+import { entryPointExecutionErrorSchema } from "@alto/types"
 import { Abi, parseAbiParameters } from "abitype"
 import { exec, type ChildProcess } from "child_process"
 import {
@@ -25,7 +25,7 @@ export type Clients = {
 }
 
 export const launchAnvil = async (): Promise<ChildProcess> => {
-    const anvilProcess = exec(`anvil`)
+    const anvilProcess = exec("anvil")
 
     const client = createPublicClient({
         chain: foundry,
@@ -114,7 +114,7 @@ export const deployContract = async (
     return contractAddress
 }
 
-export function getUserOpHash(op: UserOperation, entryPoint: Address, chainId: number): string {
+export function getUserOpHash(op: UserOperation, entryPoint: Address, chainId: number): HexData32 {
     const hashedUserOp = {
         sender: op.sender,
         nonce: op.nonce,
@@ -157,12 +157,11 @@ export function getUserOpHash(op: UserOperation, entryPoint: Address, chainId: n
 }
 
 export const parseSenderAddressError = (e: Error): Address => {
-    const contractFunctionExecutionErrorParsing = contractFunctionExecutionErrorSchema.safeParse(e)
-    if (!contractFunctionExecutionErrorParsing.success) {
-        throw fromZodError(contractFunctionExecutionErrorParsing.error)
+    const entryPointExecutionErrorSchemaParsing = entryPointExecutionErrorSchema.safeParse(e)
+    if (!entryPointExecutionErrorSchemaParsing.success) {
+        throw fromZodError(entryPointExecutionErrorSchemaParsing.error)
     }
-    const contractFunctionExecutionError = contractFunctionExecutionErrorParsing.data
-    const errorData = contractFunctionExecutionError.cause.data
+    const errorData = entryPointExecutionErrorSchemaParsing.data
     if (errorData.errorName !== "SenderAddressResult") {
         throw e
     }

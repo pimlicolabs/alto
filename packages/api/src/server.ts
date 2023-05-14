@@ -1,73 +1,105 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
-/* eslint-disable @typescript-eslint/no-misused-promises */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/unbound-method */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-import express, { Express, Response, Request } from "express"
-import cors from "cors"
-import { JSONRPCResponse, bundlerRequestSchema, jsonRpcSchema } from "@alto/types"
-import { RpcError, ValidationErrors } from "@alto/types"
-import { fromZodError } from "zod-validation-error"
 import { IRpcEndpoint } from "./rpcHandler"
 import { IBundlerArgs } from "@alto/config"
+import { JSONRPCResponse, bundlerRequestSchema, jsonRpcSchema } from "@alto/types"
+import { RpcError, ValidationErrors } from "@alto/types"
+import { Logger } from "@alto/utils"
+import Fastify, { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { toHex } from "viem"
+import { fromZodError } from "zod-validation-error"
+
+// jsonBigIntOverride.ts
+const originalJSONStringify = JSON.stringify
+
+JSON.stringify = function (
+    value: any,
+    replacer?: ((this: any, key: string, value: any) => any) | (string | number)[] | null,
+    space?: string | number
+): string {
+    const bigintReplacer = (_key: string, value: any): any => {
+        if (typeof value === "bigint") {
+            return toHex(value)
+        }
+        return value
+    }
+
+    const wrapperReplacer = (key: string, value: any): any => {
+        if (typeof replacer === "function") {
+            // rome-ignore lint: no other way to do this
+            value = replacer(key, value)
+        } else if (Array.isArray(replacer)) {
+            if (!replacer.includes(key)) {
+                return
+            }
+        }
+        return bigintReplacer(key, value)
+    }
+
+    return originalJSONStringify(value, wrapperReplacer, space)
+}
 
 export class Server {
-    private app: Express
+    private fastify: FastifyInstance
     private rpcEndpoint: IRpcEndpoint
     private bundlerArgs: IBundlerArgs
 
-    constructor(rpcEndpoint: IRpcEndpoint, bundlerArgs: IBundlerArgs) {
-        this.app = express()
-        this.app.use(cors())
-        this.app.use(express.json())
+    constructor(rpcEndpoint: IRpcEndpoint, bundlerArgs: IBundlerArgs, logger: Logger) {
+        this.fastify = Fastify({
+            logger
+        })
 
-        this.app.post("/rpc", this.rpc.bind(this))
+        this.fastify.register(require("fastify-cors"), {
+            origin: "*",
+            methods: ["POST", "GET", "OPTIONS"]
+        })
+
+        this.fastify.post("/rpc", this.rpc.bind(this))
+        this.fastify.get("/health", this.healthCheck.bind(this))
 
         this.rpcEndpoint = rpcEndpoint
         this.bundlerArgs = bundlerArgs
     }
 
     public async start(): Promise<void> {
-        this.app.listen(this.bundlerArgs.port, () => {
-            console.log(`Server listening on port ${this.bundlerArgs.port}`)
-        })
+        this.fastify.listen({ port: this.bundlerArgs.port, host: "0.0.0.0" })
     }
 
     public async stop(): Promise<void> {
-        // TODO
+        await this.fastify.close()
     }
 
-    public async rpc(req: Request, res: Response): Promise<void> {
+    public async healthCheck(_request: FastifyRequest, reply: FastifyReply): Promise<void> {
+        await reply.status(200).send("OK")
+    }
+
+    public async rpc(request: FastifyRequest, reply: FastifyReply): Promise<void> {
         try {
-            const contentTypeHeader = req.headers["content-type"]
+            const contentTypeHeader = request.headers["content-type"]
             if (contentTypeHeader !== "application/json") {
                 throw new RpcError(
                     "invalid content-type, content-type must be application/json",
                     ValidationErrors.InvalidFields
                 )
             }
-            const jsonRpcResponse = await this.innerRpc(req.body)
-            console.log("jsonRpcResponse", jsonRpcResponse)
-            res.status(200).send(
-                JSON.stringify(jsonRpcResponse, (_, v) => {
-                    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-                    return typeof v === "bigint" ? toHex(v) : v
-                })
-            )
+            this.fastify.log.debug(request.body, "received request")
+            const jsonRpcResponse = await this.innerRpc(request.body)
+            await reply.status(200).send(jsonRpcResponse)
+            this.fastify.log.info(jsonRpcResponse, "sent reply")
         } catch (err) {
             if (err instanceof RpcError) {
-                res.status(400).send({
+                const rpcError = {
                     message: err.message,
                     data: err.data,
                     code: err.code
-                })
+                }
+                await reply.status(400).send(rpcError)
+                this.fastify.log.info(rpcError, "error reply")
             } else {
                 if (err instanceof Error) {
-                    res.status(500).send(err.message)
+                    await reply.status(500).send(err.message)
+                    this.fastify.log.error(err, "error reply (non-rpc)")
                 } else {
-                    res.status(500).send("Unknown error")
+                    await reply.status(500).send("Unknown error")
+                    this.fastify.log.info(reply.raw, "error reply (non-rpc)")
                 }
             }
         }
@@ -89,6 +121,7 @@ export class Server {
         }
 
         const bundlerRequest = bundlerRequestParsing.data
+        this.fastify.log.info(bundlerRequest, `received request ${bundlerRequest.method}`)
         const result = await this.rpcEndpoint.handleMethod(bundlerRequest)
 
         const jsonRpcResponse: JSONRPCResponse = {

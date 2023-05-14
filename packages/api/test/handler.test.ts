@@ -7,11 +7,12 @@ import {
     createClients,
     deployContract,
     getUserOpHash,
+    initDebugLogger,
     launchAnvil,
     parseSenderAddressError
 } from "@alto/utils"
 import { expect } from "earl"
-import { RpcHandler } from "@alto/api"
+import { RpcHandler } from "../"
 import { RpcHandlerConfig } from "@alto/config"
 import { Address, EntryPoint_bytecode, EntryPointAbi, hexNumberSchema, UserOperation } from "@alto/types"
 import { z } from "zod"
@@ -50,10 +51,10 @@ describe("handler", () => {
             chainId: anvilChainId,
             entryPoint: entryPoint
         }
-        handler = new RpcHandler(rpcHandlerConfig, validator, new NullExecutor())
+        handler = new RpcHandler(rpcHandlerConfig, validator, new NullExecutor(), initDebugLogger("fatal"))
     })
 
-    after(function () {
+    after(async function () {
         anvilProcess.kill()
     })
 

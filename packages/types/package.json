@@ -16,13 +16,13 @@
     ],
     "scripts": {
         "build": "tsc -p ./tsconfig.build.json",
-        "test": "test -d test && mocha test/**/*.test.ts || echo 'No test folder found. Skipping tests.'",
+        "test": "test -d test && mocha test/**/*.test.ts --exit || echo 'No test folder found. Skipping tests.'",
         "lint": "eslint src/**/*.ts",
         "lint:fix": "eslint src/**/*.ts --fix"
     },
     "dependencies": {
         "abitype": "^0.8.0",
-        "viem": "^0.3.4",
+        "viem": "^0.3.14",
         "zod": "^3.21.4"
     }
 }

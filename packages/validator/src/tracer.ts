@@ -52,9 +52,9 @@ export async function debug_traceCall(
 
 // a hack for network that doesn't have traceCall: mine the transaction, and use debug_traceTransaction
 export async function execAndTrace(
-    walletClient: WalletClient<Transport, Chain, Account>,
-    tx: TransactionRequest,
-    options: TraceOptions
+    _walletClient: WalletClient<Transport, Chain, Account>,
+    _tx: TransactionRequest,
+    _options: TraceOptions
 ): Promise<TraceResult> {
     //const hash = await walletClient.sendTransaction(tx)
     throw new Error("not implemented")

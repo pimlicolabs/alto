@@ -1,4 +1,6 @@
 import { RpcHandlerConfig } from "@alto/config"
+import { IExecutor } from "@alto/executor"
+import { Monitor } from "@alto/executor/"
 import {
     Address,
     BundlerClearStateResponseResult,
@@ -7,25 +9,33 @@ import {
     BundlerResponse,
     BundlerSendBundleNowResponseResult,
     BundlerSetBundlingModeResponseResult,
+    BundlingMode,
     ChainIdResponseResult,
+    EntryPointAbi,
     EstimateUserOperationGasResponseResult,
+    ExecutionErrors,
     GetUserOperationByHashResponseResult,
     GetUserOperationReceiptResponseResult,
     HexData32,
+    PimlicoGetUserOperationStatusResponseResult,
+    RpcError,
     SendUserOperationResponseResult,
     SupportedEntryPointsResponseResult,
     UserOperation,
-    BundlingMode,
-    EntryPointAbi,
-    RpcError,
-    ExecutionErrors,
     logSchema,
     receiptSchema
 } from "@alto/types"
-import { getContract, decodeFunctionData, getAbiItem } from "viem"
+import { Logger, calcPreVerificationGas } from "@alto/utils"
 import { IValidator } from "@alto/validator"
-import { calcPreVerificationGas } from "@alto/utils"
-import { IExecutor } from "@alto/executor"
+import {
+    decodeFunctionData,
+    getAbiItem,
+    getContract,
+    TransactionNotFoundError,
+    TransactionReceiptNotFoundError,
+    Transaction,
+    TransactionReceipt
+} from "viem"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
 
@@ -43,7 +53,25 @@ export interface IRpcEndpoint {
 }
 
 export class RpcHandler implements IRpcEndpoint {
-    constructor(readonly config: RpcHandlerConfig, readonly validator: IValidator, readonly executor: IExecutor) {}
+    config: RpcHandlerConfig
+    validator: IValidator
+    executor: IExecutor
+    monitor: Monitor
+    logger: Logger
+
+    constructor(
+        config: RpcHandlerConfig,
+        validator: IValidator,
+        executor: IExecutor,
+        monitor: Monitor,
+        logger: Logger
+    ) {
+        this.config = config
+        this.validator = validator
+        this.executor = executor
+        this.monitor = monitor
+        this.logger = logger
+    }
 
     async handleMethod(request: BundlerRequest): Promise<BundlerResponse> {
         // call the method with the params
@@ -96,17 +124,25 @@ export class RpcHandler implements IRpcEndpoint {
                     method,
                     result: await this.debug_bundler_setBundlingMode(...request.params)
                 }
+            case "pimlico_getUserOperationStatus":
+                return {
+                    method,
+                    result: await this.pimlico_getUserOperationStatus(...request.params)
+                }
         }
     }
 
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
     async eth_chainId(): Promise<ChainIdResponseResult> {
         return BigInt(this.config.chainId)
     }
 
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
     async eth_supportedEntryPoints(): Promise<SupportedEntryPointsResponseResult> {
         return [this.config.entryPoint]
     }
 
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
     async eth_estimateUserOperationGas(
         userOperation: UserOperation,
         entryPoint: Address
@@ -116,7 +152,7 @@ export class RpcHandler implements IRpcEndpoint {
             throw new Error(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.entryPoint}`)
         }
 
-        const validationResult = await this.validator.validateUserOperation(userOperation)
+        const validationResult = await this.validator.getValidationResult(userOperation)
 
         const preVerificationGas = BigInt(calcPreVerificationGas(userOperation))
         const verificationGas = BigInt(validationResult.returnInfo.preOpGas)
@@ -143,6 +179,7 @@ export class RpcHandler implements IRpcEndpoint {
         }
     }
 
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
     async eth_sendUserOperation(
         userOperation: UserOperation,
         entryPoint: Address
@@ -151,9 +188,13 @@ export class RpcHandler implements IRpcEndpoint {
             throw new Error(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.entryPoint}`)
         }
 
+        this.logger.trace({ userOperation, entryPoint }, "beginning validation")
+
         await this.validator.validateUserOperation(userOperation)
 
-        await this.executor.bundle(entryPoint, [userOperation])
+        this.logger.trace({ userOperation, entryPoint }, "beginning execution")
+
+        await this.executor.bundle(entryPoint, userOperation)
 
         const entryPointContract = getContract({
             address: entryPoint,
@@ -164,6 +205,7 @@ export class RpcHandler implements IRpcEndpoint {
         return await entryPointContract.read.getUserOpHash([userOperation])
     }
 
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
     async eth_getUserOperationByHash(userOperationHash: HexData32): Promise<GetUserOperationByHashResponseResult> {
         const userOperationEventAbiItem = getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
 
@@ -188,7 +230,19 @@ export class RpcHandler implements IRpcEndpoint {
             return null
         }
 
-        const tx = await this.config.publicClient.getTransaction({ hash: txHash })
+        const getTransaction = async (txHash: HexData32): Promise<Transaction> => {
+            try {
+                return await this.config.publicClient.getTransaction({ hash: txHash })
+            } catch (e) {
+                if (e instanceof TransactionNotFoundError) {
+                    return getTransaction(txHash)
+                } else {
+                    throw e
+                }
+            }
+        }
+
+        const tx = await getTransaction(txHash)
         const decoded = decodeFunctionData({ abi: EntryPointAbi, data: tx.input })
         if (decoded.functionName !== "handleOps") {
             return null
@@ -214,6 +268,7 @@ export class RpcHandler implements IRpcEndpoint {
         return result
     }
 
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
     async eth_getUserOperationReceipt(userOperationHash: HexData32): Promise<GetUserOperationReceiptResponseResult> {
         const userOperationEventAbiItem = getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
 
@@ -238,7 +293,19 @@ export class RpcHandler implements IRpcEndpoint {
             return null
         }
 
-        const receipt = await this.config.publicClient.getTransactionReceipt({ hash: txHash })
+        const getTransactionReceipt = async (txHash: HexData32): Promise<TransactionReceipt> => {
+            try {
+                return await this.config.publicClient.getTransactionReceipt({ hash: txHash })
+            } catch (e) {
+                if (e instanceof TransactionReceiptNotFoundError) {
+                    return getTransactionReceipt(txHash)
+                } else {
+                    throw e
+                }
+            }
+        }
+
+        const receipt = await getTransactionReceipt(txHash)
         const logs = receipt.logs
 
         if (
@@ -307,19 +374,30 @@ export class RpcHandler implements IRpcEndpoint {
         return userOperationReceipt
     }
 
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
     async debug_bundler_clearState(): Promise<BundlerClearStateResponseResult> {
         throw new Error("Method not implemented.")
     }
 
-    async debug_bundler_dumpMempool(entryPoint: Address): Promise<BundlerDumpMempoolResponseResult> {
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
+    async debug_bundler_dumpMempool(_entryPoint: Address): Promise<BundlerDumpMempoolResponseResult> {
         throw new Error("Method not implemented.")
     }
 
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
     async debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
         throw new Error("Method not implemented.")
     }
 
-    async debug_bundler_setBundlingMode(bundlingMode: BundlingMode): Promise<BundlerSetBundlingModeResponseResult> {
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
+    async debug_bundler_setBundlingMode(_bundlingMode: BundlingMode): Promise<BundlerSetBundlingModeResponseResult> {
         throw new Error("Method not implemented.")
+    }
+
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
+    async pimlico_getUserOperationStatus(
+        userOperationHash: HexData32
+    ): Promise<PimlicoGetUserOperationStatusResponseResult> {
+        return this.monitor.getUserOperationStatus(userOperationHash)
     }
 }

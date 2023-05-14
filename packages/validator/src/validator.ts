@@ -1,14 +1,22 @@
-import { UserOperation, Address, EntryPointAbi, RpcError, ValidationErrors } from "@alto/types"
+import { Address, EntryPointAbi, RpcError, UserOperation, ValidationErrors } from "@alto/types"
+import { ValidationResult, entryPointExecutionErrorSchema } from "@alto/types"
 import { PublicClient, getContract } from "viem"
-import { ValidationResult, contractFunctionExecutionErrorSchema } from "@alto/types"
 import { fromZodError } from "zod-validation-error"
 export interface IValidator {
+    getValidationResult(userOperation: UserOperation): Promise<ValidationResult>
     validateUserOperation(userOperation: UserOperation): Promise<ValidationResult>
 }
 
 export class UnsafeValidator implements IValidator {
-    constructor(readonly publicClient: PublicClient, readonly entryPoint: Address) {}
-    async validateUserOperation(userOperation: UserOperation): Promise<ValidationResult> {
+    publicClient: PublicClient
+    entryPoint: Address
+
+    constructor(publicClient: PublicClient, entryPoint: Address) {
+        this.publicClient = publicClient
+        this.entryPoint = entryPoint
+    }
+
+    async getValidationResult(userOperation: UserOperation): Promise<ValidationResult> {
         const entryPointContract = getContract({
             address: this.entryPoint,
             abi: EntryPointAbi,
@@ -16,20 +24,22 @@ export class UnsafeValidator implements IValidator {
         })
 
         const errorResult = await entryPointContract.simulate.simulateValidation([userOperation]).catch((e) => {
-            if (e instanceof Error) return e
-            else {
+            if (e instanceof Error) {
+                return e
+            } else {
                 throw e
             }
         })
 
-        const contractFunctionExecutionErrorParsing = contractFunctionExecutionErrorSchema.safeParse(errorResult)
+        const entryPointExecutionErrorSchemaParsing = entryPointExecutionErrorSchema.safeParse(errorResult)
 
-        if (!contractFunctionExecutionErrorParsing.success) {
-            const err = fromZodError(contractFunctionExecutionErrorParsing.error)
+        if (!entryPointExecutionErrorSchemaParsing.success) {
+            const err = fromZodError(entryPointExecutionErrorSchemaParsing.error)
+            err.message = `User Operation simulation returned unexpected invalid response: ${err.message}`
             throw err
         }
 
-        const errorData = contractFunctionExecutionErrorParsing.data.cause.data
+        const errorData = entryPointExecutionErrorSchemaParsing.data
 
         if (errorData.errorName === "FailedOp") {
             const reason = errorData.args.reason
@@ -40,16 +50,24 @@ export class UnsafeValidator implements IValidator {
         }
 
         if (errorData.errorName !== "ValidationResult") {
-            throw new Error("Unexpected error")
+            throw new Error("Unexpected error - errorName is not ValidationResult")
         }
 
         const validationResult = errorData.args
 
-        if (validationResult.returnInfo.sigFailed)
-            throw new RpcError("Invalid UserOp signature or paymaster signature", ValidationErrors.InvalidSignature)
+        return validationResult
+    }
 
-        if (validationResult.returnInfo.validUntil < Date.now() / 1000 + 30)
+    async validateUserOperation(userOperation: UserOperation): Promise<ValidationResult> {
+        const validationResult = await this.getValidationResult(userOperation)
+
+        if (validationResult.returnInfo.sigFailed) {
+            throw new RpcError("Invalid UserOp signature or paymaster signature", ValidationErrors.InvalidSignature)
+        }
+
+        if (validationResult.returnInfo.validUntil < Date.now() / 1000 + 30) {
             throw new RpcError("expires too soon", ValidationErrors.ExpiresShortly)
+        }
 
         return validationResult
     }

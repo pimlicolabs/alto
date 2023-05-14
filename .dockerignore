@@ -19,3 +19,5 @@ packages/**/lib
 **/*.log
 .idea
 .tmp
+
+.env
