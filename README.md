@@ -1,4 +1,4 @@
-![](https://imgur.com/STYtirQ.png)
+<p align="center"><a href="https://docs.pimlico/reference/bundler"><img width="500" title="Lodestar" src='https://imgur.com/STYtirQ.png' /></a></p>
 
 # ⛰️ Alto ⛰️ 
 
