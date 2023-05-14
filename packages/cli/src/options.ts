@@ -3,6 +3,110 @@ import { CliCommand, CliCommandOptions } from "./util"
 import { IBundlerArgsInput } from "@alto/config"
 
 export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
+    loki: {
+        host: {
+            description: "Loki host",
+            type: "string"
+        },
+        username: {
+            description: "Loki username",
+            type: "string"
+        },
+        password: {
+            description: "Loki password",
+            type: "string"
+        }
+    },
+    signer: {
+        privateKeys: {
+            description: "Private key of the signer",
+            type: "string",
+            require: true
+        },
+        utilityKey: {
+            description: "Private key of the utility account",
+            type: "string",
+            require: true
+        },
+        maxSigners: {
+            description: "Maximum number of signers to use from the list of signer private keys",
+            type: "number"
+        },
+        minBalance: {
+            description: "Minimum balance required for the signer",
+            type: "string",
+            require: true
+        }
+    },
+    relay: {
+        rpcUrl: {
+            description: "RPC url to connect to",
+            type: "string",
+            require: true
+        },
+        minStake: {
+            description: "Minimum stake required for a relay (in 10e18)",
+            type: "number",
+            require: true,
+            default: 1
+        },
+        minUnstakeDelay: {
+            description: "Minimum unstake delay",
+            type: "number",
+            require: true,
+            default: 1
+        }
+    },
+    mempool: {
+        maxBundleWaitTime: {
+            description: "Maximum time to wait for a bundle to be submitted",
+            type: "number",
+            require: true,
+            default: 3
+        },
+        maxBundleSize: {
+            description: "Maximum number of operations in mempool before a bundle is submitted",
+            type: "number",
+            require: true,
+            default: 3
+        }
+    },
+    listener: {
+        port: {
+            description: "Port to listen on",
+            type: "number",
+            require: true,
+            default: 3000
+        }
+    },
+    executor: {
+        pollingInterval: {
+            description: "Polling interval for the executor module (ms)",
+            type: "number",
+            require: true,
+            default: 100
+        }
+    },
+    log: {
+        level: {
+            description: "Log level",
+            type: "string",
+            require: true,
+            default: "trace"
+        },
+        environment: {
+            description: "Environment",
+            type: "string",
+            require: true,
+            default: "production"
+        },
+        logEnvironment: {
+            description: "Log environment",
+            type: "string",
+            require: true,
+            default: "production"
+        }
+    },
     entryPoint: {
         description: "EntryPoint contract addresses split by commas",
         type: "string",
@@ -12,98 +116,9 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description: "Beneficiary address to receive fees",
         type: "string",
         require: true
-    },
-    signerPrivateKeys: {
-        description: "Private key of the signer",
-        type: "string",
-        require: true
-    },
-    utilityPrivateKey: {
-        description: "Private key of the utility account",
-        type: "string",
-        require: true
-    },
-    maxSigners: {
-        description: "Maximum number of signers to use from the list of signer private keys",
-        type: "number"
-    },
-    minBalance: {
-        description: "Minimum balance required for the signer",
-        type: "string",
-        require: true
-    },
-    rpcUrl: {
-        description: "RPC url to connect to",
-        type: "string",
-        require: true
-    },
-    minStake: {
-        description: "Minimum stake required for a relay (in 10e18)",
-        type: "number",
-        require: true,
-        default: 1
-    },
-    minUnstakeDelay: {
-        description: "Minimum unstake delay",
-        type: "number",
-        require: true,
-        default: 1
-    },
-    maxBundleWaitTime: {
-        description: "Maximum time to wait for a bundle to be submitted",
-        type: "number",
-        require: true,
-        default: 3
-    },
-    maxBundleSize: {
-        description: "Maximum number of operations in mempool before a bundle is submitted",
-        type: "number",
-        require: true,
-        default: 3
-    },
-    port: {
-        description: "Port to listen on",
-        type: "number",
-        require: true,
-        default: 3000
-    },
-    pollingInterval: {
-        description: "Polling interval for the executor module (ms)",
-        type: "number",
-        require: true,
-        default: 100
-    },
-    logLevel: {
-        description: "Log level",
-        type: "string",
-        require: true,
-        default: "trace"
-    },
-    environment: {
-        description: "Environment",
-        type: "string",
-        require: true,
-        default: "production"
-    },
-    logEnvironment: {
-        description: "Log environment",
-        type: "string",
-        require: true,
-        default: "production"
-    },
-    lokiHost: {
-        description: "Loki host",
-        type: "string"
-    },
-    lokiUsername: {
-        description: "Loki username",
-        type: "string"
-    },
-    lokiPassword: {
-        description: "Loki password",
-        type: "string"
     }
 }
+
 
 export const bundlerCommand: CliCommand<IBundlerArgsInput> = {
     command: "run",
