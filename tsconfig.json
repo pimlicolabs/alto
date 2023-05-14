@@ -1,20 +1,3 @@
 {
-  "compilerOptions": {
-    "target": "es2016",                      
-    "module": "commonjs",                    
-    "esModuleInterop": true,                  
-    "forceConsistentCasingInFileNames": true,
-    "strict": true,
-    "noImplicitReturns": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "preserveConstEnums": true,
-    "removeComments": false,
-    "resolveJsonModule": true,
-    "sourceMap": true,
-    "skipLibCheck": true
-  },
-  "ts-node": {
-    "swc": true
-  }
+    "extends": "./tsconfig.build.json"
 }

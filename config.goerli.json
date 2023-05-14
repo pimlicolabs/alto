@@ -1,0 +1,10 @@
+{
+    "entryPoint": "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789",
+    "beneficiary": "0x433704c40F80cBff02e86FD36Bc8baC5e31eB0c1",
+    "minBalance": "1000000000000000000",
+    "minStake": 1,
+    "minUnstakeDelay": 1,
+    "maxBundleWaitTime": 3,
+    "maxBundleSize": 3,
+    "port": 3000
+}

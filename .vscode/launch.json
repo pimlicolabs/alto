@@ -1,0 +1,11 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "command": "yarn test",
+            "name": "Build and Run Integration Tests",
+            "request": "launch",
+            "type": "node-terminal"
+        }
+    ]
+}

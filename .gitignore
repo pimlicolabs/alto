@@ -1,2 +1,10 @@
-yarn.lock
+.env
+package.lock
 node_modules
+.nyc
+dist
+.nyc_output
+**/lib
+**/.nyc_output
+test/spec-tests/bundler-spec-tests
+test/build

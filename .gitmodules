@@ -1,0 +1,3 @@
+[submodule "test/spec-tests/bundler-spec-tests"]
+	path = test/spec-tests/bundler-spec-tests
+	url = https://github.com/eth-infinitism/bundler-spec-tests.git

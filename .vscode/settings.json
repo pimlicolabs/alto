@@ -1,14 +1,3 @@
 {
-    "editor.formatOnPaste": false, // required
-    "editor.formatOnType": true, // required
-    "editor.formatOnSave": true, // optional
-    "editor.formatOnSaveMode": "file", // required to format on save
-    "files.autoSave": "onFocusChange", // optional but recommended
-    "eslint.packageManager": "yarn",
-    "javascript.format.enable": false,
-    "editor.codeActionsOnSave": {
-        "source.fixAll.eslint": true
-    },
-    "eslint.validate": ["javascript", "json"]
-       
+    "eslint.packageManager": "yarn"
 }
