@@ -8,7 +8,7 @@ import {
 } from "@alto/config"
 import { BasicExecutor, SenderManager } from "@alto/executor"
 import { Monitor } from "@alto/executor"
-import { Logger, initDebugLogger, initProductionLogger } from "@alto/utils"
+import { GasFeeOracle, Logger, initDebugLogger, initProductionLogger } from "@alto/utils"
 import { UnsafeValidator } from "@alto/validator"
 import { Chain, PublicClient, createWalletClient, http } from "viem"
 import {
@@ -105,7 +105,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     const parsedArgs = parseArgs(args)
     const handlerConfig: RpcHandlerConfig = await bundlerArgsToRpcHandlerConfig(parsedArgs)
     const client = handlerConfig.publicClient
-
+    const gasFeeOracle = new GasFeeOracle(client)
     const chainId = await client.getChainId()
     const chain: Chain = chainIdToChain[chainId]
 
@@ -148,7 +148,8 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         monitor,
         parsedArgs.entryPoint,
         parsedArgs.pollingInterval,
-        logger
+        logger,
+        gasFeeOracle
     )
     const rpcEndpoint = new RpcHandler(handlerConfig, validator, executor, monitor, logger)
 

@@ -1,6 +1,6 @@
-import { EntryPointAbi, RpcError, errorCauseSchema } from "@alto/types"
+import { ChainId, EntryPointAbi, RpcError, errorCauseSchema } from "@alto/types"
 import { Address, HexData32, UserOperation } from "@alto/types"
-import { Logger } from "@alto/utils"
+import { GasFeeOracle, Logger } from "@alto/utils"
 import { Mutex } from "async-mutex"
 import {
     Account,
@@ -59,6 +59,7 @@ export class BasicExecutor implements IExecutor {
     entryPoint: Address
     pollingInterval: number
     logger: Logger
+    gasFeeOracle: GasFeeOracle
 
     mutex: Mutex
     constructor(
@@ -69,7 +70,8 @@ export class BasicExecutor implements IExecutor {
         monitor: Monitor,
         entryPoint: Address,
         pollingInterval: number,
-        logger: Logger
+        logger: Logger,
+        gasFeeOracle: GasFeeOracle
     ) {
         this.beneficiary = beneficiary
         this.publicClient = publicClient
@@ -79,7 +81,7 @@ export class BasicExecutor implements IExecutor {
         this.entryPoint = entryPoint
         this.pollingInterval = pollingInterval
         this.logger = logger
-
+        this.gasFeeOracle = gasFeeOracle
         this.mutex = new Mutex()
     }
 
@@ -175,7 +177,7 @@ export class BasicExecutor implements IExecutor {
             delete this.monitoredTransactions[opHash]
 
             let request
-            if (this.walletClient.chain?.id !== 534353) {
+            if (this.walletClient.chain?.id !== ChainId.ScrollTestnet) {
                 request = {
                     ...transaction,
                     maxFeePerGas:
@@ -268,10 +270,10 @@ export class BasicExecutor implements IExecutor {
 
                 const gasLimit =
                     (((op.preVerificationGas + 3n * op.verificationGasLimit + op.callGasLimit) * 12n) / 10n) *
-                    (this.walletClient.chain?.id === 42161 ? 4n : 1n)
+                    (this.walletClient.chain?.id === ChainId.Arbitrum ? 4n : 1n)
 
-                const gasPrice = await this.publicClient.getGasPrice()
-                childLogger.debug({ gasPrice }, "got gas price")
+                const gasPrice = await this.gasFeeOracle.getFee(this.walletClient.chain?.id)
+                childLogger.debug({ gasPrice }, "got gas price from gas station oracle")
 
                 // const minGasPrice = (95n * gasPrice) / 100n
 
@@ -305,7 +307,7 @@ export class BasicExecutor implements IExecutor {
                 })
 
                 // scroll alpha testnet doesn't support eip-1559 txs yet
-                if (this.walletClient.chain?.id === 534353) {
+                if (this.walletClient.chain?.id === ChainId.ScrollTestnet) {
                     request.gasPrice = request.maxFeePerGas
                     request.maxFeePerGas = undefined
                     request.maxPriorityFeePerGas = undefined
