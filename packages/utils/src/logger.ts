@@ -26,7 +26,7 @@ function stringifyWithCircularHandling(obj: AnyObject, replacer?: (key: string, 
     })
 }
 
-const customSerializer: SerializerFn = (input: AnyObject): AnyObject => {
+export const customSerializer: SerializerFn = (input: AnyObject): AnyObject => {
     const output: AnyObject = {}
     for (const key in input) {
         if (Object.prototype.hasOwnProperty.call(input, key)) {

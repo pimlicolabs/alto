@@ -1,5 +1,6 @@
 import { Address, EntryPointAbi, RpcError, UserOperation, ValidationErrors } from "@alto/types"
 import { ValidationResult, entryPointExecutionErrorSchema } from "@alto/types"
+import { Logger, customSerializer } from "@alto/utils"
 import { PublicClient, getContract } from "viem"
 import { fromZodError } from "zod-validation-error"
 export interface IValidator {
@@ -10,10 +11,12 @@ export interface IValidator {
 export class UnsafeValidator implements IValidator {
     publicClient: PublicClient
     entryPoint: Address
+    logger: Logger
 
-    constructor(publicClient: PublicClient, entryPoint: Address) {
+    constructor(publicClient: PublicClient, entryPoint: Address, logger: Logger) {
         this.publicClient = publicClient
         this.entryPoint = entryPoint
+        this.logger = logger
     }
 
     async getValidationResult(userOperation: UserOperation): Promise<ValidationResult> {
@@ -35,6 +38,10 @@ export class UnsafeValidator implements IValidator {
 
         if (!entryPointExecutionErrorSchemaParsing.success) {
             const err = fromZodError(entryPointExecutionErrorSchemaParsing.error)
+            this.logger.error(
+                { error: JSON.stringify(errorResult, customSerializer) },
+                "unexpected error during valiation"
+            )
             err.message = `User Operation simulation returned unexpected invalid response: ${err.message}`
             throw err
         }

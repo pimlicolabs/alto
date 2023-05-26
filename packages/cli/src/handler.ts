@@ -128,7 +128,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
             parsedArgs.lokiPassword
         )
     }
-    const validator = new UnsafeValidator(handlerConfig.publicClient, parsedArgs.entryPoint)
+    const validator = new UnsafeValidator(handlerConfig.publicClient, parsedArgs.entryPoint, logger)
     const senderManager = new SenderManager(parsedArgs.signerPrivateKeys, logger, parsedArgs.maxSigners)
 
     await senderManager.validateAndRefillWallets(

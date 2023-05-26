@@ -8,3 +8,4 @@ dist
 **/.nyc_output
 test/spec-tests/bundler-spec-tests
 test/build
+.DS_Store
