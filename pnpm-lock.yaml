@@ -170,6 +170,9 @@ importers:
       '@alto/types':
         specifier: '*'
         version: link:../types
+      '@types/node':
+        specifier: ^18.16.3
+        version: 18.16.3
       abitype:
         specifier: ^0.8.0
         version: 0.8.0(typescript@5.0.4)(zod@3.21.4)

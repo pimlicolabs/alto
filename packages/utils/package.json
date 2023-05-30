@@ -23,6 +23,7 @@
     "dependencies": {
         "@account-abstraction/utils": "^0.5.0",
         "@alto/types": "*",
+        "@types/node": "^18.16.3",
         "abitype": "^0.8.0",
         "axios": "^1.3.6",
         "pino": "^8.11.0",
