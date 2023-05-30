@@ -26,6 +26,7 @@
         "@alto/types": "*",
         "@alto/utils": "*",
         "@alto/validator": "*",
+        "@types/node": "^18.16.3",
         "fastify": "^4.16.0",
         "fastify-cors": "3.0.3",
         "pino-http": "^8.3.3",
