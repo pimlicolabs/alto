@@ -88,6 +88,9 @@ importers:
       '@alto/validator':
         specifier: '*'
         version: link:../validator
+      '@types/node':
+        specifier: ^18.16.3
+        version: 18.16.3
       dotenv:
         specifier: ^16.0.3
         version: 16.0.3

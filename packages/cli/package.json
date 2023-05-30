@@ -27,6 +27,7 @@
         "@alto/types": "*",
         "@alto/utils": "*",
         "@alto/validator": "*",
+        "@types/node": "^18.16.3",
         "dotenv": "^16.0.3",
         "viem": "^0.3.14",
         "yargs": "^17.7.1",
