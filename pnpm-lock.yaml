@@ -125,6 +125,9 @@ importers:
       '@alto/utils':
         specifier: '*'
         version: link:../utils
+      '@types/node':
+        specifier: ^18.16.3
+        version: 18.16.3
       async-mutex:
         specifier: ^0.4.0
         version: 0.4.0
