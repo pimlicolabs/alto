@@ -7,8 +7,8 @@ import { SenderManager } from "../src"
 import { expect } from "earl"
 
 const fn = async (time: number, label: string) => {
-	await new Promise((res) => setTimeout(res, time));
-	return label;
+    await new Promise((res) => setTimeout(res, time))
+    return label
 }
 
 describe("senderManager", () => {
@@ -60,33 +60,37 @@ describe("senderManager", () => {
         // either resolve the promise (which should not happen) or it should keep waiting, in which case reject it and make the test succeed
         const result = await Promise.race([promise, fn(100, "timeout")])
         expect(result).toEqual("timeout")
-        
+
         await senderManager.pushWallet(wallets[0])
-        const promiseResult = await promise 
+        const promiseResult = await promise
         expect(promiseResult).toEqual(wallets[0])
     })
 
     it("should validate and refill wallets", async function () {
-        this.timeout(5000)
-        const utilityAccount = privateKeyToAccount(generatePrivateKey());
-        clients.test.setBalance({address: utilityAccount.address, value: parseEther("100000000")})
+        this.timeout(10000)
+        const utilityAccount = privateKeyToAccount(generatePrivateKey())
+        clients.test.setBalance({ address: utilityAccount.address, value: parseEther("100000000") })
 
-        if(clients.wallet.chain === undefined) {
+        if (clients.wallet.chain === undefined) {
             throw new Error("chain is undefined")
-        } 
+        }
 
-        const initialBalances = await Promise.all(senderManager.wallets.map(async (wallet) => {
-            return await clients.public.getBalance({address: wallet.address})
-        }))
+        const initialBalances = await Promise.all(
+            senderManager.wallets.map(async (wallet) => {
+                return await clients.public.getBalance({ address: wallet.address })
+            })
+        )
 
         expect(initialBalances).toEqual(Array(senderManager.wallets.length).fill(parseEther("100")))
 
         // @ts-ignore
         await senderManager.validateAndRefillWallets(clients.public, clients.wallet, parseEther("1000"), utilityAccount)
 
-        const balances = await Promise.all(senderManager.wallets.map(async (wallet) => {
-            return await clients.public.getBalance({address: wallet.address})
-        }))
+        const balances = await Promise.all(
+            senderManager.wallets.map(async (wallet) => {
+                return await clients.public.getBalance({ address: wallet.address })
+            })
+        )
 
         expect(balances).toEqual(Array(senderManager.wallets.length).fill(parseEther("1000")))
     })

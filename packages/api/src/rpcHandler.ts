@@ -13,12 +13,10 @@ import {
     ChainIdResponseResult,
     EntryPointAbi,
     EstimateUserOperationGasResponseResult,
-    ExecutionErrors,
     GetUserOperationByHashResponseResult,
     GetUserOperationReceiptResponseResult,
     HexData32,
     PimlicoGetUserOperationStatusResponseResult,
-    RpcError,
     SendUserOperationResponseResult,
     SupportedEntryPointsResponseResult,
     UserOperation,
@@ -152,25 +150,14 @@ export class RpcHandler implements IRpcEndpoint {
             throw new Error(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.entryPoint}`)
         }
 
-        const validationResult = await this.validator.getValidationResult(userOperation)
+        const executionResult = await this.validator.getExecutionResult(userOperation)
 
         const preVerificationGas = BigInt(calcPreVerificationGas(userOperation))
-        const verificationGas = BigInt(validationResult.returnInfo.preOpGas)
-        const callGasLimit = await this.config.publicClient
-            .estimateGas({
-                to: userOperation.sender,
-                data: userOperation.callData,
-                account: entryPoint
-            })
-            .then((b) => BigInt(b))
-            .catch((err) => {
-                if (err instanceof Error) {
-                    const message = err.message.match(/reason="(.*?)"/)?.at(1) ?? "execution reverted"
-                    throw new RpcError(message, ExecutionErrors.UserOperationReverted)
-                } else {
-                    throw err
-                }
-            })
+        const verificationGas = BigInt(executionResult.preOpGas)
+        const calculatedCallGasLimit =
+            executionResult.paid / userOperation.maxFeePerGas - executionResult.preOpGas + 21000n
+
+        const callGasLimit = calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n
 
         return {
             preVerificationGas,

@@ -19,6 +19,7 @@ import { z } from "zod"
 import { UnsafeValidator } from "@alto/validator"
 import { SimpleAccountFactoryAbi, SimpleAccountFactoryBytecode } from "@alto/types/src/contracts/SimpleAccountFactory"
 import { NullExecutor } from "@alto/executor/src"
+import { Monitor } from "@alto/executor"
 
 describe("handler", () => {
     let clients: Clients
@@ -29,7 +30,7 @@ describe("handler", () => {
 
     let signer: Account
 
-    before(async function () {
+    beforeEach(async function () {
         // destructure the return value
         anvilProcess = await launchAnvil()
         const privateKey = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" // first private key in anvil
@@ -45,13 +46,17 @@ describe("handler", () => {
         )
 
         const anvilChainId = await clients.public.getChainId()
-        const validator = new UnsafeValidator(clients.public, entryPoint)
+        const logger = initDebugLogger("silent")
+        const validator = new UnsafeValidator(clients.public, entryPoint, logger)
         const rpcHandlerConfig: RpcHandlerConfig = {
             publicClient: clients.public,
             chainId: anvilChainId,
             entryPoint: entryPoint
         }
-        handler = new RpcHandler(rpcHandlerConfig, validator, new NullExecutor(), initDebugLogger("fatal"))
+
+        const monitor = new Monitor()
+
+        handler = new RpcHandler(rpcHandlerConfig, validator, new NullExecutor(), monitor, logger)
     })
 
     after(async function () {
@@ -134,6 +139,12 @@ describe("handler", () => {
             op.signature = signature
 
             const gas = await handler.eth_estimateUserOperationGas(op, entryPoint)
+
+            /*
+                preVerificationGas: 43852n,
+                verificationGas: 422484n,
+                callGasLimit: 21000n
+            */
 
             expect(gas).toMatchSchema(
                 z.object({
