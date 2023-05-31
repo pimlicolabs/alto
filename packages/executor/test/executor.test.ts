@@ -5,6 +5,7 @@ import { privateKeyToAccount, Account, generatePrivateKey } from "viem/accounts"
 import { foundry } from "viem/chains"
 import {
     Clients,
+    GasFeeOracle,
     createClients,
     deployContract,
     getUserOpHash,
@@ -52,7 +53,7 @@ describe("executor", () => {
         entryPoint = await deployContract(clients, signer.address, EntryPointAbi, [], EntryPoint_bytecode)
 
         const logger = initDebugLogger("silent")
-
+        const gasFeeOracle = new GasFeeOracle(clients.public)
         const accounts: Account[] = await generateAccounts(clients)
         const senderManager = new SenderManager(accounts, logger)
 
@@ -72,7 +73,8 @@ describe("executor", () => {
             monitor,
             entryPoint,
             100,
-            logger
+            logger,
+            gasFeeOracle
         )
 
         await clients.test.setAutomine(false)
