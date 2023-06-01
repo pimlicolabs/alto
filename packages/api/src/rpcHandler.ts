@@ -17,6 +17,7 @@ import {
     GetUserOperationReceiptResponseResult,
     HexData32,
     PimlicoGetUserOperationStatusResponseResult,
+    RpcError,
     SendUserOperationResponseResult,
     SupportedEntryPointsResponseResult,
     UserOperation,
@@ -148,6 +149,10 @@ export class RpcHandler implements IRpcEndpoint {
         // check if entryPoint is supported, if not throw
         if (this.config.entryPoint !== entryPoint) {
             throw new Error(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.entryPoint}`)
+        }
+
+        if (userOperation.maxFeePerGas === 0n) {
+            throw new RpcError("user operation max fee per gas must be larger than 0 during gas estimation")
         }
 
         const executionResult = await this.validator.getExecutionResult(userOperation)
