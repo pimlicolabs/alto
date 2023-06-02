@@ -279,6 +279,19 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         const userOperationEvent = filterResult[0]
+        // throw if any of the members of userOperationEvent are undefined
+        if (
+            userOperationEvent.args.actualGasCost === undefined ||
+            userOperationEvent.args.sender === undefined ||
+            userOperationEvent.args.nonce === undefined ||
+            userOperationEvent.args.userOpHash === undefined ||
+            userOperationEvent.args.success === undefined ||
+            userOperationEvent.args.paymaster === undefined ||
+            userOperationEvent.args.actualGasUsed === undefined
+        ) {
+            throw new Error("userOperationEvent has undefined members")
+        }
+
         const txHash = userOperationEvent.transactionHash
         if (txHash === null) {
             // transaction pending
