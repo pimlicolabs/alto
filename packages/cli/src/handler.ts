@@ -24,7 +24,8 @@ import {
     polygon,
     polygonMumbai,
     scrollTestnet,
-    sepolia
+    sepolia,
+    celoAlfajores
 } from "viem/chains"
 import * as chains from "viem/chains"
 import { fromZodError } from "zod-validation-error"
@@ -73,8 +74,11 @@ const lineaTestnet: Chain = {
     testnet: true
 }
 
-// @ts-ignore
-function getChain(chainId: number): Chain {
+function getChain(chainId: number) {
+    if (chainId === 59140) {
+        return lineaTestnet
+    }
+
     for (const chain of Object.values(chains)) {
         if (chain.id === chainId) {
             return chain
@@ -92,6 +96,7 @@ const chainIdToChain: Record<number, Chain> = {
     420: optimismGoerli,
     10: optimism,
     421613: arbitrumGoerli,
+    44787: celoAlfajores,
     42161: arbitrum,
     84531: baseGoerli,
     534353: scrollTestnet,
@@ -107,7 +112,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     const client = handlerConfig.publicClient
 
     const chainId = await client.getChainId()
-    const chain: Chain = chainIdToChain[chainId]
+    const chain = getChain(chainId)
 
     await preFlightChecks(client, parsedArgs)
 
