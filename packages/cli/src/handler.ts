@@ -11,22 +11,6 @@ import { Monitor } from "@alto/executor"
 import { Logger, initDebugLogger, initProductionLogger } from "@alto/utils"
 import { UnsafeValidator } from "@alto/validator"
 import { Chain, PublicClient, createWalletClient, http } from "viem"
-import {
-    arbitrum,
-    arbitrumGoerli,
-    baseGoerli,
-    gnosis,
-    gnosisChiado,
-    goerli,
-    mainnet,
-    optimism,
-    optimismGoerli,
-    polygon,
-    polygonMumbai,
-    scrollTestnet,
-    sepolia,
-    celoAlfajores
-} from "viem/chains"
 import * as chains from "viem/chains"
 import { fromZodError } from "zod-validation-error"
 
@@ -86,24 +70,6 @@ function getChain(chainId: number) {
     }
 
     throw new Error(`Chain with id ${chainId} not found`)
-}
-
-const chainIdToChain: Record<number, Chain> = {
-    1: mainnet,
-    5: goerli,
-    80001: polygonMumbai,
-    137: polygon,
-    420: optimismGoerli,
-    10: optimism,
-    421613: arbitrumGoerli,
-    44787: celoAlfajores,
-    42161: arbitrum,
-    84531: baseGoerli,
-    534353: scrollTestnet,
-    59140: lineaTestnet,
-    100: gnosis,
-    10200: gnosisChiado,
-    11155111: sepolia
 }
 
 export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => {
