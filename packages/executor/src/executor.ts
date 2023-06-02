@@ -293,7 +293,10 @@ export class BasicExecutor implements IExecutor {
                 })
                 childLogger.trace({ nonce }, "got nonce")
 
-                const maxPriorityFeePerGas = 2_000_000_000n > gasPrice ? gasPrice : 2_000_000_000n
+                let maxPriorityFeePerGas = 2_000_000_000n > gasPrice ? gasPrice : 2_000_000_000n
+                if (this.walletClient.chain?.id === 59140) {
+                    maxPriorityFeePerGas = gasPrice
+                }
 
                 const { request } = await ep.simulate.handleOps([[op], wallet.address], {
                     gas: gasLimit,
