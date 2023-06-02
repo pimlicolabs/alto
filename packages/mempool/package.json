@@ -24,6 +24,6 @@
         "@alto/types": "*",
         "async-mutex": "^0.4.0",
         "mongodb": "^5.2.0",
-        "viem": "^0.3.14"
+        "viem": "^0.3.49"
     }
 }
