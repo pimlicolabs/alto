@@ -5,9 +5,11 @@ import { Mutex } from "async-mutex"
 import {
     Account,
     Block,
+    Chain,
     ContractFunctionExecutionError,
     ContractFunctionRevertedError,
     PublicClient,
+    Transport,
     WalletClient,
     WatchBlocksReturnType,
     getContract
@@ -15,6 +17,7 @@ import {
 import { SenderManager } from "./senderManager"
 import { Monitor } from "./monitoring"
 import { fromZodError } from "zod-validation-error"
+import { getGasPrice } from "./gasPrice"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -53,7 +56,7 @@ export class BasicExecutor implements IExecutor {
 
     beneficiary: Address
     publicClient: PublicClient
-    walletClient: WalletClient
+    walletClient: WalletClient<Transport, Chain, Account | undefined>
     senderManager: SenderManager
     monitor: Monitor
     entryPoint: Address
@@ -64,7 +67,7 @@ export class BasicExecutor implements IExecutor {
     constructor(
         beneficiary: Address,
         publicClient: PublicClient,
-        walletClient: WalletClient,
+        walletClient: WalletClient<Transport, Chain, Account | undefined>,
         senderManager: SenderManager,
         monitor: Monitor,
         entryPoint: Address,
@@ -270,8 +273,8 @@ export class BasicExecutor implements IExecutor {
                     (((op.preVerificationGas + 3n * op.verificationGasLimit + op.callGasLimit) * 12n) / 10n) *
                     (this.walletClient.chain?.id === 42161 ? 4n : 1n)
 
-                const gasPrice = await this.publicClient.getGasPrice()
-                childLogger.debug({ gasPrice }, "got gas price")
+                const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
+                childLogger.debug({ gasPriceParameters }, "got gas price")
 
                 // const minGasPrice = (95n * gasPrice) / 100n
 
@@ -293,17 +296,12 @@ export class BasicExecutor implements IExecutor {
                 })
                 childLogger.trace({ nonce }, "got nonce")
 
-                let maxPriorityFeePerGas = 2_000_000_000n > gasPrice ? gasPrice : 2_000_000_000n
-                if (this.walletClient.chain?.id === 59140) {
-                    maxPriorityFeePerGas = gasPrice
-                }
-
                 const { request } = await ep.simulate.handleOps([[op], wallet.address], {
                     gas: gasLimit,
                     account: wallet,
                     chain: this.walletClient.chain,
-                    maxFeePerGas: gasPrice,
-                    maxPriorityFeePerGas,
+                    maxFeePerGas: gasPriceParameters.maxFeePerGas,
+                    maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
                     nonce: nonce
                 })
 
