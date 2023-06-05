@@ -32,10 +32,10 @@ const preFlightChecks = async (publicClient: PublicClient, args: IBundlerArgs): 
     }
 }
 
-const lineaTestnet: Chain = {
-    id: 59140,
-    name: "Linea Testnet",
-    network: "linea-testnet",
+const customTestnet: Chain = {
+    id: 36865,
+    name: "Custom Testnet",
+    network: "custom-testnet",
     nativeCurrency: {
         name: "Ether",
         symbol: "ETH",
@@ -43,24 +43,18 @@ const lineaTestnet: Chain = {
     },
     rpcUrls: {
         default: {
-            http: ["https://rpc.goerli.linea.build/"]
+            http: ["http://127.0.0.1:8545"]
         },
         public: {
-            http: ["https://rpc.goerli.linea.build/"]
-        }
-    },
-    blockExplorers: {
-        default: {
-            name: "Linea Explorer",
-            url: "https://explorer.goerli.linea.build/"
+            http: ["http://127.0.0.1:8545"]
         }
     },
     testnet: true
 }
 
 function getChain(chainId: number) {
-    if (chainId === 59140) {
-        return lineaTestnet
+    if (chainId === 36865) {
+        return customTestnet
     }
 
     for (const chain of Object.values(chains)) {
@@ -99,7 +93,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
             parsedArgs.lokiPassword
         )
     }
-    const validator = new UnsafeValidator(handlerConfig.publicClient, parsedArgs.entryPoint, logger)
+    const validator = new UnsafeValidator(handlerConfig.publicClient, parsedArgs.entryPoint, logger, parsedArgs.tenderlyEnabled)
     const senderManager = new SenderManager(parsedArgs.signerPrivateKeys, logger, parsedArgs.maxSigners)
 
     await senderManager.validateAndRefillWallets(
@@ -119,7 +113,8 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         monitor,
         parsedArgs.entryPoint,
         parsedArgs.pollingInterval,
-        logger
+        logger,
+        !parsedArgs.tenderlyEnabled
     )
     const rpcEndpoint = new RpcHandler(handlerConfig, validator, executor, monitor, logger)
 

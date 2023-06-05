@@ -167,6 +167,7 @@ export class RpcHandler implements IRpcEndpoint {
         return {
             preVerificationGas,
             verificationGas,
+            verificationGasLimit: verificationGas,
             callGasLimit
         }
     }
@@ -201,10 +202,20 @@ export class RpcHandler implements IRpcEndpoint {
     async eth_getUserOperationByHash(userOperationHash: HexData32): Promise<GetUserOperationByHashResponseResult> {
         const userOperationEventAbiItem = getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
 
+
+        let fromBlock: bigint
+        if (this.config.usingTenderly) {
+            const latestBlock = await this.config.publicClient.getBlockNumber()
+            fromBlock = latestBlock - 100n
+        } else {
+            fromBlock = 0n
+        }
+        
+
         const filterResult = await this.config.publicClient.getLogs({
             address: this.config.entryPoint,
             event: userOperationEventAbiItem,
-            fromBlock: 0n,
+            fromBlock,
             toBlock: "latest",
             args: {
                 userOpHash: userOperationHash
@@ -264,10 +275,18 @@ export class RpcHandler implements IRpcEndpoint {
     async eth_getUserOperationReceipt(userOperationHash: HexData32): Promise<GetUserOperationReceiptResponseResult> {
         const userOperationEventAbiItem = getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
 
+        let fromBlock: bigint
+        if (this.config.usingTenderly) {
+            const latestBlock = await this.config.publicClient.getBlockNumber()
+            fromBlock = latestBlock - 100n
+        } else {
+            fromBlock = 0n
+        }
+
         const filterResult = await this.config.publicClient.getLogs({
             address: this.config.entryPoint,
             event: userOperationEventAbiItem,
-            fromBlock: 0n,
+            fromBlock,
             toBlock: "latest",
             args: {
                 userOpHash: userOperationHash

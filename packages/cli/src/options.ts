@@ -102,6 +102,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
     lokiPassword: {
         description: "Loki password",
         type: "string"
+    },
+    tenderlyEnabled: {
+        description: "Rpc url is a tenderly url",
+        type: "boolean",
+        require: true,
+        default: false
     }
 }
 

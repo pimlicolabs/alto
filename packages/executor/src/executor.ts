@@ -62,6 +62,7 @@ export class BasicExecutor implements IExecutor {
     entryPoint: Address
     pollingInterval: number
     logger: Logger
+    simulateTransaction: boolean
 
     mutex: Mutex
     constructor(
@@ -72,7 +73,8 @@ export class BasicExecutor implements IExecutor {
         monitor: Monitor,
         entryPoint: Address,
         pollingInterval: number,
-        logger: Logger
+        logger: Logger,
+        simulateTransaction = false,
     ) {
         this.beneficiary = beneficiary
         this.publicClient = publicClient
@@ -82,6 +84,7 @@ export class BasicExecutor implements IExecutor {
         this.entryPoint = entryPoint
         this.pollingInterval = pollingInterval
         this.logger = logger
+        this.simulateTransaction = simulateTransaction
 
         this.mutex = new Mutex()
     }
@@ -250,15 +253,16 @@ export class BasicExecutor implements IExecutor {
     async bundle(entryPoint: Address, op: UserOperation): Promise<void> {
         const wallet = await this.senderManager.getWallet()
 
+        const ep = getContract({
+            abi: EntryPointAbi,
+            address: entryPoint,
+            publicClient: this.publicClient,
+            walletClient: this.walletClient
+        })
+
         await this.mutex.runExclusive(async () => {
             const childLogger = this.logger.child({ userOperation: op, entryPoint })
             childLogger.debug("bundling user operation")
-            const ep = getContract({
-                abi: EntryPointAbi,
-                address: entryPoint,
-                publicClient: this.publicClient,
-                walletClient: this.walletClient
-            })
 
             try {
                 const opHash = await ep.read.getUserOpHash([op])
@@ -296,33 +300,47 @@ export class BasicExecutor implements IExecutor {
                 })
                 childLogger.trace({ nonce }, "got nonce")
 
-                const { request } = await ep.simulate.handleOps([[op], wallet.address], {
-                    gas: gasLimit,
-                    account: wallet,
-                    chain: this.walletClient.chain,
-                    maxFeePerGas: gasPriceParameters.maxFeePerGas,
-                    maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
-                    nonce: nonce
-                })
+                let txHash: HexData32
+                if (this.simulateTransaction) {
+                    const { request } = await ep.simulate.handleOps([[op], wallet.address], {
+                        gas: gasLimit,
+                        account: wallet,
+                        chain: this.walletClient.chain,
+                        maxFeePerGas: gasPriceParameters.maxFeePerGas,
+                        maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
+                        nonce: nonce
+                    })
+    
+                    // scroll alpha testnet doesn't support eip-1559 txs yet
+                    if (this.walletClient.chain?.id === 534353) {
+                        request.gasPrice = request.maxFeePerGas
+                        request.maxFeePerGas = undefined
+                        request.maxPriorityFeePerGas = undefined
+                    }
+    
+                    const { chain: _chain, abi: _abi, ...loggingRequest } = request
+                    childLogger.trace({ request: { ...loggingRequest } }, "got request")
+    
+                    txHash = await this.walletClient.writeContract(request)
 
-                // scroll alpha testnet doesn't support eip-1559 txs yet
-                if (this.walletClient.chain?.id === 534353) {
-                    request.gasPrice = request.maxFeePerGas
-                    request.maxFeePerGas = undefined
-                    request.maxPriorityFeePerGas = undefined
+                    this.monitoredTransactions[opHash] = {
+                        transactionHash: txHash,
+                        transactionRequest: request,
+                        executor: wallet
+                    }
+                } else {
+                    txHash = await ep.write.handleOps([[op], wallet.address], {
+                        gas: gasLimit,
+                        account: wallet,
+                        chain: this.walletClient.chain,
+                        maxFeePerGas: gasPriceParameters.maxFeePerGas,
+                        maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
+                        nonce: nonce
+                    })
                 }
-
-                const { chain: _chain, abi: _abi, ...loggingRequest } = request
-                childLogger.trace({ request: { ...loggingRequest } }, "got request")
-
-                const txHash = await this.walletClient.writeContract(request)
+                
                 childLogger.info({ txHash, userOpHash: opHash }, "submitted bundle transaction")
 
-                this.monitoredTransactions[opHash] = {
-                    transactionHash: txHash,
-                    transactionRequest: request,
-                    executor: wallet
-                }
                 this.monitor.setUserOperationStatus(opHash, { status: "submitted", transactionHash: txHash })
             } catch (e: unknown) {
                 await this.senderManager.pushWallet(wallet)
@@ -361,6 +379,10 @@ export class BasicExecutor implements IExecutor {
                     throw new RpcError(`user operation reverted: ${reason}`)
                 } else {
                     childLogger.error({ error: e }, "unknown error bundling user operation")
+
+                    const epNonce = await ep.read.getNonce([op.sender, 0n])
+                    console.log("epNonce", epNonce)    
+
                     throw e
                 }
             }
