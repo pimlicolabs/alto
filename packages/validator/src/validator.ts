@@ -115,10 +115,8 @@ export class UnsafeValidator implements IValidator {
                     }
                 })
 
-            console.log("errorResult", JSON.stringify(errorResult))
-
             // @ts-ignore
-            return getSimulationResult(entryPointExecutionErrorSchema.parse(errorResult), this.logger, "ExecutionResult", this.usingTenderly)
+            return getSimulationResult(errorResult, this.logger, "ExecutionResult", this.usingTenderly)
         }
     }
 
