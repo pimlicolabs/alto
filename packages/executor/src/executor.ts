@@ -3,6 +3,7 @@ import { Address, HexData32, UserOperation } from "@alto/types"
 import { Logger } from "@alto/utils"
 import { Mutex } from "async-mutex"
 import {
+    Abi,
     Account,
     Block,
     Chain,
@@ -12,6 +13,7 @@ import {
     Transport,
     WalletClient,
     WatchBlocksReturnType,
+    WriteContractParameters,
     getContract
 } from "viem"
 import { SenderManager } from "./senderManager"
@@ -35,9 +37,9 @@ export class NullExecutor implements IExecutor {
     }
 }
 
-type UserOperationStatus = {
+interface UserOperationStatus {
     transactionHash: HexData32
-    transactionRequest: any
+    transactionRequest: WriteContractParameters<Abi | readonly unknown[], string, Chain, Account | undefined, Chain>
     executor: Account
 }
 
@@ -191,6 +193,9 @@ export class BasicExecutor implements IExecutor {
                     maxPriorityFeePerGas: (transaction.maxPriorityFeePerGas * 11n) / 10n
                 }
             } else {
+                if (transaction.gasPrice === undefined) {
+                    throw new Error("gas price is undefined")
+                }
                 request = {
                     ...transaction,
                     gasPrice:
@@ -337,6 +342,23 @@ export class BasicExecutor implements IExecutor {
                         maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
                         nonce: nonce
                     })
+
+                    this.monitoredTransactions[opHash] = {
+                        transactionHash: txHash,
+                        transactionRequest: {
+                            address: ep.address,
+                            abi: ep.abi,
+                            functionName: "handleOps",
+                            args: [[op], wallet.address],
+                            gas: gasLimit,
+                            account: wallet,
+                            chain: this.walletClient.chain,
+                            maxFeePerGas: gasPriceParameters.maxFeePerGas,
+                            maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
+                            nonce: nonce
+                        },
+                        executor: wallet
+                    }
                 }
                 
                 childLogger.info({ txHash, userOpHash: opHash }, "submitted bundle transaction")
