@@ -92,12 +92,16 @@ export class BasicExecutor implements IExecutor {
     }
 
     startWatchingBlocks(): void {
+        // If already watching blocks, don't create another listener
         if (this.unWatch) {
             return
         }
+
+        // Create new watcher to track our pending transactions
         this.unWatch = this.publicClient.watchBlocks({
             onBlock: (block) => {
                 // Use an arrow function to ensure correct binding of `this`
+                // Check, update, replace transactions if they have or have yet to be processed
                 this.checkAndReplaceTransactions(block)
                     .then(() => {
                         this.logger.trace("block handled")
@@ -134,12 +138,14 @@ export class BasicExecutor implements IExecutor {
 
         this.logger.debug({ opHashes }, "checking transactions for monitored ops")
 
+        // If we're not monitoring any pending transactions, stop watching blocks
         if (Object.keys(this.monitoredTransactions).length === 0) {
             this.stopWatchingBlocks()
             return
         }
 
         opHashes.map(async (opHash) => {
+            // Given a transaction corresponds to one or more user operations, check on status of main tx
             const opStatus = this.monitoredTransactions[opHash]
             const txIncluded = await transactionIncluded(opStatus.transactionHash, this.publicClient)
             const childLogger = this.logger.child({
@@ -147,13 +153,17 @@ export class BasicExecutor implements IExecutor {
                 txHash: opStatus.transactionHash,
                 executor: opStatus.executor.address
             })
+
             if (txIncluded) {
+                // If transaction (user operation) included, we can recorded child user op as included
                 childLogger.info("transaction successfully included")
                 delete this.monitoredTransactions[opHash]
                 this.monitor.setUserOperationStatus(opHash, {
                     status: "included",
                     transactionHash: opStatus.transactionHash
                 })
+                
+                // Free up executor wallet to be used for including another user op
                 this.senderManager.pushWallet(opStatus.executor)
                 return
             }
@@ -178,12 +188,16 @@ export class BasicExecutor implements IExecutor {
                 return
             }
 
+            // Prepare to replace transaction, by upbidding on gas
             childLogger.debug("replacing transaction")
             const gasPrice = await this.publicClient.getGasPrice()
             delete this.monitoredTransactions[opHash]
 
             let request
+
             if (this.walletClient.chain?.id !== 534353) {
+                // Process higher maxFeePerGas and maxPriorityFeePerGas for EIP1559-supported chains
+                // Here, we use a 1.1x scaling factor
                 request = {
                     ...transaction,
                     maxFeePerGas:
@@ -193,9 +207,12 @@ export class BasicExecutor implements IExecutor {
                     maxPriorityFeePerGas: (transaction.maxPriorityFeePerGas * 11n) / 10n
                 }
             } else {
+                // For Scroll Alpha Testnet (doesn't support EIP1559), set higher gasPrice
                 if (transaction.gasPrice === undefined) {
                     throw new Error("gas price is undefined")
                 }
+
+                // Here, we use a 1.1x scaling factor
                 request = {
                     ...transaction,
                     gasPrice:
@@ -207,6 +224,7 @@ export class BasicExecutor implements IExecutor {
             childLogger.trace({ request: { ...loggingRequest } }, "generated replacement transaction request")
 
             try {
+                // Send off new transaction with higher gas price
                 const tx = await this.walletClient.writeContract(request)
                 this.monitoredTransactions[opHash] = {
                     transactionHash: tx,
@@ -258,6 +276,7 @@ export class BasicExecutor implements IExecutor {
     async bundle(entryPoint: Address, op: UserOperation): Promise<void> {
         const wallet = await this.senderManager.getWallet()
 
+        // Get entrypoint contract
         const ep = getContract({
             abi: EntryPointAbi,
             address: entryPoint,
@@ -265,6 +284,7 @@ export class BasicExecutor implements IExecutor {
             walletClient: this.walletClient
         })
 
+        // Bundler utilises mutex to avoid race conditions
         await this.mutex.runExclusive(async () => {
             const childLogger = this.logger.child({ userOperation: op, entryPoint })
             childLogger.debug("bundling user operation")
@@ -307,6 +327,8 @@ export class BasicExecutor implements IExecutor {
 
                 let txHash: HexData32
                 if (this.simulateTransaction) {
+
+                    // Simulate user operation
                     const { request } = await ep.simulate.handleOps([[op], wallet.address], {
                         gas: gasLimit,
                         account: wallet,
@@ -326,6 +348,7 @@ export class BasicExecutor implements IExecutor {
                     const { chain: _chain, abi: _abi, ...loggingRequest } = request
                     childLogger.trace({ request: { ...loggingRequest } }, "got request")
     
+                    // Execute user operation
                     txHash = await this.walletClient.writeContract(request)
 
                     this.monitoredTransactions[opHash] = {
@@ -334,6 +357,8 @@ export class BasicExecutor implements IExecutor {
                         executor: wallet
                     }
                 } else {
+
+                    // Execute user operation at entrypoint contract
                     txHash = await ep.write.handleOps([[op], wallet.address], {
                         gas: gasLimit,
                         account: wallet,
@@ -365,6 +390,7 @@ export class BasicExecutor implements IExecutor {
 
                 this.monitor.setUserOperationStatus(opHash, { status: "submitted", transactionHash: txHash })
             } catch (e: unknown) {
+                // Free up wallet and allow for another transaction to overwrite transaction with user op
                 await this.senderManager.pushWallet(wallet)
 
                 if (e instanceof RpcError) {
