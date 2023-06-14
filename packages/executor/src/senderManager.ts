@@ -3,6 +3,7 @@ import { Logger } from "@alto/utils"
 import { Semaphore } from "async-mutex"
 
 import { Account, PublicClient, formatEther, WalletClient, Chain, Transport, TransactionReceipt } from "viem"
+import { getGasPrice } from "./gasPrice"
 
 const waitForTransactionReceipt = async (publicClient: PublicClient, tx: HexData32): Promise<TransactionReceipt> => {
     try {
@@ -84,12 +85,16 @@ export class SenderManager {
         }
 
         if (Object.keys(balancesMissing).length > 0) {
+            const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPrice(walletClient.chain.id, publicClient, this.logger);
+
             for (const [address, missingBalance] of Object.entries(balancesMissing)) {
                 const tx = await walletClient.sendTransaction({
                     account: utilityAccount,
                     // @ts-ignore
                     to: address,
-                    value: missingBalance
+                    value: missingBalance * 12n / 10n,
+                    maxFeePerGas: maxFeePerGas * 2n,
+                    maxPriorityFeePerGas: maxPriorityFeePerGas * 2n
                 })
 
                 await waitForTransactionReceipt(publicClient, tx)
