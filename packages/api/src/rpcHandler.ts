@@ -155,6 +155,7 @@ export class RpcHandler implements IRpcEndpoint {
             throw new RpcError("user operation max fee per gas must be larger than 0 during gas estimation")
         }
 
+        // Runs a simulation to get a gas breakdown; if user operation reverts, an `RpcError` is thrown
         const executionResult = await this.validator.getExecutionResult(userOperation)
 
         const preVerificationGas = BigInt(calcPreVerificationGas(userOperation))
@@ -211,7 +212,7 @@ export class RpcHandler implements IRpcEndpoint {
             fromBlock = 0n
         }
         
-
+        // Look through logs to find the user operation
         const filterResult = await this.config.publicClient.getLogs({
             address: this.config.entryPoint,
             event: userOperationEventAbiItem,
@@ -222,17 +223,21 @@ export class RpcHandler implements IRpcEndpoint {
             }
         })
 
+        // If no corresponding log, user operation can't be found
         if (filterResult.length === 0) {
             return null
         }
 
+        // Get user operation and prepare to query for transaction with user operation
         const userOperationEvent = filterResult[0]
         const txHash = userOperationEvent.transactionHash
+
+        // If transaction hash is null, then the transaction is still pending
         if (txHash === null) {
-            // transaction pending
             return null
         }
 
+        // With tx hash defined, fetch encompassing tx of the user operation
         const getTransaction = async (txHash: HexData32): Promise<Transaction> => {
             try {
                 return await this.config.publicClient.getTransaction({ hash: txHash })
@@ -245,11 +250,14 @@ export class RpcHandler implements IRpcEndpoint {
             }
         }
 
+        // Get transaction and decode the function data
         const tx = await getTransaction(txHash)
         const decoded = decodeFunctionData({ abi: EntryPointAbi, data: tx.input })
         if (decoded.functionName !== "handleOps") {
             return null
         }
+
+        // With all user operations within the tx decoded, find the user operation
         const ops = decoded.args[0]
         const op = ops.find(
             (op: UserOperation) =>
@@ -260,6 +268,7 @@ export class RpcHandler implements IRpcEndpoint {
             return null
         }
 
+        // Wrap user operation details into needed format
         const result: GetUserOperationByHashResponseResult = {
             userOperation: op,
             entryPoint: this.config.entryPoint,
@@ -283,6 +292,7 @@ export class RpcHandler implements IRpcEndpoint {
             fromBlock = 0n
         }
 
+        // Look through logs to find the user operation
         const filterResult = await this.config.publicClient.getLogs({
             address: this.config.entryPoint,
             event: userOperationEventAbiItem,
@@ -311,12 +321,13 @@ export class RpcHandler implements IRpcEndpoint {
             throw new Error("userOperationEvent has undefined members")
         }
 
+        // If transaction hash is null, then the transaction is still pending
         const txHash = userOperationEvent.transactionHash
         if (txHash === null) {
-            // transaction pending
             return null
         }
 
+        // With tx hash defined, fetch the tx receipt of the encompassing tx of the user operation
         const getTransactionReceipt = async (txHash: HexData32): Promise<TransactionReceipt> => {
             try {
                 return await this.config.publicClient.getTransactionReceipt({ hash: txHash })
@@ -329,9 +340,11 @@ export class RpcHandler implements IRpcEndpoint {
             }
         }
 
+        // Get receipt and extract logs
         const receipt = await getTransactionReceipt(txHash)
         const logs = receipt.logs
 
+        // If a log has not been processed fully, it is very likely that transaction is pending
         if (
             logs.some(
                 (log) =>
@@ -343,10 +356,12 @@ export class RpcHandler implements IRpcEndpoint {
                     log.topics.length === 0
             )
         ) {
-            // transaction pending
             return null
         }
 
+        // Find the logs relevant to our user operation. Given that the EVM is single-threaded,
+        // user operations and their respective logs will follow causal ordering i.e some array
+        // of logs caused by operations e.g [op1, op1, op2, op2, op2, op3], find logs for opX etc.
         let startIndex = -1
         let endIndex = -1
         logs.forEach((log, index) => {
@@ -367,14 +382,17 @@ export class RpcHandler implements IRpcEndpoint {
             throw new Error("fatal: no UserOperationEvent in logs")
         }
 
+        // Get logs that were caused by our user operation
         const filteredLogs = logs.slice(startIndex + 1, endIndex)
 
+        // Parse and format each log
         const logsParsing = z.array(logSchema).safeParse(filteredLogs)
         if (!logsParsing.success) {
             const err = fromZodError(logsParsing.error)
             throw err
         }
 
+        // Parse logs into a receipt format
         const receiptParsing = receiptSchema.safeParse({
             ...receipt,
             status: receipt.status === "success" ? 1 : 0
@@ -384,6 +402,7 @@ export class RpcHandler implements IRpcEndpoint {
             throw err
         }
 
+        // Wrap user operation receipt into needed format
         const userOperationReceipt: GetUserOperationReceiptResponseResult = {
             userOpHash: userOperationHash,
             sender: userOperationEvent.args.sender,
