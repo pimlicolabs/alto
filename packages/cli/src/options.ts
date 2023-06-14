@@ -71,7 +71,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description: "Polling interval for the executor module (ms)",
         type: "number",
         require: true,
-        default: 1000
+        default: 300
     },
     logLevel: {
         description: "Log level",
