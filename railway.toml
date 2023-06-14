@@ -2,4 +2,4 @@
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 5
 healthcheckPath = "/health"
-healthcheckTimeout = 100
+healthcheckTimeout = 1000
