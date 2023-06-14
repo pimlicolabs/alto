@@ -81,7 +81,10 @@ export class Server {
                 )
             }
             this.fastify.log.debug(request.body, "received request")
+
+            // Wrap response into needed JSON-RPC response format
             const jsonRpcResponse = await this.innerRpc(request.body)
+            
             await reply.status(200).send(jsonRpcResponse)
             this.fastify.log.info(jsonRpcResponse, "sent reply")
         } catch (err) {
