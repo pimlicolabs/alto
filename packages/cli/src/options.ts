@@ -36,7 +36,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description: "Interval to refill the signer balance (in ms)",
         type: "number",
         require: true,
-        default: 1000 * 60 * 5
+        default: 1000 * 60 * 20
     },
     rpcUrl: {
         description: "RPC url to connect to",
