@@ -65,11 +65,10 @@ export async function getGasPrice(
         return await getPolygonGasPriceParameters(publicClient, chainId, logger)
     }
 
-    let gasPrice = await publicClient.getGasPrice()
+    const gasPrice = await publicClient.getGasPrice()
 
     let maxPriorityFeePerGas = 2_000_000_000n > gasPrice ? gasPrice : 2_000_000_000n
     if (chainId === ChainId.LineaTestnet) {
-        gasPrice = gasPrice * 2n;
         maxPriorityFeePerGas = gasPrice;
     }
 
