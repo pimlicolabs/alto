@@ -1,5 +1,6 @@
 export * from "./schemas"
 export * from "./utils"
+export * from "./contracts/CallEngine"
 export * from "./contracts/EntryPoint"
 export * from "./contracts/IPaymaster"
 export * from "./contracts/SenderCreator"
