@@ -17,7 +17,9 @@ export const bundlerArgsSchema = z.object({
     utilityPrivateKey: hexData32Schema.transform((val) => privateKeyToAccount(val) satisfies Account),
     maxSigners: z.number().int().min(0).optional(),
     rpcUrl: z.string().url(),
+    
     minBalance: z.string().transform((val) => BigInt(val)),
+    refillInterval: z.number().int().min(0),
 
     minStake: z.number().int().min(0),
     minUnstakeDelay: z.number().int().min(0),

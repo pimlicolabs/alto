@@ -103,6 +103,15 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         parsedArgs.utilityPrivateKey
     )
 
+    setInterval(async () => {
+        await senderManager.validateAndRefillWallets(
+            client,
+            walletClient,
+            parsedArgs.minBalance,
+            parsedArgs.utilityPrivateKey
+        )
+    }, parsedArgs.refillInterval);
+
     const monitor = new Monitor()
 
     const executor = new BasicExecutor(
