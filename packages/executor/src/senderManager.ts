@@ -101,8 +101,8 @@ export class SenderManager {
                 const tx = await callEngine.write.execute([instructions], {
                     account: utilityAccount,
                     value: totalBalanceMissing,
-                    maxFeePerGas: maxFeePerGas * 2n,
-                    maxPriorityFeePerGas: maxPriorityFeePerGas * 2n
+                    maxFeePerGas: maxFeePerGas,
+                    maxPriorityFeePerGas: maxPriorityFeePerGas
                 });
 
                 await waitForTransactionReceipt(publicClient, tx)
@@ -117,8 +117,8 @@ export class SenderManager {
                         // @ts-ignore
                         to: address,
                         value: missingBalance * 12n / 10n,
-                        maxFeePerGas: maxFeePerGas * 2n,
-                        maxPriorityFeePerGas: maxPriorityFeePerGas * 2n
+                        maxFeePerGas: maxFeePerGas,
+                        maxPriorityFeePerGas: maxPriorityFeePerGas
                     })
     
                     await waitForTransactionReceipt(publicClient, tx)
