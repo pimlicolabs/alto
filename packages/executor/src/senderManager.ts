@@ -1,8 +1,8 @@
-import { Address, HexData32 } from "@alto/types"
+import { Address, HexData, HexData32, CallEngineAbi } from "@alto/types"
 import { Logger } from "@alto/utils"
 import { Semaphore } from "async-mutex"
 
-import { Account, PublicClient, formatEther, WalletClient, Chain, Transport, TransactionReceipt } from "viem"
+import { Account, PublicClient, formatEther, WalletClient, Chain, Transport, TransactionReceipt, getContract } from "viem"
 import { getGasPrice } from "./gasPrice"
 
 const waitForTransactionReceipt = async (publicClient: PublicClient, tx: HexData32): Promise<TransactionReceipt> => {
@@ -87,18 +87,43 @@ export class SenderManager {
         if (Object.keys(balancesMissing).length > 0) {
             const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPrice(walletClient.chain.id, publicClient, this.logger);
 
-            for (const [address, missingBalance] of Object.entries(balancesMissing)) {
-                const tx = await walletClient.sendTransaction({
+            if (walletClient.chain.id === 59140) {
+                const instructions = [];
+                for (const [address, missingBalance] of Object.entries(balancesMissing)) {
+                    instructions.push({
+                        to: address as Address,
+                        value: missingBalance,
+                        data: "0x" as HexData
+                    })
+                }
+
+                const callEngine = getContract({ abi: CallEngineAbi, address: "0xEad1aC3DF6F96b91491d6396F4d1610C5638B4Db", publicClient, walletClient})
+                const tx = await callEngine.write.execute([instructions], {
                     account: utilityAccount,
-                    // @ts-ignore
-                    to: address,
-                    value: missingBalance * 12n / 10n,
+                    value: totalBalanceMissing,
                     maxFeePerGas: maxFeePerGas * 2n,
                     maxPriorityFeePerGas: maxPriorityFeePerGas * 2n
-                })
+                });
 
                 await waitForTransactionReceipt(publicClient, tx)
-                this.logger.info({ tx, executor: address, missingBalance }, "refilled wallet")
+
+                for (const [address, missingBalance] of Object.entries(balancesMissing)) {
+                    this.logger.info({ tx, executor: address, missingBalance }, "refilled wallet")
+                }
+            } else {
+                for (const [address, missingBalance] of Object.entries(balancesMissing)) {
+                    const tx = await walletClient.sendTransaction({
+                        account: utilityAccount,
+                        // @ts-ignore
+                        to: address,
+                        value: missingBalance * 12n / 10n,
+                        maxFeePerGas: maxFeePerGas * 2n,
+                        maxPriorityFeePerGas: maxPriorityFeePerGas * 2n
+                    })
+    
+                    await waitForTransactionReceipt(publicClient, tx)
+                    this.logger.info({ tx, executor: address, missingBalance }, "refilled wallet")
+                }
             }
         } else {
             this.logger.info("no wallets need to be refilled")
