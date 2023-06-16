@@ -216,7 +216,7 @@ export class RpcHandler implements IRpcEndpoint {
         const filterResult = await this.config.publicClient.getLogs({
             address: this.config.entryPoint,
             event: userOperationEventAbiItem,
-            fromBlock,
+            fromBlock: fromBlock > 0n ? fromBlock : 0n,
             toBlock: latestBlock,
             args: {
                 userOpHash: userOperationHash
@@ -290,7 +290,7 @@ export class RpcHandler implements IRpcEndpoint {
         const filterResult = await this.config.publicClient.getLogs({
             address: this.config.entryPoint,
             event: userOperationEventAbiItem,
-            fromBlock,
+            fromBlock: fromBlock > 0n ? fromBlock : 0n,
             toBlock: latestBlock,
             args: {
                 userOpHash: userOperationHash
