@@ -29,7 +29,7 @@
         "@alto/utils": "*",
         "@types/node": "^18.16.3",
         "async-mutex": "^0.4.0",
-        "viem": "^0.3.49",
+        "viem": "^1.0.7",
         "zod-validation-error": "^1.3.0"
     }
 }

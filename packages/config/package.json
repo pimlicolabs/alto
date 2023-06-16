@@ -22,7 +22,7 @@
     },
     "dependencies": {
         "@alto/types": "*",
-        "viem": "^0.3.49",
+        "viem": "^1.0.7",
         "zod": "^3.21.4"
     }
 }
