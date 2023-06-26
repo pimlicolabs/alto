@@ -24,6 +24,13 @@ pnpm build
 pnpm test # note: foundry must be installed on the machine for this to work
 ```
 
+Run the bundler spec tests with the following commands:
+```bash
+pnpm build
+cd test
+./run-spec-tests.sh
+```
+
 ## Prerequisites
 
 - :gear: [NodeJS](https://nodejs.org/) (LTS)
