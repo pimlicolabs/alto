@@ -114,7 +114,7 @@ describe("executor", () => {
         expect(logs).toHaveLength(1)
         expect(logs[0].args.success).toEqual(true)
 
-        expect(executor.senderManager.wallets).toHaveLength(10)
+        expect(executor.senderManager.availableWallets).toHaveLength(10)
 
         const status2 = monitor.getUserOperationStatus(opHash)
         expect(status2.status).toEqual("included")
@@ -203,7 +203,7 @@ describe("executor", () => {
         expect(logsAgain.length).toEqual(1)
         expect(logsAgain[0].args.success).toEqual(true)
 
-        expect(executor.senderManager.wallets).toHaveLength(10)
+        expect(executor.senderManager.availableWallets).toHaveLength(10)
 
         const status2 = monitor.getUserOperationStatus(opHash)
         expect(status2.status).toEqual("included")
@@ -298,7 +298,7 @@ describe("executor", () => {
         expect(logs[0].args.success).toEqual(true)
         expect(logs[1].args.success).toEqual(true)
 
-        expect(executor.senderManager.wallets).toHaveLength(10)
+        expect(executor.senderManager.availableWallets).toHaveLength(10)
     })
 
     it("should be able to handle multiple ops from different senders after gas price increase", async function () {
@@ -352,7 +352,7 @@ describe("executor", () => {
         expect(logsSecond[0].args.success).toEqual(true)
         expect(logsSecond[1].args.success).toEqual(true)
 
-        expect(executor.senderManager.wallets).toHaveLength(10)
+        expect(executor.senderManager.availableWallets).toHaveLength(10)
     })
 
     it("should be able to handle exhaustion of wallets using ops from different senders after gas price increase and frontrunning", async function () {
@@ -365,7 +365,7 @@ describe("executor", () => {
             walletClient: clients.wallet
         })
 
-        expect(executor.senderManager.wallets).toHaveLength(10)
+        expect(executor.senderManager.availableWallets).toHaveLength(10)
         const signers = await generateAccounts(clients)
 
         const ops = await Promise.all(
@@ -380,7 +380,7 @@ describe("executor", () => {
         // mempool: [op1tx, op2tx, op3tx, op4tx, op5tx, op6tx, op7tx, op8tx, op9tx, op10tx]
         // waiting: []
 
-        expect(executor.senderManager.wallets).toHaveLength(0)
+        expect(executor.senderManager.availableWallets).toHaveLength(0)
         expect(await getPendingTransactions(clients.test)).toHaveLength(10)
 
         const extraOp = await createOp(entryPoint, simpleAccountFactory, signer2, clients)
@@ -388,7 +388,7 @@ describe("executor", () => {
         // waiting: [extraOp]
 
         const bundlePromise = executor.bundle(entryPoint, extraOp) // this can't fulfill yet because there are no wallets left
-        expect(executor.senderManager.wallets).toHaveLength(0)
+        expect(executor.senderManager.availableWallets).toHaveLength(0)
         expect(await getPendingTransactions(clients.test)).toHaveLength(10)
 
         const block = await clients.public.getBlock({
@@ -421,7 +421,7 @@ describe("executor", () => {
 
         const pendingTxsAfterFirst = await getPendingTransactions(clients.test)
         expect(pendingTxsAfterFirst).toHaveLength(10) // extraOp should have entered the mempool and the first op should have been frontrun and removed
-        expect(executor.senderManager.wallets).toHaveLength(0)
+        expect(executor.senderManager.availableWallets).toHaveLength(0)
 
         expect(logsFirst).toHaveLength(1)
         expect(logsFirst[0].transactionHash).toEqual(frontrunTx)
@@ -456,7 +456,7 @@ describe("executor", () => {
             true
         ])
 
-        expect(executor.senderManager.wallets).toHaveLength(9)
+        expect(executor.senderManager.availableWallets).toHaveLength(9)
 
         await clients.test.mine({ blocks: 1 })
         await new Promise((resolve) => setTimeout(resolve, MINE_WAIT_TIME))
@@ -493,6 +493,6 @@ describe("executor", () => {
         expect(logs).toHaveLength(1)
         expect(logs[0].args.success).toEqual(true)
 
-        expect(executor.senderManager.wallets).toHaveLength(10)
+        expect(executor.senderManager.availableWallets).toHaveLength(10)
     })
 })

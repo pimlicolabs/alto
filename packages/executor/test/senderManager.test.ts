@@ -31,30 +31,30 @@ describe("senderManager", () => {
     })
 
     it("should correctly take wallet", async function () {
-        const initialLength = senderManager.wallets.length
+        const initialLength = senderManager.availableWallets.length
         const account = accounts[0]
         const wallet = await senderManager.getWallet()
         expect(wallet).toEqual(account)
-        expect(senderManager.wallets.length).toEqual(initialLength - 1)
+        expect(senderManager.availableWallets.length).toEqual(initialLength - 1)
     })
 
     it("should correctly push wallet", async function () {
-        const initialLength = senderManager.wallets.length
+        const initialLength = senderManager.availableWallets.length
         const account = accounts[0]
         const wallet = await senderManager.getWallet()
         expect(wallet).toEqual(account)
-        expect(senderManager.wallets.length).toEqual(initialLength - 1)
+        expect(senderManager.availableWallets.length).toEqual(initialLength - 1)
 
         await senderManager.pushWallet(wallet)
-        expect(senderManager.wallets.length).toEqual(initialLength)
-        expect(senderManager.wallets[senderManager.wallets.length - 1]).toEqual(wallet)
+        expect(senderManager.availableWallets.length).toEqual(initialLength)
+        expect(senderManager.availableWallets[senderManager.availableWallets.length - 1]).toEqual(wallet)
     })
 
     it("should correctly wait when all wallets are taken", async function () {
-        const initialLength = senderManager.wallets.length
+        const initialLength = senderManager.availableWallets.length
         const wallets = await Promise.all(accounts.map((_) => senderManager.getWallet()))
         expect(initialLength - wallets.length).toEqual(0)
-        expect(senderManager.wallets.length).toEqual(initialLength - wallets.length)
+        expect(senderManager.availableWallets.length).toEqual(initialLength - wallets.length)
 
         const promise = senderManager.getWallet()
         // either resolve the promise (which should not happen) or it should keep waiting, in which case reject it and make the test succeed
@@ -76,22 +76,22 @@ describe("senderManager", () => {
         }
 
         const initialBalances = await Promise.all(
-            senderManager.wallets.map(async (wallet) => {
+            senderManager.availableWallets.map(async (wallet) => {
                 return await clients.public.getBalance({ address: wallet.address })
             })
         )
 
-        expect(initialBalances).toEqual(Array(senderManager.wallets.length).fill(parseEther("100")))
+        expect(initialBalances).toEqual(Array(senderManager.availableWallets.length).fill(parseEther("100")))
 
         // @ts-ignore
         await senderManager.validateAndRefillWallets(clients.public, clients.wallet, parseEther("1000"), utilityAccount)
 
         const balances = await Promise.all(
-            senderManager.wallets.map(async (wallet) => {
+            senderManager.availableWallets.map(async (wallet) => {
                 return await clients.public.getBalance({ address: wallet.address })
             })
         )
 
-        expect(balances).toEqual(Array(senderManager.wallets.length).fill(parseEther("1000")))
+        expect(balances).toEqual(Array(senderManager.availableWallets.length).fill(parseEther("1000")))
     })
 })
