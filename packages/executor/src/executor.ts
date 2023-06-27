@@ -29,12 +29,12 @@ export interface GasEstimateResult {
 
 export interface IExecutor {
     bundle(_entryPoint: Address, _op: UserOperation): Promise<void>
+    flushStuckTransactions(): Promise<void>
 }
 
 export class NullExecutor implements IExecutor {
-    async bundle(_entryPoint: Address, _op: UserOperation): Promise<void> {
-        // return 32 byte long hex string
-    }
+    async flushStuckTransactions(): Promise<void> {}
+    async bundle(_entryPoint: Address, _op: UserOperation): Promise<void> {}
 }
 
 interface UserOperationStatus {
@@ -76,7 +76,7 @@ export class BasicExecutor implements IExecutor {
         entryPoint: Address,
         pollingInterval: number,
         logger: Logger,
-        simulateTransaction = false,
+        simulateTransaction = false
     ) {
         this.beneficiary = beneficiary
         this.publicClient = publicClient
@@ -89,6 +89,57 @@ export class BasicExecutor implements IExecutor {
         this.simulateTransaction = simulateTransaction
 
         this.mutex = new Mutex()
+    }
+    async flushStuckTransactions(): Promise<void> {
+        const gasPrice = 10n * (await this.publicClient.getGasPrice())
+
+        const wallets = this.senderManager.wallets
+        const promises = wallets.map(async (wallet) => {
+            const latestNonce = await this.publicClient.getTransactionCount({
+                address: wallet.address,
+                blockTag: "latest"
+            })
+            const pendingNonce = await this.publicClient.getTransactionCount({
+                address: wallet.address,
+                blockTag: "pending"
+            })
+
+            // same nonce is okay
+            if (latestNonce === pendingNonce) {
+                return
+            }
+
+            // one nonce ahead is also okay
+            if (latestNonce + 1 === pendingNonce) {
+                return
+            }
+
+            this.logger.info({ latestNonce, pendingNonce, wallet: wallet.address }, "found stuck transaction, flushing")
+
+            for (let nonceToFlush = latestNonce; nonceToFlush < pendingNonce; nonceToFlush++) {
+                try {
+                    const txHash = await this.walletClient.sendTransaction({
+                        account: wallet,
+                        to: wallet.address,
+                        value: 0n,
+                        nonce: nonceToFlush,
+                        maxFeePerGas: gasPrice,
+                        maxPriorityFeePerGas: gasPrice
+                    })
+
+                    this.logger.debug(
+                        { txHash, nonce: nonceToFlush, wallet: wallet.address },
+                        "flushed stuck transaction"
+                    )
+
+                    await this.publicClient.getTransactionReceipt({ hash: txHash })
+                } catch (e) {
+                    this.logger.warn({ error: e }, "error flushing stuck transaction")
+                }
+            }
+        })
+
+        await Promise.all(promises)
     }
 
     startWatchingBlocks(): void {
@@ -315,17 +366,17 @@ export class BasicExecutor implements IExecutor {
                         maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
                         nonce: nonce
                     })
-    
+
                     // scroll alpha testnet doesn't support eip-1559 txs yet
                     if (this.walletClient.chain?.id === 534353) {
                         request.gasPrice = request.maxFeePerGas
                         request.maxFeePerGas = undefined
                         request.maxPriorityFeePerGas = undefined
                     }
-    
+
                     const { chain: _chain, abi: _abi, ...loggingRequest } = request
                     childLogger.trace({ request: { ...loggingRequest } }, "got request")
-    
+
                     txHash = await this.walletClient.writeContract(request)
 
                     this.monitoredTransactions[opHash] = {
@@ -360,7 +411,7 @@ export class BasicExecutor implements IExecutor {
                         executor: wallet
                     }
                 }
-                
+
                 childLogger.info({ txHash, userOpHash: opHash }, "submitted bundle transaction")
 
                 this.monitor.setUserOperationStatus(opHash, { status: "submitted", transactionHash: txHash })
@@ -403,7 +454,7 @@ export class BasicExecutor implements IExecutor {
                     childLogger.error({ error: e }, "unknown error bundling user operation")
 
                     const epNonce = await ep.read.getNonce([op.sender, 0n])
-                    console.log("epNonce", epNonce)    
+                    console.log("epNonce", epNonce)
 
                     throw e
                 }

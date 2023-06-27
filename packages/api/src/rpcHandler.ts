@@ -5,6 +5,7 @@ import {
     Address,
     BundlerClearStateResponseResult,
     BundlerDumpMempoolResponseResult,
+    BundlerFlushStuckTransactionsResponseResult,
     BundlerRequest,
     BundlerResponse,
     BundlerSendBundleNowResponseResult,
@@ -128,6 +129,11 @@ export class RpcHandler implements IRpcEndpoint {
                     method,
                     result: await this.pimlico_getUserOperationStatus(...request.params)
                 }
+            case "debug_bundler_flushStuckTransactions":
+                return {
+                    method,
+                    result: await this.debug_bundler_flushStuckTransactions(...request.params)
+                }
         }
     }
 
@@ -212,7 +218,7 @@ export class RpcHandler implements IRpcEndpoint {
         } else {
             fromBlock = latestBlock - fullBlockRange
         }
-        
+
         const filterResult = await this.config.publicClient.getLogs({
             address: this.config.entryPoint,
             event: userOperationEventAbiItem,
@@ -427,5 +433,10 @@ export class RpcHandler implements IRpcEndpoint {
         userOperationHash: HexData32
     ): Promise<PimlicoGetUserOperationStatusResponseResult> {
         return this.monitor.getUserOperationStatus(userOperationHash)
+    }
+
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
+    async debug_bundler_flushStuckTransactions(): Promise<BundlerFlushStuckTransactionsResponseResult> {
+        throw new Error("Method not implemented.")
     }
 }
