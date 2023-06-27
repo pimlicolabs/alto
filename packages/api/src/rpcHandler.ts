@@ -437,6 +437,8 @@ export class RpcHandler implements IRpcEndpoint {
 
     // rome-ignore lint/nursery/useCamelCase: <explanation>
     async debug_bundler_flushStuckTransactions(): Promise<BundlerFlushStuckTransactionsResponseResult> {
-        throw new Error("Method not implemented.")
+        await this.executor.flushStuckTransactions()
+
+        return "ok"
     }
 }
