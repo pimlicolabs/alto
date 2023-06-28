@@ -134,7 +134,7 @@ export class BasicExecutor implements IExecutor {
                         "flushed stuck transaction"
                     )
 
-                    await this.publicClient.getTransactionReceipt({ hash: txHash })
+                    await transactionIncluded(txHash, this.publicClient)
                 } catch (e) {
                     this.logger.warn({ error: e }, "error flushing stuck transaction")
                 }
