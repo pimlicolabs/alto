@@ -27,8 +27,9 @@ export class SenderManager {
     private availableWallets: Account[]
     logger: Logger
     private semaphore: Semaphore
+    utilityAccount: Account
 
-    constructor(wallets: Account[], logger: Logger, maxSigners?: number) {
+    constructor(wallets: Account[], utilityAccount: Account, logger: Logger, maxSigners?: number) {
         if (maxSigners !== undefined && wallets.length > maxSigners) {
             this.wallets = wallets.slice(0, maxSigners)
             this.availableWallets = wallets.slice(0, maxSigners)
@@ -37,6 +38,7 @@ export class SenderManager {
             this.availableWallets = wallets
         }
 
+        this.utilityAccount = utilityAccount
         this.logger = logger
         this.semaphore = new Semaphore(this.availableWallets.length)
     }
@@ -64,10 +66,9 @@ export class SenderManager {
     async validateAndRefillWallets(
         publicClient: PublicClient,
         walletClient: WalletClient<Transport, Chain, undefined>,
-        minBalance: bigint,
-        utilityAccount: Account
+        minBalance: bigint
     ): Promise<void> {
-        const utilityWalletBalance = await publicClient.getBalance({ address: utilityAccount.address })
+        const utilityWalletBalance = await publicClient.getBalance({ address: this.utilityAccount.address })
 
         const balancesMissing: Record<Address, bigint> = {}
 
@@ -90,7 +91,7 @@ export class SenderManager {
                 "utility wallet has insufficient balance to refill wallets"
             )
             throw new Error(
-                `utility wallet ${utilityAccount.address} has insufficient balance ${formatEther(
+                `utility wallet ${this.utilityAccount.address} has insufficient balance ${formatEther(
                     utilityWalletBalance
                 )} < ${formatEther(totalBalanceMissing)}`
             )
@@ -120,7 +121,7 @@ export class SenderManager {
                     walletClient
                 })
                 const tx = await callEngine.write.execute([instructions], {
-                    account: utilityAccount,
+                    account: this.utilityAccount,
                     value: totalBalanceMissing,
                     maxFeePerGas: maxFeePerGas,
                     maxPriorityFeePerGas: maxPriorityFeePerGas
@@ -134,7 +135,7 @@ export class SenderManager {
             } else {
                 for (const [address, missingBalance] of Object.entries(balancesMissing)) {
                     const tx = await walletClient.sendTransaction({
-                        account: utilityAccount,
+                        account: this.utilityAccount,
                         // @ts-ignore
                         to: address,
                         value: (missingBalance * 12n) / 10n,

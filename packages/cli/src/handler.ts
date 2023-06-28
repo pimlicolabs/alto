@@ -93,24 +93,24 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
             parsedArgs.lokiPassword
         )
     }
-    const validator = new UnsafeValidator(handlerConfig.publicClient, parsedArgs.entryPoint, logger, parsedArgs.tenderlyEnabled)
-    const senderManager = new SenderManager(parsedArgs.signerPrivateKeys, logger, parsedArgs.maxSigners)
-
-    await senderManager.validateAndRefillWallets(
-        client,
-        walletClient,
-        parsedArgs.minBalance,
-        parsedArgs.utilityPrivateKey
+    const validator = new UnsafeValidator(
+        handlerConfig.publicClient,
+        parsedArgs.entryPoint,
+        logger,
+        parsedArgs.tenderlyEnabled
+    )
+    const senderManager = new SenderManager(
+        parsedArgs.signerPrivateKeys,
+        parsedArgs.utilityPrivateKey,
+        logger,
+        parsedArgs.maxSigners
     )
 
+    await senderManager.validateAndRefillWallets(client, walletClient, parsedArgs.minBalance)
+
     setInterval(async () => {
-        await senderManager.validateAndRefillWallets(
-            client,
-            walletClient,
-            parsedArgs.minBalance,
-            parsedArgs.utilityPrivateKey
-        )
-    }, parsedArgs.refillInterval);
+        await senderManager.validateAndRefillWallets(client, walletClient, parsedArgs.minBalance)
+    }, parsedArgs.refillInterval)
 
     const monitor = new Monitor()
 
@@ -126,6 +126,8 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         !parsedArgs.tenderlyEnabled
     )
     const rpcEndpoint = new RpcHandler(handlerConfig, validator, executor, monitor, logger)
+
+    await executor.flushStuckTransactions()
 
     const server = new Server(rpcEndpoint, parsedArgs, logger)
     await server.start()

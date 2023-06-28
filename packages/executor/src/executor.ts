@@ -93,7 +93,7 @@ export class BasicExecutor implements IExecutor {
     async flushStuckTransactions(): Promise<void> {
         const gasPrice = 10n * (await this.publicClient.getGasPrice())
 
-        const wallets = this.senderManager.wallets
+        const wallets = [...this.senderManager.wallets, this.senderManager.utilityAccount]
         const promises = wallets.map(async (wallet) => {
             const latestNonce = await this.publicClient.getTransactionCount({
                 address: wallet.address,
