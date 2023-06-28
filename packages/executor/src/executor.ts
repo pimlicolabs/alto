@@ -104,6 +104,8 @@ export class BasicExecutor implements IExecutor {
                 blockTag: "pending"
             })
 
+            this.logger.debug({ latestNonce, pendingNonce, wallet: wallet.address }, "checking for stuck transactions")
+
             // same nonce is okay
             if (latestNonce === pendingNonce) {
                 return
