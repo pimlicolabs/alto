@@ -24,7 +24,7 @@ export async function debug_traceCall(
     client: PublicClient | WalletClient,
     tx: TransactionRequest,
     options: TraceOptions
-): Promise<any> {
+): Promise<TraceResult> {
     const traceOptions = tracer2string(options)
     const ret = await client
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -46,7 +46,8 @@ export async function debug_traceCall(
                 console.log("error", e)
             }
         })
-    // console.log("ret=", ret)
+
+    // @ts-ignore
     return ret
 }
 

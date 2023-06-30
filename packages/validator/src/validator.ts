@@ -5,6 +5,8 @@ import { PublicClient, getContract, encodeFunctionData, decodeErrorResult } from
 import { hexDataSchema } from "@alto/types"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
+import { parseScannerResult } from "./parseScannerResult"
+import { debug_traceCall, TraceResult } from "./tracer"
 export interface IValidator {
     getExecutionResult(userOperation: UserOperation, usingTenderly?: boolean): Promise<ExecutionResult>
     getValidationResult(userOperation: UserOperation, usingTenderly?: boolean): Promise<ValidationResult>
@@ -163,6 +165,9 @@ export class UnsafeValidator implements IValidator {
 
     async validateUserOperation(userOperation: UserOperation): Promise<ValidationResult> {
         const validationResult = await this.getValidationResult(userOperation)
+
+        const tracerResult: TraceResult = await debug_traceCall(this.publicClient, { from: userOperation.sender, to: this.entryPoint, data: userOperation.callData }, {})
+        await parseScannerResult(userOperation, tracerResult, validationResult, this.entryPoint);
 
         if (validationResult.returnInfo.sigFailed) {
             throw new RpcError("Invalid UserOp signature or paymaster signature", ValidationErrors.InvalidSignature)
