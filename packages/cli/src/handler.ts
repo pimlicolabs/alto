@@ -127,7 +127,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     )
     const rpcEndpoint = new RpcHandler(handlerConfig, validator, executor, monitor, logger)
 
-    await executor.flushStuckTransactions()
+    executor.flushStuckTransactions()
 
     const server = new Server(rpcEndpoint, parsedArgs, logger)
     await server.start()
