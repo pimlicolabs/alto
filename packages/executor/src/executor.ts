@@ -192,6 +192,8 @@ export class BasicExecutor implements IExecutor {
             return
         }
 
+        const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
+
         opHashes.map(async (opHash) => {
             const opStatus = this.monitoredTransactions[opHash]
             const txIncluded = await transactionIncluded(opStatus.transactionHash, this.publicClient)
@@ -218,7 +220,20 @@ export class BasicExecutor implements IExecutor {
                 { baseFeePerGas: block.baseFeePerGas, maxFeePerGas: transaction.maxFeePerGas },
                 "queried gas fee parameters"
             )
-            if (
+
+            if (this.walletClient.chain.id === 59140) {
+                if (
+                    transaction.maxFeePerGas === undefined ||
+                    transaction.maxPriorityFeePerGas === undefined ||
+                    transaction.maxFeePerGas >= gasPriceParameters.maxFeePerGas
+                ) {
+                    childLogger.debug(
+                        { maxFeePerGas: transaction.maxFeePerGas, gasPriceParameters },
+                        "gas price is high enough, not replacing transaction"
+                    )
+                    return
+                }
+            } else if (
                 block.baseFeePerGas === null ||
                 transaction.maxFeePerGas === undefined ||
                 transaction.maxPriorityFeePerGas === undefined ||
@@ -232,7 +247,6 @@ export class BasicExecutor implements IExecutor {
             }
 
             childLogger.debug("replacing transaction")
-            const gasPrice = await this.publicClient.getGasPrice()
             delete this.monitoredTransactions[opHash]
 
             let request
@@ -240,8 +254,8 @@ export class BasicExecutor implements IExecutor {
                 request = {
                     ...transaction,
                     maxFeePerGas:
-                        gasPrice > (transaction.maxFeePerGas * 11n) / 10n
-                            ? gasPrice
+                        gasPriceParameters.maxFeePerGas > (transaction.maxFeePerGas * 11n) / 10n
+                            ? gasPriceParameters.maxFeePerGas
                             : (transaction.maxFeePerGas * 11n) / 10n,
                     maxPriorityFeePerGas: (transaction.maxPriorityFeePerGas * 11n) / 10n
                 }
@@ -252,7 +266,9 @@ export class BasicExecutor implements IExecutor {
                 request = {
                     ...transaction,
                     gasPrice:
-                        gasPrice > (transaction.gasPrice * 11n) / 10n ? gasPrice : (transaction.gasPrice * 11n) / 10n
+                        gasPriceParameters.maxFeePerGas > (transaction.gasPrice * 11n) / 10n
+                            ? gasPriceParameters.maxFeePerGas
+                            : (transaction.gasPrice * 11n) / 10n
                 }
             }
 
