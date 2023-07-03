@@ -123,8 +123,8 @@ export class SenderManager {
                 const tx = await callEngine.write.execute([instructions], {
                     account: this.utilityAccount,
                     value: totalBalanceMissing,
-                    maxFeePerGas: maxFeePerGas,
-                    maxPriorityFeePerGas: maxPriorityFeePerGas
+                    maxFeePerGas: maxFeePerGas * 2n,
+                    maxPriorityFeePerGas: maxPriorityFeePerGas * 2n
                 })
 
                 await waitForTransactionReceipt(publicClient, tx)
