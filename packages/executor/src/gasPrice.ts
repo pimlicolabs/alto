@@ -71,7 +71,7 @@ export async function getGasPrice(
     if (chainId === ChainId.LineaTestnet) {
         const feeHistory = await publicClient.getFeeHistory({
             blockCount: 10,
-            rewardPercentiles: [40],
+            rewardPercentiles: [25],
             blockTag: "latest"
         })
 
