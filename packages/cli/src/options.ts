@@ -32,6 +32,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "string",
         require: true
     },
+    refillInterval: {
+        description: "Interval to refill the signer balance (in ms)",
+        type: "number",
+        require: true,
+        default: 1000 * 60 * 20
+    },
     rpcUrl: {
         description: "RPC url to connect to",
         type: "string",
@@ -71,7 +77,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description: "Polling interval for the executor module (ms)",
         type: "number",
         require: true,
-        default: 100
+        default: 300
     },
     logLevel: {
         description: "Log level",
@@ -102,6 +108,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
     lokiPassword: {
         description: "Loki password",
         type: "string"
+    },
+    tenderlyEnabled: {
+        description: "Rpc url is a tenderly url",
+        type: "boolean",
+        require: true,
+        default: false
     }
 }
 

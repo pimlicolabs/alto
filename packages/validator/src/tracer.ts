@@ -30,7 +30,7 @@ export async function debug_traceCall(
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
         .request({ method: "debug_traceCall", params: [formatTransactionRequest(tx), "latest", traceOptions] })
-        .catch((e) => {
+        .catch((e: unknown) => {
             if (e instanceof Error) {
                 // console.log("ex=", e.message)
                 // console.log(

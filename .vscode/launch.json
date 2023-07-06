@@ -2,8 +2,8 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "command": "yarn test",
-            "name": "Build and Run Integration Tests",
+            "command": "pnpm start",
+            "name": "Run",
             "request": "launch",
             "type": "node-terminal"
         }

@@ -5,6 +5,7 @@ import {
     Address,
     BundlerClearStateResponseResult,
     BundlerDumpMempoolResponseResult,
+    BundlerFlushStuckTransactionsResponseResult,
     BundlerRequest,
     BundlerResponse,
     BundlerSendBundleNowResponseResult,
@@ -13,7 +14,6 @@ import {
     ChainIdResponseResult,
     EntryPointAbi,
     EstimateUserOperationGasResponseResult,
-    ExecutionErrors,
     GetUserOperationByHashResponseResult,
     GetUserOperationReceiptResponseResult,
     HexData32,
@@ -129,6 +129,11 @@ export class RpcHandler implements IRpcEndpoint {
                     method,
                     result: await this.pimlico_getUserOperationStatus(...request.params)
                 }
+            case "debug_bundler_flushStuckTransactions":
+                return {
+                    method,
+                    result: await this.debug_bundler_flushStuckTransactions(...request.params)
+                }
         }
     }
 
@@ -152,29 +157,23 @@ export class RpcHandler implements IRpcEndpoint {
             throw new Error(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.entryPoint}`)
         }
 
-        const validationResult = await this.validator.getValidationResult(userOperation)
+        if (userOperation.maxFeePerGas === 0n) {
+            throw new RpcError("user operation max fee per gas must be larger than 0 during gas estimation")
+        }
+
+        const executionResult = await this.validator.getExecutionResult(userOperation)
 
         const preVerificationGas = BigInt(calcPreVerificationGas(userOperation))
-        const verificationGas = BigInt(validationResult.returnInfo.preOpGas)
-        const callGasLimit = await this.config.publicClient
-            .estimateGas({
-                to: userOperation.sender,
-                data: userOperation.callData,
-                account: entryPoint
-            })
-            .then((b) => BigInt(b))
-            .catch((err) => {
-                if (err instanceof Error) {
-                    const message = err.message.match(/reason="(.*?)"/)?.at(1) ?? "execution reverted"
-                    throw new RpcError(message, ExecutionErrors.UserOperationReverted)
-                } else {
-                    throw err
-                }
-            })
+        const verificationGas = BigInt(executionResult.preOpGas)
+        const calculatedCallGasLimit =
+            executionResult.paid / userOperation.maxFeePerGas - executionResult.preOpGas + 21000n
+
+        const callGasLimit = calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n
 
         return {
             preVerificationGas,
             verificationGas,
+            verificationGasLimit: verificationGas,
             callGasLimit
         }
     }
@@ -209,11 +208,22 @@ export class RpcHandler implements IRpcEndpoint {
     async eth_getUserOperationByHash(userOperationHash: HexData32): Promise<GetUserOperationByHashResponseResult> {
         const userOperationEventAbiItem = getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
 
+        // Only query up to the last `fullBlockRange` = 20000 blocks
+        const latestBlock = await this.config.publicClient.getBlockNumber()
+        const fullBlockRange = 20000n
+
+        let fromBlock: bigint
+        if (this.config.usingTenderly) {
+            fromBlock = latestBlock - 100n
+        } else {
+            fromBlock = latestBlock - fullBlockRange
+        }
+
         const filterResult = await this.config.publicClient.getLogs({
             address: this.config.entryPoint,
             event: userOperationEventAbiItem,
-            fromBlock: 0n,
-            toBlock: "latest",
+            fromBlock: fromBlock > 0n ? fromBlock : 0n,
+            toBlock: latestBlock,
             args: {
                 userOpHash: userOperationHash
             }
@@ -272,11 +282,22 @@ export class RpcHandler implements IRpcEndpoint {
     async eth_getUserOperationReceipt(userOperationHash: HexData32): Promise<GetUserOperationReceiptResponseResult> {
         const userOperationEventAbiItem = getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
 
+        // Only query up to the last `fullBlockRange` = 20000 blocks
+        const latestBlock = await this.config.publicClient.getBlockNumber()
+        const fullBlockRange = 20000n
+
+        let fromBlock: bigint
+        if (this.config.usingTenderly) {
+            fromBlock = latestBlock - 100n
+        } else {
+            fromBlock = latestBlock - fullBlockRange
+        }
+
         const filterResult = await this.config.publicClient.getLogs({
             address: this.config.entryPoint,
             event: userOperationEventAbiItem,
-            fromBlock: 0n,
-            toBlock: "latest",
+            fromBlock: fromBlock > 0n ? fromBlock : 0n,
+            toBlock: latestBlock,
             args: {
                 userOpHash: userOperationHash
             }
@@ -287,6 +308,19 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         const userOperationEvent = filterResult[0]
+        // throw if any of the members of userOperationEvent are undefined
+        if (
+            userOperationEvent.args.actualGasCost === undefined ||
+            userOperationEvent.args.sender === undefined ||
+            userOperationEvent.args.nonce === undefined ||
+            userOperationEvent.args.userOpHash === undefined ||
+            userOperationEvent.args.success === undefined ||
+            userOperationEvent.args.paymaster === undefined ||
+            userOperationEvent.args.actualGasUsed === undefined
+        ) {
+            throw new Error("userOperationEvent has undefined members")
+        }
+
         const txHash = userOperationEvent.transactionHash
         if (txHash === null) {
             // transaction pending
@@ -399,5 +433,12 @@ export class RpcHandler implements IRpcEndpoint {
         userOperationHash: HexData32
     ): Promise<PimlicoGetUserOperationStatusResponseResult> {
         return this.monitor.getUserOperationStatus(userOperationHash)
+    }
+
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
+    async debug_bundler_flushStuckTransactions(): Promise<BundlerFlushStuckTransactionsResponseResult> {
+        await this.executor.flushStuckTransactions()
+
+        return "ok"
     }
 }

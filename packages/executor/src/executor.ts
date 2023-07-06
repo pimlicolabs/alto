@@ -3,18 +3,23 @@ import { Address, HexData32, UserOperation } from "@alto/types"
 import { Logger } from "@alto/utils"
 import { Mutex } from "async-mutex"
 import {
+    Abi,
     Account,
     Block,
+    Chain,
     ContractFunctionExecutionError,
     ContractFunctionRevertedError,
     PublicClient,
+    Transport,
     WalletClient,
     WatchBlocksReturnType,
+    WriteContractParameters,
     getContract
 } from "viem"
 import { SenderManager } from "./senderManager"
 import { Monitor } from "./monitoring"
 import { fromZodError } from "zod-validation-error"
+import { getGasPrice } from "./gasPrice"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -24,17 +29,17 @@ export interface GasEstimateResult {
 
 export interface IExecutor {
     bundle(_entryPoint: Address, _op: UserOperation): Promise<void>
+    flushStuckTransactions(): Promise<void>
 }
 
 export class NullExecutor implements IExecutor {
-    async bundle(_entryPoint: Address, _op: UserOperation): Promise<void> {
-        // return 32 byte long hex string
-    }
+    async flushStuckTransactions(): Promise<void> {}
+    async bundle(_entryPoint: Address, _op: UserOperation): Promise<void> {}
 }
 
-type UserOperationStatus = {
+interface UserOperationStatus {
     transactionHash: HexData32
-    transactionRequest: any
+    transactionRequest: WriteContractParameters<Abi | readonly unknown[], string, Chain, Account | undefined, Chain>
     executor: Account
 }
 
@@ -53,23 +58,25 @@ export class BasicExecutor implements IExecutor {
 
     beneficiary: Address
     publicClient: PublicClient
-    walletClient: WalletClient
+    walletClient: WalletClient<Transport, Chain, Account | undefined>
     senderManager: SenderManager
     monitor: Monitor
     entryPoint: Address
     pollingInterval: number
     logger: Logger
+    simulateTransaction: boolean
 
     mutex: Mutex
     constructor(
         beneficiary: Address,
         publicClient: PublicClient,
-        walletClient: WalletClient,
+        walletClient: WalletClient<Transport, Chain, Account | undefined>,
         senderManager: SenderManager,
         monitor: Monitor,
         entryPoint: Address,
         pollingInterval: number,
-        logger: Logger
+        logger: Logger,
+        simulateTransaction = false
     ) {
         this.beneficiary = beneficiary
         this.publicClient = publicClient
@@ -79,8 +86,62 @@ export class BasicExecutor implements IExecutor {
         this.entryPoint = entryPoint
         this.pollingInterval = pollingInterval
         this.logger = logger
+        this.simulateTransaction = simulateTransaction
 
         this.mutex = new Mutex()
+    }
+    async flushStuckTransactions(): Promise<void> {
+        const gasPrice = 10n * (await this.publicClient.getGasPrice())
+
+        const wallets = [...this.senderManager.wallets, this.senderManager.utilityAccount]
+        const promises = wallets.map(async (wallet) => {
+            const latestNonce = await this.publicClient.getTransactionCount({
+                address: wallet.address,
+                blockTag: "latest"
+            })
+            const pendingNonce = await this.publicClient.getTransactionCount({
+                address: wallet.address,
+                blockTag: "pending"
+            })
+
+            this.logger.debug({ latestNonce, pendingNonce, wallet: wallet.address }, "checking for stuck transactions")
+
+            // same nonce is okay
+            if (latestNonce === pendingNonce) {
+                return
+            }
+
+            // one nonce ahead is also okay
+            if (latestNonce + 1 === pendingNonce) {
+                return
+            }
+
+            this.logger.info({ latestNonce, pendingNonce, wallet: wallet.address }, "found stuck transaction, flushing")
+
+            for (let nonceToFlush = latestNonce; nonceToFlush < pendingNonce; nonceToFlush++) {
+                try {
+                    const txHash = await this.walletClient.sendTransaction({
+                        account: wallet,
+                        to: wallet.address,
+                        value: 0n,
+                        nonce: nonceToFlush,
+                        maxFeePerGas: gasPrice,
+                        maxPriorityFeePerGas: gasPrice
+                    })
+
+                    this.logger.debug(
+                        { txHash, nonce: nonceToFlush, wallet: wallet.address },
+                        "flushed stuck transaction"
+                    )
+
+                    await transactionIncluded(txHash, this.publicClient)
+                } catch (e) {
+                    this.logger.warn({ error: e }, "error flushing stuck transaction")
+                }
+            }
+        })
+
+        await Promise.all(promises)
     }
 
     startWatchingBlocks(): void {
@@ -131,6 +192,8 @@ export class BasicExecutor implements IExecutor {
             return
         }
 
+        const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
+
         opHashes.map(async (opHash) => {
             const opStatus = this.monitoredTransactions[opHash]
             const txIncluded = await transactionIncluded(opStatus.transactionHash, this.publicClient)
@@ -157,7 +220,20 @@ export class BasicExecutor implements IExecutor {
                 { baseFeePerGas: block.baseFeePerGas, maxFeePerGas: transaction.maxFeePerGas },
                 "queried gas fee parameters"
             )
-            if (
+
+            if (this.walletClient.chain.id === 59140) {
+                if (
+                    transaction.maxFeePerGas === undefined ||
+                    transaction.maxPriorityFeePerGas === undefined ||
+                    transaction.maxFeePerGas >= gasPriceParameters.maxFeePerGas
+                ) {
+                    childLogger.debug(
+                        { maxFeePerGas: transaction.maxFeePerGas, gasPriceParameters },
+                        "gas price is high enough, not replacing transaction"
+                    )
+                    return
+                }
+            } else if (
                 block.baseFeePerGas === null ||
                 transaction.maxFeePerGas === undefined ||
                 transaction.maxPriorityFeePerGas === undefined ||
@@ -171,7 +247,6 @@ export class BasicExecutor implements IExecutor {
             }
 
             childLogger.debug("replacing transaction")
-            const gasPrice = await this.publicClient.getGasPrice()
             delete this.monitoredTransactions[opHash]
 
             let request
@@ -179,16 +254,21 @@ export class BasicExecutor implements IExecutor {
                 request = {
                     ...transaction,
                     maxFeePerGas:
-                        gasPrice > (transaction.maxFeePerGas * 11n) / 10n
-                            ? gasPrice
+                        gasPriceParameters.maxFeePerGas > (transaction.maxFeePerGas * 11n) / 10n
+                            ? gasPriceParameters.maxFeePerGas
                             : (transaction.maxFeePerGas * 11n) / 10n,
                     maxPriorityFeePerGas: (transaction.maxPriorityFeePerGas * 11n) / 10n
                 }
             } else {
+                if (transaction.gasPrice === undefined) {
+                    throw new Error("gas price is undefined")
+                }
                 request = {
                     ...transaction,
                     gasPrice:
-                        gasPrice > (transaction.gasPrice * 11n) / 10n ? gasPrice : (transaction.gasPrice * 11n) / 10n
+                        gasPriceParameters.maxFeePerGas > (transaction.gasPrice * 11n) / 10n
+                            ? gasPriceParameters.maxFeePerGas
+                            : (transaction.gasPrice * 11n) / 10n
                 }
             }
 
@@ -247,15 +327,16 @@ export class BasicExecutor implements IExecutor {
     async bundle(entryPoint: Address, op: UserOperation): Promise<void> {
         const wallet = await this.senderManager.getWallet()
 
+        const ep = getContract({
+            abi: EntryPointAbi,
+            address: entryPoint,
+            publicClient: this.publicClient,
+            walletClient: this.walletClient
+        })
+
         await this.mutex.runExclusive(async () => {
             const childLogger = this.logger.child({ userOperation: op, entryPoint })
             childLogger.debug("bundling user operation")
-            const ep = getContract({
-                abi: EntryPointAbi,
-                address: entryPoint,
-                publicClient: this.publicClient,
-                walletClient: this.walletClient
-            })
 
             try {
                 const opHash = await ep.read.getUserOpHash([op])
@@ -270,8 +351,8 @@ export class BasicExecutor implements IExecutor {
                     (((op.preVerificationGas + 3n * op.verificationGasLimit + op.callGasLimit) * 12n) / 10n) *
                     (this.walletClient.chain?.id === 42161 ? 4n : 1n)
 
-                const gasPrice = await this.publicClient.getGasPrice()
-                childLogger.debug({ gasPrice }, "got gas price")
+                const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
+                childLogger.debug({ gasPriceParameters }, "got gas price")
 
                 // const minGasPrice = (95n * gasPrice) / 100n
 
@@ -293,35 +374,64 @@ export class BasicExecutor implements IExecutor {
                 })
                 childLogger.trace({ nonce }, "got nonce")
 
-                const maxPriorityFeePerGas = 2_000_000_000n > gasPrice ? gasPrice : 2_000_000_000n
+                let txHash: HexData32
+                if (this.simulateTransaction) {
+                    const { request } = await ep.simulate.handleOps([[op], wallet.address], {
+                        gas: gasLimit,
+                        account: wallet,
+                        chain: this.walletClient.chain,
+                        maxFeePerGas: gasPriceParameters.maxFeePerGas,
+                        maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
+                        nonce: nonce
+                    })
 
-                const { request } = await ep.simulate.handleOps([[op], wallet.address], {
-                    gas: gasLimit,
-                    account: wallet,
-                    chain: this.walletClient.chain,
-                    maxFeePerGas: gasPrice,
-                    maxPriorityFeePerGas,
-                    nonce: nonce
-                })
+                    // scroll alpha testnet doesn't support eip-1559 txs yet
+                    if (this.walletClient.chain?.id === 534353) {
+                        request.gasPrice = request.maxFeePerGas
+                        request.maxFeePerGas = undefined
+                        request.maxPriorityFeePerGas = undefined
+                    }
 
-                // scroll alpha testnet doesn't support eip-1559 txs yet
-                if (this.walletClient.chain?.id === 534353) {
-                    request.gasPrice = request.maxFeePerGas
-                    request.maxFeePerGas = undefined
-                    request.maxPriorityFeePerGas = undefined
+                    const { chain: _chain, abi: _abi, ...loggingRequest } = request
+                    childLogger.trace({ request: { ...loggingRequest } }, "got request")
+
+                    txHash = await this.walletClient.writeContract(request)
+
+                    this.monitoredTransactions[opHash] = {
+                        transactionHash: txHash,
+                        transactionRequest: request,
+                        executor: wallet
+                    }
+                } else {
+                    txHash = await ep.write.handleOps([[op], wallet.address], {
+                        gas: gasLimit,
+                        account: wallet,
+                        chain: this.walletClient.chain,
+                        maxFeePerGas: gasPriceParameters.maxFeePerGas,
+                        maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
+                        nonce: nonce
+                    })
+
+                    this.monitoredTransactions[opHash] = {
+                        transactionHash: txHash,
+                        transactionRequest: {
+                            address: ep.address,
+                            abi: ep.abi,
+                            functionName: "handleOps",
+                            args: [[op], wallet.address],
+                            gas: gasLimit,
+                            account: wallet,
+                            chain: this.walletClient.chain,
+                            maxFeePerGas: gasPriceParameters.maxFeePerGas,
+                            maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
+                            nonce: nonce
+                        },
+                        executor: wallet
+                    }
                 }
 
-                const { chain: _chain, abi: _abi, ...loggingRequest } = request
-                childLogger.trace({ request: { ...loggingRequest } }, "got request")
-
-                const txHash = await this.walletClient.writeContract(request)
                 childLogger.info({ txHash, userOpHash: opHash }, "submitted bundle transaction")
 
-                this.monitoredTransactions[opHash] = {
-                    transactionHash: txHash,
-                    transactionRequest: request,
-                    executor: wallet
-                }
                 this.monitor.setUserOperationStatus(opHash, { status: "submitted", transactionHash: txHash })
             } catch (e: unknown) {
                 await this.senderManager.pushWallet(wallet)
@@ -360,6 +470,10 @@ export class BasicExecutor implements IExecutor {
                     throw new RpcError(`user operation reverted: ${reason}`)
                 } else {
                     childLogger.error({ error: e }, "unknown error bundling user operation")
+
+                    const epNonce = await ep.read.getNonce([op.sender, 0n])
+                    console.log("epNonce", epNonce)
+
                     throw e
                 }
             }

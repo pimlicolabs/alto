@@ -11,21 +11,6 @@ import { Monitor } from "@alto/executor"
 import { Logger, initDebugLogger, initProductionLogger } from "@alto/utils"
 import { UnsafeValidator } from "@alto/validator"
 import { Chain, PublicClient, createWalletClient, http } from "viem"
-import {
-    arbitrum,
-    arbitrumGoerli,
-    baseGoerli,
-    gnosis,
-    gnosisChiado,
-    goerli,
-    mainnet,
-    optimism,
-    optimismGoerli,
-    polygon,
-    polygonMumbai,
-    scrollTestnet,
-    sepolia
-} from "viem/chains"
 import * as chains from "viem/chains"
 import { fromZodError } from "zod-validation-error"
 
@@ -47,10 +32,10 @@ const preFlightChecks = async (publicClient: PublicClient, args: IBundlerArgs): 
     }
 }
 
-const lineaTestnet: Chain = {
-    id: 59140,
-    name: "Linea Testnet",
-    network: "linea-testnet",
+const customTestnet: Chain = {
+    id: 36865,
+    name: "Custom Testnet",
+    network: "custom-testnet",
     nativeCurrency: {
         name: "Ether",
         symbol: "ETH",
@@ -58,23 +43,20 @@ const lineaTestnet: Chain = {
     },
     rpcUrls: {
         default: {
-            http: ["https://rpc.goerli.linea.build/"]
+            http: ["http://127.0.0.1:8545"]
         },
         public: {
-            http: ["https://rpc.goerli.linea.build/"]
-        }
-    },
-    blockExplorers: {
-        default: {
-            name: "Linea Explorer",
-            url: "https://explorer.goerli.linea.build/"
+            http: ["http://127.0.0.1:8545"]
         }
     },
     testnet: true
 }
 
-// @ts-ignore
-function getChain(chainId: number): Chain {
+function getChain(chainId: number) {
+    if (chainId === 36865) {
+        return customTestnet
+    }
+
     for (const chain of Object.values(chains)) {
         if (chain.id === chainId) {
             return chain
@@ -84,30 +66,13 @@ function getChain(chainId: number): Chain {
     throw new Error(`Chain with id ${chainId} not found`)
 }
 
-const chainIdToChain: Record<number, Chain> = {
-    1: mainnet,
-    5: goerli,
-    80001: polygonMumbai,
-    137: polygon,
-    420: optimismGoerli,
-    10: optimism,
-    421613: arbitrumGoerli,
-    42161: arbitrum,
-    84531: baseGoerli,
-    534353: scrollTestnet,
-    59140: lineaTestnet,
-    100: gnosis,
-    10200: gnosisChiado,
-    11155111: sepolia
-}
-
 export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => {
     const parsedArgs = parseArgs(args)
     const handlerConfig: RpcHandlerConfig = await bundlerArgsToRpcHandlerConfig(parsedArgs)
     const client = handlerConfig.publicClient
 
     const chainId = await client.getChainId()
-    const chain: Chain = chainIdToChain[chainId]
+    const chain = getChain(chainId)
 
     await preFlightChecks(client, parsedArgs)
 
@@ -128,15 +93,24 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
             parsedArgs.lokiPassword
         )
     }
-    const validator = new UnsafeValidator(handlerConfig.publicClient, parsedArgs.entryPoint, logger)
-    const senderManager = new SenderManager(parsedArgs.signerPrivateKeys, logger, parsedArgs.maxSigners)
-
-    await senderManager.validateAndRefillWallets(
-        client,
-        walletClient,
-        parsedArgs.minBalance,
-        parsedArgs.utilityPrivateKey
+    const validator = new UnsafeValidator(
+        handlerConfig.publicClient,
+        parsedArgs.entryPoint,
+        logger,
+        parsedArgs.tenderlyEnabled
     )
+    const senderManager = new SenderManager(
+        parsedArgs.signerPrivateKeys,
+        parsedArgs.utilityPrivateKey,
+        logger,
+        parsedArgs.maxSigners
+    )
+
+    await senderManager.validateAndRefillWallets(client, walletClient, parsedArgs.minBalance)
+
+    setInterval(async () => {
+        await senderManager.validateAndRefillWallets(client, walletClient, parsedArgs.minBalance)
+    }, parsedArgs.refillInterval)
 
     const monitor = new Monitor()
 
@@ -148,9 +122,12 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         monitor,
         parsedArgs.entryPoint,
         parsedArgs.pollingInterval,
-        logger
+        logger,
+        !parsedArgs.tenderlyEnabled
     )
     const rpcEndpoint = new RpcHandler(handlerConfig, validator, executor, monitor, logger)
+
+    executor.flushStuckTransactions()
 
     const server = new Server(rpcEndpoint, parsedArgs, logger)
     await server.start()

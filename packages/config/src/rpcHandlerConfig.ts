@@ -6,6 +6,7 @@ export type RpcHandlerConfig = {
     publicClient: PublicClient
     chainId: number
     entryPoint: Address
+    usingTenderly: boolean
 }
 
 export const bundlerArgsToRpcHandlerConfig = async (args: IBundlerArgs): Promise<RpcHandlerConfig> => {
@@ -18,6 +19,7 @@ export const bundlerArgsToRpcHandlerConfig = async (args: IBundlerArgs): Promise
     return {
         publicClient: client,
         chainId,
-        entryPoint: args.entryPoint
+        entryPoint: args.entryPoint,
+        usingTenderly: args.tenderlyEnabled ?? false
     }
 }
