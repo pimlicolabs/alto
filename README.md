@@ -1,4 +1,4 @@
-<p align="center"><a href="https://docs.pimlico/reference/bundler"><img width="600" title="Alto" src='https://i.imgur.com/qgVAdjN.png' /></a></p>
+<p align="center"><a href="https://docs.pimlico/reference/bundler"><img width="1000" title="Alto" src='https://i.imgur.com/qgVAdjN.png' /></a></p>
 
 # ⛰️ Alto ⛰️ 
 
