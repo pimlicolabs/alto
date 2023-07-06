@@ -2,9 +2,7 @@
 
 # ⛰️ Alto ⛰️ 
 
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/pimlicolabs/alto)
-![GitHub Workflow Status (with branch)](https://img.shields.io/github/actions/workflow/status/pimlicolabs/alto/tests.yml?branch=main)
-![Node Version](https://img.shields.io/badge/node-18.x-green)
+![Node Version](https://img.shields.io/badge/node-20.x-green)
 
 Alto is a Typescript implementation of the [ERC-4337 bundler specification](https://eips.ethereum.org/EIPS/eip-4337) developed by [Pimlico](https://pimlico.io), focused on type safety and transaction inclusion reliability.
 
