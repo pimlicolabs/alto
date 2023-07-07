@@ -349,7 +349,7 @@ export class BasicExecutor implements IExecutor {
 
                 const gasLimit =
                     (((op.preVerificationGas + 3n * op.verificationGasLimit + op.callGasLimit) * 12n) / 10n) *
-                    (this.walletClient.chain?.id === 42161 ? 6n : 1n)
+                    (this.walletClient.chain?.id === 42161 ? 8n : 1n)
 
                 const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
                 childLogger.debug({ gasPriceParameters }, "got gas price")
