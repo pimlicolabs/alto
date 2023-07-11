@@ -23,8 +23,10 @@ import { z } from "zod"
 
 const gasPrice = z
     .object({
-        maxFee: z.number().transform((val) => parseGwei(`${val}`)),
-        maxPriorityFee: z.number().transform((val) => parseGwei(`${val}`))
+        // @ts-ignore
+        maxFee: z.union([z.number(), z.string()]).transform((val) => parseGwei(`${val}`)),
+        // @ts-ignore
+        maxPriorityFee: z.union([z.number(), z.string()]).transform((val) => parseGwei(`${val}`))
     })
     .transform((val) => {
         return {
@@ -37,7 +39,8 @@ export const gasStationResult = z.object({
     safeLow: gasPrice,
     standard: gasPrice,
     fast: gasPrice,
-    estimatedBaseFee: z.number(),
+    // @ts-ignore
+    estimatedBaseFee: z.union([z.number(), z.string()]).transform((val) => parseGwei(`${val}`)),
     blockTime: z.number(),
     blockNumber: z.number()
 })
