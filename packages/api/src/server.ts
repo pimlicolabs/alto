@@ -121,7 +121,10 @@ export class Server {
         }
 
         const bundlerRequest = bundlerRequestParsing.data
-        this.fastify.log.info(bundlerRequest, `received request ${bundlerRequest.method}`)
+        this.fastify.log.info(
+            { data: JSON.stringify(bundlerRequest, null) },
+            `received request ${bundlerRequest.method}`
+        )
         const result = await this.rpcEndpoint.handleMethod(bundlerRequest)
 
         const jsonRpcResponse: JSONRPCResponse = {
