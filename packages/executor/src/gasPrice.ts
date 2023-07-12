@@ -3,6 +3,7 @@ import { PublicClient, parseGwei } from "viem"
 import { Logger } from "@alto/utils"
 
 enum ChainId {
+    Goerli = 5,
     Polygon = 137,
     Mumbai = 80001,
     LineaTestnet = 59140
@@ -68,7 +69,7 @@ export async function getGasPrice(
     let gasPrice = await publicClient.getGasPrice()
 
     let maxPriorityFeePerGas = 2_000_000_000n > gasPrice ? gasPrice : 2_000_000_000n
-    if (chainId === ChainId.LineaTestnet) {
+    if (chainId === ChainId.LineaTestnet || chainId === ChainId.Goerli) {
         const feeHistory = await publicClient.getFeeHistory({
             blockCount: 10,
             rewardPercentiles: [25],
