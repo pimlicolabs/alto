@@ -81,7 +81,9 @@ export async function getGasPrice(
             maxPriorityFeePerGas = gasPrice
         } else {
             const feeAverage = feeHistory.reward.reduce((acc, cur) => cur[0] + acc, 0n) / 10n
-            gasPrice = feeAverage
+            if (feeAverage > gasPrice) {
+                gasPrice = feeAverage
+            }
             maxPriorityFeePerGas = feeAverage
         }
     }
