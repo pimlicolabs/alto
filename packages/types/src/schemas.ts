@@ -1,7 +1,6 @@
 import { Hash, Hex, getAddress } from "viem"
 import { z } from "zod"
 
-const hexNumberPattern = /^0x([0-9a-f]+[0-9a-f]*|0)$/
 const hexDataPattern = /^0x[0-9A-Fa-f]*$/
 const addressPattern = /^0x[0-9,a-f,A-F]{40}$/
 export const hexData32Pattern = /^0x([0-9a-fA-F][0-9a-fA-F]){0,32}$/
@@ -12,7 +11,7 @@ const addressSchema = z
     .transform((val) => getAddress(val))
 export const hexNumberSchema = z
     .string()
-    .regex(hexNumberPattern)
+    .regex(hexDataPattern)
     .or(z.number())
     .or(z.bigint())
     .transform((val) => BigInt(val))
