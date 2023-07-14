@@ -52,9 +52,33 @@ const customTestnet: Chain = {
     testnet: true
 }
 
+const dfkTestnet: Chain = {
+    id: 335,
+    name: "DFK Subnet Testnet",
+    network: "dfk-testnet",
+    nativeCurrency: {
+        name: "JEWEL",
+        symbol: "JEWEL",
+        decimals: 18
+    },
+    rpcUrls: {
+        default: {
+            http: ["https://subnets.avax.network/defi-kingdoms/dfk-chain-testnet/rpc"]
+        },
+        public: {
+            http: ["https://subnets.avax.network/defi-kingdoms/dfk-chain-testnet/rpc"]
+        }
+    },
+    testnet: true
+}
+
 function getChain(chainId: number) {
     if (chainId === 36865) {
         return customTestnet
+    }
+
+    if (chainId === 335) {
+        return dfkTestnet
     }
 
     for (const chain of Object.values(chains)) {
