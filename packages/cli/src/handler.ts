@@ -91,26 +91,29 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
             parsedArgs.lokiHost,
             parsedArgs.lokiUsername,
             parsedArgs.lokiPassword
-        )
+        )        
     }
     const validator = new UnsafeValidator(handlerConfig.publicClient, parsedArgs.entryPoint, logger, parsedArgs.tenderlyEnabled)
     const senderManager = new SenderManager(parsedArgs.signerPrivateKeys, logger, parsedArgs.maxSigners)
 
-    await senderManager.validateAndRefillWallets(
-        client,
-        walletClient,
-        parsedArgs.minBalance,
-        parsedArgs.utilityPrivateKey
-    )
 
-    setInterval(async () => {
+    if (parsedArgs.environment === "production") {
         await senderManager.validateAndRefillWallets(
             client,
             walletClient,
             parsedArgs.minBalance,
             parsedArgs.utilityPrivateKey
         )
-    }, parsedArgs.refillInterval);
+
+        setInterval(async () => {
+            await senderManager.validateAndRefillWallets(
+                client,
+                walletClient,
+                parsedArgs.minBalance,
+                parsedArgs.utilityPrivateKey
+            )
+        }, parsedArgs.refillInterval);
+    }
 
     const monitor = new Monitor()
 
