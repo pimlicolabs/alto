@@ -1,5 +1,4 @@
-import { EntryPointAbi, RpcError, errorCauseSchema } from "@alto/types"
-import { Address, HexData32, UserOperation } from "@alto/types"
+import { Address, EntryPointAbi, errorCauseSchema, HexData32, RpcError, UserOperation } from "@alto/types"
 import { Logger } from "@alto/utils"
 import { Mutex } from "async-mutex"
 import {
@@ -8,18 +7,16 @@ import {
     Block,
     Chain,
     ContractFunctionExecutionError,
-    ContractFunctionRevertedError,
-    PublicClient,
+    ContractFunctionRevertedError, getContract, PublicClient,
     Transport,
     WalletClient,
     WatchBlocksReturnType,
-    WriteContractParameters,
-    getContract
+    WriteContractParameters
 } from "viem"
-import { SenderManager } from "./senderManager"
-import { Monitor } from "./monitoring"
 import { fromZodError } from "zod-validation-error"
 import { getGasPrice } from "./gasPrice"
+import { Monitor } from "./monitoring"
+import { SenderManager } from "./senderManager"
 
 export interface GasEstimateResult {
     preverificationGas: bigint

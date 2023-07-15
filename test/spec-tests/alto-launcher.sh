@@ -12,7 +12,7 @@ case $1 in
 	echo "deploying EntryPoint..."
 	(cd ./bundler-spec-tests/@account-abstraction && yarn deploy --network localhost)
 	echo waiting for bundler to start
-	./waitForBundler.sh http://localhost:3000/rpc
+	./waitForBundler.sh http://localhost:8545
 	;;
  stop)
  	docker-compose down -t 3

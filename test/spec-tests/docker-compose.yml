@@ -5,7 +5,7 @@ services:
         container_name: alto
         build: ../../
         ports: [ "3000:3000" ]
-        command: --config config.localhost.json --rpcUrl http://anvil:8545
+        command: --config config.localhost.json --rpcUrl http://geth:8545
 
         mem_limit: 300M
         logging:
@@ -14,10 +14,18 @@ services:
                 max-size: 10m
                 max-file: "10"
         depends_on:
-            anvil:
+            geth:
                 condition: service_started
 
-    anvil:
-        container_name: anvil
-        build: anvil
+    # anvil:
+    #     container_name: anvil
+    #     build: anvil
+    #     ports: [ "8545:8545" ]
+
+    geth:
+        container_name: geth
+        image: ethereum/client-go:release-1.10
         ports: [ "8545:8545" ]
+        command: "--miner.gaslimit 12000000 --http --http.api personal,eth,net,web3,debug --http.vhosts '*,localhost,host.docker.internal' --http.addr \"0.0.0.0\" --ignore-legacy-receipts --allow-insecure-unlock --rpc.allow-unprotected-txs --dev --verbosity 2 --nodiscover --maxpeers 0 --mine --miner.threads 1 --networkid=31337"
+        environment:
+            NETWORK_ID: 31337

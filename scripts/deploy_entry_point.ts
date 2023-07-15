@@ -45,8 +45,6 @@ const deployLocalEntryPoint = async function (): Promise<string> {
         throw new Error("entry point deployment failed")
     }
 
-    console.log("entryPoint deployed", entryPointAddress)
-
     return entryPointAddress
 }
 

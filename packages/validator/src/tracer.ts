@@ -1,12 +1,15 @@
+// import { initDebugLogger } from "@alto/utils"
 import {
     Account,
-    Chain,
+    Chain, formatTransactionRequest,
+    // formatTransactionRequest,
     PublicClient,
     TransactionRequest,
     Transport,
-    WalletClient,
-    formatTransactionRequest
+    WalletClient
 } from "viem"
+// import { JsonRpcProvider } from '@ethersproject/providers'
+// import { resolveProperties } from 'ethers/lib/utils'
 // from:https://geth.ethereum.org/docs/rpc/ns-debug#javascript-based-tracing
 //
 
@@ -24,23 +27,15 @@ export async function debug_traceCall(
     client: PublicClient | WalletClient,
     tx: TransactionRequest,
     options: TraceOptions
-): Promise<TraceResult> {
+): Promise<TraceResult | any> {
     const traceOptions = tracer2string(options)
+
     const ret = await client
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
-        .request({ method: "debug_traceCall", params: [formatTransactionRequest(tx), "latest", traceOptions] })
+        .request({ method: "debug_traceCall", params: [formatTransactionRequest(tx), 'latest', traceOptions] })
         .catch((e: unknown) => {
             if (e instanceof Error) {
-                // console.log("ex=", e.message)
-                // console.log(
-                //     "tracer=",
-                //     traceOptions.tracer
-                //         ?.toString()
-                //         .split("\n")
-                //         .map((line, index) => `${index + 1}: ${line}`)
-                //         .join("\n")
-                // )
                 throw e
             } else {
                 console.log("error", e)
@@ -92,10 +87,7 @@ export function getTracerBodyString(func: LogTracerFunc): string {
     }
     let ret = match[1]
     ret = ret
-        // .replace(/\/\/.*\n/g,'\n')
-        // .replace(/\n\s*\n/g, '\n')
         .replace(/\b(?:const|let)\b/g, "")
-    // console.log('== tracer source',ret.split('\n').map((line,index)=>`${index}: ${line}`).join('\n'))
     return ret
 }
 

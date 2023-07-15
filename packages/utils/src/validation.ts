@@ -1,5 +1,5 @@
 import { packUserOp } from "@account-abstraction/utils"
-import { UserOperation } from "@alto/types"
+import { RpcError, UserOperation } from "@alto/types"
 import { toBytes, toHex } from "viem"
 
 export interface GasOverheads {
@@ -71,3 +71,10 @@ export function calcPreVerificationGas(userOperation: UserOperation, overheads?:
     const ret = Math.round(callDataCost + ov.fixed / ov.bundleSize + ov.perUserOp + ov.perUserOpWord * lengthInWord)
     return ret
 }
+
+export function requireCond(cond: boolean, msg: string, code?: number, data: any = undefined): void {
+    if (!cond) {
+      throw new RpcError(msg, code, data)
+    }
+}
+

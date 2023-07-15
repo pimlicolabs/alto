@@ -15,25 +15,20 @@ import {
     EstimateUserOperationGasResponseResult,
     GetUserOperationByHashResponseResult,
     GetUserOperationReceiptResponseResult,
-    HexData32,
-    PimlicoGetUserOperationStatusResponseResult,
-    RpcError,
+    HexData32, logSchema, PimlicoGetUserOperationStatusResponseResult, receiptSchema, RpcError,
     SendUserOperationResponseResult,
     SupportedEntryPointsResponseResult,
-    UserOperation,
-    logSchema,
-    receiptSchema
+    UserOperation
 } from "@alto/types"
-import { Logger, calcPreVerificationGas } from "@alto/utils"
+import { calcPreVerificationGas, Logger } from "@alto/utils"
 import { IValidator } from "@alto/validator"
 import {
     decodeFunctionData,
     getAbiItem,
-    getContract,
+    getContract, Transaction,
     TransactionNotFoundError,
-    TransactionReceiptNotFoundError,
-    Transaction,
-    TransactionReceipt
+    TransactionReceipt,
+    TransactionReceiptNotFoundError
 } from "viem"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
@@ -404,7 +399,8 @@ export class RpcHandler implements IRpcEndpoint {
 
     // rome-ignore lint/nursery/useCamelCase: <explanation>
     async debug_bundler_clearState(): Promise<BundlerClearStateResponseResult> {
-        throw new Error("Method not implemented.")
+        // throw new Error("Method not implemented.")
+        return "ok";
     }
 
     // rome-ignore lint/nursery/useCamelCase: <explanation>
@@ -419,7 +415,8 @@ export class RpcHandler implements IRpcEndpoint {
 
     // rome-ignore lint/nursery/useCamelCase: <explanation>
     async debug_bundler_setBundlingMode(_bundlingMode: BundlingMode): Promise<BundlerSetBundlingModeResponseResult> {
-        throw new Error("Method not implemented.")
+        // throw new Error("Method not implemented.")
+        return "ok";
     }
 
     // rome-ignore lint/nursery/useCamelCase: <explanation>
