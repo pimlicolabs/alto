@@ -91,7 +91,7 @@ export class Server {
                     data: err.data,
                     code: err.code
                 }
-                await reply.status(400).send(rpcError)
+                await reply.status(400).send({ error: rpcError, jsonrpc: "2.0", id: 1 })
                 this.fastify.log.info(rpcError, "error reply")
             } else {
                 if (err instanceof Error) {
