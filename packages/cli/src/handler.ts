@@ -72,6 +72,26 @@ const dfkTestnet: Chain = {
     testnet: true
 }
 
+const linea: Chain = {
+    id: 59144,
+    name: "Linea Mainnet",
+    network: "linea",
+    nativeCurrency: {
+        name: "ETH",
+        symbol: "ETH",
+        decimals: 18
+    },
+    rpcUrls: {
+        default: {
+            http: []
+        },
+        public: {
+            http: []
+        }
+    },
+    testnet: false
+}
+
 function getChain(chainId: number) {
     if (chainId === 36865) {
         return customTestnet
@@ -79,6 +99,10 @@ function getChain(chainId: number) {
 
     if (chainId === 335) {
         return dfkTestnet
+    }
+
+    if (chainId === 59144) {
+        return linea
     }
 
     for (const chain of Object.values(chains)) {
