@@ -210,7 +210,10 @@ export class RpcHandler implements IRpcEndpoint {
 
         // Only query up to the last `fullBlockRange` = 20000 blocks
         const latestBlock = await this.config.publicClient.getBlockNumber()
-        const fullBlockRange = 20000n
+        let fullBlockRange = 20000n
+        if (this.config.chainId === 335) {
+            fullBlockRange = 2000n
+        }
 
         let fromBlock: bigint
         if (this.config.usingTenderly) {
@@ -284,7 +287,10 @@ export class RpcHandler implements IRpcEndpoint {
 
         // Only query up to the last `fullBlockRange` = 20000 blocks
         const latestBlock = await this.config.publicClient.getBlockNumber()
-        const fullBlockRange = 20000n
+        let fullBlockRange = 20000n
+        if (this.config.chainId === 335) {
+            fullBlockRange = 2000n
+        }
 
         let fromBlock: bigint
         if (this.config.usingTenderly) {
