@@ -6,7 +6,8 @@ enum ChainId {
     Goerli = 5,
     Polygon = 137,
     Mumbai = 80001,
-    LineaTestnet = 59140
+    LineaTestnet = 59140,
+    Linea = 59144
 }
 
 function getGasStationUrl(chainId: ChainId.Polygon | ChainId.Mumbai): string {
@@ -69,7 +70,7 @@ export async function getGasPrice(
     let gasPrice = await publicClient.getGasPrice()
 
     let maxPriorityFeePerGas = 2_000_000_000n > gasPrice ? gasPrice : 2_000_000_000n
-    if (chainId === ChainId.LineaTestnet || chainId === ChainId.Goerli) {
+    if (chainId === ChainId.LineaTestnet || chainId === ChainId.Goerli || chainId === ChainId.Linea) {
         const feeHistory = await publicClient.getFeeHistory({
             blockCount: 10,
             rewardPercentiles: [40],
