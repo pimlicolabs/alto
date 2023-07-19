@@ -1,6 +1,6 @@
 import { RpcHandlerConfig } from "@alto/config"
 import { IExecutor } from "@alto/executor"
-import { Monitor } from "@alto/executor/"
+import { Monitor, getGasPrice } from "@alto/executor/"
 import {
     Address,
     BundlerClearStateResponseResult,
@@ -17,6 +17,7 @@ import {
     GetUserOperationByHashResponseResult,
     GetUserOperationReceiptResponseResult,
     HexData32,
+    PimlicoGetUserOperationGasPriceResponseResult,
     PimlicoGetUserOperationStatusResponseResult,
     RpcError,
     SendUserOperationResponseResult,
@@ -128,6 +129,11 @@ export class RpcHandler implements IRpcEndpoint {
                 return {
                     method,
                     result: await this.pimlico_getUserOperationStatus(...request.params)
+                }
+            case "pimlico_getUserOperationGasPrice":
+                return {
+                    method,
+                    result: await this.pimlico_getUserOperationGasPrice(...request.params)
                 }
             case "debug_bundler_flushStuckTransactions":
                 return {
@@ -439,6 +445,25 @@ export class RpcHandler implements IRpcEndpoint {
         userOperationHash: HexData32
     ): Promise<PimlicoGetUserOperationStatusResponseResult> {
         return this.monitor.getUserOperationStatus(userOperationHash)
+    }
+
+    // rome-ignore lint/nursery/useCamelCase: <explanation>
+    async pimlico_getUserOperationGasPrice(): Promise<PimlicoGetUserOperationGasPriceResponseResult> {
+        const gasPrice = await getGasPrice(this.config.chainId, this.config.publicClient, this.logger)
+        return {
+            slow: {
+                maxFeePerGas: (gasPrice.maxFeePerGas * 105n) / 100n,
+                maxPriorityFeePerGas: (gasPrice.maxPriorityFeePerGas * 105n) / 100n
+            },
+            standard: {
+                maxFeePerGas: (gasPrice.maxFeePerGas * 110n) / 100n,
+                maxPriorityFeePerGas: (gasPrice.maxPriorityFeePerGas * 110n) / 100n
+            },
+            fast: {
+                maxFeePerGas: (gasPrice.maxFeePerGas * 115n) / 100n,
+                maxPriorityFeePerGas: (gasPrice.maxPriorityFeePerGas * 115n) / 100n
+            }
+        }
     }
 
     // rome-ignore lint/nursery/useCamelCase: <explanation>

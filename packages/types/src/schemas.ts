@@ -139,6 +139,11 @@ const pimlicoGetUserOperationStatusRequestSchema = z.object({
     params: z.tuple([hexData32Schema])
 })
 
+const pimlicoGetUserOperationGasPriceRequestSchema = z.object({
+    method: z.literal("pimlico_getUserOperationGasPrice"),
+    params: z.tuple([])
+})
+
 const bundlerFlushStuckTransactionsRequestSchema = z.object({
     method: z.literal("debug_bundler_flushStuckTransactions"),
     params: z.tuple([])
@@ -156,6 +161,7 @@ const bundlerRequestSchema = z.discriminatedUnion("method", [
     bundlerSendBundleNowRequestSchema,
     bundlerSetBundlingModeRequestSchema,
     pimlicoGetUserOperationStatusRequestSchema,
+    pimlicoGetUserOperationGasPriceRequestSchema,
     bundlerFlushStuckTransactionsRequestSchema
 ])
 
@@ -275,6 +281,26 @@ const pimlicoGetUserOperationStatusResponseSchema = z.object({
     result: userOperationStatus
 })
 
+const gasPriceSchema = z.object({
+    slow: z.object({
+        maxFeePerGas: z.bigint(),
+        maxPriorityFeePerGas: z.bigint()
+    }),
+    standard: z.object({
+        maxFeePerGas: z.bigint(),
+        maxPriorityFeePerGas: z.bigint()
+    }),
+    fast: z.object({
+        maxFeePerGas: z.bigint(),
+        maxPriorityFeePerGas: z.bigint()
+    })
+})
+
+const pimlicoGetUserOperationGasPriceResponseSchema = z.object({
+    method: z.literal("pimlico_getUserOperationGasPrice"),
+    result: gasPriceSchema
+})
+
 const bundlerFlushStuckTransactionsResponseSchema = z.object({
     method: z.literal("debug_bundler_flushStuckTransactions"),
     result: z.literal("ok")
@@ -292,6 +318,7 @@ const bundlerResponseSchema = z.discriminatedUnion("method", [
     bundlerSendBundleNowResponseSchema,
     bundlerSetBundlingModeResponseSchema,
     pimlicoGetUserOperationStatusResponseSchema,
+    pimlicoGetUserOperationGasPriceResponseSchema,
     bundlerFlushStuckTransactionsResponseSchema
 ])
 
@@ -308,6 +335,7 @@ export type BundlerDumpMempoolResponse = z.infer<typeof bundlerDumpMempoolRespon
 export type BundlerSendBundleNowResponse = z.infer<typeof bundlerSendBundleNowResponseSchema>
 export type BundlerSetBundlingModeResponse = z.infer<typeof bundlerSetBundlingModeResponseSchema>
 export type PimlicoGetUserOperationStatusResponse = z.infer<typeof pimlicoGetUserOperationStatusResponseSchema>
+export type PimlicoGetUserOperationGasPriceResponse = z.infer<typeof pimlicoGetUserOperationGasPriceResponseSchema>
 export type BundlerFlushStuckTransactionsResponse = z.infer<typeof bundlerFlushStuckTransactionsResponseSchema>
 
 export type ChainIdResponseResult = z.infer<typeof chainIdResponseSchema>["result"]
@@ -322,6 +350,9 @@ export type BundlerSendBundleNowResponseResult = z.infer<typeof bundlerSendBundl
 export type BundlerSetBundlingModeResponseResult = z.infer<typeof bundlerSetBundlingModeResponseSchema>["result"]
 export type PimlicoGetUserOperationStatusResponseResult = z.infer<
     typeof pimlicoGetUserOperationStatusResponseSchema
+>["result"]
+export type PimlicoGetUserOperationGasPriceResponseResult = z.infer<
+    typeof pimlicoGetUserOperationGasPriceResponseSchema
 >["result"]
 export type BundlerFlushStuckTransactionsResponseResult = z.infer<
     typeof bundlerFlushStuckTransactionsResponseSchema
@@ -340,6 +371,7 @@ export type BundlerDumpMempoolRequest = z.infer<typeof bundlerDumpMempoolRequest
 export type BundlerSendBundleNowRequest = z.infer<typeof bundlerSendBundleNowRequestSchema>
 export type BundlerSetBundlingModeRequest = z.infer<typeof bundlerSetBundlingModeRequestSchema>
 export type PimlicoGetUserOperationStatusRequest = z.infer<typeof pimlicoGetUserOperationStatusRequestSchema>
+export type PimlicoGetUserOperationGasPriceRequest = z.infer<typeof pimlicoGetUserOperationGasPriceRequestSchema>
 export type BundlerFlushStuckTransactionsRequest = z.infer<typeof bundlerFlushStuckTransactionsRequestSchema>
 
 export type ChainIdRequestParams = z.infer<typeof chainIdRequestSchema>["params"]
@@ -354,6 +386,9 @@ export type BundlerSendBundleNowRequestParams = z.infer<typeof bundlerSendBundle
 export type BundlerSetBundlingModeRequestParams = z.infer<typeof bundlerSetBundlingModeRequestSchema>["params"]
 export type PimlicoGetUserOperationStatusRequestParams = z.infer<
     typeof pimlicoGetUserOperationStatusRequestSchema
+>["params"]
+export type PimlicoGetUserOperationGasPriceRequestParams = z.infer<
+    typeof pimlicoGetUserOperationGasPriceRequestSchema
 >["params"]
 export type BundlerFlushStuckTransactionsRequestParams = z.infer<
     typeof bundlerFlushStuckTransactionsRequestSchema
@@ -375,6 +410,7 @@ export {
     bundlerSendBundleNowRequestSchema,
     bundlerSetBundlingModeRequestSchema,
     pimlicoGetUserOperationStatusRequestSchema,
+    pimlicoGetUserOperationGasPriceRequestSchema,
     bundlerRequestSchema,
     jsonRpcSchema,
     jsonRpcResultSchema,
@@ -393,6 +429,7 @@ export {
     bundlerSendBundleNowResponseSchema,
     bundlerSetBundlingModeResponseSchema,
     pimlicoGetUserOperationStatusResponseSchema,
+    pimlicoGetUserOperationGasPriceResponseSchema,
     bundlerResponseSchema
 }
 
