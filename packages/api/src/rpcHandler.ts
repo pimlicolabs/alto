@@ -195,6 +195,14 @@ export class RpcHandler implements IRpcEndpoint {
 
         this.logger.trace({ userOperation, entryPoint }, "beginning validation")
 
+        if (
+            userOperation.preVerificationGas === 0n ||
+            userOperation.verificationGasLimit === 0n ||
+            userOperation.callGasLimit === 0n
+        ) {
+            throw new RpcError("user operation gas limits must be larger than 0")
+        }
+
         await this.validator.validateUserOperation(userOperation)
 
         this.logger.trace({ userOperation, entryPoint }, "beginning execution")

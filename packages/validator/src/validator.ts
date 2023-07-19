@@ -1,4 +1,13 @@
-import { Address, EntryPointAbi, ExecutionResult, RpcError, UserOperation, ValidationErrors, entryPointErrorsSchema, entryPointExecutionErrorSchema } from "@alto/types"
+import {
+    Address,
+    EntryPointAbi,
+    ExecutionResult,
+    RpcError,
+    UserOperation,
+    ValidationErrors,
+    entryPointErrorsSchema,
+    entryPointExecutionErrorSchema
+} from "@alto/types"
 import { ValidationResult } from "@alto/types"
 import { Logger } from "@alto/utils"
 import { PublicClient, getContract, encodeFunctionData, decodeErrorResult } from "viem"
@@ -14,7 +23,7 @@ export interface IValidator {
 // let id = 0
 
 async function simulateTenderlyCall(publicClient: PublicClient, params: any) {
-    const response = await publicClient.transport.request({method: "eth_call", params}).catch((e) => {
+    const response = await publicClient.transport.request({ method: "eth_call", params }).catch((e) => {
         return e
     })
 
@@ -33,14 +42,18 @@ async function simulateTenderlyCall(publicClient: PublicClient, params: any) {
     return parsedObject.cause.data.data
 }
 
-async function getSimulationResult(errorResult: unknown, logger: Logger, desiredErrorName: "ValidationResult" | "ExecutionResult", usingTenderly = false) {
-    const entryPointErrorSchemaParsing = usingTenderly ? entryPointErrorsSchema.safeParse(errorResult) : entryPointExecutionErrorSchema.safeParse(errorResult)
+async function getSimulationResult(
+    errorResult: unknown,
+    logger: Logger,
+    desiredErrorName: "ValidationResult" | "ExecutionResult",
+    usingTenderly = false
+) {
+    const entryPointErrorSchemaParsing = usingTenderly
+        ? entryPointErrorsSchema.safeParse(errorResult)
+        : entryPointExecutionErrorSchema.safeParse(errorResult)
     if (!entryPointErrorSchemaParsing.success) {
         const err = fromZodError(entryPointErrorSchemaParsing.error)
-        logger.error(
-            { error: err.message },
-            "unexpected error during valiation"
-        )
+        logger.error({ error: err.message }, "unexpected error during valiation")
         err.message = `User Operation simulation returned unexpected invalid response: ${err.message}`
         throw err
     }
