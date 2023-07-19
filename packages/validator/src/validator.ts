@@ -54,6 +54,7 @@ async function getSimulationResult(
     if (!entryPointErrorSchemaParsing.success) {
         const err = fromZodError(entryPointErrorSchemaParsing.error)
         logger.error({ error: err.message }, "unexpected error during valiation")
+        logger.error(JSON.stringify(errorResult))
         err.message = `User Operation simulation returned unexpected invalid response: ${err.message}`
         throw err
     }
