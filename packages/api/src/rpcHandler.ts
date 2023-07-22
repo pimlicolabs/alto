@@ -169,12 +169,17 @@ export class RpcHandler implements IRpcEndpoint {
 
         const executionResult = await this.validator.getExecutionResult(userOperation)
 
-        const preVerificationGas = BigInt(calcPreVerificationGas(userOperation))
+        let preVerificationGas = BigInt(calcPreVerificationGas(userOperation))
+
         const verificationGas = BigInt(executionResult.preOpGas)
         const calculatedCallGasLimit =
             executionResult.paid / userOperation.maxFeePerGas - executionResult.preOpGas + 21000n
 
         const callGasLimit = calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n
+
+        if (this.config.chainId === 59140 || this.config.chainId === 59142) {
+            preVerificationGas = preVerificationGas + (verificationGas + callGasLimit) / 3n
+        }
 
         return {
             preVerificationGas,
