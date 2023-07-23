@@ -72,7 +72,10 @@ const jsonRpcSchema = z
         jsonrpc: z.literal("2.0"),
         id: z.number(),
         method: z.string(),
-        params: z.array(z.unknown())
+        params: z
+            .array(z.unknown())
+            .optional()
+            .transform((val) => val ?? [])
     })
     .strict()
 
