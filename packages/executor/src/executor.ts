@@ -67,7 +67,6 @@ export class BasicExecutor implements IExecutor {
     simulateTransaction: boolean
 
     mutex: Mutex
-    replaceMutex: Mutex
 
     constructor(
         beneficiary: Address,
@@ -91,7 +90,6 @@ export class BasicExecutor implements IExecutor {
         this.simulateTransaction = simulateTransaction
 
         this.mutex = new Mutex()
-        this.replaceMutex = new Mutex()
     }
     async flushStuckTransactions(): Promise<void> {
         const gasPrice = 10n * (await this.publicClient.getGasPrice())
@@ -153,18 +151,16 @@ export class BasicExecutor implements IExecutor {
         }
         this.unWatch = this.publicClient.watchBlocks({
             onBlock: async (block) => {
-                await this.replaceMutex.runExclusive(async () => {
-                    // Use an arrow function to ensure correct binding of `this`
-                    this.checkAndReplaceTransactions(block)
-                        .then(() => {
-                            this.logger.trace("block handled")
-                            // Handle the resolution of the promise here, if needed
-                        })
-                        .catch((error) => {
-                            // Handle any errors that occur during the execution of the promise
-                            this.logger.error({ error }, "error while handling block")
-                        })
-                })
+                // Use an arrow function to ensure correct binding of `this`
+                this.checkAndReplaceTransactions(block)
+                    .then(() => {
+                        this.logger.trace("block handled")
+                        // Handle the resolution of the promise here, if needed
+                    })
+                    .catch((error) => {
+                        // Handle any errors that occur during the execution of the promise
+                        this.logger.error({ error }, "error while handling block")
+                    })
             },
             onError: (error) => {
                 this.logger.error({ error }, "error while watching blocks")
@@ -199,8 +195,13 @@ export class BasicExecutor implements IExecutor {
 
         const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
 
-        const promises = opHashes.map(async (opHash) => {
+        opHashes.map(async (opHash) => {
             const opStatus = this.monitoredTransactions[opHash]
+            if (opStatus === undefined) {
+                this.logger.error({ opHash }, "opStatus is undefined")
+                return
+            }
+
             const txIncluded = await transactionIncluded(opStatus.transactionHash, this.publicClient)
             const childLogger = this.logger.child({
                 userOpHash: opHash,
@@ -314,8 +315,6 @@ export class BasicExecutor implements IExecutor {
                 return
             }
         })
-
-        await Promise.all(promises)
     }
 
     async bundle(entryPoint: Address, op: UserOperation): Promise<void> {
