@@ -198,6 +198,12 @@ export class RpcHandler implements IRpcEndpoint {
             throw new Error(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.entryPoint}`)
         }
 
+        if (this.config.chainId === 44787 || this.config.chainId === 42220) {
+            if (userOperation.maxFeePerGas !== userOperation.maxPriorityFeePerGas) {
+                throw new RpcError("maxPriorityFeePerGas must equal maxFeePerGas on Celo chains")
+            }
+        }
+
         this.logger.trace({ userOperation, entryPoint }, "beginning validation")
 
         if (
