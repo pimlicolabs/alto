@@ -67,6 +67,8 @@ export class BasicExecutor implements IExecutor {
     simulateTransaction: boolean
 
     mutex: Mutex
+    replaceMutex: Mutex
+
     constructor(
         beneficiary: Address,
         publicClient: PublicClient,
@@ -89,6 +91,7 @@ export class BasicExecutor implements IExecutor {
         this.simulateTransaction = simulateTransaction
 
         this.mutex = new Mutex()
+        this.replaceMutex = new Mutex()
     }
     async flushStuckTransactions(): Promise<void> {
         const gasPrice = 10n * (await this.publicClient.getGasPrice())
@@ -149,17 +152,19 @@ export class BasicExecutor implements IExecutor {
             return
         }
         this.unWatch = this.publicClient.watchBlocks({
-            onBlock: (block) => {
-                // Use an arrow function to ensure correct binding of `this`
-                this.checkAndReplaceTransactions(block)
-                    .then(() => {
-                        this.logger.trace("block handled")
-                        // Handle the resolution of the promise here, if needed
-                    })
-                    .catch((error) => {
-                        // Handle any errors that occur during the execution of the promise
-                        this.logger.error({ error }, "error while handling block")
-                    })
+            onBlock: async (block) => {
+                await this.replaceMutex.runExclusive(async () => {
+                    // Use an arrow function to ensure correct binding of `this`
+                    this.checkAndReplaceTransactions(block)
+                        .then(() => {
+                            this.logger.trace("block handled")
+                            // Handle the resolution of the promise here, if needed
+                        })
+                        .catch((error) => {
+                            // Handle any errors that occur during the execution of the promise
+                            this.logger.error({ error }, "error while handling block")
+                        })
+                })
             },
             onError: (error) => {
                 this.logger.error({ error }, "error while watching blocks")
@@ -194,7 +199,7 @@ export class BasicExecutor implements IExecutor {
 
         const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
 
-        opHashes.map(async (opHash) => {
+        const promises = opHashes.map(async (opHash) => {
             const opStatus = this.monitoredTransactions[opHash]
             const txIncluded = await transactionIncluded(opStatus.transactionHash, this.publicClient)
             const childLogger = this.logger.child({
@@ -221,26 +226,13 @@ export class BasicExecutor implements IExecutor {
                 "queried gas fee parameters"
             )
 
-            if (this.walletClient.chain.id === 59140) {
-                if (
-                    transaction.maxFeePerGas === undefined ||
-                    transaction.maxPriorityFeePerGas === undefined ||
-                    transaction.maxFeePerGas >= gasPriceParameters.maxFeePerGas
-                ) {
-                    childLogger.debug(
-                        { maxFeePerGas: transaction.maxFeePerGas, gasPriceParameters },
-                        "gas price is high enough, not replacing transaction"
-                    )
-                    return
-                }
-            } else if (
-                block.baseFeePerGas === null ||
+            if (
                 transaction.maxFeePerGas === undefined ||
                 transaction.maxPriorityFeePerGas === undefined ||
-                block.baseFeePerGas <= transaction.maxFeePerGas
+                transaction.maxFeePerGas >= gasPriceParameters.maxFeePerGas
             ) {
                 childLogger.debug(
-                    { baseFeePerGas: block.baseFeePerGas, maxFeePerGas: transaction.maxFeePerGas },
+                    { maxFeePerGas: transaction.maxFeePerGas, gasPriceParameters },
                     "gas price is high enough, not replacing transaction"
                 )
                 return
@@ -250,7 +242,7 @@ export class BasicExecutor implements IExecutor {
             delete this.monitoredTransactions[opHash]
 
             let request
-            if (this.walletClient.chain?.id !== 534353) {
+            if (this.walletClient.chain.id !== 534353) {
                 request = {
                     ...transaction,
                     maxFeePerGas:
@@ -322,6 +314,8 @@ export class BasicExecutor implements IExecutor {
                 return
             }
         })
+
+        await Promise.all(promises)
     }
 
     async bundle(entryPoint: Address, op: UserOperation): Promise<void> {
@@ -470,9 +464,6 @@ export class BasicExecutor implements IExecutor {
                     throw new RpcError(`user operation reverted: ${reason}`)
                 } else {
                     childLogger.error({ error: e }, "unknown error bundling user operation")
-
-                    const epNonce = await ep.read.getNonce([op.sender, 0n])
-                    console.log("epNonce", epNonce)
 
                     throw e
                 }
