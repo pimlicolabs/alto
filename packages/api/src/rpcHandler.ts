@@ -167,11 +167,15 @@ export class RpcHandler implements IRpcEndpoint {
             throw new RpcError("user operation max fee per gas must be larger than 0 during gas estimation")
         }
 
+        userOperation.preVerificationGas = 1_000_000n
+        userOperation.verificationGasLimit = 10_000_000n
+        userOperation.callGasLimit = 0n
+
         const executionResult = await this.validator.getExecutionResult(userOperation)
 
         let preVerificationGas = BigInt(calcPreVerificationGas(userOperation))
 
-        const verificationGas = BigInt(executionResult.preOpGas)
+        const verificationGas = ((executionResult.preOpGas - userOperation.preVerificationGas) * 3n) / 2n
         const calculatedCallGasLimit =
             executionResult.paid / userOperation.maxFeePerGas - executionResult.preOpGas + 21000n
 
