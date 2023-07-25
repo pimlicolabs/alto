@@ -208,6 +208,10 @@ export class RpcHandler implements IRpcEndpoint {
             }
         }
 
+        if (userOperation.verificationGasLimit < 10000n) {
+            throw new RpcError("verificationGasLimit must be at least 10000")
+        }
+
         this.logger.trace({ userOperation, entryPoint }, "beginning validation")
 
         if (
