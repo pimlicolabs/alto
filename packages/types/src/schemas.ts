@@ -48,6 +48,25 @@ const userOperationSchema = z
         return val
     })
 
+const partialUserOperationSchema = z
+    .object({
+        sender: addressSchema,
+        nonce: hexNumberSchema,
+        initCode: hexDataSchema,
+        callData: hexDataSchema,
+        callGasLimit: hexNumberSchema.default(1n),
+        verificationGasLimit: hexNumberSchema.default(1n),
+        preVerificationGas: hexNumberSchema.default(1n),
+        maxPriorityFeePerGas: hexNumberSchema.default(1n),
+        maxFeePerGas: hexNumberSchema.default(1n),
+        paymasterAndData: hexDataSchema,
+        signature: hexDataSchema
+    })
+    .strict()
+    .transform((val) => {
+        return val
+    })
+
 export type UserOperation = {
     sender: Address
     nonce: bigint
@@ -99,7 +118,7 @@ const supportedEntryPointsRequestSchema = z.object({
 
 const estimateUserOperationGasRequestSchema = z.object({
     method: z.literal("eth_estimateUserOperationGas"),
-    params: z.tuple([userOperationSchema, addressSchema])
+    params: z.tuple([partialUserOperationSchema, addressSchema])
 })
 
 const sendUserOperationRequestSchema = z.object({
