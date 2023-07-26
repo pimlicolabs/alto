@@ -18,6 +18,10 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "string",
         require: true
     },
+    signerPrivateKeysExtra: {
+        description: "Private key of the signer",
+        type: "string"
+    },
     utilityPrivateKey: {
         description: "Private key of the utility account",
         type: "string",

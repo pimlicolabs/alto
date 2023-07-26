@@ -116,6 +116,9 @@ function getChain(chainId: number) {
 
 export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => {
     const parsedArgs = parseArgs(args)
+    if (parsedArgs.signerPrivateKeysExtra !== undefined) {
+        parsedArgs.signerPrivateKeys = [...parsedArgs.signerPrivateKeys, ...parsedArgs.signerPrivateKeysExtra]
+    }
     const handlerConfig: RpcHandlerConfig = await bundlerArgsToRpcHandlerConfig(parsedArgs)
     const client = handlerConfig.publicClient
 
