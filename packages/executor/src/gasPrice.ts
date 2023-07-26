@@ -45,10 +45,7 @@ export async function getPolygonGasPriceParameters(
         // take the standard speed here, SDK options will define the extra tip
         const parsedData = gasStationResult.parse(data)
 
-        return {
-            maxFeePerGas: (parsedData.fast.maxFeePerGas * 105n) / 100n,
-            maxPriorityFeePerGas: (parsedData.fast.maxPriorityFeePerGas * 105n) / 100n
-        }
+        return parsedData.fast
     } catch (e) {
         logger.error({ error: e }, "failed to get gas price from gas station, using default")
     }
