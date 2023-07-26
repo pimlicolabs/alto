@@ -289,15 +289,20 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         const tx = await getTransaction(txHash)
-        const decoded = decodeFunctionData({ abi: EntryPointAbi, data: tx.input })
-        if (decoded.functionName !== "handleOps") {
+        let op: any = undefined
+        try {
+            const decoded = decodeFunctionData({ abi: EntryPointAbi, data: tx.input })
+            if (decoded.functionName !== "handleOps") {
+                return null
+            }
+            const ops = decoded.args[0]
+            op = ops.find(
+                (op: UserOperation) =>
+                    op.sender === userOperationEvent.args.sender && op.nonce === userOperationEvent.args.nonce
+            )
+        } catch {
             return null
         }
-        const ops = decoded.args[0]
-        const op = ops.find(
-            (op: UserOperation) =>
-                op.sender === userOperationEvent.args.sender && op.nonce === userOperationEvent.args.nonce
-        )
 
         if (op === undefined) {
             return null
