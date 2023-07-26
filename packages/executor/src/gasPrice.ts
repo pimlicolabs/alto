@@ -46,8 +46,8 @@ export async function getPolygonGasPriceParameters(
         const parsedData = gasStationResult.parse(data)
 
         return {
-            maxFeePerGas: (parsedData.fast.maxFeePerGas * 110n) / 100n,
-            maxPriorityFeePerGas: (parsedData.fast.maxPriorityFeePerGas * 110n) / 100n
+            maxFeePerGas: (parsedData.fast.maxFeePerGas * 105n) / 100n,
+            maxPriorityFeePerGas: (parsedData.fast.maxPriorityFeePerGas * 105n) / 100n
         }
     } catch (e) {
         logger.error({ error: e }, "failed to get gas price from gas station, using default")
