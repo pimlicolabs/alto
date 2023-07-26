@@ -327,147 +327,145 @@ export class BasicExecutor implements IExecutor {
             walletClient: this.walletClient
         })
 
-        await this.mutex.runExclusive(async () => {
-            const childLogger = this.logger.child({ userOperation: op, entryPoint })
-            childLogger.debug("bundling user operation")
+        const childLogger = this.logger.child({ userOperation: op, entryPoint })
+        childLogger.debug("bundling user operation")
 
-            try {
-                const opHash = await ep.read.getUserOpHash([op])
-                childLogger.debug({ opHash }, "got op hash")
+        try {
+            const opHash = await ep.read.getUserOpHash([op])
+            childLogger.debug({ opHash }, "got op hash")
 
-                if (opHash in this.monitoredTransactions) {
-                    childLogger.debug({ opHash }, "user operation already being bundled")
-                    throw new RpcError(`user operation ${opHash} already being bundled`)
-                }
+            if (opHash in this.monitoredTransactions) {
+                childLogger.debug({ opHash }, "user operation already being bundled")
+                throw new RpcError(`user operation ${opHash} already being bundled`)
+            }
 
-                const gasLimit =
-                    (((op.preVerificationGas + 3n * op.verificationGasLimit + op.callGasLimit) * 12n) / 10n) *
-                    (this.walletClient.chain?.id === 42161 ? 8n : 1n)
+            const gasLimit =
+                (((op.preVerificationGas + 3n * op.verificationGasLimit + op.callGasLimit) * 12n) / 10n) *
+                (this.walletClient.chain?.id === 42161 ? 8n : 1n)
 
-                const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
-                childLogger.debug({ gasPriceParameters }, "got gas price")
+            const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
+            childLogger.debug({ gasPriceParameters }, "got gas price")
 
-                // const minGasPrice = (95n * gasPrice) / 100n
+            // const minGasPrice = (95n * gasPrice) / 100n
 
-                // if (op.maxFeePerGas < minGasPrice) {
-                //     childLogger.debug(
-                //         { gasPrice, userOperationMaxFeePerGas: op.maxFeePerGas, minGasPrice },
-                //         "user operation maxFeePerGas too low"
-                //     )
-                //     throw new RpcError(
-                //         `user operation maxFeePerGas too low, got ${formatGwei(
-                //             op.maxFeePerGas
-                //         )} gwei expected at least ${formatGwei(minGasPrice)} gwei`
-                //     )
-                // }
+            // if (op.maxFeePerGas < minGasPrice) {
+            //     childLogger.debug(
+            //         { gasPrice, userOperationMaxFeePerGas: op.maxFeePerGas, minGasPrice },
+            //         "user operation maxFeePerGas too low"
+            //     )
+            //     throw new RpcError(
+            //         `user operation maxFeePerGas too low, got ${formatGwei(
+            //             op.maxFeePerGas
+            //         )} gwei expected at least ${formatGwei(minGasPrice)} gwei`
+            //     )
+            // }
 
-                const nonce = await this.publicClient.getTransactionCount({
-                    address: wallet.address,
-                    blockTag: "pending"
+            const nonce = await this.publicClient.getTransactionCount({
+                address: wallet.address,
+                blockTag: "pending"
+            })
+            childLogger.trace({ nonce }, "got nonce")
+
+            let txHash: HexData32
+            if (this.simulateTransaction) {
+                const { request } = await ep.simulate.handleOps([[op], wallet.address], {
+                    gas: gasLimit,
+                    account: wallet,
+                    chain: this.walletClient.chain,
+                    maxFeePerGas: gasPriceParameters.maxFeePerGas,
+                    maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
+                    nonce: nonce
                 })
-                childLogger.trace({ nonce }, "got nonce")
 
-                let txHash: HexData32
-                if (this.simulateTransaction) {
-                    const { request } = await ep.simulate.handleOps([[op], wallet.address], {
-                        gas: gasLimit,
-                        account: wallet,
-                        chain: this.walletClient.chain,
-                        maxFeePerGas: gasPriceParameters.maxFeePerGas,
-                        maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
-                        nonce: nonce
-                    })
-
-                    // scroll alpha testnet doesn't support eip-1559 txs yet
-                    if (this.walletClient.chain?.id === 534353) {
-                        request.gasPrice = request.maxFeePerGas
-                        request.maxFeePerGas = undefined
-                        request.maxPriorityFeePerGas = undefined
-                    }
-
-                    const { chain: _chain, abi: _abi, ...loggingRequest } = request
-                    childLogger.trace({ request: { ...loggingRequest } }, "got request")
-
-                    txHash = await this.walletClient.writeContract(request)
-
-                    this.monitoredTransactions[opHash] = {
-                        transactionHash: txHash,
-                        transactionRequest: request,
-                        executor: wallet
-                    }
-                } else {
-                    txHash = await ep.write.handleOps([[op], wallet.address], {
-                        gas: gasLimit,
-                        account: wallet,
-                        chain: this.walletClient.chain,
-                        maxFeePerGas: gasPriceParameters.maxFeePerGas,
-                        maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
-                        nonce: nonce
-                    })
-
-                    this.monitoredTransactions[opHash] = {
-                        transactionHash: txHash,
-                        transactionRequest: {
-                            address: ep.address,
-                            abi: ep.abi,
-                            functionName: "handleOps",
-                            args: [[op], wallet.address],
-                            gas: gasLimit,
-                            account: wallet,
-                            chain: this.walletClient.chain,
-                            maxFeePerGas: gasPriceParameters.maxFeePerGas,
-                            maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
-                            nonce: nonce
-                        },
-                        executor: wallet
-                    }
+                // scroll alpha testnet doesn't support eip-1559 txs yet
+                if (this.walletClient.chain?.id === 534353) {
+                    request.gasPrice = request.maxFeePerGas
+                    request.maxFeePerGas = undefined
+                    request.maxPriorityFeePerGas = undefined
                 }
 
-                childLogger.info({ txHash, userOpHash: opHash }, "submitted bundle transaction")
+                const { chain: _chain, abi: _abi, ...loggingRequest } = request
+                childLogger.trace({ request: { ...loggingRequest } }, "got request")
 
-                this.monitor.setUserOperationStatus(opHash, { status: "submitted", transactionHash: txHash })
-            } catch (e: unknown) {
-                await this.senderManager.pushWallet(wallet)
+                txHash = await this.walletClient.writeContract(request)
 
-                if (e instanceof RpcError) {
-                    throw e
-                } else if (e instanceof ContractFunctionRevertedError) {
-                    childLogger.warn({ error: e }, "user operation reverted (ContractFunctionRevertedError)")
+                this.monitoredTransactions[opHash] = {
+                    transactionHash: txHash,
+                    transactionRequest: request,
+                    executor: wallet
+                }
+            } else {
+                txHash = await ep.write.handleOps([[op], wallet.address], {
+                    gas: gasLimit,
+                    account: wallet,
+                    chain: this.walletClient.chain,
+                    maxFeePerGas: gasPriceParameters.maxFeePerGas,
+                    maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
+                    nonce: nonce
+                })
 
-                    throw new RpcError(`user operation reverted: ${e.message}`)
-                } else if (e instanceof ContractFunctionExecutionError) {
-                    const cause = e.cause
-
-                    const errorCauseParsing = errorCauseSchema.safeParse(cause)
-
-                    if (!errorCauseParsing.success) {
-                        this.logger.error(
-                            {
-                                error: JSON.stringify(cause)
-                            },
-                            "error parsing error encountered during execution"
-                        )
-                        throw new Error(`error parsing error cause: ${fromZodError(errorCauseParsing.error)}`)
-                    }
-
-                    const errorCause = errorCauseParsing.data.data
-
-                    if (errorCause.errorName !== "FailedOp") {
-                        throw new Error(`error cause is not FailedOp: ${JSON.stringify(errorCause)}`)
-                    }
-
-                    const reason = errorCause.args.reason
-
-                    childLogger.info({ error: reason }, "user operation reverted")
-
-                    throw new RpcError(`user operation reverted: ${reason}`)
-                } else {
-                    childLogger.error({ error: e }, "unknown error bundling user operation")
-
-                    throw e
+                this.monitoredTransactions[opHash] = {
+                    transactionHash: txHash,
+                    transactionRequest: {
+                        address: ep.address,
+                        abi: ep.abi,
+                        functionName: "handleOps",
+                        args: [[op], wallet.address],
+                        gas: gasLimit,
+                        account: wallet,
+                        chain: this.walletClient.chain,
+                        maxFeePerGas: gasPriceParameters.maxFeePerGas,
+                        maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
+                        nonce: nonce
+                    },
+                    executor: wallet
                 }
             }
-            this.startWatchingBlocks()
-        })
+
+            childLogger.info({ txHash, userOpHash: opHash }, "submitted bundle transaction")
+
+            this.monitor.setUserOperationStatus(opHash, { status: "submitted", transactionHash: txHash })
+        } catch (e: unknown) {
+            await this.senderManager.pushWallet(wallet)
+
+            if (e instanceof RpcError) {
+                throw e
+            } else if (e instanceof ContractFunctionRevertedError) {
+                childLogger.warn({ error: e }, "user operation reverted (ContractFunctionRevertedError)")
+
+                throw new RpcError(`user operation reverted: ${e.message}`)
+            } else if (e instanceof ContractFunctionExecutionError) {
+                const cause = e.cause
+
+                const errorCauseParsing = errorCauseSchema.safeParse(cause)
+
+                if (!errorCauseParsing.success) {
+                    this.logger.error(
+                        {
+                            error: JSON.stringify(cause)
+                        },
+                        "error parsing error encountered during execution"
+                    )
+                    throw new Error(`error parsing error cause: ${fromZodError(errorCauseParsing.error)}`)
+                }
+
+                const errorCause = errorCauseParsing.data.data
+
+                if (errorCause.errorName !== "FailedOp") {
+                    throw new Error(`error cause is not FailedOp: ${JSON.stringify(errorCause)}`)
+                }
+
+                const reason = errorCause.args.reason
+
+                childLogger.info({ error: reason }, "user operation reverted")
+
+                throw new RpcError(`user operation reverted: ${reason}`)
+            } else {
+                childLogger.error({ error: e }, "unknown error bundling user operation")
+
+                throw e
+            }
+        }
+        this.startWatchingBlocks()
     }
 }
