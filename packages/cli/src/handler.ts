@@ -92,9 +92,33 @@ const linea: Chain = {
     testnet: false
 }
 
+const base: Chain = {
+    id: 8453,
+    name: "Base Mainnet",
+    network: "base",
+    nativeCurrency: {
+        name: "ETH",
+        symbol: "ETH",
+        decimals: 18
+    },
+    rpcUrls: {
+        default: {
+            http: []
+        },
+        public: {
+            http: []
+        }
+    },
+    testnet: false
+}
+
 function getChain(chainId: number) {
     if (chainId === 36865) {
         return customTestnet
+    }
+
+    if (chainId === 8453) {
+        return base
     }
 
     if (chainId === 335) {
