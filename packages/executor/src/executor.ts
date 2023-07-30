@@ -1,6 +1,6 @@
 import { EntryPointAbi, RpcError, errorCauseSchema } from "@alto/types"
 import { Address, HexData32, UserOperation } from "@alto/types"
-import { Logger } from "@alto/utils"
+import { Logger, calcPreVerificationGas } from "@alto/utils"
 import { Mutex } from "async-mutex"
 import {
     Abi,
@@ -339,9 +339,15 @@ export class BasicExecutor implements IExecutor {
                 throw new RpcError(`user operation ${opHash} already being bundled`)
             }
 
-            const gasLimit =
-                (((op.preVerificationGas + 3n * op.verificationGasLimit + op.callGasLimit) * 12n) / 10n) *
-                (this.walletClient.chain?.id === 42161 ? 8n : 1n)
+            const chainId = this.walletClient.chain.id
+
+            let gasLimit = ((op.preVerificationGas + 3n * op.verificationGasLimit + op.callGasLimit) * 12n) / 10n
+            if (chainId === 42161) {
+                gasLimit *= 8n
+            } else if (chainId === 10 || chainId === 420) {
+                // gasLimit = await ep.estimateGas.handleOps([[op], wallet.address], { account: wallet })
+                gasLimit = (calcPreVerificationGas(op) + 3n * op.verificationGasLimit + op.callGasLimit) * 12n / 10n
+            }
 
             const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
             childLogger.debug({ gasPriceParameters }, "got gas price")

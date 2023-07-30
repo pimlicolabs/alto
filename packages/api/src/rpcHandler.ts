@@ -26,7 +26,7 @@ import {
     logSchema,
     receiptSchema
 } from "@alto/types"
-import { Logger, calcPreVerificationGas } from "@alto/utils"
+import { Logger, calcPreVerificationGas, calcOptimismPreVerificationGas } from "@alto/utils"
 import { IValidator } from "@alto/validator"
 import {
     decodeFunctionData,
@@ -183,6 +183,14 @@ export class RpcHandler implements IRpcEndpoint {
 
         if (this.config.chainId === 59140 || this.config.chainId === 59142) {
             preVerificationGas = preVerificationGas + (verificationGas + callGasLimit) / 3n
+        } else if (this.config.chainId === 10 || this.config.chainId === 420) {
+            preVerificationGas = await calcOptimismPreVerificationGas(
+                // @ts-ignore
+                this.config.publicClient,
+                userOperation,
+                entryPoint,
+                preVerificationGas
+            )
         }
 
         return {

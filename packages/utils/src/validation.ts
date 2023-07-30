@@ -1,6 +1,16 @@
-import { packUserOp } from "@account-abstraction/utils"
-import { UserOperation } from "@alto/types"
-import { toBytes, toHex } from "viem"
+import { Address, EntryPointAbi, RpcError, UserOperation } from "@alto/types"
+import {
+    Chain,
+    PublicClient,
+    Transport,
+    concat,
+    encodeAbiParameters,
+    getContract,
+    getFunctionSelector,
+    serializeTransaction,
+    toBytes,
+    toHex
+} from "viem"
 
 export interface GasOverheads {
     /**
@@ -52,22 +62,173 @@ export const DefaultGasOverheads: GasOverheads = {
 }
 
 /**
+ * pack the userOperation
+ * @param op
+ *  "false" to pack entire UserOp, for calculating the calldata cost of putting it on-chain.
+ */
+export function packUserOp(op: UserOperation): `0x${string}` {
+    return encodeAbiParameters(
+        [
+            {
+                internalType: "address",
+                name: "sender",
+                type: "address"
+            },
+            {
+                internalType: "uint256",
+                name: "nonce",
+                type: "uint256"
+            },
+            {
+                internalType: "bytes",
+                name: "initCode",
+                type: "bytes"
+            },
+            {
+                internalType: "bytes",
+                name: "callData",
+                type: "bytes"
+            },
+            {
+                internalType: "uint256",
+                name: "callGasLimit",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "verificationGasLimit",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "preVerificationGas",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "maxFeePerGas",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "maxPriorityFeePerGas",
+                type: "uint256"
+            },
+            {
+                internalType: "bytes",
+                name: "paymasterAndData",
+                type: "bytes"
+            },
+            {
+                internalType: "bytes",
+                name: "signature",
+                type: "bytes"
+            }
+        ],
+        [
+            op.sender,
+            op.nonce,
+            op.initCode,
+            op.callData,
+            op.callGasLimit,
+            op.verificationGasLimit,
+            op.preVerificationGas,
+            op.maxFeePerGas,
+            op.maxPriorityFeePerGas,
+            op.paymasterAndData,
+            op.signature
+        ]
+    )
+}
+
+/**
  * calculate the preVerificationGas of the given UserOperation
  * preVerificationGas (by definition) is the cost overhead that can't be calculated on-chain.
  * it is based on parameters that are defined by the Ethereum protocol for external transactions.
  * @param userOp filled userOp to calculate. The only possible missing fields can be the signature and preVerificationGas itself
  * @param overheads gas overheads to use, to override the default values
  */
-export function calcPreVerificationGas(userOperation: UserOperation, overheads?: Partial<GasOverheads>): number {
+export function calcPreVerificationGas(userOperation: UserOperation, overheads?: Partial<GasOverheads>): bigint {
     const ov = { ...DefaultGasOverheads, ...(overheads ?? {}) }
 
     const p = userOperation
     p.preVerificationGas ?? 21000n // dummy value, just for calldata cost
     p.signature = p.signature === "0x" ? toHex(Buffer.alloc(ov.sigSize, 1)) : p.signature // dummy signature
 
-    const packed = toBytes(packUserOp(p, false))
+    const packed = toBytes(packUserOp(p))
     const lengthInWord = (packed.length + 31) / 32
     const callDataCost = packed.map((x) => (x === 0 ? ov.zeroByte : ov.nonZeroByte)).reduce((sum, x) => sum + x)
     const ret = Math.round(callDataCost + ov.fixed / ov.bundleSize + ov.perUserOp + ov.perUserOpWord * lengthInWord)
-    return ret
+    return BigInt(ret)
+}
+
+const maxUint64 = 2n ** 64n - 1n
+
+const getL1FeeAbi = [
+    {
+        inputs: [
+            {
+                internalType: "bytes",
+                name: "data",
+                type: "bytes"
+            }
+        ],
+        name: "getL1Fee",
+        outputs: [
+            {
+                internalType: "uint256",
+                name: "fee",
+                type: "uint256"
+            }
+        ],
+        stateMutability: "nonpayable",
+        type: "function"
+    }
+] as const
+
+export async function calcOptimismPreVerificationGas(
+    publicClient: PublicClient<Transport, Chain | undefined>,
+    op: UserOperation,
+    entryPoint: Address,
+    staticFee: bigint
+) {
+    const selector = getFunctionSelector(EntryPointAbi[27])
+    const paramData = encodeAbiParameters(EntryPointAbi[27].inputs, [[op], entryPoint])
+    const data = concat([selector, paramData])
+
+    const latestBlock = await publicClient.getBlock()
+    if (latestBlock.baseFeePerGas === null) {
+        throw new RpcError("block does not have baseFeePerGas")
+    }
+
+    const serializedTx = serializeTransaction(
+        {
+            to: entryPoint,
+            chainId: publicClient.chain?.id ?? 10,
+            nonce: 999999,
+            gasLimit: maxUint64,
+            gasPrice: maxUint64,
+            data
+        },
+        {
+            r: "0x123451234512345123451234512345123451234512345123451234512345",
+            s: "0x123451234512345123451234512345123451234512345123451234512345",
+            v: 28n
+        }
+    )
+
+    const opGasPriceOracle = getContract({
+        abi: getL1FeeAbi,
+        address: "0x420000000000000000000000000000000000000F",
+        publicClient
+    })
+
+    const { result: l1Fee } = await opGasPriceOracle.simulate.getL1Fee([serializedTx])
+
+    const l2MaxFee = op.maxFeePerGas
+    const l2PriorityFee = latestBlock.baseFeePerGas + op.maxPriorityFeePerGas
+
+    const l2price = l2MaxFee < l2PriorityFee ? l2MaxFee : l2PriorityFee
+
+    return staticFee + (l1Fee / l2price)
 }
