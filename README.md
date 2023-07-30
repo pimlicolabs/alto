@@ -4,7 +4,7 @@
 
 ![Node Version](https://img.shields.io/badge/node-20.x-green)
 
-Alto is a Typescript implementation of the [ERC-4337 bundler specification](https://eips.ethereum.org/EIPS/eip-4337) developed by [Pimlico](https://pimlico.io), focused on type safety and transaction inclusion reliability.
+Alto is a Typescript implementation of the [ERC-4337 bundler specification](https://eips.ethereum.org/EIPS/eip-4337) developed by [Pimlico](https://pimlico.io), focused on transaction inclusion reliability.
 
 ## Getting started
 
