@@ -172,6 +172,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         handlerConfig.publicClient,
         parsedArgs.entryPoint,
         logger,
+        parsedArgs.utilityPrivateKey,
         parsedArgs.tenderlyEnabled
     )
     const senderManager = new SenderManager(
