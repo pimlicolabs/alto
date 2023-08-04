@@ -42,6 +42,11 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: true,
         default: 1000 * 60 * 20
     },
+    requestTimeout: {
+        description: "Timeout for the request (in ms)",
+        type: "number",
+        require: false
+    },
     rpcUrl: {
         description: "RPC url to connect to",
         type: "string",

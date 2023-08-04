@@ -10,7 +10,7 @@ import {
 } from "@alto/types"
 import { ValidationResult } from "@alto/types"
 import { Logger } from "@alto/utils"
-import { PublicClient, getContract, encodeFunctionData, decodeErrorResult } from "viem"
+import { PublicClient, getContract, encodeFunctionData, decodeErrorResult, Account } from "viem"
 import { hexDataSchema } from "@alto/types"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
@@ -82,12 +82,14 @@ export class UnsafeValidator implements IValidator {
     publicClient: PublicClient
     entryPoint: Address
     logger: Logger
+    utilityWallet: Account
     usingTenderly: boolean
 
-    constructor(publicClient: PublicClient, entryPoint: Address, logger: Logger, usingTenderly = false) {
+    constructor(publicClient: PublicClient, entryPoint: Address, logger: Logger, utilityWallet: Account, usingTenderly = false) {
         this.publicClient = publicClient
         this.entryPoint = entryPoint
         this.logger = logger
+        this.utilityWallet = utilityWallet
         this.usingTenderly = usingTenderly
     }
 
@@ -120,7 +122,7 @@ export class UnsafeValidator implements IValidator {
             return getSimulationResult(errorResult, this.logger, "ExecutionResult", this.usingTenderly)
         } else {
             const errorResult = await entryPointContract.simulate
-                .simulateHandleOp([userOperation, "0x0000000000000000000000000000000000000000", "0x"])
+                .simulateHandleOp([userOperation, "0x0000000000000000000000000000000000000000", "0x"], {account: this.utilityWallet})
                 .catch((e) => {
                     if (e instanceof Error) {
                         return e
