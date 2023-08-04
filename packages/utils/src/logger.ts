@@ -76,7 +76,7 @@ export const initProductionLogger = (
             options: {
                 batching: true,
                 interval: 1,
-                labels: { app: "alto", chainId, env: environment },
+                labels: { app: "alto", chainId: chainId.toString(), env: environment },
                 host: lokiHost,
                 basicAuth: {
                     username: lokiUsername,
