@@ -30,6 +30,7 @@ export const bundlerArgsSchema = z.object({
 
     minBalance: z.string().transform((val) => BigInt(val)),
     refillInterval: z.number().int().min(0),
+    requestTimeout: z.number().int().min(0).optional(),
 
     minStake: z.number().int().min(0),
     minUnstakeDelay: z.number().int().min(0),

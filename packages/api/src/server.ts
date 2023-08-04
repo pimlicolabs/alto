@@ -44,7 +44,8 @@ export class Server {
 
     constructor(rpcEndpoint: IRpcEndpoint, bundlerArgs: IBundlerArgs, logger: Logger) {
         this.fastify = Fastify({
-            logger
+            logger,
+            requestTimeout: bundlerArgs.requestTimeout,
         })
 
         this.fastify.register(require("fastify-cors"), {
@@ -53,6 +54,7 @@ export class Server {
         })
 
         this.fastify.post("/rpc", this.rpc.bind(this))
+        this.fastify.post("/", this.rpc.bind(this))
         this.fastify.get("/health", this.healthCheck.bind(this))
 
         this.rpcEndpoint = rpcEndpoint
