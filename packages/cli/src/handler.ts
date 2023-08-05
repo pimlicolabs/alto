@@ -205,6 +205,8 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
 
     executor.flushStuckTransactions()
 
+    logger.info(`Initialized ${senderManager.wallets.length} executor wallets`)
+
     const server = new Server(rpcEndpoint, parsedArgs, logger)
     await server.start()
 }
