@@ -159,6 +159,8 @@ export function parseScannerResult(
     // debug("=== simulation result:", inspect(tracerResults, true, 10, true))
     // todo: block access to no-code addresses (might need update to tracer)
 
+    entryPointAddress = entryPointAddress.toLowerCase() as Address;
+
     const bannedOpCodes = new Set([
         "GASPRICE",
         "GASLIMIT",
@@ -265,20 +267,23 @@ export function parseScannerResult(
             // @param addr - the address we try to check for association with
             // @param reverseKeccak - a mapping we built for keccak values that contained the address
             function associatedWith(slot: string, addr: string, entitySlots: { [_addr: string]: Set<string> }): boolean {
-                const addrPadded = pad(addr as Address, { size: 32 }).toLowerCase()
+                const addrPadded = addr.toLowerCase();
                 if (slot === addrPadded) {
                     return true
                 }
-                const k = entitySlots[addr]
+
+                const k = entitySlots[addr.toLowerCase()]
                 if (k == null) {
                     return false
                 }
+
                 const slotN = BigInt(slot)
                 // scan all slot entries to check of the given slot is within a structure, starting at that offset.
                 // assume a maximum size on a (static) structure size.
                 for (const k1 of k.keys()) {
+
                     const kn = BigInt(k1)
-                    if (slotN > kn && slotN < (kn + 128n)) {
+                    if (slotN >= kn && slotN < (kn + 128n)) {
                         return true
                     }
                 }
@@ -288,9 +293,11 @@ export function parseScannerResult(
             // scan all slots. find a referenced slot
             // at the end of the scan, we will check if the entity has stake, and report that slot if not.
             let requireStakeSlot: string | undefined
-            ;[...Object.keys(writes), ...Object.keys(reads)].forEach((slot) => {
+            
+            [...Object.keys(writes), ...Object.keys(reads)].forEach((slot) => {
                 // slot associated with sender is allowed (e.g. token.balanceOf(sender)
                 // but during initial UserOp (where there is an initCode), it is allowed only for staked entity
+
                 if (associatedWith(slot, sender, entitySlots)) {
                     if (userOp.initCode.length > 2) {
                         requireStakeSlot = slot
@@ -298,11 +305,12 @@ export function parseScannerResult(
                 } else if (associatedWith(slot, entityAddr, entitySlots)) {
                     // accessing a slot associated with entityAddr (e.g. token.balanceOf(paymaster)
                     requireStakeSlot = slot
-                } else if (addr === entityAddr) {
+                } else if (addr === entityAddr.toLowerCase()) {
                     // accessing storage member of entity itself requires stake.
                     requireStakeSlot = slot
                 } else {
                     // accessing arbitrary storage of another contract is not allowed
+                    
                     const readWrite = Object.keys(writes).includes(addr) ? "write to" : "read from"
                     requireCond(
                         false,

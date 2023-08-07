@@ -1,4 +1,5 @@
 export enum ValidationErrors {
+    MissingOrInvalidUserOpHash = -32601,
     InvalidFields = -32602,
     SimulateValidation = -32500,
     SimulatePaymasterValidation = -32501,

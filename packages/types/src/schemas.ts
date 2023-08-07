@@ -1,5 +1,6 @@
 import { getAddress, Hash, Hex } from "viem"
 import { z } from "zod"
+import { RpcError, ValidationErrors } from "./utils"
 
 const hexNumberPattern = /^0x([0-9a-f]+[0-9a-f]*|0)$/
 const hexDataPattern = /^0x[0-9A-Fa-f]*$/
@@ -24,6 +25,14 @@ const hexData32Schema = z
     .string()
     .regex(hexData32Pattern, { message: "not valid 32-byte hex data" })
     .transform((val) => val.toLowerCase() as Hash)
+const userOpHexData32Schema = z
+    .string()
+    .transform((val) => {
+        if (!hexData32Pattern.test(val)) {
+            throw new RpcError("Missing/invalid userOpHash", ValidationErrors.MissingOrInvalidUserOpHash)
+        }
+        return val.toLowerCase() as Hash
+    });
 
 export type Address = z.infer<typeof addressSchema>
 export type HexNumber = z.infer<typeof hexNumberSchema>
@@ -107,12 +116,12 @@ const sendUserOperationRequestSchema = z.object({
 
 const getUserOperationByHashRequestSchema = z.object({
     method: z.literal("eth_getUserOperationByHash"),
-    params: z.tuple([hexData32Schema])
+    params: z.tuple([userOpHexData32Schema])
 })
 
 const getUserOperationReceiptRequestSchema = z.object({
     method: z.literal("eth_getUserOperationReceipt"),
-    params: z.tuple([hexData32Schema])
+    params: z.tuple([userOpHexData32Schema])
 })
 
 const bundlerClearStateRequestSchema = z.object({
@@ -226,7 +235,7 @@ const getUserOperationReceiptResponseSchema = z.object({
     method: z.literal("eth_getUserOperationReceipt"),
     result: z
         .object({
-            userOpHash: hexData32Schema,
+            userOpHash: userOpHexData32Schema,
             sender: addressSchema,
             nonce: hexNumberSchema,
             actualGasCost: hexNumberSchema,

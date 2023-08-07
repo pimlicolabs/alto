@@ -94,13 +94,13 @@ export class UnsafeValidator implements IValidator {
             }
         }
 
-        const {
+        const [
             returnInfo,
             senderInfo,
             factoryInfo,
             paymasterInfo,
             // aggregatorInfo // may be missing (exists only SimulationResultWithAggregator
-        } = errorResult.errorArgs
+        ] = errorResult.errorArgs
 
         // extract address from "data" (first 20 bytes)
         // add it as "addr" member to the "stakeinfo" struct
@@ -174,7 +174,6 @@ export class UnsafeValidator implements IValidator {
 
             // not a known error of EntryPoint (probably, only Error(string), since FailedOp is handled above)
             // const err = decodeErrorReason(data
-            console.log(e);
             throw new RpcError("factory", ValidationErrors.OpcodeValidation)
             // throw new RpcError(err != null ? err.message : data, 111)
         }

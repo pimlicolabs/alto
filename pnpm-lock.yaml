@@ -1,4 +1,4 @@
-lockfileVersion: '6.1'
+lockfileVersion: '6.0'
 
 settings:
   autoInstallPeers: true
@@ -226,6 +226,9 @@ importers:
       '@alto/utils':
         specifier: '*'
         version: link:../utils
+      '@ethersproject/providers':
+        specifier: ^5.7.2
+        version: 5.7.2
       abitype:
         specifier: ^0.8.0
         version: 0.8.0(typescript@5.0.4)(zod@3.21.4)

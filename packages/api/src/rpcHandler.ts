@@ -12,8 +12,7 @@ import {
     BundlingMode,
     ChainIdResponseResult,
     EntryPointAbi,
-    EstimateUserOperationGasResponseResult,
-    GetUserOperationByHashResponseResult,
+    EstimateUserOperationGasResponseResult, GetUserOperationByHashResponseResult,
     GetUserOperationReceiptResponseResult,
     HexData32, logSchema, PimlicoGetUserOperationStatusResponseResult, receiptSchema, RpcError,
     SendUserOperationResponseResult,
@@ -28,7 +27,7 @@ import {
     getContract, Transaction,
     TransactionNotFoundError,
     TransactionReceipt,
-    TransactionReceiptNotFoundError
+    TransactionReceiptNotFoundError, zeroAddress
 } from "viem"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
@@ -400,22 +399,26 @@ export class RpcHandler implements IRpcEndpoint {
     // rome-ignore lint/nursery/useCamelCase: <explanation>
     async debug_bundler_clearState(): Promise<BundlerClearStateResponseResult> {
         // throw new Error("Method not implemented.")
+        this.executor.clearState();
         return "ok";
     }
 
     // rome-ignore lint/nursery/useCamelCase: <explanation>
     async debug_bundler_dumpMempool(_entryPoint: Address): Promise<BundlerDumpMempoolResponseResult> {
-        throw new Error("Method not implemented.")
+        // throw new Error("Method not implemented.")
+        return this.executor.dumpMempool();
     }
 
     // rome-ignore lint/nursery/useCamelCase: <explanation>
     async debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
-        throw new Error("Method not implemented.")
+        // throw new Error("Method not implemented.")
+        return zeroAddress;
     }
 
     // rome-ignore lint/nursery/useCamelCase: <explanation>
     async debug_bundler_setBundlingMode(_bundlingMode: BundlingMode): Promise<BundlerSetBundlingModeResponseResult> {
         // throw new Error("Method not implemented.")
+        this.executor.setBundlingMode(_bundlingMode);
         return "ok";
     }
 

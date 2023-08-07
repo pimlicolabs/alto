@@ -1,4 +1,4 @@
-import { Address, EntryPointAbi, errorCauseSchema, HexData32, RpcError, UserOperation } from "@alto/types"
+import { Address, BundlingMode, EntryPointAbi, errorCauseSchema, HexData32, RpcError, UserOperation, ValidationErrors } from "@alto/types"
 import { Logger } from "@alto/utils"
 import { Mutex } from "async-mutex"
 import {
@@ -11,7 +11,7 @@ import {
     Transport,
     WalletClient,
     WatchBlocksReturnType,
-    WriteContractParameters
+    WriteContractParameters, zeroAddress
 } from "viem"
 import { fromZodError } from "zod-validation-error"
 import { getGasPrice } from "./gasPrice"
@@ -25,13 +25,24 @@ export interface GasEstimateResult {
 }
 
 export interface IExecutor {
-    bundle(_entryPoint: Address, _op: UserOperation): Promise<void>
+    bundle(_entryPoint: Address, _op: UserOperation): Promise<void>,
+    setBundlingMode(bundlingMode: BundlingMode): void,
+    dumpMempool(): Promise<UserOperation[]>,
+    clearState(): void,
 }
 
 export class NullExecutor implements IExecutor {
     async bundle(_entryPoint: Address, _op: UserOperation): Promise<void> {
         // return 32 byte long hex string
     }
+    
+    setBundlingMode(_bundlingMode: "manual" | "auto"): void {}
+    
+    async dumpMempool(): Promise<UserOperation[]> {
+        return []
+    }
+
+    clearState(): void {}
 }
 
 interface UserOperationStatus {
@@ -63,6 +74,7 @@ export class BasicExecutor implements IExecutor {
     logger: Logger
     simulateTransaction: boolean
 
+    autoBundle: boolean
     mutex: Mutex
     constructor(
         beneficiary: Address,
@@ -85,6 +97,7 @@ export class BasicExecutor implements IExecutor {
         this.logger = logger
         this.simulateTransaction = simulateTransaction
 
+        this.autoBundle = true;
         this.mutex = new Mutex()
     }
 
@@ -252,8 +265,15 @@ export class BasicExecutor implements IExecutor {
         })
     }
 
+    async dumpMempool(): Promise<UserOperation[]> {
+        return Object.entries(this.monitoredTransactions)
+            .map(([_, { transactionRequest }]) => (transactionRequest?.args?.[0] as UserOperation[])[0]);
+    }
+
     async bundle(entryPoint: Address, op: UserOperation): Promise<void> {
         const wallet = await this.senderManager.getWallet()
+
+        console.log("wallet: ", wallet);
 
         const ep = getContract({
             abi: EntryPointAbi,
@@ -268,12 +288,45 @@ export class BasicExecutor implements IExecutor {
 
             try {
                 const opHash = await ep.read.getUserOpHash([op])
-                childLogger.debug({ opHash }, "got op hash")
+                childLogger.debug({ opHash }, "got op hash");
 
-                if (opHash in this.monitoredTransactions) {
+                // look in monitoredTransactions and see if there are any other ops from the same sender and same nonce
+
+                const oldOp = Object.entries(this.monitoredTransactions)
+                    .map(([_opHash, { transactionRequest }]) => [_opHash, (transactionRequest?.args?.[0] as UserOperation[])[0]] as [string, UserOperation])
+                    .find(([_opHash, _op]) => _op.sender === op.sender && _op.nonce === op.nonce);
+
+                if (oldOp !== undefined) {
+                    const [_opHash, _op] = oldOp;
+                    const higherPriorityFee = _op.maxPriorityFeePerGas > op.maxPriorityFeePerGas;
+                    const higherMaxFeePerGas = _op.maxFeePerGas > op.maxFeePerGas;
+
+                    if (higherMaxFeePerGas && higherPriorityFee) {
+                        // TODO: replace
+                    }
+
                     childLogger.debug({ opHash }, "user operation already being bundled")
-                    throw new RpcError(`user operation ${opHash} already being bundled`)
+                    // throw new RpcError(`user operation ${opHash} already being bundled`)
+                    throw new RpcError("...", ValidationErrors.InvalidFields);
                 }
+
+                // if (opHash in this.monitoredTransactions) {
+                //     const higherPriorityFee = this.monitoredTransactions?.[opHash]?.transactionRequest?.maxPriorityFeePerGas ?? 0n > op.maxPriorityFeePerGas;
+                //     const higherMaxFeePerGas = this.monitoredTransactions?.[opHash]?.transactionRequest?.maxFeePerGas ?? 0n > op.maxFeePerGas;
+
+                //     if (higherPriorityFee && higherMaxFeePerGas) {
+                        
+                //         // TODO: bump priority fee
+                //         // TODO: bump max fee
+                //         // TODO: with less fee
+                //         // TODO: fee_bump_below_threshold
+                //         // TODO: fee_bump_above_threshold
+                //         // TODO: max_allowed_ops
+                //     }
+
+                //     childLogger.debug({ opHash }, "user operation already being bundled")
+                //     throw new RpcError(`user operation ${opHash} already being bundled`)
+                // }
 
                 const gasLimit =
                     (((op.preVerificationGas + 3n * op.verificationGasLimit + op.callGasLimit) * 12n) / 10n) *
@@ -322,8 +375,14 @@ export class BasicExecutor implements IExecutor {
     
                     const { chain: _chain, abi: _abi, ...loggingRequest } = request
                     childLogger.trace({ request: { ...loggingRequest } }, "got request")
-    
-                    txHash = await this.walletClient.writeContract(request)
+
+                    childLogger.trace({ autoBundle: this.autoBundle }, "not simulating transaction")
+                    if (this.autoBundle) {
+                       txHash = await this.walletClient.writeContract(request)
+                    } else {
+                        txHash = zeroAddress;
+                        await this.senderManager.pushWallet(wallet);
+                    }                    
 
                     this.monitoredTransactions[opHash] = {
                         transactionHash: txHash,
@@ -331,14 +390,19 @@ export class BasicExecutor implements IExecutor {
                         executor: wallet
                     }
                 } else {
-                    txHash = await ep.write.handleOps([[op], wallet.address], {
-                        gas: gasLimit,
-                        account: wallet,
-                        chain: this.walletClient.chain,
-                        maxFeePerGas: gasPriceParameters.maxFeePerGas,
-                        maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
-                        nonce: nonce
-                    })
+                    if (this.autoBundle) {
+                        txHash = await ep.write.handleOps([[op], wallet.address], {
+                            gas: gasLimit,
+                            account: wallet,
+                            chain: this.walletClient.chain,
+                            maxFeePerGas: gasPriceParameters.maxFeePerGas,
+                            maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
+                            nonce: nonce
+                        })
+                    } else {
+                        txHash = zeroAddress;
+                        await this.senderManager.pushWallet(wallet);
+                    }
 
                     this.monitoredTransactions[opHash] = {
                         transactionHash: txHash,
@@ -405,7 +469,21 @@ export class BasicExecutor implements IExecutor {
                     throw e
                 }
             }
-            this.startWatchingBlocks()
+            if (this.autoBundle) {
+                this.startWatchingBlocks()
+            }
         })
+    }
+
+    setBundlingMode(bundlingMode: "manual" | "auto"): void {
+        this.autoBundle = (bundlingMode === "auto");
+        if (!this.autoBundle) {
+            this.stopWatchingBlocks();
+        }
+    }
+
+    clearState(): void {
+        this.monitoredTransactions = {};
+        this.stopWatchingBlocks();
     }
 }
