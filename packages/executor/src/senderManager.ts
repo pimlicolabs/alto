@@ -76,15 +76,15 @@ export class SenderManager {
             const balance = await publicClient.getBalance({ address: wallet.address })
 
             if (balance < minBalance) {
-                const missingBalance = minBalance - balance
+                const missingBalance = minBalance * 6n / 5n - balance
                 balancesMissing[wallet.address] = missingBalance
             }
         })
 
         await Promise.all(balanceRequestPromises)
 
-        const totalBalanceMissing = (Object.values(balancesMissing).reduce((a, b) => a + b, 0n) * 6n) / 5n // 20% extra for gas
-        if (utilityWalletBalance < totalBalanceMissing) {
+        const totalBalanceMissing = (Object.values(balancesMissing).reduce((a, b) => a + b, 0n))
+        if (utilityWalletBalance < totalBalanceMissing * 11n / 10n) {
             this.logger.info({ balancesMissing, totalBalanceMissing }, "balances missing")
             this.logger.error(
                 { utilityWalletBalance, totalBalanceMissing },
@@ -145,7 +145,7 @@ export class SenderManager {
                         account: this.utilityAccount,
                         // @ts-ignore
                         to: address,
-                        value: (missingBalance * 12n) / 10n,
+                        value: missingBalance,
                         maxFeePerGas: maxFeePerGas,
                         maxPriorityFeePerGas: maxPriorityFeePerGas
                     })
