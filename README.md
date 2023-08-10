@@ -12,6 +12,7 @@ For a full explanation of Alto, please visit our [docs page](https://docs.pimlic
 
 Run an instance of Alto with the following commands:
 ```bash
+pnpm install
 pnpm build
 ./alto
 ```
