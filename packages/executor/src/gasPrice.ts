@@ -70,24 +70,27 @@ export async function getGasPrice(
     let gasPrice = await publicClient.getGasPrice()
 
     let maxPriorityFeePerGas = 2_000_000_000n > gasPrice ? gasPrice : 2_000_000_000n
-    if (chainId === ChainId.LineaTestnet || chainId === ChainId.Goerli || chainId === ChainId.Linea) {
-        const feeHistory = await publicClient.getFeeHistory({
-            blockCount: 10,
-            rewardPercentiles: [20],
-            blockTag: "latest"
-        })
+    const feeHistory = await publicClient.getFeeHistory({
+        blockCount: 10,
+        rewardPercentiles: [20],
+        blockTag: "latest"
+    })
 
-        if (feeHistory.reward === undefined) {
-            gasPrice = (gasPrice * 3n) / 2n
-            maxPriorityFeePerGas = gasPrice
-        } else {
-            const feeAverage = feeHistory.reward.reduce((acc, cur) => cur[0] + acc, 0n) / 10n
-            if (feeAverage > gasPrice) {
-                gasPrice = feeAverage
-            }
-            maxPriorityFeePerGas = feeAverage
+    if (feeHistory.reward === undefined) {
+        gasPrice = (gasPrice * 3n) / 2n
+        maxPriorityFeePerGas = gasPrice
+    } else {
+        const feeAverage = feeHistory.reward.reduce((acc, cur) => cur[0] + acc, 0n) / 10n
+        if (feeAverage > gasPrice) {
+            gasPrice = feeAverage
         }
+        maxPriorityFeePerGas = feeAverage
     }
+
+    if (chainId === 53935) {
+        gasPrice = gasPrice * 2n
+    }
+    
 
     return {
         maxFeePerGas: gasPrice,
