@@ -182,7 +182,7 @@ export class RpcHandler implements IRpcEndpoint {
         let callGasLimit = calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n
 
         if (this.config.chainId === 84531 || this.config.chainId === 420 || this.config.chainId === 8453) {
-            callGasLimit = callGasLimit + 200000n
+            callGasLimit = callGasLimit + 250000n
         }
 
         if (this.config.chainId === 59140 || this.config.chainId === 59142) {
