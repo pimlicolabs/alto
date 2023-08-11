@@ -171,6 +171,11 @@ export class RpcHandler implements IRpcEndpoint {
         userOperation.verificationGasLimit = 10_000_000n
         userOperation.callGasLimit = 10_000_000n
 
+        if (this.config.chainId === 84531) {
+            userOperation.verificationGasLimit = 1_000_000n
+            userOperation.callGasLimit = 1_000_000n
+        }
+
         const executionResult = await this.validator.getExecutionResult(userOperation)
 
         let preVerificationGas = calcPreVerificationGas(userOperation)
