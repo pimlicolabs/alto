@@ -179,7 +179,7 @@ export class RpcHandler implements IRpcEndpoint {
         let calculatedCallGasLimit =
             executionResult.paid / userOperation.maxFeePerGas - executionResult.preOpGas + 21000n + 100000n
 
-        if (this.config.chainId === 84531) {
+        if (this.config.chainId === 84531 || this.config.chainId === 420) {
             calculatedCallGasLimit = calculatedCallGasLimit + 200000n
         }
 
