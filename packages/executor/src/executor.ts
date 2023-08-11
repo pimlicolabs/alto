@@ -344,9 +344,9 @@ export class BasicExecutor implements IExecutor {
             let gasLimit = ((op.preVerificationGas + 3n * op.verificationGasLimit + op.callGasLimit) * 12n) / 10n
             if (chainId === 42161) {
                 gasLimit *= 8n
-            } else if (chainId === 10 || chainId === 420) {
+            } else if (chainId === 10 || chainId === 420 || chainId === 84531) {
                 // gasLimit = await ep.estimateGas.handleOps([[op], wallet.address], { account: wallet })
-                gasLimit = (calcPreVerificationGas(op) + 3n * op.verificationGasLimit + op.callGasLimit) * 12n / 10n
+                gasLimit = ((calcPreVerificationGas(op) + 3n * op.verificationGasLimit + op.callGasLimit) * 12n) / 10n
             }
 
             const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
