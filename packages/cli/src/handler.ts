@@ -162,7 +162,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     })
 
     const registry = new Registry()
-    const metrics = createMetrics(registry, chainId, chain.network, parsedArgs.environment)
+    const metrics = createMetrics(registry, chainId, chain.name, parsedArgs.environment)
     metrics.walletsAvailable.set(69)
 
     await preFlightChecks(client, parsedArgs)
