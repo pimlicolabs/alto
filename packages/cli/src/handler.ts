@@ -57,7 +57,7 @@ const customTestnet: Chain = {
 const dfkTestnet: Chain = {
     id: 335,
     name: "DFK Subnet Testnet",
-    network: "dfk-testnet",
+    network: "dfk-test-chain",
     nativeCurrency: {
         name: "JEWEL",
         symbol: "JEWEL",
@@ -162,7 +162,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     })
 
     const registry = new Registry()
-    const metrics = createMetrics(registry, chainId, parsedArgs.environment)
+    const metrics = createMetrics(registry, chain.network, parsedArgs.environment)
     metrics.walletsAvailable.set(69)
 
     await preFlightChecks(client, parsedArgs)
