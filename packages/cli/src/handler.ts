@@ -9,10 +9,12 @@ import {
 import { BasicExecutor, SenderManager } from "@alto/executor"
 import { Monitor } from "@alto/executor"
 import { Logger, initDebugLogger, initProductionLogger } from "@alto/utils"
+import { createMetrics } from "@alto/utils"
 import { UnsafeValidator } from "@alto/validator"
 import { Chain, PublicClient, createWalletClient, http } from "viem"
 import * as chains from "viem/chains"
 import { fromZodError } from "zod-validation-error"
+import { Registry } from "prom-client"
 
 const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
     // validate every arg, make typesafe so if i add a new arg i have to validate it
@@ -149,6 +151,10 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     const chainId = await client.getChainId()
     const chain = getChain(chainId)
 
+    const registry = new Registry()
+    const metrics = createMetrics(registry, chainId, parsedArgs.environment)
+    metrics.walletsAvailable.set(69)
+
     await preFlightChecks(client, parsedArgs)
 
     const walletClient = createWalletClient({
@@ -207,6 +213,6 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
 
     logger.info(`Initialized ${senderManager.wallets.length} executor wallets`)
 
-    const server = new Server(rpcEndpoint, parsedArgs, logger)
+    const server = new Server(rpcEndpoint, parsedArgs, logger, registry)
     await server.start()
 }

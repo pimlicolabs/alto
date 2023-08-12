@@ -85,7 +85,13 @@ export class UnsafeValidator implements IValidator {
     utilityWallet: Account
     usingTenderly: boolean
 
-    constructor(publicClient: PublicClient, entryPoint: Address, logger: Logger, utilityWallet: Account, usingTenderly = false) {
+    constructor(
+        publicClient: PublicClient,
+        entryPoint: Address,
+        logger: Logger,
+        utilityWallet: Account,
+        usingTenderly = false
+    ) {
         this.publicClient = publicClient
         this.entryPoint = entryPoint
         this.logger = logger
@@ -122,7 +128,9 @@ export class UnsafeValidator implements IValidator {
             return getSimulationResult(errorResult, this.logger, "ExecutionResult", this.usingTenderly)
         } else {
             const errorResult = await entryPointContract.simulate
-                .simulateHandleOp([userOperation, "0x0000000000000000000000000000000000000000", "0x"], {account: this.utilityWallet})
+                .simulateHandleOp([userOperation, "0x0000000000000000000000000000000000000000", "0x"], {
+                    account: this.utilityWallet
+                })
                 .catch((e) => {
                     if (e instanceof Error) {
                         return e

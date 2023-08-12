@@ -62,6 +62,9 @@ importers:
       pino-http:
         specifier: ^8.3.3
         version: 8.3.3
+      prom-client:
+        specifier: ^14.2.0
+        version: 14.2.0
       viem:
         specifier: ^1.0.7
         version: 1.0.7(typescript@5.0.4)(zod@3.21.4)
@@ -98,6 +101,9 @@ importers:
       dotenv:
         specifier: ^16.0.3
         version: 16.0.3
+      prom-client:
+        specifier: ^14.2.0
+        version: 14.2.0
       viem:
         specifier: ^1.0.7
         version: 1.0.7(typescript@5.0.4)(zod@3.21.4)
@@ -205,6 +211,9 @@ importers:
       pino-pretty:
         specifier: ^10.0.0
         version: 10.0.0
+      prom-client:
+        specifier: ^14.2.0
+        version: 14.2.0
       viem:
         specifier: ^1.4.2
         version: 1.4.2(typescript@5.0.4)(zod@3.21.4)
@@ -1031,6 +1040,10 @@ packages:
     resolution: {integrity: sha512-jDctJ/IVQbZoJykoeHbhXpOlNBqGNcwXJKJog42E5HDPUwQTSdjCHdihjj0DlnheQ7blbT6dHOafNAiS8ooQKA==}
     engines: {node: '>=8'}
     dev: true
+
+  /bintrees@1.0.2:
+    resolution: {integrity: sha512-VOMgTMwjAaUG580SXn3LacVgjurrbMme7ZZNYGSSV7mmtY6QQRh0Eg3pwIcntQ77DErK1L0NxkbetjcoXzVwKw==}
+    dev: false
 
   /brace-expansion@1.1.11:
     resolution: {integrity: sha512-iCuPHDFgrHX7H2vEI/5xpz07zSHB00TpugqhmYtVmMO6518mCuRMoOYFldEBl0g187ufozdaHgWKcYFb61qGiA==}
@@ -2421,6 +2434,13 @@ packages:
     engines: {node: '>= 0.6.0'}
     dev: false
 
+  /prom-client@14.2.0:
+    resolution: {integrity: sha512-sF308EhTenb/pDRPakm+WgiN+VdM/T1RaHj1x+MvAuT8UiQP8JmOEbxVqtkbfR4LrvOg5n7ic01kRBDGXjYikA==}
+    engines: {node: '>=10'}
+    dependencies:
+      tdigest: 0.1.2
+    dev: false
+
   /proxy-addr@2.0.7:
     resolution: {integrity: sha512-llQsMLSUDUPT44jdrU/O37qlnifitDP+ZwrmmZcoSKyLKvtZxpyV0n2/bD/N4tBAAZ/gJEdZU7KMraoK1+XYAg==}
     engines: {node: '>= 0.10'}
@@ -2743,6 +2763,12 @@ packages:
     engines: {node: '>=10'}
     dependencies:
       has-flag: 4.0.0
+
+  /tdigest@0.1.2:
+    resolution: {integrity: sha512-+G0LLgjjo9BZX2MfdvPfH+MKLCrxlXSYec5DaPYP1fe6Iyhf0/fSmJ0bFiZ1F8BT6cGXl2LpltQptzjXKWEkKA==}
+    dependencies:
+      bintrees: 1.0.2
+    dev: false
 
   /test-exclude@6.0.0:
     resolution: {integrity: sha512-cAGWPIyOHU6zlmg88jwm7VRyXnMN7iV68OGAbYDk/Mh/xC/pzVPlQtY6ngoIH/5/tciuhGfvESU8GrHrcxD56w==}

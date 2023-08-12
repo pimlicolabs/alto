@@ -6,9 +6,10 @@ import { Logger } from "@alto/utils"
 import Fastify, { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { toHex } from "viem"
 import { fromZodError } from "zod-validation-error"
+import { Registry } from "prom-client"
 
 // jsonBigIntOverride.ts
-const originalJSONStringify = JSON.stringify
+const originalJsonStringify = JSON.stringify
 
 JSON.stringify = function (
     value: any,
@@ -34,18 +35,19 @@ JSON.stringify = function (
         return bigintReplacer(key, value)
     }
 
-    return originalJSONStringify(value, wrapperReplacer, space)
+    return originalJsonStringify(value, wrapperReplacer, space)
 }
 
 export class Server {
     private fastify: FastifyInstance
     private rpcEndpoint: IRpcEndpoint
     private bundlerArgs: IBundlerArgs
+    private registry: Registry
 
-    constructor(rpcEndpoint: IRpcEndpoint, bundlerArgs: IBundlerArgs, logger: Logger) {
+    constructor(rpcEndpoint: IRpcEndpoint, bundlerArgs: IBundlerArgs, logger: Logger, registry: Registry) {
         this.fastify = Fastify({
             logger,
-            requestTimeout: bundlerArgs.requestTimeout,
+            requestTimeout: bundlerArgs.requestTimeout
         })
 
         this.fastify.register(require("fastify-cors"), {
@@ -56,9 +58,11 @@ export class Server {
         this.fastify.post("/rpc", this.rpc.bind(this))
         this.fastify.post("/", this.rpc.bind(this))
         this.fastify.get("/health", this.healthCheck.bind(this))
+        this.fastify.get("/metrics", this.metrics.bind(this))
 
         this.rpcEndpoint = rpcEndpoint
         this.bundlerArgs = bundlerArgs
+        this.registry = registry
     }
 
     public async start(): Promise<void> {
@@ -105,6 +109,12 @@ export class Server {
                 }
             }
         }
+    }
+
+    public async metrics(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+        reply.headers({ "Content-Type": this.registry.contentType })
+        const metrics = await this.registry.metrics()
+        await reply.send(metrics)
     }
 
     public async innerRpc(body: unknown): Promise<JSONRPCResponse> {

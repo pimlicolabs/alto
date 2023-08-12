@@ -230,5 +230,5 @@ export async function calcOptimismPreVerificationGas(
 
     const l2price = l2MaxFee < l2PriorityFee ? l2MaxFee : l2PriorityFee
 
-    return staticFee + (l1Fee / l2price)
+    return staticFee + l1Fee / l2price
 }
