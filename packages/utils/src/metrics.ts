@@ -13,37 +13,44 @@ export function createMetrics(registry: Registry, chainId: number, environment: 
 
     const walletsAvailable = new Gauge({
         name: "alto_executor_wallets_available_count",
-        help: "Number of available executor wallets used to bundle"
+        help: "Number of available executor wallets used to bundle",
+        labelNames: ["chainId"] as const
     })
 
     const walletsTotal = new Gauge({
         name: "alto_executor_wallets_total_count",
-        help: "Number of total executor wallets used to bundle"
+        help: "Number of total executor wallets used to bundle",
+        labelNames: ["chainId"] as const
     })
 
     const userOperationsBundlesIncluded = new Counter({
         name: "alto_user_operations_bundles_included_count",
-        help: "Number of user operations bundles included on-chain"
+        help: "Number of user operations bundles included on-chain",
+        labelNames: ["chainId"] as const
     })
 
     const userOperationsBundlesSubmitted = new Counter({
         name: "alto_user_operations_bundles_submitted_count",
-        help: "Number of user operations bundles submitted on-chain"
+        help: "Number of user operations bundles submitted on-chain",
+        labelNames: ["chainId"] as const
     })
 
     const userOperationsReceived = new Counter({
         name: "alto_user_operations_received_count",
-        help: "Number of user operations received"
+        help: "Number of user operations received",
+        labelNames: ["chainId"] as const
     })
 
     const userOperationsValidationSuccess = new Counter({
         name: "alto_user_operations_validation_success_count",
-        help: "Number of user operations successfully validated"
+        help: "Number of user operations successfully validated",
+        labelNames: ["chainId"] as const
     })
 
     const userOperationsValidationFailure = new Counter({
         name: "alto_user_operations_validation_failure_count",
-        help: "Number of user operations failed to validate"
+        help: "Number of user operations failed to validate",
+        labelNames: ["chainId"] as const
     })
 
     registry.registerMetric(walletsAvailable)
@@ -55,12 +62,12 @@ export function createMetrics(registry: Registry, chainId: number, environment: 
     registry.registerMetric(userOperationsValidationFailure)
 
     return {
-        walletsAvailable,
-        walletsTotal,
-        userOperationsBundlesIncluded,
-        userOperationsBundlesSubmitted,
-        userOperationsReceived,
-        userOperationsValidationSuccess,
-        userOperationsValidationFailure
+        walletsAvailable: walletsAvailable.labels({ chainId }),
+        walletsTotal: walletsTotal.labels({ chainId }),
+        userOperationsBundlesIncluded: userOperationsBundlesIncluded.labels({ chainId }),
+        userOperationsBundlesSubmitted: userOperationsBundlesSubmitted.labels({ chainId }),
+        userOperationsReceived: userOperationsReceived.labels({ chainId }),
+        userOperationsValidationSuccess: userOperationsValidationSuccess.labels({ chainId }),
+        userOperationsValidationFailure: userOperationsValidationFailure.labels({ chainId })
     }
 }

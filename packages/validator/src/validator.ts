@@ -10,7 +10,7 @@ import {
 } from "@alto/types"
 import { ValidationResult } from "@alto/types"
 import { Logger, Metrics } from "@alto/utils"
-import { PublicClient, getContract, encodeFunctionData, decodeErrorResult, Account } from "viem"
+import { PublicClient, getContract, encodeFunctionData, decodeErrorResult, Account, Transport, Chain } from "viem"
 import { hexDataSchema } from "@alto/types"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
@@ -79,7 +79,7 @@ async function getSimulationResult(
 }
 
 export class UnsafeValidator implements IValidator {
-    publicClient: PublicClient
+    publicClient: PublicClient<Transport, Chain>
     entryPoint: Address
     logger: Logger
     metrics: Metrics
@@ -87,7 +87,7 @@ export class UnsafeValidator implements IValidator {
     usingTenderly: boolean
 
     constructor(
-        publicClient: PublicClient,
+        publicClient: PublicClient<Transport, Chain>,
         entryPoint: Address,
         logger: Logger,
         metrics: Metrics,

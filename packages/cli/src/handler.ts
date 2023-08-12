@@ -11,7 +11,7 @@ import { Monitor } from "@alto/executor"
 import { Logger, initDebugLogger, initProductionLogger } from "@alto/utils"
 import { createMetrics } from "@alto/utils"
 import { UnsafeValidator } from "@alto/validator"
-import { Chain, PublicClient, createWalletClient, http } from "viem"
+import { Chain, PublicClient, createPublicClient, createWalletClient, http } from "viem"
 import * as chains from "viem/chains"
 import { fromZodError } from "zod-validation-error"
 import { Registry } from "prom-client"
@@ -146,10 +146,20 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         parsedArgs.signerPrivateKeys = [...parsedArgs.signerPrivateKeys, ...parsedArgs.signerPrivateKeysExtra]
     }
     const handlerConfig: RpcHandlerConfig = await bundlerArgsToRpcHandlerConfig(parsedArgs)
-    const client = handlerConfig.publicClient
 
-    const chainId = await client.getChainId()
+    const getChainId = async () => {
+        const client = createPublicClient({
+            transport: http(args.rpcUrl)
+        })
+        return await client.getChainId()
+    }
+    const chainId = await getChainId()
+
     const chain = getChain(chainId)
+    const client = createPublicClient({
+        transport: http(args.rpcUrl),
+        chain
+    })
 
     const registry = new Registry()
     const metrics = createMetrics(registry, chainId, parsedArgs.environment)
@@ -175,7 +185,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         )
     }
     const validator = new UnsafeValidator(
-        handlerConfig.publicClient,
+        client,
         parsedArgs.entryPoint,
         logger,
         metrics,
@@ -210,7 +220,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         metrics,
         !parsedArgs.tenderlyEnabled
     )
-    const rpcEndpoint = new RpcHandler(handlerConfig, validator, executor, monitor, logger, metrics)
+    const rpcEndpoint = new RpcHandler(handlerConfig, client, validator, executor, monitor, logger, metrics)
 
     executor.flushStuckTransactions()
 
