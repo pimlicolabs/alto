@@ -1,4 +1,5 @@
 export * from "./test"
 export * from "./validation"
 export * from "./logger"
+export * from "./metrics"
 export { Logger } from "pino"

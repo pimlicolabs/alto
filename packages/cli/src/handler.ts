@@ -9,10 +9,12 @@ import {
 import { BasicExecutor, SenderManager } from "@alto/executor"
 import { Monitor } from "@alto/executor"
 import { Logger, initDebugLogger, initProductionLogger } from "@alto/utils"
+import { createMetrics } from "@alto/utils"
 import { UnsafeValidator } from "@alto/validator"
-import { Chain, PublicClient, createWalletClient, http } from "viem"
+import { Chain, PublicClient, createPublicClient, createWalletClient, http } from "viem"
 import * as chains from "viem/chains"
 import { fromZodError } from "zod-validation-error"
+import { Registry } from "prom-client"
 
 const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
     // validate every arg, make typesafe so if i add a new arg i have to validate it
@@ -144,10 +146,24 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         parsedArgs.signerPrivateKeys = [...parsedArgs.signerPrivateKeys, ...parsedArgs.signerPrivateKeysExtra]
     }
     const handlerConfig: RpcHandlerConfig = await bundlerArgsToRpcHandlerConfig(parsedArgs)
-    const client = handlerConfig.publicClient
 
-    const chainId = await client.getChainId()
+    const getChainId = async () => {
+        const client = createPublicClient({
+            transport: http(args.rpcUrl)
+        })
+        return await client.getChainId()
+    }
+    const chainId = await getChainId()
+
     const chain = getChain(chainId)
+    const client = createPublicClient({
+        transport: http(args.rpcUrl),
+        chain
+    })
+
+    const registry = new Registry()
+    const metrics = createMetrics(registry, chainId, parsedArgs.environment)
+    metrics.walletsAvailable.set(69)
 
     await preFlightChecks(client, parsedArgs)
 
@@ -169,9 +185,10 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         )
     }
     const validator = new UnsafeValidator(
-        handlerConfig.publicClient,
+        client,
         parsedArgs.entryPoint,
         logger,
+        metrics,
         parsedArgs.utilityPrivateKey,
         parsedArgs.tenderlyEnabled
     )
@@ -179,6 +196,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         parsedArgs.signerPrivateKeys,
         parsedArgs.utilityPrivateKey,
         logger,
+        metrics,
         parsedArgs.maxSigners
     )
 
@@ -199,14 +217,15 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         parsedArgs.entryPoint,
         parsedArgs.pollingInterval,
         logger,
+        metrics,
         !parsedArgs.tenderlyEnabled
     )
-    const rpcEndpoint = new RpcHandler(handlerConfig, validator, executor, monitor, logger)
+    const rpcEndpoint = new RpcHandler(handlerConfig, client, validator, executor, monitor, logger, metrics)
 
     executor.flushStuckTransactions()
 
     logger.info(`Initialized ${senderManager.wallets.length} executor wallets`)
 
-    const server = new Server(rpcEndpoint, parsedArgs, logger)
+    const server = new Server(rpcEndpoint, parsedArgs, logger, registry)
     await server.start()
 }

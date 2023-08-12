@@ -26,7 +26,7 @@ import {
     logSchema,
     receiptSchema
 } from "@alto/types"
-import { Logger, calcPreVerificationGas, calcOptimismPreVerificationGas } from "@alto/utils"
+import { Logger, calcPreVerificationGas, calcOptimismPreVerificationGas, Metrics } from "@alto/utils"
 import { IValidator } from "@alto/validator"
 import {
     decodeFunctionData,
@@ -35,7 +35,10 @@ import {
     TransactionNotFoundError,
     TransactionReceiptNotFoundError,
     Transaction,
-    TransactionReceipt
+    TransactionReceipt,
+    PublicClient,
+    Chain,
+    Transport
 } from "viem"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
@@ -55,23 +58,32 @@ export interface IRpcEndpoint {
 
 export class RpcHandler implements IRpcEndpoint {
     config: RpcHandlerConfig
+    publicClient: PublicClient<Transport, Chain>
     validator: IValidator
     executor: IExecutor
     monitor: Monitor
     logger: Logger
+    metrics: Metrics
+    chainId: number
 
     constructor(
         config: RpcHandlerConfig,
+        publicClient: PublicClient<Transport, Chain>,
         validator: IValidator,
         executor: IExecutor,
         monitor: Monitor,
-        logger: Logger
+        logger: Logger,
+        metrics: Metrics
     ) {
         this.config = config
+        this.publicClient = publicClient
         this.validator = validator
         this.executor = executor
         this.monitor = monitor
         this.logger = logger
+        this.metrics = metrics
+
+        this.chainId = publicClient.chain.id
     }
 
     async handleMethod(request: BundlerRequest): Promise<BundlerResponse> {
@@ -145,7 +157,7 @@ export class RpcHandler implements IRpcEndpoint {
 
     // rome-ignore lint/nursery/useCamelCase: <explanation>
     async eth_chainId(): Promise<ChainIdResponseResult> {
-        return BigInt(this.config.chainId)
+        return BigInt(this.chainId)
     }
 
     // rome-ignore lint/nursery/useCamelCase: <explanation>
@@ -171,7 +183,7 @@ export class RpcHandler implements IRpcEndpoint {
         userOperation.verificationGasLimit = 10_000_000n
         userOperation.callGasLimit = 10_000_000n
 
-        if (this.config.chainId === 84531) {
+        if (this.chainId === 84531) {
             userOperation.verificationGasLimit = 1_000_000n
             userOperation.callGasLimit = 1_000_000n
         }
@@ -186,26 +198,16 @@ export class RpcHandler implements IRpcEndpoint {
 
         let callGasLimit = calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n
 
-        if (
-            this.config.chainId === 10 ||
-            this.config.chainId === 420 ||
-            this.config.chainId === 8453 ||
-            this.config.chainId === 84531
-        ) {
+        if (this.chainId === 10 || this.chainId === 420 || this.chainId === 8453 || this.chainId === 84531) {
             callGasLimit = callGasLimit + 250000n
         }
 
-        if (this.config.chainId === 59140 || this.config.chainId === 59142) {
+        if (this.chainId === 59140 || this.chainId === 59142) {
             preVerificationGas = preVerificationGas + (verificationGas + callGasLimit) / 3n
-        } else if (
-            this.config.chainId === 10 ||
-            this.config.chainId === 420 ||
-            this.config.chainId === 8453 ||
-            this.config.chainId === 84531
-        ) {
+        } else if (this.chainId === 10 || this.chainId === 420 || this.chainId === 8453 || this.chainId === 84531) {
             preVerificationGas = await calcOptimismPreVerificationGas(
                 // @ts-ignore
-                this.config.publicClient,
+                this.publicClient,
                 userOperation,
                 entryPoint,
                 preVerificationGas
@@ -229,7 +231,7 @@ export class RpcHandler implements IRpcEndpoint {
             throw new Error(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.entryPoint}`)
         }
 
-        if (this.config.chainId === 44787 || this.config.chainId === 42220) {
+        if (this.chainId === 44787 || this.chainId === 42220) {
             if (userOperation.maxFeePerGas !== userOperation.maxPriorityFeePerGas) {
                 throw new RpcError("maxPriorityFeePerGas must equal maxFeePerGas on Celo chains")
             }
@@ -240,6 +242,7 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         this.logger.trace({ userOperation, entryPoint }, "beginning validation")
+        this.metrics.userOperationsReceived.inc()
 
         if (
             userOperation.preVerificationGas === 0n ||
@@ -258,7 +261,7 @@ export class RpcHandler implements IRpcEndpoint {
         const entryPointContract = getContract({
             address: entryPoint,
             abi: EntryPointAbi,
-            publicClient: this.config.publicClient
+            publicClient: this.publicClient
         })
 
         return await entryPointContract.read.getUserOpHash([userOperation])
@@ -269,9 +272,9 @@ export class RpcHandler implements IRpcEndpoint {
         const userOperationEventAbiItem = getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
 
         // Only query up to the last `fullBlockRange` = 20000 blocks
-        const latestBlock = await this.config.publicClient.getBlockNumber()
+        const latestBlock = await this.publicClient.getBlockNumber()
         let fullBlockRange = 20000n
-        if (this.config.chainId === 335 || this.config.chainId === 8453) {
+        if (this.chainId === 335 || this.chainId === 8453) {
             fullBlockRange = 2000n
         }
 
@@ -282,7 +285,7 @@ export class RpcHandler implements IRpcEndpoint {
             fromBlock = latestBlock - fullBlockRange
         }
 
-        const filterResult = await this.config.publicClient.getLogs({
+        const filterResult = await this.publicClient.getLogs({
             address: this.config.entryPoint,
             event: userOperationEventAbiItem,
             fromBlock: fromBlock > 0n ? fromBlock : 0n,
@@ -305,7 +308,7 @@ export class RpcHandler implements IRpcEndpoint {
 
         const getTransaction = async (txHash: HexData32): Promise<Transaction> => {
             try {
-                return await this.config.publicClient.getTransaction({ hash: txHash })
+                return await this.publicClient.getTransaction({ hash: txHash })
             } catch (e) {
                 if (e instanceof TransactionNotFoundError) {
                     return getTransaction(txHash)
@@ -351,9 +354,9 @@ export class RpcHandler implements IRpcEndpoint {
         const userOperationEventAbiItem = getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
 
         // Only query up to the last `fullBlockRange` = 20000 blocks
-        const latestBlock = await this.config.publicClient.getBlockNumber()
+        const latestBlock = await this.publicClient.getBlockNumber()
         let fullBlockRange = 20000n
-        if (this.config.chainId === 335 || this.config.chainId === 8453) {
+        if (this.chainId === 335 || this.chainId === 8453) {
             fullBlockRange = 2000n
         }
 
@@ -364,7 +367,7 @@ export class RpcHandler implements IRpcEndpoint {
             fromBlock = latestBlock - fullBlockRange
         }
 
-        const filterResult = await this.config.publicClient.getLogs({
+        const filterResult = await this.publicClient.getLogs({
             address: this.config.entryPoint,
             event: userOperationEventAbiItem,
             fromBlock: fromBlock > 0n ? fromBlock : 0n,
@@ -400,7 +403,7 @@ export class RpcHandler implements IRpcEndpoint {
 
         const getTransactionReceipt = async (txHash: HexData32): Promise<TransactionReceipt> => {
             try {
-                return await this.config.publicClient.getTransactionReceipt({ hash: txHash })
+                return await this.publicClient.getTransactionReceipt({ hash: txHash })
             } catch (e) {
                 if (e instanceof TransactionReceiptNotFoundError) {
                     return getTransactionReceipt(txHash)
@@ -508,7 +511,7 @@ export class RpcHandler implements IRpcEndpoint {
 
     // rome-ignore lint/nursery/useCamelCase: <explanation>
     async pimlico_getUserOperationGasPrice(): Promise<PimlicoGetUserOperationGasPriceResponseResult> {
-        const gasPrice = await getGasPrice(this.config.chainId, this.config.publicClient, this.logger)
+        const gasPrice = await getGasPrice(this.chainId, this.publicClient, this.logger)
         return {
             slow: {
                 maxFeePerGas: (gasPrice.maxFeePerGas * 105n) / 100n,

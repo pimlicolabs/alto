@@ -1,5 +1,5 @@
 import { Address, HexData, HexData32, CallEngineAbi } from "@alto/types"
-import { Logger } from "@alto/utils"
+import { Logger, Metrics } from "@alto/utils"
 import { Semaphore } from "async-mutex"
 
 import {
@@ -24,12 +24,13 @@ const waitForTransactionReceipt = async (publicClient: PublicClient, tx: HexData
 
 export class SenderManager {
     wallets: Account[]
-    private availableWallets: Account[]
-    logger: Logger
-    private semaphore: Semaphore
     utilityAccount: Account
+    private availableWallets: Account[]
+    private logger: Logger
+    private metrics: Metrics
+    private semaphore: Semaphore
 
-    constructor(wallets: Account[], utilityAccount: Account, logger: Logger, maxSigners?: number) {
+    constructor(wallets: Account[], utilityAccount: Account, logger: Logger, metrics: Metrics, maxSigners?: number) {
         if (maxSigners !== undefined && wallets.length > maxSigners) {
             this.wallets = wallets.slice(0, maxSigners)
             this.availableWallets = wallets.slice(0, maxSigners)
@@ -40,6 +41,9 @@ export class SenderManager {
 
         this.utilityAccount = utilityAccount
         this.logger = logger
+        this.metrics = metrics
+        metrics.walletsAvailable.set(this.availableWallets.length)
+        metrics.walletsTotal.set(this.wallets.length)
         this.semaphore = new Semaphore(this.availableWallets.length)
     }
 
@@ -76,15 +80,15 @@ export class SenderManager {
             const balance = await publicClient.getBalance({ address: wallet.address })
 
             if (balance < minBalance) {
-                const missingBalance = minBalance * 6n / 5n - balance
+                const missingBalance = (minBalance * 6n) / 5n - balance
                 balancesMissing[wallet.address] = missingBalance
             }
         })
 
         await Promise.all(balanceRequestPromises)
 
-        const totalBalanceMissing = (Object.values(balancesMissing).reduce((a, b) => a + b, 0n))
-        if (utilityWalletBalance < totalBalanceMissing * 11n / 10n) {
+        const totalBalanceMissing = Object.values(balancesMissing).reduce((a, b) => a + b, 0n)
+        if (utilityWalletBalance < (totalBalanceMissing * 11n) / 10n) {
             this.logger.info({ balancesMissing, totalBalanceMissing }, "balances missing")
             this.logger.error(
                 { utilityWalletBalance, totalBalanceMissing },
@@ -174,6 +178,8 @@ export class SenderManager {
 
         this.logger.trace({ executor: wallet.address }, "got wallet from sender manager")
 
+        this.metrics.walletsAvailable.set(this.availableWallets.length)
+
         return wallet
     }
 
@@ -182,6 +188,7 @@ export class SenderManager {
         this.availableWallets.push(wallet)
         this.semaphore.release()
         this.logger.trace({ executor: wallet.address }, "pushed wallet to sender manager")
+        this.metrics.walletsAvailable.set(this.availableWallets.length)
         return
     }
 }

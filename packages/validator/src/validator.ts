@@ -9,8 +9,8 @@ import {
     entryPointExecutionErrorSchema
 } from "@alto/types"
 import { ValidationResult } from "@alto/types"
-import { Logger } from "@alto/utils"
-import { PublicClient, getContract, encodeFunctionData, decodeErrorResult, Account } from "viem"
+import { Logger, Metrics } from "@alto/utils"
+import { PublicClient, getContract, encodeFunctionData, decodeErrorResult, Account, Transport, Chain } from "viem"
 import { hexDataSchema } from "@alto/types"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
@@ -79,16 +79,25 @@ async function getSimulationResult(
 }
 
 export class UnsafeValidator implements IValidator {
-    publicClient: PublicClient
+    publicClient: PublicClient<Transport, Chain>
     entryPoint: Address
     logger: Logger
+    metrics: Metrics
     utilityWallet: Account
     usingTenderly: boolean
 
-    constructor(publicClient: PublicClient, entryPoint: Address, logger: Logger, utilityWallet: Account, usingTenderly = false) {
+    constructor(
+        publicClient: PublicClient<Transport, Chain>,
+        entryPoint: Address,
+        logger: Logger,
+        metrics: Metrics,
+        utilityWallet: Account,
+        usingTenderly = false
+    ) {
         this.publicClient = publicClient
         this.entryPoint = entryPoint
         this.logger = logger
+        this.metrics = metrics
         this.utilityWallet = utilityWallet
         this.usingTenderly = usingTenderly
     }
@@ -122,7 +131,9 @@ export class UnsafeValidator implements IValidator {
             return getSimulationResult(errorResult, this.logger, "ExecutionResult", this.usingTenderly)
         } else {
             const errorResult = await entryPointContract.simulate
-                .simulateHandleOp([userOperation, "0x0000000000000000000000000000000000000000", "0x"], {account: this.utilityWallet})
+                .simulateHandleOp([userOperation, "0x0000000000000000000000000000000000000000", "0x"], {
+                    account: this.utilityWallet
+                })
                 .catch((e) => {
                     if (e instanceof Error) {
                         return e
@@ -178,16 +189,23 @@ export class UnsafeValidator implements IValidator {
     }
 
     async validateUserOperation(userOperation: UserOperation): Promise<ValidationResult> {
-        const validationResult = await this.getValidationResult(userOperation)
+        try {
+            const validationResult = await this.getValidationResult(userOperation)
 
-        if (validationResult.returnInfo.sigFailed) {
-            throw new RpcError("Invalid UserOp signature or paymaster signature", ValidationErrors.InvalidSignature)
+            if (validationResult.returnInfo.sigFailed) {
+                throw new RpcError("Invalid UserOp signature or paymaster signature", ValidationErrors.InvalidSignature)
+            }
+
+            if (validationResult.returnInfo.validUntil < Date.now() / 1000 + 30) {
+                throw new RpcError("expires too soon", ValidationErrors.ExpiresShortly)
+            }
+
+            this.metrics.userOperationsValidationSuccess.inc()
+
+            return validationResult
+        } catch (e) {
+            this.metrics.userOperationsValidationFailure.inc()
+            throw e
         }
-
-        if (validationResult.returnInfo.validUntil < Date.now() / 1000 + 30) {
-            throw new RpcError("expires too soon", ValidationErrors.ExpiresShortly)
-        }
-
-        return validationResult
     }
 }
