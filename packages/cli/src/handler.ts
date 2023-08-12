@@ -178,6 +178,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         handlerConfig.publicClient,
         parsedArgs.entryPoint,
         logger,
+        metrics,
         parsedArgs.utilityPrivateKey,
         parsedArgs.tenderlyEnabled
     )
@@ -185,6 +186,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         parsedArgs.signerPrivateKeys,
         parsedArgs.utilityPrivateKey,
         logger,
+        metrics,
         parsedArgs.maxSigners
     )
 
@@ -205,9 +207,10 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         parsedArgs.entryPoint,
         parsedArgs.pollingInterval,
         logger,
+        metrics,
         !parsedArgs.tenderlyEnabled
     )
-    const rpcEndpoint = new RpcHandler(handlerConfig, validator, executor, monitor, logger)
+    const rpcEndpoint = new RpcHandler(handlerConfig, validator, executor, monitor, logger, metrics)
 
     executor.flushStuckTransactions()
 

@@ -26,7 +26,7 @@ import {
     logSchema,
     receiptSchema
 } from "@alto/types"
-import { Logger, calcPreVerificationGas, calcOptimismPreVerificationGas } from "@alto/utils"
+import { Logger, calcPreVerificationGas, calcOptimismPreVerificationGas, Metrics } from "@alto/utils"
 import { IValidator } from "@alto/validator"
 import {
     decodeFunctionData,
@@ -59,19 +59,22 @@ export class RpcHandler implements IRpcEndpoint {
     executor: IExecutor
     monitor: Monitor
     logger: Logger
+    metrics: Metrics
 
     constructor(
         config: RpcHandlerConfig,
         validator: IValidator,
         executor: IExecutor,
         monitor: Monitor,
-        logger: Logger
+        logger: Logger,
+        metrics: Metrics
     ) {
         this.config = config
         this.validator = validator
         this.executor = executor
         this.monitor = monitor
         this.logger = logger
+        this.metrics = metrics
     }
 
     async handleMethod(request: BundlerRequest): Promise<BundlerResponse> {
@@ -240,6 +243,7 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         this.logger.trace({ userOperation, entryPoint }, "beginning validation")
+        this.metrics.userOperationsReceived.inc()
 
         if (
             userOperation.preVerificationGas === 0n ||

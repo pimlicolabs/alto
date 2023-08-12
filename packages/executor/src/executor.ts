@@ -1,6 +1,6 @@
 import { EntryPointAbi, RpcError, errorCauseSchema } from "@alto/types"
 import { Address, HexData32, UserOperation } from "@alto/types"
-import { Logger, calcPreVerificationGas } from "@alto/utils"
+import { Logger, Metrics, calcPreVerificationGas } from "@alto/utils"
 import { Mutex } from "async-mutex"
 import {
     Abi,
@@ -64,6 +64,7 @@ export class BasicExecutor implements IExecutor {
     entryPoint: Address
     pollingInterval: number
     logger: Logger
+    metrics: Metrics
     simulateTransaction: boolean
 
     mutex: Mutex
@@ -77,6 +78,7 @@ export class BasicExecutor implements IExecutor {
         entryPoint: Address,
         pollingInterval: number,
         logger: Logger,
+        metrics: Metrics,
         simulateTransaction = false
     ) {
         this.beneficiary = beneficiary
@@ -87,6 +89,7 @@ export class BasicExecutor implements IExecutor {
         this.entryPoint = entryPoint
         this.pollingInterval = pollingInterval
         this.logger = logger
+        this.metrics = metrics
         this.simulateTransaction = simulateTransaction
 
         this.mutex = new Mutex()
@@ -216,6 +219,7 @@ export class BasicExecutor implements IExecutor {
                     transactionHash: opStatus.transactionHash
                 })
                 this.senderManager.pushWallet(opStatus.executor)
+                this.metrics.userOperationsBundlesIncluded.inc()
                 return
             }
 
@@ -429,8 +433,8 @@ export class BasicExecutor implements IExecutor {
             }
 
             childLogger.info({ txHash, userOpHash: opHash }, "submitted bundle transaction")
-
             this.monitor.setUserOperationStatus(opHash, { status: "submitted", transactionHash: txHash })
+            this.metrics.userOperationsBundlesSubmitted.inc()
         } catch (e: unknown) {
             await this.senderManager.pushWallet(wallet)
 
