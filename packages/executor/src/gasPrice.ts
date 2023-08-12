@@ -84,13 +84,12 @@ export async function getGasPrice(
         if (feeAverage > gasPrice) {
             gasPrice = feeAverage
         }
-        maxPriorityFeePerGas = feeAverage
+        maxPriorityFeePerGas = gasPrice
     }
 
     if (chainId === 53935) {
         gasPrice = gasPrice * 2n
     }
-    
 
     return {
         maxFeePerGas: gasPrice,
