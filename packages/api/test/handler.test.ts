@@ -5,6 +5,7 @@ import { foundry } from "viem/chains"
 import {
     Clients,
     createClients,
+    createMetrics,
     deployContract,
     getUserOpHash,
     initDebugLogger,
@@ -20,6 +21,7 @@ import { UnsafeValidator } from "@alto/validator"
 import { SimpleAccountFactoryAbi, SimpleAccountFactoryBytecode } from "@alto/types/src/contracts/SimpleAccountFactory"
 import { NullExecutor } from "@alto/executor/src"
 import { Monitor } from "@alto/executor"
+import { Registry } from "prom-client"
 
 describe("handler", () => {
     let clients: Clients
@@ -45,18 +47,26 @@ describe("handler", () => {
             SimpleAccountFactoryBytecode
         )
 
-        const anvilChainId = await clients.public.getChainId()
+        const metrics = createMetrics(new Registry(), 999999, "Test", "development", false)
+
         const logger = initDebugLogger("silent")
-        const validator = new UnsafeValidator(clients.public, entryPoint, logger)
+        const validator = new UnsafeValidator(clients.public, entryPoint, logger, metrics, signer)
         const rpcHandlerConfig: RpcHandlerConfig = {
-            publicClient: clients.public,
-            chainId: anvilChainId,
-            entryPoint: entryPoint
+            entryPoint: entryPoint,
+            usingTenderly: false
         }
 
         const monitor = new Monitor()
 
-        handler = new RpcHandler(rpcHandlerConfig, validator, new NullExecutor(), monitor, logger)
+        handler = new RpcHandler(
+            rpcHandlerConfig,
+            clients.public,
+            validator,
+            new NullExecutor(),
+            monitor,
+            logger,
+            metrics
+        )
     })
 
     after(async function () {

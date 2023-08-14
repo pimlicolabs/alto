@@ -1,7 +1,7 @@
-import { Address, EntryPointAbi, HexData, UserOperation } from "@alto/types";
-import { SimpleAccountFactoryAbi } from "@alto/types/src/contracts/SimpleAccountFactory";
-import { Clients, getUserOpHash, parseSenderAddressError } from "@alto/utils";
-import { getContract, parseEther, concat, encodeFunctionData, Account } from "viem"
+import { Address, EntryPointAbi, HexData, UserOperation } from "@alto/types"
+import { SimpleAccountFactoryAbi } from "@alto/types/src/contracts/SimpleAccountFactory"
+import { Clients, getUserOpHash, parseSenderAddressError } from "@alto/utils"
+import { getContract, parseEther, concat, encodeFunctionData, Account, toBytes } from "viem"
 import { foundry } from "viem/chains"
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 
@@ -21,26 +21,33 @@ export const TEST_OP: UserOperation = {
 
 export async function getSender(entryPoint: Address, initCode: HexData, clients: Clients): Promise<Address> {
     const entryPointContract = getContract({
-      address: entryPoint,
-      abi: EntryPointAbi,
-      publicClient: clients.public,
-    });
-  
+        address: entryPoint,
+        abi: EntryPointAbi,
+        publicClient: clients.public
+    })
+
     const sender = await entryPointContract.simulate
-      .getSenderAddress([initCode])
-      .then((_) => {
-        throw new Error("Expected error");
-      })
-      .catch((e: Error) => {
-        return parseSenderAddressError(e);
-      });
+        .getSenderAddress([initCode])
+        .then((_) => {
+            throw new Error("Expected error")
+        })
+        .catch((e: Error) => {
+            return parseSenderAddressError(e)
+        })
 
     await clients.test.setBalance({ address: sender, value: parseEther("1") })
-  
-    return sender;
+
+    return sender
 }
 
-export async function createOp(entryPoint: Address, simpleAccountFactory: Address, signer: Account, clients: Clients, maxFeePerGas?: bigint, nonce?: bigint): Promise<UserOperation> {
+export async function createOp(
+    entryPoint: Address,
+    simpleAccountFactory: Address,
+    signer: Account,
+    clients: Clients,
+    maxFeePerGas?: bigint,
+    nonce?: bigint
+): Promise<UserOperation> {
     const initCode = concat([
         simpleAccountFactory,
         encodeFunctionData({
@@ -52,15 +59,15 @@ export async function createOp(entryPoint: Address, simpleAccountFactory: Addres
 
     const sender = await getSender(entryPoint, initCode, clients)
 
-    const op = Object.assign({}, TEST_OP);
+    const op = Object.assign({}, TEST_OP)
     op.sender = sender
     op.initCode = initCode
     op.nonce = nonce ?? 0n
-    op.maxFeePerGas = maxFeePerGas ?? await clients.public.getGasPrice()
+    op.maxFeePerGas = maxFeePerGas ?? (await clients.public.getGasPrice())
 
     const opHash = getUserOpHash(op, entryPoint, foundry.id)
 
-    const signature = await clients.wallet.signMessage({ account: signer, message: opHash })
+    const signature = await clients.wallet.signMessage({ account: signer, message: { raw: opHash } })
     op.signature = signature
 
     return op
@@ -68,12 +75,12 @@ export async function createOp(entryPoint: Address, simpleAccountFactory: Addres
 
 export const generateAccounts = async (clients: Clients) => {
     const accountsPromises = [...Array(10)].map(async (_) => {
-        const privateKey = generatePrivateKey();
-        const account = privateKeyToAccount(privateKey);
-        await clients.test.setBalance({ address: account.address, value: parseEther("100") });
-        return account;
-    });
+        const privateKey = generatePrivateKey()
+        const account = privateKeyToAccount(privateKey)
+        await clients.test.setBalance({ address: account.address, value: parseEther("100") })
+        return account
+    })
 
-    const accounts = await Promise.all(accountsPromises);
-    return accounts;
-};
+    const accounts = await Promise.all(accountsPromises)
+    return accounts
+}

@@ -1,6 +1,14 @@
 import { Address, EntryPointAbi, EntryPoint_bytecode, RpcError, UserOperation } from "@alto/types"
 import { SimpleAccountFactoryAbi, SimpleAccountFactoryBytecode } from "@alto/types"
-import { Clients, createClients, deployContract, getUserOpHash, initDebugLogger, launchAnvil } from "@alto/utils"
+import {
+    Clients,
+    createClients,
+    createMetrics,
+    deployContract,
+    getUserOpHash,
+    initDebugLogger,
+    launchAnvil
+} from "@alto/utils"
 import { ChildProcess } from "child_process"
 import { Account, concat, encodeFunctionData, getContract, parseEther } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
@@ -9,6 +17,7 @@ import { foundry } from "viem/chains"
 import { IValidator } from "../lib"
 import { expect } from "earl"
 import { parseSenderAddressError } from "@alto/utils"
+import { Registry } from "prom-client"
 
 const TEST_OP: UserOperation = {
     sender: "0x0000000000000000000000000000000000000000",
@@ -50,7 +59,9 @@ describe("validator", () => {
 
             const logger = initDebugLogger("silent")
 
-            validator = new UnsafeValidator(clients.public, entryPoint, logger)
+            const metrics = createMetrics(new Registry(), 999999, "Test", "development", false)
+
+            validator = new UnsafeValidator(clients.public, entryPoint, logger, metrics, signer)
         })
 
         afterEach(async function () {
@@ -97,7 +108,7 @@ describe("validator", () => {
 
             const signature = await clients.wallet.signMessage({
                 account: signer,
-                message: opHash
+                message: { raw: opHash }
             })
             op.signature = signature
 

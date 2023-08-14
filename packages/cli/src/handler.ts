@@ -11,7 +11,7 @@ import { Monitor } from "@alto/executor"
 import { Logger, initDebugLogger, initProductionLogger } from "@alto/utils"
 import { createMetrics } from "@alto/utils"
 import { UnsafeValidator } from "@alto/validator"
-import { Chain, PublicClient, createPublicClient, createWalletClient, http } from "viem"
+import { Chain, PublicClient, Transport, createPublicClient, createWalletClient, http } from "viem"
 import * as chains from "viem/chains"
 import { fromZodError } from "zod-validation-error"
 import { Registry } from "prom-client"
@@ -27,7 +27,7 @@ const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
     return parsing.data
 }
 
-const preFlightChecks = async (publicClient: PublicClient, args: IBundlerArgs): Promise<void> => {
+const preFlightChecks = async (publicClient: PublicClient<Transport, Chain>, args: IBundlerArgs): Promise<void> => {
     const entryPointCode = await publicClient.getBytecode({ address: args.entryPoint })
     if (entryPointCode === "0x") {
         throw new Error(`entry point ${args.entryPoint} does not exist`)
@@ -94,33 +94,9 @@ const linea: Chain = {
     testnet: false
 }
 
-const base: Chain = {
-    id: 8453,
-    name: "Base Mainnet",
-    network: "base",
-    nativeCurrency: {
-        name: "ETH",
-        symbol: "ETH",
-        decimals: 18
-    },
-    rpcUrls: {
-        default: {
-            http: []
-        },
-        public: {
-            http: []
-        }
-    },
-    testnet: false
-}
-
-function getChain(chainId: number) {
+function getChain(chainId: number): Chain {
     if (chainId === 36865) {
         return customTestnet
-    }
-
-    if (chainId === 8453) {
-        return base
     }
 
     if (chainId === 335) {
@@ -163,7 +139,6 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
 
     const registry = new Registry()
     const metrics = createMetrics(registry, chainId, chain.name, parsedArgs.environment)
-    metrics.walletsAvailable.set(69)
 
     await preFlightChecks(client, parsedArgs)
 
@@ -178,6 +153,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         logger = initProductionLogger(
             parsedArgs.logLevel,
             chainId,
+            chain.name,
             parsedArgs.environment,
             parsedArgs.lokiHost,
             parsedArgs.lokiUsername,

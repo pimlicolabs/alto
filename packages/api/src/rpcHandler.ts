@@ -155,17 +155,17 @@ export class RpcHandler implements IRpcEndpoint {
         }
     }
 
-    // rome-ignore lint/nursery/useCamelCase: <explanation>
+    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async eth_chainId(): Promise<ChainIdResponseResult> {
         return BigInt(this.chainId)
     }
 
-    // rome-ignore lint/nursery/useCamelCase: <explanation>
+    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async eth_supportedEntryPoints(): Promise<SupportedEntryPointsResponseResult> {
         return [this.config.entryPoint]
     }
 
-    // rome-ignore lint/nursery/useCamelCase: <explanation>
+    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async eth_estimateUserOperationGas(
         userOperation: UserOperation,
         entryPoint: Address
@@ -222,7 +222,7 @@ export class RpcHandler implements IRpcEndpoint {
         }
     }
 
-    // rome-ignore lint/nursery/useCamelCase: <explanation>
+    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async eth_sendUserOperation(
         userOperation: UserOperation,
         entryPoint: Address
@@ -267,7 +267,7 @@ export class RpcHandler implements IRpcEndpoint {
         return await entryPointContract.read.getUserOpHash([userOperation])
     }
 
-    // rome-ignore lint/nursery/useCamelCase: <explanation>
+    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async eth_getUserOperationByHash(userOperationHash: HexData32): Promise<GetUserOperationByHashResponseResult> {
         const userOperationEventAbiItem = getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
 
@@ -349,7 +349,7 @@ export class RpcHandler implements IRpcEndpoint {
         return result
     }
 
-    // rome-ignore lint/nursery/useCamelCase: <explanation>
+    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async eth_getUserOperationReceipt(userOperationHash: HexData32): Promise<GetUserOperationReceiptResponseResult> {
         const userOperationEventAbiItem = getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
 
@@ -482,34 +482,34 @@ export class RpcHandler implements IRpcEndpoint {
         return userOperationReceipt
     }
 
-    // rome-ignore lint/nursery/useCamelCase: <explanation>
+    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async debug_bundler_clearState(): Promise<BundlerClearStateResponseResult> {
         throw new Error("Method not implemented.")
     }
 
-    // rome-ignore lint/nursery/useCamelCase: <explanation>
+    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async debug_bundler_dumpMempool(_entryPoint: Address): Promise<BundlerDumpMempoolResponseResult> {
         throw new Error("Method not implemented.")
     }
 
-    // rome-ignore lint/nursery/useCamelCase: <explanation>
+    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
         throw new Error("Method not implemented.")
     }
 
-    // rome-ignore lint/nursery/useCamelCase: <explanation>
+    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async debug_bundler_setBundlingMode(_bundlingMode: BundlingMode): Promise<BundlerSetBundlingModeResponseResult> {
         throw new Error("Method not implemented.")
     }
 
-    // rome-ignore lint/nursery/useCamelCase: <explanation>
+    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async pimlico_getUserOperationStatus(
         userOperationHash: HexData32
     ): Promise<PimlicoGetUserOperationStatusResponseResult> {
         return this.monitor.getUserOperationStatus(userOperationHash)
     }
 
-    // rome-ignore lint/nursery/useCamelCase: <explanation>
+    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async pimlico_getUserOperationGasPrice(): Promise<PimlicoGetUserOperationGasPriceResponseResult> {
         const gasPrice = await getGasPrice(this.chainId, this.publicClient, this.logger)
         return {
@@ -528,7 +528,7 @@ export class RpcHandler implements IRpcEndpoint {
         }
     }
 
-    // rome-ignore lint/nursery/useCamelCase: <explanation>
+    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async debug_bundler_flushStuckTransactions(): Promise<BundlerFlushStuckTransactionsResponseResult> {
         await this.executor.flushStuckTransactions()
 

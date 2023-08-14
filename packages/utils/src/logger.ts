@@ -65,6 +65,7 @@ export const initDebugLogger = (level = "debug"): Logger => {
 export const initProductionLogger = (
     level: string,
     chainId: number,
+    network: string,
     environment: string,
     lokiHost?: string,
     lokiUsername?: string,
@@ -76,7 +77,7 @@ export const initProductionLogger = (
             options: {
                 batching: true,
                 interval: 1,
-                labels: { app: "alto", chainId: chainId.toString(), env: environment },
+                labels: { app: "alto", chainId: chainId.toString(), env: environment, network },
                 host: lokiHost,
                 basicAuth: {
                     username: lokiUsername,

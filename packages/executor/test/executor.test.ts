@@ -1,4 +1,4 @@
-import { type ChildProcess } from "child_process"
+import type { ChildProcess } from "child_process"
 import { concat, encodeFunctionData, parseEther, getContract, getAbiItem, RpcTransaction, TestClient } from "viem"
 
 import { privateKeyToAccount, Account, generatePrivateKey } from "viem/accounts"
@@ -6,6 +6,7 @@ import { foundry } from "viem/chains"
 import {
     Clients,
     createClients,
+    createMetrics,
     deployContract,
     getUserOpHash,
     initDebugLogger,
@@ -18,8 +19,9 @@ import { Address, EntryPoint_bytecode, EntryPointAbi, HexData32, UserOperation }
 import { SimpleAccountFactoryAbi, SimpleAccountFactoryBytecode } from "@alto/types/src/contracts/SimpleAccountFactory"
 import { BasicExecutor } from "../src"
 import { TEST_OP, createOp, generateAccounts, getSender } from "./utils"
-import { SenderManager } from "../src/senderManager"
-import { Monitor } from "../src/monitoring"
+import { SenderManager } from "../src"
+import { Monitor } from "../src"
+import { Registry } from "prom-client"
 
 const MINE_WAIT_TIME = 300
 
@@ -40,7 +42,7 @@ describe("executor", () => {
     let executor: BasicExecutor
     let monitor: Monitor
 
-    beforeEach(async function () {
+    beforeEach(async () => {
         // destructure the return value
         anvilProcess = await launchAnvil()
         const privateKey = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
@@ -54,7 +56,10 @@ describe("executor", () => {
         const logger = initDebugLogger("silent")
 
         const accounts: Account[] = await generateAccounts(clients)
-        const senderManager = new SenderManager(accounts, logger)
+
+        const metrics = createMetrics(new Registry(), 999999, "Test", "development", false)
+
+        const senderManager = new SenderManager(accounts, accounts[0], logger, metrics)
 
         simpleAccountFactory = await deployContract(
             clients,
@@ -63,6 +68,7 @@ describe("executor", () => {
             [entryPoint],
             SimpleAccountFactoryBytecode
         )
+
         monitor = new Monitor()
         executor = new BasicExecutor(
             signer.address,
@@ -72,13 +78,15 @@ describe("executor", () => {
             monitor,
             entryPoint,
             100,
-            logger
+            logger,
+            metrics,
+            true
         )
 
         await clients.test.setAutomine(false)
     })
 
-    afterEach(async function () {
+    afterEach(async () => {
         executor.stopWatchingBlocks()
         anvilProcess.kill()
     })
@@ -87,6 +95,7 @@ describe("executor", () => {
         this.timeout(10000)
 
         const op = await createOp(entryPoint, simpleAccountFactory, signer, clients)
+
         const opHash = getUserOpHash(op, entryPoint, foundry.id)
         const beforeStatus = monitor.getUserOperationStatus(opHash)
         expect(beforeStatus.status).toEqual("not_found")
@@ -231,7 +240,8 @@ describe("executor", () => {
 
         const sender = await getSender(entryPoint, initCode, clients)
 
-        await clients.test.setBalance({ address: sender, value: parseEther("1") })
+        // no balance
+        // await clients.test.setBalance({ address: sender, value: parseEther("1") })
 
         const op = TEST_OP
         op.sender = sender
@@ -240,7 +250,7 @@ describe("executor", () => {
 
         const opHash = getUserOpHash(op, entryPoint, foundry.id)
 
-        const signature = await clients.wallet.signMessage({ account: signer, message: opHash })
+        const signature = await clients.wallet.signMessage({ account: signer, message: { raw: opHash } })
         op.signature = signature
 
         expect(await clients.test.getAutomine()).toEqual(false)
@@ -265,7 +275,7 @@ describe("executor", () => {
             }
         })
         expect(logsAgain.length).toEqual(1)
-        const successfulTx = await clients.public.getTransaction({ hash: logsAgain[0].transactionHash! })
+        const successfulTx = await clients.public.getTransaction({ hash: logsAgain[0].transactionHash })
         expect(successfulTx.from.toLowerCase()).toEqual(signer2.address.toLowerCase())
     })
 

@@ -20,6 +20,13 @@ import { SenderManager } from "./senderManager"
 import { Monitor } from "./monitoring"
 import { fromZodError } from "zod-validation-error"
 import { getGasPrice } from "./gasPrice"
+import * as chains from "viem/chains"
+
+// enum Action {
+//     Resubmit = "resubmit",
+//     Drop = "drop",
+//     NoAction = "noAction"
+// }
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -41,6 +48,8 @@ interface UserOperationStatus {
     transactionHash: HexData32
     transactionRequest: WriteContractParameters<Abi | readonly unknown[], string, Chain, Account | undefined, Chain>
     executor: Account
+    lastReplaced: number
+    firstSubmitted: number
 }
 
 const transactionIncluded = async (txHash: HexData32, publicClient: PublicClient): Promise<boolean> => {
@@ -213,6 +222,7 @@ export class BasicExecutor implements IExecutor {
             })
             if (txIncluded) {
                 childLogger.info("transaction successfully included")
+                this.metrics.userOperationInclusionDuration.observe((Date.now() - opStatus.firstSubmitted) / 1000)
                 delete this.monitoredTransactions[opHash]
                 this.monitor.setUserOperationStatus(opHash, {
                     status: "included",
@@ -231,23 +241,31 @@ export class BasicExecutor implements IExecutor {
                 "queried gas fee parameters"
             )
 
-            if (
-                transaction.maxFeePerGas === undefined ||
-                transaction.maxPriorityFeePerGas === undefined ||
-                transaction.maxFeePerGas >= gasPriceParameters.maxFeePerGas
-            ) {
-                childLogger.debug(
-                    { maxFeePerGas: transaction.maxFeePerGas, gasPriceParameters },
-                    "gas price is high enough, not replacing transaction"
-                )
-                return
-            }
+            let request: WriteContractParameters<Abi | readonly unknown[], string, Chain, Account | undefined, Chain>
+            if (this.walletClient.chain.id !== chains.scrollTestnet.id) {
+                if (transaction.maxFeePerGas === undefined || transaction.maxPriorityFeePerGas === undefined) {
+                    childLogger.error(
+                        { maxFeePerGas: transaction.maxFeePerGas, gasPriceParameters },
+                        "maxFeePerGas or maxPriorityFeePerGas is undefined"
+                    )
+                    return
+                }
 
-            childLogger.debug("replacing transaction")
-            delete this.monitoredTransactions[opHash]
+                if (transaction.maxFeePerGas >= gasPriceParameters.maxFeePerGas) {
+                    if (Date.now() - opStatus.lastReplaced <= 1000 * 60 * 5) {
+                        childLogger.debug(
+                            { maxFeePerGas: transaction.maxFeePerGas, gasPriceParameters },
+                            "gas price is high enough, not replacing transaction"
+                        )
+                        return
+                    } else {
+                        childLogger.debug(
+                            { maxFeePerGas: transaction.maxFeePerGas, gasPriceParameters },
+                            "replacing transaction because it was last replaced more than 5 minutes ago"
+                        )
+                    }
+                }
 
-            let request
-            if (this.walletClient.chain.id !== 534353) {
                 request = {
                     ...transaction,
                     maxFeePerGas:
@@ -258,8 +276,25 @@ export class BasicExecutor implements IExecutor {
                 }
             } else {
                 if (transaction.gasPrice === undefined) {
-                    throw new Error("gas price is undefined")
+                    childLogger.error({ gasPrice: transaction.gasPrice, gasPriceParameters }, "gasPrice is undefined")
+                    return
                 }
+
+                if (transaction.gasPrice >= gasPriceParameters.maxFeePerGas) {
+                    if (Date.now() - opStatus.lastReplaced <= 1000 * 60 * 5) {
+                        childLogger.debug(
+                            { maxFeePerGas: transaction.maxFeePerGas, gasPriceParameters },
+                            "gas price is high enough, not replacing transaction"
+                        )
+                        return
+                    } else {
+                        childLogger.debug(
+                            { maxFeePerGas: transaction.maxFeePerGas, gasPriceParameters },
+                            "replacing transaction because it was last replaced more than 5 minutes ago"
+                        )
+                    }
+                }
+
                 request = {
                     ...transaction,
                     gasPrice:
@@ -269,6 +304,9 @@ export class BasicExecutor implements IExecutor {
                 }
             }
 
+            childLogger.debug("replacing transaction")
+            delete this.monitoredTransactions[opHash]
+
             const { chain: _chain, abi: _abi, ...loggingRequest } = request
             childLogger.trace({ request: { ...loggingRequest } }, "generated replacement transaction request")
 
@@ -277,7 +315,9 @@ export class BasicExecutor implements IExecutor {
                 this.monitoredTransactions[opHash] = {
                     transactionHash: tx,
                     transactionRequest: request,
-                    executor: opStatus.executor
+                    executor: opStatus.executor,
+                    lastReplaced: Date.now(),
+                    firstSubmitted: opStatus.firstSubmitted
                 }
 
                 this.monitor.setUserOperationStatus(opHash, { status: "submitted", transactionHash: tx })
@@ -346,29 +386,20 @@ export class BasicExecutor implements IExecutor {
             const chainId = this.walletClient.chain.id
 
             let gasLimit = ((op.preVerificationGas + 3n * op.verificationGasLimit + op.callGasLimit) * 12n) / 10n
-            if (chainId === 42161) {
+            if (chainId === chains.arbitrum.id) {
                 gasLimit *= 8n
-            } else if (chainId === 10 || chainId === 420 || chainId === 84531) {
+            } else if (
+                chainId === chains.optimism.id ||
+                chainId === chains.optimismGoerli.id ||
+                chainId === chains.baseGoerli.id ||
+                chainId === chains.base.id
+            ) {
                 // gasLimit = await ep.estimateGas.handleOps([[op], wallet.address], { account: wallet })
                 gasLimit = ((calcPreVerificationGas(op) + 3n * op.verificationGasLimit + op.callGasLimit) * 12n) / 10n
             }
 
             const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
             childLogger.debug({ gasPriceParameters }, "got gas price")
-
-            // const minGasPrice = (95n * gasPrice) / 100n
-
-            // if (op.maxFeePerGas < minGasPrice) {
-            //     childLogger.debug(
-            //         { gasPrice, userOperationMaxFeePerGas: op.maxFeePerGas, minGasPrice },
-            //         "user operation maxFeePerGas too low"
-            //     )
-            //     throw new RpcError(
-            //         `user operation maxFeePerGas too low, got ${formatGwei(
-            //             op.maxFeePerGas
-            //         )} gwei expected at least ${formatGwei(minGasPrice)} gwei`
-            //     )
-            // }
 
             const nonce = await this.publicClient.getTransactionCount({
                 address: wallet.address,
@@ -388,7 +419,7 @@ export class BasicExecutor implements IExecutor {
                 })
 
                 // scroll alpha testnet doesn't support eip-1559 txs yet
-                if (this.walletClient.chain?.id === 534353) {
+                if (this.walletClient.chain.id === chains.scrollTestnet.id) {
                     request.gasPrice = request.maxFeePerGas
                     request.maxFeePerGas = undefined
                     request.maxPriorityFeePerGas = undefined
@@ -402,7 +433,9 @@ export class BasicExecutor implements IExecutor {
                 this.monitoredTransactions[opHash] = {
                     transactionHash: txHash,
                     transactionRequest: request,
-                    executor: wallet
+                    executor: wallet,
+                    lastReplaced: Date.now(),
+                    firstSubmitted: Date.now()
                 }
             } else {
                 txHash = await ep.write.handleOps([[op], wallet.address], {
@@ -428,7 +461,9 @@ export class BasicExecutor implements IExecutor {
                         maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
                         nonce: nonce
                     },
-                    executor: wallet
+                    executor: wallet,
+                    lastReplaced: Date.now(),
+                    firstSubmitted: Date.now()
                 }
             }
 

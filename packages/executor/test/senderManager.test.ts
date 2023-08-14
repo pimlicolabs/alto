@@ -1,10 +1,11 @@
 import { ChildProcess } from "child_process"
-import { Clients, createClients, initDebugLogger, launchAnvil } from "@alto/utils"
+import { Clients, createClients, createMetrics, initDebugLogger, launchAnvil } from "@alto/utils"
 import { generateAccounts } from "./utils"
 import { Account, generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import { parseEther } from "viem"
 import { SenderManager } from "../src"
 import { expect } from "earl"
+import { Registry } from "prom-client"
 
 const fn = async (time: number, label: string) => {
     await new Promise((res) => setTimeout(res, time))
@@ -23,7 +24,8 @@ describe("senderManager", () => {
         clients = await createClients()
         accounts = await generateAccounts(clients)
         const logger = initDebugLogger("silent")
-        senderManager = new SenderManager(accounts, logger)
+        const metrics = createMetrics(new Registry(), 999999, "Test", "development", false)
+        senderManager = new SenderManager(accounts, accounts[0], logger, metrics)
     })
 
     afterEach(function () {
@@ -70,6 +72,7 @@ describe("senderManager", () => {
         this.timeout(10000)
         const utilityAccount = privateKeyToAccount(generatePrivateKey())
         clients.test.setBalance({ address: utilityAccount.address, value: parseEther("100000000") })
+        senderManager.utilityAccount = utilityAccount
 
         if (clients.wallet.chain === undefined) {
             throw new Error("chain is undefined")
@@ -84,7 +87,7 @@ describe("senderManager", () => {
         expect(initialBalances).toEqual(Array(senderManager.availableWallets.length).fill(parseEther("100")))
 
         // @ts-ignore
-        await senderManager.validateAndRefillWallets(clients.public, clients.wallet, parseEther("1000"), utilityAccount)
+        await senderManager.validateAndRefillWallets(clients.public, clients.wallet, parseEther("1000"))
 
         const balances = await Promise.all(
             senderManager.availableWallets.map(async (wallet) => {
@@ -92,6 +95,6 @@ describe("senderManager", () => {
             })
         )
 
-        expect(balances).toEqual(Array(senderManager.availableWallets.length).fill(parseEther("1000")))
+        expect(balances).toEqual(Array(senderManager.availableWallets.length).fill(parseEther("1200")))
     })
 })

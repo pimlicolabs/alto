@@ -1,8 +1,14 @@
-import { Counter, Gauge, Registry, collectDefaultMetrics } from "prom-client"
+import { Counter, Gauge, Histogram, Registry, collectDefaultMetrics } from "prom-client"
 
 export type Metrics = ReturnType<typeof createMetrics>
 
-export function createMetrics(registry: Registry, chainId: number, network: string, environment: string) {
+export function createMetrics(
+    registry: Registry,
+    chainId: number,
+    network: string,
+    environment: string,
+    register = true
+) {
     collectDefaultMetrics({
         register: registry,
         prefix: "alto_",
@@ -14,52 +20,71 @@ export function createMetrics(registry: Registry, chainId: number, network: stri
     const walletsAvailable = new Gauge({
         name: "alto_executor_wallets_available_count",
         help: "Number of available executor wallets used to bundle",
-        labelNames: ["network", "chainId"] as const
+        labelNames: ["network", "chainId"] as const,
+        registers: []
     })
 
     const walletsTotal = new Gauge({
         name: "alto_executor_wallets_total_count",
         help: "Number of total executor wallets used to bundle",
-        labelNames: ["network", "chainId"] as const
+        labelNames: ["network", "chainId"] as const,
+        registers: []
     })
 
     const userOperationsBundlesIncluded = new Counter({
         name: "alto_user_operations_bundles_included_count",
         help: "Number of user operations bundles included on-chain",
-        labelNames: ["network", "chainId"] as const
+        labelNames: ["network", "chainId"] as const,
+        registers: []
     })
 
     const userOperationsBundlesSubmitted = new Counter({
         name: "alto_user_operations_bundles_submitted_count",
         help: "Number of user operations bundles submitted on-chain",
-        labelNames: ["network", "chainId"] as const
+        labelNames: ["network", "chainId"] as const,
+        registers: []
     })
 
     const userOperationsReceived = new Counter({
         name: "alto_user_operations_received_count",
         help: "Number of user operations received",
-        labelNames: ["network", "chainId"] as const
+        labelNames: ["network", "chainId"] as const,
+        registers: []
     })
 
     const userOperationsValidationSuccess = new Counter({
         name: "alto_user_operations_validation_success_count",
         help: "Number of user operations successfully validated",
-        labelNames: ["network", "chainId"] as const
+        labelNames: ["network", "chainId"] as const,
+        registers: []
     })
 
     const userOperationsValidationFailure = new Counter({
         name: "alto_user_operations_validation_failure_count",
         help: "Number of user operations failed to validate",
-        labelNames: ["network", "chainId"] as const
+        labelNames: ["network", "chainId"] as const,
+        registers: []
     })
 
-    registry.registerMetric(walletsAvailable)
-    registry.registerMetric(walletsTotal)
-    registry.registerMetric(userOperationsBundlesIncluded)
-    registry.registerMetric(userOperationsBundlesSubmitted)
-    registry.registerMetric(userOperationsReceived)
-    registry.registerMetric(userOperationsValidationSuccess)
-    registry.registerMetric(userOperationsValidationFailure)
+    const userOperationInclusionDuration = new Histogram({
+        name: "alto_user_operation_inclusion_duration_seconds",
+        help: "Duration of user operation inclusion from first submission to inclusion on-chain",
+        labelNames: ["network", "chainId"] as const,
+        registers: [],
+        buckets: [0.5, 1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 25, 30, 40, 50, 60, 120, 180, 240, 300, 600, 900, 1200]
+    })
+
+    if (register) {
+        console.log("registering metrics")
+        registry.registerMetric(walletsAvailable)
+        registry.registerMetric(walletsTotal)
+        registry.registerMetric(userOperationsBundlesIncluded)
+        registry.registerMetric(userOperationsBundlesSubmitted)
+        registry.registerMetric(userOperationsReceived)
+        registry.registerMetric(userOperationsValidationSuccess)
+        registry.registerMetric(userOperationsValidationFailure)
+        registry.registerMetric(userOperationInclusionDuration)
+    }
 
     return {
         walletsAvailable: walletsAvailable.labels({ network, chainId }),
@@ -68,6 +93,7 @@ export function createMetrics(registry: Registry, chainId: number, network: stri
         userOperationsBundlesSubmitted: userOperationsBundlesSubmitted.labels({ network, chainId }),
         userOperationsReceived: userOperationsReceived.labels({ network, chainId }),
         userOperationsValidationSuccess: userOperationsValidationSuccess.labels({ network, chainId }),
-        userOperationsValidationFailure: userOperationsValidationFailure.labels({ network, chainId })
+        userOperationsValidationFailure: userOperationsValidationFailure.labels({ network, chainId }),
+        userOperationInclusionDuration: userOperationInclusionDuration.labels({ network, chainId })
     }
 }

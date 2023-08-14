@@ -7,6 +7,7 @@ import {
     Address,
     PublicClient,
     TestClient,
+    Transport,
     WalletClient,
     createPublicClient,
     createTestClient,
@@ -15,13 +16,14 @@ import {
     http,
     keccak256
 } from "viem"
-import { foundry } from "viem/chains"
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
+import { Chain, foundry } from "viem/chains"
 import { fromZodError } from "zod-validation-error"
 
 export type Clients = {
-    public: PublicClient
+    public: PublicClient<Transport, Chain>
     test: TestClient
-    wallet: WalletClient
+    wallet: WalletClient<Transport, Chain, Account>
 }
 
 export const launchAnvil = async (): Promise<ChildProcess> => {
@@ -33,7 +35,7 @@ export const launchAnvil = async (): Promise<ChildProcess> => {
     })
 
     // keep calling getNetwork every 2ms until it doesn't throw
-    // eslint-disable-next-line no-constant-condition
+    // rome-ignore lint/nursery/noConstantCondition: <explanation>
     while (true) {
         try {
             await client.getChainId()
@@ -64,17 +66,18 @@ export const createClients = async (signer?: Account): Promise<Clients> => {
         mode: "anvil"
     })
 
-    const walletClient = signer
-        ? createWalletClient({
-              chain: foundry,
-              transport: http("http://127.0.0.1:8545"),
-              account: signer
-          })
-        : createWalletClient({
-              chain: foundry,
-              transport: http("http://127.0.0.1:8545"),
-              key: testClient.key
-          })
+    testClient.key
+
+    const walletClient = createWalletClient({
+        chain: foundry,
+        transport: http("http://127.0.0.1:8545"),
+        account: signer ?? privateKeyToAccount(generatePrivateKey())
+    })
+    // : createWalletClient({
+    //       chain: foundry,
+    //       transport: http("http://127.0.0.1:8545"),
+    //       key: testClient.key
+    //   })
 
     return {
         public: publicClient,

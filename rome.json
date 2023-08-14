@@ -10,6 +10,7 @@
         "enabled": true
     },
     "linter": {
+        "ignore": ["**/**/*.test.ts"],
         "enabled": true,
         "rules": {
             "all": true,

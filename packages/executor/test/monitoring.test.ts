@@ -34,7 +34,7 @@ describe("Monitor", () => {
         expect(retrievedStatus).toEqual({ status: "not_found", transactionHash: null })
     })
 
-    it("should overwrite existing user operation status and reset timeout", async function () {
+    it("should overwrite existing user operation status and reset timeout", async () => {
         const monitor = new Monitor(timeout)
         const updatedStatus: UserOperationStatus = {
             status: "included",

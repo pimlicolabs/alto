@@ -25,7 +25,7 @@ const waitForTransactionReceipt = async (publicClient: PublicClient, tx: HexData
 export class SenderManager {
     wallets: Account[]
     utilityAccount: Account
-    private availableWallets: Account[]
+    availableWallets: Account[]
     private logger: Logger
     private metrics: Metrics
     private semaphore: Semaphore
