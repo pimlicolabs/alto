@@ -202,6 +202,6 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
 
     logger.info(`Initialized ${senderManager.wallets.length} executor wallets`)
 
-    const server = new Server(rpcEndpoint, parsedArgs, logger, registry)
+    const server = new Server(rpcEndpoint, parsedArgs, logger, registry, metrics)
     await server.start()
 }

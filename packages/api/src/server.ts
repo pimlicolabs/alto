@@ -2,7 +2,7 @@ import { IRpcEndpoint } from "./rpcHandler"
 import { IBundlerArgs } from "@alto/config"
 import { JSONRPCResponse, bundlerRequestSchema, jsonRpcSchema } from "@alto/types"
 import { RpcError, ValidationErrors } from "@alto/types"
-import { Logger } from "@alto/utils"
+import { Logger, Metrics } from "@alto/utils"
 import Fastify, { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { toHex } from "viem"
 import { fromZodError } from "zod-validation-error"
@@ -43,8 +43,15 @@ export class Server {
     private rpcEndpoint: IRpcEndpoint
     private bundlerArgs: IBundlerArgs
     private registry: Registry
+    private metrics: Metrics
 
-    constructor(rpcEndpoint: IRpcEndpoint, bundlerArgs: IBundlerArgs, logger: Logger, registry: Registry) {
+    constructor(
+        rpcEndpoint: IRpcEndpoint,
+        bundlerArgs: IBundlerArgs,
+        logger: Logger,
+        registry: Registry,
+        metrics: Metrics
+    ) {
         this.fastify = Fastify({
             logger,
             requestTimeout: bundlerArgs.requestTimeout
@@ -58,11 +65,12 @@ export class Server {
         this.fastify.post("/rpc", this.rpc.bind(this))
         this.fastify.post("/", this.rpc.bind(this))
         this.fastify.get("/health", this.healthCheck.bind(this))
-        this.fastify.get("/metrics", this.metrics.bind(this))
+        this.fastify.get("/metrics", this.serveMetrics.bind(this))
 
         this.rpcEndpoint = rpcEndpoint
         this.bundlerArgs = bundlerArgs
         this.registry = registry
+        this.metrics = metrics
     }
 
     public async start(): Promise<void> {
@@ -78,6 +86,16 @@ export class Server {
     }
 
     public async rpc(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+        const requestInfo: {
+            receivedAt: number
+            method: string | null
+            statusCode: number | null
+        } = {
+            receivedAt: Date.now(),
+            method: null,
+            statusCode: null
+        }
+
         try {
             const contentTypeHeader = request.headers["content-type"]
             if (contentTypeHeader !== "application/json") {
@@ -87,9 +105,46 @@ export class Server {
                 )
             }
             this.fastify.log.debug(request.body, "received request")
-            const jsonRpcResponse = await this.innerRpc(request.body)
-            await reply.status(200).send(jsonRpcResponse)
-            this.fastify.log.info(jsonRpcResponse, "sent reply")
+            //const jsonRpcResponse = await this.innerRpc(request.body)
+
+            const jsonRpcParsing = jsonRpcSchema.safeParse(request.body)
+            if (!jsonRpcParsing.success) {
+                const validationError = fromZodError(jsonRpcParsing.error)
+                throw new RpcError(
+                    `invalid JSON-RPC request ${validationError.message}`,
+                    ValidationErrors.InvalidFields
+                )
+            }
+
+            const jsonRpcRequest = jsonRpcParsing.data
+
+            const bundlerRequestParsing = bundlerRequestSchema.safeParse(jsonRpcRequest)
+            if (!bundlerRequestParsing.success) {
+                const validationError = fromZodError(bundlerRequestParsing.error)
+                throw new RpcError(validationError.message, ValidationErrors.InvalidFields)
+            }
+
+            const bundlerRequest = bundlerRequestParsing.data
+            this.fastify.log.info(
+                { data: JSON.stringify(bundlerRequest, null) },
+                `received request ${bundlerRequest.method}`
+            )
+            try {
+                const result = await this.rpcEndpoint.handleMethod(bundlerRequest)
+                const jsonRpcResponse: JSONRPCResponse = {
+                    jsonrpc: "2.0",
+                    id: jsonRpcRequest.id,
+                    result: result.result
+                }
+
+                await reply.status(200).send(jsonRpcResponse)
+                requestInfo.statusCode = 200
+                requestInfo.method = bundlerRequest.method
+                this.fastify.log.info(jsonRpcResponse, "sent reply")
+            } catch (e: unknown) {
+                requestInfo.method = bundlerRequest.method
+                throw e
+            }
         } catch (err) {
             if (err instanceof RpcError) {
                 const rpcError = {
@@ -98,53 +153,34 @@ export class Server {
                     code: err.code
                 }
                 await reply.status(400).send(rpcError)
+                requestInfo.statusCode = 400
                 this.fastify.log.info(rpcError, "error reply")
             } else {
                 if (err instanceof Error) {
                     await reply.status(500).send(err.message)
+                    requestInfo.statusCode = 500
                     this.fastify.log.error(err, "error reply (non-rpc)")
                 } else {
                     await reply.status(500).send("Unknown error")
+                    requestInfo.statusCode = 500
                     this.fastify.log.info(reply.raw, "error reply (non-rpc)")
                 }
             }
         }
+
+        this.metrics.httpRequestDuration.metric
+            .labels({
+                chainId: this.metrics.httpRequestDuration.chainId,
+                network: this.metrics.httpRequestDuration.network,
+                status_code: requestInfo.statusCode.toString(),
+                method: requestInfo.method ?? "unknown"
+            })
+            .observe((Date.now() - requestInfo.receivedAt) / 1000)
     }
 
-    public async metrics(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    public async serveMetrics(request: FastifyRequest, reply: FastifyReply): Promise<void> {
         reply.headers({ "Content-Type": this.registry.contentType })
         const metrics = await this.registry.metrics()
         await reply.send(metrics)
-    }
-
-    public async innerRpc(body: unknown): Promise<JSONRPCResponse> {
-        const jsonRpcParsing = jsonRpcSchema.safeParse(body)
-        if (!jsonRpcParsing.success) {
-            const validationError = fromZodError(jsonRpcParsing.error)
-            throw new RpcError(`invalid JSON-RPC request ${validationError.message}`, ValidationErrors.InvalidFields)
-        }
-
-        const jsonRpcRequest = jsonRpcParsing.data
-
-        const bundlerRequestParsing = bundlerRequestSchema.safeParse(jsonRpcRequest)
-        if (!bundlerRequestParsing.success) {
-            const validationError = fromZodError(bundlerRequestParsing.error)
-            throw new RpcError(validationError.message, ValidationErrors.InvalidFields)
-        }
-
-        const bundlerRequest = bundlerRequestParsing.data
-        this.fastify.log.info(
-            { data: JSON.stringify(bundlerRequest, null) },
-            `received request ${bundlerRequest.method}`
-        )
-        const result = await this.rpcEndpoint.handleMethod(bundlerRequest)
-
-        const jsonRpcResponse: JSONRPCResponse = {
-            jsonrpc: "2.0",
-            id: jsonRpcRequest.id,
-            result: result.result
-        }
-
-        return jsonRpcResponse
     }
 }

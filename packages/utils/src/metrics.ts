@@ -74,8 +74,15 @@ export function createMetrics(
         buckets: [0.5, 1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 25, 30, 40, 50, 60, 120, 180, 240, 300, 600, 900, 1200]
     })
 
+    const httpRequestDuration = new Histogram({
+        name: "alto_http_request_duration_seconds",
+        help: "Duration of HTTP requests",
+        labelNames: ["network", "chainId", "status_code", "method"] as const,
+        registers: [],
+        buckets: [0.01, 0.025, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.75, 1, 2, 3, 4, 5, 7.5, 10, 15, 20, 25, 30, 60, 120]
+    })
+
     if (register) {
-        console.log("registering metrics")
         registry.registerMetric(walletsAvailable)
         registry.registerMetric(walletsTotal)
         registry.registerMetric(userOperationsBundlesIncluded)
@@ -84,7 +91,14 @@ export function createMetrics(
         registry.registerMetric(userOperationsValidationSuccess)
         registry.registerMetric(userOperationsValidationFailure)
         registry.registerMetric(userOperationInclusionDuration)
+        registry.registerMetric(httpRequestDuration)
     }
+
+    userOperationInclusionDuration.zero({ network, chainId })
+    httpRequestDuration.zero({ network, chainId })
+    httpRequestDuration.zero({ network, chainId, status_code: "500" })
+    httpRequestDuration.zero({ network, chainId, status_code: "400" })
+    httpRequestDuration.zero({ network, chainId, status_code: "200" })
 
     return {
         walletsAvailable: walletsAvailable.labels({ network, chainId }),
@@ -94,6 +108,7 @@ export function createMetrics(
         userOperationsReceived: userOperationsReceived.labels({ network, chainId }),
         userOperationsValidationSuccess: userOperationsValidationSuccess.labels({ network, chainId }),
         userOperationsValidationFailure: userOperationsValidationFailure.labels({ network, chainId }),
-        userOperationInclusionDuration: userOperationInclusionDuration.labels({ network, chainId })
+        userOperationInclusionDuration: userOperationInclusionDuration.labels({ network, chainId }),
+        httpRequestDuration: { metric: httpRequestDuration, chainId, network }
     }
 }
