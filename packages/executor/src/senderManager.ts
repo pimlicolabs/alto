@@ -108,7 +108,7 @@ export class SenderManager {
                 this.logger
             )
 
-            if (walletClient.chain.id === 59140 || walletClient.chain.id === 137) {
+            if (walletClient.chain.id === 59140 || walletClient.chain.id === 137 || walletClient.chain.id === 10) {
                 const instructions = []
                 for (const [address, missingBalance] of Object.entries(balancesMissing)) {
                     instructions.push({
@@ -121,6 +121,8 @@ export class SenderManager {
                 let refillAddress: `0x${string}`
                 if (walletClient.chain.id === 59140) {
                     refillAddress = "0xEad1aC3DF6F96b91491d6396F4d1610C5638B4Db"
+                } else if (walletClient.chain.id === 137) {
+                    refillAddress = "0x3402DB43152dAB9ab72fa805fdD5f391cD3E3822"
                 } else {
                     refillAddress = "0x3402DB43152dAB9ab72fa805fdD5f391cD3E3822"
                 }

@@ -94,6 +94,26 @@ const linea: Chain = {
     testnet: false
 }
 
+const xaiGoerliOrbit: Chain = {
+    id: 47279324479,
+    name: "Xai Goerli Orbit",
+    network: "xai-goerli-orbit",
+    nativeCurrency: {
+        name: "ETH",
+        symbol: "ETH",
+        decimals: 18
+    },
+    rpcUrls: {
+        default: {
+            http: []
+        },
+        public: {
+            http: []
+        }
+    },
+    testnet: false
+}
+
 function getChain(chainId: number): Chain {
     if (chainId === 36865) {
         return customTestnet
@@ -105,6 +125,10 @@ function getChain(chainId: number): Chain {
 
     if (chainId === 59144) {
         return linea
+    }
+
+    if (chainId === 47279324479) {
+        return xaiGoerliOrbit
     }
 
     for (const chain of Object.values(chains)) {

@@ -228,8 +228,13 @@ export class BasicExecutor implements IExecutor {
                     status: "included",
                     transactionHash: opStatus.transactionHash
                 })
-                this.senderManager.pushWallet(opStatus.executor)
-                this.metrics.userOperationsBundlesIncluded.inc()
+                if (!this.senderManager.availableWallets.includes(opStatus.executor)) {
+                    this.senderManager.pushWallet(opStatus.executor)
+                    this.logger.debug({ executor: opStatus.executor.address }, "pushed wallet")
+                    this.metrics.userOperationsBundlesIncluded.inc()
+                    return
+                }
+                this.logger.debug({ executor: opStatus.executor.address }, "wallet already available")
                 return
             }
 
