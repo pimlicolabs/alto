@@ -92,8 +92,8 @@ export async function getGasPrice(
     }
 
     if (chainId === ChainId.LineaTestnet) {
-        if (gasPrice < 2_000_000_000) {
-            gasPrice = 2_000_000_000n
+        if (gasPrice < 300_000_000_000) {
+            gasPrice = 300_000_000_000n
         }
 
         maxPriorityFeePerGas = gasPrice
