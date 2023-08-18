@@ -86,6 +86,11 @@ export type UserOperationRequest = {
     entryPoint: Address
 }
 
+export type UserOperationWithHash = {
+    userOperation: UserOperation
+    userOperationHash: HexData32
+}
+
 const jsonRpcSchema = z
     .object({
         jsonrpc: z.literal("2.0"),
@@ -292,7 +297,7 @@ const bundlerSetBundlingModeResponseSchema = z.object({
 })
 
 const userOperationStatus = z.object({
-    status: z.enum(["not_found", "submitted", "included", "failed"]),
+    status: z.enum(["not_found", "not_submitted", "submitted", "rejected", "included", "failed"]),
     transactionHash: hexData32Schema.or(z.null())
 })
 

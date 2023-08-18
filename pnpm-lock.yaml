@@ -41,6 +41,9 @@ importers:
       '@alto/executor':
         specifier: '*'
         version: link:../executor
+      '@alto/mempool':
+        specifier: '*'
+        version: link:../mempool
       '@alto/types':
         specifier: '*'
         version: link:../types
@@ -86,6 +89,9 @@ importers:
       '@alto/executor':
         specifier: '*'
         version: link:../executor
+      '@alto/mempool':
+        specifier: '*'
+        version: link:../mempool
       '@alto/types':
         specifier: '*'
         version: link:../types
@@ -132,9 +138,6 @@ importers:
 
   packages/executor:
     dependencies:
-      '@alto/mempool':
-        specifier: '*'
-        version: link:../mempool
       '@alto/types':
         specifier: '*'
         version: link:../types
@@ -169,6 +172,9 @@ importers:
       '@alto/types':
         specifier: '*'
         version: link:../types
+      '@alto/utils':
+        specifier: '*'
+        version: link:../utils
       async-mutex:
         specifier: ^0.4.0
         version: 0.4.0

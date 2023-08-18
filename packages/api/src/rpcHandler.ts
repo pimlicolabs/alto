@@ -1,6 +1,5 @@
 import { RpcHandlerConfig } from "@alto/config"
-import { IExecutor } from "@alto/executor"
-import { Monitor, getGasPrice } from "@alto/executor/"
+import { IExecutor, getGasPrice } from "@alto/executor"
 import {
     Address,
     BundlerClearStateResponseResult,
@@ -26,12 +25,17 @@ import {
     logSchema,
     receiptSchema
 } from "@alto/types"
-import { Logger, calcPreVerificationGas, calcOptimismPreVerificationGas, Metrics } from "@alto/utils"
+import {
+    Logger,
+    calcPreVerificationGas,
+    calcOptimismPreVerificationGas,
+    Metrics,
+    getUserOperationHash
+} from "@alto/utils"
 import { IValidator } from "@alto/validator"
 import {
     decodeFunctionData,
     getAbiItem,
-    getContract,
     TransactionNotFoundError,
     TransactionReceiptNotFoundError,
     Transaction,
@@ -42,6 +46,7 @@ import {
 } from "viem"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
+import { Mempool, Monitor } from "@alto/mempool"
 
 export interface IRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>
@@ -60,6 +65,7 @@ export class RpcHandler implements IRpcEndpoint {
     config: RpcHandlerConfig
     publicClient: PublicClient<Transport, Chain>
     validator: IValidator
+    mempool: Mempool
     executor: IExecutor
     monitor: Monitor
     logger: Logger
@@ -70,6 +76,7 @@ export class RpcHandler implements IRpcEndpoint {
         config: RpcHandlerConfig,
         publicClient: PublicClient<Transport, Chain>,
         validator: IValidator,
+        mempool: Mempool,
         executor: IExecutor,
         monitor: Monitor,
         logger: Logger,
@@ -78,6 +85,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.config = config
         this.publicClient = publicClient
         this.validator = validator
+        this.mempool = mempool
         this.executor = executor
         this.monitor = monitor
         this.logger = logger
@@ -256,15 +264,11 @@ export class RpcHandler implements IRpcEndpoint {
 
         this.logger.trace({ userOperation, entryPoint }, "beginning execution")
 
-        await this.executor.bundle(entryPoint, userOperation)
+        const hash = getUserOperationHash(userOperation, entryPoint, this.chainId)
 
-        const entryPointContract = getContract({
-            address: entryPoint,
-            abi: EntryPointAbi,
-            publicClient: this.publicClient
-        })
+        this.mempool.add(userOperation, hash)
 
-        return await entryPointContract.read.getUserOpHash([userOperation])
+        return hash
     }
 
     // rome-ignore lint/nursery/useNamingConvention: <explanation>

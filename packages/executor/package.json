@@ -24,7 +24,6 @@
         "@viem/anvil": "^0.0.6"
     },
     "dependencies": {
-        "@alto/mempool": "*",
         "@alto/types": "*",
         "@alto/utils": "*",
         "@types/node": "^18.16.3",

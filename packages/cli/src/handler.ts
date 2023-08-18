@@ -7,7 +7,6 @@ import {
     bundlerArgsToRpcHandlerConfig
 } from "@alto/config"
 import { BasicExecutor, SenderManager } from "@alto/executor"
-import { Monitor } from "@alto/executor"
 import { Logger, initDebugLogger, initProductionLogger } from "@alto/utils"
 import { createMetrics } from "@alto/utils"
 import { UnsafeValidator } from "@alto/validator"
@@ -15,6 +14,7 @@ import { Chain, PublicClient, Transport, createPublicClient, createWalletClient,
 import * as chains from "viem/chains"
 import { fromZodError } from "zod-validation-error"
 import { Registry } from "prom-client"
+import { MemoryMempool, Monitor } from "@alto/mempool"
 
 const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
     // validate every arg, make typesafe so if i add a new arg i have to validate it
@@ -213,14 +213,22 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         client,
         walletClient,
         senderManager,
-        monitor,
         parsedArgs.entryPoint,
-        parsedArgs.pollingInterval,
         logger,
         metrics,
         !parsedArgs.tenderlyEnabled
     )
-    const rpcEndpoint = new RpcHandler(handlerConfig, client, validator, executor, monitor, logger, metrics)
+
+    const mempool = new MemoryMempool(
+        executor,
+        monitor,
+        client,
+        handlerConfig.entryPoint,
+        parsedArgs.pollingInterval,
+        logger
+    )
+
+    const rpcEndpoint = new RpcHandler(handlerConfig, client, validator, mempool, executor, monitor, logger, metrics)
 
     executor.flushStuckTransactions()
 

@@ -9,13 +9,14 @@ import {
     createMetrics,
     deployContract,
     getUserOpHash,
+    getUserOperationHash,
     initDebugLogger,
     initProductionLogger,
     launchAnvil,
     parseSenderAddressError
 } from "@alto/utils"
 import { expect } from "earl"
-import { Address, EntryPoint_bytecode, EntryPointAbi, HexData32, UserOperation } from "@alto/types"
+import { Address, EntryPoint_bytecode, EntryPointAbi, HexData32, UserOperation, UserOpStatus } from "@alto/types"
 import { SimpleAccountFactoryAbi, SimpleAccountFactoryBytecode } from "@alto/types/src/contracts/SimpleAccountFactory"
 import { BasicExecutor } from "../src"
 import { TEST_OP, createOp, generateAccounts, getSender } from "./utils"
@@ -97,19 +98,18 @@ describe("executor", () => {
         const op = await createOp(entryPoint, simpleAccountFactory, signer, clients)
 
         const opHash = getUserOpHash(op, entryPoint, foundry.id)
-        const beforeStatus = monitor.getUserOperationStatus(opHash)
-        expect(beforeStatus.status).toEqual("not_found")
-        expect(beforeStatus.transactionHash).toBeNullish()
 
         expect(await clients.test.getAutomine()).toEqual(false)
-        await executor.bundle(entryPoint, op)
-        const status = monitor.getUserOperationStatus(opHash)
-        expect(status.status).toEqual("submitted")
-        expect(status.transactionHash).not.toBeNullish()
+        const result = await executor.bundle(entryPoint, [op])
+        expect(result).toHaveLength(1)
+        expect(result[0].status).toEqual(UserOpStatus.Submitted)
+        expect(result[0].userOperation).toEqual(op)
+        expect(result[0].opHash).toEqual(opHash)
 
         const pendingTxs = await getPendingTransactions(clients.test)
         expect(pendingTxs).toHaveLength(1)
         await clients.test.mine({ blocks: 1 })
+
         await new Promise((resolve) => setTimeout(resolve, MINE_WAIT_TIME))
         const logs = await clients.public.getLogs({
             fromBlock: 0n,
@@ -124,10 +124,6 @@ describe("executor", () => {
         expect(logs[0].args.success).toEqual(true)
 
         expect(executor.senderManager.availableWallets).toHaveLength(10)
-
-        const status2 = monitor.getUserOperationStatus(opHash)
-        expect(status2.status).toEqual("included")
-        expect(status2.transactionHash).toEqual(logs[0].transactionHash)
     })
 
     it("should fail if op maxFeePerGas is lower than network gasPrice", async function () {
@@ -151,14 +147,14 @@ describe("executor", () => {
         */
     })
 
-    it("should resend transaction is tx gas price is lower than current gas price", async function () {
+    it("should be able to resubmit transaction", async function () {
         this.timeout(10000)
 
         const op = await createOp(entryPoint, simpleAccountFactory, signer, clients)
         const opHash = getUserOpHash(op, entryPoint, foundry.id)
 
         expect(await clients.test.getAutomine()).toEqual(false)
-        await executor.bundle(entryPoint, op)
+        await executor.bundle(entryPoint, [op])
 
         const status = monitor.getUserOperationStatus(opHash)
         expect(status.status).toEqual("submitted")
@@ -260,7 +256,15 @@ describe("executor", () => {
         })
         await clients.test.mine({ blocks: 1 })
         await new Promise((resolve) => setTimeout(resolve, MINE_WAIT_TIME))
-        await expect(executor.bundle(entryPoint, op)).toBeRejectedWith(/AA/)
+        const bundleResult = await executor.bundle(entryPoint, [op])
+        expect(bundleResult).toHaveLength(1)
+        if (bundleResult[0].status !== UserOpStatus.Rejected) {
+            throw new Error("expected bundle result to be rejected")
+        }
+        expect(bundleResult[0].status).toEqual(UserOpStatus.Rejected)
+        expect(bundleResult[0].userOperation).toEqual(op)
+        expect(bundleResult[0].reason).toMatchRegex(/AA/)
+
         const pendingTxs = await getPendingTransactions(clients.test)
         expect(pendingTxs.map((val) => val.from)).not.toInclude(signer2.address)
         await clients.test.mine({ blocks: 1 })
@@ -286,7 +290,7 @@ describe("executor", () => {
         const op2 = await createOp(entryPoint, simpleAccountFactory, signer2, clients)
 
         expect(await clients.test.getAutomine()).toEqual(false)
-        await Promise.all([executor.bundle(entryPoint, op1), executor.bundle(entryPoint, op2)])
+        await Promise.all([executor.bundle(entryPoint, [op1]), executor.bundle(entryPoint, [op2])])
 
         const pendingTxs = await getPendingTransactions(clients.test)
         expect(pendingTxs).toHaveLength(2)
@@ -318,7 +322,7 @@ describe("executor", () => {
         const op2 = await createOp(entryPoint, simpleAccountFactory, signer2, clients)
 
         expect(await clients.test.getAutomine()).toEqual(false)
-        await Promise.all([executor.bundle(entryPoint, op1), executor.bundle(entryPoint, op2)])
+        await Promise.all([executor.bundle(entryPoint, [op1]), executor.bundle(entryPoint, [op2])])
 
         const pendingTxs = await getPendingTransactions(clients.test)
         expect(pendingTxs).toHaveLength(2)
@@ -386,7 +390,7 @@ describe("executor", () => {
         // mempool: []
         // waiting: []
 
-        await Promise.all(ops.map(async (op) => executor.bundle(entryPoint, op)))
+        await Promise.all(ops.map(async (op) => executor.bundle(entryPoint, [op])))
         // mempool: [op1tx, op2tx, op3tx, op4tx, op5tx, op6tx, op7tx, op8tx, op9tx, op10tx]
         // waiting: []
 
@@ -397,7 +401,7 @@ describe("executor", () => {
         // mempool: [op1tx, op2tx, op3tx, op4tx, op5tx, op6tx, op7tx, op8tx, op9tx, op10tx]
         // waiting: [extraOp]
 
-        const bundlePromise = executor.bundle(entryPoint, extraOp) // this can't fulfill yet because there are no wallets left
+        const bundlePromise = executor.bundle(entryPoint, [extraOp]) // this can't fulfill yet because there are no wallets left
         expect(executor.senderManager.availableWallets).toHaveLength(0)
         expect(await getPendingTransactions(clients.test)).toHaveLength(10)
 
@@ -479,12 +483,12 @@ describe("executor", () => {
 
         const op = await createOp(entryPoint, simpleAccountFactory, signer, clients)
 
-        await executor.bundle(entryPoint, op)
+        await executor.bundle(entryPoint, [op])
 
         const pendingTxs = await getPendingTransactions(clients.test)
         expect(pendingTxs).toHaveLength(1)
 
-        await expect(executor.bundle(entryPoint, op)).toBeRejected()
+        await expect(executor.bundle(entryPoint, [op])).toBeRejected()
 
         await clients.test.mine({ blocks: 1 })
         await new Promise((resolve) => setTimeout(resolve, MINE_WAIT_TIME))

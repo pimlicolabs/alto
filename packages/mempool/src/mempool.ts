@@ -1,28 +1,30 @@
 // import { MongoClient, Collection, Filter } from "mongodb"
 // import { PublicClient, getContract } from "viem"
 // import { EntryPointAbi } from "../types/EntryPoint"
-import { UserOperation } from "@alto/types"
+import { TransactionInfo, UserOperation, UserOperationMempoolEntry, SubmissionStatus } from "@alto/types"
 import { HexData32 } from "@alto/types"
+import { IExecutor, getGasPrice } from "@alto/executor"
+import { Monitor } from "./monitoring"
+import { Address, Block, Chain, PublicClient, Transport, WatchBlocksReturnType } from "viem"
+import { Logger } from "@alto/utils"
+import { transactionIncluded } from "@alto/utils"
 
-// export interface MempoolEntry {
-//     entrypointAddress: Address
-//     userOperation: UserOperation
-//     opHash: string
-//     status: UserOpStatus
-//     transactionHash?: string
-// }
-
-// export enum UserOpStatus {
-//     Invalid = 0,
-//     Processing = 1,
-//     NotIncluded = 2,
-//     Included = 3,
-//     Finalized = 4
-// }
-
-export interface MempoolEntry {
-    userOperation: UserOperation
-    opHash: string
+function getTransactionsFromUserOperationEntries(entries: UserOperationMempoolEntry[]): TransactionInfo[] {
+    return Array.from(
+        new Set(
+            entries
+                .filter(
+                    (entry) => entry.status === SubmissionStatus.Submitted || entry.status === SubmissionStatus.Included
+                )
+                .map((entry) => {
+                    if (entry.status === SubmissionStatus.Submitted || entry.status === SubmissionStatus.Included) {
+                        return entry.transactionInfo
+                    } else {
+                        throw new Error("unreachable")
+                    }
+                })
+        )
+    )
 }
 
 export interface Mempool {
@@ -31,126 +33,174 @@ export interface Mempool {
 }
 
 export class MemoryMempool implements Mempool {
-    private mempool: Map<HexData32, MempoolEntry>
-    //private publicClient: PublicClient
-    //private mutex: Mutex
+    private unWatch: WatchBlocksReturnType | undefined
 
-    constructor() {
-        //this.publicClient = publicClient
-        this.mempool = new Map()
-        //this.mutex = new Mutex()
+    private executor: IExecutor
+    private monitor: Monitor
+    private publicClient: PublicClient<Transport, Chain>
+    private entryPointAddress: Address
+    private pollingInterval: number
+    private logger: Logger
+
+    private monitoredTransactions: Map<HexData32, TransactionInfo> = new Map() // tx hash to info
+    private monitoredUserOperations: Map<HexData32, UserOperationMempoolEntry> = new Map() // user op hash to info
+
+    constructor(
+        executor: IExecutor,
+        monitor: Monitor,
+        publicClient: PublicClient<Transport, Chain>,
+        entryPointAddress: Address,
+        pollingInterval: number,
+        logger: Logger
+    ) {
+        this.executor = executor
+        this.monitor = monitor
+        this.publicClient = publicClient
+        this.entryPointAddress = entryPointAddress
+        this.pollingInterval = pollingInterval
+        this.logger = logger
+
+        setInterval(async () => {
+            await this.bundle()
+        }, 1000)
     }
 
     add(op: UserOperation, userOpHash: HexData32): boolean {
-        this.mempool.set(userOpHash, { userOperation: op, opHash: userOpHash })
+        this.monitoredUserOperations.set(userOpHash, {
+            userOperationInfo: {
+                userOperation: op,
+                userOperationHash: userOpHash,
+                firstSubmitted: Date.now(),
+                lastReplaced: Date.now()
+            },
+            status: SubmissionStatus.NotSubmitted
+        })
+        this.monitor.setUserOperationStatus(userOpHash, { status: "not_submitted", transactionHash: null })
         return true
     }
-    take(gasLimit?: bigint | undefined): UserOperation[] | null {
-        const ops = Array.from(this.mempool.values())
 
+    async refreshUserOperationStatus(userOpHash: HexData32): Promise<void> {
+        const entry = this.monitoredUserOperations.get(userOpHash)
+        if (entry?.status === SubmissionStatus.Submitted) {
+            const included = await transactionIncluded(entry.transactionInfo.transactionHash, this.publicClient)
+            if (included) {
+                this.monitoredUserOperations.set(userOpHash, { ...entry, status: SubmissionStatus.Included })
+            }
+        }
+    }
+
+    async handleBlock(block: Block) {
+        // refresh op statuses
+        const userOpHashes = Array.from(this.monitoredUserOperations.keys())
+        await Promise.all(userOpHashes.map((userOpHash) => this.refreshUserOperationStatus(userOpHash)))
+
+        // for all still not included check if needs to be replaced (based on gas price)
+        const gasPriceParameters = await getGasPrice(this.publicClient.chain.id, this.publicClient, this.logger)
+        getTransactionsFromUserOperationEntries(
+            Array.from(this.monitoredUserOperations.values()).filter(
+                (entry) => entry.status === SubmissionStatus.Submitted
+            )
+        ).forEach((txInfo) => {})
+
+        // for any left check if enough time has passed, if so replace
+
+        this.executor
+    }
+
+    async replaceTransactions(): Promise<void> {}
+
+    async bundle() {
+        const ops = this.take()
+
+        if (ops.length === 0) {
+            return
+        }
+
+        const userOperationResults = await this.executor.bundle(this.entryPointAddress, ops)
+        console.log(userOperationResults)
+        userOperationResults.map((result) => {
+            this.monitoredUserOperations.set(result.userOperationInfo.userOperationHash, result)
+            if (result.status === SubmissionStatus.Submitted) {
+                this.monitoredTransactions.set(result.transactionInfo.transactionHash, result.transactionInfo)
+                this.monitor.setUserOperationStatus(result.userOperationInfo.userOperationHash, {
+                    status: "submitted",
+                    transactionHash: result.transactionInfo.transactionHash
+                })
+            } else if (result.status === SubmissionStatus.Rejected) {
+                this.monitor.setUserOperationStatus(result.userOperationInfo.userOperationHash, {
+                    status: "rejected",
+                    transactionHash: null
+                })
+            }
+        })
+    }
+
+    take(gasLimit?: bigint): UserOperation[] {
+        const mempoolEntries = Array.from(this.monitoredUserOperations.values())
+        const opInfos = mempoolEntries
+            .filter((entry) => entry.status === SubmissionStatus.NotSubmitted)
+            .map((entry) => entry.userOperationInfo)
         if (gasLimit) {
             let gasUsed = 0n
             const result: UserOperation[] = []
-            for (const op of ops) {
+            for (const opInfo of opInfos) {
                 gasUsed +=
-                    op.userOperation.callGasLimit +
-                    op.userOperation.verificationGasLimit * 3n +
-                    op.userOperation.preVerificationGas
+                    opInfo.userOperation.callGasLimit +
+                    opInfo.userOperation.verificationGasLimit * 3n +
+                    opInfo.userOperation.preVerificationGas
                 if (gasUsed > gasLimit) {
                     break
                 }
-                result.push(op.userOperation)
+                this.monitoredUserOperations.delete(opInfo.userOperationHash)
+                result.push(opInfo.userOperation)
             }
             return result
         }
 
-        return ops.map((op) => op.userOperation)
+        return opInfos.map((opInfo) => {
+            this.monitoredUserOperations.delete(opInfo.userOperationHash)
+            return opInfo.userOperation
+        })
+    }
+
+    get(opHash: HexData32): UserOperationMempoolEntry | null {
+        return this.monitoredUserOperations.get(opHash) || null
+    }
+
+    startWatchingBlocks(handleBlock: (block: Block) => void): void {
+        if (this.unWatch) {
+            return
+        }
+        this.unWatch = this.publicClient.watchBlocks({
+            onBlock: handleBlock,
+            // onBlock: async (block) => {
+            //     // Use an arrow function to ensure correct binding of `this`
+            //     this.checkAndReplaceTransactions(block)
+            //         .then(() => {
+            //             this.logger.trace("block handled")
+            //             // Handle the resolution of the promise here, if needed
+            //         })
+            //         .catch((error) => {
+            //             // Handle any errors that occur during the execution of the promise
+            //             this.logger.error({ error }, "error while handling block")
+            //         })
+            // },
+            onError: (error) => {
+                this.logger.error({ error }, "error while watching blocks")
+            },
+            emitMissed: false,
+            includeTransactions: false,
+            pollingInterval: this.pollingInterval
+        })
+
+        this.logger.debug("started watching blocks")
+    }
+
+    stopWatchingBlocks(): void {
+        if (this.unWatch) {
+            this.logger.debug("stopped watching blocks")
+            this.unWatch()
+            this.unWatch = undefined
+        }
     }
 }
-
-// mempool per network
-// export interface Mempool {
-//     currentSize(): Promise<number>
-//     add(_entrypoint: Address, _op: UserOperation): Promise<HexData32> // return hash of userOperation
-//     find(findFn: (entry: MempoolEntry) => boolean): Promise<{ entry: MempoolEntry; opHash: HexData32 }[]>
-//     markProcessed(_opHashes: HexData32[], updatedData: Partial<MempoolEntry>): Promise<void>
-//     get(_hash: HexData32): Promise<MempoolEntry | null>
-//     clear(): void
-//     getUserOpHash(_entrypoint: Address, _op: UserOperation): Promise<HexData32>
-// }
-
-// export class MemoryMempool implements Mempool {
-//     private mempool: Map<HexData32, MempoolEntry>
-//     private publicClient: PublicClient
-//     private mutex: Mutex
-
-//     constructor(publicClient: PublicClient) {
-//         this.publicClient = publicClient
-//         this.mempool = new Map()
-//         this.mutex = new Mutex()
-//     }
-
-//     async currentSize(): Promise<number> {
-//         return this.mempool.size
-//     }
-
-//     async add(entrypointAddress: Address, userOperation: UserOperation): Promise<HexData32> {
-//         const opHash = await this.getUserOpHash(entrypointAddress, userOperation)
-//         this.mempool.set(opHash, {
-//             userOperation,
-//             entrypointAddress,
-//             opHash,
-//             status: UserOpStatus.NotIncluded
-//         })
-//         return opHash
-//     }
-
-//     async markProcessed(opHashes: HexData32[], updatedData: Partial<MempoolEntry>): Promise<void> {
-//         await this.mutex.acquire()
-//         try {
-//             for (const opHash of opHashes) {
-//                 const entry = this.mempool.get(opHash)
-//                 if (entry) {
-//                     // Make a copy of the updatedData object without the userOperation property
-//                     const { userOperation, ...safeUpdatedData } = updatedData
-//                     Object.assign(entry, safeUpdatedData)
-//                 }
-//             }
-//         } finally {
-//             this.mutex.release()
-//         }
-//     }
-
-//     async find(findFn: (entry: MempoolEntry) => boolean): Promise<{ entry: MempoolEntry; opHash: HexData32 }[]> {
-//         await this.mutex.acquire()
-//         try {
-//             const matchingEntries: { entry: MempoolEntry; opHash: HexData32 }[] = []
-//             for (const [opHash, entry] of this.mempool.entries()) {
-//                 if (entry.status !== UserOpStatus.Processing && findFn(entry)) {
-//                     entry.status = UserOpStatus.Processing
-//                     matchingEntries.push({ entry, opHash })
-//                 }
-//             }
-//             return matchingEntries
-//         } finally {
-//             this.mutex.release()
-//         }
-//     }
-
-//     async get(opHash: HexData32): Promise<MempoolEntry | null> {
-//         return this.mempool.get(opHash) || null
-//     }
-
-//     async clear(): Promise<void> {
-//         this.mempool.clear()
-//     }
-
-//     async getUserOpHash(entrypointAddress: Address, userOperation: UserOperation): Promise<HexData32> {
-//         const entrypoint = getContract({
-//             publicClient: this.publicClient,
-//             abi: EntryPointAbi,
-//             address: entrypointAddress
-//         })
-//         return entrypoint.read.getUserOpHash([userOperation])
-//     }
-// }
