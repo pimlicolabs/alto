@@ -27,9 +27,23 @@ function getTransactionsFromUserOperationEntries(entries: UserOperationMempoolEn
     )
 }
 
+function getSubmittedUserOperationEntries(entries: UserOperationMempoolEntry[]): UserOperationMempoolEntry[] {
+    return entries.filter((entry) => entry.status === SubmissionStatus.Submitted)
+}
+
 export interface Mempool {
     add(op: UserOperation, userOpHash: HexData32): boolean
     take(gasLimit?: bigint): UserOperation[] | null
+}
+
+export class NullMempool implements Mempool {
+    add(_op: UserOperation, _userOpHash: HexData32): boolean {
+        return false
+    }
+
+    take(_gasLimit?: bigint): UserOperation[] | null {
+        return null
+    }
 }
 
 export class MemoryMempool implements Mempool {
@@ -42,7 +56,7 @@ export class MemoryMempool implements Mempool {
     private pollingInterval: number
     private logger: Logger
 
-    private monitoredTransactions: Map<HexData32, TransactionInfo> = new Map() // tx hash to info
+    // private monitoredTransactions: Map<HexData32, TransactionInfo> = new Map() // tx hash to info
     private monitoredUserOperations: Map<HexData32, UserOperationMempoolEntry> = new Map() // user op hash to info
 
     constructor(
@@ -84,27 +98,109 @@ export class MemoryMempool implements Mempool {
         if (entry?.status === SubmissionStatus.Submitted) {
             const included = await transactionIncluded(entry.transactionInfo.transactionHash, this.publicClient)
             if (included) {
-                this.monitoredUserOperations.set(userOpHash, { ...entry, status: SubmissionStatus.Included })
+                // this.monitoredUserOperations.set(userOpHash, { ...entry, status: SubmissionStatus.Included })
+                this.monitoredUserOperations.delete(userOpHash)
+                this.monitor.setUserOperationStatus(userOpHash, {
+                    status: "included",
+                    transactionHash: entry.transactionInfo.transactionHash
+                })
+                this.executor.markProcessed(entry.transactionInfo)
             }
         }
     }
 
+    async replaceTransaction(txInfo: TransactionInfo): Promise<TransactionInfo | null> {
+        const newTxInfo = await this.executor.replaceTransaction(txInfo)
+        if (!newTxInfo) {
+            return null
+        }
+
+        newTxInfo.userOperationInfos.map((opInfo) => {
+            this.monitoredUserOperations.set(opInfo.userOperationHash, {
+                status: SubmissionStatus.Submitted,
+                userOperationInfo: opInfo,
+                transactionInfo: newTxInfo
+            })
+            this.monitor.setUserOperationStatus(opInfo.userOperationHash, {
+                status: "submitted",
+                transactionHash: newTxInfo.transactionHash
+            })
+        })
+        return newTxInfo
+    }
+
     async handleBlock(block: Block) {
+        this.logger.debug({ blockNumber: block.number }, "handling block")
+
+        const submittedEntries = getSubmittedUserOperationEntries(Array.from(this.monitoredUserOperations.values()))
+        if (submittedEntries.length === 0) {
+            this.stopWatchingBlocks()
+            return
+        }
+
         // refresh op statuses
         const userOpHashes = Array.from(this.monitoredUserOperations.keys())
         await Promise.all(userOpHashes.map((userOpHash) => this.refreshUserOperationStatus(userOpHash)))
 
         // for all still not included check if needs to be replaced (based on gas price)
         const gasPriceParameters = await getGasPrice(this.publicClient.chain.id, this.publicClient, this.logger)
-        getTransactionsFromUserOperationEntries(
-            Array.from(this.monitoredUserOperations.values()).filter(
-                (entry) => entry.status === SubmissionStatus.Submitted
-            )
-        ).forEach((txInfo) => {})
+        const transactionInfos = getTransactionsFromUserOperationEntries(
+            getSubmittedUserOperationEntries(Array.from(this.monitoredUserOperations.values()))
+        )
+
+        await Promise.all(
+            transactionInfos.map(async (txInfo) => {
+                if (
+                    txInfo.transactionRequest.maxFeePerGas >= gasPriceParameters.maxFeePerGas &&
+                    txInfo.transactionRequest.maxPriorityFeePerGas >= gasPriceParameters.maxPriorityFeePerGas
+                ) {
+                    return
+                }
+
+                const newTxInfo = await this.replaceTransaction(txInfo)
+                if (newTxInfo) {
+                    this.logger.info(
+                        {
+                            oldTxHash: txInfo.transactionHash,
+                            newTxHash: newTxInfo.transactionHash,
+                            reason: "gas_price"
+                        },
+                        "replaced transaction"
+                    )
+                } else {
+                    this.logger.warn(
+                        { oldTxHash: txInfo.transactionHash, reason: "gas_price" },
+                        "failed to replace transaction"
+                    )
+                }
+            })
+        )
 
         // for any left check if enough time has passed, if so replace
+        const transactionInfos2 = getTransactionsFromUserOperationEntries(
+            getSubmittedUserOperationEntries(Array.from(this.monitoredUserOperations.values()))
+        )
 
-        this.executor
+        await Promise.all(
+            transactionInfos2.map(async (txInfo) => {
+                if (Date.now() - txInfo.lastReplaced < 5 * 60 * 1000) {
+                    return
+                }
+
+                const newTxInfo = await this.replaceTransaction(txInfo)
+                if (newTxInfo) {
+                    this.logger.info(
+                        { oldTxHash: txInfo.transactionHash, newTxHash: newTxInfo.transactionHash, reason: "stuck" },
+                        "replaced transaction"
+                    )
+                } else {
+                    this.logger.warn(
+                        { oldTxHash: txInfo.transactionHash, reason: "stuck" },
+                        "failed to replace transaction"
+                    )
+                }
+            })
+        )
     }
 
     async replaceTransactions(): Promise<void> {}
@@ -117,11 +213,10 @@ export class MemoryMempool implements Mempool {
         }
 
         const userOperationResults = await this.executor.bundle(this.entryPointAddress, ops)
-        console.log(userOperationResults)
         userOperationResults.map((result) => {
-            this.monitoredUserOperations.set(result.userOperationInfo.userOperationHash, result)
             if (result.status === SubmissionStatus.Submitted) {
-                this.monitoredTransactions.set(result.transactionInfo.transactionHash, result.transactionInfo)
+                this.monitoredUserOperations.set(result.userOperationInfo.userOperationHash, result)
+                // this.monitoredTransactions.set(result.transactionInfo.transactionHash, result.transactionInfo)
                 this.monitor.setUserOperationStatus(result.userOperationInfo.userOperationHash, {
                     status: "submitted",
                     transactionHash: result.transactionInfo.transactionHash
@@ -133,6 +228,8 @@ export class MemoryMempool implements Mempool {
                 })
             }
         })
+
+        this.startWatchingBlocks(this.handleBlock)
     }
 
     take(gasLimit?: bigint): UserOperation[] {

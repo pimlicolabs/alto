@@ -64,6 +64,7 @@ export interface IExecutor {
     bundle(entryPoint: Address, ops: UserOperation[]): Promise<UserOperationMempoolEntry[]>
     replaceTransaction(transactionInfo: TransactionInfo): Promise<TransactionInfo | undefined>
     cancelOps(entryPoint: Address, ops: UserOperation[]): Promise<void>
+    markProcessed(transactionInfo: TransactionInfo): Promise<void>
     flushStuckTransactions(): Promise<void>
 }
 
@@ -76,6 +77,7 @@ export class NullExecutor implements IExecutor {
     }
     async replaceOps(opHahes: HexData32[]): Promise<void> {}
     async cancelOps(entryPoint: Address, ops: UserOperation[]): Promise<void> {}
+    async markProcessed(transactionInfo: TransactionInfo): Promise<void> {}
     async flushStuckTransactions(): Promise<void> {}
 }
 
@@ -105,7 +107,8 @@ async function filterOpsAndEstimateGas(
                     account: wallet,
                     maxFeePerGas: maxFeePerGas,
                     maxPriorityFeePerGas: maxPriorityFeePerGas,
-                    nonce: nonce
+                    nonce: nonce,
+                    blockTag: "latest"
                 }
             )
 
@@ -173,18 +176,22 @@ export class BasicExecutor implements IExecutor {
         throw new Error("Method not implemented.")
     }
 
+    async markProcessed(transactionInfo: TransactionInfo) {
+        await this.senderManager.pushWallet(transactionInfo.executor)
+    }
+
     async replaceTransaction(transactionInfo: TransactionInfo) {
-        const request = transactionInfo.transactionRequest
+        const newRequest = { ...transactionInfo.transactionRequest }
 
         const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
 
-        request.maxFeePerGas =
-            gasPriceParameters.maxFeePerGas > (request.maxFeePerGas * 11n) / 10n
+        newRequest.maxFeePerGas =
+            gasPriceParameters.maxFeePerGas > (newRequest.maxFeePerGas * 11n) / 10n
                 ? gasPriceParameters.maxFeePerGas
-                : (request.maxFeePerGas * 11n) / 10n
+                : (newRequest.maxFeePerGas * 11n) / 10n
 
-        request.maxPriorityFeePerGas = (request.maxPriorityFeePerGas * 11n) / 10n
-        request.account = transactionInfo.executor
+        newRequest.maxPriorityFeePerGas = (newRequest.maxPriorityFeePerGas * 11n) / 10n
+        newRequest.account = transactionInfo.executor
 
         const ep = getContract({
             abi: EntryPointAbi,
@@ -197,9 +204,9 @@ export class BasicExecutor implements IExecutor {
             ep,
             transactionInfo.executor,
             transactionInfo.userOperationInfos,
-            request.nonce,
-            request.maxFeePerGas,
-            request.maxPriorityFeePerGas,
+            newRequest.nonce,
+            newRequest.maxFeePerGas,
+            newRequest.maxPriorityFeePerGas,
             this.logger
         )
 
@@ -208,27 +215,49 @@ export class BasicExecutor implements IExecutor {
             return
         }
 
-        const opsToBundle = result.simulatedOps.filter((op) => op.reason === undefined).map((op) => op.op)
-
-        request.gas = result.gasLimit
-        request.args = [opsToBundle.map((owh) => owh.userOperation), transactionInfo.executor.address]
-
-        try {
-            const txHash = await this.walletClient.writeContract(request)
-
-            transactionInfo.transactionHash = txHash
-            transactionInfo.lastReplaced = Date.now()
-            transactionInfo.transactionRequest = request
-            transactionInfo.userOperationInfos = opsToBundle.map((op) => {
-                return {
-                    userOperation: op.userOperation,
-                    userOperationHash: op.userOperationHash,
-                    lastReplaced: Date.now(),
-                    firstSubmitted: Date.now()
+        const opsToBundle = result.simulatedOps
+            .filter((op) => op.reason === undefined)
+            .map((op) => {
+                const opInfo = transactionInfo.userOperationInfos.find(
+                    (info) => info.userOperationHash === op.op.userOperationHash
+                )
+                if (!opInfo) {
+                    throw new Error("opInfo not found")
                 }
+                return opInfo
             })
 
-            return transactionInfo
+        newRequest.gas = result.gasLimit
+        newRequest.args = [opsToBundle.map((owh) => owh.userOperation), transactionInfo.executor.address]
+
+        try {
+            this.logger.info(
+                {
+                    transactionHash: transactionInfo.transactionHash,
+                    newRequest,
+                    opsToBundle: opsToBundle.map((op) => op.userOperationHash)
+                },
+                "replacing transaction"
+            )
+
+            const txHash = await this.walletClient.writeContract(newRequest)
+
+            const newTxInfo = {
+                ...transactionInfo,
+                transactionRequest: newRequest,
+                transactionHash: txHash,
+                lastReplaced: Date.now(),
+                userOperationInfos: opsToBundle.map((op) => {
+                    return {
+                        userOperation: op.userOperation,
+                        userOperationHash: op.userOperationHash,
+                        lastReplaced: Date.now(),
+                        firstSubmitted: op.firstSubmitted
+                    }
+                })
+            }
+
+            return newTxInfo
         } catch (err: unknown) {
             const e = parseViemError(err)
             if (!e) {
@@ -246,6 +275,12 @@ export class BasicExecutor implements IExecutor {
             if (e instanceof InsufficientFundsError) {
                 this.logger.warn({ error: e }, "insufficient funds, not replacing")
             }
+
+            if (e instanceof IntrinsicGasTooLowError) {
+                this.logger.warn({ error: e }, "intrinsic gas too low, not replacing")
+            }
+
+            this.logger.warn({ error: e }, "error replacing transaction")
 
             return
         }
@@ -458,7 +493,6 @@ export class BasicExecutor implements IExecutor {
         )
 
         this.metrics.userOperationsBundlesSubmitted.inc()
-        this.senderManager.pushWallet(wallet)
 
         return userOperationResults
     }

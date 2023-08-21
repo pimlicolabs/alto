@@ -20,8 +20,8 @@ import { z } from "zod"
 import { UnsafeValidator } from "@alto/validator"
 import { SimpleAccountFactoryAbi, SimpleAccountFactoryBytecode } from "@alto/types/src/contracts/SimpleAccountFactory"
 import { NullExecutor } from "@alto/executor/src"
-import { Monitor } from "@alto/executor"
 import { Registry } from "prom-client"
+import { Monitor, NullMempool } from "@alto/mempool"
 
 describe("handler", () => {
     let clients: Clients
@@ -56,14 +56,13 @@ describe("handler", () => {
             usingTenderly: false
         }
 
-        const monitor = new Monitor()
-
         handler = new RpcHandler(
             rpcHandlerConfig,
             clients.public,
             validator,
+            new NullMempool(),
             new NullExecutor(),
-            monitor,
+            new Monitor(),
             logger,
             metrics
         )
