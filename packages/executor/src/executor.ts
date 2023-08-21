@@ -412,6 +412,11 @@ export class BasicExecutor implements IExecutor {
             })
         }
 
+        childLogger.trace(
+            { gasLimit, simulatedOps: simulatedOps.map((sop) => sop.op.userOperationHash) },
+            "got gas limit"
+        )
+
         const opsToBundle = simulatedOps.filter((op) => op.reason === undefined).map((op) => op.op)
 
         const txHash = await ep.write.handleOps(
