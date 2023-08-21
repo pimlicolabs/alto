@@ -206,13 +206,29 @@ export class MemoryMempool implements Mempool {
     async replaceTransactions(): Promise<void> {}
 
     async bundle() {
-        const ops = this.take()
+        const opsToBundle: UserOperation[][] = []
+        // rome-ignore lint/nursery/noConstantCondition: <explanation>
+        while (true) {
+            const ops = this.take(2_000_000n, 1)
+            if (ops) {
+                opsToBundle.push(ops)
+            } else if (!ops) {
+                break
+            }
+        }
 
-        if (ops.length === 0) {
+        if (opsToBundle.length === 0) {
             return
         }
 
-        const userOperationResults = await this.executor.bundle(this.entryPointAddress, ops)
+        const userOperationResults: UserOperationMempoolEntry[] = []
+        await Promise.all(
+            opsToBundle.map(async (ops) => {
+                const results = await this.executor.bundle(this.entryPointAddress, ops)
+                userOperationResults.push(...results)
+            })
+        )
+
         userOperationResults.map((result) => {
             if (result.status === SubmissionStatus.Submitted) {
                 this.monitoredUserOperations.set(result.userOperationInfo.userOperationHash, result)
@@ -229,15 +245,16 @@ export class MemoryMempool implements Mempool {
             }
         })
 
-        this.startWatchingBlocks(this.handleBlock)
+        this.startWatchingBlocks(this.handleBlock.bind(this))
     }
 
-    take(gasLimit?: bigint): UserOperation[] {
+    take(maxGasLimit?: bigint, minOps?: number): UserOperation[] {
         const mempoolEntries = Array.from(this.monitoredUserOperations.values())
         const opInfos = mempoolEntries
             .filter((entry) => entry.status === SubmissionStatus.NotSubmitted)
             .map((entry) => entry.userOperationInfo)
-        if (gasLimit) {
+        if (maxGasLimit) {
+            let opsTaken = 0
             let gasUsed = 0n
             const result: UserOperation[] = []
             for (const opInfo of opInfos) {
@@ -245,11 +262,12 @@ export class MemoryMempool implements Mempool {
                     opInfo.userOperation.callGasLimit +
                     opInfo.userOperation.verificationGasLimit * 3n +
                     opInfo.userOperation.preVerificationGas
-                if (gasUsed > gasLimit) {
+                if (gasUsed > maxGasLimit && opsTaken >= (minOps || 0)) {
                     break
                 }
                 this.monitoredUserOperations.delete(opInfo.userOperationHash)
                 result.push(opInfo.userOperation)
+                opsTaken++
             }
             return result
         }
