@@ -225,7 +225,8 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         client,
         handlerConfig.entryPoint,
         parsedArgs.pollingInterval,
-        logger
+        logger,
+        metrics
     )
 
     const rpcEndpoint = new RpcHandler(handlerConfig, client, validator, mempool, executor, monitor, logger, metrics)

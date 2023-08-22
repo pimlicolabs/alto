@@ -83,7 +83,7 @@ describe("mempool", () => {
             bundle: mockFn()
         })
 
-        mempool = new MemoryMempool(executor, new Monitor(), clients.public, entryPoint, 1000, logger)
+        mempool = new MemoryMempool(executor, new Monitor(), clients.public, entryPoint, 1000, logger, metrics)
 
         await clients.test.setAutomine(false)
     })

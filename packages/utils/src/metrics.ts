@@ -17,6 +17,13 @@ export function createMetrics(
         labels: { network, chainId, environment }
     })
 
+    const userOperationsInMempool = new Gauge({
+        name: "alto_user_operations_in_mempool_count",
+        help: "Number of user operations in mempool",
+        labelNames: ["network", "chainId", "status"] as const,
+        registers: []
+    })
+
     const walletsAvailable = new Gauge({
         name: "alto_executor_wallets_available_count",
         help: "Number of available executor wallets used to bundle",
@@ -83,6 +90,7 @@ export function createMetrics(
     })
 
     if (register) {
+        registry.registerMetric(userOperationsInMempool)
         registry.registerMetric(walletsAvailable)
         registry.registerMetric(walletsTotal)
         registry.registerMetric(userOperationsBundlesIncluded)
@@ -101,6 +109,7 @@ export function createMetrics(
     httpRequestDuration.zero({ network, chainId, status_code: "200" })
 
     return {
+        userOperationsInMempool: { metric: userOperationsInMempool, chainId, network },
         walletsAvailable: walletsAvailable.labels({ network, chainId }),
         walletsTotal: walletsTotal.labels({ network, chainId }),
         userOperationsBundlesIncluded: userOperationsBundlesIncluded.labels({ network, chainId }),

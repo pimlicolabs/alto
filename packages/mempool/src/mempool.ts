@@ -6,7 +6,7 @@ import { HexData32 } from "@alto/types"
 import { IExecutor, getGasPrice } from "@alto/executor"
 import { Monitor } from "./monitoring"
 import { Address, Block, Chain, PublicClient, Transport, WatchBlocksReturnType } from "viem"
-import { Logger } from "@alto/utils"
+import { Logger, Metrics } from "@alto/utils"
 import { transactionIncluded } from "@alto/utils"
 
 function getTransactionsFromUserOperationEntries(entries: UserOperationMempoolEntry[]): TransactionInfo[] {
@@ -46,6 +46,68 @@ export class NullMempool implements Mempool {
     }
 }
 
+export class MemoryStore {
+    // private monitoredTransactions: Map<HexData32, TransactionInfo> = new Map() // tx hash to info
+    private monitoredUserOperations: Map<HexData32, UserOperationMempoolEntry> = new Map() // user op hash to info
+
+    private logger: Logger
+    private metrics: Metrics
+
+    constructor(logger: Logger, metrics: Metrics) {
+        this.logger = logger
+        this.metrics = metrics
+    }
+
+    add(entry: UserOperationMempoolEntry) {
+        this.monitoredUserOperations.set(entry.userOperationInfo.userOperationHash, entry)
+        this.logger.debug({ userOpHash: entry.userOperationInfo.userOperationHash }, "added user op to mempool")
+        this.metrics.userOperationsInMempool.metric
+            .labels({
+                status: entry.status,
+                chainId: this.metrics.userOperationsInMempool.chainId,
+                network: this.metrics.userOperationsInMempool.network
+            })
+            .inc()
+    }
+
+    remove(userOpHash: HexData32) {
+        const entry = this.monitoredUserOperations.get(userOpHash)
+        if (!entry) {
+            this.logger.warn({ userOpHash }, "tried to remove non-existent user op from mempool")
+            return
+        }
+
+        const success = this.monitoredUserOperations.delete(userOpHash)
+        if (!success) {
+            this.logger.warn({ userOpHash }, "tried to remove non-existent user op from mempool")
+            return
+        }
+
+        this.logger.debug({ userOpHash }, "removed user op from mempool")
+        this.metrics.userOperationsInMempool.metric
+            .labels({
+                status: entry.status,
+                chainId: this.metrics.userOperationsInMempool.chainId,
+                network: this.metrics.userOperationsInMempool.network
+            })
+            .dec()
+    }
+
+    get(userOpHash: HexData32): UserOperationMempoolEntry | null {
+        const op = this.monitoredUserOperations.get(userOpHash) || null
+        this.logger.trace({ userOpHash }, "got user op from mempool")
+        return op
+    }
+
+    values(): UserOperationMempoolEntry[] {
+        return Array.from(this.monitoredUserOperations.values())
+    }
+
+    keys(): HexData32[] {
+        return Array.from(this.monitoredUserOperations.keys())
+    }
+}
+
 export class MemoryMempool implements Mempool {
     private unWatch: WatchBlocksReturnType | undefined
 
@@ -56,8 +118,7 @@ export class MemoryMempool implements Mempool {
     private pollingInterval: number
     private logger: Logger
 
-    // private monitoredTransactions: Map<HexData32, TransactionInfo> = new Map() // tx hash to info
-    private monitoredUserOperations: Map<HexData32, UserOperationMempoolEntry> = new Map() // user op hash to info
+    private store: MemoryStore
 
     constructor(
         executor: IExecutor,
@@ -65,7 +126,8 @@ export class MemoryMempool implements Mempool {
         publicClient: PublicClient<Transport, Chain>,
         entryPointAddress: Address,
         pollingInterval: number,
-        logger: Logger
+        logger: Logger,
+        metrics: Metrics
     ) {
         this.executor = executor
         this.monitor = monitor
@@ -73,6 +135,7 @@ export class MemoryMempool implements Mempool {
         this.entryPointAddress = entryPointAddress
         this.pollingInterval = pollingInterval
         this.logger = logger
+        this.store = new MemoryStore(logger, metrics)
 
         setInterval(async () => {
             await this.bundle()
@@ -80,7 +143,7 @@ export class MemoryMempool implements Mempool {
     }
 
     add(op: UserOperation, userOpHash: HexData32): boolean {
-        this.monitoredUserOperations.set(userOpHash, {
+        this.store.add({
             userOperationInfo: {
                 userOperation: op,
                 userOperationHash: userOpHash,
@@ -94,12 +157,12 @@ export class MemoryMempool implements Mempool {
     }
 
     async refreshUserOperationStatus(userOpHash: HexData32): Promise<void> {
-        const entry = this.monitoredUserOperations.get(userOpHash)
+        const entry = this.store.get(userOpHash)
         if (entry?.status === SubmissionStatus.Submitted) {
             const included = await transactionIncluded(entry.transactionInfo.transactionHash, this.publicClient)
             if (included) {
                 // this.monitoredUserOperations.set(userOpHash, { ...entry, status: SubmissionStatus.Included })
-                this.monitoredUserOperations.delete(userOpHash)
+                this.store.remove(userOpHash)
                 this.monitor.setUserOperationStatus(userOpHash, {
                     status: "included",
                     transactionHash: entry.transactionInfo.transactionHash
@@ -116,7 +179,7 @@ export class MemoryMempool implements Mempool {
         }
 
         newTxInfo.userOperationInfos.map((opInfo) => {
-            this.monitoredUserOperations.set(opInfo.userOperationHash, {
+            this.store.add({
                 status: SubmissionStatus.Submitted,
                 userOperationInfo: opInfo,
                 transactionInfo: newTxInfo
@@ -132,20 +195,20 @@ export class MemoryMempool implements Mempool {
     async handleBlock(block: Block) {
         this.logger.debug({ blockNumber: block.number }, "handling block")
 
-        const submittedEntries = getSubmittedUserOperationEntries(Array.from(this.monitoredUserOperations.values()))
+        const submittedEntries = getSubmittedUserOperationEntries(this.store.values())
         if (submittedEntries.length === 0) {
             this.stopWatchingBlocks()
             return
         }
 
         // refresh op statuses
-        const userOpHashes = Array.from(this.monitoredUserOperations.keys())
+        const userOpHashes = Array.from(this.store.keys())
         await Promise.all(userOpHashes.map((userOpHash) => this.refreshUserOperationStatus(userOpHash)))
 
         // for all still not included check if needs to be replaced (based on gas price)
         const gasPriceParameters = await getGasPrice(this.publicClient.chain.id, this.publicClient, this.logger)
         const transactionInfos = getTransactionsFromUserOperationEntries(
-            getSubmittedUserOperationEntries(Array.from(this.monitoredUserOperations.values()))
+            getSubmittedUserOperationEntries(this.store.values())
         )
 
         await Promise.all(
@@ -178,7 +241,7 @@ export class MemoryMempool implements Mempool {
 
         // for any left check if enough time has passed, if so replace
         const transactionInfos2 = getTransactionsFromUserOperationEntries(
-            getSubmittedUserOperationEntries(Array.from(this.monitoredUserOperations.values()))
+            getSubmittedUserOperationEntries(this.store.values())
         )
 
         await Promise.all(
@@ -210,9 +273,9 @@ export class MemoryMempool implements Mempool {
         // rome-ignore lint/nursery/noConstantCondition: <explanation>
         while (true) {
             const ops = this.take(2_000_000n, 1)
-            if (ops) {
+            if (ops?.length > 0) {
                 opsToBundle.push(ops)
-            } else if (!ops) {
+            } else {
                 break
             }
         }
@@ -231,7 +294,7 @@ export class MemoryMempool implements Mempool {
 
         userOperationResults.map((result) => {
             if (result.status === SubmissionStatus.Submitted) {
-                this.monitoredUserOperations.set(result.userOperationInfo.userOperationHash, result)
+                this.store.add(result)
                 // this.monitoredTransactions.set(result.transactionInfo.transactionHash, result.transactionInfo)
                 this.monitor.setUserOperationStatus(result.userOperationInfo.userOperationHash, {
                     status: "submitted",
@@ -249,7 +312,7 @@ export class MemoryMempool implements Mempool {
     }
 
     take(maxGasLimit?: bigint, minOps?: number): UserOperation[] {
-        const mempoolEntries = Array.from(this.monitoredUserOperations.values())
+        const mempoolEntries = this.store.values()
         const opInfos = mempoolEntries
             .filter((entry) => entry.status === SubmissionStatus.NotSubmitted)
             .map((entry) => entry.userOperationInfo)
@@ -265,7 +328,7 @@ export class MemoryMempool implements Mempool {
                 if (gasUsed > maxGasLimit && opsTaken >= (minOps || 0)) {
                     break
                 }
-                this.monitoredUserOperations.delete(opInfo.userOperationHash)
+                this.store.remove(opInfo.userOperationHash)
                 result.push(opInfo.userOperation)
                 opsTaken++
             }
@@ -273,13 +336,13 @@ export class MemoryMempool implements Mempool {
         }
 
         return opInfos.map((opInfo) => {
-            this.monitoredUserOperations.delete(opInfo.userOperationHash)
+            this.store.remove(opInfo.userOperationHash)
             return opInfo.userOperation
         })
     }
 
     get(opHash: HexData32): UserOperationMempoolEntry | null {
-        return this.monitoredUserOperations.get(opHash) || null
+        return this.store.get(opHash)
     }
 
     startWatchingBlocks(handleBlock: (block: Block) => void): void {
