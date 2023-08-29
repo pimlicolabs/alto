@@ -167,7 +167,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     await preFlightChecks(client, parsedArgs)
 
     const walletClient = createWalletClient({
-        transport: http(parsedArgs.rpcUrl),
+        transport: http(parsedArgs.executionRpcUrl ?? args.rpcUrl),
         chain
     })
     let logger: Logger
