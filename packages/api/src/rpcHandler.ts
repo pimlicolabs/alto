@@ -274,7 +274,7 @@ export class RpcHandler implements IRpcEndpoint {
         // Only query up to the last `fullBlockRange` = 20000 blocks
         const latestBlock = await this.publicClient.getBlockNumber()
         let fullBlockRange = 20000n
-        if (this.chainId === 335 || this.chainId === 8453) {
+        if (this.chainId === 335 || this.chainId === 8453 || this.chainId === 47279324479) {
             fullBlockRange = 2000n
         }
 
@@ -356,7 +356,7 @@ export class RpcHandler implements IRpcEndpoint {
         // Only query up to the last `fullBlockRange` = 20000 blocks
         const latestBlock = await this.publicClient.getBlockNumber()
         let fullBlockRange = 20000n
-        if (this.chainId === 335 || this.chainId === 8453 || this.chainId === 84531) {
+        if (this.chainId === 335 || this.chainId === 8453 || this.chainId === 84531 || this.chainId === 47279324479) {
             fullBlockRange = 2000n
         }
 
