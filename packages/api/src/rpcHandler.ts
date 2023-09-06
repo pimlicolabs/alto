@@ -232,7 +232,7 @@ export class RpcHandler implements IRpcEndpoint {
             throw new Error(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.entryPoint}`)
         }
 
-        if (chains.celoAlfajores.id || chains.celo.id) {
+        if (this.chainId === chains.celoAlfajores.id || this.chainId === chains.celo.id) {
             if (userOperation.maxFeePerGas !== userOperation.maxPriorityFeePerGas) {
                 throw new RpcError("maxPriorityFeePerGas must equal maxFeePerGas on Celo chains")
             }
