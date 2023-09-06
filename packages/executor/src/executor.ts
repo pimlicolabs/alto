@@ -14,7 +14,8 @@ import {
     WalletClient,
     WatchBlocksReturnType,
     WriteContractParameters,
-    getContract
+    getContract,
+    decodeEventLog
 } from "viem"
 import { SenderManager } from "./senderManager"
 import { Monitor } from "./monitoring"
@@ -52,12 +53,45 @@ interface UserOperationStatus {
     firstSubmitted: number
 }
 
-const transactionIncluded = async (txHash: HexData32, publicClient: PublicClient): Promise<boolean> => {
+const transactionIncluded = async (
+    txHash: HexData32,
+    publicClient: PublicClient
+): Promise<"included" | "reverted" | "failed" | "not_found"> => {
     try {
-        await publicClient.getTransactionReceipt({ hash: txHash })
-        return true
+        const rcp = await publicClient.getTransactionReceipt({ hash: txHash })
+
+        if (rcp.status === "success") {
+            // find if any logs are UserOperationEvent
+            const r = rcp.logs
+                .map((l) => {
+                    if (l.address === rcp.to) {
+                        try {
+                            const log = decodeEventLog({ abi: EntryPointAbi, data: l.data, topics: l.topics })
+                            if (log.eventName === "UserOperationEvent") {
+                                return log
+                            } else {
+                                return undefined
+                            }
+                        } catch (_e) {
+                            console.log("error decoding transaction inclusion status", _e)
+                            return undefined
+                        }
+                    } else {
+                        return undefined
+                    }
+                })
+                .find((l) => l !== undefined)
+
+            if (r?.args.success) {
+                return "included"
+            } else {
+                return "reverted"
+            }
+        } else {
+            return "failed"
+        }
     } catch (_e) {
-        return false
+        return "not_found"
     }
 }
 
@@ -210,7 +244,7 @@ export class BasicExecutor implements IExecutor {
         opHashes.map(async (opHash) => {
             const opStatus = this.monitoredTransactions[opHash]
             if (opStatus === undefined) {
-                this.logger.error({ opHash }, "opStatus is undefined")
+                this.logger.warn({ opHash }, "opStatus is undefined")
                 return
             }
 
@@ -220,12 +254,16 @@ export class BasicExecutor implements IExecutor {
                 txHash: opStatus.transactionHash,
                 executor: opStatus.executor.address
             })
-            if (txIncluded) {
-                childLogger.info("transaction successfully included")
+            if (txIncluded !== "not_found") {
+                if (txIncluded === "included") {
+                    childLogger.info("transaction successfully included")
+                } else {
+                    childLogger.info(`transaction ${txIncluded}`)
+                }
                 this.metrics.userOperationInclusionDuration.observe((Date.now() - opStatus.firstSubmitted) / 1000)
                 delete this.monitoredTransactions[opHash]
                 this.monitor.setUserOperationStatus(opHash, {
-                    status: "included",
+                    status: txIncluded,
                     transactionHash: opStatus.transactionHash
                 })
                 if (!this.senderManager.availableWallets.includes(opStatus.executor)) {

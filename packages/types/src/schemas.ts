@@ -292,7 +292,7 @@ const bundlerSetBundlingModeResponseSchema = z.object({
 })
 
 const userOperationStatus = z.object({
-    status: z.enum(["not_found", "submitted", "included", "failed"]),
+    status: z.enum(["not_found", "submitted", "included", "failed", "reverted"]),
     transactionHash: hexData32Schema.or(z.null())
 })
 
