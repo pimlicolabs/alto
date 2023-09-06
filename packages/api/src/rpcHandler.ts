@@ -42,6 +42,7 @@ import {
 } from "viem"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
+import * as chains from "viem/chains"
 
 export interface IRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>
@@ -231,7 +232,7 @@ export class RpcHandler implements IRpcEndpoint {
             throw new Error(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.entryPoint}`)
         }
 
-        if (this.chainId === 44787 || this.chainId === 42220) {
+        if (chains.celoAlfajores.id || chains.celo.id) {
             if (userOperation.maxFeePerGas !== userOperation.maxPriorityFeePerGas) {
                 throw new RpcError("maxPriorityFeePerGas must equal maxFeePerGas on Celo chains")
             }

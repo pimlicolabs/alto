@@ -1,6 +1,7 @@
 import { GasPriceParameters, gasStationResult } from "@alto/types"
 import { PublicClient, parseGwei } from "viem"
 import { Logger } from "@alto/utils"
+import * as chains from "viem/chains"
 
 enum ChainId {
     Goerli = 5,
@@ -68,6 +69,14 @@ export async function getGasPrice(
     }
 
     let gasPrice = await publicClient.getGasPrice()
+
+    if (chainId === chains.celo.id) {
+        gasPrice = (gasPrice * 3n) / 2n
+        return {
+            maxFeePerGas: gasPrice,
+            maxPriorityFeePerGas: gasPrice
+        }
+    }
 
     let maxPriorityFeePerGas = 2_000_000_000n > gasPrice ? gasPrice : 2_000_000_000n
     const feeHistory = await publicClient.getFeeHistory({
