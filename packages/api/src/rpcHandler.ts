@@ -295,7 +295,7 @@ export class RpcHandler implements IRpcEndpoint {
             address: this.config.entryPoint,
             event: userOperationEventAbiItem,
             fromBlock: fromBlock > 0n ? fromBlock : 0n,
-            toBlock: latestBlock,
+            toBlock: "latest",
             args: {
                 userOpHash: userOperationHash
             }
@@ -383,7 +383,7 @@ export class RpcHandler implements IRpcEndpoint {
             address: this.config.entryPoint,
             event: userOperationEventAbiItem,
             fromBlock: fromBlock > 0n ? fromBlock : 0n,
-            toBlock: latestBlock,
+            toBlock: "latest",
             args: {
                 userOpHash: userOperationHash
             }
