@@ -46,6 +46,7 @@ import {
 } from "viem"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
+import * as chains from "viem/chains"
 import { Mempool, Monitor } from "@alto/mempool"
 
 export interface IRpcEndpoint {
@@ -191,7 +192,7 @@ export class RpcHandler implements IRpcEndpoint {
         userOperation.verificationGasLimit = 10_000_000n
         userOperation.callGasLimit = 10_000_000n
 
-        if (this.chainId === 84531) {
+        if (this.chainId === 84531 || this.chainId === 8453) {
             userOperation.verificationGasLimit = 1_000_000n
             userOperation.callGasLimit = 1_000_000n
         }
@@ -239,7 +240,7 @@ export class RpcHandler implements IRpcEndpoint {
             throw new Error(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.entryPoint}`)
         }
 
-        if (this.chainId === 44787 || this.chainId === 42220) {
+        if (this.chainId === chains.celoAlfajores.id || this.chainId === chains.celo.id) {
             if (userOperation.maxFeePerGas !== userOperation.maxPriorityFeePerGas) {
                 throw new RpcError("maxPriorityFeePerGas must equal maxFeePerGas on Celo chains")
             }
@@ -278,7 +279,12 @@ export class RpcHandler implements IRpcEndpoint {
         // Only query up to the last `fullBlockRange` = 20000 blocks
         const latestBlock = await this.publicClient.getBlockNumber()
         let fullBlockRange = 20000n
-        if (this.chainId === 335 || this.chainId === 8453) {
+        if (
+            this.chainId === 335 ||
+            this.chainId === 8453 ||
+            this.chainId === 47279324479 ||
+            this.chainId === chains.bsc.id
+        ) {
             fullBlockRange = 2000n
         }
 
@@ -360,7 +366,13 @@ export class RpcHandler implements IRpcEndpoint {
         // Only query up to the last `fullBlockRange` = 20000 blocks
         const latestBlock = await this.publicClient.getBlockNumber()
         let fullBlockRange = 20000n
-        if (this.chainId === 335 || this.chainId === 8453 || this.chainId === 84531) {
+        if (
+            this.chainId === 335 ||
+            this.chainId === 8453 ||
+            this.chainId === 84531 ||
+            this.chainId === 47279324479 ||
+            this.chainId === chains.bsc.id
+        ) {
             fullBlockRange = 2000n
         }
 

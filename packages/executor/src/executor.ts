@@ -115,7 +115,6 @@ async function filterOpsAndEstimateGas(
             return { simulatedOps, gasLimit }
         } catch (err: unknown) {
             const e = parseViemError(err)
-
             if (e instanceof ContractFunctionRevertedError) {
                 const parsingResult = failedOpErrorSchema.safeParse(e.data)
                 if (parsingResult.success) {
@@ -132,7 +131,6 @@ async function filterOpsAndEstimateGas(
             }
         }
     }
-
     return { simulatedOps, gasLimit: 0n }
 }
 

@@ -1,12 +1,45 @@
-import { HexData32, UserOperation } from "@alto/types"
-import { Address, PublicClient, encodeAbiParameters, keccak256 } from "viem"
+import { EntryPointAbi, HexData32, UserOperation } from "@alto/types"
+import { Address, PublicClient, decodeEventLog, encodeAbiParameters, keccak256 } from "viem"
 
-export const transactionIncluded = async (txHash: HexData32, publicClient: PublicClient): Promise<boolean> => {
+export const transactionIncluded = async (
+    txHash: HexData32,
+    publicClient: PublicClient
+): Promise<"included" | "reverted" | "failed" | "not_found"> => {
     try {
-        await publicClient.getTransactionReceipt({ hash: txHash })
-        return true
+        const rcp = await publicClient.getTransactionReceipt({ hash: txHash })
+
+        if (rcp.status === "success") {
+            // find if any logs are UserOperationEvent
+            const r = rcp.logs
+                .map((l) => {
+                    if (l.address === rcp.to) {
+                        try {
+                            const log = decodeEventLog({ abi: EntryPointAbi, data: l.data, topics: l.topics })
+                            if (log.eventName === "UserOperationEvent") {
+                                return log
+                            } else {
+                                return undefined
+                            }
+                        } catch (_e) {
+                            console.log("error decoding transaction inclusion status", _e)
+                            return undefined
+                        }
+                    } else {
+                        return undefined
+                    }
+                })
+                .find((l) => l !== undefined)
+
+            if (r?.args.success) {
+                return "included"
+            } else {
+                return "reverted"
+            }
+        } else {
+            return "failed"
+        }
     } catch (_e) {
-        return false
+        return "not_found"
     }
 }
 

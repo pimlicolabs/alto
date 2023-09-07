@@ -52,6 +52,11 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "string",
         require: true
     },
+    executionRpcUrl: {
+        description: "RPC url to send transactions to",
+        type: "string",
+        require: false
+    },
     minStake: {
         description: "Minimum stake required for a relay (in 10e18)",
         type: "number",

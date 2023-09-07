@@ -90,10 +90,12 @@ export class Server {
             receivedAt: number
             method: string | null
             statusCode: number | null
+            id: number | null
         } = {
             receivedAt: Date.now(),
             method: null,
-            statusCode: null
+            statusCode: null,
+            id: null
         }
 
         try {
@@ -117,6 +119,8 @@ export class Server {
             }
 
             const jsonRpcRequest = jsonRpcParsing.data
+
+            requestInfo.id = jsonRpcRequest.id
 
             const bundlerRequestParsing = bundlerRequestSchema.safeParse(jsonRpcRequest)
             if (!bundlerRequestParsing.success) {
@@ -148,20 +152,40 @@ export class Server {
         } catch (err) {
             if (err instanceof RpcError) {
                 const rpcError = {
-                    message: err.message,
-                    data: err.data,
-                    code: err.code
+                    jsonrpc: "2.0",
+                    id: requestInfo.id,
+                    error: {
+                        message: err.message,
+                        data: err.data,
+                        code: err.code
+                    }
                 }
-                await reply.status(400).send(rpcError)
-                requestInfo.statusCode = 400
+                await reply.status(200).send(rpcError)
+                requestInfo.statusCode = 200
                 this.fastify.log.info(rpcError, "error reply")
             } else {
                 if (err instanceof Error) {
-                    await reply.status(500).send(err.message)
+                    const rpcError = {
+                        jsonrpc: "2.0",
+                        id: requestInfo.id,
+                        error: {
+                            message: err.message
+                        }
+                    }
+
+                    await reply.status(500).send(rpcError)
                     requestInfo.statusCode = 500
                     this.fastify.log.error(err, "error reply (non-rpc)")
                 } else {
-                    await reply.status(500).send("Unknown error")
+                    const rpcError = {
+                        jsonrpc: "2.0",
+                        id: requestInfo.id,
+                        error: {
+                            message: "Unknown error"
+                        }
+                    }
+
+                    await reply.status(500).send(rpcError)
                     requestInfo.statusCode = 500
                     this.fastify.log.info(reply.raw, "error reply (non-rpc)")
                 }
