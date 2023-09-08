@@ -12,7 +12,7 @@ import {
     TransactionReceipt,
     getContract
 } from "viem"
-import { getGasPrice } from "./gasPrice"
+import { getGasPrice } from "@alto/utils"
 
 const waitForTransactionReceipt = async (publicClient: PublicClient, tx: HexData32): Promise<TransactionReceipt> => {
     try {

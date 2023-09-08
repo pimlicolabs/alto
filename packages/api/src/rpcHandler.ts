@@ -1,10 +1,8 @@
 import { RpcHandlerConfig } from "@alto/config"
-import { IExecutor, getGasPrice } from "@alto/executor"
 import {
     Address,
     BundlerClearStateResponseResult,
     BundlerDumpMempoolResponseResult,
-    BundlerFlushStuckTransactionsResponseResult,
     BundlerRequest,
     BundlerResponse,
     BundlerSendBundleNowResponseResult,
@@ -30,7 +28,8 @@ import {
     calcPreVerificationGas,
     calcOptimismPreVerificationGas,
     Metrics,
-    getUserOperationHash
+    getUserOperationHash,
+    getGasPrice
 } from "@alto/utils"
 import { IValidator } from "@alto/validator"
 import {
@@ -67,7 +66,6 @@ export class RpcHandler implements IRpcEndpoint {
     publicClient: PublicClient<Transport, Chain>
     validator: IValidator
     mempool: Mempool
-    executor: IExecutor
     monitor: Monitor
     logger: Logger
     metrics: Metrics
@@ -78,7 +76,6 @@ export class RpcHandler implements IRpcEndpoint {
         publicClient: PublicClient<Transport, Chain>,
         validator: IValidator,
         mempool: Mempool,
-        executor: IExecutor,
         monitor: Monitor,
         logger: Logger,
         metrics: Metrics
@@ -87,7 +84,6 @@ export class RpcHandler implements IRpcEndpoint {
         this.publicClient = publicClient
         this.validator = validator
         this.mempool = mempool
-        this.executor = executor
         this.monitor = monitor
         this.logger = logger
         this.metrics = metrics
@@ -155,11 +151,6 @@ export class RpcHandler implements IRpcEndpoint {
                 return {
                     method,
                     result: await this.pimlico_getUserOperationGasPrice(...request.params)
-                }
-            case "debug_bundler_flushStuckTransactions":
-                return {
-                    method,
-                    result: await this.debug_bundler_flushStuckTransactions(...request.params)
                 }
         }
     }
@@ -530,11 +521,5 @@ export class RpcHandler implements IRpcEndpoint {
                 maxPriorityFeePerGas: (gasPrice.maxPriorityFeePerGas * 115n) / 100n
             }
         }
-    }
-
-    async debug_bundler_flushStuckTransactions(): Promise<BundlerFlushStuckTransactionsResponseResult> {
-        await this.executor.flushStuckTransactions()
-
-        return "ok"
     }
 }

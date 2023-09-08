@@ -133,7 +133,7 @@ function getChain(chainId: number): Chain {
 
     for (const chain of Object.values(chains)) {
         if (chain.id === chainId) {
-            return chain
+            return chain as Chain
         }
     }
 
@@ -222,7 +222,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
 
     new ExecutorManager(executor, mempool, monitor, client, parsedArgs.entryPoint, parsedArgs.pollingInterval, logger)
 
-    const rpcEndpoint = new RpcHandler(handlerConfig, client, validator, mempool, executor, monitor, logger, metrics)
+    const rpcEndpoint = new RpcHandler(handlerConfig, client, validator, mempool, monitor, logger, metrics)
 
     executor.flushStuckTransactions()
 

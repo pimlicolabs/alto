@@ -3,7 +3,7 @@ import { Mempool, Monitor } from "@alto/mempool"
 import { IExecutor } from "./executor"
 import { Address, Block, Chain, PublicClient, Transport, WatchBlocksReturnType } from "viem"
 import { Logger, transactionIncluded } from "@alto/utils"
-import { getGasPrice } from "./gasPrice"
+import { getGasPrice } from "@alto/utils"
 
 function getTransactionsFromUserOperationEntries(entries: SubmittedUserOperation[]): TransactionInfo[] {
     return Array.from(

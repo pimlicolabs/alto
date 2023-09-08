@@ -15,8 +15,8 @@ import {
     getContract
 } from "viem"
 import { SenderManager } from "./senderManager"
-import { getGasPrice } from "./gasPrice"
 import * as chains from "viem/chains"
+import { getGasPrice } from "@alto/utils"
 import { filterOpsAndEstimateGas, flushStuckTransaction, parseViemError, simulatedOpsToResults } from "./utils"
 
 export interface GasEstimateResult {

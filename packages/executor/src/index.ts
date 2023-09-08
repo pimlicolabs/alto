@@ -1,5 +1,4 @@
 export * from "./executor"
 export * from "./executorManager"
 export * from "./senderManager"
-export * from "./gasPrice"
 export * from "./utils"
