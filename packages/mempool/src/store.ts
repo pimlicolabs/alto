@@ -115,17 +115,17 @@ export class MemoryStore {
     }
 
     dumpOutstanding(): UserOperationInfo[] {
-        this.logger.debug({ store: "outstanding", length: this.outstandingUserOperations.length }, "dumping mempool")
+        this.logger.trace({ store: "outstanding", length: this.outstandingUserOperations.length }, "dumping mempool")
         return this.outstandingUserOperations
     }
 
     dumpProcessing(): UserOperationInfo[] {
-        this.logger.debug({ store: "processing", length: this.processingUserOperations.length }, "dumping mempool")
+        this.logger.trace({ store: "processing", length: this.processingUserOperations.length }, "dumping mempool")
         return this.processingUserOperations
     }
 
     dumpSubmitted(): SubmittedUserOperation[] {
-        this.logger.debug({ store: "submitted", length: this.submittedUserOperations.length }, "dumping mempool")
+        this.logger.trace({ store: "submitted", length: this.submittedUserOperations.length }, "dumping mempool")
         return this.submittedUserOperations
     }
 
