@@ -1,326 +1,142 @@
 // import { MongoClient, Collection, Filter } from "mongodb"
 // import { PublicClient, getContract } from "viem"
 // import { EntryPointAbi } from "../types/EntryPoint"
-import { TransactionInfo, UserOperation, UserOperationMempoolEntry, SubmissionStatus } from "@alto/types"
+import { SubmittedUserOperation, TransactionInfo, UserOperation, UserOperationInfo } from "@alto/types"
 import { HexData32 } from "@alto/types"
-import { IExecutor, getGasPrice } from "@alto/executor"
 import { Monitor } from "./monitoring"
-import { Address, Block, Chain, PublicClient, Transport, WatchBlocksReturnType } from "viem"
-import { Logger, Metrics } from "@alto/utils"
-import { transactionIncluded } from "@alto/utils"
-
-function getTransactionsFromUserOperationEntries(entries: UserOperationMempoolEntry[]): TransactionInfo[] {
-    return Array.from(
-        new Set(
-            entries
-                .filter(
-                    (entry) => entry.status === SubmissionStatus.Submitted || entry.status === SubmissionStatus.Included
-                )
-                .map((entry) => {
-                    if (entry.status === SubmissionStatus.Submitted || entry.status === SubmissionStatus.Included) {
-                        return entry.transactionInfo
-                    } else {
-                        throw new Error("unreachable")
-                    }
-                })
-        )
-    )
-}
-
-function getSubmittedUserOperationEntries(entries: UserOperationMempoolEntry[]): UserOperationMempoolEntry[] {
-    return entries.filter((entry) => entry.status === SubmissionStatus.Submitted)
-}
+import { Address, Chain, PublicClient, Transport } from "viem"
+import { Logger, Metrics, getUserOperationHash } from "@alto/utils"
+import { MemoryStore } from "./store"
 
 export interface Mempool {
-    add(op: UserOperation, userOpHash: HexData32): boolean
-    take(gasLimit?: bigint): UserOperation[] | null
+    add(op: UserOperation): void
+
+    /**
+     * Takes an array of user operations from the mempool, also marking them as submitted.
+     *
+     * @param gasLimit The maximum gas limit of user operations to take.
+     * @param minOps The minimum number of user operations to take.
+     * @returns An array of user operations to submit.
+     */
+    process(gasLimit?: bigint, minOps?: number): UserOperation[]
+
+    replaceSubmitted(userOperation: UserOperationInfo, transactionInfo: TransactionInfo): void
+
+    markSubmitted(userOpHash: HexData32, transactionInfo: TransactionInfo): void
+
+    /**
+     * Removes a user operation from the mempool.
+     *
+     * @param userOpHash The hash of the user operation to remove.
+     */
+    removeSubmitted(userOpHash: HexData32): void
+
+    /**
+     * Gets all user operation from the mempool.
+     *
+     * @returns An array of user operations.
+     */
+    dumpSubmittedOps(): SubmittedUserOperation[]
 }
 
 export class NullMempool implements Mempool {
-    add(_op: UserOperation, _userOpHash: HexData32): boolean {
-        return false
+    replaceSubmitted(userOperation: UserOperationInfo, transactionInfo: TransactionInfo): void {
+        throw new Error("Method not implemented.")
     }
-
-    take(_gasLimit?: bigint): UserOperation[] | null {
-        return null
+    markSubmitted(userOpHash: `0x${string}`, transactionInfo: TransactionInfo): void {
+        throw new Error("Method not implemented.")
     }
-}
-
-export class MemoryStore {
-    // private monitoredTransactions: Map<HexData32, TransactionInfo> = new Map() // tx hash to info
-    private monitoredUserOperations: Map<HexData32, UserOperationMempoolEntry> = new Map() // user op hash to info
-
-    private logger: Logger
-    private metrics: Metrics
-
-    constructor(logger: Logger, metrics: Metrics) {
-        this.logger = logger
-        this.metrics = metrics
+    dumpSubmittedOps(): SubmittedUserOperation[] {
+        throw new Error("Method not implemented.")
     }
-
-    add(entry: UserOperationMempoolEntry) {
-        this.monitoredUserOperations.set(entry.userOperationInfo.userOperationHash, entry)
-        this.logger.debug({ userOpHash: entry.userOperationInfo.userOperationHash }, "added user op to mempool")
-        this.metrics.userOperationsInMempool.metric
-            .labels({
-                status: entry.status,
-                chainId: this.metrics.userOperationsInMempool.chainId,
-                network: this.metrics.userOperationsInMempool.network
-            })
-            .inc()
+    removeSubmitted(userOpHash: `0x${string}`): void {
+        throw new Error("Method not implemented.")
     }
+    add(_op: UserOperation) {}
 
-    remove(userOpHash: HexData32) {
-        const entry = this.monitoredUserOperations.get(userOpHash)
-        if (!entry) {
-            this.logger.warn({ userOpHash }, "tried to remove non-existent user op from mempool")
-            return
-        }
-
-        const success = this.monitoredUserOperations.delete(userOpHash)
-        if (!success) {
-            this.logger.warn({ userOpHash }, "tried to remove non-existent user op from mempool")
-            return
-        }
-
-        this.logger.debug({ userOpHash }, "removed user op from mempool")
-        this.metrics.userOperationsInMempool.metric
-            .labels({
-                status: entry.status,
-                chainId: this.metrics.userOperationsInMempool.chainId,
-                network: this.metrics.userOperationsInMempool.network
-            })
-            .dec()
-    }
-
-    get(userOpHash: HexData32): UserOperationMempoolEntry | null {
-        const op = this.monitoredUserOperations.get(userOpHash) || null
-        this.logger.trace({ userOpHash }, "got user op from mempool")
-        return op
-    }
-
-    values(): UserOperationMempoolEntry[] {
-        return Array.from(this.monitoredUserOperations.values())
-    }
-
-    keys(): HexData32[] {
-        return Array.from(this.monitoredUserOperations.keys())
+    process(_gasLimit?: bigint, minOps?: number): UserOperation[] {
+        return []
     }
 }
 
 export class MemoryMempool implements Mempool {
-    private unWatch: WatchBlocksReturnType | undefined
-
-    private executor: IExecutor
     private monitor: Monitor
     private publicClient: PublicClient<Transport, Chain>
     private entryPointAddress: Address
-    private pollingInterval: number
-    private logger: Logger
-
     private store: MemoryStore
 
     constructor(
-        executor: IExecutor,
         monitor: Monitor,
         publicClient: PublicClient<Transport, Chain>,
         entryPointAddress: Address,
-        pollingInterval: number,
         logger: Logger,
         metrics: Metrics
     ) {
-        this.executor = executor
         this.monitor = monitor
         this.publicClient = publicClient
         this.entryPointAddress = entryPointAddress
-        this.pollingInterval = pollingInterval
-        this.logger = logger
         this.store = new MemoryStore(logger, metrics)
-
-        setInterval(async () => {
-            await this.bundle()
-        }, 1000)
     }
 
-    add(op: UserOperation, userOpHash: HexData32): boolean {
-        this.store.add({
-            userOperationInfo: {
-                userOperation: op,
-                userOperationHash: userOpHash,
-                firstSubmitted: Date.now(),
-                lastReplaced: Date.now()
-            },
-            status: SubmissionStatus.NotSubmitted
-        })
-        this.monitor.setUserOperationStatus(userOpHash, { status: "not_submitted", transactionHash: null })
-        return true
-    }
-
-    async refreshUserOperationStatus(userOpHash: HexData32): Promise<void> {
-        const entry = this.store.get(userOpHash)
-        if (entry?.status === SubmissionStatus.Submitted) {
-            const included = await transactionIncluded(entry.transactionInfo.transactionHash, this.publicClient)
-            if (included) {
-                // this.monitoredUserOperations.set(userOpHash, { ...entry, status: SubmissionStatus.Included })
-                this.store.remove(userOpHash)
-                this.monitor.setUserOperationStatus(userOpHash, {
-                    status: "included",
-                    transactionHash: entry.transactionInfo.transactionHash
-                })
-                this.executor.markProcessed(entry.transactionInfo)
-            }
-        }
-    }
-
-    async replaceTransaction(txInfo: TransactionInfo): Promise<TransactionInfo | null> {
-        const newTxInfo = await this.executor.replaceTransaction(txInfo)
-        if (!newTxInfo) {
-            return null
-        }
-
-        newTxInfo.userOperationInfos.map((opInfo) => {
-            this.store.add({
-                status: SubmissionStatus.Submitted,
-                userOperationInfo: opInfo,
-                transactionInfo: newTxInfo
+    replaceSubmitted(userOperation: UserOperationInfo, transactionInfo: TransactionInfo): void {
+        const op = this.store
+            .dumpSubmitted()
+            .find((op) => op.userOperation.userOperationHash === userOperation.userOperationHash)
+        if (op) {
+            this.store.removeSubmitted(userOperation.userOperationHash)
+            this.store.addSubmitted({
+                userOperation,
+                transactionInfo
             })
-            this.monitor.setUserOperationStatus(opInfo.userOperationHash, {
+            this.monitor.setUserOperationStatus(userOperation.userOperationHash, {
                 status: "submitted",
-                transactionHash: newTxInfo.transactionHash
+                transactionHash: transactionInfo.transactionHash
             })
+        }
+    }
+
+    markSubmitted(userOpHash: `0x${string}`, transactionInfo: TransactionInfo): void {
+        const op = this.store.dumpProcessing().find((op) => op.userOperationHash === userOpHash)
+        if (op) {
+            this.store.removeProcessing(userOpHash)
+            this.store.addSubmitted({
+                userOperation: op,
+                transactionInfo
+            })
+            this.monitor.setUserOperationStatus(userOpHash, {
+                status: "submitted",
+                transactionHash: transactionInfo.transactionHash
+            })
+        }
+    }
+
+    dumpSubmittedOps(): SubmittedUserOperation[] {
+        return this.store.dumpSubmitted()
+    }
+
+    removeSubmitted(userOpHash: `0x${string}`): void {
+        this.store.removeSubmitted(userOpHash)
+    }
+
+    add(op: UserOperation) {
+        const hash = getUserOperationHash(op, this.entryPointAddress, this.publicClient.chain.id)
+
+        this.store.addOutstanding({
+            userOperation: op,
+            userOperationHash: hash,
+            firstSubmitted: Date.now(),
+            lastReplaced: Date.now()
         })
-        return newTxInfo
+        this.monitor.setUserOperationStatus(hash, { status: "not_submitted", transactionHash: null })
     }
 
-    async handleBlock(block: Block) {
-        this.logger.debug({ blockNumber: block.number }, "handling block")
-
-        const submittedEntries = getSubmittedUserOperationEntries(this.store.values())
-        if (submittedEntries.length === 0) {
-            this.stopWatchingBlocks()
-            return
-        }
-
-        // refresh op statuses
-        const userOpHashes = Array.from(this.store.keys())
-        await Promise.all(userOpHashes.map((userOpHash) => this.refreshUserOperationStatus(userOpHash)))
-
-        // for all still not included check if needs to be replaced (based on gas price)
-        const gasPriceParameters = await getGasPrice(this.publicClient.chain.id, this.publicClient, this.logger)
-        const transactionInfos = getTransactionsFromUserOperationEntries(
-            getSubmittedUserOperationEntries(this.store.values())
-        )
-
-        await Promise.all(
-            transactionInfos.map(async (txInfo) => {
-                if (
-                    txInfo.transactionRequest.maxFeePerGas >= gasPriceParameters.maxFeePerGas &&
-                    txInfo.transactionRequest.maxPriorityFeePerGas >= gasPriceParameters.maxPriorityFeePerGas
-                ) {
-                    return
-                }
-
-                const newTxInfo = await this.replaceTransaction(txInfo)
-                if (newTxInfo) {
-                    this.logger.info(
-                        {
-                            oldTxHash: txInfo.transactionHash,
-                            newTxHash: newTxInfo.transactionHash,
-                            reason: "gas_price"
-                        },
-                        "replaced transaction"
-                    )
-                } else {
-                    this.logger.warn(
-                        { oldTxHash: txInfo.transactionHash, reason: "gas_price" },
-                        "failed to replace transaction"
-                    )
-                }
-            })
-        )
-
-        // for any left check if enough time has passed, if so replace
-        const transactionInfos2 = getTransactionsFromUserOperationEntries(
-            getSubmittedUserOperationEntries(this.store.values())
-        )
-
-        await Promise.all(
-            transactionInfos2.map(async (txInfo) => {
-                if (Date.now() - txInfo.lastReplaced < 5 * 60 * 1000) {
-                    return
-                }
-
-                const newTxInfo = await this.replaceTransaction(txInfo)
-                if (newTxInfo) {
-                    this.logger.info(
-                        { oldTxHash: txInfo.transactionHash, newTxHash: newTxInfo.transactionHash, reason: "stuck" },
-                        "replaced transaction"
-                    )
-                } else {
-                    this.logger.warn(
-                        { oldTxHash: txInfo.transactionHash, reason: "stuck" },
-                        "failed to replace transaction"
-                    )
-                }
-            })
-        )
-    }
-
-    async replaceTransactions(): Promise<void> {}
-
-    async bundle() {
-        const opsToBundle: UserOperation[][] = []
-        // rome-ignore lint/nursery/noConstantCondition: <explanation>
-        while (true) {
-            const ops = this.take(2_000_000n, 1)
-            if (ops?.length > 0) {
-                opsToBundle.push(ops)
-            } else {
-                break
-            }
-        }
-
-        if (opsToBundle.length === 0) {
-            return
-        }
-
-        const userOperationResults: UserOperationMempoolEntry[] = []
-        await Promise.all(
-            opsToBundle.map(async (ops) => {
-                const results = await this.executor.bundle(this.entryPointAddress, ops)
-                userOperationResults.push(...results)
-            })
-        )
-
-        userOperationResults.map((result) => {
-            if (result.status === SubmissionStatus.Submitted) {
-                this.store.add(result)
-                // this.monitoredTransactions.set(result.transactionInfo.transactionHash, result.transactionInfo)
-                this.monitor.setUserOperationStatus(result.userOperationInfo.userOperationHash, {
-                    status: "submitted",
-                    transactionHash: result.transactionInfo.transactionHash
-                })
-            } else if (result.status === SubmissionStatus.Rejected) {
-                this.monitor.setUserOperationStatus(result.userOperationInfo.userOperationHash, {
-                    status: "rejected",
-                    transactionHash: null
-                })
-            }
-        })
-
-        this.startWatchingBlocks(this.handleBlock.bind(this))
-    }
-
-    take(maxGasLimit?: bigint, minOps?: number): UserOperation[] {
-        const mempoolEntries = this.store.values()
-        const opInfos = mempoolEntries
-            .filter((entry) => entry.status === SubmissionStatus.NotSubmitted)
-            .map((entry) => entry.userOperationInfo)
+    process(maxGasLimit?: bigint, minOps?: number): UserOperation[] {
+        const outstandingUserOperations = this.store.dumpOutstanding()
         if (maxGasLimit) {
             let opsTaken = 0
             let gasUsed = 0n
             const result: UserOperation[] = []
-            for (const opInfo of opInfos) {
+            for (const opInfo of outstandingUserOperations) {
                 gasUsed +=
                     opInfo.userOperation.callGasLimit +
                     opInfo.userOperation.verificationGasLimit * 3n +
@@ -328,57 +144,32 @@ export class MemoryMempool implements Mempool {
                 if (gasUsed > maxGasLimit && opsTaken >= (minOps || 0)) {
                     break
                 }
-                this.store.remove(opInfo.userOperationHash)
+                this.store.removeOutstanding(opInfo.userOperationHash)
+                this.store.addProcessing(opInfo)
                 result.push(opInfo.userOperation)
                 opsTaken++
             }
             return result
         }
 
-        return opInfos.map((opInfo) => {
-            this.store.remove(opInfo.userOperationHash)
+        return outstandingUserOperations.map((opInfo) => {
+            this.store.removeOutstanding(opInfo.userOperationHash)
+            this.store.addProcessing(opInfo)
             return opInfo.userOperation
         })
     }
 
-    get(opHash: HexData32): UserOperationMempoolEntry | null {
-        return this.store.get(opHash)
-    }
-
-    startWatchingBlocks(handleBlock: (block: Block) => void): void {
-        if (this.unWatch) {
-            return
+    get(opHash: HexData32): UserOperation | null {
+        const outstanding = this.store.dumpOutstanding().find((op) => op.userOperationHash === opHash)
+        if (outstanding) {
+            return outstanding.userOperation
         }
-        this.unWatch = this.publicClient.watchBlocks({
-            onBlock: handleBlock,
-            // onBlock: async (block) => {
-            //     // Use an arrow function to ensure correct binding of `this`
-            //     this.checkAndReplaceTransactions(block)
-            //         .then(() => {
-            //             this.logger.trace("block handled")
-            //             // Handle the resolution of the promise here, if needed
-            //         })
-            //         .catch((error) => {
-            //             // Handle any errors that occur during the execution of the promise
-            //             this.logger.error({ error }, "error while handling block")
-            //         })
-            // },
-            onError: (error) => {
-                this.logger.error({ error }, "error while watching blocks")
-            },
-            emitMissed: false,
-            includeTransactions: false,
-            pollingInterval: this.pollingInterval
-        })
 
-        this.logger.debug("started watching blocks")
-    }
-
-    stopWatchingBlocks(): void {
-        if (this.unWatch) {
-            this.logger.debug("stopped watching blocks")
-            this.unWatch()
-            this.unWatch = undefined
+        const submitted = this.store.dumpSubmitted().find((op) => op.userOperation.userOperationHash === opHash)
+        if (submitted) {
+            return submitted.userOperation.userOperation
         }
+
+        return null
     }
 }

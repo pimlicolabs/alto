@@ -6,7 +6,7 @@ import {
     bundlerArgsSchema,
     bundlerArgsToRpcHandlerConfig
 } from "@alto/config"
-import { BasicExecutor, SenderManager } from "@alto/executor"
+import { BasicExecutor, ExecutorManager, SenderManager } from "@alto/executor"
 import { Logger, initDebugLogger, initProductionLogger } from "@alto/utils"
 import { createMetrics } from "@alto/utils"
 import { UnsafeValidator } from "@alto/validator"
@@ -207,6 +207,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     }, parsedArgs.refillInterval)
 
     const monitor = new Monitor()
+    const mempool = new MemoryMempool(monitor, client, handlerConfig.entryPoint, logger, metrics)
 
     const executor = new BasicExecutor(
         parsedArgs.beneficiary,
@@ -219,15 +220,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         !parsedArgs.tenderlyEnabled
     )
 
-    const mempool = new MemoryMempool(
-        executor,
-        monitor,
-        client,
-        handlerConfig.entryPoint,
-        parsedArgs.pollingInterval,
-        logger,
-        metrics
-    )
+    new ExecutorManager(executor, mempool, monitor, client, parsedArgs.entryPoint, parsedArgs.pollingInterval, logger)
 
     const rpcEndpoint = new RpcHandler(handlerConfig, client, validator, mempool, executor, monitor, logger, metrics)
 

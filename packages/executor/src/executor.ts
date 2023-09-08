@@ -1,21 +1,11 @@
-import {
-    EntryPointAbi,
-    SubmissionStatus,
-    TransactionInfo,
-    UserOperationMempoolEntry,
-    UserOperationWithHash,
-    failedOpErrorSchema
-} from "@alto/types"
+import { EntryPointAbi, TransactionInfo, BundleResult } from "@alto/types"
 import { Address, HexData32, UserOperation } from "@alto/types"
-import { Logger, Metrics, getUserOperationHash, transactionIncluded } from "@alto/utils"
+import { Logger, Metrics, getUserOperationHash } from "@alto/utils"
 import { Mutex } from "async-mutex"
 import {
     Account,
     Chain,
-    ContractFunctionExecutionError,
-    ContractFunctionRevertedError,
     FeeCapTooLowError,
-    GetContractReturnType,
     InsufficientFundsError,
     IntrinsicGasTooLowError,
     NonceTooLowError,
@@ -27,32 +17,7 @@ import {
 import { SenderManager } from "./senderManager"
 import { getGasPrice } from "./gasPrice"
 import * as chains from "viem/chains"
-
-// enum Action {
-//     Resubmit = "resubmit",
-//     Drop = "drop",
-//     NoAction = "noAction"
-// }
-
-function parseViemError(err: unknown) {
-    if (err instanceof ContractFunctionExecutionError) {
-        const e = err.walk()
-        if (e instanceof NonceTooLowError) {
-            return e
-        } else if (e instanceof FeeCapTooLowError) {
-            return e
-        } else if (e instanceof InsufficientFundsError) {
-            return e
-        } else if (e instanceof IntrinsicGasTooLowError) {
-            return e
-        } else if (e instanceof ContractFunctionRevertedError) {
-            return e
-        }
-        return
-    } else {
-        return
-    }
-}
+import { filterOpsAndEstimateGas, flushStuckTransaction, parseViemError, simulatedOpsToResults } from "./utils"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -61,7 +26,7 @@ export interface GasEstimateResult {
 }
 
 export interface IExecutor {
-    bundle(entryPoint: Address, ops: UserOperation[]): Promise<UserOperationMempoolEntry[]>
+    bundle(entryPoint: Address, ops: UserOperation[]): Promise<BundleResult[]>
     replaceTransaction(transactionInfo: TransactionInfo): Promise<TransactionInfo | undefined>
     cancelOps(entryPoint: Address, ops: UserOperation[]): Promise<void>
     markProcessed(transactionInfo: TransactionInfo): Promise<void>
@@ -69,7 +34,7 @@ export interface IExecutor {
 }
 
 export class NullExecutor implements IExecutor {
-    async bundle(entryPoint: Address, ops: UserOperation[]): Promise<UserOperationMempoolEntry[]> {
+    async bundle(entryPoint: Address, ops: UserOperation[]): Promise<BundleResult[]> {
         return []
     }
     async replaceTransaction(transactionInfo: TransactionInfo): Promise<TransactionInfo | undefined> {
@@ -79,59 +44,6 @@ export class NullExecutor implements IExecutor {
     async cancelOps(entryPoint: Address, ops: UserOperation[]): Promise<void> {}
     async markProcessed(transactionInfo: TransactionInfo): Promise<void> {}
     async flushStuckTransactions(): Promise<void> {}
-}
-
-async function filterOpsAndEstimateGas(
-    ep: GetContractReturnType<typeof EntryPointAbi, PublicClient, WalletClient>,
-    wallet: Account,
-    ops: UserOperationWithHash[],
-    nonce: number,
-    maxFeePerGas: bigint,
-    maxPriorityFeePerGas: bigint,
-    logger: Logger
-) {
-    const simulatedOps: {
-        op: UserOperationWithHash
-        reason: string | undefined
-    }[] = ops.map((op) => {
-        return { op, reason: undefined }
-    })
-
-    let gasLimit: bigint
-
-    while (simulatedOps.length > 0) {
-        try {
-            gasLimit = await ep.estimateGas.handleOps(
-                [simulatedOps.filter((op) => op.reason === undefined).map((op) => op.op.userOperation), wallet.address],
-                {
-                    account: wallet,
-                    maxFeePerGas: maxFeePerGas,
-                    maxPriorityFeePerGas: maxPriorityFeePerGas,
-                    nonce: nonce,
-                    blockTag: "latest"
-                }
-            )
-
-            return { simulatedOps, gasLimit }
-        } catch (err: unknown) {
-            const e = parseViemError(err)
-            if (e instanceof ContractFunctionRevertedError) {
-                const parsingResult = failedOpErrorSchema.safeParse(e.data)
-                if (parsingResult.success) {
-                    const failedOpError = parsingResult.data
-                    logger.warn({ failedOpError }, "user op in batch invalid")
-                    simulatedOps[Number(failedOpError.args.opIndex)].reason = failedOpError.args.reason
-                } else {
-                    logger.error({ error: parsingResult.error }, "failed to parse failedOpError")
-                    return { simulatedOps: [], gasLimit: 0n }
-                }
-            } else {
-                logger.error({ error: err }, "error estimating gas")
-                return { simulatedOps: [], gasLimit: 0n }
-            }
-        }
-    }
-    return { simulatedOps, gasLimit: 0n }
 }
 
 export class BasicExecutor implements IExecutor {
@@ -284,71 +196,18 @@ export class BasicExecutor implements IExecutor {
         }
     }
 
-    // async replaceOps(opHahes: HexData32[]) {
-    //     const txStatusesToReplace = Array.from(
-    //         new Set(opHahes.map((hash) => this.findTxForOp(hash)).filter((tx) => tx !== undefined) as TransactionInfo[])
-    //     )
-
-    //     txStatusesToReplace.map((txStatus) => {
-    //         this.replaceTransaction(txStatus)
-    //     })
-    // }
-
     async flushStuckTransactions(): Promise<void> {
         const gasPrice = 10n * (await this.publicClient.getGasPrice())
 
         const wallets = [...this.senderManager.wallets, this.senderManager.utilityAccount]
         const promises = wallets.map(async (wallet) => {
-            const latestNonce = await this.publicClient.getTransactionCount({
-                address: wallet.address,
-                blockTag: "latest"
-            })
-            const pendingNonce = await this.publicClient.getTransactionCount({
-                address: wallet.address,
-                blockTag: "pending"
-            })
-
-            this.logger.debug({ latestNonce, pendingNonce, wallet: wallet.address }, "checking for stuck transactions")
-
-            // same nonce is okay
-            if (latestNonce === pendingNonce) {
-                return
-            }
-
-            // one nonce ahead is also okay
-            if (latestNonce + 1 === pendingNonce) {
-                return
-            }
-
-            this.logger.info({ latestNonce, pendingNonce, wallet: wallet.address }, "found stuck transaction, flushing")
-
-            for (let nonceToFlush = latestNonce; nonceToFlush < pendingNonce; nonceToFlush++) {
-                try {
-                    const txHash = await this.walletClient.sendTransaction({
-                        account: wallet,
-                        to: wallet.address,
-                        value: 0n,
-                        nonce: nonceToFlush,
-                        maxFeePerGas: gasPrice,
-                        maxPriorityFeePerGas: gasPrice
-                    })
-
-                    this.logger.debug(
-                        { txHash, nonce: nonceToFlush, wallet: wallet.address },
-                        "flushed stuck transaction"
-                    )
-
-                    await transactionIncluded(txHash, this.publicClient)
-                } catch (e) {
-                    this.logger.warn({ error: e }, "error flushing stuck transaction")
-                }
-            }
+            return flushStuckTransaction(this.publicClient, this.walletClient, wallet, gasPrice, this.logger)
         })
 
         await Promise.all(promises)
     }
 
-    async bundle(entryPoint: Address, ops: UserOperation[]): Promise<UserOperationMempoolEntry[]> {
+    async bundle(entryPoint: Address, ops: UserOperation[]): Promise<BundleResult[]> {
         const opsWithHashes = ops.map((op) => {
             return {
                 userOperation: op,
@@ -398,14 +257,11 @@ export class BasicExecutor implements IExecutor {
             this.senderManager.pushWallet(wallet)
             return opsWithHashes.map((owh) => {
                 return {
-                    status: SubmissionStatus.Rejected,
-                    userOperationInfo: {
-                        userOperation: owh.userOperation,
-                        userOperationHash: owh.userOperationHash,
-                        lastReplaced: Date.now(),
-                        firstSubmitted: Date.now()
-                    },
-                    reason: "INTERNAL FAILURE"
+                    success: false,
+                    error: {
+                        userOpHash: owh.userOperationHash,
+                        reason: "INTERNAL FAILURE"
+                    }
                 }
             })
         }
@@ -464,31 +320,7 @@ export class BasicExecutor implements IExecutor {
             firstSubmitted: Date.now()
         }
 
-        const userOperationResults = simulatedOps.map((sop) => {
-            if (sop.reason === undefined) {
-                return {
-                    status: SubmissionStatus.Submitted as const,
-                    userOperationInfo: {
-                        userOperation: sop.op.userOperation,
-                        userOperationHash: sop.op.userOperationHash,
-                        lastReplaced: Date.now(),
-                        firstSubmitted: Date.now()
-                    },
-                    transactionInfo
-                }
-            } else {
-                return {
-                    status: SubmissionStatus.Rejected as const,
-                    userOperationInfo: {
-                        userOperation: sop.op.userOperation,
-                        userOperationHash: sop.op.userOperationHash,
-                        lastReplaced: Date.now(),
-                        firstSubmitted: Date.now()
-                    },
-                    reason: sop.reason as string
-                }
-            }
-        })
+        const userOperationResults: BundleResult[] = simulatedOpsToResults(simulatedOps, transactionInfo)
 
         childLogger.info(
             { txHash, opHashes: opsWithHashes.map((owh) => owh.userOperationHash) },

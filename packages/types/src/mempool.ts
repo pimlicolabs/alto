@@ -30,18 +30,24 @@ export enum SubmissionStatus {
     Included = "included"
 }
 
-export type UserOperationMempoolEntry =
-    | {
-          status: SubmissionStatus.NotSubmitted
-          userOperationInfo: UserOperationInfo
-      }
-    | {
-          status: SubmissionStatus.Rejected
-          userOperationInfo: UserOperationInfo
-          reason: string
-      }
-    | {
-          status: SubmissionStatus.Submitted | SubmissionStatus.Included
-          userOperationInfo: UserOperationInfo
-          transactionInfo: TransactionInfo
-      }
+export type SubmittedUserOperation = {
+    userOperation: UserOperationInfo
+    transactionInfo: TransactionInfo
+}
+
+type Result<T, E> = Success<T> | Failure<E>
+
+interface Success<T> {
+    success: true
+    value: T
+}
+
+interface Failure<E> {
+    success: false
+    error: E
+}
+
+export type BundleResult = Result<
+    { userOperation: UserOperationInfo; transactionInfo: TransactionInfo },
+    { reason: string; userOpHash: HexData32 }
+>
