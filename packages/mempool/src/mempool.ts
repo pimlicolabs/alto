@@ -30,6 +30,7 @@ export interface Mempool {
      * @param userOpHash The hash of the user operation to remove.
      */
     removeSubmitted(userOpHash: HexData32): void
+    removeProcessing(userOpHash: HexData32): void
 
     /**
      * Gets all user operation from the mempool.
@@ -40,6 +41,9 @@ export interface Mempool {
 }
 
 export class NullMempool implements Mempool {
+    removeProcessing(userOpHash: `0x${string}`): void {
+        throw new Error("Method not implemented.")
+    }
     replaceSubmitted(userOperation: UserOperationInfo, transactionInfo: TransactionInfo): void {
         throw new Error("Method not implemented.")
     }
@@ -116,6 +120,10 @@ export class MemoryMempool implements Mempool {
 
     removeSubmitted(userOpHash: `0x${string}`): void {
         this.store.removeSubmitted(userOpHash)
+    }
+
+    removeProcessing(userOpHash: `0x${string}`): void {
+        this.store.removeProcessing(userOpHash)
     }
 
     add(op: UserOperation) {

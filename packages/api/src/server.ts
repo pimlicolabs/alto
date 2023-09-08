@@ -54,7 +54,8 @@ export class Server {
     ) {
         this.fastify = Fastify({
             logger,
-            requestTimeout: bundlerArgs.requestTimeout
+            requestTimeout: bundlerArgs.requestTimeout,
+            disableRequestLogging: true
         })
 
         this.fastify.register(require("fastify-cors"), {

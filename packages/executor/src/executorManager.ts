@@ -83,7 +83,7 @@ export class ExecutorManager {
                     transactionHash: res.transactionInfo.transactionHash
                 })
             } else {
-                this.mempool.removeSubmitted(result.error.userOpHash)
+                this.mempool.removeProcessing(result.error.userOpHash)
                 this.monitor.setUserOperationStatus(result.error.userOpHash, {
                     status: "rejected",
                     transactionHash: null
