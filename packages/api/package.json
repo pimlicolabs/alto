@@ -22,7 +22,6 @@
     },
     "dependencies": {
         "@alto/config": "*",
-        "@alto/executor": "*",
         "@alto/types": "*",
         "@alto/utils": "*",
         "@alto/validator": "*",
