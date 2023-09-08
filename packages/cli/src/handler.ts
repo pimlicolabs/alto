@@ -222,7 +222,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     )
     const rpcEndpoint = new RpcHandler(handlerConfig, client, validator, executor, monitor, logger, metrics)
 
-    executor.flushStuckTransactions()
+    // executor.flushStuckTransactions()
 
     logger.info(`Initialized ${senderManager.wallets.length} executor wallets`)
 
