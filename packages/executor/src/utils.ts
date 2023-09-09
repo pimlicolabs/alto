@@ -86,7 +86,7 @@ export async function filterOpsAndEstimateGas(
 
     let gasLimit: bigint
 
-    while (simulatedOps.length > 0) {
+    while (simulatedOps.filter((op) => op.reason === undefined).length > 0) {
         try {
             gasLimit = await ep.estimateGas.handleOps(
                 [simulatedOps.filter((op) => op.reason === undefined).map((op) => op.op.userOperation), wallet.address],
