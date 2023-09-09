@@ -163,7 +163,7 @@ export class ExecutorManager {
                 } else if (status === "failed" || status === "reverted") {
                     this.mempool.removeSubmitted(op.userOperation.userOperationHash)
                     this.monitor.setUserOperationStatus(op.userOperation.userOperationHash, {
-                        status: "failed",
+                        status,
                         transactionHash: op.transactionInfo.transactionHash
                     })
                     this.logger.info(
