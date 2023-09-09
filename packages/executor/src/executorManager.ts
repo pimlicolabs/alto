@@ -2,7 +2,7 @@ import { UserOperation, SubmittedUserOperation, TransactionInfo } from "@alto/ty
 import { Mempool, Monitor } from "@alto/mempool"
 import { IExecutor } from "./executor"
 import { Account, Address, Block, Chain, PublicClient, Transport, WatchBlocksReturnType } from "viem"
-import { Logger, transactionIncluded } from "@alto/utils"
+import { Logger, Metrics, transactionIncluded } from "@alto/utils"
 import { getGasPrice } from "@alto/utils"
 
 function getTransactionsFromUserOperationEntries(entries: SubmittedUserOperation[]): TransactionInfo[] {
@@ -23,6 +23,7 @@ export class ExecutorManager {
     private entryPointAddress: Address
     private pollingInterval: number
     private logger: Logger
+    private metrics: Metrics
 
     private unWatch: WatchBlocksReturnType | undefined
 
@@ -33,7 +34,8 @@ export class ExecutorManager {
         publicClient: PublicClient<Transport, Chain>,
         entryPointAddress: Address,
         pollingInterval: number,
-        logger: Logger
+        logger: Logger,
+        metrics: Metrics
     ) {
         this.executor = executor
         this.mempool = mempool
@@ -42,6 +44,7 @@ export class ExecutorManager {
         this.entryPointAddress = entryPointAddress
         this.pollingInterval = pollingInterval
         this.logger = logger
+        this.metrics = metrics
 
         setInterval(async () => {
             await this.bundle()
@@ -135,9 +138,10 @@ export class ExecutorManager {
         const ops = this.mempool.dumpSubmittedOps()
         await Promise.all(
             ops.map(async (op) => {
-                const included = await transactionIncluded(op.transactionInfo.transactionHash, this.publicClient)
-                if (included) {
-                    // this.monitoredUserOperations.set(userOpHash, { ...entry, status: SubmissionStatus.Included })
+                const status = await transactionIncluded(op.transactionInfo.transactionHash, this.publicClient)
+                if (status === "included") {
+                    this.metrics.userOperationsIncluded.inc()
+
                     this.mempool.removeSubmitted(op.userOperation.userOperationHash)
                     this.monitor.setUserOperationStatus(op.userOperation.userOperationHash, {
                         status: "included",
@@ -149,6 +153,22 @@ export class ExecutorManager {
                             transactionHash: op.transactionInfo.transactionHash
                         },
                         "user op included"
+                    )
+                    if (!pushedWallets.has(op.transactionInfo.executor)) {
+                        this.executor.markWalletProcessed(op.transactionInfo.executor)
+                    }
+                } else if (status === "failed" || status === "reverted") {
+                    this.mempool.removeSubmitted(op.userOperation.userOperationHash)
+                    this.monitor.setUserOperationStatus(op.userOperation.userOperationHash, {
+                        status: "failed",
+                        transactionHash: op.transactionInfo.transactionHash
+                    })
+                    this.logger.info(
+                        {
+                            userOpHash: op.userOperation.userOperationHash,
+                            transactionHash: op.transactionInfo.transactionHash
+                        },
+                        "user op failed"
                     )
                     if (!pushedWallets.has(op.transactionInfo.executor)) {
                         this.executor.markWalletProcessed(op.transactionInfo.executor)

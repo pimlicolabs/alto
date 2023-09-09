@@ -310,6 +310,8 @@ export class BasicExecutor implements IExecutor {
         )
 
         const userOperationInfos = opsToBundle.map((op) => {
+            this.metrics.userOperationsSubmitted.inc()
+
             return {
                 userOperation: op.userOperation,
                 userOperationHash: op.userOperationHash,
@@ -345,7 +347,7 @@ export class BasicExecutor implements IExecutor {
             "submitted bundle transaction"
         )
 
-        this.metrics.userOperationsBundlesSubmitted.inc()
+        this.metrics.bundlesSubmitted.inc()
 
         return userOperationResults
     }

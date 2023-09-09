@@ -233,7 +233,8 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         client,
         parsedArgs.entryPoint,
         parsedArgs.pollingInterval,
-        logger.child({ module: "executor" })
+        logger.child({ module: "executor" }),
+        metrics
     )
 
     const rpcEndpoint = new RpcHandler(
