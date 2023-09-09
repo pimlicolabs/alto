@@ -9,7 +9,7 @@ import { Logger, Metrics, getUserOperationHash } from "@alto/utils"
 import { MemoryStore } from "./store"
 
 export interface Mempool {
-    add(op: UserOperation): void
+    add(op: UserOperation): boolean
 
     /**
      * Takes an array of user operations from the mempool, also marking them as submitted.
@@ -56,7 +56,9 @@ export class NullMempool implements Mempool {
     removeSubmitted(userOpHash: `0x${string}`): void {
         throw new Error("Method not implemented.")
     }
-    add(_op: UserOperation) {}
+    add(_op: UserOperation) {
+        return false
+    }
 
     process(_gasLimit?: bigint, minOps?: number): UserOperation[] {
         return []
@@ -127,6 +129,15 @@ export class MemoryMempool implements Mempool {
     }
 
     add(op: UserOperation) {
+        const allOps = [
+            ...this.store.dumpOutstanding(),
+            ...this.store.dumpProcessing(),
+            ...this.store.dumpSubmitted().map((sop) => sop.userOperation)
+        ]
+        if (allOps.find((uo) => uo.userOperation.sender === op.sender && uo.userOperation.nonce === op.nonce)) {
+            return false
+        }
+
         const hash = getUserOperationHash(op, this.entryPointAddress, this.publicClient.chain.id)
 
         this.store.addOutstanding({
@@ -136,6 +147,8 @@ export class MemoryMempool implements Mempool {
             lastReplaced: Date.now()
         })
         this.monitor.setUserOperationStatus(hash, { status: "not_submitted", transactionHash: null })
+
+        return true
     }
 
     process(maxGasLimit?: bigint, minOps?: number): UserOperation[] {

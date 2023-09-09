@@ -250,7 +250,10 @@ export class RpcHandler implements IRpcEndpoint {
 
         await this.validator.validateUserOperation(userOperation)
 
-        this.mempool.add(userOperation)
+        const success = this.mempool.add(userOperation)
+        if (!success) {
+            throw new RpcError("UserOperation reverted during simulation with reason: AA25 invalid account nonce")
+        }
 
         const hash = getUserOperationHash(userOperation, entryPoint, this.chainId)
         return hash
