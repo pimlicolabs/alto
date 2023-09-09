@@ -187,7 +187,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     const validator = new UnsafeValidator(
         client,
         parsedArgs.entryPoint,
-        logger,
+        logger.child({ module: "rpc" }),
         metrics,
         parsedArgs.utilityPrivateKey,
         parsedArgs.tenderlyEnabled
@@ -195,7 +195,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     const senderManager = new SenderManager(
         parsedArgs.signerPrivateKeys,
         parsedArgs.utilityPrivateKey,
-        logger,
+        logger.child({ module: "executor" }),
         metrics,
         parsedArgs.maxSigners
     )
@@ -207,7 +207,13 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     }, parsedArgs.refillInterval)
 
     const monitor = new Monitor()
-    const mempool = new MemoryMempool(monitor, client, handlerConfig.entryPoint, logger, metrics)
+    const mempool = new MemoryMempool(
+        monitor,
+        client,
+        handlerConfig.entryPoint,
+        logger.child({ module: "mempool" }),
+        metrics
+    )
 
     const executor = new BasicExecutor(
         parsedArgs.beneficiary,
@@ -215,19 +221,35 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         walletClient,
         senderManager,
         parsedArgs.entryPoint,
-        logger,
+        logger.child({ module: "executor" }),
         metrics,
         !parsedArgs.tenderlyEnabled
     )
 
-    new ExecutorManager(executor, mempool, monitor, client, parsedArgs.entryPoint, parsedArgs.pollingInterval, logger)
+    new ExecutorManager(
+        executor,
+        mempool,
+        monitor,
+        client,
+        parsedArgs.entryPoint,
+        parsedArgs.pollingInterval,
+        logger.child({ module: "executor" })
+    )
 
-    const rpcEndpoint = new RpcHandler(handlerConfig, client, validator, mempool, monitor, logger, metrics)
+    const rpcEndpoint = new RpcHandler(
+        handlerConfig,
+        client,
+        validator,
+        mempool,
+        monitor,
+        logger.child({ module: "rpc" }),
+        metrics
+    )
 
     executor.flushStuckTransactions()
 
-    logger.info(`Initialized ${senderManager.wallets.length} executor wallets`)
+    logger.info({ module: "executor" }, `Initialized ${senderManager.wallets.length} executor wallets`)
 
-    const server = new Server(rpcEndpoint, parsedArgs, logger, registry, metrics)
+    const server = new Server(rpcEndpoint, parsedArgs, logger.child({ module: "rpc" }), registry, metrics)
     await server.start()
 }
