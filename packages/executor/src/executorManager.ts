@@ -141,6 +141,9 @@ export class ExecutorManager {
                 const status = await transactionIncluded(op.transactionInfo.transactionHash, this.publicClient)
                 if (status === "included") {
                     this.metrics.userOperationsIncluded.inc()
+                    this.metrics.userOperationInclusionDuration.observe(
+                        (Date.now() - op.userOperation.firstSubmitted) / 1000
+                    )
 
                     this.mempool.removeSubmitted(op.userOperation.userOperationHash)
                     this.monitor.setUserOperationStatus(op.userOperation.userOperationHash, {
