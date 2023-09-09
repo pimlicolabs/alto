@@ -224,7 +224,7 @@ export class BasicExecutor implements IExecutor {
             walletClient: this.walletClient
         })
 
-        const childLogger = this.logger.child({
+        let childLogger = this.logger.child({
             userOperations: opsWithHashes.map((oh) => oh.userOperation),
             entryPoint
         })
@@ -253,7 +253,7 @@ export class BasicExecutor implements IExecutor {
         )
 
         if (simulatedOps.length === 0) {
-            childLogger.warn("no ops to bundle")
+            childLogger.error("gas limit simulation encountered unexpected failure")
             this.senderManager.pushWallet(wallet)
             return opsWithHashes.map((owh) => {
                 return {
@@ -266,12 +266,28 @@ export class BasicExecutor implements IExecutor {
             })
         }
 
-        childLogger.trace(
-            { gasLimit, simulatedOps: simulatedOps.map((sop) => sop.op.userOperationHash) },
-            "got gas limit"
-        )
+        if (simulatedOps.every((op) => op.reason !== undefined)) {
+            childLogger.warn("all ops failed")
+            this.senderManager.pushWallet(wallet)
+            return simulatedOps.map((op) => {
+                return {
+                    success: false,
+                    error: {
+                        userOpHash: op.op.userOperationHash,
+                        reason: op.reason as string
+                    }
+                }
+            })
+        }
 
         const opsToBundle = simulatedOps.filter((op) => op.reason === undefined).map((op) => op.op)
+
+        childLogger = this.logger.child({
+            userOperations: opsToBundle.map((oh) => oh.userOperation),
+            entryPoint
+        })
+
+        childLogger.trace({ gasLimit, opsToBundle: opsToBundle.map((sop) => sop.userOperationHash) }, "got gas limit")
 
         const txHash = await ep.write.handleOps(
             [opsToBundle.map((op) => op.userOperation), wallet.address],
@@ -323,7 +339,7 @@ export class BasicExecutor implements IExecutor {
         const userOperationResults: BundleResult[] = simulatedOpsToResults(simulatedOps, transactionInfo)
 
         childLogger.info(
-            { txHash, opHashes: opsWithHashes.map((owh) => owh.userOperationHash) },
+            { txHash, opHashes: opsToBundle.map((owh) => owh.userOperationHash) },
             "submitted bundle transaction"
         )
 

@@ -1,4 +1,4 @@
-import { UserOperation, SubmittedUserOperation, TransactionInfo, BundleResult } from "@alto/types"
+import { UserOperation, SubmittedUserOperation, TransactionInfo } from "@alto/types"
 import { Mempool, Monitor } from "@alto/mempool"
 import { IExecutor } from "./executor"
 import { Address, Block, Chain, PublicClient, Transport, WatchBlocksReturnType } from "viem"
@@ -52,7 +52,7 @@ export class ExecutorManager {
         const opsToBundle: UserOperation[][] = []
         // rome-ignore lint/nursery/noConstantCondition: <explanation>
         while (true) {
-            const ops = this.mempool.process(2_000_000n, 1)
+            const ops = this.mempool.process(5_000_000n, 1)
             if (ops?.length > 0) {
                 opsToBundle.push(ops)
             } else {
@@ -64,34 +64,32 @@ export class ExecutorManager {
             return
         }
 
-        const userOperationResults: BundleResult[] = []
         await Promise.all(
             opsToBundle.map(async (ops) => {
                 const results = await this.executor.bundle(this.entryPointAddress, ops)
-                userOperationResults.push(...results)
+
+                for (const result of results) {
+                    if (result.success === true) {
+                        const res = result.value
+
+                        this.mempool.markSubmitted(res.userOperation.userOperationHash, res.transactionInfo)
+                        // this.monitoredTransactions.set(result.transactionInfo.transactionHash, result.transactionInfo)
+                        this.monitor.setUserOperationStatus(res.userOperation.userOperationHash, {
+                            status: "submitted",
+                            transactionHash: res.transactionInfo.transactionHash
+                        })
+
+                        this.startWatchingBlocks(this.handleBlock.bind(this))
+                    } else {
+                        this.mempool.removeProcessing(result.error.userOpHash)
+                        this.monitor.setUserOperationStatus(result.error.userOpHash, {
+                            status: "rejected",
+                            transactionHash: null
+                        })
+                    }
+                }
             })
         )
-
-        userOperationResults.map((result) => {
-            if (result.success === true) {
-                const res = result.value
-
-                this.mempool.markSubmitted(res.userOperation.userOperationHash, res.transactionInfo)
-                // this.monitoredTransactions.set(result.transactionInfo.transactionHash, result.transactionInfo)
-                this.monitor.setUserOperationStatus(res.userOperation.userOperationHash, {
-                    status: "submitted",
-                    transactionHash: res.transactionInfo.transactionHash
-                })
-            } else {
-                this.mempool.removeProcessing(result.error.userOpHash)
-                this.monitor.setUserOperationStatus(result.error.userOpHash, {
-                    status: "rejected",
-                    transactionHash: null
-                })
-            }
-        })
-
-        this.startWatchingBlocks(this.handleBlock.bind(this))
     }
 
     startWatchingBlocks(handleBlock: (block: Block) => void): void {

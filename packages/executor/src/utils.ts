@@ -95,7 +95,7 @@ export async function filterOpsAndEstimateGas(
                     maxFeePerGas: maxFeePerGas,
                     maxPriorityFeePerGas: maxPriorityFeePerGas,
                     nonce: nonce,
-                    blockTag: "latest"
+                    blockTag: "pending"
                 }
             )
 
@@ -121,7 +121,13 @@ export async function filterOpsAndEstimateGas(
     return { simulatedOps, gasLimit: 0n }
 }
 
-export async function flushStuckTransaction(publicClient: PublicClient, walletClient: WalletClient<Transport, Chain, Account | undefined>, wallet: Account, gasPrice: bigint, logger: Logger) {
+export async function flushStuckTransaction(
+    publicClient: PublicClient,
+    walletClient: WalletClient<Transport, Chain, Account | undefined>,
+    wallet: Account,
+    gasPrice: bigint,
+    logger: Logger
+) {
     const latestNonce = await publicClient.getTransactionCount({
         address: wallet.address,
         blockTag: "latest"
@@ -156,10 +162,7 @@ export async function flushStuckTransaction(publicClient: PublicClient, walletCl
                 maxPriorityFeePerGas: gasPrice
             })
 
-            logger.debug(
-                { txHash, nonce: nonceToFlush, wallet: wallet.address },
-                "flushed stuck transaction"
-            )
+            logger.debug({ txHash, nonce: nonceToFlush, wallet: wallet.address }, "flushed stuck transaction")
 
             await transactionIncluded(txHash, publicClient)
         } catch (e) {

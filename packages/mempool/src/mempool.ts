@@ -139,7 +139,7 @@ export class MemoryMempool implements Mempool {
     }
 
     process(maxGasLimit?: bigint, minOps?: number): UserOperation[] {
-        const outstandingUserOperations = this.store.dumpOutstanding()
+        const outstandingUserOperations = this.store.dumpOutstanding().slice()
         if (maxGasLimit) {
             let opsTaken = 0
             let gasUsed = 0n

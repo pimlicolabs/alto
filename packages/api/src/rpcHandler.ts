@@ -250,8 +250,6 @@ export class RpcHandler implements IRpcEndpoint {
 
         await this.validator.validateUserOperation(userOperation)
 
-        this.logger.trace({ userOperation, entryPoint }, "beginning execution")
-
         const hash = getUserOperationHash(userOperation, entryPoint, this.chainId)
 
         this.mempool.add(userOperation)
