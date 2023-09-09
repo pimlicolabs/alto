@@ -53,8 +53,9 @@ export class Server {
         metrics: Metrics
     ) {
         this.fastify = Fastify({
-            logger: logger,
-            requestTimeout: bundlerArgs.requestTimeout
+            logger,
+            requestTimeout: bundlerArgs.requestTimeout,
+            disableRequestLogging: true
         })
 
         this.fastify.register(require("fastify-cors"), {
@@ -106,7 +107,7 @@ export class Server {
                     ValidationErrors.InvalidFields
                 )
             }
-            this.fastify.log.debug(request.body, "received request")
+            this.fastify.log.trace({ body: JSON.stringify(request.body) }, "received request")
             //const jsonRpcResponse = await this.innerRpc(request.body)
 
             const jsonRpcParsing = jsonRpcSchema.safeParse(request.body)
@@ -131,7 +132,7 @@ export class Server {
             const bundlerRequest = bundlerRequestParsing.data
             this.fastify.log.info(
                 { data: JSON.stringify(bundlerRequest, null) },
-                `received request ${bundlerRequest.method}`
+                `incoming request ${bundlerRequest.method}`
             )
             try {
                 const result = await this.rpcEndpoint.handleMethod(bundlerRequest)
@@ -144,7 +145,10 @@ export class Server {
                 await reply.status(200).send(jsonRpcResponse)
                 requestInfo.statusCode = 200
                 requestInfo.method = bundlerRequest.method
-                this.fastify.log.info(jsonRpcResponse, "sent reply")
+                this.fastify.log.info(
+                    { data: JSON.stringify(jsonRpcResponse) },
+                    `sent reply for ${bundlerRequest.method}`
+                )
             } catch (e: unknown) {
                 requestInfo.method = bundlerRequest.method
                 throw e
