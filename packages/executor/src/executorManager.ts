@@ -151,7 +151,7 @@ export class ExecutorManager {
                         "user op included"
                     )
                     if (!pushedWallets.has(op.transactionInfo.executor)) {
-                        this.executor.markProcessed(op.transactionInfo.executor)
+                        this.executor.markWalletProcessed(op.transactionInfo.executor)
                     }
                 }
             })

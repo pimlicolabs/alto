@@ -29,7 +29,7 @@ export interface IExecutor {
     bundle(entryPoint: Address, ops: UserOperation[]): Promise<BundleResult[]>
     replaceTransaction(transactionInfo: TransactionInfo): Promise<TransactionInfo | undefined>
     cancelOps(entryPoint: Address, ops: UserOperation[]): Promise<void>
-    markProcessed(executor: Account): Promise<void>
+    markWalletProcessed(executor: Account): Promise<void>
     flushStuckTransactions(): Promise<void>
 }
 
@@ -42,7 +42,7 @@ export class NullExecutor implements IExecutor {
     }
     async replaceOps(opHahes: HexData32[]): Promise<void> {}
     async cancelOps(entryPoint: Address, ops: UserOperation[]): Promise<void> {}
-    async markProcessed(executor: Account): Promise<void> {}
+    async markWalletProcessed(executor: Account): Promise<void> {}
     async flushStuckTransactions(): Promise<void> {}
 }
 
@@ -86,8 +86,10 @@ export class BasicExecutor implements IExecutor {
         throw new Error("Method not implemented.")
     }
 
-    async markProcessed(executor: Account) {
-        await this.senderManager.pushWallet(executor)
+    async markWalletProcessed(executor: Account) {
+        if (!this.senderManager.wallets.includes(executor)) {
+            await this.senderManager.pushWallet(executor)
+        }
     }
 
     async replaceTransaction(transactionInfo: TransactionInfo) {
@@ -254,7 +256,7 @@ export class BasicExecutor implements IExecutor {
 
         if (simulatedOps.length === 0) {
             childLogger.error("gas limit simulation encountered unexpected failure")
-            this.senderManager.pushWallet(wallet)
+            this.markWalletProcessed(wallet)
             return opsWithHashes.map((owh) => {
                 return {
                     success: false,
@@ -268,7 +270,7 @@ export class BasicExecutor implements IExecutor {
 
         if (simulatedOps.every((op) => op.reason !== undefined)) {
             childLogger.warn("all ops failed")
-            this.senderManager.pushWallet(wallet)
+            this.markWalletProcessed(wallet)
             return simulatedOps.map((op) => {
                 return {
                     success: false,
