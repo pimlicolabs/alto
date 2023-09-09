@@ -87,7 +87,7 @@ export class BasicExecutor implements IExecutor {
     }
 
     async markWalletProcessed(executor: Account) {
-        if (!this.senderManager.wallets.includes(executor)) {
+        if (!this.senderManager.availableWallets.includes(executor)) {
             await this.senderManager.pushWallet(executor)
         }
     }
