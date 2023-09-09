@@ -131,8 +131,8 @@ export class Server {
 
             const bundlerRequest = bundlerRequestParsing.data
             this.fastify.log.info(
-                { data: JSON.stringify(bundlerRequest, null) },
-                `incoming request ${bundlerRequest.method}`
+                { data: JSON.stringify(bundlerRequest, null), method: bundlerRequest.method },
+                "incoming request"
             )
             try {
                 const result = await this.rpcEndpoint.handleMethod(bundlerRequest)
@@ -146,8 +146,8 @@ export class Server {
                 requestInfo.statusCode = 200
                 requestInfo.method = bundlerRequest.method
                 this.fastify.log.info(
-                    { data: JSON.stringify(jsonRpcResponse) },
-                    `sent reply for ${bundlerRequest.method}`
+                    { data: JSON.stringify(jsonRpcResponse), method: bundlerRequest.method },
+                    "sent reply"
                 )
             } catch (e: unknown) {
                 requestInfo.method = bundlerRequest.method
