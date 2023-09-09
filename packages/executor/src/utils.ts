@@ -107,7 +107,12 @@ export async function filterOpsAndEstimateGas(
                 if (parsingResult.success) {
                     const failedOpError = parsingResult.data
                     logger.warn({ failedOpError }, "user op in batch invalid")
-                    simulatedOps[Number(failedOpError.args.opIndex)].reason = failedOpError.args.reason
+
+                    const failingOp = simulatedOps.filter((op) => op.reason === undefined)[
+                        Number(failedOpError.args.opIndex)
+                    ]
+
+                    failingOp.reason = failedOpError.args.reason
                 } else {
                     logger.error({ error: parsingResult.error }, "failed to parse failedOpError")
                     return { simulatedOps: [], gasLimit: 0n }

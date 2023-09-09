@@ -250,10 +250,9 @@ export class RpcHandler implements IRpcEndpoint {
 
         await this.validator.validateUserOperation(userOperation)
 
-        const hash = getUserOperationHash(userOperation, entryPoint, this.chainId)
-
         this.mempool.add(userOperation)
 
+        const hash = getUserOperationHash(userOperation, entryPoint, this.chainId)
         return hash
     }
 
