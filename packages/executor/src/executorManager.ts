@@ -176,6 +176,14 @@ export class ExecutorManager {
                     if (!pushedWallets.has(op.transactionInfo.executor)) {
                         this.executor.markWalletProcessed(op.transactionInfo.executor)
                     }
+                } else {
+                    this.logger.trace(
+                        {
+                            userOpHash: op.userOperation.userOperationHash,
+                            transactionHash: op.transactionInfo.transactionHash
+                        },
+                        "user op still pending"
+                    )
                 }
             })
         )
