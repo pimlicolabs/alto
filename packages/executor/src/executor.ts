@@ -29,7 +29,7 @@ export interface IExecutor {
     bundle(entryPoint: Address, ops: UserOperation[]): Promise<BundleResult[]>
     replaceTransaction(transactionInfo: TransactionInfo): Promise<TransactionInfo | undefined>
     cancelOps(entryPoint: Address, ops: UserOperation[]): Promise<void>
-    markProcessed(transactionInfo: TransactionInfo): Promise<void>
+    markProcessed(executor: Account): Promise<void>
     flushStuckTransactions(): Promise<void>
 }
 
@@ -42,7 +42,7 @@ export class NullExecutor implements IExecutor {
     }
     async replaceOps(opHahes: HexData32[]): Promise<void> {}
     async cancelOps(entryPoint: Address, ops: UserOperation[]): Promise<void> {}
-    async markProcessed(transactionInfo: TransactionInfo): Promise<void> {}
+    async markProcessed(executor: Account): Promise<void> {}
     async flushStuckTransactions(): Promise<void> {}
 }
 
@@ -86,8 +86,8 @@ export class BasicExecutor implements IExecutor {
         throw new Error("Method not implemented.")
     }
 
-    async markProcessed(transactionInfo: TransactionInfo) {
-        await this.senderManager.pushWallet(transactionInfo.executor)
+    async markProcessed(executor: Account) {
+        await this.senderManager.pushWallet(executor)
     }
 
     async replaceTransaction(transactionInfo: TransactionInfo) {

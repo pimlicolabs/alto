@@ -1,7 +1,7 @@
 import { UserOperation, SubmittedUserOperation, TransactionInfo } from "@alto/types"
 import { Mempool, Monitor } from "@alto/mempool"
 import { IExecutor } from "./executor"
-import { Address, Block, Chain, PublicClient, Transport, WatchBlocksReturnType } from "viem"
+import { Account, Address, Block, Chain, PublicClient, Transport, WatchBlocksReturnType } from "viem"
 import { Logger, transactionIncluded } from "@alto/utils"
 import { getGasPrice } from "@alto/utils"
 
@@ -130,6 +130,8 @@ export class ExecutorManager {
     }
 
     async refreshUserOperationStatuses(): Promise<void> {
+        const pushedWallets = new Set<Account>()
+
         const ops = this.mempool.dumpSubmittedOps()
         await Promise.all(
             ops.map(async (op) => {
@@ -148,7 +150,9 @@ export class ExecutorManager {
                         },
                         "user op included"
                     )
-                    this.executor.markProcessed(op.transactionInfo)
+                    if (!pushedWallets.has(op.transactionInfo.executor)) {
+                        this.executor.markProcessed(op.transactionInfo.executor)
+                    }
                 }
             })
         )
