@@ -49,7 +49,6 @@ export class NullExecutor implements IExecutor {
 export class BasicExecutor implements IExecutor {
     // private unWatch: WatchBlocksReturnType | undefined
 
-    beneficiary: Address
     publicClient: PublicClient
     walletClient: WalletClient<Transport, Chain, Account | undefined>
     senderManager: SenderManager
@@ -61,7 +60,6 @@ export class BasicExecutor implements IExecutor {
     mutex: Mutex
 
     constructor(
-        beneficiary: Address,
         publicClient: PublicClient,
         walletClient: WalletClient<Transport, Chain, Account | undefined>,
         senderManager: SenderManager,
@@ -70,7 +68,6 @@ export class BasicExecutor implements IExecutor {
         metrics: Metrics,
         simulateTransaction = false
     ) {
-        this.beneficiary = beneficiary
         this.publicClient = publicClient
         this.walletClient = walletClient
         this.senderManager = senderManager

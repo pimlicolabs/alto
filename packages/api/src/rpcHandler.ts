@@ -218,8 +218,6 @@ export class RpcHandler implements IRpcEndpoint {
                 entryPoint,
                 preVerificationGas
             )
-
-            console.log("arb", preVerificationGas)
         }
 
         return {

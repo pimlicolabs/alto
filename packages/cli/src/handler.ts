@@ -209,7 +209,6 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     )
 
     const executor = new BasicExecutor(
-        parsedArgs.beneficiary,
         client,
         walletClient,
         senderManager,

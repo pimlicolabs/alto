@@ -8,11 +8,6 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "string",
         require: true
     },
-    beneficiary: {
-        description: "Beneficiary address to receive fees",
-        type: "string",
-        require: true
-    },
     signerPrivateKeys: {
         description: "Private key of the signer",
         type: "string",
