@@ -75,6 +75,7 @@ export async function filterOpsAndEstimateGas(
     nonce: number,
     maxFeePerGas: bigint,
     maxPriorityFeePerGas: bigint,
+    blockTag: "latest" | "pending",
     logger: Logger
 ) {
     const simulatedOps: {
@@ -95,7 +96,7 @@ export async function filterOpsAndEstimateGas(
                     maxFeePerGas: maxFeePerGas,
                     maxPriorityFeePerGas: maxPriorityFeePerGas,
                     nonce: nonce,
-                    blockTag: "pending"
+                    blockTag
                 }
             )
 

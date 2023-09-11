@@ -116,11 +116,23 @@ export class BasicExecutor implements IExecutor {
             newRequest.nonce,
             newRequest.maxFeePerGas,
             newRequest.maxPriorityFeePerGas,
+            "latest",
             this.logger
         )
 
+        const childLogger = this.logger.child({
+            transactionHash: transactionInfo.transactionHash
+        })
+
         if (result.simulatedOps.length === 0) {
-            this.logger.warn("no ops to bundle")
+            childLogger.warn("no ops to bundle")
+            this.markWalletProcessed(transactionInfo.executor)
+            return
+        }
+
+        if (result.simulatedOps.every((op) => op.reason !== undefined)) {
+            childLogger.warn("all ops failed simulation")
+            this.markWalletProcessed(transactionInfo.executor)
             return
         }
 
@@ -140,9 +152,8 @@ export class BasicExecutor implements IExecutor {
         newRequest.args = [opsToBundle.map((owh) => owh.userOperation), transactionInfo.executor.address]
 
         try {
-            this.logger.info(
+            childLogger.info(
                 {
-                    transactionHash: transactionInfo.transactionHash,
                     newRequest,
                     opsToBundle: opsToBundle.map((op) => op.userOperationHash)
                 },
@@ -170,26 +181,26 @@ export class BasicExecutor implements IExecutor {
         } catch (err: unknown) {
             const e = parseViemError(err)
             if (!e) {
-                this.logger.error({ error: err }, "unknown error replacing transaction")
+                childLogger.error({ error: err }, "unknown error replacing transaction")
             }
 
             if (e instanceof NonceTooLowError) {
-                this.logger.warn({ error: e }, "nonce too low, not replacing")
+                childLogger.warn({ error: e }, "nonce too low, not replacing")
             }
 
             if (e instanceof FeeCapTooLowError) {
-                this.logger.warn({ error: e }, "fee cap too low, not replacing")
+                childLogger.warn({ error: e }, "fee cap too low, not replacing")
             }
 
             if (e instanceof InsufficientFundsError) {
-                this.logger.warn({ error: e }, "insufficient funds, not replacing")
+                childLogger.warn({ error: e }, "insufficient funds, not replacing")
             }
 
             if (e instanceof IntrinsicGasTooLowError) {
-                this.logger.warn({ error: e }, "intrinsic gas too low, not replacing")
+                childLogger.warn({ error: e }, "intrinsic gas too low, not replacing")
             }
 
-            this.logger.warn({ error: e }, "error replacing transaction")
+            childLogger.warn({ error: e }, "error replacing transaction")
 
             return
         }
@@ -248,6 +259,7 @@ export class BasicExecutor implements IExecutor {
             nonce,
             gasPriceParameters.maxFeePerGas,
             gasPriceParameters.maxPriorityFeePerGas,
+            "pending",
             childLogger
         )
 
@@ -266,7 +278,7 @@ export class BasicExecutor implements IExecutor {
         }
 
         if (simulatedOps.every((op) => op.reason !== undefined)) {
-            childLogger.warn("all ops failed")
+            childLogger.warn("all ops failed simulation")
             this.markWalletProcessed(wallet)
             return simulatedOps.map((op) => {
                 return {
