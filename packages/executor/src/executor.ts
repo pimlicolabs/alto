@@ -201,7 +201,7 @@ export class BasicExecutor implements IExecutor {
             }
 
             childLogger.warn({ error: e }, "error replacing transaction")
-
+            this.markWalletProcessed(transactionInfo.executor)
             return
         }
     }
