@@ -1,4 +1,4 @@
-import { bundlerCommand, bundlerOptions } from "./options"
+import { bundlerCommand, bundlerOptions } from "./config/options"
 import { registerCommandToYargs } from "./util"
 import dotenv from "dotenv"
 import yargs from "yargs"

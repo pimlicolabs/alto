@@ -1,5 +1,4 @@
 import { IRpcEndpoint } from "./rpcHandler"
-import { IBundlerArgs } from "@alto/config"
 import { JSONRPCResponse, bundlerRequestSchema, jsonRpcSchema } from "@alto/types"
 import { RpcError, ValidationErrors } from "@alto/types"
 import { Logger, Metrics } from "@alto/utils"
@@ -41,20 +40,21 @@ JSON.stringify = function (
 export class Server {
     private fastify: FastifyInstance
     private rpcEndpoint: IRpcEndpoint
-    private bundlerArgs: IBundlerArgs
+    private port: number
     private registry: Registry
     private metrics: Metrics
 
     constructor(
         rpcEndpoint: IRpcEndpoint,
-        bundlerArgs: IBundlerArgs,
+        port: number,
+        requestTimeout: number | undefined,
         logger: Logger,
         registry: Registry,
         metrics: Metrics
     ) {
         this.fastify = Fastify({
             logger,
-            requestTimeout: bundlerArgs.requestTimeout,
+            requestTimeout: requestTimeout,
             disableRequestLogging: true
         })
 
@@ -69,13 +69,13 @@ export class Server {
         this.fastify.get("/metrics", this.serveMetrics.bind(this))
 
         this.rpcEndpoint = rpcEndpoint
-        this.bundlerArgs = bundlerArgs
+        this.port = port
         this.registry = registry
         this.metrics = metrics
     }
 
     public async start(): Promise<void> {
-        this.fastify.listen({ port: this.bundlerArgs.port, host: "0.0.0.0" })
+        this.fastify.listen({ port: this.port, host: "0.0.0.0" })
     }
 
     public async stop(): Promise<void> {

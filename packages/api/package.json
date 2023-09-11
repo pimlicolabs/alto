@@ -21,7 +21,6 @@
         "lint:fix": "eslint src/**/*.ts --fix"
     },
     "dependencies": {
-        "@alto/config": "*",
         "@alto/types": "*",
         "@alto/utils": "*",
         "@alto/validator": "*",

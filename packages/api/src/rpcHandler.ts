@@ -1,4 +1,3 @@
-import { RpcHandlerConfig } from "@alto/config"
 import {
     Address,
     BundlerClearStateResponseResult,
@@ -29,7 +28,8 @@ import {
     calcOptimismPreVerificationGas,
     Metrics,
     getUserOperationHash,
-    getGasPrice
+    getGasPrice,
+    calcArbitrumPreVerificationGas
 } from "@alto/utils"
 import { IValidator } from "@alto/validator"
 import {
@@ -62,29 +62,32 @@ export interface IRpcEndpoint {
 }
 
 export class RpcHandler implements IRpcEndpoint {
-    config: RpcHandlerConfig
+    entryPoint: Address
     publicClient: PublicClient<Transport, Chain>
     validator: IValidator
     mempool: Mempool
     monitor: Monitor
+    usingTenderly: boolean
     logger: Logger
     metrics: Metrics
     chainId: number
 
     constructor(
-        config: RpcHandlerConfig,
+        entryPoint: Address,
         publicClient: PublicClient<Transport, Chain>,
         validator: IValidator,
         mempool: Mempool,
         monitor: Monitor,
+        usingTenderly: boolean,
         logger: Logger,
         metrics: Metrics
     ) {
-        this.config = config
+        this.entryPoint = entryPoint
         this.publicClient = publicClient
         this.validator = validator
         this.mempool = mempool
         this.monitor = monitor
+        this.usingTenderly = usingTenderly
         this.logger = logger
         this.metrics = metrics
 
@@ -160,7 +163,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async eth_supportedEntryPoints(): Promise<SupportedEntryPointsResponseResult> {
-        return [this.config.entryPoint]
+        return [this.entryPoint]
     }
 
     async eth_estimateUserOperationGas(
@@ -168,8 +171,8 @@ export class RpcHandler implements IRpcEndpoint {
         entryPoint: Address
     ): Promise<EstimateUserOperationGasResponseResult> {
         // check if entryPoint is supported, if not throw
-        if (this.config.entryPoint !== entryPoint) {
-            throw new Error(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.entryPoint}`)
+        if (this.entryPoint !== entryPoint) {
+            throw new Error(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.entryPoint}`)
         }
 
         if (userOperation.maxFeePerGas === 0n) {
@@ -203,12 +206,20 @@ export class RpcHandler implements IRpcEndpoint {
             preVerificationGas = preVerificationGas + (verificationGas + callGasLimit) / 3n
         } else if (this.chainId === 10 || this.chainId === 420 || this.chainId === 8453 || this.chainId === 84531) {
             preVerificationGas = await calcOptimismPreVerificationGas(
-                // @ts-ignore
                 this.publicClient,
                 userOperation,
                 entryPoint,
                 preVerificationGas
             )
+        } else if (this.chainId === chains.arbitrum.id) {
+            preVerificationGas = await calcArbitrumPreVerificationGas(
+                this.publicClient,
+                userOperation,
+                entryPoint,
+                preVerificationGas
+            )
+
+            console.log("arb", preVerificationGas)
         }
 
         return {
@@ -223,8 +234,8 @@ export class RpcHandler implements IRpcEndpoint {
         userOperation: UserOperation,
         entryPoint: Address
     ): Promise<SendUserOperationResponseResult> {
-        if (this.config.entryPoint !== entryPoint) {
-            throw new Error(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.entryPoint}`)
+        if (this.entryPoint !== entryPoint) {
+            throw new Error(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.entryPoint}`)
         }
 
         if (this.chainId === chains.celoAlfajores.id || this.chainId === chains.celo.id) {
@@ -276,14 +287,14 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         let fromBlock: bigint
-        if (this.config.usingTenderly) {
+        if (this.usingTenderly) {
             fromBlock = latestBlock - 100n
         } else {
             fromBlock = latestBlock - fullBlockRange
         }
 
         const filterResult = await this.publicClient.getLogs({
-            address: this.config.entryPoint,
+            address: this.entryPoint,
             event: userOperationEventAbiItem,
             fromBlock: fromBlock > 0n ? fromBlock : 0n,
             toBlock: "latest",
@@ -337,7 +348,7 @@ export class RpcHandler implements IRpcEndpoint {
 
         const result: GetUserOperationByHashResponseResult = {
             userOperation: op,
-            entryPoint: this.config.entryPoint,
+            entryPoint: this.entryPoint,
             transactionHash: txHash,
             blockHash: tx.blockHash ?? "0x",
             blockNumber: BigInt(tx.blockNumber ?? 0n)
@@ -364,14 +375,14 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         let fromBlock: bigint
-        if (this.config.usingTenderly) {
+        if (this.usingTenderly) {
             fromBlock = latestBlock - 100n
         } else {
             fromBlock = latestBlock - fullBlockRange
         }
 
         const filterResult = await this.publicClient.getLogs({
-            address: this.config.entryPoint,
+            address: this.entryPoint,
             event: userOperationEventAbiItem,
             fromBlock: fromBlock > 0n ? fromBlock : 0n,
             toBlock: "latest",

@@ -1,11 +1,5 @@
 import { RpcHandler, Server } from "@alto/api"
-import {
-    IBundlerArgs,
-    IBundlerArgsInput,
-    RpcHandlerConfig,
-    bundlerArgsSchema,
-    bundlerArgsToRpcHandlerConfig
-} from "@alto/config"
+import { IBundlerArgs, IBundlerArgsInput, bundlerArgsSchema } from "./config"
 import { BasicExecutor, ExecutorManager, SenderManager } from "@alto/executor"
 import { Logger, initDebugLogger, initProductionLogger } from "@alto/utils"
 import { createMetrics } from "@alto/utils"
@@ -145,7 +139,6 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     if (parsedArgs.signerPrivateKeysExtra !== undefined) {
         parsedArgs.signerPrivateKeys = [...parsedArgs.signerPrivateKeys, ...parsedArgs.signerPrivateKeysExtra]
     }
-    const handlerConfig: RpcHandlerConfig = await bundlerArgsToRpcHandlerConfig(parsedArgs)
 
     const getChainId = async () => {
         const client = createPublicClient({
@@ -210,7 +203,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     const mempool = new MemoryMempool(
         monitor,
         client,
-        handlerConfig.entryPoint,
+        parsedArgs.entryPoint,
         logger.child({ module: "mempool" }),
         metrics
     )
@@ -238,11 +231,12 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     )
 
     const rpcEndpoint = new RpcHandler(
-        handlerConfig,
+        parsedArgs.entryPoint,
         client,
         validator,
         mempool,
         monitor,
+        parsedArgs.tenderlyEnabled ?? false,
         logger.child({ module: "rpc" }),
         metrics
     )
@@ -251,6 +245,13 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
 
     logger.info({ module: "executor" }, `Initialized ${senderManager.wallets.length} executor wallets`)
 
-    const server = new Server(rpcEndpoint, parsedArgs, logger.child({ module: "rpc" }), registry, metrics)
+    const server = new Server(
+        rpcEndpoint,
+        parsedArgs.port,
+        parsedArgs.requestTimeout,
+        logger.child({ module: "rpc" }),
+        registry,
+        metrics
+    )
     await server.start()
 }
