@@ -269,7 +269,8 @@ export class RpcHandler implements IRpcEndpoint {
             this.chainId === 335 ||
             this.chainId === 8453 ||
             this.chainId === 47279324479 ||
-            this.chainId === chains.bsc.id
+            this.chainId === chains.bsc.id ||
+            this.chainId === chains.arbitrum.id
         ) {
             fullBlockRange = 2000n
         }
@@ -285,7 +286,7 @@ export class RpcHandler implements IRpcEndpoint {
             address: this.config.entryPoint,
             event: userOperationEventAbiItem,
             fromBlock: fromBlock > 0n ? fromBlock : 0n,
-            toBlock: latestBlock,
+            toBlock: "latest",
             args: {
                 userOpHash: userOperationHash
             }
@@ -356,7 +357,8 @@ export class RpcHandler implements IRpcEndpoint {
             this.chainId === 8453 ||
             this.chainId === 84531 ||
             this.chainId === 47279324479 ||
-            this.chainId === chains.bsc.id
+            this.chainId === chains.bsc.id ||
+            this.chainId === chains.arbitrum.id
         ) {
             fullBlockRange = 2000n
         }
@@ -372,7 +374,7 @@ export class RpcHandler implements IRpcEndpoint {
             address: this.config.entryPoint,
             event: userOperationEventAbiItem,
             fromBlock: fromBlock > 0n ? fromBlock : 0n,
-            toBlock: latestBlock,
+            toBlock: "latest",
             args: {
                 userOpHash: userOperationHash
             }

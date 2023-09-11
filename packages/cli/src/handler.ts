@@ -247,7 +247,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         metrics
     )
 
-    executor.flushStuckTransactions()
+    // executor.flushStuckTransactions()
 
     logger.info({ module: "executor" }, `Initialized ${senderManager.wallets.length} executor wallets`)
 
