@@ -78,6 +78,14 @@ export async function getGasPrice(
         }
     }
 
+    if (chainId === chains.arbitrum.id) {
+        gasPrice = (gasPrice * 5n) / 4n
+        return {
+            maxFeePerGas: gasPrice,
+            maxPriorityFeePerGas: gasPrice
+        }
+    }
+
     let maxPriorityFeePerGas = 2_000_000_000n > gasPrice ? gasPrice : 2_000_000_000n
     const feeHistory = await publicClient.getFeeHistory({
         blockCount: 10,
