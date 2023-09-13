@@ -199,7 +199,7 @@ export class ExecutorManager {
         }
 
         // refresh op statuses
-        this.refreshUserOperationStatuses()
+        await this.refreshUserOperationStatuses()
 
         // for all still not included check if needs to be replaced (based on gas price)
         const gasPriceParameters = await getGasPrice(this.publicClient.chain.id, this.publicClient, this.logger)
