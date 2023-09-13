@@ -21,11 +21,10 @@
         "lint:fix": "eslint src/**/*.ts --fix"
     },
     "dependencies": {
-        "@alto/api": "*",
+        "@alto/rpc": "*",
         "@alto/executor": "*",
         "@alto/types": "*",
         "@alto/utils": "*",
-        "@alto/validator": "*",
         "@alto/mempool": "*",
         "@types/node": "^18.16.3",
         "dotenv": "^16.0.3",

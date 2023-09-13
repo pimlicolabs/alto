@@ -31,7 +31,7 @@ import {
     getGasPrice,
     calcArbitrumPreVerificationGas
 } from "@alto/utils"
-import { IValidator } from "@alto/validator"
+import { IValidator } from "./vatidation"
 import {
     decodeFunctionData,
     getAbiItem,

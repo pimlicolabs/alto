@@ -13,7 +13,7 @@ import {
     parseSenderAddressError
 } from "@alto/utils"
 import { expect } from "earl"
-import { RpcHandler } from "../"
+import { RpcHandler } from ".."
 import { RpcHandlerConfig } from "@alto/config"
 import { Address, EntryPoint_bytecode, EntryPointAbi, hexNumberSchema, UserOperation } from "@alto/types"
 import { z } from "zod"
