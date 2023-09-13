@@ -279,7 +279,8 @@ export class RpcHandler implements IRpcEndpoint {
             this.chainId === 8453 ||
             this.chainId === 47279324479 ||
             this.chainId === chains.bsc.id ||
-            this.chainId === chains.arbitrum.id
+            this.chainId === chains.arbitrum.id ||
+            this.chainId === chains.baseGoerli.id
         ) {
             fullBlockRange = 2000n
         }
@@ -364,10 +365,10 @@ export class RpcHandler implements IRpcEndpoint {
         if (
             this.chainId === 335 ||
             this.chainId === 8453 ||
-            this.chainId === 84531 ||
             this.chainId === 47279324479 ||
             this.chainId === chains.bsc.id ||
-            this.chainId === chains.arbitrum.id
+            this.chainId === chains.arbitrum.id ||
+            this.chainId === chains.baseGoerli.id
         ) {
             fullBlockRange = 2000n
         }
