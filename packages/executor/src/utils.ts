@@ -50,7 +50,7 @@ export function simulatedOpsToResults(
 
 export function parseViemError(err: unknown) {
     if (err instanceof ContractFunctionExecutionError) {
-        const e = err.walk()
+        const e = err.cause
         if (e instanceof NonceTooLowError) {
             return e
         } else if (e instanceof FeeCapTooLowError) {
