@@ -5,7 +5,6 @@ import { z } from "zod"
 export const bundlerArgsSchema = z.object({
     // allow both a comma separated list of addresses (better for cli and env vars) or an array of addresses (better for config files)
     entryPoint: addressSchema,
-    beneficiary: addressSchema,
     signerPrivateKeys: z.union([
         z.array(hexData32Schema).transform((vals) => vals.map((val) => privateKeyToAccount(val) satisfies Account)),
         z

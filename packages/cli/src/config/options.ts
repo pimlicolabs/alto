@@ -1,15 +1,10 @@
-import { bundlerHandler } from "./handler"
-import { CliCommand, CliCommandOptions } from "./util"
-import { IBundlerArgsInput } from "@alto/config"
+import { bundlerHandler } from "../handler"
+import { CliCommand, CliCommandOptions } from "../util"
+import { IBundlerArgsInput } from "./bundler"
 
 export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
     entryPoint: {
         description: "EntryPoint contract addresses split by commas",
-        type: "string",
-        require: true
-    },
-    beneficiary: {
-        description: "Beneficiary address to receive fees",
         type: "string",
         require: true
     },

@@ -1,6 +1,6 @@
 import { GasPriceParameters, gasStationResult } from "@alto/types"
 import { PublicClient, parseGwei } from "viem"
-import { Logger } from "@alto/utils"
+import { Logger } from "."
 import * as chains from "viem/chains"
 
 enum ChainId {

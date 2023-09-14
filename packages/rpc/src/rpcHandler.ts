@@ -1,11 +1,7 @@
-import { RpcHandlerConfig } from "@alto/config"
-import { IExecutor } from "@alto/executor"
-import { Monitor, getGasPrice } from "@alto/executor/"
 import {
     Address,
     BundlerClearStateResponseResult,
     BundlerDumpMempoolResponseResult,
-    BundlerFlushStuckTransactionsResponseResult,
     BundlerRequest,
     BundlerResponse,
     BundlerSendBundleNowResponseResult,
@@ -26,12 +22,19 @@ import {
     logSchema,
     receiptSchema
 } from "@alto/types"
-import { Logger, calcPreVerificationGas, calcOptimismPreVerificationGas, Metrics } from "@alto/utils"
-import { IValidator } from "@alto/validator"
+import {
+    Logger,
+    calcPreVerificationGas,
+    calcOptimismPreVerificationGas,
+    Metrics,
+    getUserOperationHash,
+    getGasPrice,
+    calcArbitrumPreVerificationGas
+} from "@alto/utils"
+import { IValidator } from "./vatidation"
 import {
     decodeFunctionData,
     getAbiItem,
-    getContract,
     TransactionNotFoundError,
     TransactionReceiptNotFoundError,
     Transaction,
@@ -43,6 +46,7 @@ import {
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
 import * as chains from "viem/chains"
+import { Mempool, Monitor } from "@alto/mempool"
 
 export interface IRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>
@@ -58,29 +62,32 @@ export interface IRpcEndpoint {
 }
 
 export class RpcHandler implements IRpcEndpoint {
-    config: RpcHandlerConfig
+    entryPoint: Address
     publicClient: PublicClient<Transport, Chain>
     validator: IValidator
-    executor: IExecutor
+    mempool: Mempool
     monitor: Monitor
+    usingTenderly: boolean
     logger: Logger
     metrics: Metrics
     chainId: number
 
     constructor(
-        config: RpcHandlerConfig,
+        entryPoint: Address,
         publicClient: PublicClient<Transport, Chain>,
         validator: IValidator,
-        executor: IExecutor,
+        mempool: Mempool,
         monitor: Monitor,
+        usingTenderly: boolean,
         logger: Logger,
         metrics: Metrics
     ) {
-        this.config = config
+        this.entryPoint = entryPoint
         this.publicClient = publicClient
         this.validator = validator
-        this.executor = executor
+        this.mempool = mempool
         this.monitor = monitor
+        this.usingTenderly = usingTenderly
         this.logger = logger
         this.metrics = metrics
 
@@ -148,32 +155,24 @@ export class RpcHandler implements IRpcEndpoint {
                     method,
                     result: await this.pimlico_getUserOperationGasPrice(...request.params)
                 }
-            case "debug_bundler_flushStuckTransactions":
-                return {
-                    method,
-                    result: await this.debug_bundler_flushStuckTransactions(...request.params)
-                }
         }
     }
 
-    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async eth_chainId(): Promise<ChainIdResponseResult> {
         return BigInt(this.chainId)
     }
 
-    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async eth_supportedEntryPoints(): Promise<SupportedEntryPointsResponseResult> {
-        return [this.config.entryPoint]
+        return [this.entryPoint]
     }
 
-    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async eth_estimateUserOperationGas(
         userOperation: UserOperation,
         entryPoint: Address
     ): Promise<EstimateUserOperationGasResponseResult> {
         // check if entryPoint is supported, if not throw
-        if (this.config.entryPoint !== entryPoint) {
-            throw new Error(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.entryPoint}`)
+        if (this.entryPoint !== entryPoint) {
+            throw new Error(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.entryPoint}`)
         }
 
         if (userOperation.maxFeePerGas === 0n) {
@@ -207,7 +206,13 @@ export class RpcHandler implements IRpcEndpoint {
             preVerificationGas = preVerificationGas + (verificationGas + callGasLimit) / 3n
         } else if (this.chainId === 10 || this.chainId === 420 || this.chainId === 8453 || this.chainId === 84531) {
             preVerificationGas = await calcOptimismPreVerificationGas(
-                // @ts-ignore
+                this.publicClient,
+                userOperation,
+                entryPoint,
+                preVerificationGas
+            )
+        } else if (this.chainId === chains.arbitrum.id) {
+            preVerificationGas = await calcArbitrumPreVerificationGas(
                 this.publicClient,
                 userOperation,
                 entryPoint,
@@ -223,13 +228,12 @@ export class RpcHandler implements IRpcEndpoint {
         }
     }
 
-    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async eth_sendUserOperation(
         userOperation: UserOperation,
         entryPoint: Address
     ): Promise<SendUserOperationResponseResult> {
-        if (this.config.entryPoint !== entryPoint) {
-            throw new Error(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.entryPoint}`)
+        if (this.entryPoint !== entryPoint) {
+            throw new Error(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.entryPoint}`)
         }
 
         if (this.chainId === chains.celoAlfajores.id || this.chainId === chains.celo.id) {
@@ -255,20 +259,15 @@ export class RpcHandler implements IRpcEndpoint {
 
         await this.validator.validateUserOperation(userOperation)
 
-        this.logger.trace({ userOperation, entryPoint }, "beginning execution")
+        const success = this.mempool.add(userOperation)
+        if (!success) {
+            throw new RpcError("UserOperation reverted during simulation with reason: AA25 invalid account nonce")
+        }
 
-        await this.executor.bundle(entryPoint, userOperation)
-
-        const entryPointContract = getContract({
-            address: entryPoint,
-            abi: EntryPointAbi,
-            publicClient: this.publicClient
-        })
-
-        return await entryPointContract.read.getUserOpHash([userOperation])
+        const hash = getUserOperationHash(userOperation, entryPoint, this.chainId)
+        return hash
     }
 
-    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async eth_getUserOperationByHash(userOperationHash: HexData32): Promise<GetUserOperationByHashResponseResult> {
         const userOperationEventAbiItem = getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
 
@@ -280,20 +279,21 @@ export class RpcHandler implements IRpcEndpoint {
             this.chainId === 8453 ||
             this.chainId === 47279324479 ||
             this.chainId === chains.bsc.id ||
-            this.chainId === chains.arbitrum.id
+            this.chainId === chains.arbitrum.id ||
+            this.chainId === chains.baseGoerli.id
         ) {
             fullBlockRange = 2000n
         }
 
         let fromBlock: bigint
-        if (this.config.usingTenderly) {
+        if (this.usingTenderly) {
             fromBlock = latestBlock - 100n
         } else {
             fromBlock = latestBlock - fullBlockRange
         }
 
         const filterResult = await this.publicClient.getLogs({
-            address: this.config.entryPoint,
+            address: this.entryPoint,
             event: userOperationEventAbiItem,
             fromBlock: fromBlock > 0n ? fromBlock : 0n,
             toBlock: "latest",
@@ -347,7 +347,7 @@ export class RpcHandler implements IRpcEndpoint {
 
         const result: GetUserOperationByHashResponseResult = {
             userOperation: op,
-            entryPoint: this.config.entryPoint,
+            entryPoint: this.entryPoint,
             transactionHash: txHash,
             blockHash: tx.blockHash ?? "0x",
             blockNumber: BigInt(tx.blockNumber ?? 0n)
@@ -356,7 +356,6 @@ export class RpcHandler implements IRpcEndpoint {
         return result
     }
 
-    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async eth_getUserOperationReceipt(userOperationHash: HexData32): Promise<GetUserOperationReceiptResponseResult> {
         const userOperationEventAbiItem = getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
 
@@ -366,23 +365,23 @@ export class RpcHandler implements IRpcEndpoint {
         if (
             this.chainId === 335 ||
             this.chainId === 8453 ||
-            this.chainId === 84531 ||
             this.chainId === 47279324479 ||
             this.chainId === chains.bsc.id ||
-            this.chainId === chains.arbitrum.id
+            this.chainId === chains.arbitrum.id ||
+            this.chainId === chains.baseGoerli.id
         ) {
             fullBlockRange = 2000n
         }
 
         let fromBlock: bigint
-        if (this.config.usingTenderly) {
+        if (this.usingTenderly) {
             fromBlock = latestBlock - 100n
         } else {
             fromBlock = latestBlock - fullBlockRange
         }
 
         const filterResult = await this.publicClient.getLogs({
-            address: this.config.entryPoint,
+            address: this.entryPoint,
             event: userOperationEventAbiItem,
             fromBlock: fromBlock > 0n ? fromBlock : 0n,
             toBlock: "latest",
@@ -496,34 +495,28 @@ export class RpcHandler implements IRpcEndpoint {
         return userOperationReceipt
     }
 
-    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async debug_bundler_clearState(): Promise<BundlerClearStateResponseResult> {
         throw new Error("Method not implemented.")
     }
 
-    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async debug_bundler_dumpMempool(_entryPoint: Address): Promise<BundlerDumpMempoolResponseResult> {
         throw new Error("Method not implemented.")
     }
 
-    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
         throw new Error("Method not implemented.")
     }
 
-    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async debug_bundler_setBundlingMode(_bundlingMode: BundlingMode): Promise<BundlerSetBundlingModeResponseResult> {
         throw new Error("Method not implemented.")
     }
 
-    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async pimlico_getUserOperationStatus(
         userOperationHash: HexData32
     ): Promise<PimlicoGetUserOperationStatusResponseResult> {
         return this.monitor.getUserOperationStatus(userOperationHash)
     }
 
-    // rome-ignore lint/nursery/useNamingConvention: <explanation>
     async pimlico_getUserOperationGasPrice(): Promise<PimlicoGetUserOperationGasPriceResponseResult> {
         const gasPrice = await getGasPrice(this.chainId, this.publicClient, this.logger)
         return {
@@ -540,12 +533,5 @@ export class RpcHandler implements IRpcEndpoint {
                 maxPriorityFeePerGas: (gasPrice.maxPriorityFeePerGas * 115n) / 100n
             }
         }
-    }
-
-    // rome-ignore lint/nursery/useNamingConvention: <explanation>
-    async debug_bundler_flushStuckTransactions(): Promise<BundlerFlushStuckTransactionsResponseResult> {
-        await this.executor.flushStuckTransactions()
-
-        return "ok"
     }
 }

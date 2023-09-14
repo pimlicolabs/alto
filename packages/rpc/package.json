@@ -1,5 +1,5 @@
 {
-    "name": "@alto/api",
+    "name": "@alto/rpc",
     "version": "0.0.1",
     "description": "A performant and modular ERC-4337 Bundler written in Typescript",
     "repository": "https://github.com/pimlicolabs/alto.git",
@@ -21,17 +21,16 @@
         "lint:fix": "eslint src/**/*.ts --fix"
     },
     "dependencies": {
-        "@alto/config": "*",
-        "@alto/executor": "*",
         "@alto/types": "*",
         "@alto/utils": "*",
-        "@alto/validator": "*",
+        "@alto/mempool": "*",
         "@types/node": "^18.16.3",
+        "abitype": "^0.8.0",
         "fastify": "^4.16.0",
         "fastify-cors": "3.0.3",
         "pino-http": "^8.3.3",
         "prom-client": "^14.2.0",
-        "viem": "^1.6.0",
+        "viem": "^1.10.8",
         "zod": "^3.21.4",
         "zod-validation-error": "^1.3.0"
     }

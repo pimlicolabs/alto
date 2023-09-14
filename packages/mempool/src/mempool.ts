@@ -1,156 +1,196 @@
 // import { MongoClient, Collection, Filter } from "mongodb"
 // import { PublicClient, getContract } from "viem"
 // import { EntryPointAbi } from "../types/EntryPoint"
-import { UserOperation } from "@alto/types"
+import { SubmittedUserOperation, TransactionInfo, UserOperation, UserOperationInfo } from "@alto/types"
 import { HexData32 } from "@alto/types"
-
-// export interface MempoolEntry {
-//     entrypointAddress: Address
-//     userOperation: UserOperation
-//     opHash: string
-//     status: UserOpStatus
-//     transactionHash?: string
-// }
-
-// export enum UserOpStatus {
-//     Invalid = 0,
-//     Processing = 1,
-//     NotIncluded = 2,
-//     Included = 3,
-//     Finalized = 4
-// }
-
-export interface MempoolEntry {
-    userOperation: UserOperation
-    opHash: string
-}
+import { Monitor } from "./monitoring"
+import { Address, Chain, PublicClient, Transport } from "viem"
+import { Logger, Metrics, getUserOperationHash } from "@alto/utils"
+import { MemoryStore } from "./store"
 
 export interface Mempool {
-    add(op: UserOperation, userOpHash: HexData32): boolean
-    take(gasLimit?: bigint): UserOperation[] | null
+    add(op: UserOperation): boolean
+
+    /**
+     * Takes an array of user operations from the mempool, also marking them as submitted.
+     *
+     * @param gasLimit The maximum gas limit of user operations to take.
+     * @param minOps The minimum number of user operations to take.
+     * @returns An array of user operations to submit.
+     */
+    process(gasLimit?: bigint, minOps?: number): UserOperation[]
+
+    replaceSubmitted(userOperation: UserOperationInfo, transactionInfo: TransactionInfo): void
+
+    markSubmitted(userOpHash: HexData32, transactionInfo: TransactionInfo): void
+
+    /**
+     * Removes a user operation from the mempool.
+     *
+     * @param userOpHash The hash of the user operation to remove.
+     */
+    removeSubmitted(userOpHash: HexData32): void
+    removeProcessing(userOpHash: HexData32): void
+
+    /**
+     * Gets all user operation from the mempool.
+     *
+     * @returns An array of user operations.
+     */
+    dumpSubmittedOps(): SubmittedUserOperation[]
+}
+
+export class NullMempool implements Mempool {
+    removeProcessing(userOpHash: `0x${string}`): void {
+        throw new Error("Method not implemented.")
+    }
+    replaceSubmitted(userOperation: UserOperationInfo, transactionInfo: TransactionInfo): void {
+        throw new Error("Method not implemented.")
+    }
+    markSubmitted(userOpHash: `0x${string}`, transactionInfo: TransactionInfo): void {
+        throw new Error("Method not implemented.")
+    }
+    dumpSubmittedOps(): SubmittedUserOperation[] {
+        throw new Error("Method not implemented.")
+    }
+    removeSubmitted(userOpHash: `0x${string}`): void {
+        throw new Error("Method not implemented.")
+    }
+    add(_op: UserOperation) {
+        return false
+    }
+
+    process(_gasLimit?: bigint, minOps?: number): UserOperation[] {
+        return []
+    }
 }
 
 export class MemoryMempool implements Mempool {
-    private mempool: Map<HexData32, MempoolEntry>
-    //private publicClient: PublicClient
-    //private mutex: Mutex
+    private monitor: Monitor
+    private publicClient: PublicClient<Transport, Chain>
+    private entryPointAddress: Address
+    private store: MemoryStore
 
-    constructor() {
-        //this.publicClient = publicClient
-        this.mempool = new Map()
-        //this.mutex = new Mutex()
+    constructor(
+        monitor: Monitor,
+        publicClient: PublicClient<Transport, Chain>,
+        entryPointAddress: Address,
+        logger: Logger,
+        metrics: Metrics
+    ) {
+        this.monitor = monitor
+        this.publicClient = publicClient
+        this.entryPointAddress = entryPointAddress
+        this.store = new MemoryStore(logger, metrics)
     }
 
-    add(op: UserOperation, userOpHash: HexData32): boolean {
-        this.mempool.set(userOpHash, { userOperation: op, opHash: userOpHash })
+    replaceSubmitted(userOperation: UserOperationInfo, transactionInfo: TransactionInfo): void {
+        const op = this.store
+            .dumpSubmitted()
+            .find((op) => op.userOperation.userOperationHash === userOperation.userOperationHash)
+        if (op) {
+            this.store.removeSubmitted(userOperation.userOperationHash)
+            this.store.addSubmitted({
+                userOperation,
+                transactionInfo
+            })
+            this.monitor.setUserOperationStatus(userOperation.userOperationHash, {
+                status: "submitted",
+                transactionHash: transactionInfo.transactionHash
+            })
+        }
+    }
+
+    markSubmitted(userOpHash: `0x${string}`, transactionInfo: TransactionInfo): void {
+        const op = this.store.dumpProcessing().find((op) => op.userOperationHash === userOpHash)
+        if (op) {
+            this.store.removeProcessing(userOpHash)
+            this.store.addSubmitted({
+                userOperation: op,
+                transactionInfo
+            })
+            this.monitor.setUserOperationStatus(userOpHash, {
+                status: "submitted",
+                transactionHash: transactionInfo.transactionHash
+            })
+        }
+    }
+
+    dumpSubmittedOps(): SubmittedUserOperation[] {
+        return this.store.dumpSubmitted()
+    }
+
+    removeSubmitted(userOpHash: `0x${string}`): void {
+        this.store.removeSubmitted(userOpHash)
+    }
+
+    removeProcessing(userOpHash: `0x${string}`): void {
+        this.store.removeProcessing(userOpHash)
+    }
+
+    add(op: UserOperation) {
+        const allOps = [
+            ...this.store.dumpOutstanding(),
+            ...this.store.dumpProcessing(),
+            ...this.store.dumpSubmitted().map((sop) => sop.userOperation)
+        ]
+        if (allOps.find((uo) => uo.userOperation.sender === op.sender && uo.userOperation.nonce === op.nonce)) {
+            return false
+        }
+
+        const hash = getUserOperationHash(op, this.entryPointAddress, this.publicClient.chain.id)
+
+        this.store.addOutstanding({
+            userOperation: op,
+            userOperationHash: hash,
+            firstSubmitted: Date.now(),
+            lastReplaced: Date.now()
+        })
+        this.monitor.setUserOperationStatus(hash, { status: "not_submitted", transactionHash: null })
+
         return true
     }
-    take(gasLimit?: bigint | undefined): UserOperation[] | null {
-        const ops = Array.from(this.mempool.values())
 
-        if (gasLimit) {
+    process(maxGasLimit?: bigint, minOps?: number): UserOperation[] {
+        const outstandingUserOperations = this.store.dumpOutstanding().slice()
+        if (maxGasLimit) {
+            let opsTaken = 0
             let gasUsed = 0n
             const result: UserOperation[] = []
-            for (const op of ops) {
+            for (const opInfo of outstandingUserOperations) {
                 gasUsed +=
-                    op.userOperation.callGasLimit +
-                    op.userOperation.verificationGasLimit * 3n +
-                    op.userOperation.preVerificationGas
-                if (gasUsed > gasLimit) {
+                    opInfo.userOperation.callGasLimit +
+                    opInfo.userOperation.verificationGasLimit * 3n +
+                    opInfo.userOperation.preVerificationGas
+                if (gasUsed > maxGasLimit && opsTaken >= (minOps || 0)) {
                     break
                 }
-                result.push(op.userOperation)
+                this.store.removeOutstanding(opInfo.userOperationHash)
+                this.store.addProcessing(opInfo)
+                result.push(opInfo.userOperation)
+                opsTaken++
             }
             return result
         }
 
-        return ops.map((op) => op.userOperation)
+        return outstandingUserOperations.map((opInfo) => {
+            this.store.removeOutstanding(opInfo.userOperationHash)
+            this.store.addProcessing(opInfo)
+            return opInfo.userOperation
+        })
+    }
+
+    get(opHash: HexData32): UserOperation | null {
+        const outstanding = this.store.dumpOutstanding().find((op) => op.userOperationHash === opHash)
+        if (outstanding) {
+            return outstanding.userOperation
+        }
+
+        const submitted = this.store.dumpSubmitted().find((op) => op.userOperation.userOperationHash === opHash)
+        if (submitted) {
+            return submitted.userOperation.userOperation
+        }
+
+        return null
     }
 }
-
-// mempool per network
-// export interface Mempool {
-//     currentSize(): Promise<number>
-//     add(_entrypoint: Address, _op: UserOperation): Promise<HexData32> // return hash of userOperation
-//     find(findFn: (entry: MempoolEntry) => boolean): Promise<{ entry: MempoolEntry; opHash: HexData32 }[]>
-//     markProcessed(_opHashes: HexData32[], updatedData: Partial<MempoolEntry>): Promise<void>
-//     get(_hash: HexData32): Promise<MempoolEntry | null>
-//     clear(): void
-//     getUserOpHash(_entrypoint: Address, _op: UserOperation): Promise<HexData32>
-// }
-
-// export class MemoryMempool implements Mempool {
-//     private mempool: Map<HexData32, MempoolEntry>
-//     private publicClient: PublicClient
-//     private mutex: Mutex
-
-//     constructor(publicClient: PublicClient) {
-//         this.publicClient = publicClient
-//         this.mempool = new Map()
-//         this.mutex = new Mutex()
-//     }
-
-//     async currentSize(): Promise<number> {
-//         return this.mempool.size
-//     }
-
-//     async add(entrypointAddress: Address, userOperation: UserOperation): Promise<HexData32> {
-//         const opHash = await this.getUserOpHash(entrypointAddress, userOperation)
-//         this.mempool.set(opHash, {
-//             userOperation,
-//             entrypointAddress,
-//             opHash,
-//             status: UserOpStatus.NotIncluded
-//         })
-//         return opHash
-//     }
-
-//     async markProcessed(opHashes: HexData32[], updatedData: Partial<MempoolEntry>): Promise<void> {
-//         await this.mutex.acquire()
-//         try {
-//             for (const opHash of opHashes) {
-//                 const entry = this.mempool.get(opHash)
-//                 if (entry) {
-//                     // Make a copy of the updatedData object without the userOperation property
-//                     const { userOperation, ...safeUpdatedData } = updatedData
-//                     Object.assign(entry, safeUpdatedData)
-//                 }
-//             }
-//         } finally {
-//             this.mutex.release()
-//         }
-//     }
-
-//     async find(findFn: (entry: MempoolEntry) => boolean): Promise<{ entry: MempoolEntry; opHash: HexData32 }[]> {
-//         await this.mutex.acquire()
-//         try {
-//             const matchingEntries: { entry: MempoolEntry; opHash: HexData32 }[] = []
-//             for (const [opHash, entry] of this.mempool.entries()) {
-//                 if (entry.status !== UserOpStatus.Processing && findFn(entry)) {
-//                     entry.status = UserOpStatus.Processing
-//                     matchingEntries.push({ entry, opHash })
-//                 }
-//             }
-//             return matchingEntries
-//         } finally {
-//             this.mutex.release()
-//         }
-//     }
-
-//     async get(opHash: HexData32): Promise<MempoolEntry | null> {
-//         return this.mempool.get(opHash) || null
-//     }
-
-//     async clear(): Promise<void> {
-//         this.mempool.clear()
-//     }
-
-//     async getUserOpHash(entrypointAddress: Address, userOperation: UserOperation): Promise<HexData32> {
-//         const entrypoint = getContract({
-//             publicClient: this.publicClient,
-//             abi: EntryPointAbi,
-//             address: entrypointAddress
-//         })
-//         return entrypoint.read.getUserOpHash([userOperation])
-//     }
-// }

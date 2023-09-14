@@ -22,8 +22,9 @@
     },
     "dependencies": {
         "@alto/types": "*",
-        "@alto/executor": "*",
+        "@alto/utils": "*",
         "async-mutex": "^0.4.0",
-        "viem": "^1.6.0"
+        "viem": "^1.10.8",
+        "prom-client": "^14.2.0"
     }
 }

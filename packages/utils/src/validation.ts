@@ -232,3 +232,84 @@ export async function calcOptimismPreVerificationGas(
 
     return staticFee + l1Fee / l2price
 }
+
+const getArbitrumL1FeeAbi = [
+    {
+        inputs: [
+            {
+                internalType: "address",
+                name: "to",
+                type: "address"
+            },
+            {
+                internalType: "bool",
+                name: "contractCreation",
+                type: "bool"
+            },
+            {
+                internalType: "bytes",
+                name: "data",
+                type: "bytes"
+            }
+        ],
+        name: "gasEstimateL1Component",
+        outputs: [
+            {
+                internalType: "uint64",
+                name: "gasEstimateForL1",
+                type: "uint64"
+            },
+            {
+                internalType: "uint256",
+                name: "baseFee",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "l1BaseFeeEstimate",
+                type: "uint256"
+            }
+        ],
+        stateMutability: "nonpayable",
+        type: "function"
+    }
+] as const
+
+export async function calcArbitrumPreVerificationGas(
+    publicClient: PublicClient<Transport, Chain | undefined>,
+    op: UserOperation,
+    entryPoint: Address,
+    staticFee: bigint
+) {
+    const selector = getFunctionSelector(EntryPointAbi[27])
+    const paramData = encodeAbiParameters(EntryPointAbi[27].inputs, [[op], entryPoint])
+    const data = concat([selector, paramData])
+
+    const precompileAddress = "0x00000000000000000000000000000000000000C8"
+
+    const serializedTx = serializeTransaction(
+        {
+            to: entryPoint,
+            chainId: publicClient.chain?.id ?? 10,
+            nonce: 999999,
+            gasLimit: maxUint64,
+            gasPrice: maxUint64,
+            data
+        },
+        {
+            r: "0x123451234512345123451234512345123451234512345123451234512345",
+            s: "0x123451234512345123451234512345123451234512345123451234512345",
+            v: 28n
+        }
+    )
+
+    const arbGasPriceOracle = getContract({
+        abi: getArbitrumL1FeeAbi,
+        address: precompileAddress,
+        publicClient
+    })
+
+    const { result } = await arbGasPriceOracle.simulate.gasEstimateL1Component([entryPoint, false, serializedTx])
+
+    return result[0] + staticFee
+}

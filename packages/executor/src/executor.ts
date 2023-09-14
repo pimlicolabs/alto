@@ -1,33 +1,23 @@
-import { EntryPointAbi, RpcError, errorCauseSchema } from "@alto/types"
+import { EntryPointAbi, TransactionInfo, BundleResult } from "@alto/types"
 import { Address, HexData32, UserOperation } from "@alto/types"
-import { Logger, Metrics, calcPreVerificationGas } from "@alto/utils"
+import { Logger, Metrics, getUserOperationHash } from "@alto/utils"
 import { Mutex } from "async-mutex"
 import {
-    Abi,
     Account,
-    Block,
     Chain,
-    ContractFunctionExecutionError,
-    ContractFunctionRevertedError,
+    FeeCapTooLowError,
+    InsufficientFundsError,
+    IntrinsicGasTooLowError,
+    NonceTooLowError,
     PublicClient,
     Transport,
     WalletClient,
-    WatchBlocksReturnType,
-    WriteContractParameters,
-    getContract,
-    decodeEventLog
+    getContract
 } from "viem"
 import { SenderManager } from "./senderManager"
-import { Monitor } from "./monitoring"
-import { fromZodError } from "zod-validation-error"
-import { getGasPrice } from "./gasPrice"
 import * as chains from "viem/chains"
-
-// enum Action {
-//     Resubmit = "resubmit",
-//     Drop = "drop",
-//     NoAction = "noAction"
-// }
+import { getGasPrice } from "@alto/utils"
+import { filterOpsAndEstimateGas, flushStuckTransaction, parseViemError, simulatedOpsToResults } from "./utils"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -36,76 +26,33 @@ export interface GasEstimateResult {
 }
 
 export interface IExecutor {
-    bundle(_entryPoint: Address, _op: UserOperation): Promise<void>
+    bundle(entryPoint: Address, ops: UserOperation[]): Promise<BundleResult[]>
+    replaceTransaction(transactionInfo: TransactionInfo): Promise<TransactionInfo | undefined>
+    cancelOps(entryPoint: Address, ops: UserOperation[]): Promise<void>
+    markWalletProcessed(executor: Account): Promise<void>
     flushStuckTransactions(): Promise<void>
 }
 
 export class NullExecutor implements IExecutor {
-    async flushStuckTransactions(): Promise<void> {}
-    async bundle(_entryPoint: Address, _op: UserOperation): Promise<void> {}
-}
-
-interface UserOperationStatus {
-    transactionHash: HexData32
-    transactionRequest: WriteContractParameters<Abi | readonly unknown[], string, Chain, Account | undefined, Chain>
-    executor: Account
-    lastReplaced: number
-    firstSubmitted: number
-}
-
-const transactionIncluded = async (
-    txHash: HexData32,
-    publicClient: PublicClient
-): Promise<"included" | "reverted" | "failed" | "not_found"> => {
-    try {
-        const rcp = await publicClient.getTransactionReceipt({ hash: txHash })
-
-        if (rcp.status === "success") {
-            // find if any logs are UserOperationEvent
-            const r = rcp.logs
-                .map((l) => {
-                    if (l.address === rcp.to) {
-                        try {
-                            const log = decodeEventLog({ abi: EntryPointAbi, data: l.data, topics: l.topics })
-                            if (log.eventName === "UserOperationEvent") {
-                                return log
-                            } else {
-                                return undefined
-                            }
-                        } catch (_e) {
-                            console.log("error decoding transaction inclusion status", _e)
-                            return undefined
-                        }
-                    } else {
-                        return undefined
-                    }
-                })
-                .find((l) => l !== undefined)
-
-            if (r?.args.success) {
-                return "included"
-            } else {
-                return "reverted"
-            }
-        } else {
-            return "failed"
-        }
-    } catch (_e) {
-        return "not_found"
+    async bundle(entryPoint: Address, ops: UserOperation[]): Promise<BundleResult[]> {
+        return []
     }
+    async replaceTransaction(transactionInfo: TransactionInfo): Promise<TransactionInfo | undefined> {
+        return
+    }
+    async replaceOps(opHahes: HexData32[]): Promise<void> {}
+    async cancelOps(entryPoint: Address, ops: UserOperation[]): Promise<void> {}
+    async markWalletProcessed(executor: Account): Promise<void> {}
+    async flushStuckTransactions(): Promise<void> {}
 }
 
 export class BasicExecutor implements IExecutor {
-    monitoredTransactions: Record<HexData32, UserOperationStatus> = {}
-    private unWatch: WatchBlocksReturnType | undefined
+    // private unWatch: WatchBlocksReturnType | undefined
 
-    beneficiary: Address
     publicClient: PublicClient
     walletClient: WalletClient<Transport, Chain, Account | undefined>
     senderManager: SenderManager
-    monitor: Monitor
     entryPoint: Address
-    pollingInterval: number
     logger: Logger
     metrics: Metrics
     simulateTransaction: boolean
@@ -113,298 +60,171 @@ export class BasicExecutor implements IExecutor {
     mutex: Mutex
 
     constructor(
-        beneficiary: Address,
         publicClient: PublicClient,
         walletClient: WalletClient<Transport, Chain, Account | undefined>,
         senderManager: SenderManager,
-        monitor: Monitor,
         entryPoint: Address,
-        pollingInterval: number,
         logger: Logger,
         metrics: Metrics,
         simulateTransaction = false
     ) {
-        this.beneficiary = beneficiary
         this.publicClient = publicClient
         this.walletClient = walletClient
         this.senderManager = senderManager
-        this.monitor = monitor
         this.entryPoint = entryPoint
-        this.pollingInterval = pollingInterval
         this.logger = logger
         this.metrics = metrics
         this.simulateTransaction = simulateTransaction
 
         this.mutex = new Mutex()
     }
+
+    cancelOps(_entryPoint: Address, _ops: UserOperation[]): Promise<void> {
+        throw new Error("Method not implemented.")
+    }
+
+    async markWalletProcessed(executor: Account) {
+        if (!this.senderManager.availableWallets.includes(executor)) {
+            await this.senderManager.pushWallet(executor)
+        }
+    }
+
+    async replaceTransaction(transactionInfo: TransactionInfo) {
+        const newRequest = { ...transactionInfo.transactionRequest }
+
+        const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
+
+        newRequest.maxFeePerGas =
+            gasPriceParameters.maxFeePerGas > (newRequest.maxFeePerGas * 11n) / 10n
+                ? gasPriceParameters.maxFeePerGas
+                : (newRequest.maxFeePerGas * 11n) / 10n
+
+        newRequest.maxPriorityFeePerGas = (newRequest.maxPriorityFeePerGas * 11n) / 10n
+        newRequest.account = transactionInfo.executor
+
+        const ep = getContract({
+            abi: EntryPointAbi,
+            address: this.entryPoint,
+            publicClient: this.publicClient,
+            walletClient: this.walletClient
+        })
+
+        const result = await filterOpsAndEstimateGas(
+            ep,
+            transactionInfo.executor,
+            transactionInfo.userOperationInfos,
+            newRequest.nonce,
+            newRequest.maxFeePerGas,
+            newRequest.maxPriorityFeePerGas,
+            "latest",
+            this.logger
+        )
+
+        const childLogger = this.logger.child({
+            transactionHash: transactionInfo.transactionHash
+        })
+
+        if (result.simulatedOps.length === 0) {
+            childLogger.warn("no ops to bundle")
+            this.markWalletProcessed(transactionInfo.executor)
+            return
+        }
+
+        if (result.simulatedOps.every((op) => op.reason !== undefined)) {
+            childLogger.warn("all ops failed simulation")
+            this.markWalletProcessed(transactionInfo.executor)
+            return
+        }
+
+        const opsToBundle = result.simulatedOps
+            .filter((op) => op.reason === undefined)
+            .map((op) => {
+                const opInfo = transactionInfo.userOperationInfos.find(
+                    (info) => info.userOperationHash === op.op.userOperationHash
+                )
+                if (!opInfo) {
+                    throw new Error("opInfo not found")
+                }
+                return opInfo
+            })
+
+        newRequest.gas = result.gasLimit
+        newRequest.args = [opsToBundle.map((owh) => owh.userOperation), transactionInfo.executor.address]
+
+        try {
+            childLogger.info(
+                {
+                    newRequest,
+                    opsToBundle: opsToBundle.map((op) => op.userOperationHash)
+                },
+                "replacing transaction"
+            )
+
+            const txHash = await this.walletClient.writeContract(newRequest)
+
+            const newTxInfo = {
+                ...transactionInfo,
+                transactionRequest: newRequest,
+                transactionHash: txHash,
+                lastReplaced: Date.now(),
+                userOperationInfos: opsToBundle.map((op) => {
+                    return {
+                        userOperation: op.userOperation,
+                        userOperationHash: op.userOperationHash,
+                        lastReplaced: Date.now(),
+                        firstSubmitted: op.firstSubmitted
+                    }
+                })
+            }
+
+            return newTxInfo
+        } catch (err: unknown) {
+            const e = parseViemError(err)
+            if (!e) {
+                childLogger.error({ error: err }, "unknown error replacing transaction")
+            }
+
+            if (e instanceof NonceTooLowError) {
+                childLogger.warn({ error: e }, "nonce too low, not replacing")
+            }
+
+            if (e instanceof FeeCapTooLowError) {
+                childLogger.warn({ error: e }, "fee cap too low, not replacing")
+            }
+
+            if (e instanceof InsufficientFundsError) {
+                childLogger.warn({ error: e }, "insufficient funds, not replacing")
+            }
+
+            if (e instanceof IntrinsicGasTooLowError) {
+                childLogger.warn({ error: e }, "intrinsic gas too low, not replacing")
+            }
+
+            childLogger.warn({ error: e }, "error replacing transaction")
+            this.markWalletProcessed(transactionInfo.executor)
+            return
+        }
+    }
+
     async flushStuckTransactions(): Promise<void> {
         const gasPrice = 10n * (await this.publicClient.getGasPrice())
 
         const wallets = [...this.senderManager.wallets, this.senderManager.utilityAccount]
         const promises = wallets.map(async (wallet) => {
-            const latestNonce = await this.publicClient.getTransactionCount({
-                address: wallet.address,
-                blockTag: "latest"
-            })
-            const pendingNonce = await this.publicClient.getTransactionCount({
-                address: wallet.address,
-                blockTag: "pending"
-            })
-
-            this.logger.debug({ latestNonce, pendingNonce, wallet: wallet.address }, "checking for stuck transactions")
-
-            // same nonce is okay
-            if (latestNonce === pendingNonce) {
-                return
-            }
-
-            // one nonce ahead is also okay
-            if (latestNonce + 1 === pendingNonce) {
-                return
-            }
-
-            this.logger.info({ latestNonce, pendingNonce, wallet: wallet.address }, "found stuck transaction, flushing")
-
-            for (let nonceToFlush = latestNonce; nonceToFlush < pendingNonce; nonceToFlush++) {
-                try {
-                    const txHash = await this.walletClient.sendTransaction({
-                        account: wallet,
-                        to: wallet.address,
-                        value: 0n,
-                        nonce: nonceToFlush,
-                        maxFeePerGas: gasPrice,
-                        maxPriorityFeePerGas: gasPrice
-                    })
-
-                    this.logger.debug(
-                        { txHash, nonce: nonceToFlush, wallet: wallet.address },
-                        "flushed stuck transaction"
-                    )
-
-                    await transactionIncluded(txHash, this.publicClient)
-                } catch (e) {
-                    this.logger.warn({ error: e }, "error flushing stuck transaction")
-                }
-            }
+            return flushStuckTransaction(this.publicClient, this.walletClient, wallet, gasPrice, this.logger)
         })
 
         await Promise.all(promises)
     }
 
-    startWatchingBlocks(): void {
-        if (this.unWatch) {
-            return
-        }
-        this.unWatch = this.publicClient.watchBlocks({
-            onBlock: async (block) => {
-                // Use an arrow function to ensure correct binding of `this`
-                this.checkAndReplaceTransactions(block)
-                    .then(() => {
-                        this.logger.trace("block handled")
-                        // Handle the resolution of the promise here, if needed
-                    })
-                    .catch((error) => {
-                        // Handle any errors that occur during the execution of the promise
-                        this.logger.error({ error }, "error while handling block")
-                    })
-            },
-            onError: (error) => {
-                this.logger.error({ error }, "error while watching blocks")
-            },
-            emitMissed: false,
-            includeTransactions: false,
-            pollingInterval: this.pollingInterval
-        })
-
-        this.logger.debug("started watching blocks")
-    }
-
-    stopWatchingBlocks(): void {
-        if (this.unWatch) {
-            this.logger.debug("stopped watching blocks")
-            this.unWatch()
-            this.unWatch = undefined
-        }
-    }
-
-    async checkAndReplaceTransactions(block: Block): Promise<void> {
-        // typescript mistakenly doesn't believe this is HexData32
-        // @ts-ignore
-        const opHashes: HexData32[] = Object.keys(this.monitoredTransactions)
-
-        this.logger.debug({ opHashes }, "checking transactions for monitored ops")
-
-        if (Object.keys(this.monitoredTransactions).length === 0) {
-            this.stopWatchingBlocks()
-            return
-        }
-
-        const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
-
-        opHashes.map(async (opHash) => {
-            const opStatus = this.monitoredTransactions[opHash]
-            if (opStatus === undefined) {
-                this.logger.warn({ opHash }, "opStatus is undefined")
-                return
-            }
-
-            const txIncluded = await transactionIncluded(opStatus.transactionHash, this.publicClient)
-            const childLogger = this.logger.child({
-                userOpHash: opHash,
-                txHash: opStatus.transactionHash,
-                executor: opStatus.executor.address
-            })
-            if (txIncluded !== "not_found") {
-                if (txIncluded === "included") {
-                    childLogger.info("transaction successfully included")
-                } else {
-                    childLogger.info(`transaction ${txIncluded}`)
-                }
-                this.metrics.userOperationInclusionDuration.observe((Date.now() - opStatus.firstSubmitted) / 1000)
-                delete this.monitoredTransactions[opHash]
-                this.monitor.setUserOperationStatus(opHash, {
-                    status: txIncluded,
-                    transactionHash: opStatus.transactionHash
-                })
-                if (!this.senderManager.availableWallets.includes(opStatus.executor)) {
-                    this.senderManager.pushWallet(opStatus.executor)
-                    this.logger.debug({ executor: opStatus.executor.address }, "pushed wallet")
-                    this.metrics.userOperationsBundlesIncluded.inc()
-                    return
-                }
-                this.logger.debug({ executor: opStatus.executor.address }, "wallet already available")
-                return
-            }
-
-            childLogger.debug("transaction not included")
-
-            const transaction = opStatus.transactionRequest
-            childLogger.trace(
-                { baseFeePerGas: block.baseFeePerGas, maxFeePerGas: transaction.maxFeePerGas },
-                "queried gas fee parameters"
-            )
-
-            let request: WriteContractParameters<Abi | readonly unknown[], string, Chain, Account | undefined, Chain>
-            if (this.walletClient.chain.id !== chains.scrollTestnet.id) {
-                if (transaction.maxFeePerGas === undefined || transaction.maxPriorityFeePerGas === undefined) {
-                    childLogger.error(
-                        { maxFeePerGas: transaction.maxFeePerGas, gasPriceParameters },
-                        "maxFeePerGas or maxPriorityFeePerGas is undefined"
-                    )
-                    return
-                }
-
-                if (transaction.maxFeePerGas >= gasPriceParameters.maxFeePerGas) {
-                    if (Date.now() - opStatus.lastReplaced <= 1000 * 60 * 5) {
-                        childLogger.debug(
-                            { maxFeePerGas: transaction.maxFeePerGas, gasPriceParameters },
-                            "gas price is high enough, not replacing transaction"
-                        )
-                        return
-                    } else {
-                        childLogger.debug(
-                            { maxFeePerGas: transaction.maxFeePerGas, gasPriceParameters },
-                            "replacing transaction because it was last replaced more than 5 minutes ago"
-                        )
-                    }
-                }
-
-                request = {
-                    ...transaction,
-                    maxFeePerGas:
-                        gasPriceParameters.maxFeePerGas > (transaction.maxFeePerGas * 11n) / 10n
-                            ? gasPriceParameters.maxFeePerGas
-                            : (transaction.maxFeePerGas * 11n) / 10n,
-                    maxPriorityFeePerGas: (transaction.maxPriorityFeePerGas * 11n) / 10n
-                }
-            } else {
-                if (transaction.gasPrice === undefined) {
-                    childLogger.error({ gasPrice: transaction.gasPrice, gasPriceParameters }, "gasPrice is undefined")
-                    return
-                }
-
-                if (transaction.gasPrice >= gasPriceParameters.maxFeePerGas) {
-                    if (Date.now() - opStatus.lastReplaced <= 1000 * 60 * 5) {
-                        childLogger.debug(
-                            { maxFeePerGas: transaction.maxFeePerGas, gasPriceParameters },
-                            "gas price is high enough, not replacing transaction"
-                        )
-                        return
-                    } else {
-                        childLogger.debug(
-                            { maxFeePerGas: transaction.maxFeePerGas, gasPriceParameters },
-                            "replacing transaction because it was last replaced more than 5 minutes ago"
-                        )
-                    }
-                }
-
-                request = {
-                    ...transaction,
-                    gasPrice:
-                        gasPriceParameters.maxFeePerGas > (transaction.gasPrice * 11n) / 10n
-                            ? gasPriceParameters.maxFeePerGas
-                            : (transaction.gasPrice * 11n) / 10n
-                }
-            }
-
-            childLogger.debug("replacing transaction")
-            delete this.monitoredTransactions[opHash]
-
-            const { chain: _chain, abi: _abi, ...loggingRequest } = request
-            childLogger.trace({ request: { ...loggingRequest } }, "generated replacement transaction request")
-
-            try {
-                const tx = await this.walletClient.writeContract(request)
-                this.monitoredTransactions[opHash] = {
-                    transactionHash: tx,
-                    transactionRequest: request,
-                    executor: opStatus.executor,
-                    lastReplaced: Date.now(),
-                    firstSubmitted: opStatus.firstSubmitted
-                }
-
-                this.monitor.setUserOperationStatus(opHash, { status: "submitted", transactionHash: tx })
-
-                childLogger.info(
-                    {
-                        txHash: tx,
-                        oldTxHash: opStatus.transactionHash,
-                        maxFeePerGas: request.maxFeePerGas,
-                        oldMaxFeePerGas: transaction.maxFeePerGas,
-                        maxPriorityFeePerGas: request.maxPriorityFeePerGas,
-                        oldMaxPriorityFeePerGas: transaction.maxPriorityFeePerGas
-                    },
-                    "transaction successfully replaced"
-                )
-            } catch (e) {
-                const pendingNonce = await this.publicClient.getTransactionCount({
-                    address: opStatus.executor.address,
-                    blockTag: "pending"
-                })
-                const latestNonce = await this.publicClient.getTransactionCount({
-                    address: opStatus.executor.address,
-                    blockTag: "latest"
-                })
-
-                // there is no pending tx in the mempool from this address, so wallet is safe to use
-                if (pendingNonce === latestNonce) {
-                    childLogger.warn(e, "error replacing transaction")
-                    this.senderManager.pushWallet(opStatus.executor)
-                    this.monitor.setUserOperationStatus(opHash, {
-                        status: "failed",
-                        transactionHash: opStatus.transactionHash
-                    })
-                } else {
-                    childLogger.warn(e, "error replacing transaction, but wallet is busy")
-                    this.monitoredTransactions[opHash] = opStatus
-                }
-
-                return
+    async bundle(entryPoint: Address, ops: UserOperation[]): Promise<BundleResult[]> {
+        const opsWithHashes = ops.map((op) => {
+            return {
+                userOperation: op,
+                userOperationHash: getUserOperationHash(op, entryPoint, this.walletClient.chain.id)
             }
         })
-    }
 
-    async bundle(entryPoint: Address, op: UserOperation): Promise<void> {
         const wallet = await this.senderManager.getWallet()
 
         const ep = getContract({
@@ -414,146 +234,130 @@ export class BasicExecutor implements IExecutor {
             walletClient: this.walletClient
         })
 
-        const childLogger = this.logger.child({ userOperation: op, entryPoint })
+        let childLogger = this.logger.child({
+            userOperations: opsWithHashes.map((oh) => oh.userOperation),
+            entryPoint
+        })
         childLogger.debug("bundling user operation")
 
-        try {
-            const opHash = await ep.read.getUserOpHash([op])
-            childLogger.debug({ opHash }, "got op hash")
+        const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
+        childLogger.debug({ gasPriceParameters }, "got gas price")
 
-            if (opHash in this.monitoredTransactions) {
-                childLogger.debug({ opHash }, "user operation already being bundled")
-                throw new RpcError(`user operation ${opHash} already being bundled`)
-            }
+        const nonce = await this.publicClient.getTransactionCount({
+            address: wallet.address,
+            blockTag: "pending"
+        })
+        childLogger.trace({ nonce }, "got nonce")
 
-            const chainId = this.walletClient.chain.id
+        // scroll alpha testnet doesn't support eip-1559 txs yet
+        const onlyPre1559 = this.walletClient.chain.id === chains.scrollTestnet.id
 
-            let gasLimit = ((op.preVerificationGas + 3n * op.verificationGasLimit + op.callGasLimit) * 12n) / 10n
-            if (chainId === chains.arbitrum.id) {
-                gasLimit *= 8n
-            } else if (
-                chainId === chains.optimism.id ||
-                chainId === chains.optimismGoerli.id ||
-                chainId === chains.baseGoerli.id ||
-                chainId === chains.base.id
-            ) {
-                // gasLimit = await ep.estimateGas.handleOps([[op], wallet.address], { account: wallet })
-                gasLimit = ((calcPreVerificationGas(op) + 3n * op.verificationGasLimit + op.callGasLimit) * 12n) / 10n
-            }
+        const { gasLimit, simulatedOps } = await filterOpsAndEstimateGas(
+            ep,
+            wallet,
+            opsWithHashes,
+            nonce,
+            gasPriceParameters.maxFeePerGas,
+            gasPriceParameters.maxPriorityFeePerGas,
+            "pending",
+            childLogger
+        )
 
-            const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
-            childLogger.debug({ gasPriceParameters }, "got gas price")
-
-            const nonce = await this.publicClient.getTransactionCount({
-                address: wallet.address,
-                blockTag: "pending"
+        if (simulatedOps.length === 0) {
+            childLogger.error("gas limit simulation encountered unexpected failure")
+            this.markWalletProcessed(wallet)
+            return opsWithHashes.map((owh) => {
+                return {
+                    success: false,
+                    error: {
+                        userOpHash: owh.userOperationHash,
+                        reason: "INTERNAL FAILURE"
+                    }
+                }
             })
-            childLogger.trace({ nonce }, "got nonce")
-
-            let txHash: HexData32
-            if (this.simulateTransaction) {
-                const { request } = await ep.simulate.handleOps([[op], wallet.address], {
-                    gas: gasLimit,
-                    account: wallet,
-                    chain: this.walletClient.chain,
-                    maxFeePerGas: gasPriceParameters.maxFeePerGas,
-                    maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
-                    nonce: nonce
-                })
-
-                // scroll alpha testnet doesn't support eip-1559 txs yet
-                if (this.walletClient.chain.id === chains.scrollTestnet.id) {
-                    request.gasPrice = request.maxFeePerGas
-                    request.maxFeePerGas = undefined
-                    request.maxPriorityFeePerGas = undefined
-                }
-
-                const { chain: _chain, abi: _abi, ...loggingRequest } = request
-                childLogger.trace({ request: { ...loggingRequest } }, "got request")
-
-                txHash = await this.walletClient.writeContract(request)
-
-                this.monitoredTransactions[opHash] = {
-                    transactionHash: txHash,
-                    transactionRequest: request,
-                    executor: wallet,
-                    lastReplaced: Date.now(),
-                    firstSubmitted: Date.now()
-                }
-            } else {
-                txHash = await ep.write.handleOps([[op], wallet.address], {
-                    gas: gasLimit,
-                    account: wallet,
-                    chain: this.walletClient.chain,
-                    maxFeePerGas: gasPriceParameters.maxFeePerGas,
-                    maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
-                    nonce: nonce
-                })
-
-                this.monitoredTransactions[opHash] = {
-                    transactionHash: txHash,
-                    transactionRequest: {
-                        address: ep.address,
-                        abi: ep.abi,
-                        functionName: "handleOps",
-                        args: [[op], wallet.address],
-                        gas: gasLimit,
-                        account: wallet,
-                        chain: this.walletClient.chain,
-                        maxFeePerGas: gasPriceParameters.maxFeePerGas,
-                        maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
-                        nonce: nonce
-                    },
-                    executor: wallet,
-                    lastReplaced: Date.now(),
-                    firstSubmitted: Date.now()
-                }
-            }
-
-            childLogger.info({ txHash, userOpHash: opHash }, "submitted bundle transaction")
-            this.monitor.setUserOperationStatus(opHash, { status: "submitted", transactionHash: txHash })
-            this.metrics.userOperationsBundlesSubmitted.inc()
-        } catch (e: unknown) {
-            await this.senderManager.pushWallet(wallet)
-
-            if (e instanceof RpcError) {
-                throw e
-            } else if (e instanceof ContractFunctionRevertedError) {
-                childLogger.warn({ error: e }, "user operation reverted (ContractFunctionRevertedError)")
-
-                throw new RpcError(`user operation reverted: ${e.message}`)
-            } else if (e instanceof ContractFunctionExecutionError) {
-                const cause = e.cause
-
-                const errorCauseParsing = errorCauseSchema.safeParse(cause)
-
-                if (!errorCauseParsing.success) {
-                    this.logger.error(
-                        {
-                            error: JSON.stringify(cause)
-                        },
-                        "error parsing error encountered during execution"
-                    )
-                    throw new Error(`error parsing error cause: ${fromZodError(errorCauseParsing.error)}`)
-                }
-
-                const errorCause = errorCauseParsing.data.data
-
-                if (errorCause.errorName !== "FailedOp") {
-                    throw new Error(`error cause is not FailedOp: ${JSON.stringify(errorCause)}`)
-                }
-
-                const reason = errorCause.args.reason
-
-                childLogger.info({ error: reason }, "user operation reverted")
-
-                throw new RpcError(`user operation reverted: ${reason}`)
-            } else {
-                childLogger.error({ error: e }, "unknown error bundling user operation")
-
-                throw e
-            }
         }
-        this.startWatchingBlocks()
+
+        if (simulatedOps.every((op) => op.reason !== undefined)) {
+            childLogger.warn("all ops failed simulation")
+            this.markWalletProcessed(wallet)
+            return simulatedOps.map((op) => {
+                return {
+                    success: false,
+                    error: {
+                        userOpHash: op.op.userOperationHash,
+                        reason: op.reason as string
+                    }
+                }
+            })
+        }
+
+        const opsToBundle = simulatedOps.filter((op) => op.reason === undefined).map((op) => op.op)
+
+        childLogger = this.logger.child({
+            userOperations: opsToBundle.map((oh) => oh.userOperation),
+            entryPoint
+        })
+
+        childLogger.trace({ gasLimit, opsToBundle: opsToBundle.map((sop) => sop.userOperationHash) }, "got gas limit")
+
+        const txHash = await ep.write.handleOps(
+            [opsToBundle.map((op) => op.userOperation), wallet.address],
+            onlyPre1559
+                ? {
+                      account: wallet,
+                      gas: gasLimit,
+                      gasPrice: gasPriceParameters.maxFeePerGas,
+                      nonce: nonce
+                  }
+                : {
+                      account: wallet,
+                      gas: gasLimit,
+                      maxFeePerGas: gasPriceParameters.maxFeePerGas,
+                      maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
+                      nonce: nonce
+                  }
+        )
+
+        const userOperationInfos = opsToBundle.map((op) => {
+            this.metrics.userOperationsSubmitted.inc()
+
+            return {
+                userOperation: op.userOperation,
+                userOperationHash: op.userOperationHash,
+                lastReplaced: Date.now(),
+                firstSubmitted: Date.now()
+            }
+        })
+
+        const transactionInfo: TransactionInfo = {
+            transactionHash: txHash,
+            transactionRequest: {
+                address: ep.address,
+                abi: ep.abi,
+                functionName: "handleOps",
+                args: [opsToBundle.map((owh) => owh.userOperation), wallet.address],
+                gas: gasLimit,
+                account: wallet,
+                chain: this.walletClient.chain,
+                maxFeePerGas: gasPriceParameters.maxFeePerGas,
+                maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
+                nonce: nonce
+            },
+            executor: wallet,
+            userOperationInfos,
+            lastReplaced: Date.now(),
+            firstSubmitted: Date.now()
+        }
+
+        const userOperationResults: BundleResult[] = simulatedOpsToResults(simulatedOps, transactionInfo)
+
+        childLogger.info(
+            { txHash, opHashes: opsToBundle.map((owh) => owh.userOperationHash) },
+            "submitted bundle transaction"
+        )
+
+        this.metrics.bundlesSubmitted.inc()
+
+        return userOperationResults
     }
 }

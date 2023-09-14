@@ -1,5 +1,4 @@
 import { IRpcEndpoint } from "./rpcHandler"
-import { IBundlerArgs } from "@alto/config"
 import { JSONRPCResponse, bundlerRequestSchema, jsonRpcSchema } from "@alto/types"
 import { RpcError, ValidationErrors } from "@alto/types"
 import { Logger, Metrics } from "@alto/utils"
@@ -41,20 +40,22 @@ JSON.stringify = function (
 export class Server {
     private fastify: FastifyInstance
     private rpcEndpoint: IRpcEndpoint
-    private bundlerArgs: IBundlerArgs
+    private port: number
     private registry: Registry
     private metrics: Metrics
 
     constructor(
         rpcEndpoint: IRpcEndpoint,
-        bundlerArgs: IBundlerArgs,
+        port: number,
+        requestTimeout: number | undefined,
         logger: Logger,
         registry: Registry,
         metrics: Metrics
     ) {
         this.fastify = Fastify({
             logger,
-            requestTimeout: bundlerArgs.requestTimeout
+            requestTimeout: requestTimeout,
+            disableRequestLogging: true
         })
 
         this.fastify.register(require("fastify-cors"), {
@@ -68,13 +69,13 @@ export class Server {
         this.fastify.get("/metrics", this.serveMetrics.bind(this))
 
         this.rpcEndpoint = rpcEndpoint
-        this.bundlerArgs = bundlerArgs
+        this.port = port
         this.registry = registry
         this.metrics = metrics
     }
 
     public async start(): Promise<void> {
-        this.fastify.listen({ port: this.bundlerArgs.port, host: "0.0.0.0" })
+        this.fastify.listen({ port: this.port, host: "0.0.0.0" })
     }
 
     public async stop(): Promise<void> {
@@ -106,7 +107,7 @@ export class Server {
                     ValidationErrors.InvalidFields
                 )
             }
-            this.fastify.log.debug(request.body, "received request")
+            this.fastify.log.trace({ body: JSON.stringify(request.body) }, "received request")
             //const jsonRpcResponse = await this.innerRpc(request.body)
 
             const jsonRpcParsing = jsonRpcSchema.safeParse(request.body)
@@ -130,8 +131,8 @@ export class Server {
 
             const bundlerRequest = bundlerRequestParsing.data
             this.fastify.log.info(
-                { data: JSON.stringify(bundlerRequest, null) },
-                `received request ${bundlerRequest.method}`
+                { data: JSON.stringify(bundlerRequest, null), method: bundlerRequest.method },
+                "incoming request"
             )
             try {
                 const result = await this.rpcEndpoint.handleMethod(bundlerRequest)
@@ -144,7 +145,10 @@ export class Server {
                 await reply.status(200).send(jsonRpcResponse)
                 requestInfo.statusCode = 200
                 requestInfo.method = bundlerRequest.method
-                this.fastify.log.info(jsonRpcResponse, "sent reply")
+                this.fastify.log.info(
+                    { data: JSON.stringify(jsonRpcResponse), method: bundlerRequest.method },
+                    "sent reply"
+                )
             } catch (e: unknown) {
                 requestInfo.method = bundlerRequest.method
                 throw e

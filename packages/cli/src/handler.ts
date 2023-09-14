@@ -1,20 +1,13 @@
-import { RpcHandler, Server } from "@alto/api"
-import {
-    IBundlerArgs,
-    IBundlerArgsInput,
-    RpcHandlerConfig,
-    bundlerArgsSchema,
-    bundlerArgsToRpcHandlerConfig
-} from "@alto/config"
-import { BasicExecutor, SenderManager } from "@alto/executor"
-import { Monitor } from "@alto/executor"
+import { RpcHandler, Server, UnsafeValidator } from "@alto/rpc"
+import { IBundlerArgs, IBundlerArgsInput, bundlerArgsSchema } from "./config"
+import { BasicExecutor, ExecutorManager, SenderManager } from "@alto/executor"
 import { Logger, initDebugLogger, initProductionLogger } from "@alto/utils"
 import { createMetrics } from "@alto/utils"
-import { UnsafeValidator } from "@alto/validator"
 import { Chain, PublicClient, Transport, createPublicClient, createWalletClient, http } from "viem"
 import * as chains from "viem/chains"
 import { fromZodError } from "zod-validation-error"
 import { Registry } from "prom-client"
+import { MemoryMempool, Monitor } from "@alto/mempool"
 
 const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
     // validate every arg, make typesafe so if i add a new arg i have to validate it
@@ -133,7 +126,7 @@ function getChain(chainId: number): Chain {
 
     for (const chain of Object.values(chains)) {
         if (chain.id === chainId) {
-            return chain
+            return chain as Chain
         }
     }
 
@@ -145,7 +138,6 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     if (parsedArgs.signerPrivateKeysExtra !== undefined) {
         parsedArgs.signerPrivateKeys = [...parsedArgs.signerPrivateKeys, ...parsedArgs.signerPrivateKeysExtra]
     }
-    const handlerConfig: RpcHandlerConfig = await bundlerArgsToRpcHandlerConfig(parsedArgs)
 
     const getChainId = async () => {
         const client = createPublicClient({
@@ -187,7 +179,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     const validator = new UnsafeValidator(
         client,
         parsedArgs.entryPoint,
-        logger,
+        logger.child({ module: "rpc" }),
         metrics,
         parsedArgs.utilityPrivateKey,
         parsedArgs.tenderlyEnabled
@@ -195,7 +187,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     const senderManager = new SenderManager(
         parsedArgs.signerPrivateKeys,
         parsedArgs.utilityPrivateKey,
-        logger,
+        logger.child({ module: "executor" }),
         metrics,
         parsedArgs.maxSigners
     )
@@ -207,25 +199,57 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     }, parsedArgs.refillInterval)
 
     const monitor = new Monitor()
+    const mempool = new MemoryMempool(
+        monitor,
+        client,
+        parsedArgs.entryPoint,
+        logger.child({ module: "mempool" }),
+        metrics
+    )
 
     const executor = new BasicExecutor(
-        parsedArgs.beneficiary,
         client,
         walletClient,
         senderManager,
-        monitor,
         parsedArgs.entryPoint,
-        parsedArgs.pollingInterval,
-        logger,
+        logger.child({ module: "executor" }),
         metrics,
         !parsedArgs.tenderlyEnabled
     )
-    const rpcEndpoint = new RpcHandler(handlerConfig, client, validator, executor, monitor, logger, metrics)
+
+    new ExecutorManager(
+        executor,
+        mempool,
+        monitor,
+        client,
+        parsedArgs.entryPoint,
+        parsedArgs.pollingInterval,
+        logger.child({ module: "executor" }),
+        metrics
+    )
+
+    const rpcEndpoint = new RpcHandler(
+        parsedArgs.entryPoint,
+        client,
+        validator,
+        mempool,
+        monitor,
+        parsedArgs.tenderlyEnabled ?? false,
+        logger.child({ module: "rpc" }),
+        metrics
+    )
 
     // executor.flushStuckTransactions()
 
-    logger.info(`Initialized ${senderManager.wallets.length} executor wallets`)
+    logger.info({ module: "executor" }, `Initialized ${senderManager.wallets.length} executor wallets`)
 
-    const server = new Server(rpcEndpoint, parsedArgs, logger, registry, metrics)
+    const server = new Server(
+        rpcEndpoint,
+        parsedArgs.port,
+        parsedArgs.requestTimeout,
+        logger.child({ module: "rpc" }),
+        registry,
+        metrics
+    )
     await server.start()
 }
