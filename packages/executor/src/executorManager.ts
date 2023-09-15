@@ -232,8 +232,8 @@ export class ExecutorManager {
     }
 
     async replaceTransaction(txInfo: TransactionInfo, reason: string): Promise<void> {
-        const newTxInfo = await this.executor.replaceTransaction(txInfo)
-        if (!newTxInfo) {
+        const replaceResult = await this.executor.replaceTransaction(txInfo)
+        if (replaceResult.status === "failed") {
             txInfo.userOperationInfos.map((opInfo) => {
                 this.mempool.removeSubmitted(opInfo.userOperationHash)
             })
@@ -241,7 +241,16 @@ export class ExecutorManager {
             this.logger.warn({ oldTxHash: txInfo.transactionHash, reason }, "failed to replace transaction")
 
             return
+        } else if (replaceResult.status === "not_needed") {
+            this.logger.info({ oldTxHash: txInfo.transactionHash, reason }, "transaction does not need replacing")
+            txInfo.userOperationInfos.map((opInfo) => {
+                this.mempool.removeSubmitted(opInfo.userOperationHash)
+            })
+
+            return
         }
+
+        const newTxInfo = replaceResult.transactionInfo
 
         const missingOps = txInfo.userOperationInfos.filter(
             (info) => !newTxInfo.userOperationInfos.map((ni) => ni.userOperationHash).includes(info.userOperationHash)

@@ -25,9 +25,21 @@ export interface GasEstimateResult {
     callGasLimit: bigint
 }
 
+export type ReplaceTransactionResult =
+    | {
+          status: "replaced"
+          transactionInfo: TransactionInfo
+      }
+    | {
+          status: "not_needed"
+      }
+    | {
+          status: "failed"
+      }
+
 export interface IExecutor {
     bundle(entryPoint: Address, ops: UserOperation[]): Promise<BundleResult[]>
-    replaceTransaction(transactionInfo: TransactionInfo): Promise<TransactionInfo | undefined>
+    replaceTransaction(transactionInfo: TransactionInfo): Promise<ReplaceTransactionResult>
     cancelOps(entryPoint: Address, ops: UserOperation[]): Promise<void>
     markWalletProcessed(executor: Account): Promise<void>
     flushStuckTransactions(): Promise<void>
@@ -37,8 +49,8 @@ export class NullExecutor implements IExecutor {
     async bundle(entryPoint: Address, ops: UserOperation[]): Promise<BundleResult[]> {
         return []
     }
-    async replaceTransaction(transactionInfo: TransactionInfo): Promise<TransactionInfo | undefined> {
-        return
+    async replaceTransaction(transactionInfo: TransactionInfo): Promise<ReplaceTransactionResult> {
+        return { status: "not_needed" }
     }
     async replaceOps(opHahes: HexData32[]): Promise<void> {}
     async cancelOps(entryPoint: Address, ops: UserOperation[]): Promise<void> {}
@@ -89,7 +101,7 @@ export class BasicExecutor implements IExecutor {
         }
     }
 
-    async replaceTransaction(transactionInfo: TransactionInfo) {
+    async replaceTransaction(transactionInfo: TransactionInfo): Promise<ReplaceTransactionResult> {
         const newRequest = { ...transactionInfo.transactionRequest }
 
         const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
@@ -128,13 +140,26 @@ export class BasicExecutor implements IExecutor {
         if (result.simulatedOps.length === 0) {
             childLogger.warn("no ops to bundle")
             this.markWalletProcessed(transactionInfo.executor)
-            return
+            return { status: "failed" }
+        }
+
+        if (
+            result.simulatedOps.every(
+                (op) => op.reason === "AA25 invalid account nonce" || op.reason === "AA10 sender already constructed"
+            )
+        ) {
+            const status = await transactionIncluded(transactionInfo.transactionHash, this.publicClient)
+            if (status !== "not_found") {
+                childLogger.debug({ status }, "nonce too low, previous transaction included")
+                this.markWalletProcessed(transactionInfo.executor)
+                return { status: "not_needed" }
+            }
         }
 
         if (result.simulatedOps.every((op) => op.reason !== undefined)) {
             childLogger.warn("all ops failed simulation")
             this.markWalletProcessed(transactionInfo.executor)
-            return
+            return { status: "failed" }
         }
 
         const opsToBundle = result.simulatedOps
@@ -178,7 +203,7 @@ export class BasicExecutor implements IExecutor {
                 })
             }
 
-            return newTxInfo
+            return { status: "replaced", transactionInfo: newTxInfo }
         } catch (err: unknown) {
             const e = parseViemError(err)
             if (!e) {
@@ -188,9 +213,9 @@ export class BasicExecutor implements IExecutor {
             if (e instanceof NonceTooLowError) {
                 const status = await transactionIncluded(transactionInfo.transactionHash, this.publicClient)
                 if (status !== "not_found") {
-                    childLogger.info({ status }, "nonce too low, previous transaction included")
+                    childLogger.debug({ status }, "nonce too low, previous transaction included")
                     this.markWalletProcessed(transactionInfo.executor)
-                    return
+                    return { status: "not_needed" }
                 }
 
                 childLogger.warn({ error: e }, "nonce too low, not replacing")
@@ -210,7 +235,7 @@ export class BasicExecutor implements IExecutor {
 
             childLogger.warn({ error: e }, "error replacing transaction")
             this.markWalletProcessed(transactionInfo.executor)
-            return
+            return { status: "failed" }
         }
     }
 
