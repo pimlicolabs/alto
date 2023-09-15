@@ -250,6 +250,17 @@ export class ExecutorManager {
             return
         }
 
+        const status = await transactionIncluded(txInfo.transactionHash, this.publicClient)
+        if (status !== "not_found") {
+            this.logger.info({ oldTxHash: txInfo.transactionHash, reason, status }, "transaction already included")
+            txInfo.userOperationInfos.map((opInfo) => {
+                this.mempool.removeSubmitted(opInfo.userOperationHash)
+            })
+
+            await this.executor.markWalletProcessed(txInfo.executor)
+            return
+        }
+
         const newTxInfo = replaceResult.transactionInfo
 
         const missingOps = txInfo.userOperationInfos.filter(
