@@ -1,6 +1,6 @@
 import { EntryPointAbi, TransactionInfo, BundleResult } from "@alto/types"
 import { Address, HexData32, UserOperation } from "@alto/types"
-import { Logger, Metrics, getUserOperationHash } from "@alto/utils"
+import { Logger, Metrics, getUserOperationHash, transactionIncluded } from "@alto/utils"
 import { Mutex } from "async-mutex"
 import {
     Account,
@@ -186,6 +186,13 @@ export class BasicExecutor implements IExecutor {
             }
 
             if (e instanceof NonceTooLowError) {
+                const status = await transactionIncluded(transactionInfo.transactionHash, this.publicClient)
+                if (status !== "not_found") {
+                    childLogger.info({ status }, "nonce too low, previous transaction included")
+                    this.markWalletProcessed(transactionInfo.executor)
+                    return
+                }
+
                 childLogger.warn({ error: e }, "nonce too low, not replacing")
             }
 

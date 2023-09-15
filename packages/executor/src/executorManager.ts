@@ -237,7 +237,6 @@ export class ExecutorManager {
             txInfo.userOperationInfos.map((opInfo) => {
                 this.mempool.removeSubmitted(opInfo.userOperationHash)
             })
-            this.mempool.removeSubmitted(txInfo.userOperationInfos[0].userOperationHash)
 
             this.logger.warn({ oldTxHash: txInfo.transactionHash, reason }, "failed to replace transaction")
 

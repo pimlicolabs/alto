@@ -99,7 +99,7 @@ export class MemoryStore {
     removeSubmitted(userOpHash: HexData32) {
         const index = this.submittedUserOperations.findIndex((op) => op.userOperation.userOperationHash === userOpHash)
         if (index === -1) {
-            this.logger.warn({ userOpHash, store: "outstanding" }, "tried to remove non-existent user op from mempool")
+            this.logger.warn({ userOpHash, store: "submitted" }, "tried to remove non-existent user op from mempool")
             return
         }
 
