@@ -121,7 +121,8 @@ export class BasicExecutor implements IExecutor {
         )
 
         const childLogger = this.logger.child({
-            transactionHash: transactionInfo.transactionHash
+            transactionHash: transactionInfo.transactionHash,
+            executor: transactionInfo.executor.address
         })
 
         if (result.simulatedOps.length === 0) {
