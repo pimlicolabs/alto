@@ -154,7 +154,7 @@ export class BasicExecutor implements IExecutor {
                 this.markWalletProcessed(transactionInfo.executor)
                 return { status: "not_needed" }
             } else {
-                childLogger.trace("nonce too low, previous transaction not included")
+                childLogger.trace({ status }, "nonce too low, previous transaction not included")
             }
         }
 
