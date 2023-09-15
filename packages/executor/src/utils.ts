@@ -12,7 +12,8 @@ import {
     WalletClient,
     Account,
     Transport,
-    Chain
+    Chain,
+    TransactionExecutionError
 } from "viem"
 
 export function simulatedOpsToResults(
@@ -49,7 +50,7 @@ export function simulatedOpsToResults(
 }
 
 export function parseViemError(err: unknown) {
-    if (err instanceof ContractFunctionExecutionError) {
+    if (err instanceof ContractFunctionExecutionError || err instanceof TransactionExecutionError) {
         const e = err.cause
         if (e instanceof NonceTooLowError) {
             return e
