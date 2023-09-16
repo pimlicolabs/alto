@@ -111,7 +111,10 @@ export class BasicExecutor implements IExecutor {
                 ? gasPriceParameters.maxFeePerGas
                 : (newRequest.maxFeePerGas * 11n) / 10n
 
-        newRequest.maxPriorityFeePerGas = (newRequest.maxPriorityFeePerGas * 11n) / 10n
+        newRequest.maxPriorityFeePerGas =
+            gasPriceParameters.maxPriorityFeePerGas > (newRequest.maxPriorityFeePerGas * 11n) / 10n
+                ? gasPriceParameters.maxPriorityFeePerGas
+                : (newRequest.maxPriorityFeePerGas * 11n) / 10n
         newRequest.account = transactionInfo.executor
 
         const ep = getContract({
