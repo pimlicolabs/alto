@@ -1,7 +1,7 @@
 import { UserOperation, SubmittedUserOperation, TransactionInfo } from "@alto/types"
 import { Mempool, Monitor } from "@alto/mempool"
 import { IExecutor } from "./executor"
-import { Account, Address, Block, Chain, PublicClient, Transport, WatchBlocksReturnType } from "viem"
+import { Address, Block, Chain, PublicClient, Transport, WatchBlocksReturnType } from "viem"
 import { Logger, Metrics, transactionIncluded } from "@alto/utils"
 import { getGasPrice } from "@alto/utils"
 
@@ -26,6 +26,7 @@ export class ExecutorManager {
     private metrics: Metrics
 
     private unWatch: WatchBlocksReturnType | undefined
+    private currentlyHandlingBlock = false
 
     constructor(
         executor: IExecutor,
@@ -132,69 +133,103 @@ export class ExecutorManager {
         }
     }
 
-    async refreshUserOperationStatuses(): Promise<void> {
-        const pushedWallets = new Set<Account>()
+    private async refreshTransactionStatus(transactionInfo: TransactionInfo) {
+        const hashesToCheck = [transactionInfo.transactionHash, ...transactionInfo.previousTransactionHashes]
 
-        const ops = this.mempool.dumpSubmittedOps()
-        await Promise.all(
-            ops.map(async (op) => {
-                const status = await transactionIncluded(op.transactionInfo.transactionHash, this.publicClient)
-                if (status === "included") {
-                    this.metrics.userOperationsIncluded.inc()
-                    this.metrics.userOperationInclusionDuration.observe(
-                        (Date.now() - op.userOperation.firstSubmitted) / 1000
-                    )
+        const opInfos = transactionInfo.userOperationInfos
+        // const opHashes = transactionInfo.userOperationInfos.map((opInfo) => opInfo.userOperationHash)
 
-                    this.mempool.removeSubmitted(op.userOperation.userOperationHash)
-                    this.monitor.setUserOperationStatus(op.userOperation.userOperationHash, {
-                        status: "included",
-                        transactionHash: op.transactionInfo.transactionHash
-                    })
-                    this.logger.info(
-                        {
-                            userOpHash: op.userOperation.userOperationHash,
-                            transactionHash: op.transactionInfo.transactionHash
-                        },
-                        "user op included"
-                    )
-                    if (!pushedWallets.has(op.transactionInfo.executor)) {
-                        this.executor.markWalletProcessed(op.transactionInfo.executor)
-                    }
-                } else if (status === "failed" || status === "reverted") {
-                    this.mempool.removeSubmitted(op.userOperation.userOperationHash)
-                    this.monitor.setUserOperationStatus(op.userOperation.userOperationHash, {
-                        status,
-                        transactionHash: op.transactionInfo.transactionHash
-                    })
-                    this.logger.info(
-                        {
-                            userOpHash: op.userOperation.userOperationHash,
-                            transactionHash: op.transactionInfo.transactionHash
-                        },
-                        "user op failed"
-                    )
-                    if (!pushedWallets.has(op.transactionInfo.executor)) {
-                        this.executor.markWalletProcessed(op.transactionInfo.executor)
-                    }
-                } else {
-                    this.logger.trace(
-                        {
-                            userOpHash: op.userOperation.userOperationHash,
-                            transactionHash: op.transactionInfo.transactionHash
-                        },
-                        "user op still pending"
-                    )
+        const transactionStatuses = await Promise.all(
+            hashesToCheck.map(async (hash) => {
+                return {
+                    hash: hash,
+                    status: await transactionIncluded(hash, this.publicClient)
                 }
+            })
+        )
+
+        const status = transactionStatuses.find(
+            (status) => status.status === "included" || status.status === "failed" || status.status === "reverted"
+        )
+
+        if (!status) {
+            opInfos.map((info) => {
+                this.logger.trace(
+                    {
+                        userOpHash: info.userOperationHash,
+                        transactionHash: transactionInfo.transactionHash
+                    },
+                    "user op still pending"
+                )
+            })
+
+            return
+        }
+
+        if (status.status === "included") {
+            opInfos.map((info) => {
+                this.metrics.userOperationsIncluded.inc()
+                this.metrics.userOperationInclusionDuration.observe((Date.now() - info.firstSubmitted) / 1000)
+                this.mempool.removeSubmitted(info.userOperationHash)
+                this.monitor.setUserOperationStatus(info.userOperationHash, {
+                    status: "included",
+                    transactionHash: status.hash
+                })
+                this.logger.info(
+                    {
+                        userOpHash: info.userOperationHash,
+                        transactionHash: status.hash
+                    },
+                    "user op included"
+                )
+            })
+
+            this.executor.markWalletProcessed(transactionInfo.executor)
+        } else if (status.status === "failed" || status.status === "reverted") {
+            opInfos.map((info) => {
+                this.mempool.removeSubmitted(info.userOperationHash)
+                this.monitor.setUserOperationStatus(info.userOperationHash, {
+                    status: "rejected",
+                    transactionHash: status.hash
+                })
+                this.logger.info(
+                    {
+                        userOpHash: info.userOperationHash,
+                        transactionHash: status.hash
+                    },
+                    "user op failed"
+                )
+            })
+
+            this.executor.markWalletProcessed(transactionInfo.executor)
+        }
+    }
+
+    async refreshUserOperationStatuses(): Promise<void> {
+        const ops = this.mempool.dumpSubmittedOps()
+
+        const txs = getTransactionsFromUserOperationEntries(ops)
+
+        await Promise.all(
+            txs.map(async (txInfo) => {
+                await this.refreshTransactionStatus(txInfo)
             })
         )
     }
 
     async handleBlock(block: Block) {
+        if (this.currentlyHandlingBlock) {
+            return
+        }
+
+        this.currentlyHandlingBlock = true
+
         this.logger.debug({ blockNumber: block.number }, "handling block")
 
         const submittedEntries = this.mempool.dumpSubmittedOps()
         if (submittedEntries.length === 0) {
             this.stopWatchingBlocks()
+            this.currentlyHandlingBlock = false
             return
         }
 
@@ -229,6 +264,8 @@ export class ExecutorManager {
                 await this.replaceTransaction(txInfo, "stuck")
             })
         )
+
+        this.currentlyHandlingBlock = false
     }
 
     async replaceTransaction(txInfo: TransactionInfo, reason: string): Promise<void> {
@@ -241,23 +278,24 @@ export class ExecutorManager {
             this.logger.warn({ oldTxHash: txInfo.transactionHash, reason }, "failed to replace transaction")
 
             return
-        } else if (replaceResult.status === "not_needed") {
-            this.logger.info({ oldTxHash: txInfo.transactionHash, reason }, "transaction does not need replacing")
-            txInfo.userOperationInfos.map((opInfo) => {
-                this.mempool.removeSubmitted(opInfo.userOperationHash)
-            })
+        } else if (replaceResult.status === "potentially_already_included") {
+            this.logger.info({ oldTxHash: txInfo.transactionHash, reason }, "transaction potentially already included")
+            txInfo.timesPotentiallyIncluded += 1
 
-            return
-        }
+            if (txInfo.timesPotentiallyIncluded >= 3) {
+                txInfo.userOperationInfos.map((opInfo) => {
+                    this.mempool.removeSubmitted(opInfo.userOperationHash)
+                })
+                this.executor.markWalletProcessed(txInfo.executor)
 
-        const status = await transactionIncluded(txInfo.transactionHash, this.publicClient)
-        if (status !== "not_found") {
-            this.logger.info({ oldTxHash: txInfo.transactionHash, reason, status }, "transaction already included")
-            txInfo.userOperationInfos.map((opInfo) => {
-                this.mempool.removeSubmitted(opInfo.userOperationHash)
-            })
+                this.logger.warn(
+                    { oldTxHash: txInfo.transactionHash, reason },
+                    "transaction potentially already included too many times, removing"
+                )
 
-            await this.executor.markWalletProcessed(txInfo.executor)
+                return
+            }
+
             return
         }
 

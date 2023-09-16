@@ -4,6 +4,7 @@ import { Abi, Chain, WriteContractParameters } from "viem"
 
 export type TransactionInfo = {
     transactionHash: HexData32
+    previousTransactionHashes: HexData32[]
     transactionRequest: WriteContractParameters<Abi | readonly unknown[], string, Chain, Account, Chain> & {
         nonce: number
         maxFeePerGas: bigint
@@ -14,6 +15,7 @@ export type TransactionInfo = {
     userOperationInfos: UserOperationInfo[]
     lastReplaced: number
     firstSubmitted: number
+    timesPotentiallyIncluded: number
 }
 
 export type UserOperationInfo = {

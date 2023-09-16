@@ -1,6 +1,6 @@
 import { EntryPointAbi, TransactionInfo, BundleResult } from "@alto/types"
 import { Address, HexData32, UserOperation } from "@alto/types"
-import { Logger, Metrics, getUserOperationHash, transactionIncluded } from "@alto/utils"
+import { Logger, Metrics, getUserOperationHash } from "@alto/utils"
 import { Mutex } from "async-mutex"
 import {
     Account,
@@ -31,7 +31,7 @@ export type ReplaceTransactionResult =
           transactionInfo: TransactionInfo
       }
     | {
-          status: "not_needed"
+          status: "potentially_already_included"
       }
     | {
           status: "failed"
@@ -50,7 +50,7 @@ export class NullExecutor implements IExecutor {
         return []
     }
     async replaceTransaction(transactionInfo: TransactionInfo): Promise<ReplaceTransactionResult> {
-        return { status: "not_needed" }
+        return { status: "failed" }
     }
     async replaceOps(opHahes: HexData32[]): Promise<void> {}
     async cancelOps(entryPoint: Address, ops: UserOperation[]): Promise<void> {}
@@ -148,14 +148,11 @@ export class BasicExecutor implements IExecutor {
                 (op) => op.reason === "AA25 invalid account nonce" || op.reason === "AA10 sender already constructed"
             )
         ) {
-            const status = await transactionIncluded(transactionInfo.transactionHash, this.publicClient)
-            if (status !== "not_found") {
-                childLogger.debug({ status }, "nonce too low, previous transaction included")
-                this.markWalletProcessed(transactionInfo.executor)
-                return { status: "not_needed" }
-            } else {
-                childLogger.trace({ status }, "nonce too low, previous transaction not included")
-            }
+            childLogger.trace(
+                { reasons: result.simulatedOps.map((sop) => sop.reason) },
+                "all ops failed simulation with nonce error"
+            )
+            return { status: "potentially_already_included" }
         }
 
         if (result.simulatedOps.every((op) => op.reason !== undefined)) {
@@ -182,7 +179,8 @@ export class BasicExecutor implements IExecutor {
         try {
             childLogger.info(
                 {
-                    newRequest,
+                    newRequest: { ...newRequest, abi: undefined, chain: undefined },
+                    executor: newRequest.account.address,
                     opsToBundle: opsToBundle.map((op) => op.userOperationHash)
                 },
                 "replacing transaction"
@@ -194,6 +192,10 @@ export class BasicExecutor implements IExecutor {
                 ...transactionInfo,
                 transactionRequest: newRequest,
                 transactionHash: txHash,
+                previousTransactionHashes: [
+                    transactionInfo.transactionHash,
+                    ...transactionInfo.previousTransactionHashes
+                ],
                 lastReplaced: Date.now(),
                 userOperationInfos: opsToBundle.map((op) => {
                     return {
@@ -213,14 +215,8 @@ export class BasicExecutor implements IExecutor {
             }
 
             if (e instanceof NonceTooLowError) {
-                const status = await transactionIncluded(transactionInfo.transactionHash, this.publicClient)
-                if (status !== "not_found") {
-                    childLogger.debug({ status }, "nonce too low, previous transaction included")
-                    this.markWalletProcessed(transactionInfo.executor)
-                    return { status: "not_needed" }
-                }
-
-                childLogger.warn({ error: e }, "nonce too low, not replacing")
+                childLogger.trace({ error: e }, "nonce too low, potentially already included")
+                return { status: "potentially_already_included" }
             }
 
             if (e instanceof FeeCapTooLowError) {
@@ -242,11 +238,17 @@ export class BasicExecutor implements IExecutor {
     }
 
     async flushStuckTransactions(): Promise<void> {
-        const gasPrice = 10n * (await this.publicClient.getGasPrice())
+        const gasPrice = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
 
-        const wallets = [...this.senderManager.wallets, this.senderManager.utilityAccount]
+        const wallets = Array.from(new Set([...this.senderManager.wallets, this.senderManager.utilityAccount]))
         const promises = wallets.map(async (wallet) => {
-            return flushStuckTransaction(this.publicClient, this.walletClient, wallet, gasPrice, this.logger)
+            return flushStuckTransaction(
+                this.publicClient,
+                this.walletClient,
+                wallet,
+                gasPrice.maxFeePerGas * 5n,
+                this.logger
+            )
         })
 
         await Promise.all(promises)
@@ -366,6 +368,7 @@ export class BasicExecutor implements IExecutor {
 
         const transactionInfo: TransactionInfo = {
             transactionHash: txHash,
+            previousTransactionHashes: [],
             transactionRequest: {
                 address: ep.address,
                 abi: ep.abi,
@@ -381,7 +384,8 @@ export class BasicExecutor implements IExecutor {
             executor: wallet,
             userOperationInfos,
             lastReplaced: Date.now(),
-            firstSubmitted: Date.now()
+            firstSubmitted: Date.now(),
+            timesPotentiallyIncluded: 0
         }
 
         const userOperationResults: BundleResult[] = simulatedOpsToResults(simulatedOps, transactionInfo)
