@@ -238,6 +238,8 @@ export class ExecutorManager {
 
         // for all still not included check if needs to be replaced (based on gas price)
         const gasPriceParameters = await getGasPrice(this.publicClient.chain.id, this.publicClient, this.logger)
+        this.logger.trace({ gasPriceParameters }, "fetched gas price parameters")
+
         const transactionInfos = getTransactionsFromUserOperationEntries(this.mempool.dumpSubmittedOps())
 
         await Promise.all(
@@ -292,8 +294,6 @@ export class ExecutorManager {
                     { oldTxHash: txInfo.transactionHash, reason },
                     "transaction potentially already included too many times, removing"
                 )
-
-                return
             }
 
             return
