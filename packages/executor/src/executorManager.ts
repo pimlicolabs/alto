@@ -90,6 +90,10 @@ export class ExecutorManager {
                             status: "rejected",
                             transactionHash: null
                         })
+                        this.logger.warn(
+                            { userOpHash: result.error.userOpHash, reason: result.error.reason },
+                            "user operation rejected"
+                        )
                     }
                 }
             })

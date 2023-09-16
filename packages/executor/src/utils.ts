@@ -108,7 +108,7 @@ export async function filterOpsAndEstimateGas(
                 const parsingResult = failedOpErrorSchema.safeParse(e.data)
                 if (parsingResult.success) {
                     const failedOpError = parsingResult.data
-                    logger.warn(
+                    logger.debug(
                         {
                             failedOpError,
                             userOpHashes: simulatedOps
