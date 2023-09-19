@@ -13,6 +13,7 @@ import {
     getContract
 } from "viem"
 import { getGasPrice } from "@alto/utils"
+import * as chains from "viem/chains"
 
 const waitForTransactionReceipt = async (publicClient: PublicClient, tx: HexData32): Promise<TransactionReceipt> => {
     try {
@@ -147,13 +148,17 @@ export class SenderManager {
                 }
             } else {
                 for (const [address, missingBalance] of Object.entries(balancesMissing)) {
+                    const onlyPre1559 =
+                        walletClient.chain.id === chains.fuse.id || walletClient.chain.id === chains.scrollTestnet.id
+
                     const tx = await walletClient.sendTransaction({
                         account: this.utilityAccount,
                         // @ts-ignore
                         to: address,
                         value: missingBalance,
-                        maxFeePerGas: maxFeePerGas,
-                        maxPriorityFeePerGas: maxPriorityFeePerGas
+                        maxFeePerGas: onlyPre1559 ? undefined : maxFeePerGas,
+                        maxPriorityFeePerGas: onlyPre1559 ? undefined : maxPriorityFeePerGas,
+                        gasPrice: onlyPre1559 ? maxFeePerGas : undefined
                     })
 
                     await waitForTransactionReceipt(publicClient, tx)
