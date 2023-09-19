@@ -106,6 +106,9 @@ export class BasicExecutor implements IExecutor {
 
         const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
 
+        const onlyPre1559 =
+            this.walletClient.chain.id === chains.fuse.id || this.walletClient.chain.id === chains.scrollTestnet.id
+
         newRequest.maxFeePerGas =
             gasPriceParameters.maxFeePerGas > (newRequest.maxFeePerGas * 11n) / 10n
                 ? gasPriceParameters.maxFeePerGas
@@ -189,7 +192,18 @@ export class BasicExecutor implements IExecutor {
                 "replacing transaction"
             )
 
-            const txHash = await this.walletClient.writeContract(newRequest)
+            const txHash = await this.walletClient.writeContract(
+                onlyPre1559
+                    ? {
+                          ...newRequest,
+                          gasPrice: newRequest.maxFeePerGas,
+                          maxFeePerGas: undefined,
+                          maxPriorityFeePerGas: undefined,
+                          type: "legacy",
+                          accessList: undefined
+                      }
+                    : newRequest
+            )
 
             const newTxInfo = {
                 ...transactionInfo,
@@ -289,8 +303,8 @@ export class BasicExecutor implements IExecutor {
         })
         childLogger.trace({ nonce }, "got nonce")
 
-        // scroll alpha testnet doesn't support eip-1559 txs yet
-        const onlyPre1559 = this.walletClient.chain.id === chains.scrollTestnet.id
+        const onlyPre1559 =
+            this.walletClient.chain.id === chains.fuse.id || this.walletClient.chain.id === chains.scrollTestnet.id
 
         const { gasLimit, simulatedOps } = await filterOpsAndEstimateGas(
             ep,
