@@ -233,7 +233,7 @@ export class RpcHandler implements IRpcEndpoint {
         entryPoint: Address
     ): Promise<SendUserOperationResponseResult> {
         if (this.entryPoint !== entryPoint) {
-            throw new Error(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.entryPoint}`)
+            throw new RpcError(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.entryPoint}`)
         }
 
         if (this.chainId === chains.celoAlfajores.id || this.chainId === chains.celo.id) {
