@@ -1,7 +1,14 @@
 import { Address, EntryPointAbi, RpcError, UserOperation } from "@alto/types"
 import {
     Chain,
+    ContractFunctionExecutionError,
+    ContractFunctionRevertedError,
+    FeeCapTooLowError,
+    InsufficientFundsError,
+    IntrinsicGasTooLowError,
+    NonceTooLowError,
     PublicClient,
+    TransactionExecutionError,
     Transport,
     concat,
     encodeAbiParameters,
@@ -312,4 +319,24 @@ export async function calcArbitrumPreVerificationGas(
     const { result } = await arbGasPriceOracle.simulate.gasEstimateL1Component([entryPoint, false, serializedTx])
 
     return result[0] + staticFee
+}
+
+export function parseViemError(err: unknown) {
+    if (err instanceof ContractFunctionExecutionError || err instanceof TransactionExecutionError) {
+        const e = err.cause
+        if (e instanceof NonceTooLowError) {
+            return e
+        } else if (e instanceof FeeCapTooLowError) {
+            return e
+        } else if (e instanceof InsufficientFundsError) {
+            return e
+        } else if (e instanceof IntrinsicGasTooLowError) {
+            return e
+        } else if (e instanceof ContractFunctionRevertedError) {
+            return e
+        }
+        return
+    } else {
+        return
+    }
 }

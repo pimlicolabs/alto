@@ -116,12 +116,51 @@ export const validationResultErrorSchema = z.object({
 
 export type ValidationResultError = z.infer<typeof validationResultErrorSchema>
 
+export const validationResultWithAggregationSchema = z
+    .tuple([
+        z.object({
+            preOpGas: z.bigint(),
+            prefund: z.bigint(),
+            sigFailed: z.boolean(),
+            validAfter: z.number(),
+            validUntil: z.number(),
+            paymasterContext: z
+                .string()
+                .regex(hexPattern)
+                .transform((val) => val as HexData)
+        }),
+        stakeInfoSchema,
+        stakeInfoSchema,
+        stakeInfoSchema,
+        z.object({
+            aggregator: addressSchema,
+            stakeInfo: stakeInfoSchema
+        })
+    ])
+    .transform((val) => {
+        return {
+            returnInfo: val[0],
+            senderInfo: val[1],
+            factoryInfo: val[2],
+            paymasterInfo: val[3],
+            aggregatorInfo: val[4]
+        }
+    })
+
+export type ValidationResultWithAggregation = z.infer<typeof validationResultWithAggregationSchema>
+
+export const validationResultWithAggregationErrorSchema = z.object({
+    args: validationResultWithAggregationSchema,
+    errorName: z.literal("ValidationResultWithAggregation")
+})
+
 export const entryPointErrorsSchema = z.discriminatedUnion("errorName", [
     validationResultErrorSchema,
     executionResultErrorSchema,
     failedOpErrorSchema,
     senderAddressResultErrorSchema,
-    signatureValidationFailedErrorSchema
+    signatureValidationFailedErrorSchema,
+    validationResultWithAggregationErrorSchema
 ])
 
 export const errorCauseSchema = z.object({
@@ -139,8 +178,9 @@ export const vmExecutionError = z.object({
             data: z.string().transform((val) => {
                 const errorHexData = val.split("Reverted ")[1] as HexData
                 if (errorHexData === "0x") {
+                    console.log(val)
                     throw new RpcError(
-                        "User operation reverted on-chain with unknown error (some chains don't return revert reason)"
+                        `User operation reverted on-chain with unknown error (some chains don't return revert reason) ${val}`
                     )
                 }
                 const errorResult = decodeErrorResult({ abi: EntryPointAbi, data: errorHexData })

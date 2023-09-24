@@ -1,6 +1,6 @@
 import { EntryPointAbi, TransactionInfo, BundleResult } from "@alto/types"
 import { Address, HexData32, UserOperation } from "@alto/types"
-import { Logger, Metrics, getUserOperationHash } from "@alto/utils"
+import { Logger, Metrics, getUserOperationHash, parseViemError } from "@alto/utils"
 import { Mutex } from "async-mutex"
 import {
     Account,
@@ -17,7 +17,7 @@ import {
 import { SenderManager } from "./senderManager"
 import * as chains from "viem/chains"
 import { getGasPrice } from "@alto/utils"
-import { filterOpsAndEstimateGas, flushStuckTransaction, parseViemError, simulatedOpsToResults } from "./utils"
+import { filterOpsAndEstimateGas, flushStuckTransaction, simulatedOpsToResults } from "./utils"
 
 export interface GasEstimateResult {
     preverificationGas: bigint

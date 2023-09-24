@@ -5,6 +5,7 @@ import {
     RpcError,
     UserOperation,
     ValidationErrors,
+    ValidationResultWithAggregation,
     entryPointErrorsSchema,
     entryPointExecutionErrorSchema
 } from "@alto/types"
@@ -45,7 +46,7 @@ async function simulateTenderlyCall(publicClient: PublicClient, params: any) {
 async function getSimulationResult(
     errorResult: unknown,
     logger: Logger,
-    desiredErrorName: "ValidationResult" | "ExecutionResult",
+    simulationType: "validation" | "execution",
     usingTenderly = false
 ) {
     const entryPointErrorSchemaParsing = usingTenderly
@@ -69,8 +70,14 @@ async function getSimulationResult(
         )
     }
 
-    if (errorData.errorName !== desiredErrorName) {
-        throw new Error(`Unexpected error - errorName is not ${desiredErrorName}`)
+    if (simulationType === "validation") {
+        if (errorData.errorName !== "ValidationResult" && errorData.errorName !== "ValidationResultWithAggregation") {
+            throw new Error("Unexpected error - errorName is not ValidationResult or ValidationResultWithAggregation")
+        }
+    } else {
+        if (errorData.errorName !== "ExecutionResult") {
+            throw new Error("Unexpected error - errorName is not ExecutionResult")
+        }
     }
 
     const simulationResult = errorData.args
@@ -128,7 +135,7 @@ export class UnsafeValidator implements IValidator {
             })
 
             // @ts-ignore
-            return getSimulationResult(errorResult, this.logger, "ExecutionResult", this.usingTenderly)
+            return getSimulationResult(errorResult, this.logger, "execution", this.usingTenderly)
         } else {
             const errorResult = await entryPointContract.simulate
                 .simulateHandleOp([userOperation, "0x0000000000000000000000000000000000000000", "0x"], {
@@ -143,11 +150,13 @@ export class UnsafeValidator implements IValidator {
                 })
 
             // @ts-ignore
-            return getSimulationResult(errorResult, this.logger, "ExecutionResult", this.usingTenderly)
+            return getSimulationResult(errorResult, this.logger, "execution", this.usingTenderly)
         }
     }
 
-    async getValidationResult(userOperation: UserOperation): Promise<ValidationResult> {
+    async getValidationResult(
+        userOperation: UserOperation
+    ): Promise<ValidationResult | ValidationResultWithAggregation> {
         const entryPointContract = getContract({
             address: this.entryPoint,
             abi: EntryPointAbi,
@@ -173,7 +182,7 @@ export class UnsafeValidator implements IValidator {
             })
 
             // @ts-ignore
-            return getSimulationResult(errorResult, this.logger, "ValidationResult", this.usingTenderly)
+            return getSimulationResult(errorResult, this.logger, "validation", this.usingTenderly)
         } else {
             const errorResult = await entryPointContract.simulate.simulateValidation([userOperation]).catch((e) => {
                 if (e instanceof Error) {
@@ -184,11 +193,13 @@ export class UnsafeValidator implements IValidator {
             })
 
             // @ts-ignore
-            return getSimulationResult(errorResult, this.logger, "ValidationResult", this.usingTenderly)
+            return getSimulationResult(errorResult, this.logger, "validation", this.usingTenderly)
         }
     }
 
-    async validateUserOperation(userOperation: UserOperation): Promise<ValidationResult> {
+    async validateUserOperation(
+        userOperation: UserOperation
+    ): Promise<ValidationResult | ValidationResultWithAggregation> {
         try {
             const validationResult = await this.getValidationResult(userOperation)
 

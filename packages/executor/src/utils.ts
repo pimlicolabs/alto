@@ -1,19 +1,13 @@
 import { BundleResult, EntryPointAbi, TransactionInfo, UserOperationWithHash, failedOpErrorSchema } from "@alto/types"
-import { Logger, transactionIncluded } from "@alto/utils"
+import { Logger, transactionIncluded, parseViemError } from "@alto/utils"
 import {
-    ContractFunctionExecutionError,
-    NonceTooLowError,
-    FeeCapTooLowError,
-    InsufficientFundsError,
-    IntrinsicGasTooLowError,
     ContractFunctionRevertedError,
     GetContractReturnType,
     PublicClient,
     WalletClient,
     Account,
     Transport,
-    Chain,
-    TransactionExecutionError
+    Chain
 } from "viem"
 
 export function simulatedOpsToResults(
@@ -47,26 +41,6 @@ export function simulatedOpsToResults(
             }
         }
     })
-}
-
-export function parseViemError(err: unknown) {
-    if (err instanceof ContractFunctionExecutionError || err instanceof TransactionExecutionError) {
-        const e = err.cause
-        if (e instanceof NonceTooLowError) {
-            return e
-        } else if (e instanceof FeeCapTooLowError) {
-            return e
-        } else if (e instanceof InsufficientFundsError) {
-            return e
-        } else if (e instanceof IntrinsicGasTooLowError) {
-            return e
-        } else if (e instanceof ContractFunctionRevertedError) {
-            return e
-        }
-        return
-    } else {
-        return
-    }
 }
 
 export async function filterOpsAndEstimateGas(
