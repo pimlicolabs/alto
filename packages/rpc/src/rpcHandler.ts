@@ -204,7 +204,14 @@ export class RpcHandler implements IRpcEndpoint {
 
         if (this.chainId === 59140 || this.chainId === 59142) {
             preVerificationGas = preVerificationGas + (verificationGas + callGasLimit) / 3n
-        } else if (this.chainId === 10 || this.chainId === 420 || this.chainId === 8453 || this.chainId === 84531) {
+        } else if (
+            this.chainId === chains.optimism.id ||
+            this.chainId === chains.optimismGoerli.id ||
+            this.chainId === chains.base.id ||
+            this.chainId === chains.baseGoerli.id ||
+            this.chainId === chains.opBNB.id ||
+            this.chainId === chains.opBNBTestnet.id
+        ) {
             preVerificationGas = await calcOptimismPreVerificationGas(
                 this.publicClient,
                 userOperation,
