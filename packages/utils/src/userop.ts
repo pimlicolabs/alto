@@ -124,6 +124,13 @@ export const getUserOperationHash = (userOperation: UserOperation, entryPointAdd
     )
 }
 
+export const getNonceKeyAndValue = (userOperation: UserOperation) => {
+    const nonceKey = userOperation.nonce >> 64n // first 192 bits of nonce
+    const userOperationNonceValue = userOperation.nonce & 0xffffffffffffffffn // last 64 bits of nonce
+
+    return [nonceKey, userOperationNonceValue]
+}
+
 /*
  function pack(
         UserOperation calldata userOp

@@ -1,4 +1,4 @@
-import { RpcHandler, Server, UnsafeValidator } from "@alto/rpc"
+import { NonceQueuer, RpcHandler, Server, UnsafeValidator } from "@alto/rpc"
 import { IBundlerArgs, IBundlerArgsInput, bundlerArgsSchema } from "./config"
 import { BasicExecutor, ExecutorManager, SenderManager } from "@alto/executor"
 import { Logger, initDebugLogger, initProductionLogger } from "@alto/utils"
@@ -228,12 +228,20 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         metrics
     )
 
+    const nonceQueuer = new NonceQueuer(
+        mempool,
+        client,
+        parsedArgs.entryPoint,
+        logger.child({ module: "nonce_queuer" })
+    )
+
     const rpcEndpoint = new RpcHandler(
         parsedArgs.entryPoint,
         client,
         validator,
         mempool,
         monitor,
+        nonceQueuer,
         parsedArgs.tenderlyEnabled ?? false,
         logger.child({ module: "rpc" }),
         metrics

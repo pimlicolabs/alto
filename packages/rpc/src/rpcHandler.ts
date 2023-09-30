@@ -29,7 +29,8 @@ import {
     Metrics,
     getUserOperationHash,
     getGasPrice,
-    calcArbitrumPreVerificationGas
+    calcArbitrumPreVerificationGas,
+    getNonceKeyAndValue
 } from "@alto/utils"
 import { IValidator } from "./vatidation"
 import {
@@ -41,12 +42,14 @@ import {
     TransactionReceipt,
     PublicClient,
     Chain,
-    Transport
+    Transport,
+    getContract
 } from "viem"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
 import * as chains from "viem/chains"
 import { Mempool, Monitor } from "@alto/mempool"
+import { NonceQueuer } from "./nonceQueuer"
 
 export interface IRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>
@@ -67,6 +70,7 @@ export class RpcHandler implements IRpcEndpoint {
     validator: IValidator
     mempool: Mempool
     monitor: Monitor
+    nonceQueuer: NonceQueuer
     usingTenderly: boolean
     logger: Logger
     metrics: Metrics
@@ -78,6 +82,7 @@ export class RpcHandler implements IRpcEndpoint {
         validator: IValidator,
         mempool: Mempool,
         monitor: Monitor,
+        nonceQueuer: NonceQueuer,
         usingTenderly: boolean,
         logger: Logger,
         metrics: Metrics
@@ -87,6 +92,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.validator = validator
         this.mempool = mempool
         this.monitor = monitor
+        this.nonceQueuer = nonceQueuer
         this.usingTenderly = usingTenderly
         this.logger = logger
         this.metrics = metrics
@@ -264,11 +270,30 @@ export class RpcHandler implements IRpcEndpoint {
             throw new RpcError("user operation gas limits must be larger than 0")
         }
 
-        await this.validator.validateUserOperation(userOperation)
+        const entryPointContract = getContract({
+            address: this.entryPoint,
+            abi: EntryPointAbi,
+            publicClient: this.publicClient
+        })
 
-        const success = this.mempool.add(userOperation)
-        if (!success) {
+        const [nonceKey, userOperationNonceValue] = getNonceKeyAndValue(userOperation)
+
+        const currentNonceValue = await entryPointContract.read.getNonce([userOperation.sender, nonceKey], {
+            blockTag: "latest"
+        })
+
+        if (userOperationNonceValue < currentNonceValue) {
             throw new RpcError("UserOperation reverted during simulation with reason: AA25 invalid account nonce")
+        } else if (userOperationNonceValue === currentNonceValue) {
+            await this.validator.validateUserOperation(userOperation)
+            const success = this.mempool.add(userOperation)
+            if (!success) {
+                throw new RpcError("UserOperation reverted during simulation with reason: AA25 invalid account nonce")
+            }
+        } else if (userOperationNonceValue > currentNonceValue + 10n) {
+            throw new RpcError("UserOperation reverted during simulation with reason: AA25 invalid account nonce")
+        } else {
+            this.nonceQueuer.add(userOperation)
         }
 
         const hash = getUserOperationHash(userOperation, entryPoint, this.chainId)
