@@ -137,6 +137,7 @@ export class BasicExecutor implements IExecutor {
             newRequest.maxFeePerGas,
             newRequest.maxPriorityFeePerGas,
             "latest",
+            onlyPre1559,
             this.logger
         )
 
@@ -318,6 +319,7 @@ export class BasicExecutor implements IExecutor {
             gasPriceParameters.maxFeePerGas,
             gasPriceParameters.maxPriorityFeePerGas,
             "pending",
+            onlyPre1559,
             childLogger
         )
 
