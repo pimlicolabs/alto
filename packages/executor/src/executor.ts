@@ -107,7 +107,9 @@ export class BasicExecutor implements IExecutor {
         const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
 
         const onlyPre1559 =
-            this.walletClient.chain.id === chains.fuse.id || this.walletClient.chain.id === chains.scrollTestnet.id
+            this.walletClient.chain.id === chains.fuse.id ||
+            this.walletClient.chain.id === chains.scrollTestnet.id ||
+            this.walletClient.chain.id === chains.scrollSepolia.id
 
         newRequest.maxFeePerGas =
             gasPriceParameters.maxFeePerGas > (newRequest.maxFeePerGas * 11n) / 10n
@@ -304,7 +306,9 @@ export class BasicExecutor implements IExecutor {
         childLogger.trace({ nonce }, "got nonce")
 
         const onlyPre1559 =
-            this.walletClient.chain.id === chains.fuse.id || this.walletClient.chain.id === chains.scrollTestnet.id
+            this.walletClient.chain.id === chains.fuse.id ||
+            this.walletClient.chain.id === chains.scrollTestnet.id ||
+            this.walletClient.chain.id === chains.scrollSepolia.id
 
         const { gasLimit, simulatedOps } = await filterOpsAndEstimateGas(
             ep,
