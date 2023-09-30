@@ -78,7 +78,7 @@ export async function getGasPrice(
         }
     }
 
-    if (chainId === chains.arbitrum.id) {
+    if (chainId === chains.arbitrum.id || chainId === chains.scrollSepolia.id) {
         gasPrice = (gasPrice * 5n) / 4n
         return {
             maxFeePerGas: gasPrice,
