@@ -63,7 +63,7 @@ export class NonceQueuer {
     }
 
     add(userOperation: UserOperation) {
-        const [nonceKey, nonceValue] = getNonceKeyAndValue(userOperation)
+        const [nonceKey, nonceValue] = getNonceKeyAndValue(userOperation.nonce)
         this.queuedUserOperations.push({
             userOperationHash: getUserOperationHash(userOperation, this.entryPoint, this.publicClient.chain.id),
             userOperation: userOperation,

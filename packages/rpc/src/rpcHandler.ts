@@ -283,11 +283,13 @@ export class RpcHandler implements IRpcEndpoint {
             publicClient: this.publicClient
         })
 
-        const [nonceKey, userOperationNonceValue] = getNonceKeyAndValue(userOperation)
+        const [nonceKey, userOperationNonceValue] = getNonceKeyAndValue(userOperation.nonce)
 
-        const currentNonceValue = await entryPointContract.read.getNonce([userOperation.sender, nonceKey], {
+        const getNonceResult = await entryPointContract.read.getNonce([userOperation.sender, nonceKey], {
             blockTag: "latest"
         })
+
+        const [_, currentNonceValue] = getNonceKeyAndValue(getNonceResult)
 
         if (userOperationNonceValue < currentNonceValue) {
             throw new RpcError("UserOperation reverted during simulation with reason: AA25 invalid account nonce")
