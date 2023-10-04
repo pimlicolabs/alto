@@ -1,10 +1,18 @@
 import { EntryPointAbi, UserOperation } from "@alto/types"
-import { Logger, getNonceKeyAndValue, getUserOpHash } from "@alto/utils"
-import { Address, Chain, PublicClient, Transport } from "viem"
+import { Logger, getNonceKeyAndValue, getUserOperationHash } from "@alto/utils"
+import { Address, Chain, Hash, PublicClient, Transport } from "viem"
 import { Mempool } from "@alto/mempool"
 
+type QueuedUserOperation = {
+    userOperationHash: Hash
+    userOperation: UserOperation
+    nonceKey: bigint
+    nonceValue: bigint
+    addedAt: number
+}
+
 export class NonceQueuer {
-    queuedUserOperations: UserOperation[] = []
+    queuedUserOperations: QueuedUserOperation[] = []
 
     mempool: Mempool
     publicClient: PublicClient<Transport, Chain>
@@ -19,10 +27,15 @@ export class NonceQueuer {
 
         setInterval(() => {
             this.process()
-        }, 1000)
+        }, 2000)
     }
 
     async process() {
+        // remove queued ops that have been in the queue for more than 15 minutes
+        this.queuedUserOperations = this.queuedUserOperations.filter((qop) => {
+            return qop.addedAt > Date.now() - 1000 * 60 * 15
+        })
+
         if (this.queuedUserOperations.length === 0) {
             return
         }
@@ -33,21 +46,31 @@ export class NonceQueuer {
             return
         }
 
-        this.queuedUserOperations = this.queuedUserOperations.filter((op) => {
-            return !availableOps.find(
-                (availableOp) =>
-                    getUserOpHash(availableOp, this.entryPoint, this.publicClient.chain.id) ===
-                    getUserOpHash(op, this.entryPoint, this.publicClient.chain.id)
-            )
+        this.queuedUserOperations = this.queuedUserOperations.filter((qop) => {
+            return !availableOps.some((op) => {
+                return op.userOperationHash === qop.userOperationHash
+            })
         })
 
         availableOps.map((op) => {
-            this.resubmitUserOperation(op)
+            this.resubmitUserOperation(op.userOperation)
         })
+
+        this.logger.info(
+            { availableOps: availableOps.map((qop) => qop.userOperationHash) },
+            "submitted user operations from nonce queue"
+        )
     }
 
     add(userOperation: UserOperation) {
-        this.queuedUserOperations.push(userOperation)
+        const [nonceKey, nonceValue] = getNonceKeyAndValue(userOperation)
+        this.queuedUserOperations.push({
+            userOperationHash: getUserOperationHash(userOperation, this.entryPoint, this.publicClient.chain.id),
+            userOperation: userOperation,
+            nonceKey: nonceKey,
+            nonceValue: nonceValue,
+            addedAt: Date.now()
+        })
     }
 
     private async resubmitUserOperation(userOperation: UserOperation) {
@@ -61,68 +84,43 @@ export class NonceQueuer {
     }
 
     async getAvailableUserOperations(publicClient: PublicClient, entryPoint: Address) {
-        const outstandingOps = this.queuedUserOperations.slice()
-
-        function getSenderNonceKeyPair(op: UserOperation) {
-            const [nonceKey, _] = getNonceKeyAndValue(op)
-
-            return `${op.sender}_${nonceKey}`
-        }
-
-        function parseSenderNonceKeyPair(senderNonceKeyPair: string) {
-            const [rawSender, rawNonceKey] = senderNonceKeyPair.split("_")
-
-            const sender = rawSender as Address
-            const nonceKey = BigInt(rawNonceKey)
-
-            return { sender, nonceKey }
-        }
-
-        // get all unique senders and nonceKey pairs from outstanding, processing and submitted ops
-        const allSendersAndNonceKeysRaw = new Set([...outstandingOps.map((op) => getSenderNonceKeyPair(op))])
-
-        const allSendersAndNonceKeys = [...allSendersAndNonceKeysRaw].map((senderNonceKeyPair) =>
-            parseSenderNonceKeyPair(senderNonceKeyPair)
-        )
+        const queuedUserOperations = this.queuedUserOperations.slice()
 
         const results = await publicClient.multicall({
-            contracts: allSendersAndNonceKeys.map((senderNonceKeyPair) => {
+            contracts: queuedUserOperations.map((qop) => {
                 return {
                     address: entryPoint,
                     abi: EntryPointAbi,
                     functionName: "getNonce",
-                    args: [senderNonceKeyPair.sender, senderNonceKeyPair.nonceKey]
+                    args: [qop.userOperation.sender, qop.nonceKey]
                 }
-            })
+            }),
+            blockTag: "latest"
         })
 
-        const availableOutstandingOps: UserOperation[] = []
+        if (results.length !== queuedUserOperations.length) {
+            this.logger.error("error fetching nonces")
+            return []
+        }
 
-        for (let i = 0; i < allSendersAndNonceKeys.length; i++) {
-            const senderAndNonceKey = allSendersAndNonceKeys[i]
-            const sender = senderAndNonceKey.sender
-            const nonceKey = senderAndNonceKey.nonceKey
+        const currentOutstandingOps: QueuedUserOperation[] = []
+
+        for (let i = 0; i < queuedUserOperations.length; i++) {
+            const qop = queuedUserOperations[i]
             const result = results[i]
 
-            if (result.status === "success") {
-                const nonceValue = result.result
-
-                outstandingOps.map((op) => {
-                    const [outstandingOpNonceKey, outstandingOpNonceValue] = getNonceKeyAndValue(op)
-
-                    if (
-                        op.sender === sender &&
-                        outstandingOpNonceKey === nonceKey &&
-                        outstandingOpNonceValue === nonceValue
-                    ) {
-                        availableOutstandingOps.push(op)
-                    }
-                })
-            } else {
+            if (result.status !== "success") {
                 this.logger.error({ error: result.error }, "error fetching nonce")
+                continue
+            }
+
+            const onchainNonceValue = result.result
+
+            if (onchainNonceValue === qop.nonceValue) {
+                currentOutstandingOps.push(qop)
             }
         }
 
-        return availableOutstandingOps
+        return currentOutstandingOps
     }
 }
