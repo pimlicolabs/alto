@@ -106,6 +106,7 @@ export async function filterOpsAndEstimateGas(
 
                     failingOp.reason = failedOpError.args.reason
                 } else {
+                    logger.error(JSON.stringify(err))
                     logger.error({ error: parsingResult.error }, "failed to parse failedOpError")
                     return { simulatedOps: [], gasLimit: 0n }
                 }
