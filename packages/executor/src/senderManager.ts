@@ -149,7 +149,9 @@ export class SenderManager {
             } else {
                 for (const [address, missingBalance] of Object.entries(balancesMissing)) {
                     const onlyPre1559 =
-                        walletClient.chain.id === chains.fuse.id || walletClient.chain.id === chains.scrollTestnet.id
+                        walletClient.chain.id === chains.fuse.id ||
+                        walletClient.chain.id === chains.scrollTestnet.id ||
+                        walletClient.chain.id === chains.scrollSepolia.id
 
                     const tx = await walletClient.sendTransaction({
                         account: this.utilityAccount,

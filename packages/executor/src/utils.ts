@@ -51,6 +51,7 @@ export async function filterOpsAndEstimateGas(
     maxFeePerGas: bigint,
     maxPriorityFeePerGas: bigint,
     blockTag: "latest" | "pending",
+    onlyPre1559: boolean,
     logger: Logger
 ) {
     const simulatedOps: {
@@ -66,13 +67,20 @@ export async function filterOpsAndEstimateGas(
         try {
             gasLimit = await ep.estimateGas.handleOps(
                 [simulatedOps.filter((op) => op.reason === undefined).map((op) => op.op.userOperation), wallet.address],
-                {
-                    account: wallet,
-                    maxFeePerGas: maxFeePerGas,
-                    maxPriorityFeePerGas: maxPriorityFeePerGas,
-                    nonce: nonce,
-                    blockTag
-                }
+                onlyPre1559
+                    ? {
+                          account: wallet,
+                          gasPrice: maxFeePerGas,
+                          nonce: nonce,
+                          blockTag
+                      }
+                    : {
+                          account: wallet,
+                          maxFeePerGas: maxFeePerGas,
+                          maxPriorityFeePerGas: maxPriorityFeePerGas,
+                          nonce: nonce,
+                          blockTag
+                      }
             )
 
             return { simulatedOps, gasLimit }
