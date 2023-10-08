@@ -50,6 +50,7 @@ import { fromZodError } from "zod-validation-error"
 import * as chains from "viem/chains"
 import { Mempool, Monitor } from "@alto/mempool"
 import { NonceQueuer } from "./nonceQueuer"
+import { estimateVerificationGasLimit } from "./gasEstimation"
 
 export interface IRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>
@@ -185,38 +186,10 @@ export class RpcHandler implements IRpcEndpoint {
             throw new RpcError("user operation max fee per gas must be larger than 0 during gas estimation")
         }
 
-        userOperation.preVerificationGas = 1_000_000n
-        userOperation.verificationGasLimit = 10_000_000n
-        userOperation.callGasLimit = 10_000_000n
-
-        if (this.chainId === 84531 || this.chainId === 8453) {
-            userOperation.verificationGasLimit = 1_000_000n
-            userOperation.callGasLimit = 1_000_000n
-        }
-
-        const executionResult = await this.validator.getExecutionResult(userOperation)
-
         let preVerificationGas = calcPreVerificationGas(userOperation)
 
-        const verificationGas = ((executionResult.preOpGas - userOperation.preVerificationGas) * 3n) / 2n
-        const calculatedCallGasLimit =
-            executionResult.paid / userOperation.maxFeePerGas - executionResult.preOpGas + 21000n + 50000n
-
-        let callGasLimit = calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n
-
-        if (
-            this.chainId === 10 ||
-            this.chainId === 420 ||
-            this.chainId === 8453 ||
-            this.chainId === 84531 ||
-            this.chainId === chains.opBNB.id ||
-            this.chainId === chains.opBNBTestnet.id
-        ) {
-            callGasLimit = callGasLimit + 150000n
-        }
-
         if (this.chainId === 59140 || this.chainId === 59142) {
-            preVerificationGas = preVerificationGas + (verificationGas + callGasLimit) / 3n
+            preVerificationGas = 2n * preVerificationGas
         } else if (
             this.chainId === chains.optimism.id ||
             this.chainId === chains.optimismGoerli.id ||
@@ -240,10 +213,34 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
 
+        const verificationGasLimit = await estimateVerificationGasLimit(
+            userOperation,
+            entryPoint,
+            this.publicClient,
+            this.logger
+        )
+
+        const executionResult = await this.validator.getExecutionResult(userOperation)
+        const calculatedCallGasLimit =
+            executionResult.paid / userOperation.maxFeePerGas - executionResult.preOpGas + 21000n + 50000n
+
+        let callGasLimit = calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n
+
+        if (
+            this.chainId === 10 ||
+            this.chainId === 420 ||
+            this.chainId === 8453 ||
+            this.chainId === 84531 ||
+            this.chainId === chains.opBNB.id ||
+            this.chainId === chains.opBNBTestnet.id
+        ) {
+            callGasLimit = callGasLimit + 150000n
+        }
+
         return {
             preVerificationGas,
-            verificationGas,
-            verificationGasLimit: verificationGas,
+            verificationGas: verificationGasLimit,
+            verificationGasLimit,
             callGasLimit
         }
     }
