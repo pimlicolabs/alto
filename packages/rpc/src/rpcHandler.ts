@@ -50,7 +50,7 @@ import { fromZodError } from "zod-validation-error"
 import * as chains from "viem/chains"
 import { Mempool, Monitor } from "@alto/mempool"
 import { NonceQueuer } from "./nonceQueuer"
-import { estimateVerificationGasLimit } from "./gasEstimation"
+import { estimateCallGasLimit, estimateVerificationGasLimit } from "./gasEstimation"
 
 export interface IRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>
@@ -213,29 +213,25 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
 
+        const time = Date.now()
+
         const verificationGasLimit = await estimateVerificationGasLimit(
             userOperation,
             entryPoint,
             this.publicClient,
-            this.logger
+            this.logger,
+            this.metrics
         )
 
-        const executionResult = await this.validator.getExecutionResult(userOperation)
-        const calculatedCallGasLimit =
-            executionResult.paid / userOperation.maxFeePerGas - executionResult.preOpGas + 21000n + 50000n
+        this.metrics.verificationGasLimitEstimationTime.observe((Date.now() - time) / 1000)
 
-        let callGasLimit = calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n
-
-        if (
-            this.chainId === 10 ||
-            this.chainId === 420 ||
-            this.chainId === 8453 ||
-            this.chainId === 84531 ||
-            this.chainId === chains.opBNB.id ||
-            this.chainId === chains.opBNBTestnet.id
-        ) {
-            callGasLimit = callGasLimit + 150000n
-        }
+        const callGasLimit = await estimateCallGasLimit(
+            userOperation,
+            entryPoint,
+            this.publicClient,
+            this.logger,
+            this.metrics
+        )
 
         return {
             preVerificationGas,

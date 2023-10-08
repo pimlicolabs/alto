@@ -103,6 +103,22 @@ export function createMetrics(
         buckets: [0.01, 0.025, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.75, 1, 2, 3, 4, 5, 7.5, 10, 15, 20, 25, 30, 60, 120]
     })
 
+    const verificationGasLimitEstimationTime = new Histogram({
+        name: "alto_verification_gas_limit_estimation_time_seconds",
+        help: "Total duration of verification gas limit estimation",
+        labelNames: ["network", "chainId"] as const,
+        registers: [],
+        buckets: [0.1, 0.2, 0.3, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5]
+    })
+
+    const verificationGasLimitEstimationCount = new Histogram({
+        name: "alto_verification_gas_limit_estimation_count",
+        help: "Number of verification gas limit estimation calls",
+        labelNames: ["network", "chainId"] as const,
+        registers: [],
+        buckets: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    })
+
     if (register) {
         registry.registerMetric(userOperationsInMempool)
         registry.registerMetric(walletsAvailable)
@@ -116,6 +132,8 @@ export function createMetrics(
         registry.registerMetric(userOperationsValidationFailure)
         registry.registerMetric(userOperationInclusionDuration)
         registry.registerMetric(httpRequestDuration)
+        registry.registerMetric(verificationGasLimitEstimationTime)
+        registry.registerMetric(verificationGasLimitEstimationCount)
     }
 
     userOperationInclusionDuration.zero({ network, chainId })
@@ -136,6 +154,8 @@ export function createMetrics(
         userOperationsValidationSuccess: userOperationsValidationSuccess.labels({ network, chainId }),
         userOperationsValidationFailure: userOperationsValidationFailure.labels({ network, chainId }),
         userOperationInclusionDuration: userOperationInclusionDuration.labels({ network, chainId }),
+        verificationGasLimitEstimationTime: verificationGasLimitEstimationTime.labels({ network, chainId }),
+        verificationGasLimitEstimationCount: verificationGasLimitEstimationCount.labels({ network, chainId }),
         httpRequestDuration: { metric: httpRequestDuration, chainId, network }
     }
 }

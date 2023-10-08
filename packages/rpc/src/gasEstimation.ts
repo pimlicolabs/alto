@@ -6,10 +6,11 @@ import {
     executionResultSchema,
     hexDataSchema
 } from "@alto/types"
-import { Logger } from "@alto/utils"
+import { Logger, Metrics } from "@alto/utils"
 import { Address, PublicClient, encodeFunctionData, toHex } from "viem"
 import { zeroAddress, decodeErrorResult } from "viem"
-import type { RpcRequestErrorType } from "viem"
+import type { Chain, RpcRequestErrorType, Transport } from "viem"
+import * as chains from "viem/chains"
 import { z } from "zod"
 
 async function simulateHandleOp(userOperation: UserOperation, entryPoint: Address, publicClient: PublicClient) {
@@ -86,7 +87,8 @@ export async function estimateVerificationGasLimit(
     userOperation: UserOperation,
     entryPoint: Address,
     publicClient: PublicClient,
-    logger: Logger
+    logger: Logger,
+    metrics: Metrics
 ): Promise<bigint> {
     userOperation.callGasLimit = 0n
 
@@ -99,6 +101,7 @@ export async function estimateVerificationGasLimit(
     userOperation.verificationGasLimit = upper
     userOperation.callGasLimit = 0n
 
+    let simulationCounter = 1
     const initial = await simulateHandleOp(userOperation, entryPoint, publicClient)
 
     if (initial.result === "execution") {
@@ -118,6 +121,7 @@ export async function estimateVerificationGasLimit(
         userOperation.callGasLimit = 0n
 
         const error = await simulateHandleOp(userOperation, entryPoint, publicClient)
+        simulationCounter++
 
         if (error.result === "execution") {
             upper = mid
@@ -138,51 +142,48 @@ export async function estimateVerificationGasLimit(
 
     logger.info(`Verification gas limit: ${final}`)
 
+    metrics.verificationGasLimitEstimationCount.observe(simulationCounter)
+
     return final
 }
 
-/*
-async function estimateCallGasLimit(
+export async function estimateCallGasLimit(
     userOperation: UserOperation,
     entryPoint: Address,
-    publicClient: PublicClient,
-    logger: Logger
+    publicClient: PublicClient<Transport, Chain>,
+    logger: Logger,
+    metrics: Metrics
 ): Promise<bigint> {
-    userOperation.verificationGasLimit = 0n
-    userOperation.callGasLimit = 0n
+    const error = await simulateHandleOp(userOperation, entryPoint, publicClient)
 
-    let lower = 0n
-    let upper = 10_000_000n
-    let final: bigint | null = null
-
-    const cutoff = 20_000n
-
-    // binary search
-    while (upper - lower > cutoff) {
-        const mid = (upper + lower) / 2n
-
-        userOperation.callGasLimit = mid
-
-        const error = await simulateHandleOp(userOperation, entryPoint, publicClient)
-
-        logger.debug(`Call gas limit: ${mid}, error: ${error}`)
-
-        if (error === null) {
-            upper = mid
-            final = mid
-        } else if (tooLow(error)) {
-            lower = mid
-        } else {
-            throw new Error("Unexpected error")
-        }
+    if (error.result === "failed") {
+        throw new RpcError(
+            `UserOperation reverted during simulation with reason: ${error.data}`,
+            ValidationErrors.SimulateValidation
+        )
     }
 
-    if (final === null) {
-        throw new RpcError("Failed to estimate call gas limit")
+    logger.info(`Call gas limit estimate: ${error.data.paid / userOperation.maxFeePerGas - error.data.preOpGas}`)
+
+    const executionResult = error.data
+
+    const calculatedCallGasLimit =
+        executionResult.paid / userOperation.maxFeePerGas - executionResult.preOpGas + 21000n + 50000n
+
+    let callGasLimit = calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n
+
+    const chainId = publicClient.chain.id
+
+    if (
+        chainId === chains.optimism.id ||
+        chainId === chains.optimismGoerli.id ||
+        chainId === chains.base.id ||
+        chainId === chains.baseGoerli.id ||
+        chainId === chains.opBNB.id ||
+        chainId === chains.opBNBTestnet.id
+    ) {
+        callGasLimit = callGasLimit + 150000n
     }
 
-    logger.info(`Call gas limit: ${final}`)
-
-    return final
+    return callGasLimit
 }
-*/
