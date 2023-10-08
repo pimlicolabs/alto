@@ -223,6 +223,9 @@ export class RpcHandler implements IRpcEndpoint {
             this.metrics
         )
 
+        userOperation.preVerificationGas = preVerificationGas
+        userOperation.verificationGasLimit = verificationGasLimit
+
         this.metrics.verificationGasLimitEstimationTime.observe((Date.now() - time) / 1000)
 
         const callGasLimit = await estimateCallGasLimit(
