@@ -107,6 +107,25 @@ const xaiGoerliOrbit: Chain = {
     testnet: false
 }
 
+const nautilus: Chain = {
+    id: 22222,
+    name: "Nautilus",
+    network: "nautilus",
+    nativeCurrency: {
+        name: "ZBC",
+        symbol: "ZBC",
+        decimals: 18
+    },
+    rpcUrls: {
+        default: {
+            http: []
+        },
+        public: {
+            http: []
+        }
+    }
+}
+
 function getChain(chainId: number): Chain {
     if (chainId === 36865) {
         return customTestnet
@@ -116,12 +135,12 @@ function getChain(chainId: number): Chain {
         return dfkTestnet
     }
 
-    if (chainId === 59144) {
-        return linea
-    }
-
     if (chainId === 47279324479) {
         return xaiGoerliOrbit
+    }
+
+    if (chainId === 22222) {
+        return nautilus
     }
 
     for (const chain of Object.values(chains)) {
