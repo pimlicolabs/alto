@@ -67,26 +67,6 @@ const dfkTestnet: Chain = {
     testnet: true
 }
 
-const linea: Chain = {
-    id: 59144,
-    name: "Linea Mainnet",
-    network: "linea",
-    nativeCurrency: {
-        name: "ETH",
-        symbol: "ETH",
-        decimals: 18
-    },
-    rpcUrls: {
-        default: {
-            http: []
-        },
-        public: {
-            http: []
-        }
-    },
-    testnet: false
-}
-
 const xaiGoerliOrbit: Chain = {
     id: 47279324479,
     name: "Xai Goerli Orbit",
