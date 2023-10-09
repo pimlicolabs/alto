@@ -109,7 +109,8 @@ export class BasicExecutor implements IExecutor {
         const onlyPre1559 =
             this.walletClient.chain.id === chains.fuse.id ||
             this.walletClient.chain.id === chains.scrollTestnet.id ||
-            this.walletClient.chain.id === chains.scrollSepolia.id
+            this.walletClient.chain.id === chains.scrollSepolia.id ||
+            this.walletClient.chain.id === 22222
 
         newRequest.maxFeePerGas =
             gasPriceParameters.maxFeePerGas > (newRequest.maxFeePerGas * 11n) / 10n
@@ -309,7 +310,8 @@ export class BasicExecutor implements IExecutor {
         const onlyPre1559 =
             this.walletClient.chain.id === chains.fuse.id ||
             this.walletClient.chain.id === chains.scrollTestnet.id ||
-            this.walletClient.chain.id === chains.scrollSepolia.id
+            this.walletClient.chain.id === chains.scrollSepolia.id ||
+            this.walletClient.chain.id === 22222
 
         const { gasLimit, simulatedOps } = await filterOpsAndEstimateGas(
             ep,

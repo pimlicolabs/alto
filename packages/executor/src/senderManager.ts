@@ -151,7 +151,8 @@ export class SenderManager {
                     const onlyPre1559 =
                         walletClient.chain.id === chains.fuse.id ||
                         walletClient.chain.id === chains.scrollTestnet.id ||
-                        walletClient.chain.id === chains.scrollSepolia.id
+                        walletClient.chain.id === chains.scrollSepolia.id ||
+                        walletClient.chain.id === 22222
 
                     const tx = await walletClient.sendTransaction({
                         account: this.utilityAccount,
