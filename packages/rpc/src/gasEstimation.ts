@@ -44,13 +44,13 @@ async function simulateHandleOp(userOperation: UserOperation, entryPoint: Addres
         const causeParseResult = z
             .object({
                 code: z.literal(3),
-                message: z.literal("execution reverted"),
+                message: z.string().regex(/execution reverted.*/),
                 data: hexDataSchema
             })
             .safeParse(err.cause)
 
         if (!causeParseResult.success) {
-            throw err
+            throw new Error(JSON.stringify(err.cause))
         }
 
         const cause = causeParseResult.data
@@ -76,6 +76,7 @@ function tooLow(error: string) {
         error === "AA41 too little verificationGas" ||
         error === "AA51 prefund below actualGasCost" ||
         error === "AA13 initCode failed or OOG" ||
+        error === "AA21 didn't pay prefund" ||
         error === "AA23 reverted (or OOG)" ||
         error === "AA33 reverted (or OOG)" ||
         error === "return data out of bounds" ||
