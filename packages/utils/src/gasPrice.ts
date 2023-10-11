@@ -104,16 +104,8 @@ export async function getGasPrice(
         maxPriorityFeePerGas = gasPrice
     }
 
-    if (chainId === 53935) {
+    if (chainId === 53935 || chainId === chains.lineaTestnet.id) {
         gasPrice = gasPrice * 2n
-    }
-
-    if (chainId === ChainId.LineaTestnet) {
-        if (gasPrice < 300_000_000_000) {
-            gasPrice = 300_000_000_000n
-        }
-
-        maxPriorityFeePerGas = gasPrice
     }
 
     return {
