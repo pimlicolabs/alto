@@ -214,7 +214,7 @@ export async function estimateCallGasLimit(
     let upper: bigint
     let final: bigint | null = null
 
-    const cutoff = 1_000n
+    const cutoff = 10_000n
 
     if (result.success) {
         upper = 6n * result.gasUsed
