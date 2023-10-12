@@ -1,5 +1,6 @@
 import {
     EntryPointAbi,
+    ExecutionResult,
     RpcError,
     UserOperation,
     ValidationErrors,
@@ -9,11 +10,33 @@ import {
 import { Logger, Metrics } from "@alto/utils"
 import { Address, PublicClient, encodeFunctionData, toHex } from "viem"
 import { zeroAddress, decodeErrorResult } from "viem"
-import type { Chain, RpcRequestErrorType, Transport } from "viem"
-import * as chains from "viem/chains"
+import type { Chain, Hex, RpcRequestErrorType, Transport } from "viem"
 import { z } from "zod"
+import { ExecuteSimulatorAbi, ExecuteSimulatorDeployedBytecode } from "./ExecuteSimulator"
 
-async function simulateHandleOp(userOperation: UserOperation, entryPoint: Address, publicClient: PublicClient) {
+async function simulateHandleOp(
+    userOperation: UserOperation,
+    entryPoint: Address,
+    publicClient: PublicClient,
+    replacedEntryPoint: boolean,
+    targetAddress: Address,
+    targetCallData: Hex
+) {
+    const finalParam = replacedEntryPoint
+        ? {
+              [userOperation.sender]: {
+                  balance: toHex(100000_000000000000000000n)
+              },
+              [entryPoint]: {
+                  code: ExecuteSimulatorDeployedBytecode
+              }
+          }
+        : {
+              [userOperation.sender]: {
+                  balance: toHex(100000_000000000000000000n)
+              }
+          }
+
     try {
         await publicClient.request({
             method: "eth_call",
@@ -24,18 +47,14 @@ async function simulateHandleOp(userOperation: UserOperation, entryPoint: Addres
                     data: encodeFunctionData({
                         abi: EntryPointAbi,
                         functionName: "simulateHandleOp",
-                        args: [userOperation, zeroAddress, "0x"]
+                        args: [userOperation, targetAddress, targetCallData]
                     }),
                     gas: toHex(100_000_000)
                 },
                 // @ts-ignore
                 "latest",
                 // @ts-ignore
-                {
-                    [userOperation.sender]: {
-                        balance: toHex(100000_000000000000000000n)
-                    }
-                }
+                finalParam
             ]
         })
     } catch (e) {
@@ -103,7 +122,7 @@ export async function estimateVerificationGasLimit(
     userOperation.callGasLimit = 0n
 
     let simulationCounter = 1
-    const initial = await simulateHandleOp(userOperation, entryPoint, publicClient)
+    const initial = await simulateHandleOp(userOperation, entryPoint, publicClient, false, zeroAddress, "0x")
 
     if (initial.result === "execution") {
         upper = 6n * (initial.data.preOpGas - userOperation.preVerificationGas)
@@ -121,7 +140,7 @@ export async function estimateVerificationGasLimit(
         userOperation.verificationGasLimit = mid
         userOperation.callGasLimit = 0n
 
-        const error = await simulateHandleOp(userOperation, entryPoint, publicClient)
+        const error = await simulateHandleOp(userOperation, entryPoint, publicClient, false, zeroAddress, "0x")
         simulationCounter++
 
         if (error.result === "execution") {
@@ -148,6 +167,23 @@ export async function estimateVerificationGasLimit(
     return final
 }
 
+function getCallExecuteResult(data: ExecutionResult) {
+    const callExecuteResult = decodeErrorResult({
+        abi: ExecuteSimulatorAbi,
+        data: data.targetResult
+    })
+
+    const success = callExecuteResult.args[0]
+    const revertData = callExecuteResult.args[1]
+    const gasUsed = callExecuteResult.args[2]
+
+    return {
+        success,
+        revertData,
+        gasUsed
+    }
+}
+
 export async function estimateCallGasLimit(
     userOperation: UserOperation,
     entryPoint: Address,
@@ -155,7 +191,15 @@ export async function estimateCallGasLimit(
     logger: Logger,
     metrics: Metrics
 ): Promise<bigint> {
-    const error = await simulateHandleOp(userOperation, entryPoint, publicClient)
+    const targetCallData = encodeFunctionData({
+        abi: ExecuteSimulatorAbi,
+        functionName: "callExecute",
+        args: [userOperation.sender, userOperation.callData, 2_000_000n]
+    })
+
+    userOperation.callGasLimit = 0n
+
+    const error = await simulateHandleOp(userOperation, entryPoint, publicClient, true, entryPoint, targetCallData)
 
     if (error.result === "failed") {
         throw new RpcError(
@@ -164,27 +208,59 @@ export async function estimateCallGasLimit(
         )
     }
 
-    logger.info(`Call gas limit estimate: ${error.data.paid / userOperation.maxFeePerGas - error.data.preOpGas}`)
+    const result = getCallExecuteResult(error.data)
 
-    const executionResult = error.data
+    let lower = 0n
+    let upper: bigint
+    let final: bigint | null = null
 
-    const calculatedCallGasLimit =
-        executionResult.paid / userOperation.maxFeePerGas - executionResult.preOpGas + 21000n + 50000n
+    const cutoff = 1_000n
 
-    let callGasLimit = calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n
-
-    const chainId = publicClient.chain.id
-
-    if (
-        chainId === chains.optimism.id ||
-        chainId === chains.optimismGoerli.id ||
-        chainId === chains.base.id ||
-        chainId === chains.baseGoerli.id ||
-        chainId === chains.opBNB.id ||
-        chainId === chains.opBNBTestnet.id
-    ) {
-        callGasLimit = callGasLimit + 150000n
+    if (result.success) {
+        upper = 6n * result.gasUsed
+        final = 6n * result.gasUsed
+    } else {
+        throw new RpcError(
+            "UserOperation reverted during execution phase",
+            ValidationErrors.SimulateValidation,
+            result.revertData
+        )
     }
 
-    return callGasLimit
+    // binary search
+    while (upper - lower > cutoff) {
+        const mid = (upper + lower) / 2n
+
+        userOperation.callGasLimit = 0n
+        const targetCallData = encodeFunctionData({
+            abi: ExecuteSimulatorAbi,
+            functionName: "callExecute",
+            args: [userOperation.sender, userOperation.callData, mid]
+        })
+
+        const error = await simulateHandleOp(userOperation, entryPoint, publicClient, true, entryPoint, targetCallData)
+
+        if (error.result !== "execution") {
+            throw new Error("Unexpected error")
+        }
+
+        const result = getCallExecuteResult(error.data)
+
+        if (result.success) {
+            upper = mid
+            final = mid
+            logger.debug(`Call gas limit: ${mid}`)
+        } else {
+            lower = mid
+            logger.debug(`Call gas limit: ${mid}, error: ${result.revertData}`)
+        }
+    }
+
+    if (final === null) {
+        throw new RpcError("Failed to estimate call gas limit")
+    }
+
+    logger.info(`Call gas limit estimate: ${final}`)
+
+    return final
 }

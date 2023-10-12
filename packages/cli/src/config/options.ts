@@ -123,6 +123,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "boolean",
         require: true,
         default: false
+    },
+    minimumGasPricePercent: {
+        description: "Minimum % of userop gasPrice compared to gasPrice used by the bundler",
+        type: "number",
+        require: true,
+        default: 0
     }
 }
 

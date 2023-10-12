@@ -73,6 +73,7 @@ export class RpcHandler implements IRpcEndpoint {
     monitor: Monitor
     nonceQueuer: NonceQueuer
     usingTenderly: boolean
+    minimumGasPricePercent: number
     logger: Logger
     metrics: Metrics
     chainId: number
@@ -85,6 +86,7 @@ export class RpcHandler implements IRpcEndpoint {
         monitor: Monitor,
         nonceQueuer: NonceQueuer,
         usingTenderly: boolean,
+        minimumGasPricePercent: number,
         logger: Logger,
         metrics: Metrics
     ) {
@@ -95,6 +97,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.monitor = monitor
         this.nonceQueuer = nonceQueuer
         this.usingTenderly = usingTenderly
+        this.minimumGasPricePercent = minimumGasPricePercent
         this.logger = logger
         this.metrics = metrics
 
@@ -255,6 +258,22 @@ export class RpcHandler implements IRpcEndpoint {
         if (this.chainId === chains.celoAlfajores.id || this.chainId === chains.celo.id) {
             if (userOperation.maxFeePerGas !== userOperation.maxPriorityFeePerGas) {
                 throw new RpcError("maxPriorityFeePerGas must equal maxFeePerGas on Celo chains")
+            }
+        }
+
+        if (this.minimumGasPricePercent !== 0) {
+            const gasPrice = await getGasPrice(this.chainId, this.publicClient, this.logger)
+            const minMaxFeePerGas = (gasPrice.maxFeePerGas * BigInt(this.minimumGasPricePercent)) / 100n
+            if (userOperation.maxFeePerGas < minMaxFeePerGas) {
+                throw new RpcError(
+                    `maxFeePerGas must be at least ${minMaxFeePerGas} (current maxFeePerGas: ${gasPrice.maxFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
+                )
+            }
+
+            if (userOperation.maxPriorityFeePerGas < minMaxFeePerGas) {
+                throw new RpcError(
+                    `maxPriorityFeePerGas must be at least ${minMaxFeePerGas} (current maxPriorityFeePerGas: ${gasPrice.maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
+                )
             }
         }
 

@@ -50,7 +50,8 @@ export const bundlerArgsSchema = z.object({
     lokiUsername: z.string().optional(),
     lokiPassword: z.string().optional(),
 
-    tenderlyEnabled: z.boolean().optional()
+    tenderlyEnabled: z.boolean().optional(),
+    minimumGasPricePercent: z.number().int().min(0)
 })
 
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>
