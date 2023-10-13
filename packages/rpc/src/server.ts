@@ -167,32 +167,30 @@ export class Server {
                 await reply.status(200).send(rpcError)
                 requestInfo.statusCode = 200
                 this.fastify.log.info(rpcError, "error reply")
-            } else {
-                if (err instanceof Error) {
-                    const rpcError = {
-                        jsonrpc: "2.0",
-                        id: requestInfo.id,
-                        error: {
-                            message: err.message
-                        }
+            } else if (err instanceof Error) {
+                const rpcError = {
+                    jsonrpc: "2.0",
+                    id: requestInfo.id,
+                    error: {
+                        message: err.message
                     }
-
-                    await reply.status(500).send(rpcError)
-                    requestInfo.statusCode = 500
-                    this.fastify.log.error(err, "error reply (non-rpc)")
-                } else {
-                    const rpcError = {
-                        jsonrpc: "2.0",
-                        id: requestInfo.id,
-                        error: {
-                            message: "Unknown error"
-                        }
-                    }
-
-                    await reply.status(500).send(rpcError)
-                    requestInfo.statusCode = 500
-                    this.fastify.log.info(reply.raw, "error reply (non-rpc)")
                 }
+
+                await reply.status(500).send(rpcError)
+                requestInfo.statusCode = 500
+                this.fastify.log.error(err, "error reply (non-rpc)")
+            } else {
+                const rpcError = {
+                    jsonrpc: "2.0",
+                    id: requestInfo.id,
+                    error: {
+                        message: "Unknown error"
+                    }
+                }
+
+                await reply.status(500).send(rpcError)
+                requestInfo.statusCode = 500
+                this.fastify.log.info(reply.raw, "error reply (non-rpc)")
             }
         }
 
