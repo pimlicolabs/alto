@@ -32,7 +32,7 @@ import {
     calcArbitrumPreVerificationGas,
     getNonceKeyAndValue
 } from "@alto/utils"
-import { IValidator } from "./vatidation"
+import { IValidator } from "./validation"
 import {
     decodeFunctionData,
     getAbiItem,
