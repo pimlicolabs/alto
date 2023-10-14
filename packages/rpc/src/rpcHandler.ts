@@ -210,7 +210,8 @@ export class RpcHandler implements IRpcEndpoint {
             this.chainId === 8453 ||
             this.chainId === 84531 ||
             this.chainId === chains.opBNB.id ||
-            this.chainId === chains.opBNBTestnet.id
+            this.chainId === chains.opBNBTestnet.id ||
+            this.chainId === chains.polygon.id
         ) {
             callGasLimit = callGasLimit + 150000n
         }
