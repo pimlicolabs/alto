@@ -191,9 +191,6 @@ export class RpcHandler implements IRpcEndpoint {
 
         let preVerificationGas = calcPreVerificationGas(userOperation)
 
-        userOperation.maxFeePerGas = 0n
-        userOperation.maxPriorityFeePerGas = 0n
-
         if (this.chainId === 59140 || this.chainId === 59142) {
             preVerificationGas = 2n * preVerificationGas
         } else if (
@@ -218,6 +215,9 @@ export class RpcHandler implements IRpcEndpoint {
                 preVerificationGas
             )
         }
+
+        userOperation.maxFeePerGas = 0n
+        userOperation.maxPriorityFeePerGas = 0n
 
         const time = Date.now()
 
