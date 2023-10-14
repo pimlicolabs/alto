@@ -49,7 +49,7 @@ async function simulateHandleOp(
                         functionName: "simulateHandleOp",
                         args: [userOperation, targetAddress, targetCallData]
                     }),
-                    gas: toHex(100_000_000)
+                    gas: toHex(20_000_000)
                 },
                 // @ts-ignore
                 "latest",
@@ -158,6 +158,10 @@ export async function estimateVerificationGasLimit(
 
     if (final === null) {
         throw new RpcError("Failed to estimate verification gas limit")
+    }
+
+    if (userOperation.paymasterAndData === "0x") {
+        final = final + 30_000n
     }
 
     logger.info(`Verification gas limit: ${final}`)

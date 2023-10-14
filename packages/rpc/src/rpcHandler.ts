@@ -185,9 +185,8 @@ export class RpcHandler implements IRpcEndpoint {
             throw new Error(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.entryPoint}`)
         }
 
-        if (userOperation.maxFeePerGas === 0n) {
-            throw new RpcError("user operation max fee per gas must be larger than 0 during gas estimation")
-        }
+        userOperation.maxFeePerGas = 0n
+        userOperation.maxPriorityFeePerGas = 0n
 
         let preVerificationGas = calcPreVerificationGas(userOperation)
 
