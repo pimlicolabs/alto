@@ -13,7 +13,6 @@ import {
     getContract
 } from "viem"
 import { getGasPrice } from "@alto/utils"
-import * as chains from "viem/chains"
 
 const waitForTransactionReceipt = async (publicClient: PublicClient, tx: HexData32): Promise<TransactionReceipt> => {
     try {
@@ -29,9 +28,17 @@ export class SenderManager {
     availableWallets: Account[]
     private logger: Logger
     private metrics: Metrics
+    private noEip1559Support: boolean
     private semaphore: Semaphore
 
-    constructor(wallets: Account[], utilityAccount: Account, logger: Logger, metrics: Metrics, maxSigners?: number) {
+    constructor(
+        wallets: Account[],
+        utilityAccount: Account,
+        logger: Logger,
+        metrics: Metrics,
+        noEip1559Support: boolean,
+        maxSigners?: number
+    ) {
         if (maxSigners !== undefined && wallets.length > maxSigners) {
             this.wallets = wallets.slice(0, maxSigners)
             this.availableWallets = wallets.slice(0, maxSigners)
@@ -43,6 +50,7 @@ export class SenderManager {
         this.utilityAccount = utilityAccount
         this.logger = logger
         this.metrics = metrics
+        this.noEip1559Support = noEip1559Support
         metrics.walletsAvailable.set(this.availableWallets.length)
         metrics.walletsTotal.set(this.wallets.length)
         this.semaphore = new Semaphore(this.availableWallets.length)
@@ -148,19 +156,14 @@ export class SenderManager {
                 }
             } else {
                 for (const [address, missingBalance] of Object.entries(balancesMissing)) {
-                    const onlyPre1559 =
-                        walletClient.chain.id === chains.fuse.id ||
-                        walletClient.chain.id === chains.scrollTestnet.id ||
-                        walletClient.chain.id === chains.scrollSepolia.id
-
                     const tx = await walletClient.sendTransaction({
                         account: this.utilityAccount,
                         // @ts-ignore
                         to: address,
                         value: missingBalance,
-                        maxFeePerGas: onlyPre1559 ? undefined : maxFeePerGas,
-                        maxPriorityFeePerGas: onlyPre1559 ? undefined : maxPriorityFeePerGas,
-                        gasPrice: onlyPre1559 ? maxFeePerGas : undefined
+                        maxFeePerGas: this.noEip1559Support ? undefined : maxFeePerGas,
+                        maxPriorityFeePerGas: this.noEip1559Support ? undefined : maxPriorityFeePerGas,
+                        gasPrice: this.noEip1559Support ? maxFeePerGas : undefined
                     })
 
                     await waitForTransactionReceipt(publicClient, tx)
