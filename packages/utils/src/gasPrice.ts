@@ -80,10 +80,12 @@ export async function getGasPrice(
 
     if (
         chainId === chains.arbitrum.id ||
+        chainId === chains.arbitrumGoerli.id ||
         chainId === chains.scroll.id ||
         chainId === chains.scrollSepolia.id ||
         chainId === 22222 ||
-        chainId === chains.sepolia.id
+        chainId === chains.sepolia.id ||
+        chainId === chains.mantle.id
     ) {
         gasPrice = (gasPrice * 5n) / 4n
         return {

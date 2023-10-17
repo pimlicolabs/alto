@@ -188,6 +188,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         parsedArgs.utilityPrivateKey,
         logger.child({ module: "executor" }),
         metrics,
+        parsedArgs.noEip1559Support,
         parsedArgs.maxSigners
     )
 
@@ -213,7 +214,8 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         parsedArgs.entryPoint,
         logger.child({ module: "executor" }),
         metrics,
-        !parsedArgs.tenderlyEnabled
+        !parsedArgs.tenderlyEnabled,
+        parsedArgs.noEip1559Support
     )
 
     new ExecutorManager(

@@ -15,7 +15,6 @@ import {
     getContract
 } from "viem"
 import { SenderManager } from "./senderManager"
-import * as chains from "viem/chains"
 import { getGasPrice } from "@alto/utils"
 import { filterOpsAndEstimateGas, flushStuckTransaction, simulatedOpsToResults } from "./utils"
 
@@ -68,6 +67,7 @@ export class BasicExecutor implements IExecutor {
     logger: Logger
     metrics: Metrics
     simulateTransaction: boolean
+    noEip1559Support: boolean
 
     mutex: Mutex
 
@@ -78,7 +78,8 @@ export class BasicExecutor implements IExecutor {
         entryPoint: Address,
         logger: Logger,
         metrics: Metrics,
-        simulateTransaction = false
+        simulateTransaction = false,
+        noEip1559Support = false
     ) {
         this.publicClient = publicClient
         this.walletClient = walletClient
@@ -87,6 +88,7 @@ export class BasicExecutor implements IExecutor {
         this.logger = logger
         this.metrics = metrics
         this.simulateTransaction = simulateTransaction
+        this.noEip1559Support = noEip1559Support
 
         this.mutex = new Mutex()
     }
@@ -105,12 +107,6 @@ export class BasicExecutor implements IExecutor {
         const newRequest = { ...transactionInfo.transactionRequest }
 
         const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
-
-        const onlyPre1559 =
-            this.walletClient.chain.id === chains.fuse.id ||
-            this.walletClient.chain.id === chains.scrollTestnet.id ||
-            this.walletClient.chain.id === chains.scrollSepolia.id ||
-            this.walletClient.chain.id === 22222
 
         newRequest.maxFeePerGas =
             gasPriceParameters.maxFeePerGas > (newRequest.maxFeePerGas * 11n) / 10n
@@ -138,7 +134,7 @@ export class BasicExecutor implements IExecutor {
             newRequest.maxFeePerGas,
             newRequest.maxPriorityFeePerGas,
             "latest",
-            onlyPre1559,
+            this.noEip1559Support,
             this.logger
         )
 
@@ -197,7 +193,7 @@ export class BasicExecutor implements IExecutor {
             )
 
             const txHash = await this.walletClient.writeContract(
-                onlyPre1559
+                this.noEip1559Support
                     ? {
                           ...newRequest,
                           gasPrice: newRequest.maxFeePerGas,
@@ -307,12 +303,6 @@ export class BasicExecutor implements IExecutor {
         })
         childLogger.trace({ nonce }, "got nonce")
 
-        const onlyPre1559 =
-            this.walletClient.chain.id === chains.fuse.id ||
-            this.walletClient.chain.id === chains.scrollTestnet.id ||
-            this.walletClient.chain.id === chains.scrollSepolia.id ||
-            this.walletClient.chain.id === 22222
-
         const { gasLimit, simulatedOps } = await filterOpsAndEstimateGas(
             ep,
             wallet,
@@ -321,7 +311,7 @@ export class BasicExecutor implements IExecutor {
             gasPriceParameters.maxFeePerGas,
             gasPriceParameters.maxPriorityFeePerGas,
             "pending",
-            onlyPre1559,
+            this.noEip1559Support,
             childLogger
         )
 
@@ -364,7 +354,7 @@ export class BasicExecutor implements IExecutor {
 
         const txHash = await ep.write.handleOps(
             [opsToBundle.map((op) => op.userOperation), wallet.address],
-            onlyPre1559
+            this.noEip1559Support
                 ? {
                       account: wallet,
                       gas: gasLimit,
