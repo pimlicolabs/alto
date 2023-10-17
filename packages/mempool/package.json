@@ -24,7 +24,7 @@
         "@alto/types": "*",
         "@alto/utils": "*",
         "async-mutex": "^0.4.0",
-        "viem": "^1.15.4",
+        "viem": "^1.16.6",
         "prom-client": "^14.2.0"
     }
 }
