@@ -245,6 +245,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         nonceQueuer,
         parsedArgs.tenderlyEnabled ?? false,
         parsedArgs.minimumGasPricePercent,
+        parsedArgs.noEthCallOverrideSupport,
         logger.child({ module: "rpc" }),
         metrics
     )
