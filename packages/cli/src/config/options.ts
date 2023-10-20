@@ -135,6 +135,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "boolean",
         require: true,
         default: false
+    },
+    noEthCallOverrideSupport: {
+        description: "Rpc url does not support eth_call overrides",
+        type: "boolean",
+        require: true,
+        default: false
     }
 }
 

@@ -74,6 +74,7 @@ export class RpcHandler implements IRpcEndpoint {
     nonceQueuer: NonceQueuer
     usingTenderly: boolean
     minimumGasPricePercent: number
+    noEthCallOverrideSupport: boolean
     logger: Logger
     metrics: Metrics
     chainId: number
@@ -87,6 +88,7 @@ export class RpcHandler implements IRpcEndpoint {
         nonceQueuer: NonceQueuer,
         usingTenderly: boolean,
         minimumGasPricePercent: number,
+        noEthCallOverrideSupport: boolean,
         logger: Logger,
         metrics: Metrics
     ) {
@@ -98,6 +100,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.nonceQueuer = nonceQueuer
         this.usingTenderly = usingTenderly
         this.minimumGasPricePercent = minimumGasPricePercent
+        this.noEthCallOverrideSupport = noEthCallOverrideSupport
         this.logger = logger
         this.metrics = metrics
 
@@ -219,28 +222,41 @@ export class RpcHandler implements IRpcEndpoint {
         userOperation.maxFeePerGas = 0n
         userOperation.maxPriorityFeePerGas = 0n
 
-        const time = Date.now()
+        let verificationGasLimit: bigint
+        let callGasLimit: bigint
 
-        const verificationGasLimit = await estimateVerificationGasLimit(
-            userOperation,
-            entryPoint,
-            this.publicClient,
-            this.logger,
-            this.metrics
-        )
+        if (this.noEthCallOverrideSupport) {
+            const executionResult = await this.validator.getExecutionResult(userOperation)
 
-        userOperation.preVerificationGas = preVerificationGas
-        userOperation.verificationGasLimit = verificationGasLimit
+            verificationGasLimit = ((executionResult.preOpGas - userOperation.preVerificationGas) * 3n) / 2n
+            const calculatedCallGasLimit =
+                executionResult.paid / userOperation.maxFeePerGas - executionResult.preOpGas + 21000n + 50000n
 
-        this.metrics.verificationGasLimitEstimationTime.observe((Date.now() - time) / 1000)
+            callGasLimit = calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n
+        } else {
+            const time = Date.now()
 
-        const callGasLimit = await estimateCallGasLimit(
-            userOperation,
-            entryPoint,
-            this.publicClient,
-            this.logger,
-            this.metrics
-        )
+            verificationGasLimit = await estimateVerificationGasLimit(
+                userOperation,
+                entryPoint,
+                this.publicClient,
+                this.logger,
+                this.metrics
+            )
+
+            userOperation.preVerificationGas = preVerificationGas
+            userOperation.verificationGasLimit = verificationGasLimit
+
+            this.metrics.verificationGasLimitEstimationTime.observe((Date.now() - time) / 1000)
+
+            callGasLimit = await estimateCallGasLimit(
+                userOperation,
+                entryPoint,
+                this.publicClient,
+                this.logger,
+                this.metrics
+            )
+        }
 
         return {
             preVerificationGas,

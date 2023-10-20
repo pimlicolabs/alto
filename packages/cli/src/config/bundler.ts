@@ -52,7 +52,8 @@ export const bundlerArgsSchema = z.object({
 
     tenderlyEnabled: z.boolean().optional(),
     minimumGasPricePercent: z.number().int().min(0),
-    noEip1559Support: z.boolean()
+    noEip1559Support: z.boolean(),
+    noEthCallOverrideSupport: z.boolean()
 })
 
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>
