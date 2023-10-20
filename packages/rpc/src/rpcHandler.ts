@@ -219,9 +219,6 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
 
-        userOperation.maxFeePerGas = 0n
-        userOperation.maxPriorityFeePerGas = 0n
-
         let verificationGasLimit: bigint
         let callGasLimit: bigint
 
@@ -234,6 +231,9 @@ export class RpcHandler implements IRpcEndpoint {
 
             callGasLimit = calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n
         } else {
+            userOperation.maxFeePerGas = 0n
+            userOperation.maxPriorityFeePerGas = 0n
+
             const time = Date.now()
 
             verificationGasLimit = await estimateVerificationGasLimit(
