@@ -68,6 +68,8 @@ export class BasicExecutor implements IExecutor {
     metrics: Metrics
     simulateTransaction: boolean
     noEip1559Support: boolean
+    customGasLimitForEstimation?: bigint
+    useUserOperationGasLimitsForSubmission: boolean
 
     mutex: Mutex
 
@@ -79,7 +81,9 @@ export class BasicExecutor implements IExecutor {
         logger: Logger,
         metrics: Metrics,
         simulateTransaction = false,
-        noEip1559Support = false
+        noEip1559Support = false,
+        customGasLimitForEstimation?: bigint,
+        useUserOperationGasLimitsForSubmission = false
     ) {
         this.publicClient = publicClient
         this.walletClient = walletClient
@@ -89,6 +93,8 @@ export class BasicExecutor implements IExecutor {
         this.metrics = metrics
         this.simulateTransaction = simulateTransaction
         this.noEip1559Support = noEip1559Support
+        this.customGasLimitForEstimation = customGasLimitForEstimation
+        this.useUserOperationGasLimitsForSubmission = useUserOperationGasLimitsForSubmission
 
         this.mutex = new Mutex()
     }
@@ -135,6 +141,7 @@ export class BasicExecutor implements IExecutor {
             newRequest.maxPriorityFeePerGas,
             "latest",
             this.noEip1559Support,
+            this.customGasLimitForEstimation,
             this.logger
         )
 
@@ -179,7 +186,17 @@ export class BasicExecutor implements IExecutor {
                 return opInfo
             })
 
-        newRequest.gas = result.gasLimit
+        newRequest.gas = this.useUserOperationGasLimitsForSubmission
+            ? opsToBundle.reduce(
+                  (acc, op) =>
+                      acc +
+                      op.userOperation.preVerificationGas +
+                      3n * op.userOperation.verificationGasLimit +
+                      op.userOperation.callGasLimit,
+                  0n
+              ) * 1n
+            : result.gasLimit
+
         newRequest.args = [opsToBundle.map((owh) => owh.userOperation), transactionInfo.executor.address]
 
         try {
@@ -312,6 +329,7 @@ export class BasicExecutor implements IExecutor {
             gasPriceParameters.maxPriorityFeePerGas,
             "pending",
             this.noEip1559Support,
+            this.customGasLimitForEstimation,
             childLogger
         )
 
@@ -352,12 +370,23 @@ export class BasicExecutor implements IExecutor {
 
         childLogger.trace({ gasLimit, opsToBundle: opsToBundle.map((sop) => sop.userOperationHash) }, "got gas limit")
 
+        const gasLimitToUse = this.useUserOperationGasLimitsForSubmission
+            ? opsToBundle.reduce(
+                  (acc, op) =>
+                      acc +
+                      op.userOperation.preVerificationGas +
+                      3n * op.userOperation.verificationGasLimit +
+                      op.userOperation.callGasLimit,
+                  0n
+              ) * 1n
+            : gasLimit
+
         const txHash = await ep.write.handleOps(
             [opsToBundle.map((op) => op.userOperation), wallet.address],
             this.noEip1559Support
                 ? {
                       account: wallet,
-                      gas: gasLimit,
+                      gas: gasLimitToUse,
                       gasPrice: gasPriceParameters.maxFeePerGas,
                       nonce: nonce
                   }

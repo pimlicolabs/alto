@@ -215,7 +215,9 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         logger.child({ module: "executor" }),
         metrics,
         !parsedArgs.tenderlyEnabled,
-        parsedArgs.noEip1559Support
+        parsedArgs.noEip1559Support,
+        parsedArgs.customGasLimitForEstimation,
+        parsedArgs.useUserOperationGasLimitsForSubmission
     )
 
     new ExecutorManager(

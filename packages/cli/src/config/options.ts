@@ -141,6 +141,16 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "boolean",
         require: true,
         default: false
+    },
+    useUserOperationGasLimitsForSubmission: {
+        description: "Use user operation gas limits during submission",
+        type: "boolean",
+        require: true,
+        default: false
+    },
+    customGasLimitForEstimation: {
+        description: "Custom gas limit for estimation",
+        type: "string"
     }
 }
 

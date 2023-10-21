@@ -7,7 +7,10 @@ import {
     WalletClient,
     Account,
     Transport,
-    Chain
+    Chain,
+    EstimateGasExecutionError,
+    Hex,
+    decodeErrorResult
 } from "viem"
 
 export function simulatedOpsToResults(
@@ -52,6 +55,7 @@ export async function filterOpsAndEstimateGas(
     maxPriorityFeePerGas: bigint,
     blockTag: "latest" | "pending",
     onlyPre1559: boolean,
+    customGasLimitForEstimation: bigint | undefined,
     logger: Logger
 ) {
     const simulatedOps: {
@@ -71,6 +75,7 @@ export async function filterOpsAndEstimateGas(
                     ? {
                           account: wallet,
                           gasPrice: maxFeePerGas,
+                          gas: customGasLimitForEstimation,
                           nonce: nonce,
                           blockTag
                       }
@@ -78,6 +83,7 @@ export async function filterOpsAndEstimateGas(
                           account: wallet,
                           maxFeePerGas: maxFeePerGas,
                           maxPriorityFeePerGas: maxPriorityFeePerGas,
+                          gas: customGasLimitForEstimation,
                           nonce: nonce,
                           blockTag
                       }
@@ -106,12 +112,44 @@ export async function filterOpsAndEstimateGas(
 
                     failingOp.reason = failedOpError.args.reason
                 } else {
-                    logger.error(JSON.stringify(err))
                     logger.error({ error: parsingResult.error }, "failed to parse failedOpError")
                     return { simulatedOps: [], gasLimit: 0n }
                 }
+            } else if (e instanceof EstimateGasExecutionError) {
+                try {
+                    const errorHexData = e.details.split("Reverted ")[1] as Hex
+                    const errorResult = decodeErrorResult({
+                        abi: EntryPointAbi,
+                        data: errorHexData
+                    })
+                    logger.debug(
+                        {
+                            errorName: errorResult.errorName,
+                            args: errorResult.args,
+                            userOpHashes: simulatedOps
+                                .filter((op) => op.reason === undefined)
+                                .map((op) => op.op.userOperationHash)
+                        },
+                        "user op in batch invalid"
+                    )
+
+                    if (errorResult.errorName !== "FailedOp") {
+                        logger.error(
+                            { errorName: errorResult.errorName, args: errorResult.args },
+                            "unexpected error result"
+                        )
+                        return { simulatedOps: [], gasLimit: 0n }
+                    }
+
+                    const failingOp = simulatedOps.filter((op) => op.reason === undefined)[Number(errorResult.args[0])]
+
+                    failingOp.reason = errorResult.args[1]
+                } catch (e: unknown) {
+                    logger.error({ error: e }, "failed to parse error result")
+                    return { simulatedOps: [], gasLimit: 0n }
+                }
             } else {
-                logger.error({ error: err }, "error estimating gas")
+                logger.error({ error: JSON.stringify(err) }, "error estimating gas")
                 return { simulatedOps: [], gasLimit: 0n }
             }
         }

@@ -1,4 +1,5 @@
 import { Address, EntryPointAbi, RpcError, UserOperation } from "@alto/types"
+import { EstimateGasExecutionError } from "viem"
 import {
     Chain,
     ContractFunctionExecutionError,
@@ -333,6 +334,8 @@ export function parseViemError(err: unknown) {
         } else if (e instanceof IntrinsicGasTooLowError) {
             return e
         } else if (e instanceof ContractFunctionRevertedError) {
+            return e
+        } else if (e instanceof EstimateGasExecutionError) {
             return e
         }
         return
