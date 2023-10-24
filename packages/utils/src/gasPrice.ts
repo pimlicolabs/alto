@@ -82,9 +82,10 @@ export async function getGasPrice(
         chainId === chains.arbitrum.id ||
         chainId === chains.scrollSepolia.id ||
         chainId === chains.arbitrumGoerli.id ||
-        chainId === chains.mantle.id
+        chainId === chains.mantle.id ||
+        chainId === chains.mainnet.id
     ) {
-        gasPrice = (gasPrice * 5n) / 4n
+        gasPrice = (gasPrice * 10n) / 9n
         return {
             maxFeePerGas: gasPrice,
             maxPriorityFeePerGas: gasPrice
