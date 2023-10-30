@@ -1,7 +1,7 @@
 import { GasPriceParameters, gasStationResult } from "@alto/types"
 import { PublicClient, parseGwei } from "viem"
-import { Logger } from "."
 import * as chains from "viem/chains"
+import { Logger } from "."
 
 enum ChainId {
     Goerli = 5,
@@ -80,14 +80,16 @@ export async function getGasPrice(
 
     if (
         chainId === chains.arbitrum.id ||
-        chainId === chains.arbitrumGoerli.id ||
         chainId === chains.scroll.id ||
         chainId === chains.scrollSepolia.id ||
+        chainId === chains.arbitrumGoerli.id ||
+        chainId === chains.mainnet.id ||
+        chainId === chains.mantle.id ||
         chainId === 22222 ||
         chainId === chains.sepolia.id ||
-        chainId === chains.mantle.id
+        chainId === chains.base.id
     ) {
-        gasPrice = (gasPrice * 5n) / 4n
+        gasPrice = (gasPrice * 10n) / 9n
         return {
             maxFeePerGas: gasPrice,
             maxPriorityFeePerGas: gasPrice
@@ -110,10 +112,6 @@ export async function getGasPrice(
             gasPrice = feeAverage
         }
         maxPriorityFeePerGas = gasPrice
-    }
-
-    if (chainId === 53935 || chainId === chains.lineaTestnet.id) {
-        gasPrice = gasPrice * 2n
     }
 
     return {
