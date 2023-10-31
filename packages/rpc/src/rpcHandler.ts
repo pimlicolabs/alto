@@ -1,3 +1,4 @@
+import { Mempool, Monitor } from "@alto/mempool"
 import {
     Address,
     BundlerClearStateResponseResult,
@@ -24,33 +25,32 @@ import {
 } from "@alto/types"
 import {
     Logger,
-    calcPreVerificationGas,
-    calcOptimismPreVerificationGas,
     Metrics,
-    getUserOperationHash,
-    getGasPrice,
     calcArbitrumPreVerificationGas,
-    getNonceKeyAndValue
+    calcOptimismPreVerificationGas,
+    calcPreVerificationGas,
+    getGasPrice,
+    getNonceKeyAndValue,
+    getUserOperationHash
 } from "@alto/utils"
-import { IValidator } from "./vatidation"
 import {
+    Chain,
+    PublicClient,
+    Transaction,
+    TransactionNotFoundError,
+    TransactionReceipt,
+    TransactionReceiptNotFoundError,
+    Transport,
     decodeFunctionData,
     getAbiItem,
-    TransactionNotFoundError,
-    TransactionReceiptNotFoundError,
-    Transaction,
-    TransactionReceipt,
-    PublicClient,
-    Chain,
-    Transport,
     getContract
 } from "viem"
+import * as chains from "viem/chains"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
-import * as chains from "viem/chains"
-import { Mempool, Monitor } from "@alto/mempool"
-import { NonceQueuer } from "./nonceQueuer"
 import { estimateCallGasLimit, estimateVerificationGasLimit } from "./gasEstimation"
+import { NonceQueuer } from "./nonceQueuer"
+import { IValidator } from "./vatidation"
 
 export interface IRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>
@@ -357,7 +357,8 @@ export class RpcHandler implements IRpcEndpoint {
             this.chainId === chains.arbitrum.id ||
             this.chainId === chains.baseGoerli.id ||
             this.chainId === chains.avalanche.id ||
-            this.chainId === chains.avalancheFuji.id
+            this.chainId === chains.avalancheFuji.id ||
+            this.chainId === chains.scroll.id
         ) {
             fullBlockRange = 2000n
         }
@@ -447,7 +448,8 @@ export class RpcHandler implements IRpcEndpoint {
             this.chainId === chains.arbitrum.id ||
             this.chainId === chains.baseGoerli.id ||
             this.chainId === chains.avalanche.id ||
-            this.chainId === chains.avalancheFuji.id
+            this.chainId === chains.avalancheFuji.id ||
+            this.chainId === chains.scroll.id
         ) {
             fullBlockRange = 2000n
         }
