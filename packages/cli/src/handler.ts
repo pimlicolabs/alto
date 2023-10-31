@@ -1,13 +1,12 @@
-import { NonceQueuer, RpcHandler, Server, UnsafeValidator } from "@alto/rpc"
-import { IBundlerArgs, IBundlerArgsInput, bundlerArgsSchema } from "./config"
 import { BasicExecutor, ExecutorManager, SenderManager } from "@alto/executor"
-import { Logger, initDebugLogger, initProductionLogger } from "@alto/utils"
-import { createMetrics } from "@alto/utils"
+import { MemoryMempool, Monitor } from "@alto/mempool"
+import { NonceQueuer, RpcHandler, Server, UnsafeValidator } from "@alto/rpc"
+import { Logger, createMetrics, initDebugLogger, initProductionLogger } from "@alto/utils"
+import { Registry } from "prom-client"
 import { Chain, PublicClient, Transport, createPublicClient, createWalletClient, http } from "viem"
 import * as chains from "viem/chains"
 import { fromZodError } from "zod-validation-error"
-import { Registry } from "prom-client"
-import { MemoryMempool, Monitor } from "@alto/mempool"
+import { IBundlerArgs, IBundlerArgsInput, bundlerArgsSchema } from "./config"
 
 const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
     // validate every arg, make typesafe so if i add a new arg i have to validate it
@@ -106,6 +105,25 @@ const nautilus: Chain = {
     }
 }
 
+const lyra: Chain = {
+    id: 901,
+    name: "Lyra",
+    network: "lyra",
+    nativeCurrency: {
+        name: "ETH",
+        symbol: "ETH",
+        decimals: 18
+    },
+    rpcUrls: {
+        default: {
+            http: []
+        },
+        public: {
+            http: []
+        }
+    }
+}
+
 function getChain(chainId: number): Chain {
     if (chainId === 36865) {
         return customTestnet
@@ -121,6 +139,10 @@ function getChain(chainId: number): Chain {
 
     if (chainId === 22222) {
         return nautilus
+    }
+
+    if (chainId === 901) {
+        return lyra
     }
 
     for (const chain of Object.values(chains)) {

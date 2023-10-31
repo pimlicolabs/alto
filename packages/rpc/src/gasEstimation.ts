@@ -8,9 +8,8 @@ import {
     hexDataSchema
 } from "@alto/types"
 import { Logger, Metrics } from "@alto/utils"
-import { Address, PublicClient, encodeFunctionData, toHex } from "viem"
-import { zeroAddress, decodeErrorResult } from "viem"
 import type { Chain, Hex, RpcRequestErrorType, Transport } from "viem"
+import { Address, PublicClient, decodeErrorResult, encodeFunctionData, toHex, zeroAddress } from "viem"
 import { z } from "zod"
 import { ExecuteSimulatorAbi, ExecuteSimulatorDeployedBytecode } from "./ExecuteSimulator"
 
@@ -78,11 +77,11 @@ async function simulateHandleOp(
 
         if (decodedError.errorName === "FailedOp") {
             return { result: "failed", data: decodedError.args[1] } as const
-        } else if (decodedError.errorName === "ExecutionResult") {
+        }
+
+        if (decodedError.errorName === "ExecutionResult") {
             const parsedExecutionResult = executionResultSchema.parse(decodedError.args)
             return { result: "execution", data: parsedExecutionResult } as const
-        } else {
-            throw new Error("Unexpected error")
         }
     }
 
