@@ -1,15 +1,15 @@
 import { BundleResult, EntryPointAbi, TransactionInfo, UserOperationWithHash, failedOpErrorSchema } from "@alto/types"
-import { Logger, transactionIncluded, parseViemError } from "@alto/utils"
+import { Logger, parseViemError, transactionIncluded } from "@alto/utils"
 import {
-    ContractFunctionRevertedError,
-    GetContractReturnType,
-    PublicClient,
-    WalletClient,
     Account,
-    Transport,
     Chain,
+    ContractFunctionRevertedError,
     EstimateGasExecutionError,
+    GetContractReturnType,
     Hex,
+    PublicClient,
+    Transport,
+    WalletClient,
     decodeErrorResult
 } from "viem"
 
@@ -145,7 +145,7 @@ export async function filterOpsAndEstimateGas(
 
                     failingOp.reason = errorResult.args[1]
                 } catch (e: unknown) {
-                    logger.error({ error: e }, "failed to parse error result")
+                    logger.error({ error: JSON.stringify(e) }, "failed to parse error result")
                     return { simulatedOps: [], gasLimit: 0n }
                 }
             } else {
