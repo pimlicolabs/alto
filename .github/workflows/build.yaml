@@ -1,0 +1,53 @@
+name: Build and push Docker image
+
+on:
+  push:
+    branches:
+      - main
+      - build-workflow # todo remove before merge
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get full image name
+        id: base_image_name
+        env:
+          BASE_IMAGE_NAME: ${{ github.repository }}
+          REGISTRY: ghcr.io
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            echo "image_name=${REGISTRY}/${BASE_IMAGE_NAME}" >> $GITHUB_OUTPUT
+          else
+            echo "image_name=${REGISTRY}/${BASE_IMAGE_NAME}/staging" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.base_image_name.outputs.image_name }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value={{branch}}-{{sha}}-{{date 'X'}},enable=${{ startsWith(github.ref, 'refs/heads') }}
+            type=semver,pattern={{version}},prefix=v
+            type=semver,pattern={{major}}.{{minor}},prefix=v
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          push: true
