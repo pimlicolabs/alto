@@ -20,7 +20,7 @@ jobs:
           BASE_IMAGE_NAME: ${{ github.repository }}
           REGISTRY: ghcr.io
         run: |
-          if [[ $GITHUB_REF == refs/tags/* ]]; then
+          if [[ $GITHUB_REF == refs/heads/main ]]; then
             echo "image_name=${REGISTRY}/${BASE_IMAGE_NAME}" >> $GITHUB_OUTPUT
           else
             echo "image_name=${REGISTRY}/${BASE_IMAGE_NAME}/staging" >> $GITHUB_OUTPUT
@@ -40,7 +40,7 @@ jobs:
           images: ${{ steps.base_image_name.outputs.image_name }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value={{branch}}-{{sha}}-{{date 'X'}},enable=${{ startsWith(github.ref, 'refs/heads') }}
+            type=raw,value={{sha}}-{{date 'X'}},enable=${{ startsWith(github.ref, 'refs/heads') }}
             type=semver,pattern={{version}},prefix=v
             type=semver,pattern={{major}}.{{minor}},prefix=v
 
