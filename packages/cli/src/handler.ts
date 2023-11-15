@@ -242,7 +242,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         parsedArgs.useUserOperationGasLimitsForSubmission
     )
 
-    new ExecutorManager(
+    const executorManager = new ExecutorManager(
         executor,
         mempool,
         monitor,
@@ -250,7 +250,8 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         parsedArgs.entryPoint,
         parsedArgs.pollingInterval,
         logger.child({ module: "executor" }),
-        metrics
+        metrics,
+        parsedArgs.bundleMode
     )
 
     const nonceQueuer = new NonceQueuer(
@@ -267,11 +268,13 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         mempool,
         monitor,
         nonceQueuer,
+        executorManager,
         parsedArgs.tenderlyEnabled ?? false,
         parsedArgs.minimumGasPricePercent,
         parsedArgs.noEthCallOverrideSupport,
         logger.child({ module: "rpc" }),
-        metrics
+        metrics,
+        parsedArgs.environment
     )
 
     // executor.flushStuckTransactions()

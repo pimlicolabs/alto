@@ -72,10 +72,8 @@ async function getSimulationResult(
         if (errorData.errorName !== "ValidationResult" && errorData.errorName !== "ValidationResultWithAggregation") {
             throw new Error("Unexpected error - errorName is not ValidationResult or ValidationResultWithAggregation")
         }
-    } else {
-        if (errorData.errorName !== "ExecutionResult") {
-            throw new Error("Unexpected error - errorName is not ExecutionResult")
-        }
+    } else if (errorData.errorName !== "ExecutionResult") {
+        throw new Error("Unexpected error - errorName is not ExecutionResult")
     }
 
     const simulationResult = errorData.args
@@ -134,22 +132,20 @@ export class UnsafeValidator implements IValidator {
 
             // @ts-ignore
             return getSimulationResult(errorResult, this.logger, "execution", this.usingTenderly)
-        } else {
-            const errorResult = await entryPointContract.simulate
-                .simulateHandleOp([userOperation, "0x0000000000000000000000000000000000000000", "0x"], {
-                    account: this.utilityWallet
-                })
-                .catch((e) => {
-                    if (e instanceof Error) {
-                        return e
-                    } else {
-                        throw e
-                    }
-                })
-
-            // @ts-ignore
-            return getSimulationResult(errorResult, this.logger, "execution", this.usingTenderly)
         }
+        const errorResult = await entryPointContract.simulate
+            .simulateHandleOp([userOperation, "0x0000000000000000000000000000000000000000", "0x"], {
+                account: this.utilityWallet
+            })
+            .catch((e) => {
+                if (e instanceof Error) {
+                    return e
+                }
+                throw e
+            })
+
+        // @ts-ignore
+        return getSimulationResult(errorResult, this.logger, "execution", this.usingTenderly)
     }
 
     async getValidationResult(
@@ -181,18 +177,17 @@ export class UnsafeValidator implements IValidator {
 
             // @ts-ignore
             return getSimulationResult(errorResult, this.logger, "validation", this.usingTenderly)
-        } else {
-            const errorResult = await entryPointContract.simulate.simulateValidation([userOperation]).catch((e) => {
-                if (e instanceof Error) {
-                    return e
-                } else {
-                    throw e
-                }
-            })
-
-            // @ts-ignore
-            return getSimulationResult(errorResult, this.logger, "validation", this.usingTenderly)
         }
+
+        const errorResult = await entryPointContract.simulate.simulateValidation([userOperation]).catch((e) => {
+            if (e instanceof Error) {
+                return e
+            }
+            throw e
+        })
+
+        // @ts-ignore
+        return getSimulationResult(errorResult, this.logger, "validation", this.usingTenderly)
     }
 
     async validateUserOperation(

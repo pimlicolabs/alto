@@ -38,9 +38,14 @@ export interface Mempool {
      * @returns An array of user operations.
      */
     dumpSubmittedOps(): SubmittedUserOperation[]
+
+    clear(): void
 }
 
 export class NullMempool implements Mempool {
+    clear(): void {
+        throw new Error("Method not implemented.")
+    }
     removeProcessing(userOpHash: `0x${string}`): void {
         throw new Error("Method not implemented.")
     }
@@ -192,5 +197,9 @@ export class MemoryMempool implements Mempool {
         }
 
         return null
+    }
+
+    clear(): void {
+        this.store.clear("outstanding")
     }
 }

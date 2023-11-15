@@ -151,6 +151,18 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
     customGasLimitForEstimation: {
         description: "Custom gas limit for estimation",
         type: "string"
+    },
+    bundleMode: {
+        description: "set if the bundler should auto bundle or not.",
+        type: "string",
+        require: false,
+        default: "auto"
+    },
+    supportTracer: {
+        description: "Enable support for tracer",
+        type: "boolean",
+        require: false,
+        default: false
     }
 }
 

@@ -26,3 +26,5 @@ export class RpcError extends Error {
         this.data = data
     }
 }
+
+export type Environment = "production" | "staging" | "development"

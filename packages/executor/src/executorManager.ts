@@ -1,7 +1,7 @@
-import { UserOperation, SubmittedUserOperation, TransactionInfo } from "@alto/types"
+import { UserOperation, SubmittedUserOperation, TransactionInfo, BundlingMode } from "@alto/types"
 import { Mempool, Monitor } from "@alto/mempool"
 import { IExecutor } from "./executor"
-import { Address, Block, Chain, PublicClient, Transport, WatchBlocksReturnType } from "viem"
+import { Address, Block, Chain, Hash, PublicClient, Transport, WatchBlocksReturnType } from "viem"
 import { Logger, Metrics, transactionIncluded } from "@alto/utils"
 import { getGasPrice } from "@alto/utils"
 
@@ -27,6 +27,7 @@ export class ExecutorManager {
 
     private unWatch: WatchBlocksReturnType | undefined
     private currentlyHandlingBlock = false
+    private timer?: NodeJS.Timer
 
     constructor(
         executor: IExecutor,
@@ -36,7 +37,8 @@ export class ExecutorManager {
         entryPointAddress: Address,
         pollingInterval: number,
         logger: Logger,
-        metrics: Metrics
+        metrics: Metrics,
+        bundleMode: BundlingMode
     ) {
         this.executor = executor
         this.mempool = mempool
@@ -47,9 +49,62 @@ export class ExecutorManager {
         this.logger = logger
         this.metrics = metrics
 
-        setInterval(async () => {
-            await this.bundle()
-        }, 1000)
+        if (bundleMode === "auto") {
+            this.timer = setInterval(async () => {
+                await this.bundle()
+            }, 1000)
+        }
+    }
+
+    setBundlingMode(bundleMode: BundlingMode): void {
+        if (bundleMode === "auto" && !this.timer) {
+            this.timer = setInterval(async () => {
+                await this.bundle()
+            }, 1000)
+        } else if (bundleMode === "manual" && this.timer) {
+            clearInterval(this.timer)
+            this.timer = undefined
+        }
+    }
+
+    async bundleNow(): Promise<Hash> {
+        const ops = this.mempool.process(5_000_000n, 1)
+        if (ops.length === 0) {
+            throw new Error("no ops to bundle")
+        }
+
+        const results = await this.executor.bundle(this.entryPointAddress, ops)
+        let txHash
+
+        for (const result of results) {
+            if (result.success === true) {
+                const res = result.value
+
+                this.mempool.markSubmitted(res.userOperation.userOperationHash, res.transactionInfo)
+                // this.monitoredTransactions.set(result.transactionInfo.transactionHash, result.transactionInfo)
+                this.monitor.setUserOperationStatus(res.userOperation.userOperationHash, {
+                    status: "submitted",
+                    transactionHash: res.transactionInfo.transactionHash
+                })
+                txHash = res.transactionInfo.transactionHash
+                this.startWatchingBlocks(this.handleBlock.bind(this))
+            } else {
+                this.mempool.removeProcessing(result.error.userOpHash)
+                this.monitor.setUserOperationStatus(result.error.userOpHash, {
+                    status: "rejected",
+                    transactionHash: null
+                })
+                this.logger.warn(
+                    { userOpHash: result.error.userOpHash, reason: result.error.reason },
+                    "user operation rejected"
+                )
+            }
+        }
+
+        if (!txHash) {
+            throw new Error("no tx hash")
+        }
+        return txHash
     }
 
     async bundle() {

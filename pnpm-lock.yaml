@@ -127,6 +127,9 @@ importers:
 
   packages/rpc:
     dependencies:
+      '@alto/executor':
+        specifier: '*'
+        version: link:../executor
       '@alto/mempool':
         specifier: '*'
         version: link:../mempool

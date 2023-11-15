@@ -21,7 +21,8 @@ import {
     SupportedEntryPointsResponseResult,
     UserOperation,
     logSchema,
-    receiptSchema
+    receiptSchema,
+    Environment
 } from "@alto/types"
 import {
     Logger,
@@ -51,6 +52,7 @@ import { fromZodError } from "zod-validation-error"
 import { estimateCallGasLimit, estimateVerificationGasLimit } from "./gasEstimation"
 import { NonceQueuer } from "./nonceQueuer"
 import { IValidator } from "./vatidation"
+import { ExecutorManager } from "@alto/executor"
 
 export interface IRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>
@@ -78,6 +80,8 @@ export class RpcHandler implements IRpcEndpoint {
     logger: Logger
     metrics: Metrics
     chainId: number
+    environment: Environment
+    executorManager: ExecutorManager
 
     constructor(
         entryPoint: Address,
@@ -86,11 +90,13 @@ export class RpcHandler implements IRpcEndpoint {
         mempool: Mempool,
         monitor: Monitor,
         nonceQueuer: NonceQueuer,
+        executorManager: ExecutorManager,
         usingTenderly: boolean,
         minimumGasPricePercent: number,
         noEthCallOverrideSupport: boolean,
         logger: Logger,
-        metrics: Metrics
+        metrics: Metrics,
+        environment: Environment
     ) {
         this.entryPoint = entryPoint
         this.publicClient = publicClient
@@ -103,8 +109,9 @@ export class RpcHandler implements IRpcEndpoint {
         this.noEthCallOverrideSupport = noEthCallOverrideSupport
         this.logger = logger
         this.metrics = metrics
-
+        this.environment = environment
         this.chainId = publicClient.chain.id
+        this.executorManager = executorManager
     }
 
     async handleMethod(request: BundlerRequest): Promise<BundlerResponse> {
@@ -336,14 +343,16 @@ export class RpcHandler implements IRpcEndpoint {
 
         if (userOperationNonceValue < currentNonceValue) {
             throw new RpcError("UserOperation reverted during simulation with reason: AA25 invalid account nonce")
-        } else if (userOperationNonceValue === currentNonceValue) {
+        }
+        if (userOperationNonceValue > currentNonceValue + 10n) {
+            throw new RpcError("UserOperation reverted during simulation with reason: AA25 invalid account nonce")
+        }
+        if (userOperationNonceValue === currentNonceValue) {
             await this.validator.validateUserOperation(userOperation)
             const success = this.mempool.add(userOperation)
             if (!success) {
                 throw new RpcError("UserOperation reverted during simulation with reason: AA25 invalid account nonce")
             }
-        } else if (userOperationNonceValue > currentNonceValue + 10n) {
-            throw new RpcError("UserOperation reverted during simulation with reason: AA25 invalid account nonce")
         } else {
             this.nonceQueuer.add(userOperation)
         }
@@ -586,19 +595,36 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async debug_bundler_clearState(): Promise<BundlerClearStateResponseResult> {
-        throw new Error("Method not implemented.")
+        if (this.environment !== "development") {
+            throw new RpcError("debug_bundler_clearState is only available in development environment")
+        }
+        this.mempool.clear()
+        return "ok"
     }
 
-    async debug_bundler_dumpMempool(_entryPoint: Address): Promise<BundlerDumpMempoolResponseResult> {
-        throw new Error("Method not implemented.")
+    async debug_bundler_dumpMempool(entryPoint: Address): Promise<BundlerDumpMempoolResponseResult> {
+        if (this.environment !== "development") {
+            throw new RpcError("debug_bundler_dumpMempool is only available in development environment")
+        }
+        if (this.entryPoint !== entryPoint) {
+            throw new RpcError(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.entryPoint}`)
+        }
+        return this.mempool.dumpSubmittedOps().map((userOpInfo) => userOpInfo.userOperation.userOperation)
     }
 
     async debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
-        throw new Error("Method not implemented.")
+        if (this.environment !== "development") {
+            throw new RpcError("debug_bundler_sendBundleNow is only available in development environment")
+        }
+        return this.executorManager.bundleNow()
     }
 
     async debug_bundler_setBundlingMode(_bundlingMode: BundlingMode): Promise<BundlerSetBundlingModeResponseResult> {
-        throw new Error("Method not implemented.")
+        if (this.environment !== "development") {
+            throw new RpcError("debug_bundler_setBundlingMode is only available in development environment")
+        }
+        this.executorManager.setBundlingMode(_bundlingMode)
+        return "ok"
     }
 
     async pimlico_getUserOperationStatus(

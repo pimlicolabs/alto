@@ -7,13 +7,7 @@
     "license": "GPL-3.0-or-later",
     "main": "lib/index.js",
     "types": "lib/index.d.ts",
-    "files": [
-        "lib/**/*.d.ts",
-        "lib/**/*.js",
-        "lib/**/*.js.map",
-        "*.d.ts",
-        "*.js"
-    ],
+    "files": ["lib/**/*.d.ts", "lib/**/*.js", "lib/**/*.js.map", "*.d.ts", "*.js"],
     "scripts": {
         "build": "tsc -p ./tsconfig.build.json",
         "test": "test -d test && mocha test/**/*.test.ts --exit || echo 'No test folder found. Skipping tests.'",
@@ -24,6 +18,7 @@
         "@alto/types": "*",
         "@alto/utils": "*",
         "@alto/mempool": "*",
+        "@alto/executor": "*",
         "@types/node": "^18.16.3",
         "abitype": "^0.8.0",
         "fastify": "^4.16.0",
