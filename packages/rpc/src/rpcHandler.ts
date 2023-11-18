@@ -189,7 +189,7 @@ export class RpcHandler implements IRpcEndpoint {
         userOperation.verificationGasLimit = 10_000_000n
         userOperation.callGasLimit = 10_000_000n
 
-        if (this.chainId === 84531 || this.chainId === 8453) {
+        if (this.chainId === 84531 || this.chainId === 8453 || this.chainId === chains.celoAlfajores.id) {
             userOperation.verificationGasLimit = 1_000_000n
             userOperation.callGasLimit = 1_000_000n
         }
