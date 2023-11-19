@@ -39,11 +39,16 @@ export interface Mempool {
      */
     dumpSubmittedOps(): SubmittedUserOperation[]
 
+    dumpOutstanding(): UserOperationInfo[]
+
     clear(): void
 }
 
 export class NullMempool implements Mempool {
     clear(): void {
+        throw new Error("Method not implemented.")
+    }
+    dumpOutstanding(): UserOperationInfo[] {
         throw new Error("Method not implemented.")
     }
     removeProcessing(userOpHash: `0x${string}`): void {
@@ -121,6 +126,10 @@ export class MemoryMempool implements Mempool {
         }
     }
 
+    dumpOutstanding(): UserOperationInfo[] {
+        return this.store.dumpOutstanding()
+    }
+
     dumpSubmittedOps(): SubmittedUserOperation[] {
         return this.store.dumpSubmitted()
     }
@@ -139,8 +148,26 @@ export class MemoryMempool implements Mempool {
             ...this.store.dumpProcessing(),
             ...this.store.dumpSubmitted().map((sop) => sop.userOperation)
         ]
-        if (allOps.find((uo) => uo.userOperation.sender === op.sender && uo.userOperation.nonce === op.nonce)) {
-            return false
+        const oldUserOp = allOps.find(
+            (uo) => uo.userOperation.sender === op.sender && uo.userOperation.nonce === op.nonce
+        )
+        if (oldUserOp) {
+            const oldMaxPriorityFeePerGas = oldUserOp.userOperation.maxPriorityFeePerGas
+            const newMaxPriorityFeePerGas = op.maxPriorityFeePerGas
+            const oldMaxFeePerGas = oldUserOp.userOperation.maxFeePerGas
+            const newMaxFeePerGas = op.maxFeePerGas
+
+            const incrementMaxPriorityFeePerGas = (oldMaxPriorityFeePerGas * BigInt(10)) / BigInt(100)
+            const incrementMaxFeePerGas = (oldMaxFeePerGas * BigInt(10)) / BigInt(100)
+
+            if (
+                newMaxPriorityFeePerGas < oldMaxPriorityFeePerGas + incrementMaxPriorityFeePerGas ||
+                newMaxFeePerGas < oldMaxFeePerGas + incrementMaxFeePerGas
+            ) {
+                return false
+            }
+
+            this.store.removeOutstanding(oldUserOp.userOperationHash)
         }
 
         const hash = getUserOperationHash(op, this.entryPointAddress, this.publicClient.chain.id)
@@ -148,7 +175,7 @@ export class MemoryMempool implements Mempool {
         this.store.addOutstanding({
             userOperation: op,
             userOperationHash: hash,
-            firstSubmitted: Date.now(),
+            firstSubmitted: oldUserOp ? oldUserOp.firstSubmitted : Date.now(),
             lastReplaced: Date.now()
         })
         this.monitor.setUserOperationStatus(hash, { status: "not_submitted", transactionHash: null })

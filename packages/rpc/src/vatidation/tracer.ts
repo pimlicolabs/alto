@@ -32,18 +32,16 @@ export async function debug_traceCall(
         .request({ method: "debug_traceCall", params: [formatTransactionRequest(tx), "latest", traceOptions] })
         .catch((e: unknown) => {
             if (e instanceof Error) {
-                // console.log("ex=", e.message)
-                // console.log(
-                //     "tracer=",
-                //     traceOptions.tracer
-                //         ?.toString()
-                //         .split("\n")
-                //         .map((line, index) => `${index + 1}: ${line}`)
-                //         .join("\n")
-                // )
+                console.log("ex=", e.message)
+                console.log(
+                    "tracer=",
+                    traceOptions.tracer
+                        ?.toString()
+                        .split("\n")
+                        .map((line, index) => `${index + 1}: ${line}`)
+                        .join("\n")
+                )
                 throw e
-            } else {
-                console.log("error", e)
             }
         })
     // console.log("ret=", ret)
@@ -86,6 +84,7 @@ export function getTracerBodyString(func: LogTracerFunc): string {
     //  function xyz() { return {...}; }
     const regexp = /function \w+\s*\(\s*\)\s*{\s*return\s*(\{[\s\S]+\});?\s*\}\s*$/ // (\{[\s\S]+\}); \} $/
     const match = tracerFunc.match(regexp)
+
     if (match === null) {
         throw new Error("Not a simple method returning value")
     }
@@ -104,9 +103,8 @@ function tracer2string(options: TraceOptions): TraceOptions {
             ...options,
             tracer: getTracerBodyString(options.tracer)
         }
-    } else {
-        return options
     }
+    return options
 }
 
 // the trace options param for debug_traceCall and debug_traceTransaction

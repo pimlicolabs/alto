@@ -77,6 +77,7 @@ export const executionResultErrorSchema = z.object({
 })
 
 const stakeInfoSchema = z.object({
+    addr: z.string(),
     stake: z.bigint(),
     unstakeDelaySec: z.bigint()
 })
@@ -94,9 +95,9 @@ export const validationResultSchema = z
                 .regex(hexPattern)
                 .transform((val) => val as HexData)
         }),
-        stakeInfoSchema,
-        stakeInfoSchema,
-        stakeInfoSchema
+        stakeInfoSchema.optional(),
+        stakeInfoSchema.optional(),
+        stakeInfoSchema.optional()
     ])
     .transform((val) => {
         return {
@@ -129,13 +130,15 @@ export const validationResultWithAggregationSchema = z
                 .regex(hexPattern)
                 .transform((val) => val as HexData)
         }),
-        stakeInfoSchema,
-        stakeInfoSchema,
-        stakeInfoSchema,
-        z.object({
-            aggregator: addressSchema,
-            stakeInfo: stakeInfoSchema
-        })
+        stakeInfoSchema.optional(),
+        stakeInfoSchema.optional(),
+        stakeInfoSchema.optional(),
+        z
+            .object({
+                aggregator: addressSchema,
+                stakeInfo: stakeInfoSchema
+            })
+            .optional()
     ])
     .transform((val) => {
         return {
@@ -198,9 +201,8 @@ export const entryPointExecutionErrorSchema = z
     .transform((val) => {
         if (val.cause.name === "CallExecutionError") {
             return val.cause.cause.cause.data
-        } else {
-            return val.cause.data
         }
+        return val.cause.data
     })
 
 export type EntryPointExecutionError = z.infer<typeof entryPointExecutionErrorSchema>

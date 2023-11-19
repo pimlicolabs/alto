@@ -22,7 +22,8 @@ import {
     UserOperation,
     logSchema,
     receiptSchema,
-    Environment
+    Environment,
+    ValidationErrors
 } from "@alto/types"
 import {
     Logger,
@@ -342,16 +343,16 @@ export class RpcHandler implements IRpcEndpoint {
         const [_, currentNonceValue] = getNonceKeyAndValue(getNonceResult)
 
         if (userOperationNonceValue < currentNonceValue) {
-            throw new RpcError("UserOperation reverted during simulation with reason: AA25 invalid account nonce")
+            throw new RpcError("UserOperation reverted during simulation with reason: AA25 invalid account nonce", ValidationErrors.InvalidFields)
         }
         if (userOperationNonceValue > currentNonceValue + 10n) {
-            throw new RpcError("UserOperation reverted during simulation with reason: AA25 invalid account nonce")
+            throw new RpcError("UserOperation reverted during simulation with reason: AA25 invalid account nonce", ValidationErrors.InvalidFields)
         }
         if (userOperationNonceValue === currentNonceValue) {
             await this.validator.validateUserOperation(userOperation)
             const success = this.mempool.add(userOperation)
             if (!success) {
-                throw new RpcError("UserOperation reverted during simulation with reason: AA25 invalid account nonce")
+                throw new RpcError("UserOperation reverted during simulation with reason: AA25 invalid account nonce", ValidationErrors.InvalidFields)
             }
         } else {
             this.nonceQueuer.add(userOperation)
@@ -609,7 +610,7 @@ export class RpcHandler implements IRpcEndpoint {
         if (this.entryPoint !== entryPoint) {
             throw new RpcError(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.entryPoint}`)
         }
-        return this.mempool.dumpSubmittedOps().map((userOpInfo) => userOpInfo.userOperation.userOperation)
+        return this.mempool.dumpOutstanding().map((userOpInfo) => userOpInfo.userOperation)
     }
 
     async debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
