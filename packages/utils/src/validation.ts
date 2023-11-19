@@ -16,7 +16,8 @@ import {
     getFunctionSelector,
     serializeTransaction,
     toBytes,
-    toHex
+    toHex,
+    bytesToHex
 } from "viem"
 
 export interface GasOverheads {
@@ -193,14 +194,27 @@ const getL1FeeAbi = [
     }
 ] as const
 
+// Assuming you have a function to generate random bytes
+function randomBytes(length: number): Uint8Array {
+    const bytes = new Uint8Array(length)
+    window.crypto.getRandomValues(bytes)
+    return bytes
+}
+
 export async function calcOptimismPreVerificationGas(
     publicClient: PublicClient<Transport, Chain | undefined>,
     op: UserOperation,
     entryPoint: Address,
-    staticFee: bigint
+    _staticFee: bigint
 ) {
+    const randomDataUserOp: UserOperation = {
+        ...op,
+        signature: bytesToHex(randomBytes(op.signature.length)),
+        paymasterAndData: bytesToHex(randomBytes(op.paymasterAndData.length))
+    }
+
     const selector = getFunctionSelector(EntryPointAbi[27])
-    const paramData = encodeAbiParameters(EntryPointAbi[27].inputs, [[op], entryPoint])
+    const paramData = encodeAbiParameters(EntryPointAbi[27].inputs, [[randomDataUserOp], entryPoint])
     const data = concat([selector, paramData])
 
     const latestBlock = await publicClient.getBlock()
@@ -237,7 +251,7 @@ export async function calcOptimismPreVerificationGas(
 
     const l2price = l2MaxFee < l2PriorityFee ? l2MaxFee : l2PriorityFee
 
-    return staticFee + l1Fee / l2price
+    return l1Fee / l2price
 }
 
 const getArbitrumL1FeeAbi = [
@@ -326,17 +340,20 @@ export function parseViemError(err: unknown) {
         const e = err.cause
         if (e instanceof NonceTooLowError) {
             return e
-        } else if (e instanceof FeeCapTooLowError) {
+        }
+        if (e instanceof FeeCapTooLowError) {
             return e
-        } else if (e instanceof InsufficientFundsError) {
+        }
+        if (e instanceof InsufficientFundsError) {
             return e
-        } else if (e instanceof IntrinsicGasTooLowError) {
+        }
+        if (e instanceof IntrinsicGasTooLowError) {
             return e
-        } else if (e instanceof ContractFunctionRevertedError) {
+        }
+        if (e instanceof ContractFunctionRevertedError) {
             return e
         }
         return
-    } else {
-        return
     }
+    return
 }
