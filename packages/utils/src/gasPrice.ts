@@ -1,7 +1,7 @@
 import { GasPriceParameters, gasStationResult } from "@alto/types"
 import { PublicClient, parseGwei } from "viem"
-import { Logger } from "."
 import * as chains from "viem/chains"
+import { Logger } from "."
 
 enum ChainId {
     Goerli = 5,
@@ -83,7 +83,8 @@ export async function getGasPrice(
         chainId === chains.scrollSepolia.id ||
         chainId === chains.arbitrumGoerli.id ||
         chainId === chains.mantle.id ||
-        chainId === chains.mainnet.id
+        chainId === chains.mainnet.id ||
+        chainId === chains.celoAlfajores.id
     ) {
         gasPrice = (gasPrice * 10n) / 9n
         return {
