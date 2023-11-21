@@ -65,6 +65,7 @@ export const initProductionLogger = (
     level: string
 ): Logger => {
     const l = logger({
+        base: undefined, // do not log pid and hostname, we don't need it
         formatters: {
             log: customSerializer
         }
