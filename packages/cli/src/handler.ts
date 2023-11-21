@@ -167,13 +167,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         logger = initDebugLogger(parsedArgs.logLevel)
     } else {
         logger = initProductionLogger(
-            parsedArgs.logLevel,
-            chainId,
-            chain.name,
-            parsedArgs.environment,
-            parsedArgs.lokiHost,
-            parsedArgs.lokiUsername,
-            parsedArgs.lokiPassword
+            parsedArgs.logLevel
         )
     }
     const validator = new UnsafeValidator(

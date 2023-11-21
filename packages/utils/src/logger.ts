@@ -1,6 +1,5 @@
-import logger, { pino, Logger, SerializerFn } from "pino"
+import logger, { Logger, SerializerFn } from "pino"
 import { toHex } from "viem"
-import "pino-loki"
 
 // customFormatter.ts
 type AnyObject = { [key: string]: any }
@@ -63,40 +62,13 @@ export const initDebugLogger = (level = "debug"): Logger => {
 }
 
 export const initProductionLogger = (
-    level: string,
-    chainId: number,
-    network: string,
-    environment: string,
-    lokiHost?: string,
-    lokiUsername?: string,
-    lokiPassword?: string
+    level: string
 ): Logger => {
-    if (lokiHost && lokiUsername && lokiPassword) {
-        const transport = pino.transport({
-            target: "pino-loki",
-            options: {
-                batching: true,
-                interval: 1,
-                labels: { app: "alto", chainId: chainId.toString(), env: environment, network },
-                host: lokiHost,
-                basicAuth: {
-                    username: lokiUsername,
-                    password: lokiPassword
-                },
-                replaceTimestamp: false
-            }
-        })
-
-        const l = logger(transport)
-        l.level = level
-        return l
-    } else {
-        const l = logger({
-            formatters: {
-                log: customSerializer
-            }
-        })
-        l.level = level
-        return l
-    }
+    const l = logger({
+        formatters: {
+            log: customSerializer
+        }
+    })
+    l.level = level
+    return l
 }
