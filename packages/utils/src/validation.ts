@@ -210,7 +210,7 @@ export async function calcOptimismPreVerificationGas(
     publicClient: PublicClient<Transport, Chain | undefined>,
     op: UserOperation,
     entryPoint: Address,
-    _staticFee: bigint
+    staticFee: bigint
 ) {
     const randomDataUserOp: UserOperation = {
         ...op,
@@ -255,7 +255,7 @@ export async function calcOptimismPreVerificationGas(
 
     const l2PriorityFee = latestBlock.baseFeePerGas + maxPriorityFeePerGas
 
-    return l1Fee / l2PriorityFee
+    return staticFee + l1Fee / l2PriorityFee
 }
 
 const getArbitrumL1FeeAbi = [
