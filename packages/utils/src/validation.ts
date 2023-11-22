@@ -196,9 +196,14 @@ const getL1FeeAbi = [
 
 // Assuming you have a function to generate random bytes
 function randomBytes(length: number): Uint8Array {
-    const bytes = new Uint8Array(length)
-    window.crypto.getRandomValues(bytes)
-    return bytes
+    const pattern = "10101010101"
+    const repeatedPattern = pattern.repeat(Math.ceil(length / pattern.length))
+
+    const byteArray = repeatedPattern.split("").map(Number)
+
+    const bytes = new Uint8Array(byteArray)
+
+    return bytes.slice(0, length)
 }
 
 export async function calcOptimismPreVerificationGas(
