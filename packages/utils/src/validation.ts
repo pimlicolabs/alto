@@ -227,6 +227,8 @@ export async function calcOptimismPreVerificationGas(
         throw new RpcError("block does not have baseFeePerGas")
     }
 
+    const maxPriorityFeePerGas = await publicClient.estimateMaxPriorityFeePerGas()
+
     const serializedTx = serializeTransaction(
         {
             to: entryPoint,
@@ -251,12 +253,9 @@ export async function calcOptimismPreVerificationGas(
 
     const { result: l1Fee } = await opGasPriceOracle.simulate.getL1Fee([serializedTx])
 
-    const l2MaxFee = op.maxFeePerGas
-    const l2PriorityFee = latestBlock.baseFeePerGas + op.maxPriorityFeePerGas
+    const l2PriorityFee = latestBlock.baseFeePerGas + maxPriorityFeePerGas
 
-    const l2price = l2MaxFee < l2PriorityFee ? l2MaxFee : l2PriorityFee
-
-    return l1Fee / l2price
+    return l1Fee / l2PriorityFee
 }
 
 const getArbitrumL1FeeAbi = [
