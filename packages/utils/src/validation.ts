@@ -16,9 +16,9 @@ import {
     getFunctionSelector,
     serializeTransaction,
     toBytes,
-    toHex,
-    bytesToHex
+    toHex
 } from "viem"
+import { getGasPrice, Logger } from "."
 
 export interface GasOverheads {
     /**
@@ -194,28 +194,15 @@ const getL1FeeAbi = [
     }
 ] as const
 
-// Assuming you have a function to generate random bytes
-function randomBytes(length: number): Uint8Array {
-    const pattern = "10101010101"
-    const repeatedPattern = pattern.repeat(Math.ceil(length / pattern.length))
-
-    const byteArray = repeatedPattern.split("").map(Number)
-
-    const bytes = new Uint8Array(byteArray)
-
-    return bytes.slice(0, length)
-}
-
 export async function calcOptimismPreVerificationGas(
-    publicClient: PublicClient<Transport, Chain | undefined>,
+    publicClient: PublicClient<Transport, Chain>,
     op: UserOperation,
     entryPoint: Address,
-    staticFee: bigint
+    staticFee: bigint,
+    logger: Logger
 ) {
     const randomDataUserOp: UserOperation = {
-        ...op,
-        signature: bytesToHex(randomBytes(op.signature.length)),
-        paymasterAndData: bytesToHex(randomBytes(op.paymasterAndData.length))
+        ...op
     }
 
     const selector = getFunctionSelector(EntryPointAbi[27])
@@ -227,12 +214,10 @@ export async function calcOptimismPreVerificationGas(
         throw new RpcError("block does not have baseFeePerGas")
     }
 
-    const maxPriorityFeePerGas = await publicClient.estimateMaxPriorityFeePerGas()
-
     const serializedTx = serializeTransaction(
         {
             to: entryPoint,
-            chainId: publicClient.chain?.id ?? 10,
+            chainId: publicClient.chain.id,
             nonce: 999999,
             gasLimit: maxUint64,
             gasPrice: maxUint64,
@@ -253,9 +238,14 @@ export async function calcOptimismPreVerificationGas(
 
     const { result: l1Fee } = await opGasPriceOracle.simulate.getL1Fee([serializedTx])
 
-    const l2PriorityFee = latestBlock.baseFeePerGas + maxPriorityFeePerGas
+    const gasPrice = await getGasPrice(publicClient.chain.id, publicClient, logger)
 
-    return staticFee + l1Fee / l2PriorityFee
+    const l2MaxFee = gasPrice.maxFeePerGas
+    const l2PriorityFee = latestBlock.baseFeePerGas + gasPrice.maxPriorityFeePerGas
+
+    const l2price = l2MaxFee < l2PriorityFee ? l2MaxFee : l2PriorityFee
+
+    return staticFee + l1Fee / l2price
 }
 
 const getArbitrumL1FeeAbi = [

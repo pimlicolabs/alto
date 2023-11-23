@@ -230,7 +230,8 @@ export class RpcHandler implements IRpcEndpoint {
                 this.publicClient,
                 userOperation,
                 entryPoint,
-                preVerificationGas
+                preVerificationGas,
+                this.logger
             )
         } else if (this.chainId === chains.arbitrum.id) {
             preVerificationGas = await calcArbitrumPreVerificationGas(
