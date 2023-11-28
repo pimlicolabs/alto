@@ -92,7 +92,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description: "Log level",
         type: "string",
         require: true,
-        default: "trace"
+        default: "debug"
     },
     environment: {
         description: "Environment",
@@ -105,18 +105,6 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "string",
         require: true,
         default: "production"
-    },
-    lokiHost: {
-        description: "Loki host",
-        type: "string"
-    },
-    lokiUsername: {
-        description: "Loki username",
-        type: "string"
-    },
-    lokiPassword: {
-        description: "Loki password",
-        type: "string"
     },
     tenderlyEnabled: {
         description: "Rpc url is a tenderly url",
