@@ -46,10 +46,6 @@ export const bundlerArgsSchema = z.object({
     logLevel: z.enum(["trace", "debug", "info", "warn", "error", "fatal"]),
     logEnvironment: z.enum(["production", "development"]),
 
-    lokiHost: z.string().optional(),
-    lokiUsername: z.string().optional(),
-    lokiPassword: z.string().optional(),
-
     tenderlyEnabled: z.boolean().optional(),
     noEip1559Support: z.boolean()
 })
