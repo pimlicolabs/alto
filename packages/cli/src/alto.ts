@@ -3,9 +3,22 @@ import { registerCommandToYargs } from "./util"
 import dotenv from "dotenv"
 import yargs from "yargs"
 import { hideBin } from "yargs/helpers"
+import * as sentry from "@sentry/node"
+import { ProfilingIntegration } from "@sentry/profiling-node"
 
 // Load environment variables from .env file
 dotenv.config()
+
+if (process.env.SENTRY_DSN) {
+    sentry.init({
+        dsn: process.env.SENTRY_DSN,
+        integrations: [new ProfilingIntegration()],
+        // Performance Monitoring
+        tracesSampleRate: 1.0,
+        // Set sampling rate for profiling - this is relative to tracesSampleRate
+        profilesSampleRate: 1.0
+    })
+}
 
 export const yarg = yargs((hideBin as (args: string[]) => string[])(process.argv))
 
