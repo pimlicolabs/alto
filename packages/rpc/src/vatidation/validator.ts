@@ -33,14 +33,12 @@ async function simulateTenderlyCall(publicClient: PublicClient, params: any) {
     const parsedObject = z
         .object({
             cause: z.object({
-                data: z.object({
-                    data: hexDataSchema
-                })
+                data: hexDataSchema
             })
         })
         .parse(response)
 
-    return parsedObject.cause.data.data
+    return parsedObject.cause.data
 }
 
 async function getSimulationResult(
