@@ -166,9 +166,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     if (parsedArgs.logEnvironment === "development") {
         logger = initDebugLogger(parsedArgs.logLevel)
     } else {
-        logger = initProductionLogger(
-            parsedArgs.logLevel
-        )
+        logger = initProductionLogger(parsedArgs.logLevel)
     }
     const validator = new UnsafeValidator(
         client,

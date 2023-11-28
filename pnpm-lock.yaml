@@ -93,6 +93,12 @@ importers:
       '@alto/utils':
         specifier: '*'
         version: link:../utils
+      '@sentry/node':
+        specifier: ^7.83.0
+        version: 7.83.0
+      '@sentry/profiling-node':
+        specifier: ^1.2.6
+        version: 1.2.6
       '@types/node':
         specifier: ^18.16.3
         version: 18.16.3
@@ -121,6 +127,12 @@ importers:
       '@alto/utils':
         specifier: '*'
         version: link:../utils
+      '@sentry/node':
+        specifier: ^7.83.0
+        version: 7.83.0
+      '@sentry/profiling-node':
+        specifier: ^1.2.6
+        version: 1.2.6
       async-mutex:
         specifier: ^0.4.0
         version: 0.4.0
@@ -142,6 +154,12 @@ importers:
       '@alto/utils':
         specifier: '*'
         version: link:../utils
+      '@sentry/node':
+        specifier: ^7.83.0
+        version: 7.83.0
+      '@sentry/profiling-node':
+        specifier: ^1.2.6
+        version: 1.2.6
       '@types/node':
         specifier: ^18.16.3
         version: 18.16.3
@@ -172,6 +190,12 @@ importers:
 
   packages/types:
     dependencies:
+      '@sentry/node':
+        specifier: ^7.83.0
+        version: 7.83.0
+      '@sentry/profiling-node':
+        specifier: ^1.2.6
+        version: 1.2.6
       abitype:
         specifier: ^0.8.0
         version: 0.8.0(typescript@5.0.4)(zod@3.21.4)
@@ -187,6 +211,12 @@ importers:
       '@alto/types':
         specifier: '*'
         version: link:../types
+      '@sentry/node':
+        specifier: ^7.83.0
+        version: 7.83.0
+      '@sentry/profiling-node':
+        specifier: ^1.2.6
+        version: 1.2.6
       '@types/node':
         specifier: ^18.16.3
         version: 18.16.3
