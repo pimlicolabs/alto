@@ -19,6 +19,7 @@ import {
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import { Chain, foundry } from "viem/chains"
 import { fromZodError } from "zod-validation-error"
+import * as sentry from "@sentry/node"
 
 export type Clients = {
     public: PublicClient<Transport, Chain>
@@ -162,10 +163,12 @@ export function getUserOpHash(op: UserOperation, entryPoint: Address, chainId: n
 export const parseSenderAddressError = (e: Error): Address => {
     const entryPointExecutionErrorSchemaParsing = entryPointExecutionErrorSchema.safeParse(e)
     if (!entryPointExecutionErrorSchemaParsing.success) {
+        sentry.captureException(e)
         throw fromZodError(entryPointExecutionErrorSchemaParsing.error)
     }
     const errorData = entryPointExecutionErrorSchemaParsing.data
     if (errorData.errorName !== "SenderAddressResult") {
+        sentry.captureException(e)
         throw e
     }
     return errorData.args.sender

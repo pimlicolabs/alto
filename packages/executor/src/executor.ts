@@ -15,6 +15,7 @@ import {
 } from "viem"
 import { SenderManager } from "./senderManager"
 import { filterOpsAndEstimateGas, flushStuckTransaction, simulatedOpsToResults } from "./utils"
+import * as sentry from "@sentry/node"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -243,6 +244,7 @@ export class BasicExecutor implements IExecutor {
         } catch (err: unknown) {
             const e = parseViemError(err)
             if (!e) {
+                sentry.captureException(err)
                 childLogger.error({ error: err }, "unknown error replacing transaction")
             }
 
@@ -388,6 +390,7 @@ export class BasicExecutor implements IExecutor {
                       }
             )
         } catch (err: unknown) {
+            sentry.captureException(err)
             childLogger.error({ error: JSON.stringify(err) }, "error submitting bundle transaction")
             this.markWalletProcessed(wallet)
             return opsWithHashes.map((owh) => {

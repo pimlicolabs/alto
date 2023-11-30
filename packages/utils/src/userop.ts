@@ -1,5 +1,6 @@
 import { EntryPointAbi, HexData32, UserOperation } from "@alto/types"
 import { Address, PublicClient, decodeEventLog, encodeAbiParameters, keccak256 } from "viem"
+import * as sentry from "@sentry/node"
 
 export const transactionIncluded = async (
     txHash: HexData32,
@@ -21,6 +22,7 @@ export const transactionIncluded = async (
                                 return undefined
                             }
                         } catch (_e) {
+                            sentry.captureException(_e)
                             console.log("error decoding transaction inclusion status", _e)
                             return undefined
                         }
