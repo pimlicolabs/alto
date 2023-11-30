@@ -6,6 +6,7 @@ import Fastify, { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { toHex } from "viem"
 import { fromZodError } from "zod-validation-error"
 import { Registry } from "prom-client"
+import * as sentry from "@sentry/node"
 
 // jsonBigIntOverride.ts
 const originalJsonStringify = JSON.stringify
@@ -168,6 +169,7 @@ export class Server {
                 requestInfo.statusCode = 200
                 this.fastify.log.info(rpcError, "error reply")
             } else {
+                sentry.captureException(err)
                 if (err instanceof Error) {
                     const rpcError = {
                         jsonrpc: "2.0",

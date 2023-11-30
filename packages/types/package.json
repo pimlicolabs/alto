@@ -18,5 +18,8 @@
         "abitype": "^0.8.0",
         "viem": "^1.19.1",
         "zod": "^3.21.4"
+    },
+    "peerDependencies": {
+        "@sentry/node": "^7.83.0"
     }
 }
