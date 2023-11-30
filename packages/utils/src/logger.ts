@@ -11,6 +11,12 @@ function bigintToJson(_key: string, value: any): any {
     return value
 }
 
+function logLevel (label: string) {
+    return {
+        level: label,
+    };
+}
+
 function stringifyWithCircularHandling(obj: AnyObject, replacer?: (key: string, value: any) => any): string {
     const cache: Set<any> = new Set()
     return JSON.stringify(obj, (key, value) => {
@@ -52,6 +58,7 @@ export const initDebugLogger = (level = "debug"): Logger => {
             }
         },
         formatters: {
+            level: logLevel,
             log: customSerializer
         }
     })
@@ -67,6 +74,7 @@ export const initProductionLogger = (
     const l = logger({
         base: undefined, // do not log pid and hostname, we don't need it
         formatters: {
+            level: logLevel,
             log: customSerializer
         }
     })
