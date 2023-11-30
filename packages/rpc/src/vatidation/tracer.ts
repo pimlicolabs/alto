@@ -7,6 +7,7 @@ import {
     WalletClient,
     formatTransactionRequest
 } from "viem"
+import * as sentry from "@sentry/node"
 // from:https://geth.ethereum.org/docs/rpc/ns-debug#javascript-based-tracing
 //
 
@@ -43,6 +44,7 @@ export async function debug_traceCall(
                 // )
                 throw e
             } else {
+                sentry.captureException(e)
                 console.log("error", e)
             }
         })
