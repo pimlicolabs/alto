@@ -158,7 +158,6 @@ export async function filterOpsAndEstimateGas(
             } else {
                 sentry.captureException(err)
                 logger.error({ error: JSON.stringify(err) }, "error estimating gas")
-                logger.error({ error: err }, "error estimating gas")
                 return { simulatedOps: [], gasLimit: 0n }
             }
         }
