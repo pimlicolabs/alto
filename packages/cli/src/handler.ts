@@ -27,101 +27,108 @@ const preFlightChecks = async (publicClient: PublicClient<Transport, Chain>, arg
     }
 }
 
-const customTestnet: Chain = {
-    id: 36865,
-    name: "Custom Testnet",
-    network: "custom-testnet",
-    nativeCurrency: {
-        name: "Ether",
-        symbol: "ETH",
-        decimals: 18
-    },
-    rpcUrls: {
-        default: {
-            http: ["http://127.0.0.1:8545"]
+const customChains: Chain[] = [
+    {
+        id: 36865,
+        name: "Custom Testnet",
+        network: "custom-testnet",
+        nativeCurrency: {
+            name: "Ether",
+            symbol: "ETH",
+            decimals: 18
         },
-        public: {
-            http: ["http://127.0.0.1:8545"]
-        }
-    },
-    testnet: true
-}
-
-const dfkTestnet: Chain = {
-    id: 335,
-    name: "DFK Subnet Testnet",
-    network: "dfk-test-chain",
-    nativeCurrency: {
-        name: "JEWEL",
-        symbol: "JEWEL",
-        decimals: 18
-    },
-    rpcUrls: {
-        default: {
-            http: ["https://subnets.avax.network/defi-kingdoms/dfk-chain-testnet/rpc"]
+        rpcUrls: {
+            default: {
+                http: ["http://127.0.0.1:8545"]
+            },
+            public: {
+                http: ["http://127.0.0.1:8545"]
+            }
         },
-        public: {
-            http: ["https://subnets.avax.network/defi-kingdoms/dfk-chain-testnet/rpc"]
-        }
+        testnet: true
     },
-    testnet: true
-}
-
-const linea: Chain = {
-    id: 59144,
-    name: "Linea Mainnet",
-    network: "linea",
-    nativeCurrency: {
-        name: "ETH",
-        symbol: "ETH",
-        decimals: 18
-    },
-    rpcUrls: {
-        default: {
-            http: []
+    {
+        id: 335,
+        name: "DFK Subnet Testnet",
+        network: "dfk-test-chain",
+        nativeCurrency: {
+            name: "JEWEL",
+            symbol: "JEWEL",
+            decimals: 18
         },
-        public: {
-            http: []
-        }
-    },
-    testnet: false
-}
-
-const xaiGoerliOrbit: Chain = {
-    id: 47279324479,
-    name: "Xai Goerli Orbit",
-    network: "xai-goerli-orbit",
-    nativeCurrency: {
-        name: "ETH",
-        symbol: "ETH",
-        decimals: 18
-    },
-    rpcUrls: {
-        default: {
-            http: []
+        rpcUrls: {
+            default: {
+                http: ["https://subnets.avax.network/defi-kingdoms/dfk-chain-testnet/rpc"]
+            },
+            public: {
+                http: ["https://subnets.avax.network/defi-kingdoms/dfk-chain-testnet/rpc"]
+            }
         },
-        public: {
-            http: []
-        }
+        testnet: true
     },
-    testnet: false
-}
+    {
+        id: 59144,
+        name: "Linea Mainnet",
+        network: "linea",
+        nativeCurrency: {
+            name: "ETH",
+            symbol: "ETH",
+            decimals: 18
+        },
+        rpcUrls: {
+            default: {
+                http: []
+            },
+            public: {
+                http: []
+            }
+        },
+        testnet: false
+    },
+    {
+        id: 47279324479,
+        name: "Xai Goerli Orbit",
+        network: "xai-goerli-orbit",
+        nativeCurrency: {
+            name: "ETH",
+            symbol: "ETH",
+            decimals: 18
+        },
+        rpcUrls: {
+            default: {
+                http: []
+            },
+            public: {
+                http: []
+            }
+        },
+        testnet: false
+    },
+    {
+        id: 3163830386846714,
+        name: "Parallel testnet",
+        network: "parallel-l3-testnet",
+        nativeCurrency: {
+            name: "testnetETH",
+            symbol: "testnetETH",
+            decimals: 18,
+        },
+        rpcUrls: {
+            default: {
+                http: [],
+            },
+            public: {
+                http: [],
+            },
+        },
+        testnet: true,
+    }
+]
 
 function getChain(chainId: number): Chain {
-    if (chainId === 36865) {
-        return customTestnet
-    }
-
-    if (chainId === 335) {
-        return dfkTestnet
-    }
-
-    if (chainId === 59144) {
-        return linea
-    }
-
-    if (chainId === 47279324479) {
-        return xaiGoerliOrbit
+    const customChain = customChains.find((chain) => chain.id === chainId)
+    if (customChain) {
+        return customChain;
     }
 
     for (const chain of Object.values(chains)) {
