@@ -32,14 +32,16 @@ function getDefaultGasFee(chainId: ChainId.Polygon | ChainId.Mumbai): bigint {
             return MIN_POLYGON_GAS_PRICE
         case ChainId.Mumbai:
             return MIN_MUMBAI_GAS_PRICE
+        default: {
+            return 0n
+        }
     }
 }
 
 export async function getPolygonGasPriceParameters(
-    publicClient: PublicClient,
     chainId: ChainId.Polygon | ChainId.Mumbai,
     logger: Logger
-): Promise<GasPriceParameters> {
+): Promise<GasPriceParameters | null> {
     const gasStationUrl = getGasStationUrl(chainId)
     try {
         const data = await (await fetch(gasStationUrl)).json()
@@ -49,16 +51,7 @@ export async function getPolygonGasPriceParameters(
         return parsedData.fast
     } catch (e) {
         logger.error({ error: e }, "failed to get gas price from gas station, using default")
-    }
-
-    const gasPrice = await publicClient.getGasPrice()
-
-    const maxPriorityFeePerGas = await estimateMaxPriorityFeePerGas(publicClient, gasPrice)
-    const defaultGasFee = getDefaultGasFee(chainId)
-
-    return {
-        maxFeePerGas: gasPrice,
-        maxPriorityFeePerGas: maxPriorityFeePerGas > defaultGasFee ? maxPriorityFeePerGas : defaultGasFee
+        return null
     }
 }
 
@@ -129,23 +122,26 @@ export async function getGasPrice(
     let maxPriorityFeePerGas: bigint
 
     if (chainId === ChainId.Polygon || chainId === ChainId.Mumbai) {
-        const polygonEstimate = await getPolygonGasPriceParameters(publicClient, chainId, logger)
-        maxPriorityFeePerGas = polygonEstimate.maxPriorityFeePerGas
-        maxFeePerGas = baseFeePerGas + maxPriorityFeePerGas
+        const polygonEstimate = await getPolygonGasPriceParameters(chainId, logger)
+        if (polygonEstimate) {
+            maxPriorityFeePerGas = polygonEstimate.maxPriorityFeePerGas
+            maxFeePerGas = baseFeePerGas + maxPriorityFeePerGas
 
-        return bumpTheGasPrice(chainId, {
-            maxFeePerGas: maxFeePerGas > polygonEstimate.maxFeePerGas ? maxFeePerGas : polygonEstimate.maxFeePerGas,
-            maxPriorityFeePerGas: maxPriorityFeePerGas
-        })
+            return bumpTheGasPrice(chainId, {
+                maxFeePerGas: maxFeePerGas > polygonEstimate.maxFeePerGas ? maxFeePerGas : polygonEstimate.maxFeePerGas,
+                maxPriorityFeePerGas: maxPriorityFeePerGas
+            })
+        }
     }
 
     const gasPrice = await publicClient.getGasPrice()
 
     maxPriorityFeePerGas = await estimateMaxPriorityFeePerGas(publicClient, gasPrice)
     maxFeePerGas = baseFeePerGas + maxPriorityFeePerGas
+    const defaultGasFee = getDefaultGasFee(chainId)
 
     return bumpTheGasPrice(chainId, {
         maxFeePerGas: gasPrice > maxFeePerGas ? gasPrice : maxFeePerGas,
-        maxPriorityFeePerGas: maxPriorityFeePerGas
+        maxPriorityFeePerGas: maxPriorityFeePerGas > defaultGasFee ? maxPriorityFeePerGas : defaultGasFee
     })
 }
