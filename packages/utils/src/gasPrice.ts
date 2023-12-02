@@ -80,11 +80,18 @@ export async function getGasPrice(
 
     if (
         chainId === chains.arbitrum.id ||
+        chainId === chains.scroll.id ||
         chainId === chains.scrollSepolia.id ||
         chainId === chains.arbitrumGoerli.id ||
-        chainId === chains.mantle.id ||
         chainId === chains.mainnet.id ||
-        chainId === chains.celoAlfajores.id
+        chainId === chains.mantle.id ||
+        chainId === 22222 ||
+        chainId === chains.sepolia.id ||
+        chainId === chains.base.id ||
+        chainId === chains.dfk.id ||
+        chainId === chains.celoAlfajores.id ||
+        chainId === chains.celo.id ||
+        chainId === chains.avalanche.id
     ) {
         gasPrice = (gasPrice * 10n) / 9n
         return {
@@ -109,10 +116,6 @@ export async function getGasPrice(
             gasPrice = feeAverage
         }
         maxPriorityFeePerGas = gasPrice
-    }
-
-    if (chainId === 53935) {
-        gasPrice = gasPrice * 2n
     }
 
     return {

@@ -47,7 +47,14 @@ export const bundlerArgsSchema = z.object({
     logEnvironment: z.enum(["production", "development"]),
 
     tenderlyEnabled: z.boolean().optional(),
-    noEip1559Support: z.boolean()
+    minimumGasPricePercent: z.number().int().min(0),
+    noEip1559Support: z.boolean(),
+    noEthCallOverrideSupport: z.boolean(),
+    useUserOperationGasLimitsForSubmission: z.boolean(),
+    customGasLimitForEstimation: z
+        .string()
+        .transform((val) => BigInt(val))
+        .optional()
 })
 
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>

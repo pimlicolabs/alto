@@ -48,6 +48,7 @@ import {
 import * as chains from "viem/chains"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
+import { estimateCallGasLimit, estimateVerificationGasLimit } from "./gasEstimation"
 import { NonceQueuer } from "./nonceQueuer"
 import { IValidator } from "./vatidation"
 
@@ -72,6 +73,8 @@ export class RpcHandler implements IRpcEndpoint {
     monitor: Monitor
     nonceQueuer: NonceQueuer
     usingTenderly: boolean
+    minimumGasPricePercent: number
+    noEthCallOverrideSupport: boolean
     logger: Logger
     metrics: Metrics
     chainId: number
@@ -84,6 +87,8 @@ export class RpcHandler implements IRpcEndpoint {
         monitor: Monitor,
         nonceQueuer: NonceQueuer,
         usingTenderly: boolean,
+        minimumGasPricePercent: number,
+        noEthCallOverrideSupport: boolean,
         logger: Logger,
         metrics: Metrics
     ) {
@@ -94,6 +99,8 @@ export class RpcHandler implements IRpcEndpoint {
         this.monitor = monitor
         this.nonceQueuer = nonceQueuer
         this.usingTenderly = usingTenderly
+        this.minimumGasPricePercent = minimumGasPricePercent
+        this.noEthCallOverrideSupport = noEthCallOverrideSupport
         this.logger = logger
         this.metrics = metrics
 
@@ -184,45 +191,10 @@ export class RpcHandler implements IRpcEndpoint {
         if (userOperation.maxFeePerGas === 0n) {
             throw new RpcError("user operation max fee per gas must be larger than 0 during gas estimation")
         }
-
-        userOperation.preVerificationGas = 1_000_000n
-        userOperation.verificationGasLimit = 10_000_000n
-        userOperation.callGasLimit = 10_000_000n
-
-        if (
-            this.chainId === 84531 ||
-            this.chainId === 8453 ||
-            this.chainId === chains.celoAlfajores.id ||
-            this.chainId === chains.celo.id
-        ) {
-            userOperation.verificationGasLimit = 1_000_000n
-            userOperation.callGasLimit = 1_000_000n
-        }
-
-        const executionResult = await this.validator.getExecutionResult(userOperation)
-
         let preVerificationGas = calcPreVerificationGas(userOperation)
 
-        const verificationGas = ((executionResult.preOpGas - userOperation.preVerificationGas) * 3n) / 2n
-        const calculatedCallGasLimit =
-            executionResult.paid / userOperation.maxFeePerGas - executionResult.preOpGas + 21000n + 50000n
-
-        let callGasLimit = calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n
-
-        if (
-            this.chainId === 10 ||
-            this.chainId === 420 ||
-            this.chainId === 8453 ||
-            this.chainId === 84531 ||
-            this.chainId === chains.opBNB.id ||
-            this.chainId === chains.opBNBTestnet.id ||
-            this.chainId === chains.polygon.id
-        ) {
-            callGasLimit = callGasLimit + 150000n
-        }
-
         if (this.chainId === 59140 || this.chainId === 59142) {
-            preVerificationGas = preVerificationGas + (verificationGas + callGasLimit) / 3n
+            preVerificationGas = 2n * preVerificationGas
         } else if (
             this.chainId === chains.optimism.id ||
             this.chainId === chains.optimismGoerli.id ||
@@ -235,7 +207,8 @@ export class RpcHandler implements IRpcEndpoint {
                 this.publicClient,
                 userOperation,
                 entryPoint,
-                preVerificationGas
+                preVerificationGas,
+                this.logger
             )
         } else if (this.chainId === chains.arbitrum.id) {
             preVerificationGas = await calcArbitrumPreVerificationGas(
@@ -246,10 +219,63 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
 
+        let verificationGasLimit: bigint
+        let callGasLimit: bigint
+
+        if (this.noEthCallOverrideSupport) {
+            userOperation.preVerificationGas = 1_000_000n
+            userOperation.verificationGasLimit = 10_000_000n
+            userOperation.callGasLimit = 10_000_000n
+
+            if (
+                this.chainId === 84531 ||
+                this.chainId === 8453 ||
+                this.chainId === chains.celoAlfajores.id ||
+                this.chainId === chains.celo.id
+            ) {
+                userOperation.verificationGasLimit = 1_000_000n
+                userOperation.callGasLimit = 1_000_000n
+            }
+
+            const executionResult = await this.validator.getExecutionResult(userOperation)
+
+            verificationGasLimit = ((executionResult.preOpGas - userOperation.preVerificationGas) * 3n) / 2n
+            const calculatedCallGasLimit =
+                executionResult.paid / userOperation.maxFeePerGas - executionResult.preOpGas + 21000n + 50000n
+
+            callGasLimit = calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n
+        } else {
+            userOperation.maxFeePerGas = 0n
+            userOperation.maxPriorityFeePerGas = 0n
+
+            const time = Date.now()
+
+            verificationGasLimit = await estimateVerificationGasLimit(
+                userOperation,
+                entryPoint,
+                this.publicClient,
+                this.logger,
+                this.metrics
+            )
+
+            userOperation.preVerificationGas = preVerificationGas
+            userOperation.verificationGasLimit = verificationGasLimit
+
+            this.metrics.verificationGasLimitEstimationTime.observe((Date.now() - time) / 1000)
+
+            callGasLimit = await estimateCallGasLimit(
+                userOperation,
+                entryPoint,
+                this.publicClient,
+                this.logger,
+                this.metrics
+            )
+        }
+
         return {
             preVerificationGas,
-            verificationGas,
-            verificationGasLimit: verificationGas,
+            verificationGas: verificationGasLimit,
+            verificationGasLimit,
             callGasLimit
         }
     }
@@ -265,6 +291,22 @@ export class RpcHandler implements IRpcEndpoint {
         if (this.chainId === chains.celoAlfajores.id || this.chainId === chains.celo.id) {
             if (userOperation.maxFeePerGas !== userOperation.maxPriorityFeePerGas) {
                 throw new RpcError("maxPriorityFeePerGas must equal maxFeePerGas on Celo chains")
+            }
+        }
+
+        if (this.minimumGasPricePercent !== 0) {
+            const gasPrice = await getGasPrice(this.chainId, this.publicClient, this.logger)
+            const minMaxFeePerGas = (gasPrice.maxFeePerGas * BigInt(this.minimumGasPricePercent)) / 100n
+            if (userOperation.maxFeePerGas < minMaxFeePerGas) {
+                throw new RpcError(
+                    `maxFeePerGas must be at least ${minMaxFeePerGas} (current maxFeePerGas: ${gasPrice.maxFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
+                )
+            }
+
+            if (userOperation.maxPriorityFeePerGas < minMaxFeePerGas) {
+                throw new RpcError(
+                    `maxPriorityFeePerGas must be at least ${minMaxFeePerGas} (current maxPriorityFeePerGas: ${gasPrice.maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
+                )
             }
         }
 
@@ -330,7 +372,8 @@ export class RpcHandler implements IRpcEndpoint {
             this.chainId === chains.arbitrumGoerli.id ||
             this.chainId === chains.baseGoerli.id ||
             this.chainId === chains.avalanche.id ||
-            this.chainId === chains.avalancheFuji.id
+            this.chainId === chains.avalancheFuji.id ||
+            this.chainId === chains.scroll.id
         ) {
             fullBlockRange = 2000n
         }
@@ -421,7 +464,8 @@ export class RpcHandler implements IRpcEndpoint {
             this.chainId === chains.arbitrumGoerli.id ||
             this.chainId === chains.baseGoerli.id ||
             this.chainId === chains.avalanche.id ||
-            this.chainId === chains.avalancheFuji.id
+            this.chainId === chains.avalancheFuji.id ||
+            this.chainId === chains.scroll.id
         ) {
             fullBlockRange = 2000n
         }

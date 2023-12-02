@@ -21,3 +21,4 @@ packages/**/lib
 .tmp
 
 .env
+contracts

@@ -112,11 +112,33 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: true,
         default: false
     },
+    minimumGasPricePercent: {
+        description: "Minimum % of userop gasPrice compared to gasPrice used by the bundler",
+        type: "number",
+        require: true,
+        default: 0
+    },
     noEip1559Support: {
         description: "Rpc url does not support EIP1559",
         type: "boolean",
         require: true,
         default: false
+    },
+    noEthCallOverrideSupport: {
+        description: "Rpc url does not support eth_call overrides",
+        type: "boolean",
+        require: true,
+        default: false
+    },
+    useUserOperationGasLimitsForSubmission: {
+        description: "Use user operation gas limits during submission",
+        type: "boolean",
+        require: true,
+        default: false
+    },
+    customGasLimitForEstimation: {
+        description: "Custom gas limit for estimation",
+        type: "string"
     }
 }
 
