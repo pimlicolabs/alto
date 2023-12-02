@@ -1,4 +1,5 @@
 import { Address, EntryPointAbi, RpcError, UserOperation } from "@alto/types"
+import { EstimateGasExecutionError } from "viem"
 import {
     Chain,
     ContractFunctionExecutionError,
@@ -18,6 +19,7 @@ import {
     toBytes,
     toHex
 } from "viem"
+import { getGasPrice, Logger } from "."
 
 export interface GasOverheads {
     /**
@@ -194,13 +196,18 @@ const getL1FeeAbi = [
 ] as const
 
 export async function calcOptimismPreVerificationGas(
-    publicClient: PublicClient<Transport, Chain | undefined>,
+    publicClient: PublicClient<Transport, Chain>,
     op: UserOperation,
     entryPoint: Address,
-    staticFee: bigint
+    staticFee: bigint,
+    logger: Logger
 ) {
+    const randomDataUserOp: UserOperation = {
+        ...op
+    }
+
     const selector = getFunctionSelector(EntryPointAbi[27])
-    const paramData = encodeAbiParameters(EntryPointAbi[27].inputs, [[op], entryPoint])
+    const paramData = encodeAbiParameters(EntryPointAbi[27].inputs, [[randomDataUserOp], entryPoint])
     const data = concat([selector, paramData])
 
     const latestBlock = await publicClient.getBlock()
@@ -211,7 +218,7 @@ export async function calcOptimismPreVerificationGas(
     const serializedTx = serializeTransaction(
         {
             to: entryPoint,
-            chainId: publicClient.chain?.id ?? 10,
+            chainId: publicClient.chain.id,
             nonce: 999999,
             gasLimit: maxUint64,
             gasPrice: maxUint64,
@@ -232,8 +239,10 @@ export async function calcOptimismPreVerificationGas(
 
     const { result: l1Fee } = await opGasPriceOracle.simulate.getL1Fee([serializedTx])
 
-    const l2MaxFee = op.maxFeePerGas
-    const l2PriorityFee = latestBlock.baseFeePerGas + op.maxPriorityFeePerGas
+    const gasPrice = await getGasPrice(publicClient.chain.id, publicClient, logger)
+
+    const l2MaxFee = gasPrice.maxFeePerGas
+    const l2PriorityFee = latestBlock.baseFeePerGas + gasPrice.maxPriorityFeePerGas
 
     const l2price = l2MaxFee < l2PriorityFee ? l2MaxFee : l2PriorityFee
 
@@ -326,17 +335,22 @@ export function parseViemError(err: unknown) {
         const e = err.cause
         if (e instanceof NonceTooLowError) {
             return e
-        } else if (e instanceof FeeCapTooLowError) {
+        }
+        if (e instanceof FeeCapTooLowError) {
             return e
-        } else if (e instanceof InsufficientFundsError) {
+        }
+        if (e instanceof InsufficientFundsError) {
             return e
-        } else if (e instanceof IntrinsicGasTooLowError) {
+        }
+        if (e instanceof IntrinsicGasTooLowError) {
             return e
-        } else if (e instanceof ContractFunctionRevertedError) {
+        }
+        if (e instanceof ContractFunctionRevertedError) {
+            return e
+        } else if (e instanceof EstimateGasExecutionError) {
             return e
         }
         return
-    } else {
-        return
     }
+    return
 }
