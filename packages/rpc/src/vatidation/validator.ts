@@ -73,9 +73,7 @@ async function getSimulationResult(
             if (errorResult instanceof BaseError) {
                 const revertError = errorResult.walk((err) => err instanceof ContractFunctionExecutionError)
                 throw new RpcError(
-                    `User Operation simulation returned unexpected invalid response: ${
-                        (revertError?.cause as any)?.reason
-                    }`,
+                    `UserOperation reverted during simulation with reason: ${(revertError?.cause as any)?.reason}`,
                     ValidationErrors.SimulateValidation
                 )
             }
