@@ -58,8 +58,6 @@ async function getSimulationResult(
     simulationType: "validation" | "execution",
     usingTenderly = false
 ) {
-    console.log("--------------------", errorResult)
-
     const entryPointErrorSchemaParsing = usingTenderly
         ? entryPointErrorsSchema.safeParse(errorResult)
         : entryPointExecutionErrorSchema.safeParse(errorResult)
