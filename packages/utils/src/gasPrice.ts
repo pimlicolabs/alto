@@ -78,7 +78,7 @@ const getBumpAmount = (chainId: number) => {
         return 111n
     }
 
-    return 110n
+    return 100n
 }
 
 const bumpTheGasPrice = (chainId: number, gasPriceParameters: GasPriceParameters): GasPriceParameters => {
@@ -90,29 +90,33 @@ const bumpTheGasPrice = (chainId: number, gasPriceParameters: GasPriceParameters
     }
 }
 
-const estimateMaxPriorityFeePerGas = async (publicClient: PublicClient, gasPrice: bigint) => {
+const estimateMaxPriorityFeePerGas = async (publicClient: PublicClient) => {
     try {
         const maxPriorityFeePerGasHex = await publicClient.request({
             method: "eth_maxPriorityFeePerGas"
         })
         return hexToBigInt(maxPriorityFeePerGasHex)
     } catch {
-        let maxPriorityFeePerGas = 2_000_000_000n > gasPrice ? gasPrice : 2_000_000_000n
-        const feeHistory = await publicClient.getFeeHistory({
-            blockCount: 10,
-            rewardPercentiles: [20],
-            blockTag: "latest"
-        })
-
-        if (feeHistory.reward === undefined) {
-            maxPriorityFeePerGas = (gasPrice * 3n) / 2n
-        } else {
-            const feeAverage = feeHistory.reward.reduce((acc, cur) => cur[0] + acc, 0n) / 10n
-            maxPriorityFeePerGas = feeAverage > gasPrice ? feeAverage : gasPrice
-        }
-
-        return maxPriorityFeePerGas
+        return null
     }
+}
+
+const getFallBackMaxPriorityFeePerGas = async (publicClient: PublicClient, gasPrice: bigint) => {
+    let maxPriorityFeePerGas = 2_000_000_000n > gasPrice ? gasPrice : 2_000_000_000n
+    const feeHistory = await publicClient.getFeeHistory({
+        blockCount: 10,
+        rewardPercentiles: [20],
+        blockTag: "latest"
+    })
+
+    if (feeHistory.reward === undefined) {
+        maxPriorityFeePerGas = (gasPrice * 3n) / 2n
+    } else {
+        const feeAverage = feeHistory.reward.reduce((acc, cur) => cur[0] + acc, 0n) / 10n
+        maxPriorityFeePerGas = feeAverage > gasPrice ? feeAverage : gasPrice
+    }
+
+    return maxPriorityFeePerGas
 }
 
 export async function getGasPrice(
@@ -120,35 +124,36 @@ export async function getGasPrice(
     publicClient: PublicClient,
     logger: Logger
 ): Promise<GasPriceParameters> {
-    const block = await publicClient.getBlock({
-        blockTag: "pending"
-    })
-
-    const baseFeePerGas: bigint = block.baseFeePerGas || 2_000_000_000n
-    let maxFeePerGas: bigint
-    let maxPriorityFeePerGas: bigint
-
     if (chainId === ChainId.Polygon || chainId === ChainId.Mumbai) {
         const polygonEstimate = await getPolygonGasPriceParameters(chainId, logger)
         if (polygonEstimate) {
-            maxPriorityFeePerGas = polygonEstimate.maxPriorityFeePerGas
-            maxFeePerGas = baseFeePerGas + maxPriorityFeePerGas
-
-            return bumpTheGasPrice(chainId, {
-                maxFeePerGas: maxFeePerGas > polygonEstimate.maxFeePerGas ? maxFeePerGas : polygonEstimate.maxFeePerGas,
-                maxPriorityFeePerGas: maxPriorityFeePerGas
-            })
+            return polygonEstimate
         }
     }
 
-    const gasPrice = await publicClient.getGasPrice()
+    let maxPriorityFeePerGas: bigint
 
-    maxPriorityFeePerGas = await estimateMaxPriorityFeePerGas(publicClient, gasPrice)
-    maxFeePerGas = baseFeePerGas + maxPriorityFeePerGas
+    const [block, gasPrice, rpcMaxPriorityFeePerGas] = await Promise.all([
+        publicClient.getBlock({
+            blockTag: "pending"
+        }),
+        publicClient.getGasPrice(),
+        estimateMaxPriorityFeePerGas(publicClient)
+    ])
+
+    const baseFeePerGas: bigint = block.baseFeePerGas || 2_000_000_000n
+
+    if (rpcMaxPriorityFeePerGas === null) {
+        maxPriorityFeePerGas = await getFallBackMaxPriorityFeePerGas(publicClient, gasPrice)
+    } else {
+        maxPriorityFeePerGas = rpcMaxPriorityFeePerGas
+    }
+
+    const maxFeePerGas: bigint = baseFeePerGas + maxPriorityFeePerGas
     const defaultGasFee = getDefaultGasFee(chainId)
 
     return bumpTheGasPrice(chainId, {
-        maxFeePerGas: gasPrice > maxFeePerGas ? gasPrice : maxFeePerGas,
+        maxFeePerGas: gasPrice < maxFeePerGas ? gasPrice : maxFeePerGas,
         maxPriorityFeePerGas: maxPriorityFeePerGas > defaultGasFee ? maxPriorityFeePerGas : defaultGasFee
     })
 }
