@@ -123,24 +123,6 @@ const customChains: Chain[] = [
         testnet: true,
     },
     {
-        id: 901,
-        name: "Lyra",
-        network: "lyra",
-        nativeCurrency: {
-            name: "ETH",
-            symbol: "ETH",
-            decimals: 18
-        },
-        rpcUrls: {
-            default: {
-                http: []
-            },
-            public: {
-                http: []
-            }
-        }
-    },
-    {
         id: 22222,
         name: "Nautilus",
         network: "nautilus",
