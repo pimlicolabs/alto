@@ -139,7 +139,26 @@ const customChains: Chain[] = [
                 http: []
             }
         }
-    }
+    },
+    {
+        id: 957,
+        name: "Lyra",
+        network: "lyra",
+        nativeCurrency: {
+            name: "ETH",
+            symbol: "ETH",
+            decimals: 18,
+        },
+        rpcUrls: {
+            default: {
+                http: ["https://rpc.lyra.finance"],
+            },
+            public: {
+                http: ["https://rpc.lyra.finance"],
+            },
+        },
+        testnet: false,
+    },
 ]
 
 function getChain(chainId: number): Chain {
