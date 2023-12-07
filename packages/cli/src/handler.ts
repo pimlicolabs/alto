@@ -197,7 +197,8 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     })
 
     const registry = new Registry()
-    const metrics = createMetrics(registry, chainId, chain.name, parsedArgs.environment)
+    registry.setDefaultLabels({ network: chain.name, chainId })
+    const metrics = createMetrics(registry)
 
     await preFlightChecks(client, parsedArgs)
 
