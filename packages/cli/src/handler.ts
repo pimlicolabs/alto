@@ -110,17 +110,17 @@ const customChains: Chain[] = [
         nativeCurrency: {
             name: "testnetETH",
             symbol: "testnetETH",
-            decimals: 18,
+            decimals: 18
         },
         rpcUrls: {
             default: {
-                http: [],
+                http: []
             },
             public: {
-                http: [],
-            },
+                http: []
+            }
         },
-        testnet: true,
+        testnet: true
     },
     {
         id: 22222,
@@ -147,24 +147,24 @@ const customChains: Chain[] = [
         nativeCurrency: {
             name: "ETH",
             symbol: "ETH",
-            decimals: 18,
+            decimals: 18
         },
         rpcUrls: {
             default: {
-                http: ["https://rpc.lyra.finance"],
+                http: ["https://rpc.lyra.finance"]
             },
             public: {
-                http: ["https://rpc.lyra.finance"],
-            },
+                http: ["https://rpc.lyra.finance"]
+            }
         },
-        testnet: false,
-    },
+        testnet: false
+    }
 ]
 
 function getChain(chainId: number): Chain {
     const customChain = customChains.find((chain) => chain.id === chainId)
     if (customChain) {
-        return customChain;
+        return customChain
     }
 
     for (const chain of Object.values(chains)) {

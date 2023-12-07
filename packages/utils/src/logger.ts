@@ -11,10 +11,10 @@ function bigintToJson(_key: string, value: any): any {
     return value
 }
 
-function logLevel (label: string) {
+function logLevel(label: string) {
     return {
-        level: label,
-    };
+        level: label
+    }
 }
 
 function stringifyWithCircularHandling(obj: AnyObject, replacer?: (key: string, value: any) => any): string {
@@ -68,9 +68,7 @@ export const initDebugLogger = (level = "debug"): Logger => {
     return l
 }
 
-export const initProductionLogger = (
-    level: string
-): Logger => {
+export const initProductionLogger = (level: string): Logger => {
     const l = logger({
         base: undefined, // do not log pid and hostname, we don't need it
         formatters: {

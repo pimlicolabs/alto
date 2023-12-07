@@ -38,7 +38,7 @@ JSON.stringify = function (
     return originalJsonStringify(value, wrapperReplacer, space)
 }
 
-declare module 'fastify' {
+declare module "fastify" {
     interface FastifyRequest {
         rpcMethod: string
     }
@@ -122,7 +122,7 @@ export class Server {
     }
 
     public async rpc(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-        let requestId;
+        let requestId
         try {
             const contentTypeHeader = request.headers["content-type"]
             if (contentTypeHeader !== "application/json") {
@@ -159,18 +159,18 @@ export class Server {
                 { data: JSON.stringify(bundlerRequest, null), method: bundlerRequest.method },
                 "incoming request"
             )
-                const result = await this.rpcEndpoint.handleMethod(bundlerRequest)
-                const jsonRpcResponse: JSONRPCResponse = {
-                    jsonrpc: "2.0",
-                    id: jsonRpcRequest.id,
-                    result: result.result
-                }
+            const result = await this.rpcEndpoint.handleMethod(bundlerRequest)
+            const jsonRpcResponse: JSONRPCResponse = {
+                jsonrpc: "2.0",
+                id: jsonRpcRequest.id,
+                result: result.result
+            }
 
-                await reply.status(200).send(jsonRpcResponse)
-                this.fastify.log.info(
-                    { data: JSON.stringify(jsonRpcResponse), method: bundlerRequest.method },
-                    "sent reply"
-                )
+            await reply.status(200).send(jsonRpcResponse)
+            this.fastify.log.info(
+                { data: JSON.stringify(jsonRpcResponse), method: bundlerRequest.method },
+                "sent reply"
+            )
         } catch (err) {
             if (err instanceof RpcError) {
                 const rpcError = {

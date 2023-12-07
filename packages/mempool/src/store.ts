@@ -22,7 +22,7 @@ export class MemoryStore {
         this.logger.debug({ userOpHash: op.userOperationHash, store: "outstanding" }, "added user op to mempool")
         this.metrics.userOperationsInMempool
             .labels({
-                status: "outstanding",
+                status: "outstanding"
             })
             .inc()
     }
@@ -34,7 +34,7 @@ export class MemoryStore {
         this.logger.debug({ userOpHash: op.userOperationHash, store: "processing" }, "added user op to mempool")
         this.metrics.userOperationsInMempool
             .labels({
-                status: "processing",
+                status: "processing"
             })
             .inc()
     }
@@ -49,7 +49,7 @@ export class MemoryStore {
         )
         this.metrics.userOperationsInMempool
             .labels({
-                status: "submitted",
+                status: "submitted"
             })
             .inc()
     }
@@ -65,7 +65,7 @@ export class MemoryStore {
         this.logger.debug({ userOpHash, store: "outstanding" }, "removed user op from mempool")
         this.metrics.userOperationsInMempool
             .labels({
-                status: "outstanding",
+                status: "outstanding"
             })
             .dec()
     }
@@ -81,7 +81,7 @@ export class MemoryStore {
         this.logger.debug({ userOpHash, store: "processing" }, "removed user op from mempool")
         this.metrics.userOperationsInMempool
             .labels({
-                status: "processing",
+                status: "processing"
             })
             .dec()
     }
@@ -97,7 +97,7 @@ export class MemoryStore {
         this.logger.debug({ userOpHash, store: "submitted" }, "removed user op from mempool")
         this.metrics.userOperationsInMempool
             .labels({
-                status: "submitted",
+                status: "submitted"
             })
             .dec()
     }

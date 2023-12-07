@@ -2,14 +2,12 @@ import { Counter, Gauge, Histogram, Registry, collectDefaultMetrics } from "prom
 
 export type Metrics = ReturnType<typeof createMetrics>
 
-export function createMetrics(
-    registry: Registry,
-) {
+export function createMetrics(registry: Registry) {
     collectDefaultMetrics({
         register: registry,
         prefix: "alto_",
         // eventLoopMonitoringPrecision with sampling rate in milliseconds
-        eventLoopMonitoringPrecision: 10,
+        eventLoopMonitoringPrecision: 10
     })
 
     const httpRequests = new Counter({
@@ -22,7 +20,16 @@ export function createMetrics(
     const httpRequestsDuration = new Histogram({
         name: "alto_requests_duration_seconds",
         help: "Duration of requests in seconds",
-        labelNames: ["route", "network", "chainId", "rpc_method", "rpc_status", "code", "method", "api_version"] as const,
+        labelNames: [
+            "route",
+            "network",
+            "chainId",
+            "rpc_method",
+            "rpc_status",
+            "code",
+            "method",
+            "api_version"
+        ] as const,
         registers: [registry]
     })
 
@@ -135,6 +142,6 @@ export function createMetrics(
         userOperationsValidationFailure,
         userOperationInclusionDuration,
         verificationGasLimitEstimationTime,
-        verificationGasLimitEstimationCount,
+        verificationGasLimitEstimationCount
     }
 }
