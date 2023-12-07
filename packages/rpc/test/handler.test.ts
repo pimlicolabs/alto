@@ -47,7 +47,7 @@ describe("handler", () => {
             SimpleAccountFactoryBytecode
         )
 
-        const metrics = createMetrics(new Registry(), 999999, "Test", "development", false)
+        const metrics = createMetrics(new Registry(), false)
 
         const logger = initDebugLogger("silent")
         const validator = new UnsafeValidator(clients.public, entryPoint, logger, metrics, signer)
