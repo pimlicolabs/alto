@@ -161,7 +161,7 @@ export function calcPreVerificationGas(userOperation: UserOperation, overheads?:
     const ov = { ...DefaultGasOverheads, ...(overheads ?? {}) }
 
     const p = userOperation
-    p.preVerificationGas ?? 21000n // dummy value, just for calldata cost
+    p.preVerificationGas = p.preVerificationGas ?? 21000n // dummy value, just for calldata cost
     p.signature = p.signature === "0x" ? toHex(Buffer.alloc(ov.sigSize, 1)) : p.signature // dummy signature
 
     const packed = toBytes(packUserOp(p))
