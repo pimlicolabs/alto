@@ -122,6 +122,7 @@ export class Server {
     }
 
     public async rpc(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+        reply.rpcStatus = "failed" // default to failed
         let requestId
         try {
             const contentTypeHeader = request.headers["content-type"]
@@ -167,6 +168,7 @@ export class Server {
             }
 
             await reply.status(200).send(jsonRpcResponse)
+            reply.rpcStatus = "success"
             this.fastify.log.info(
                 { data: JSON.stringify(jsonRpcResponse), method: bundlerRequest.method },
                 "sent reply"
