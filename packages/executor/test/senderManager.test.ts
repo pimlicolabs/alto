@@ -24,7 +24,7 @@ describe("senderManager", () => {
         clients = await createClients()
         accounts = await generateAccounts(clients)
         const logger = initDebugLogger("silent")
-        const metrics = createMetrics(new Registry(), 999999, "Test", "development", false)
+        const metrics = createMetrics(new Registry(), false)
         senderManager = new SenderManager(accounts, accounts[0], logger, metrics)
     })
 

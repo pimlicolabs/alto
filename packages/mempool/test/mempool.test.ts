@@ -56,7 +56,7 @@ describe("mempool", () => {
 
         const accounts: Account[] = await generateAccounts(clients)
 
-        const metrics = createMetrics(new Registry(), 999999, "Test", "development", false)
+        const metrics = createMetrics(new Registry(), false)
 
         const senderManager = new SenderManager(accounts, accounts[0], logger, metrics)
 
