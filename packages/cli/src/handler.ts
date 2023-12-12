@@ -1,9 +1,34 @@
 import { BasicExecutor, ExecutorManager, SenderManager } from "@alto/executor"
-import { MemoryMempool, Monitor } from "@alto/mempool"
-import { NonceQueuer, RpcHandler, Server, UnsafeValidator } from "@alto/rpc"
-import { Logger, createMetrics, initDebugLogger, initProductionLogger } from "@alto/utils"
+import {
+    MemoryMempool,
+    Monitor,
+    ReputationManager,
+    IReputationManager,
+    NullRepuationManager
+} from "@alto/mempool"
+import {
+    IValidator,
+    NonceQueuer,
+    RpcHandler,
+    SafeValidator,
+    Server,
+    UnsafeValidator
+} from "@alto/rpc"
+import {
+    Logger,
+    createMetrics,
+    initDebugLogger,
+    initProductionLogger
+} from "@alto/utils"
 import { Registry } from "prom-client"
-import { Chain, PublicClient, Transport, createPublicClient, createWalletClient, http } from "viem"
+import {
+    Chain,
+    PublicClient,
+    Transport,
+    createPublicClient,
+    createWalletClient,
+    http
+} from "viem"
 import * as chains from "viem/chains"
 import { fromZodError } from "zod-validation-error"
 import { IBundlerArgs, IBundlerArgsInput, bundlerArgsSchema } from "./config"
@@ -19,8 +44,13 @@ const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
     return parsing.data
 }
 
-const preFlightChecks = async (publicClient: PublicClient<Transport, Chain>, args: IBundlerArgs): Promise<void> => {
-    const entryPointCode = await publicClient.getBytecode({ address: args.entryPoint })
+const preFlightChecks = async (
+    publicClient: PublicClient<Transport, Chain>,
+    args: IBundlerArgs
+): Promise<void> => {
+    const entryPointCode = await publicClient.getBytecode({
+        address: args.entryPoint
+    })
     if (entryPointCode === "0x") {
         throw new Error(`entry point ${args.entryPoint} does not exist`)
     }
@@ -57,10 +87,14 @@ const dfkTestnet: Chain = {
     },
     rpcUrls: {
         default: {
-            http: ["https://subnets.avax.network/defi-kingdoms/dfk-chain-testnet/rpc"]
+            http: [
+                "https://subnets.avax.network/defi-kingdoms/dfk-chain-testnet/rpc"
+            ]
         },
         public: {
-            http: ["https://subnets.avax.network/defi-kingdoms/dfk-chain-testnet/rpc"]
+            http: [
+                "https://subnets.avax.network/defi-kingdoms/dfk-chain-testnet/rpc"
+            ]
         }
     },
     testnet: true
@@ -154,10 +188,15 @@ function getChain(chainId: number): Chain {
     throw new Error(`Chain with id ${chainId} not found`)
 }
 
-export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => {
+export const bundlerHandler = async (
+    args: IBundlerArgsInput
+): Promise<void> => {
     const parsedArgs = parseArgs(args)
     if (parsedArgs.signerPrivateKeysExtra !== undefined) {
-        parsedArgs.signerPrivateKeys = [...parsedArgs.signerPrivateKeys, ...parsedArgs.signerPrivateKeysExtra]
+        parsedArgs.signerPrivateKeys = [
+            ...parsedArgs.signerPrivateKeys,
+            ...parsedArgs.signerPrivateKeysExtra
+        ]
     }
 
     const getChainId = async () => {
@@ -175,7 +214,12 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     })
 
     const registry = new Registry()
-    const metrics = createMetrics(registry, chainId, chain.name, parsedArgs.environment)
+    const metrics = createMetrics(
+        registry,
+        chainId,
+        chain.name,
+        parsedArgs.environment
+    )
 
     await preFlightChecks(client, parsedArgs)
 
@@ -197,15 +241,37 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
             parsedArgs.lokiPassword
         )
     }
-    const validator = new UnsafeValidator(
-        client,
-        parsedArgs.entryPoint,
-        logger.child({ module: "rpc" }),
-        metrics,
-        parsedArgs.utilityPrivateKey,
-        parsedArgs.tenderlyEnabled,
-        parsedArgs.supportTracer
-    )
+
+    let validator: IValidator
+    let reputationManager: IReputationManager
+
+    if (parsedArgs.safeMode) {
+        reputationManager = new ReputationManager(
+            BigInt(parsedArgs.minStake),
+            BigInt(parsedArgs.minUnstakeDelay)
+        )
+
+        validator = new SafeValidator(
+            client,
+            parsedArgs.entryPoint,
+            logger.child({ module: "rpc" }),
+            metrics,
+            parsedArgs.utilityPrivateKey,
+            reputationManager,
+            parsedArgs.tenderlyEnabled
+        )
+    } else {
+        reputationManager = new NullRepuationManager()
+        validator = new UnsafeValidator(
+            client,
+            parsedArgs.entryPoint,
+            logger.child({ module: "rpc" }),
+            metrics,
+            parsedArgs.utilityPrivateKey,
+            parsedArgs.tenderlyEnabled
+        )
+    }
+
     const senderManager = new SenderManager(
         parsedArgs.signerPrivateKeys,
         parsedArgs.utilityPrivateKey,
@@ -215,15 +281,24 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         parsedArgs.maxSigners
     )
 
-    await senderManager.validateAndRefillWallets(client, walletClient, parsedArgs.minBalance)
+    await senderManager.validateAndRefillWallets(
+        client,
+        walletClient,
+        parsedArgs.minBalance
+    )
 
     setInterval(async () => {
-        await senderManager.validateAndRefillWallets(client, walletClient, parsedArgs.minBalance)
+        await senderManager.validateAndRefillWallets(
+            client,
+            walletClient,
+            parsedArgs.minBalance
+        )
     }, parsedArgs.refillInterval)
 
     const monitor = new Monitor()
     const mempool = new MemoryMempool(
         monitor,
+        reputationManager,
         client,
         parsedArgs.entryPoint,
         logger.child({ module: "mempool" }),
@@ -234,6 +309,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         client,
         walletClient,
         senderManager,
+        reputationManager,
         parsedArgs.entryPoint,
         logger.child({ module: "executor" }),
         metrics,
@@ -247,6 +323,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         executor,
         mempool,
         monitor,
+        reputationManager,
         client,
         parsedArgs.entryPoint,
         parsedArgs.pollingInterval,
@@ -270,6 +347,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         monitor,
         nonceQueuer,
         executorManager,
+        reputationManager,
         parsedArgs.tenderlyEnabled ?? false,
         parsedArgs.minimumGasPricePercent,
         parsedArgs.noEthCallOverrideSupport,
@@ -280,7 +358,10 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
 
     // executor.flushStuckTransactions()
 
-    logger.info({ module: "executor" }, `Initialized ${senderManager.wallets.length} executor wallets`)
+    logger.info(
+        { module: "executor" },
+        `Initialized ${senderManager.wallets.length} executor wallets`
+    )
 
     const server = new Server(
         rpcEndpoint,

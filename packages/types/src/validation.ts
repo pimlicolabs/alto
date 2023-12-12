@@ -95,7 +95,7 @@ export const validationResultSchema = z
                 .regex(hexPattern)
                 .transform((val) => val as HexData)
         }),
-        stakeInfoSchema.optional(),
+        stakeInfoSchema,
         stakeInfoSchema.optional(),
         stakeInfoSchema.optional()
     ])
@@ -130,7 +130,7 @@ export const validationResultWithAggregationSchema = z
                 .regex(hexPattern)
                 .transform((val) => val as HexData)
         }),
-        stakeInfoSchema.optional(),
+        stakeInfoSchema,
         stakeInfoSchema.optional(),
         stakeInfoSchema.optional(),
         z
@@ -181,7 +181,6 @@ export const vmExecutionError = z.object({
             data: z.string().transform((val) => {
                 const errorHexData = val.split("Reverted ")[1] as HexData
                 if (errorHexData === "0x") {
-                    console.log(val)
                     throw new RpcError(
                         `User operation reverted on-chain with unknown error (some chains don't return revert reason) ${val}`
                     )

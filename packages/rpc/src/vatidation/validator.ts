@@ -11,7 +11,11 @@ import {
     entryPointExecutionErrorSchema
 } from "@alto/types"
 import { ValidationResult } from "@alto/types"
-import { Logger, Metrics } from "@alto/utils"
+import {
+    Logger,
+    Metrics,
+    getAddressFromInitCodeOrPaymasterAndData
+} from "@alto/utils"
 import {
     PublicClient,
     getContract,
@@ -23,27 +27,43 @@ import {
     zeroAddress,
     keccak256,
     decodeAbiParameters,
-    toHex,
     Hex
 } from "viem"
 import { hexDataSchema } from "@alto/types"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
-import { BundlerTracerResult, ExitInfo, bundlerCollectorTracer } from "./BundlerCollectorTracer"
+import {
+    BundlerTracerResult,
+    ExitInfo,
+    bundlerCollectorTracer
+} from "./BundlerCollectorTracer"
 import { debug_traceCall } from "./tracer"
 import { tracerResultParser } from "./TracerResultParser"
+import { IReputationManager } from "@alto/mempool"
+
 export interface IValidator {
-    getExecutionResult(userOperation: UserOperation, usingTenderly?: boolean): Promise<ExecutionResult>
-    getValidationResult(userOperation: UserOperation, usingTenderly?: boolean): Promise<ValidationResult>
-    validateUserOperation(userOperation: UserOperation, usingTenderly?: boolean): Promise<ValidationResult>
+    getExecutionResult(
+        userOperation: UserOperation,
+        usingTenderly?: boolean
+    ): Promise<ExecutionResult>
+    getValidationResult(
+        userOperation: UserOperation,
+        usingTenderly?: boolean
+    ): Promise<ValidationResult>
+    validateUserOperation(
+        userOperation: UserOperation,
+        usingTenderly?: boolean
+    ): Promise<ValidationResult>
 }
 
 // let id = 0
 
 async function simulateTenderlyCall(publicClient: PublicClient, params: any) {
-    const response = await publicClient.transport.request({ method: "eth_call", params }).catch((e) => {
-        return e
-    })
+    const response = await publicClient.transport
+        .request({ method: "eth_call", params })
+        .catch((e) => {
+            return e
+        })
 
     const parsedObject = z
         .object({
@@ -57,7 +77,10 @@ async function simulateTenderlyCall(publicClient: PublicClient, params: any) {
 }
 
 const ErrorSig = keccak256(Buffer.from("Error(string)")).slice(0, 10) // 0x08c379a0
-const FailedOpSig = keccak256(Buffer.from("FailedOp(uint256,string)")).slice(0, 10) // 0x220266b6
+const FailedOpSig = keccak256(Buffer.from("FailedOp(uint256,string)")).slice(
+    0,
+    10
+) // 0x220266b6
 
 interface DecodedError {
     message: string
@@ -69,14 +92,17 @@ interface DecodedError {
  */
 export function decodeErrorReason(error: string): DecodedError | null {
     if (error.startsWith(ErrorSig)) {
-        const [message] = decodeAbiParameters(["string"], `0x${error.substring(10)}`) as [string]
+        const [message] = decodeAbiParameters(
+            ["string"],
+            `0x${error.substring(10)}`
+        ) as [string]
         return { message }
     }
     if (error.startsWith(FailedOpSig)) {
-        let [opIndex, message] = decodeAbiParameters(["uint256", "string"], `0x${error.substring(10)}`) as [
-            number,
-            string
-        ]
+        let [opIndex, message] = decodeAbiParameters(
+            ["uint256", "string"],
+            `0x${error.substring(10)}`
+        ) as [number, string]
         message = `FailedOp: ${message as string}`
         return {
             message,
@@ -84,18 +110,6 @@ export function decodeErrorReason(error: string): DecodedError | null {
         }
     }
     return null
-}
-
-// extract address from initCode or paymasterAndData
-export function getAddr(data?: string): string | undefined {
-    if (data == null) {
-        return undefined
-    }
-    const str = toHex(data)
-    if (str.length >= 42) {
-        return str.slice(0, 42)
-    }
-    return undefined
 }
 
 async function getSimulationResult(
@@ -109,7 +123,10 @@ async function getSimulationResult(
         : entryPointExecutionErrorSchema.safeParse(errorResult)
     if (!entryPointErrorSchemaParsing.success) {
         const err = fromZodError(entryPointErrorSchemaParsing.error)
-        logger.error({ error: err.message }, "unexpected error during valiation")
+        logger.error(
+            { error: err.message },
+            "unexpected error during valiation"
+        )
         logger.error(JSON.stringify(errorResult))
         err.message = `User Operation simulation returned unexpected invalid response: ${err.message}`
         throw err
@@ -126,8 +143,13 @@ async function getSimulationResult(
     }
 
     if (simulationType === "validation") {
-        if (errorData.errorName !== "ValidationResult" && errorData.errorName !== "ValidationResultWithAggregation") {
-            throw new Error("Unexpected error - errorName is not ValidationResult or ValidationResultWithAggregation")
+        if (
+            errorData.errorName !== "ValidationResult" &&
+            errorData.errorName !== "ValidationResultWithAggregation"
+        ) {
+            throw new Error(
+                "Unexpected error - errorName is not ValidationResult or ValidationResultWithAggregation"
+            )
         }
     } else if (errorData.errorName !== "ExecutionResult") {
         throw new Error("Unexpected error - errorName is not ExecutionResult")
@@ -145,7 +167,6 @@ export class UnsafeValidator implements IValidator {
     metrics: Metrics
     utilityWallet: Account
     usingTenderly: boolean
-    supportTracer: boolean
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
@@ -153,8 +174,7 @@ export class UnsafeValidator implements IValidator {
         logger: Logger,
         metrics: Metrics,
         utilityWallet: Account,
-        usingTenderly = false,
-        supportTracer = false
+        usingTenderly = false
     ) {
         this.publicClient = publicClient
         this.entryPoint = entryPoint
@@ -162,10 +182,11 @@ export class UnsafeValidator implements IValidator {
         this.metrics = metrics
         this.utilityWallet = utilityWallet
         this.usingTenderly = usingTenderly
-        this.supportTracer = supportTracer
     }
 
-    async getExecutionResult(userOperation: UserOperation): Promise<ExecutionResult> {
+    async getExecutionResult(
+        userOperation: UserOperation
+    ): Promise<ExecutionResult> {
         const entryPointContract = getContract({
             address: this.entryPoint,
             abi: EntryPointAbi,
@@ -173,17 +194,24 @@ export class UnsafeValidator implements IValidator {
         })
 
         if (this.usingTenderly) {
-            const tenderlyResult = await simulateTenderlyCall(this.publicClient, [
-                {
-                    to: this.entryPoint,
-                    data: encodeFunctionData({
-                        abi: entryPointContract.abi,
-                        functionName: "simulateHandleOp",
-                        args: [userOperation, "0x0000000000000000000000000000000000000000", "0x"]
-                    })
-                },
-                "latest"
-            ])
+            const tenderlyResult = await simulateTenderlyCall(
+                this.publicClient,
+                [
+                    {
+                        to: this.entryPoint,
+                        data: encodeFunctionData({
+                            abi: entryPointContract.abi,
+                            functionName: "simulateHandleOp",
+                            args: [
+                                userOperation,
+                                "0x0000000000000000000000000000000000000000",
+                                "0x"
+                            ]
+                        })
+                    },
+                    "latest"
+                ]
+            )
 
             const errorResult = decodeErrorResult({
                 abi: entryPointContract.abi,
@@ -191,12 +219,24 @@ export class UnsafeValidator implements IValidator {
             })
 
             // @ts-ignore
-            return getSimulationResult(errorResult, this.logger, "execution", this.usingTenderly)
+            return getSimulationResult(
+                errorResult,
+                this.logger,
+                "execution",
+                this.usingTenderly
+            )
         }
         const errorResult = await entryPointContract.simulate
-            .simulateHandleOp([userOperation, "0x0000000000000000000000000000000000000000", "0x"], {
-                account: this.utilityWallet
-            })
+            .simulateHandleOp(
+                [
+                    userOperation,
+                    "0x0000000000000000000000000000000000000000",
+                    "0x"
+                ],
+                {
+                    account: this.utilityWallet
+                }
+            )
             .catch((e) => {
                 if (e instanceof Error) {
                     return e
@@ -205,7 +245,12 @@ export class UnsafeValidator implements IValidator {
             })
 
         // @ts-ignore
-        return getSimulationResult(errorResult, this.logger, "execution", this.usingTenderly)
+        return getSimulationResult(
+            errorResult,
+            this.logger,
+            "execution",
+            this.usingTenderly
+        )
     }
 
     async getValidationResult(
@@ -218,17 +263,20 @@ export class UnsafeValidator implements IValidator {
         })
 
         if (this.usingTenderly) {
-            const tenderlyResult = await simulateTenderlyCall(this.publicClient, [
-                {
-                    to: this.entryPoint,
-                    data: encodeFunctionData({
-                        abi: entryPointContract.abi,
-                        functionName: "simulateValidation",
-                        args: [userOperation]
-                    })
-                },
-                "latest"
-            ])
+            const tenderlyResult = await simulateTenderlyCall(
+                this.publicClient,
+                [
+                    {
+                        to: this.entryPoint,
+                        data: encodeFunctionData({
+                            abi: entryPointContract.abi,
+                            functionName: "simulateValidation",
+                            args: [userOperation]
+                        })
+                    },
+                    "latest"
+                ]
+            )
 
             const errorResult = decodeErrorResult({
                 abi: entryPointContract.abi,
@@ -236,104 +284,154 @@ export class UnsafeValidator implements IValidator {
             })
 
             // @ts-ignore
-            return getSimulationResult(errorResult, this.logger, "validation", this.usingTenderly)
+            return getSimulationResult(
+                errorResult,
+                this.logger,
+                "validation",
+                this.usingTenderly
+            )
         }
 
-        if (this.supportTracer) {
-            const [res, tracerResult] = await this.getValidationResultWithTracer(userOperation)
-
-            // const [contractAddresses, storageMap] =
-            tracerResultParser(userOperation, tracerResult, res, this.entryPoint.toLowerCase() as Address)
-
-            // const [contractAddresses, storageMap] = tracerResultParser(userOp, tracerResult, res, this.entryPoint)
-
-            if ((res as any) === "0x") {
-                throw new Error("simulateValidation reverted with no revert string!")
-            }
-            return res
-        }
-
-        const errorResult = await entryPointContract.simulate.simulateValidation([userOperation]).catch((e) => {
-            if (e instanceof Error) {
-                return e
-            }
-            throw e
-        })
+        const errorResult = await entryPointContract.simulate
+            .simulateValidation([userOperation])
+            .catch((e) => {
+                if (e instanceof Error) {
+                    return e
+                }
+                throw e
+            })
 
         // @ts-ignore
-        return getSimulationResult(errorResult, this.logger, "validation", this.usingTenderly)
+        return getSimulationResult(
+            errorResult,
+            this.logger,
+            "validation",
+            this.usingTenderly
+        )
     }
 
-    _parseErrorResult(
-        userOp: UserOperation,
-        errorResult: { errorName: string; errorArgs: any }
-    ): ValidationResult | ValidationResultWithAggregation {
-        if (!errorResult?.errorName?.startsWith("ValidationResult")) {
-            // parse it as FailedOp
-            // if its FailedOp, then we have the paymaster param... otherwise its an Error(string)
-            let paymaster = errorResult.errorArgs.paymaster
-            if (paymaster === zeroAddress) {
-                paymaster = undefined
+    async validateUserOperation(
+        userOperation: UserOperation
+    ): Promise<ValidationResult | ValidationResultWithAggregation> {
+        try {
+            const validationResult =
+                await this.getValidationResult(userOperation)
+
+            if (validationResult.returnInfo.sigFailed) {
+                throw new RpcError(
+                    "Invalid UserOp signature or  paymaster signature",
+                    ValidationErrors.InvalidSignature
+                )
             }
 
-            // eslint-disable-next-line
-            const msg: string = errorResult.errorArgs[1] ?? errorResult.toString()
-
-            if (paymaster == null) {
-                throw new RpcError(`account validation failed: ${msg}`, ValidationErrors.SimulateValidation)
+            if (
+                validationResult.returnInfo.validUntil <
+                Date.now() / 1000 + 30
+            ) {
+                throw new RpcError(
+                    "expires too soon",
+                    ValidationErrors.ExpiresShortly
+                )
             }
-            throw new RpcError(`paymaster validation failed: ${msg}`, ValidationErrors.SimulatePaymasterValidation, {
-                paymaster
-            })
+
+            this.metrics.userOperationsValidationSuccess.inc()
+
+            return validationResult
+        } catch (e) {
+            // console.log(e)
+            this.metrics.userOperationsValidationFailure.inc()
+            throw e
+        }
+    }
+}
+
+export class SafeValidator extends UnsafeValidator implements IValidator {
+    reputationManager: IReputationManager
+
+    constructor(
+        publicClient: PublicClient<Transport, Chain>,
+        entryPoint: Address,
+        logger: Logger,
+        metrics: Metrics,
+        utilityWallet: Account,
+        reputationManager: IReputationManager,
+        usingTenderly = false
+    ) {
+        super(
+            publicClient,
+            entryPoint,
+            logger,
+            metrics,
+            utilityWallet,
+            usingTenderly
+        )
+        this.reputationManager = reputationManager
+    }
+
+    async validateUserOperation(
+        userOperation: UserOperation
+    ): Promise<ValidationResult | ValidationResultWithAggregation> {
+        try {
+            const validationResult =
+                await this.getValidationResult(userOperation)
+
+            await this.reputationManager.checkReputation(
+                userOperation,
+                validationResult
+            )
+
+            if (validationResult.returnInfo.sigFailed) {
+                throw new RpcError(
+                    "Invalid UserOp signature or paymaster signature",
+                    ValidationErrors.InvalidSignature
+                )
+            }
+
+            if (
+                validationResult.returnInfo.validUntil <
+                Date.now() / 1000 + 30
+            ) {
+                throw new RpcError(
+                    "expires too soon",
+                    ValidationErrors.ExpiresShortly
+                )
+            }
+
+            this.metrics.userOperationsValidationSuccess.inc()
+
+            return validationResult
+        } catch (e) {
+            this.metrics.userOperationsValidationFailure.inc()
+            throw e
+        }
+    }
+
+    async getValidationResult(
+        userOperation: UserOperation
+    ): Promise<ValidationResult | ValidationResultWithAggregation> {
+        if (this.usingTenderly) {
+            return super.getValidationResult(userOperation)
         }
 
-        const [
-            returnInfo,
-            senderInfo,
-            factoryInfo,
-            paymasterInfo,
-            aggregatorInfo // may be missing (exists only SimulationResultWithAggregator
-        ] = errorResult.errorArgs
+        const [res, tracerResult] =
+            await this.getValidationResultWithTracer(userOperation)
 
-        // extract address from "data" (first 20 bytes)
-        // add it as "addr" member to the "stakeinfo" struct
-        // if no address, then return "undefined" instead of struct.
-        function fillEntity(data: string, info: StakeInfo): StakeInfo | undefined {
-            const addr = getAddr(data)
-            return addr == null
-                ? undefined
-                : {
-                      ...info,
-                      addr
-                  }
-        }
+        // const [contractAddresses, storageMap] =
+        tracerResultParser(
+            userOperation,
+            tracerResult,
+            res,
+            this.entryPoint.toLowerCase() as Address
+        )
 
-        function fillEntityAggregator(
-            data: Hex,
-            info: StakeInfo
-        ): { aggregator: Address; stakeInfo: StakeInfo } | undefined {
-            const addr = getAddr(data)
-            return addr == null
-                ? undefined
-                : {
-                      aggregator: data,
-                      stakeInfo: {
-                          ...info,
-                          addr
-                      }
-                  }
-        }
+        // const [contractAddresses, storageMap] = tracerResultParser(userOp, tracerResult, res, this.entryPoint)
 
-        return {
-            returnInfo,
-            senderInfo: {
-                ...senderInfo,
-                addr: userOp.sender
-            },
-            factoryInfo: fillEntity(userOp.initCode, factoryInfo),
-            paymasterInfo: fillEntity(userOp.paymasterAndData, paymasterInfo),
-            aggregatorInfo: fillEntityAggregator(aggregatorInfo?.actualAggregator, aggregatorInfo?.stakeInfo)
+        if ((res as any) === "0x") {
+            throw new Error(
+                "simulateValidation reverted with no revert string!"
+            )
         }
+        return res
     }
 
     async getValidationResultWithTracer(
@@ -372,7 +470,7 @@ export class UnsafeValidator implements IValidator {
             })
 
             const errFullName = `${errorName}(${errorArgs.toString()})`
-            const errorResult = this._parseErrorResult(userOperation, {
+            const errorResult = this.parseErrorResult(userOperation, {
                 errorName,
                 errorArgs
             })
@@ -393,27 +491,86 @@ export class UnsafeValidator implements IValidator {
         }
     }
 
-    async validateUserOperation(
-        userOperation: UserOperation
-    ): Promise<ValidationResult | ValidationResultWithAggregation> {
-        try {
-            const validationResult = await this.getValidationResult(userOperation)
-
-            if (validationResult.returnInfo.sigFailed) {
-                throw new RpcError("Invalid UserOp signature or paymaster signature", ValidationErrors.InvalidSignature)
+    parseErrorResult(
+        userOp: UserOperation,
+        errorResult: { errorName: string; errorArgs: any }
+    ): ValidationResult | ValidationResultWithAggregation {
+        if (!errorResult?.errorName?.startsWith("ValidationResult")) {
+            // parse it as FailedOp
+            // if its FailedOp, then we have the paymaster param... otherwise its an Error(string)
+            let paymaster = errorResult.errorArgs.paymaster
+            if (paymaster === zeroAddress) {
+                paymaster = undefined
             }
 
-            if (validationResult.returnInfo.validUntil < Date.now() / 1000 + 30) {
-                throw new RpcError("expires too soon", ValidationErrors.ExpiresShortly)
+            // eslint-disable-next-line
+            const msg: string =
+                errorResult.errorArgs[1] ?? errorResult.toString()
+
+            if (paymaster == null) {
+                throw new RpcError(
+                    `account validation failed: ${msg}`,
+                    ValidationErrors.SimulateValidation
+                )
             }
+            throw new RpcError(
+                `paymaster validation failed: ${msg}`,
+                ValidationErrors.SimulatePaymasterValidation,
+                {
+                    paymaster
+                }
+            )
+        }
 
-            this.metrics.userOperationsValidationSuccess.inc()
+        const [
+            returnInfo,
+            senderInfo,
+            factoryInfo,
+            paymasterInfo,
+            aggregatorInfo // may be missing (exists only SimulationResultWithAggregator
+        ] = errorResult.errorArgs
 
-            return validationResult
-        } catch (e) {
-            // console.log(e)
-            this.metrics.userOperationsValidationFailure.inc()
-            throw e
+        // extract address from "data" (first 20 bytes)
+        // add it as "addr" member to the "stakeinfo" struct
+        // if no address, then return "undefined" instead of struct.
+        function fillEntity(data: Hex, info: StakeInfo): StakeInfo | undefined {
+            const addr = getAddressFromInitCodeOrPaymasterAndData(data)
+            return addr == null
+                ? undefined
+                : {
+                      ...info,
+                      addr
+                  }
+        }
+
+        function fillEntityAggregator(
+            data: Hex,
+            info: StakeInfo
+        ): { aggregator: Address; stakeInfo: StakeInfo } | undefined {
+            const addr = getAddressFromInitCodeOrPaymasterAndData(data)
+            return addr == null
+                ? undefined
+                : {
+                      aggregator: data,
+                      stakeInfo: {
+                          ...info,
+                          addr
+                      }
+                  }
+        }
+
+        return {
+            returnInfo,
+            senderInfo: {
+                ...senderInfo,
+                addr: userOp.sender
+            },
+            factoryInfo: fillEntity(userOp.initCode, factoryInfo),
+            paymasterInfo: fillEntity(userOp.paymasterAndData, paymasterInfo),
+            aggregatorInfo: fillEntityAggregator(
+                aggregatorInfo?.actualAggregator,
+                aggregatorInfo?.stakeInfo
+            )
         }
     }
 }

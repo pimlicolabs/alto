@@ -1,12 +1,18 @@
 // import { MongoClient, Collection, Filter } from "mongodb"
 // import { PublicClient, getContract } from "viem"
 // import { EntryPointAbi } from "../types/EntryPoint"
-import { SubmittedUserOperation, TransactionInfo, UserOperation, UserOperationInfo } from "@alto/types"
+import {
+    SubmittedUserOperation,
+    TransactionInfo,
+    UserOperation,
+    UserOperationInfo
+} from "@alto/types"
 import { HexData32 } from "@alto/types"
 import { Monitor } from "./monitoring"
 import { Address, Chain, PublicClient, Transport } from "viem"
 import { Logger, Metrics, getUserOperationHash } from "@alto/utils"
 import { MemoryStore } from "./store"
+import { IReputationManager } from "./reputationManager"
 
 export interface Mempool {
     add(op: UserOperation): boolean
@@ -20,7 +26,10 @@ export interface Mempool {
      */
     process(gasLimit?: bigint, minOps?: number): UserOperation[]
 
-    replaceSubmitted(userOperation: UserOperationInfo, transactionInfo: TransactionInfo): void
+    replaceSubmitted(
+        userOperation: UserOperationInfo,
+        transactionInfo: TransactionInfo
+    ): void
 
     markSubmitted(userOpHash: HexData32, transactionInfo: TransactionInfo): void
 
@@ -51,26 +60,26 @@ export class NullMempool implements Mempool {
     dumpOutstanding(): UserOperationInfo[] {
         throw new Error("Method not implemented.")
     }
-    removeProcessing(userOpHash: `0x${string}`): void {
+    removeProcessing(_: `0x${string}`): void {
         throw new Error("Method not implemented.")
     }
-    replaceSubmitted(userOperation: UserOperationInfo, transactionInfo: TransactionInfo): void {
+    replaceSubmitted(_: UserOperationInfo, __: TransactionInfo): void {
         throw new Error("Method not implemented.")
     }
-    markSubmitted(userOpHash: `0x${string}`, transactionInfo: TransactionInfo): void {
+    markSubmitted(_: `0x${string}`, __: TransactionInfo): void {
         throw new Error("Method not implemented.")
     }
     dumpSubmittedOps(): SubmittedUserOperation[] {
         throw new Error("Method not implemented.")
     }
-    removeSubmitted(userOpHash: `0x${string}`): void {
+    removeSubmitted(_: `0x${string}`): void {
         throw new Error("Method not implemented.")
     }
     add(_op: UserOperation) {
         return false
     }
 
-    process(_gasLimit?: bigint, minOps?: number): UserOperation[] {
+    process(_?: bigint, __?: number): UserOperation[] {
         return []
     }
 }
@@ -79,40 +88,58 @@ export class MemoryMempool implements Mempool {
     private monitor: Monitor
     private publicClient: PublicClient<Transport, Chain>
     private entryPointAddress: Address
+    private reputationManager: IReputationManager
     private store: MemoryStore
 
     constructor(
         monitor: Monitor,
+        reputationManager: IReputationManager,
         publicClient: PublicClient<Transport, Chain>,
         entryPointAddress: Address,
         logger: Logger,
         metrics: Metrics
     ) {
+        this.reputationManager = reputationManager
         this.monitor = monitor
         this.publicClient = publicClient
         this.entryPointAddress = entryPointAddress
         this.store = new MemoryStore(logger, metrics)
     }
 
-    replaceSubmitted(userOperation: UserOperationInfo, transactionInfo: TransactionInfo): void {
+    replaceSubmitted(
+        userOperation: UserOperationInfo,
+        transactionInfo: TransactionInfo
+    ): void {
         const op = this.store
             .dumpSubmitted()
-            .find((op) => op.userOperation.userOperationHash === userOperation.userOperationHash)
+            .find(
+                (op) =>
+                    op.userOperation.userOperationHash ===
+                    userOperation.userOperationHash
+            )
         if (op) {
             this.store.removeSubmitted(userOperation.userOperationHash)
             this.store.addSubmitted({
                 userOperation,
                 transactionInfo
             })
-            this.monitor.setUserOperationStatus(userOperation.userOperationHash, {
-                status: "submitted",
-                transactionHash: transactionInfo.transactionHash
-            })
+            this.monitor.setUserOperationStatus(
+                userOperation.userOperationHash,
+                {
+                    status: "submitted",
+                    transactionHash: transactionInfo.transactionHash
+                }
+            )
         }
     }
 
-    markSubmitted(userOpHash: `0x${string}`, transactionInfo: TransactionInfo): void {
-        const op = this.store.dumpProcessing().find((op) => op.userOperationHash === userOpHash)
+    markSubmitted(
+        userOpHash: `0x${string}`,
+        transactionInfo: TransactionInfo
+    ): void {
+        const op = this.store
+            .dumpProcessing()
+            .find((op) => op.userOperationHash === userOpHash)
         if (op) {
             this.store.removeProcessing(userOpHash)
             this.store.addSubmitted({
@@ -143,25 +170,44 @@ export class MemoryMempool implements Mempool {
     }
 
     add(op: UserOperation) {
-        const allOps = [
-            ...this.store.dumpOutstanding(),
+        const outstandingOps = [...this.store.dumpOutstanding()]
+
+        const processedOrSubmittedOps = [
             ...this.store.dumpProcessing(),
             ...this.store.dumpSubmitted().map((sop) => sop.userOperation)
         ]
-        const oldUserOp = allOps.find(
-            (uo) => uo.userOperation.sender === op.sender && uo.userOperation.nonce === op.nonce
+
+        if (
+            processedOrSubmittedOps.find(
+                (uo) =>
+                    uo.userOperation.sender === op.sender &&
+                    uo.userOperation.nonce === op.nonce
+            )
+        ) {
+            return false
+        }
+
+        this.reputationManager.updateUserOperationSeenStatus(op)
+        const oldUserOp = outstandingOps.find(
+            (uo) =>
+                uo.userOperation.sender === op.sender &&
+                uo.userOperation.nonce === op.nonce
         )
         if (oldUserOp) {
-            const oldMaxPriorityFeePerGas = oldUserOp.userOperation.maxPriorityFeePerGas
+            const oldMaxPriorityFeePerGas =
+                oldUserOp.userOperation.maxPriorityFeePerGas
             const newMaxPriorityFeePerGas = op.maxPriorityFeePerGas
             const oldMaxFeePerGas = oldUserOp.userOperation.maxFeePerGas
             const newMaxFeePerGas = op.maxFeePerGas
 
-            const incrementMaxPriorityFeePerGas = (oldMaxPriorityFeePerGas * BigInt(10)) / BigInt(100)
-            const incrementMaxFeePerGas = (oldMaxFeePerGas * BigInt(10)) / BigInt(100)
+            const incrementMaxPriorityFeePerGas =
+                (oldMaxPriorityFeePerGas * BigInt(10)) / BigInt(100)
+            const incrementMaxFeePerGas =
+                (oldMaxFeePerGas * BigInt(10)) / BigInt(100)
 
             if (
-                newMaxPriorityFeePerGas < oldMaxPriorityFeePerGas + incrementMaxPriorityFeePerGas ||
+                newMaxPriorityFeePerGas <
+                    oldMaxPriorityFeePerGas + incrementMaxPriorityFeePerGas ||
                 newMaxFeePerGas < oldMaxFeePerGas + incrementMaxFeePerGas
             ) {
                 return false
@@ -170,7 +216,11 @@ export class MemoryMempool implements Mempool {
             this.store.removeOutstanding(oldUserOp.userOperationHash)
         }
 
-        const hash = getUserOperationHash(op, this.entryPointAddress, this.publicClient.chain.id)
+        const hash = getUserOperationHash(
+            op,
+            this.entryPointAddress,
+            this.publicClient.chain.id
+        )
 
         this.store.addOutstanding({
             userOperation: op,
@@ -178,7 +228,10 @@ export class MemoryMempool implements Mempool {
             firstSubmitted: oldUserOp ? oldUserOp.firstSubmitted : Date.now(),
             lastReplaced: Date.now()
         })
-        this.monitor.setUserOperationStatus(hash, { status: "not_submitted", transactionHash: null })
+        this.monitor.setUserOperationStatus(hash, {
+            status: "not_submitted",
+            transactionHash: null
+        })
 
         return true
     }
@@ -197,6 +250,9 @@ export class MemoryMempool implements Mempool {
                 if (gasUsed > maxGasLimit && opsTaken >= (minOps || 0)) {
                     break
                 }
+                this.reputationManager.decreaseUserOperationCount(
+                    opInfo.userOperation
+                )
                 this.store.removeOutstanding(opInfo.userOperationHash)
                 this.store.addProcessing(opInfo)
                 result.push(opInfo.userOperation)
@@ -206,6 +262,9 @@ export class MemoryMempool implements Mempool {
         }
 
         return outstandingUserOperations.map((opInfo) => {
+            this.reputationManager.decreaseUserOperationCount(
+                opInfo.userOperation
+            )
             this.store.removeOutstanding(opInfo.userOperationHash)
             this.store.addProcessing(opInfo)
             return opInfo.userOperation
@@ -213,12 +272,16 @@ export class MemoryMempool implements Mempool {
     }
 
     get(opHash: HexData32): UserOperation | null {
-        const outstanding = this.store.dumpOutstanding().find((op) => op.userOperationHash === opHash)
+        const outstanding = this.store
+            .dumpOutstanding()
+            .find((op) => op.userOperationHash === opHash)
         if (outstanding) {
             return outstanding.userOperation
         }
 
-        const submitted = this.store.dumpSubmitted().find((op) => op.userOperation.userOperationHash === opHash)
+        const submitted = this.store
+            .dumpSubmitted()
+            .find((op) => op.userOperation.userOperationHash === opHash)
         if (submitted) {
             return submitted.userOperation.userOperation
         }

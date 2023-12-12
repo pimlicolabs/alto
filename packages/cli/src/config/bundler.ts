@@ -48,7 +48,7 @@ export const bundlerArgsSchema = z.object({
 
     bundleMode: z.enum(["auto", "manual"]),
 
-    supportTracer: z.boolean().optional(),
+    safeMode: z.boolean().optional(),
 
     lokiHost: z.string().optional(),
     lokiUsername: z.string().optional(),

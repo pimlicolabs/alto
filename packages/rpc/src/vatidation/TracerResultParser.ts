@@ -36,16 +36,21 @@ interface CallEntry {
 }
 
 const abi = Object.values(
-    [...SenderCreatorAbi, ...EntryPointAbi, ...PaymasterAbi].reduce((set, entry) => {
-        // @ts-ignore
-        const key = `${entry.name}(${entry.inputs.map((i) => i.type).join(",")})`
-        // console.log('key=', key, keccak256(Buffer.from(key)).slice(0,10))
-        return {
+    [...SenderCreatorAbi, ...EntryPointAbi, ...PaymasterAbi].reduce(
+        (set, entry) => {
             // @ts-ignore
-            ...set,
-            [key]: entry
-        }
-    }, {})
+            const key = `${entry.name}(${entry.inputs
+                .map((i: any) => i.type)
+                .join(",")})`
+            // console.log('key=', key, keccak256(Buffer.from(key)).slice(0,10))
+            return {
+                // @ts-ignore
+                ...set,
+                [key]: entry
+            }
+        },
+        {}
+    )
 ) as any
 
 /**
@@ -67,7 +72,9 @@ function parseCallStack(tracerResults: BundlerTracerResult): CallEntry[] {
 
     const out: CallEntry[] = []
     const stack: any[] = []
-    const filteredTracerResultCalls = tracerResults.calls.filter((x) => !x.type.startsWith("depth"))
+    const filteredTracerResultCalls = tracerResults.calls.filter(
+        (x) => !x.type.startsWith("depth")
+    )
 
     for (const c of filteredTracerResultCalls) {
         if (c.type.match(/REVERT|RETURN/) != null) {
@@ -85,12 +92,18 @@ function parseCallStack(tracerResults: BundlerTracerResult): CallEntry[] {
                     return: `len=${returnData.length}`
                 })
             } else {
-                const { functionName: method } = callCatch(() => decodeFunctionData({ abi: abi, data: top.method }), {
-                    functionName: top.method
-                })
+                const { functionName: method } = callCatch(
+                    () => decodeFunctionData({ abi: abi, data: top.method }),
+                    {
+                        functionName: top.method
+                    }
+                )
 
                 if (c.type === "REVERT") {
-                    const parsedError = callCatch(() => decodeErrorResult({ abi: abi, data: returnData }), returnData)
+                    const parsedError = callCatch(
+                        () => decodeErrorResult({ abi: abi, data: returnData }),
+                        returnData
+                    )
                     out.push({
                         to: top.to,
                         from: top.from,
@@ -101,7 +114,12 @@ function parseCallStack(tracerResults: BundlerTracerResult): CallEntry[] {
                     })
                 } else {
                     const ret = callCatch(
-                        () => decodeFunctionResult({ abi: abi, functionName: method, data: returnData }),
+                        () =>
+                            decodeFunctionResult({
+                                abi: abi,
+                                functionName: method,
+                                data: returnData
+                            }),
                         returnData
                     )
                     out.push({
@@ -412,7 +430,9 @@ export function tracerResultParser(
 
     // eslint-disable-next-line @typescript-eslint/no-base-to-string
     if (Object.values(tracerResults.callsFromEntryPoint).length < 1) {
-        throw new Error("Unexpected traceCall result: no calls from entrypoint.")
+        throw new Error(
+            "Unexpected traceCall result: no calls from entrypoint."
+        )
     }
     const callStack = parseCallStack(tracerResults)
 
@@ -434,11 +454,16 @@ export function tracerResultParser(
 
     // [OP-061]
     const illegalNonZeroValueCall = callStack.find(
-        (call) => call.to !== entryPointAddress && hexToBigInt(call.value ?? "0x0") !== 0n
+        (call) =>
+            call.to !== entryPointAddress &&
+            hexToBigInt(call.value ?? "0x0") !== 0n
     )
 
     if (illegalNonZeroValueCall != null) {
-        throw new RpcError("May not may CALL with value", ValidationErrors.OpcodeValidation)
+        throw new RpcError(
+            "May not may CALL with value",
+            ValidationErrors.OpcodeValidation
+        )
     }
 
     const sender = userOp.sender.toLowerCase()
@@ -458,7 +483,9 @@ export function tracerResultParser(
     for (const [entityTitle, entStakes] of Object.entries(stakeInfoEntities)) {
         const entityAddr = (entStakes?.addr ?? "").toLowerCase()
         const currentNumLevel = tracerResults.callsFromEntryPoint.find(
-            (info) => info.topLevelMethodSig === callsFromEntryPointMethodSigs[entityTitle]
+            (info) =>
+                info.topLevelMethodSig ===
+                callsFromEntryPointMethodSigs[entityTitle]
         )
         if (currentNumLevel == null) {
             if (entityTitle === "account") {
@@ -472,21 +499,34 @@ export function tracerResultParser(
 
         // [OP-020]
         if (currentNumLevel.oog ?? false) {
-            throw new RpcError(`${entityTitle} internally reverts on oog`, ValidationErrors.OpcodeValidation)
+            throw new RpcError(
+                `${entityTitle} internally reverts on oog`,
+                ValidationErrors.OpcodeValidation
+            )
         }
 
         // opcodes from [OP-011]
         for (const opcode of Object.keys(opcodes)) {
             if (bannedOpCodes.has(opcode)) {
-                throw new RpcError(`${entityTitle} uses banned opcode: ${opcode}`, ValidationErrors.OpcodeValidation)
+                throw new RpcError(
+                    `${entityTitle} uses banned opcode: ${opcode}`,
+                    ValidationErrors.OpcodeValidation
+                )
             }
         }
         // [OP-031]
-        if (entityTitle === "factory" && (opcodes.CREATE2 ?? 0) > 1) {
-            throw new RpcError(`${entityTitle} with too many CREATE2`, ValidationErrors.OpcodeValidation)
-        }
-        if (opcodes.CREATE2) {
-            throw new RpcError(`${entityTitle} uses banned opcode: CREATE2`, ValidationErrors.OpcodeValidation)
+        if (entityTitle === "factory") {
+            if ((opcodes.CREATE2 ?? 0) > 1) {
+                throw new RpcError(
+                    `${entityTitle} with too many CREATE2`,
+                    ValidationErrors.OpcodeValidation
+                )
+            }
+        } else if (opcodes.CREATE2) {
+            throw new RpcError(
+                `${entityTitle} uses banned opcode: CREATE2`,
+                ValidationErrors.OpcodeValidation
+            )
         }
 
         for (const [addr, { reads, writes }] of Object.entries(access)) {
@@ -507,8 +547,14 @@ export function tracerResultParser(
             // @param slot the SLOAD/SSTORE slot address we're testing
             // @param addr - the address we try to check for association with
             // @param reverseKeccak - a mapping we built for keccak values that contained the address
-            function associatedWith(slot: string, addr: string, entitySlots: { [addr: string]: Set<string> }): boolean {
-                const addrPadded = padHex(addr as Hex, { size: 32 }).toLowerCase()
+            function associatedWith(
+                slot: string,
+                addr: string,
+                entitySlots: { [addr: string]: Set<string> }
+            ): boolean {
+                const addrPadded = padHex(addr as Hex, {
+                    size: 32
+                }).toLowerCase()
                 if (slot === addrPadded) {
                     return true
                 }
@@ -541,7 +587,12 @@ export function tracerResultParser(
                     if (userOp.initCode.length > 2) {
                         // special case: account.validateUserOp is allowed to use assoc storage if factory is staked.
                         // [STO-022], [STO-021]
-                        if (!(entityAddr === sender && isStaked(stakeInfoEntities.factory))) {
+                        if (
+                            !(
+                                entityAddr === sender &&
+                                isStaked(stakeInfoEntities.factory)
+                            )
+                        ) {
                             requireStakeSlot = slot
                         }
                     }
@@ -564,7 +615,8 @@ export function tracerResultParser(
             function nameAddr(addr: string, currentEntity: string): string {
                 const [title] =
                     Object.entries(stakeInfoEntities).find(
-                        ([title, info]) => info?.addr.toLowerCase() === addr.toLowerCase()
+                        ([title, info]) =>
+                            info?.addr.toLowerCase() === addr.toLowerCase()
                     ) ?? []
 
                 return title ?? addr
@@ -573,14 +625,19 @@ export function tracerResultParser(
             requireCondAndStake(
                 requireStakeSlot != null,
                 entStakes,
-                `unstaked ${entityTitle} accessed ${nameAddr(addr, entityTitle)} slot ${requireStakeSlot}`
+                `unstaked ${entityTitle} accessed ${nameAddr(
+                    addr,
+                    entityTitle
+                )} slot ${requireStakeSlot}`
             )
         }
 
         // [EREP-050]
         if (entityTitle === "paymaster") {
             const validatePaymasterUserOp = callStack.find(
-                (call) => call.method === "validatePaymasterUserOp" && call.to === entityAddr
+                (call) =>
+                    call.method === "validatePaymasterUserOp" &&
+                    call.to === entityAddr
             )
             const context = validatePaymasterUserOp?.return?.context
             requireCondAndStake(
@@ -592,23 +649,37 @@ export function tracerResultParser(
 
         // check if the given entity is staked
         function isStaked(entStake?: StakeInfo): boolean {
-            return entStake != null && 1n <= entStake.stake && 1n <= entStake.unstakeDelaySec
+            return (
+                entStake != null &&
+                1n <= entStake.stake &&
+                1n <= entStake.unstakeDelaySec
+            )
         }
 
         // helper method: if condition is true, then entity must be staked.
-        function requireCondAndStake(cond: boolean, entStake: StakeInfo | undefined, failureMessage: string): void {
+        function requireCondAndStake(
+            cond: boolean,
+            entStake: StakeInfo | undefined,
+            failureMessage: string
+        ): void {
             if (!cond) {
                 return
             }
             if (entStake == null) {
                 throw new Error(
-                    `internal: ${entityTitle} not in userOp, but has storage accesses in ${JSON.stringify(access)}`
+                    `internal: ${entityTitle} not in userOp, but has storage accesses in ${JSON.stringify(
+                        access
+                    )}`
                 )
             }
             if (!isStaked(entStake)) {
-                throw new RpcError(failureMessage, ValidationErrors.OpcodeValidation, {
-                    [entityTitle]: entStakes?.addr
-                })
+                throw new RpcError(
+                    failureMessage,
+                    ValidationErrors.OpcodeValidation,
+                    {
+                        [entityTitle]: entStakes?.addr
+                    }
+                )
             }
 
             // TODO: check real minimum stake values
@@ -618,7 +689,10 @@ export function tracerResultParser(
         let illegalZeroCodeAccess: any
         for (const addr of Object.keys(currentNumLevel.contractSize)) {
             // [OP-042]
-            if (addr !== sender && currentNumLevel.contractSize[addr].contractSize <= 2) {
+            if (
+                addr !== sender &&
+                currentNumLevel.contractSize[addr].contractSize <= 2
+            ) {
                 illegalZeroCodeAccess = currentNumLevel.contractSize[addr]
                 illegalZeroCodeAccess.address = addr
                 break
@@ -637,7 +711,8 @@ export function tracerResultParser(
         let illegalEntryPointCodeAccess
         for (const addr of Object.keys(currentNumLevel.extCodeAccessInfo)) {
             if (addr === entryPointAddress) {
-                illegalEntryPointCodeAccess = currentNumLevel.extCodeAccessInfo[addr]
+                illegalEntryPointCodeAccess =
+                    currentNumLevel.extCodeAccessInfo[addr]
                 break
             }
         }
@@ -651,7 +726,9 @@ export function tracerResultParser(
     }
 
     // return list of contract addresses by this UserOp. already known not to contain zero-sized addresses.
-    const addresses = tracerResults.callsFromEntryPoint.flatMap((level) => Object.keys(level.contractSize))
+    const addresses = tracerResults.callsFromEntryPoint.flatMap((level) =>
+        Object.keys(level.contractSize)
+    )
     const storageMap: StorageMap = {}
     for (const level of tracerResults.callsFromEntryPoint) {
         for (const addr of Object.keys(level.access)) {

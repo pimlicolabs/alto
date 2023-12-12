@@ -1,49 +1,129 @@
 import { EntryPointAbi, HexData32, UserOperation } from "@alto/types"
-import { Address, PublicClient, decodeEventLog, encodeAbiParameters, keccak256 } from "viem"
+import {
+    Address,
+    Hex,
+    PublicClient,
+    decodeEventLog,
+    encodeAbiParameters,
+    keccak256,
+} from "viem"
+
+export function getAddressFromInitCodeOrPaymasterAndData(
+    data: Hex
+): string | undefined {
+    if (!data) {
+        return undefined
+    }
+    if (data.length >= 42) {
+        return data.slice(0, 42)
+    }
+    return undefined
+}
 
 export const transactionIncluded = async (
     txHash: HexData32,
     publicClient: PublicClient
-): Promise<"included" | "reverted" | "failed" | "not_found"> => {
+): Promise<{
+    status: "included" | "reverted" | "failed" | "not_found"
+    [userOperationHash: HexData32]: {
+        accountDeployed: boolean
+    }
+}> => {
     try {
         const rcp = await publicClient.getTransactionReceipt({ hash: txHash })
 
         if (rcp.status === "success") {
-            // find if any logs are UserOperationEvent
+            // find if any logs are UserOperationEvent or AccountDeployed
             const r = rcp.logs
                 .map((l) => {
                     if (l.address === rcp.to) {
                         try {
-                            const log = decodeEventLog({ abi: EntryPointAbi, data: l.data, topics: l.topics })
-                            if (log.eventName === "UserOperationEvent") {
-                                return log
-                            } else {
-                                return undefined
+                            const log = decodeEventLog({
+                                abi: EntryPointAbi,
+                                data: l.data,
+                                topics: l.topics
+                            })
+                            if (log.eventName === "AccountDeployed") {
+                                return {
+                                    userOperationHash: log.args.userOpHash,
+                                    success: !!log.args.factory,
+                                    accountDeployed: true
+                                }
                             }
+                            if (log.eventName === "UserOperationEvent") {
+                                return {
+                                    userOperationHash: log.args.userOpHash,
+                                    success: !!log.args.success,
+                                    accountDeployed: false
+                                }
+                            }
+                            return undefined
                         } catch (_e) {
-                            console.log("error decoding transaction inclusion status", _e)
                             return undefined
                         }
-                    } else {
-                        return undefined
                     }
+                    return undefined
                 })
-                .find((l) => l !== undefined)
+                .reduce(
+                    (
+                        result: {
+                            [userOperationHash: HexData32]: {
+                                userOperationHash: HexData32
+                                accountDeployed: boolean
+                                success: boolean
+                            }
+                        },
+                        log
+                    ) => {
+                        if (log) {
+                            return {
+                                [log.userOperationHash]: {
+                                    accountDeployed:
+                                        log.accountDeployed ||
+                                        result[log.userOperationHash]
+                                            ?.accountDeployed,
+                                    success:
+                                        log.success ||
+                                        result[log.userOperationHash]?.success
+                                },
+                                ...result
+                            }
+                        }
+                        return result
+                    },
+                    {}
+                )
 
-            if (r?.args.success) {
-                return "included"
+
+            const success = Object.values(r).reduce((x, v) => x || v.success, false)
+
+            if (success) {
+                return {
+                    status: "included",
+                    ...r
+                }
             } else {
-                return "reverted"
+                return {
+                    status: "reverted"
+                }
             }
         } else {
-            return "failed"
+            return {
+                status: "failed"
+            }
         }
     } catch (_e) {
-        return "not_found"
+        return {
+            status: "not_found"
+        }
     }
 }
 
-export const getUserOperationHash = (userOperation: UserOperation, entryPointAddress: Address, chainId: number) => {
+export const getUserOperationHash = (
+    userOperation: UserOperation,
+    entryPointAddress: Address,
+    chainId: number
+) => {
     const hash = keccak256(
         encodeAbiParameters(
             [

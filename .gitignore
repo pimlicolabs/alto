@@ -9,3 +9,5 @@ packages/**/lib
 test/spec-tests/bundler-spec-tests
 test/build
 .DS_Store
+
+.nx/cache
