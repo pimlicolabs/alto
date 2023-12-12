@@ -229,9 +229,11 @@ export class UnsafeValidator implements IValidator {
                 throw new RpcError("Invalid UserOp signature or paymaster signature", ValidationErrors.InvalidSignature)
             }
 
-            if (validationResult.returnInfo.validUntil < Date.now() / 1000 + 30) {
-                throw new RpcError("expires too soon", ValidationErrors.ExpiresShortly)
-            }
+            console.log(validationResult.returnInfo.validUntil)
+
+            // if (validationResult.returnInfo.validUntil < Date.now() / 1000 + 30) {
+            //     throw new RpcError("expires too soon", ValidationErrors.ExpiresShortly)
+            // }
 
             this.metrics.userOperationsValidationSuccess.inc()
 
