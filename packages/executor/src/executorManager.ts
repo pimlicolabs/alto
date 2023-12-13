@@ -90,9 +90,17 @@ export class ExecutorManager {
             throw new Error("no ops to bundle")
         }
 
+        const txHash = await this.sendToExecutor(ops)
+
+        if (!txHash) {
+            throw new Error("no tx hash")
+        }
+        return txHash
+    }
+
+    async sendToExecutor(ops: UserOperation[]) {
         const results = await this.executor.bundle(this.entryPointAddress, ops)
         let txHash
-
         for (const result of results) {
             if (result.success === true) {
                 const res = result.value
@@ -126,10 +134,6 @@ export class ExecutorManager {
                 )
             }
         }
-
-        if (!txHash) {
-            throw new Error("no tx hash")
-        }
         return txHash
     }
 
@@ -151,48 +155,7 @@ export class ExecutorManager {
 
         await Promise.all(
             opsToBundle.map(async (ops) => {
-                const results = await this.executor.bundle(
-                    this.entryPointAddress,
-                    ops
-                )
-
-                for (const result of results) {
-                    if (result.success === true) {
-                        const res = result.value
-
-                        this.mempool.markSubmitted(
-                            res.userOperation.userOperationHash,
-                            res.transactionInfo
-                        )
-                        // this.monitoredTransactions.set(result.transactionInfo.transactionHash, result.transactionInfo)
-                        this.monitor.setUserOperationStatus(
-                            res.userOperation.userOperationHash,
-                            {
-                                status: "submitted",
-                                transactionHash:
-                                    res.transactionInfo.transactionHash
-                            }
-                        )
-
-                        this.startWatchingBlocks(this.handleBlock.bind(this))
-                    } else {
-                        this.mempool.removeProcessing(result.error.userOpHash)
-                        this.monitor.setUserOperationStatus(
-                            result.error.userOpHash,
-                            {
-                                status: "rejected",
-                                transactionHash: null
-                            }
-                        )
-                        this.logger.warn(
-                            {
-                                userOpHash: result.error.userOpHash,
-                                reason: result.error.reason
-                            },
-                            "user operation rejected"
-                        )
-                    }
-                }
+                await this.sendToExecutor(ops)
             })
         )
     }
