@@ -24,6 +24,7 @@ import {
     receiptSchema,
     Environment,
     ValidationErrors,
+    BundlerDumpReputationsResponseResult,
     BundlerSetReputationsRequestParams
 } from "@alto/types"
 import {
@@ -204,6 +205,13 @@ export class RpcHandler implements IRpcEndpoint {
                     method,
                     result: await this.debug_bundler_setReputation(
                         request.params
+                    )
+                }
+            case "debug_bundler_dumpReputation":
+                return {
+                    method,
+                    result: await this.debug_bundler_dumpReputation(
+                        ...request.params
                     )
                 }
             case "pimlico_getUserOperationStatus":
@@ -756,6 +764,15 @@ export class RpcHandler implements IRpcEndpoint {
         }
         this.executorManager.setBundlingMode(bundlingMode)
         return "ok"
+    }
+
+    async debug_bundler_dumpReputation(): Promise<BundlerDumpReputationsResponseResult> {
+        if (this.environment !== "development") {
+            throw new RpcError(
+                "debug_bundler_setRe is only available in development environment"
+            )
+        }
+        return this.reputationManager.dumpReputations()
     }
 
     async debug_bundler_setReputation(

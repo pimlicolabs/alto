@@ -29,6 +29,11 @@ export interface IReputationManager {
             opsIncluded: number
         }[]
     ): void
+    dumpReputations(): {
+        address: Address
+        opsSeen: number
+        opsIncluded: number
+    }[]
 }
 
 export enum EntityType {
@@ -100,6 +105,14 @@ export class NullRepuationManager implements IReputationManager {
     ): void {
         return
     }
+
+    dumpReputations(): {
+        address: Address
+        opsSeen: number
+        opsIncluded: number
+    }[] {
+        return []
+    }
 }
 
 export class ReputationManager implements IReputationManager {
@@ -160,6 +173,14 @@ export class ReputationManager implements IReputationManager {
                 opsIncluded: reputation.opsIncluded
             }
         }
+    }
+
+    dumpReputations(): {
+        address: Address
+        opsSeen: number
+        opsIncluded: number
+    }[] {
+        return Object.values(this.entries)
     }
 
     async checkReputation(

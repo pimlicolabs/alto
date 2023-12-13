@@ -1,5 +1,5 @@
 import { Hash, Hex, getAddress } from "viem"
-import {  z } from "zod"
+import { z } from "zod"
 
 const hexDataPattern = /^0x[0-9A-Fa-f]*$/
 const addressPattern = /^0x[0-9,a-f,A-F]{40}$/
@@ -133,12 +133,22 @@ const sendUserOperationRequestSchema = z.object({
 
 const getUserOperationByHashRequestSchema = z.object({
     method: z.literal("eth_getUserOperationByHash"),
-    params: z.tuple([hexData32Schema])
+    params: z.tuple([
+        z
+            .string()
+            .regex(hexData32Pattern, { message: "Missing/invalid userOpHash" })
+            .transform((val) => val as Hex)
+    ])
 })
 
 const getUserOperationReceiptRequestSchema = z.object({
     method: z.literal("eth_getUserOperationReceipt"),
-    params: z.tuple([hexData32Schema])
+    params: z.tuple([
+        z
+            .string()
+            .regex(hexData32Pattern, { message: "Missing/invalid userOpHash" })
+            .transform((val) => val as Hex)
+    ])
 })
 
 const bundlerClearStateRequestSchema = z.object({
@@ -175,6 +185,11 @@ const bundlerSetReputationsRequestSchema = z.object({
     ])
 })
 
+const bundlerDumpReputationsRequestSchema = z.object({
+    method: z.literal("debug_bundler_dumpReputation"),
+    params: z.tuple([])
+})
+
 const pimlicoGetUserOperationStatusRequestSchema = z.object({
     method: z.literal("pimlico_getUserOperationStatus"),
     params: z.tuple([hexData32Schema])
@@ -197,6 +212,7 @@ const bundlerRequestSchema = z.discriminatedUnion("method", [
     bundlerSendBundleNowRequestSchema,
     bundlerSetBundlingModeRequestSchema,
     bundlerSetReputationsRequestSchema,
+    bundlerDumpReputationsRequestSchema,
     pimlicoGetUserOperationStatusRequestSchema,
     pimlicoGetUserOperationGasPriceRequestSchema
 ])
@@ -310,6 +326,18 @@ const bundlerSetReputationsResponseSchema = z.object({
     result: z.literal("ok")
 })
 
+const bundlerDumpReputationsResponseSchema = z.object({
+    method: z.literal("debug_bundler_dumpReputation"),
+    // TODO: FIX
+    result: z.array(
+        z.object({
+            address: addressSchema,
+            opsSeen: z.number(),
+            opsIncluded: z.number()
+        })
+    )
+})
+
 const userOperationStatus = z.object({
     status: z.enum([
         "not_found",
@@ -362,6 +390,7 @@ const bundlerResponseSchema = z.discriminatedUnion("method", [
     bundlerSendBundleNowResponseSchema,
     bundlerSetBundlingModeResponseSchema,
     bundlerSetReputationsResponseSchema,
+    bundlerDumpReputationsResponseSchema,
     pimlicoGetUserOperationStatusResponseSchema,
     pimlicoGetUserOperationGasPriceResponseSchema
 ])
@@ -405,6 +434,9 @@ export type BundlerSetBundlingModeResponse = z.infer<
 export type BundlerSetReputationsResponse = z.infer<
     typeof bundlerSetReputationsResponseSchema
 >
+export type BundlerDumpReputationsResponse = z.infer<
+    typeof bundlerDumpReputationsResponseSchema
+>
 export type PimlicoGetUserOperationStatusResponse = z.infer<
     typeof pimlicoGetUserOperationStatusResponseSchema
 >
@@ -444,6 +476,9 @@ export type BundlerSetBundlingModeResponseResult = z.infer<
 >["result"]
 export type BundlerSetReputationsResponseResult = z.infer<
     typeof bundlerSetReputationsResponseSchema
+>["result"]
+export type BundlerDumpReputationsResponseResult = z.infer<
+    typeof bundlerDumpReputationsResponseSchema
 >["result"]
 export type PimlicoGetUserOperationStatusResponseResult = z.infer<
     typeof pimlicoGetUserOperationStatusResponseSchema
@@ -485,6 +520,9 @@ export type BundlerSetBundlingModeRequest = z.infer<
 export type BundlerSetReputationsRequest = z.infer<
     typeof bundlerSetReputationsRequestSchema
 >
+export type BundlerDumpReputationsRequest = z.infer<
+    typeof bundlerDumpReputationsRequestSchema
+>
 export type PimlicoGetUserOperationStatusRequest = z.infer<
     typeof pimlicoGetUserOperationStatusRequestSchema
 >
@@ -525,6 +563,9 @@ export type BundlerSetBundlingModeRequestParams = z.infer<
 export type BundlerSetReputationsRequestParams = z.infer<
     typeof bundlerSetReputationsRequestSchema
 >["params"]
+export type BundlerDumpReputationsRequestParams = z.infer<
+    typeof bundlerDumpReputationsRequestSchema
+>["params"]
 export type PimlicoGetUserOperationStatusRequestParams = z.infer<
     typeof pimlicoGetUserOperationStatusRequestSchema
 >["params"]
@@ -548,6 +589,7 @@ export {
     bundlerSendBundleNowRequestSchema,
     bundlerSetBundlingModeRequestSchema,
     bundlerSetReputationsRequestSchema,
+    bundlerDumpReputationsRequestSchema,
     pimlicoGetUserOperationStatusRequestSchema,
     pimlicoGetUserOperationGasPriceRequestSchema,
     bundlerRequestSchema,
@@ -568,6 +610,7 @@ export {
     bundlerSendBundleNowResponseSchema,
     bundlerSetBundlingModeResponseSchema,
     bundlerSetReputationsResponseSchema,
+    bundlerDumpReputationsResponseSchema,
     pimlicoGetUserOperationStatusResponseSchema,
     pimlicoGetUserOperationGasPriceResponseSchema,
     bundlerResponseSchema

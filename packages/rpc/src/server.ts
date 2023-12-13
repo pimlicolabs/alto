@@ -147,7 +147,7 @@ export class Server {
                 )
                 throw new RpcError(
                     validationError.message,
-                    ValidationErrors.InvalidFields
+                    ValidationErrors.InvalidRequest
                 )
             }
 
