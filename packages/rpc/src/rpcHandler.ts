@@ -25,7 +25,8 @@ import {
     Environment,
     ValidationErrors,
     BundlerDumpReputationsResponseResult,
-    BundlerSetReputationsRequestParams
+    BundlerSetReputationsRequestParams,
+    BundlerClearMempoolResponseResult
 } from "@alto/types"
 import {
     Logger,
@@ -169,6 +170,13 @@ export class RpcHandler implements IRpcEndpoint {
                 return {
                     method,
                     result: await this.eth_getUserOperationReceipt(
+                        ...request.params
+                    )
+                }
+            case "debug_bundler_clearMempool":
+                return {
+                    method,
+                    result: await this.debug_bundler_clearMempool(
                         ...request.params
                     )
                 }
@@ -724,6 +732,18 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
         this.mempool.clear()
+        this.reputationManager.clear()
+        return "ok"
+    }
+
+    async debug_bundler_clearMempool(): Promise<BundlerClearMempoolResponseResult> {
+        if (this.environment !== "development") {
+            throw new RpcError(
+                "debug_bundler_clearMempool is only available in development environment"
+            )
+        }
+        this.mempool.clear()
+        this.reputationManager.clearEntityCount()
         return "ok"
     }
 
@@ -766,7 +786,9 @@ export class RpcHandler implements IRpcEndpoint {
         return "ok"
     }
 
-    async debug_bundler_dumpReputation(): Promise<BundlerDumpReputationsResponseResult> {
+    async debug_bundler_dumpReputation(
+        _entryPoint: Address
+    ): Promise<BundlerDumpReputationsResponseResult> {
         if (this.environment !== "development") {
             throw new RpcError(
                 "debug_bundler_setRe is only available in development environment"

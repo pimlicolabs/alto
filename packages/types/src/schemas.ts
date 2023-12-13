@@ -156,6 +156,11 @@ const bundlerClearStateRequestSchema = z.object({
     params: z.tuple([])
 })
 
+const bundlerClearMempoolRequestSchema = z.object({
+    method: z.literal("debug_bundler_clearMempool"),
+    params: z.tuple([])
+})
+
 const bundlerDumpMempoolRequestSchema = z.object({
     method: z.literal("debug_bundler_dumpMempool"),
     params: z.tuple([addressSchema])
@@ -177,8 +182,8 @@ const bundlerSetReputationsRequestSchema = z.object({
         z.array(
             z.object({
                 address: addressSchema,
-                opsSeen: z.number(),
-                opsIncluded: z.number()
+                opsSeen: hexNumberSchema,
+                opsIncluded: hexNumberSchema
             })
         ),
         addressSchema
@@ -187,7 +192,7 @@ const bundlerSetReputationsRequestSchema = z.object({
 
 const bundlerDumpReputationsRequestSchema = z.object({
     method: z.literal("debug_bundler_dumpReputation"),
-    params: z.tuple([])
+    params: z.tuple([addressSchema])
 })
 
 const pimlicoGetUserOperationStatusRequestSchema = z.object({
@@ -208,6 +213,7 @@ const bundlerRequestSchema = z.discriminatedUnion("method", [
     getUserOperationByHashRequestSchema,
     getUserOperationReceiptRequestSchema,
     bundlerClearStateRequestSchema,
+    bundlerClearMempoolRequestSchema,
     bundlerDumpMempoolRequestSchema,
     bundlerSendBundleNowRequestSchema,
     bundlerSetBundlingModeRequestSchema,
@@ -306,6 +312,11 @@ const bundlerClearStateResponseSchema = z.object({
     result: z.literal("ok")
 })
 
+const bundlerClearMempoolResponseSchema = z.object({
+    method: z.literal("debug_bundler_clearMempool"),
+    result: z.literal("ok")
+})
+
 const bundlerDumpMempoolResponseSchema = z.object({
     method: z.literal("debug_bundler_dumpMempool"),
     result: z.array(userOperationSchema)
@@ -332,8 +343,9 @@ const bundlerDumpReputationsResponseSchema = z.object({
     result: z.array(
         z.object({
             address: addressSchema,
-            opsSeen: z.number(),
-            opsIncluded: z.number()
+            opsSeen: hexNumberSchema,
+            opsIncluded: hexNumberSchema,
+            status: hexNumberSchema.optional()
         })
     )
 })
@@ -386,6 +398,7 @@ const bundlerResponseSchema = z.discriminatedUnion("method", [
     getUserOperationByHashResponseSchema,
     getUserOperationReceiptResponseSchema,
     bundlerClearStateResponseSchema,
+    bundlerClearMempoolResponseSchema,
     bundlerDumpMempoolResponseSchema,
     bundlerSendBundleNowResponseSchema,
     bundlerSetBundlingModeResponseSchema,
@@ -421,6 +434,9 @@ export type GetUserOperationReceiptResponse = z.infer<
 >
 export type BundlerClearStateResponse = z.infer<
     typeof bundlerClearStateResponseSchema
+>
+export type BundlerClearMempoolResponse = z.infer<
+    typeof bundlerClearMempoolResponseSchema
 >
 export type BundlerDumpMempoolResponse = z.infer<
     typeof bundlerDumpMempoolResponseSchema
@@ -465,6 +481,9 @@ export type GetUserOperationReceiptResponseResult = z.infer<
 export type BundlerClearStateResponseResult = z.infer<
     typeof bundlerClearStateResponseSchema
 >["result"]
+export type BundlerClearMempoolResponseResult = z.infer<
+    typeof bundlerClearMempoolResponseSchema
+>["result"]
 export type BundlerDumpMempoolResponseResult = z.infer<
     typeof bundlerDumpMempoolResponseSchema
 >["result"]
@@ -507,6 +526,9 @@ export type GetUserOperationReceiptRequest = z.infer<
 >
 export type BundlerClearStateRequest = z.infer<
     typeof bundlerClearStateRequestSchema
+>
+export type BundlerClearMempoolRequest = z.infer<
+    typeof bundlerClearMempoolRequestSchema
 >
 export type BundlerDumpMempoolRequest = z.infer<
     typeof bundlerDumpMempoolRequestSchema
@@ -551,6 +573,9 @@ export type GetUserOperationReceiptRequestParams = z.infer<
 export type BundlerClearStateRequestParams = z.infer<
     typeof bundlerClearStateRequestSchema
 >["params"]
+export type BundlerClearMempoolRequestParams = z.infer<
+    typeof bundlerClearMempoolRequestSchema
+>["params"]
 export type BundlerDumpMempoolRequestParams = z.infer<
     typeof bundlerDumpMempoolRequestSchema
 >["params"]
@@ -585,6 +610,7 @@ export {
     getUserOperationByHashRequestSchema,
     getUserOperationReceiptRequestSchema,
     bundlerClearStateRequestSchema,
+    bundlerClearMempoolRequestSchema,
     bundlerDumpMempoolRequestSchema,
     bundlerSendBundleNowRequestSchema,
     bundlerSetBundlingModeRequestSchema,
@@ -606,6 +632,7 @@ export {
     getUserOperationByHashResponseSchema,
     getUserOperationReceiptResponseSchema,
     bundlerClearStateResponseSchema,
+    bundlerClearMempoolResponseSchema,
     bundlerDumpMempoolResponseSchema,
     bundlerSendBundleNowResponseSchema,
     bundlerSetBundlingModeResponseSchema,

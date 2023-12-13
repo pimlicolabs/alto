@@ -6,7 +6,7 @@ import {
     ValidationResult,
     ValidationResultWithAggregation
 } from "@alto/types"
-import { getAddressFromInitCodeOrPaymasterAndData } from "@alto/utils"
+import { Logger, getAddressFromInitCodeOrPaymasterAndData } from "@alto/utils"
 import { Address } from "viem"
 
 export interface IReputationManager {
@@ -25,15 +25,13 @@ export interface IReputationManager {
     setReputation(
         args: {
             address: Address
-            opsSeen: number
-            opsIncluded: number
+            opsSeen: bigint
+            opsIncluded: bigint
         }[]
     ): void
-    dumpReputations(): {
-        address: Address
-        opsSeen: number
-        opsIncluded: number
-    }[]
+    dumpReputations(): ReputationEntry[]
+    clear(): void
+    clearEntityCount(): void
 }
 
 export enum EntityType {
@@ -43,29 +41,28 @@ export enum EntityType {
     AGGREGATOR = "Aggregator"
 }
 
-export enum ReputationStatus {
-    OK,
-    THROTTLED,
-    BANNED
-}
+export type ReputationStatus = 0n | 1n | 2n
+const OK: ReputationStatus = 0n
+const THROTTLED: ReputationStatus = 1n
+const BANNED: ReputationStatus = 2n
 
 export interface ReputationEntry {
     address: Address
-    opsSeen: number
-    opsIncluded: number
+    opsSeen: bigint
+    opsIncluded: bigint
     status?: ReputationStatus
 }
 
 export interface ReputationParams {
-    minInclusionDenominator: number
-    throttlingSlack: number
-    banSlack: number
+    minInclusionDenominator: bigint
+    throttlingSlack: bigint
+    banSlack: bigint
 }
 
 export const BundlerReputationParams: ReputationParams = {
-    minInclusionDenominator: 10,
-    throttlingSlack: 10,
-    banSlack: 50
+    minInclusionDenominator: 10n,
+    throttlingSlack: 10n,
+    banSlack: 50n
 }
 
 export class NullRepuationManager implements IReputationManager {
@@ -99,55 +96,62 @@ export class NullRepuationManager implements IReputationManager {
     setReputation(
         _: {
             address: Address
-            opsSeen: number
-            opsIncluded: number
+            opsSeen: bigint
+            opsIncluded: bigint
         }[]
     ): void {
         return
     }
 
-    dumpReputations(): {
-        address: Address
-        opsSeen: number
-        opsIncluded: number
-    }[] {
+    dumpReputations(): ReputationEntry[] {
         return []
+    }
+
+    clear(): void {
+        return
+    }
+    
+    clearEntityCount(): void {
+        return
     }
 }
 
 export class ReputationManager implements IReputationManager {
     private minStake: bigint
     private minUnstakeDelay: bigint
-    private entityCount: { [address: Address]: number } = {}
-    private throttledEntityMinMempoolCount: number
-    private maxMempoolUserOperationsPerSender: number
-    private maxMempoolUserOperationsPerNewUnstakedEntity: number
-    private inclusionRateFactor: number
+    private entityCount: { [address: Address]: bigint } = {}
+    private throttledEntityMinMempoolCount: bigint
+    private maxMempoolUserOperationsPerSender: bigint
+    private maxMempoolUserOperationsPerNewUnstakedEntity: bigint
+    private inclusionRateFactor: bigint
     private entries: { [address: Address]: ReputationEntry } = {}
     private whitelist: Set<Address> = new Set()
     private blackList: Set<Address> = new Set()
     private bundlerReputationParams: ReputationParams
+    private logger: Logger
 
     constructor(
         minStake: bigint,
         minUnstakeDelay: bigint,
-        maxMempoolUserOperationsPerNewUnstakedEntity?: number,
-        throttledEntityMinMempoolCount?: number,
-        inclusionRateFactor?: number,
-        maxMempoolUserOperationsPerSender?: number,
+        logger: Logger,
+        maxMempoolUserOperationsPerNewUnstakedEntity?: bigint,
+        throttledEntityMinMempoolCount?: bigint,
+        inclusionRateFactor?: bigint,
+        maxMempoolUserOperationsPerSender?: bigint,
         blackList?: Address[],
         whiteList?: Address[],
         bundlerReputationParams?: ReputationParams
     ) {
         this.minStake = minStake
         this.minUnstakeDelay = minUnstakeDelay
+        this.logger = logger
         this.maxMempoolUserOperationsPerNewUnstakedEntity =
-            maxMempoolUserOperationsPerNewUnstakedEntity ?? 10
-        this.inclusionRateFactor = inclusionRateFactor ?? 10
+            maxMempoolUserOperationsPerNewUnstakedEntity ?? 10n
+        this.inclusionRateFactor = inclusionRateFactor ?? 10n
         this.throttledEntityMinMempoolCount =
-            throttledEntityMinMempoolCount ?? 4
+            throttledEntityMinMempoolCount ?? 4n
         this.maxMempoolUserOperationsPerSender =
-            maxMempoolUserOperationsPerSender ?? 4
+            maxMempoolUserOperationsPerSender ?? 4n
         this.bundlerReputationParams =
             bundlerReputationParams ?? BundlerReputationParams
         for (const address of blackList || []) {
@@ -161,26 +165,40 @@ export class ReputationManager implements IReputationManager {
     setReputation(
         reputations: {
             address: Address
-            opsSeen: number
-            opsIncluded: number
+            opsSeen: bigint
+            opsIncluded: bigint
         }[]
     ): void {
         for (const reputation of reputations) {
             const address = reputation.address.toLowerCase() as Address
             this.entries[address] = {
                 address: reputation.address,
-                opsSeen: reputation.opsSeen,
-                opsIncluded: reputation.opsIncluded
+                opsSeen: BigInt(reputation.opsSeen),
+                opsIncluded: BigInt(reputation.opsIncluded)
             }
         }
+        this.logger.debug(
+            {
+                reputations: this.entries
+            },
+            "Reputation set"
+        )
     }
 
-    dumpReputations(): {
-        address: Address
-        opsSeen: number
-        opsIncluded: number
-    }[] {
-        return Object.values(this.entries)
+    dumpReputations(): ReputationEntry[] {
+        return Object.values(this.entries).map((entry) => ({
+            ...entry,
+            status: this.getStatus(entry.address)
+        }))
+    }
+
+    clear(): void {
+        this.entries = {}
+        this.entityCount = {}
+    }
+
+    clearEntityCount(): void {
+        this.entityCount = {}
     }
 
     async checkReputation(
@@ -219,7 +237,7 @@ export class ReputationManager implements IReputationManager {
         }
     }
 
-    getEntityCount(address: Address): number {
+    getEntityCount(address: Address): bigint {
         return this.entityCount[address.toLowerCase() as Address] ?? 0
     }
 
@@ -228,8 +246,8 @@ export class ReputationManager implements IReputationManager {
         if (!entry) {
             this.entries[address.toLowerCase() as Address] = {
                 address,
-                opsSeen: 1,
-                opsIncluded: 0
+                opsSeen: 1n,
+                opsIncluded: 0n
             }
             return
         }
@@ -241,13 +259,13 @@ export class ReputationManager implements IReputationManager {
         if (!entry) {
             this.entries[address.toLowerCase() as Address] = {
                 address,
-                opsSeen: 10000,
-                opsIncluded: 0
+                opsSeen: 1000n,
+                opsIncluded: 0n
             }
             return
         }
-        entry.opsSeen += 10000
-        entry.opsIncluded = 0
+        entry.opsSeen = 1000n
+        entry.opsIncluded = 0n
     }
 
     crashedHandleOps(userOperation: UserOperation, reason: string): void {
@@ -279,8 +297,8 @@ export class ReputationManager implements IReputationManager {
         if (!entry) {
             this.entries[address.toLowerCase() as Address] = {
                 address,
-                opsSeen: 1,
-                opsIncluded: 1
+                opsSeen: 0n,
+                opsIncluded: 1n
             }
             return
         }
@@ -326,6 +344,11 @@ export class ReputationManager implements IReputationManager {
             userOperation.initCode
         ) as Address | undefined
 
+        this.logger.debug(
+            { userOperation, factory },
+            "updateUserOperationSeenStatus"
+        )
+
         if (factory) {
             this.increaseSeen(factory)
         }
@@ -333,55 +356,59 @@ export class ReputationManager implements IReputationManager {
 
     increaseUserOperationCount(userOperation: UserOperation) {
         const sender = userOperation.sender.toLowerCase() as Address
-        this.entityCount[sender] = (this.entityCount[sender] ?? 0) + 1
+        this.entityCount[sender] = (this.entityCount[sender] ?? 0n) + 1n
 
         let paymaster = getAddressFromInitCodeOrPaymasterAndData(
             userOperation.paymasterAndData
         )?.toLowerCase() as Address | undefined
         if (paymaster) {
-            this.entityCount[paymaster] = (this.entityCount[paymaster] ?? 0) + 1
+            this.entityCount[paymaster] =
+                (this.entityCount[paymaster] ?? 0n) + 1n
         }
 
         let factory = getAddressFromInitCodeOrPaymasterAndData(
             userOperation.initCode
         )?.toLowerCase() as Address | undefined
         if (factory) {
-            this.entityCount[factory] = (this.entityCount[factory] ?? 0) + 1
+            this.entityCount[factory] = (this.entityCount[factory] ?? 0n) + 1n
         }
     }
 
     decreaseUserOperationCount(userOperation: UserOperation) {
         const sender = userOperation.sender.toLowerCase() as Address
-        this.entityCount[sender] = Math.max(
-            0,
-            (this.entityCount[sender] ?? 0) - 1
-        )
+        this.entityCount[sender] = (this.entityCount[sender] ?? 0n) - 1n
+
+        this.entityCount[sender] =
+            this.entityCount[sender] < 0n ? 0n : this.entityCount[sender]
 
         let paymaster = getAddressFromInitCodeOrPaymasterAndData(
             userOperation.paymasterAndData
         )?.toLowerCase() as Address | undefined
         if (paymaster) {
-            this.entityCount[paymaster] = Math.max(
-                0,
-                (this.entityCount[paymaster] ?? 0) - 1
-            )
+            this.entityCount[paymaster] =
+                (this.entityCount[paymaster] ?? 0n) - 1n
+
+            this.entityCount[paymaster] =
+                this.entityCount[paymaster] < 0n
+                    ? 0n
+                    : this.entityCount[paymaster]
         }
 
         let factory = getAddressFromInitCodeOrPaymasterAndData(
             userOperation.initCode
         )?.toLowerCase() as Address | undefined
         if (factory) {
-            this.entityCount[factory] = Math.max(
-                0,
-                (this.entityCount[factory] ?? 0) - 1
-            )
+            this.entityCount[factory] = (this.entityCount[factory] ?? 0n) - 1n
+
+            this.entityCount[factory] =
+                this.entityCount[factory] < 0n ? 0n : this.entityCount[factory]
         }
     }
 
     checkReputationStatus(
         entyType: EntityType,
         stakeInfo: StakeInfo,
-        maxMempoolUserOperationsPerSenderOverride?: number
+        maxMempoolUserOperationsPerSenderOverride?: bigint
     ) {
         const maxTxMempoolAllowedEntity =
             maxMempoolUserOperationsPerSenderOverride ??
@@ -404,36 +431,53 @@ export class ReputationManager implements IReputationManager {
     getStatus(address?: Address): ReputationStatus {
         address = address?.toLowerCase() as Address
         if (!address || this.whitelist.has(address)) {
-            return ReputationStatus.OK
+            return OK
         }
         if (this.blackList.has(address)) {
-            return ReputationStatus.BANNED
+            return BANNED
         }
         const entry = this.entries[address]
         if (!entry) {
-            return ReputationStatus.OK
+            return OK
         }
-        const minExpectedIncluded = Math.floor(
+        const minExpectedIncluded =
             entry.opsSeen / this.bundlerReputationParams.minInclusionDenominator
+
+        this.logger.debug(
+            {
+                address: address,
+                minExpectedIncluded,
+                opsSeen: entry.opsSeen,
+                minInclusionDenominator:
+                    this.bundlerReputationParams.minInclusionDenominator,
+                opsIncluded: entry.opsIncluded,
+                throttlingSlack: this.bundlerReputationParams.throttlingSlack,
+                banSlack: this.bundlerReputationParams.banSlack
+            },
+            "minExpectedIncluded"
         )
+
         if (
             minExpectedIncluded <=
             entry.opsIncluded + this.bundlerReputationParams.throttlingSlack
         ) {
-            return ReputationStatus.OK
+            entry.status = OK
+            return OK
         } else if (
             minExpectedIncluded <=
             entry.opsIncluded + this.bundlerReputationParams.banSlack
         ) {
-            return ReputationStatus.THROTTLED
+            entry.status = THROTTLED
+            return THROTTLED
         } else {
-            return ReputationStatus.BANNED
+            entry.status = BANNED
+            return BANNED
         }
     }
 
     checkBanned(entityType: EntityType, stakeInfo: StakeInfo) {
         const status = this.getStatus(stakeInfo.addr as Address)
-        if (status === ReputationStatus.BANNED) {
+        if (status === BANNED) {
             throw new RpcError(
                 `${entityType} ${stakeInfo.addr} is banned from using the pimlico`,
                 ValidationErrors.Reputation
@@ -443,7 +487,7 @@ export class ReputationManager implements IReputationManager {
 
     checkThrottled(entityType: EntityType, stakeInfo: StakeInfo) {
         const status = this.getStatus(stakeInfo.addr as Address)
-        if (status === ReputationStatus.THROTTLED) {
+        if (status === THROTTLED) {
             throw new RpcError(
                 `${entityType} ${stakeInfo.addr} is throttled by the pimlico`,
                 ValidationErrors.Reputation
@@ -483,21 +527,21 @@ export class ReputationManager implements IReputationManager {
         }
     }
 
-    calCulateMaxMempoolUserOperationsPerEntity(address: Address): number {
+    calCulateMaxMempoolUserOperationsPerEntity(address: Address): bigint {
         address = address.toLowerCase() as Address
         const entry = this.entries[address]
         if (!entry) {
             return this.maxMempoolUserOperationsPerNewUnstakedEntity
         }
-        let inclusionRate = 0
-        if (entry.opsSeen !== 0) {
+        let inclusionRate = 0n
+        if (entry.opsSeen !== 0n) {
             // prevent NaN of Infinity in tests
             inclusionRate = entry.opsIncluded / entry.opsSeen
         }
         return (
             this.maxMempoolUserOperationsPerNewUnstakedEntity +
-            Math.floor(inclusionRate * this.inclusionRateFactor) +
-            Math.min(entry.opsIncluded, 10000)
+            inclusionRate * this.inclusionRateFactor +
+            (entry.opsIncluded < 10000n ? 10000n : entry.opsIncluded)
         )
     }
 }

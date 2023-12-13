@@ -68,7 +68,7 @@ export class MemoryStore {
         }
 
         this.outstandingUserOperations.splice(index, 1)
-        this.logger.debug({ userOpHash, store: "outstanding" }, "removed user op from mempool")
+        this.logger.debug({ userOpHash, store: "outstanding" }, "removed user op from outstanding mempool")
         this.metrics.userOperationsInMempool.metric
             .labels({
                 status: "outstanding",
@@ -86,7 +86,7 @@ export class MemoryStore {
         }
 
         this.processingUserOperations.splice(index, 1)
-        this.logger.debug({ userOpHash, store: "processing" }, "removed user op from mempool")
+        this.logger.debug({ userOpHash, store: "processing" }, "removed user op from processed mempool")
         this.metrics.userOperationsInMempool.metric
             .labels({
                 status: "processing",
@@ -104,7 +104,7 @@ export class MemoryStore {
         }
 
         this.submittedUserOperations.splice(index, 1)
-        this.logger.debug({ userOpHash, store: "submitted" }, "removed user op from mempool")
+        this.logger.debug({ userOpHash, store: "submitted" }, "removed user op from submitted mempool")
         this.metrics.userOperationsInMempool.metric
             .labels({
                 status: "submitted",
