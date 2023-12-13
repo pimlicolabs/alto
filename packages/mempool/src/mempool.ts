@@ -2,20 +2,28 @@
 // import { PublicClient, getContract } from "viem"
 // import { EntryPointAbi } from "../types/EntryPoint"
 import {
+    RpcError,
     SubmittedUserOperation,
     TransactionInfo,
     UserOperation,
-    UserOperationInfo
+    UserOperationInfo,
+    ValidationErrors
 } from "@alto/types"
 import { HexData32 } from "@alto/types"
 import { Monitor } from "./monitoring"
 import { Address, Chain, PublicClient, Transport } from "viem"
-import { Logger, Metrics, getUserOperationHash } from "@alto/utils"
+import {
+    Logger,
+    Metrics,
+    getAddressFromInitCodeOrPaymasterAndData,
+    getUserOperationHash
+} from "@alto/utils"
 import { MemoryStore } from "./store"
 import { IReputationManager } from "./reputationManager"
 
 export interface Mempool {
     add(op: UserOperation): boolean
+    checkMultipleRolesViolation(op: UserOperation): Promise<void>
 
     /**
      * Takes an array of user operations from the mempool, also marking them as submitted.
@@ -77,6 +85,9 @@ export class NullMempool implements Mempool {
     }
     add(_op: UserOperation) {
         return false
+    }
+    async checkMultipleRolesViolation(_op: UserOperation): Promise<void> {
+        return
     }
 
     process(_?: bigint, __?: number): UserOperation[] {
@@ -167,6 +178,80 @@ export class MemoryMempool implements Mempool {
 
     removeProcessing(userOpHash: `0x${string}`): void {
         this.store.removeProcessing(userOpHash)
+    }
+
+    async checkMultipleRolesViolation(op: UserOperation): Promise<void> {
+        const knownEntities = this.getKnownEntities()
+
+        if (
+            knownEntities.paymasters.has(op.sender.toLowerCase() as Address) ||
+            knownEntities.facotries.has(op.sender.toLowerCase() as Address)
+        ) {
+            throw new RpcError(
+                `The sender address "${op.sender}" is used as a different entity in another UserOperation currently in mempool`,
+                ValidationErrors.OpcodeValidation
+            )
+        }
+
+        const paymaster = getAddressFromInitCodeOrPaymasterAndData(
+            op.paymasterAndData
+        )
+
+        if (paymaster && knownEntities.sender.has(paymaster.toLowerCase() as Address)) {
+            throw new RpcError(
+                `A Paymaster at ${paymaster} in this UserOperation is used as a sender entity in another UserOperation currently in mempool.`,
+                ValidationErrors.OpcodeValidation
+            )
+        }
+
+
+        const factory = getAddressFromInitCodeOrPaymasterAndData(op.initCode)
+
+        if (factory && knownEntities.sender.has(factory.toLowerCase() as Address)) {
+            throw new RpcError(
+                `A Factory at ${factory} in this UserOperation is used as a sender entity in another UserOperation currently in mempool.`,
+                ValidationErrors.OpcodeValidation
+            )
+        }
+
+    }
+
+    getKnownEntities(): {
+        sender: Set<Address>
+        paymasters: Set<Address>
+        facotries: Set<Address>
+    } {
+        const allOps = [...this.store.dumpOutstanding()]
+
+        const entities: {
+            sender: Set<Address>
+            paymasters: Set<Address>
+            facotries: Set<Address>
+        } = {
+            sender: new Set(),
+            paymasters: new Set(),
+            facotries: new Set()
+        }
+
+        for (const op of allOps) {
+            entities.sender.add(
+                op.userOperation.sender.toLowerCase() as Address
+            )
+            const paymaster = getAddressFromInitCodeOrPaymasterAndData(
+                op.userOperation.paymasterAndData
+            )
+            if (paymaster) {
+                entities.paymasters.add(paymaster.toLowerCase() as Address)
+            }
+            const factory = getAddressFromInitCodeOrPaymasterAndData(
+                op.userOperation.initCode
+            )
+            if (factory) {
+                entities.facotries.add(factory.toLowerCase() as Address)
+            }
+        }
+
+        return entities
     }
 
     add(op: UserOperation) {

@@ -247,6 +247,8 @@ export const bundlerHandler = async (
 
     if (parsedArgs.safeMode) {
         reputationManager = new ReputationManager(
+            client,
+            parsedArgs.entryPoint,
             BigInt(parsedArgs.minStake),
             BigInt(parsedArgs.minUnstakeDelay),
             logger.child({ module: "reputation_manager" }),

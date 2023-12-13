@@ -1,4 +1,5 @@
 import {
+    EntryPointAbi,
     RpcError,
     StakeInfo,
     UserOperation,
@@ -7,7 +8,7 @@ import {
     ValidationResultWithAggregation
 } from "@alto/types"
 import { Logger, getAddressFromInitCodeOrPaymasterAndData } from "@alto/utils"
-import { Address } from "viem"
+import { Address, PublicClient, getContract } from "viem"
 
 export interface IReputationManager {
     checkReputation(
@@ -30,6 +31,10 @@ export interface IReputationManager {
         }[]
     ): void
     dumpReputations(): ReputationEntry[]
+    getStakeStatus(address: Address): Promise<{
+        stakeInfo: StakeInfo
+        isStaked: boolean
+    }>
     clear(): void
     clearEntityCount(): void
 }
@@ -107,16 +112,25 @@ export class NullRepuationManager implements IReputationManager {
         return []
     }
 
+    getStakeStatus(_: Address): Promise<{
+        stakeInfo: StakeInfo
+        isStaked: boolean
+    }> {
+        throw new Error("Method not implemented.")
+    }
+
     clear(): void {
         return
     }
-    
+
     clearEntityCount(): void {
         return
     }
 }
 
 export class ReputationManager implements IReputationManager {
+    private publicClient: PublicClient
+    private entryPoint: Address
     private minStake: bigint
     private minUnstakeDelay: bigint
     private entityCount: { [address: Address]: bigint } = {}
@@ -131,6 +145,8 @@ export class ReputationManager implements IReputationManager {
     private logger: Logger
 
     constructor(
+        publicClient: PublicClient,
+        entryPoint: Address,
         minStake: bigint,
         minUnstakeDelay: bigint,
         logger: Logger,
@@ -142,6 +158,8 @@ export class ReputationManager implements IReputationManager {
         whiteList?: Address[],
         bundlerReputationParams?: ReputationParams
     ) {
+        this.publicClient = publicClient
+        this.entryPoint = entryPoint
         this.minStake = minStake
         this.minUnstakeDelay = minUnstakeDelay
         this.logger = logger
@@ -199,6 +217,33 @@ export class ReputationManager implements IReputationManager {
 
     clearEntityCount(): void {
         this.entityCount = {}
+    }
+
+    async getStakeStatus(address: Address): Promise<{
+        stakeInfo: StakeInfo
+        isStaked: boolean
+    }> {
+        const entryPoint = getContract({
+            abi: EntryPointAbi,
+            address: this.entryPoint,
+            publicClient: this.publicClient
+        })
+        const stakeInfo = await entryPoint.read.getDepositInfo([address])
+
+        const stake = BigInt(stakeInfo.stake)
+        const unstakeDelaySec = BigInt(stakeInfo.unstakeDelaySec)
+
+        const isStaked =
+            stake >= this.minStake && unstakeDelaySec >= this.minUnstakeDelay
+
+        return {
+            stakeInfo: {
+                addr: address,
+                stake: stake,
+                unstakeDelaySec: unstakeDelaySec
+            },
+            isStaked
+        }
     }
 
     async checkReputation(
@@ -541,7 +586,7 @@ export class ReputationManager implements IReputationManager {
         return (
             this.maxMempoolUserOperationsPerNewUnstakedEntity +
             inclusionRate * this.inclusionRateFactor +
-            (entry.opsIncluded < 10000n ? 10000n : entry.opsIncluded)
+            (entry.opsIncluded > 10000n ? 10000n : entry.opsIncluded)
         )
     }
 }

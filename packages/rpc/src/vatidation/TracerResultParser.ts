@@ -9,7 +9,7 @@ import {
     getFunctionSelector,
     hexToBigInt,
     keccak256,
-    pad,
+    pad
 } from "viem"
 import { Abi, AbiFunction } from "abitype"
 import { BundlerTracerResult } from "./BundlerCollectorTracer"
@@ -600,9 +600,27 @@ export function tracerResultParser(
                     // [STO-031]
                     // accessing storage member of entity itself requires stake.
                     requireStakeSlot = slot
-                } else if (writes[slot] !== undefined) {
+                } else if (writes[slot] === undefined) {
                     // [STO-033]: staked entity have read-only access to any storage in non-entity contract.
                     requireStakeSlot = slot
+                } else {
+                    // accessing arbitrary storage of another contract is not allowed
+                    const readWrite = Object.keys(writes).includes(addr)
+                        ? "write to"
+                        : "read from"
+
+                    const message = `${entityTitle} has forbidden ${readWrite} ${nameAddr(
+                        addr,
+                        entityTitle
+                    )} slot ${slot}`
+
+                    throw new RpcError(
+                        message,
+                        ValidationErrors.OpcodeValidation,
+                        {
+                            [entityTitle]: entStakes?.addr
+                        }
+                    )
                 }
             }
 
@@ -635,7 +653,9 @@ export function tracerResultParser(
                     call.method === "validatePaymasterUserOp" &&
                     call.to === entityAddr
             )
-            const context = validatePaymasterUserOp?.return ? validatePaymasterUserOp?.return[0] : undefined
+            const context = validatePaymasterUserOp?.return
+                ? validatePaymasterUserOp?.return[0]
+                : undefined
 
             requireCondAndStake(
                 context && context !== "0x",
@@ -648,8 +668,8 @@ export function tracerResultParser(
         function isStaked(entStake?: StakeInfo): boolean {
             return Boolean(
                 entStake &&
-                1n <= entStake.stake &&
-                1n <= entStake.unstakeDelaySec
+                    1n <= entStake.stake &&
+                    1n <= entStake.unstakeDelaySec
             )
         }
 

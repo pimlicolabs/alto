@@ -195,6 +195,11 @@ const bundlerDumpReputationsRequestSchema = z.object({
     params: z.tuple([addressSchema])
 })
 
+const pimlicoGetStakeStatusRequestSchema = z.object({
+    method: z.literal("debug_bundler_getStakeStatus"),
+    params: z.tuple([addressSchema, addressSchema])
+})
+
 const pimlicoGetUserOperationStatusRequestSchema = z.object({
     method: z.literal("pimlico_getUserOperationStatus"),
     params: z.tuple([hexData32Schema])
@@ -219,6 +224,7 @@ const bundlerRequestSchema = z.discriminatedUnion("method", [
     bundlerSetBundlingModeRequestSchema,
     bundlerSetReputationsRequestSchema,
     bundlerDumpReputationsRequestSchema,
+    pimlicoGetStakeStatusRequestSchema,
     pimlicoGetUserOperationStatusRequestSchema,
     pimlicoGetUserOperationGasPriceRequestSchema
 ])
@@ -322,6 +328,26 @@ const bundlerDumpMempoolResponseSchema = z.object({
     result: z.array(userOperationSchema)
 })
 
+const bundlerGetStakeStatusResponseSchema = z.object({
+    method: z.literal("debug_bundler_getStakeStatus"),
+    result: z.object({
+        stakeInfo: z.object({
+            addr: z.string(),
+            stake: z
+                .string()
+                .or(z.number())
+                .or(z.bigint())
+                .transform((val) => Number(val).toString()),
+            unstakeDelaySec: z
+                .string()
+                .or(z.number())
+                .or(z.bigint())
+                .transform((val) => Number(val).toString()),
+        }),
+        isStaked: z.boolean()
+    })
+})
+
 const bundlerSendBundleNowResponseSchema = z.object({
     method: z.literal("debug_bundler_sendBundleNow"),
     result: hexData32Schema
@@ -400,6 +426,7 @@ const bundlerResponseSchema = z.discriminatedUnion("method", [
     bundlerClearStateResponseSchema,
     bundlerClearMempoolResponseSchema,
     bundlerDumpMempoolResponseSchema,
+    bundlerGetStakeStatusResponseSchema,
     bundlerSendBundleNowResponseSchema,
     bundlerSetBundlingModeResponseSchema,
     bundlerSetReputationsResponseSchema,
@@ -440,6 +467,9 @@ export type BundlerClearMempoolResponse = z.infer<
 >
 export type BundlerDumpMempoolResponse = z.infer<
     typeof bundlerDumpMempoolResponseSchema
+>
+export type BundlerGetStakeStatusResponse = z.infer<
+    typeof bundlerGetStakeStatusResponseSchema
 >
 export type BundlerSendBundleNowResponse = z.infer<
     typeof bundlerSendBundleNowResponseSchema
@@ -486,6 +516,9 @@ export type BundlerClearMempoolResponseResult = z.infer<
 >["result"]
 export type BundlerDumpMempoolResponseResult = z.infer<
     typeof bundlerDumpMempoolResponseSchema
+>["result"]
+export type BundlerGetStakeStatusResponseResult = z.infer<
+    typeof bundlerGetStakeStatusResponseSchema
 >["result"]
 export type BundlerSendBundleNowResponseResult = z.infer<
     typeof bundlerSendBundleNowResponseSchema
@@ -545,6 +578,9 @@ export type BundlerSetReputationsRequest = z.infer<
 export type BundlerDumpReputationsRequest = z.infer<
     typeof bundlerDumpReputationsRequestSchema
 >
+export type BundlerGetStakeStatusRequest = z.infer<
+    typeof pimlicoGetStakeStatusRequestSchema
+>
 export type PimlicoGetUserOperationStatusRequest = z.infer<
     typeof pimlicoGetUserOperationStatusRequestSchema
 >
@@ -591,6 +627,9 @@ export type BundlerSetReputationsRequestParams = z.infer<
 export type BundlerDumpReputationsRequestParams = z.infer<
     typeof bundlerDumpReputationsRequestSchema
 >["params"]
+export type BundlerGetStakeStatusRequestParams = z.infer<
+    typeof pimlicoGetStakeStatusRequestSchema
+>["params"]
 export type PimlicoGetUserOperationStatusRequestParams = z.infer<
     typeof pimlicoGetUserOperationStatusRequestSchema
 >["params"]
@@ -616,6 +655,7 @@ export {
     bundlerSetBundlingModeRequestSchema,
     bundlerSetReputationsRequestSchema,
     bundlerDumpReputationsRequestSchema,
+    pimlicoGetStakeStatusRequestSchema,
     pimlicoGetUserOperationStatusRequestSchema,
     pimlicoGetUserOperationGasPriceRequestSchema,
     bundlerRequestSchema,
@@ -634,6 +674,7 @@ export {
     bundlerClearStateResponseSchema,
     bundlerClearMempoolResponseSchema,
     bundlerDumpMempoolResponseSchema,
+    bundlerGetStakeStatusResponseSchema,
     bundlerSendBundleNowResponseSchema,
     bundlerSetBundlingModeResponseSchema,
     bundlerSetReputationsResponseSchema,

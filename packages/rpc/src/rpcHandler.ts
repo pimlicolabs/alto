@@ -26,7 +26,9 @@ import {
     ValidationErrors,
     BundlerDumpReputationsResponseResult,
     BundlerSetReputationsRequestParams,
-    BundlerClearMempoolResponseResult
+    BundlerClearMempoolResponseResult,
+    BundlerGetStakeStatusResponseResult,
+    bundlerGetStakeStatusResponseSchema
 } from "@alto/types"
 import {
     Logger,
@@ -219,6 +221,13 @@ export class RpcHandler implements IRpcEndpoint {
                 return {
                     method,
                     result: await this.debug_bundler_dumpReputation(
+                        ...request.params
+                    )
+                }
+            case "debug_bundler_getStakeStatus":
+                return {
+                    method,
+                    result: await this.debug_bundler_getStakeStatus(
                         ...request.params
                     )
                 }
@@ -453,6 +462,7 @@ export class RpcHandler implements IRpcEndpoint {
         }
         if (userOperationNonceValue === currentNonceValue) {
             await this.validator.validateUserOperation(userOperation)
+            await this.mempool.checkMultipleRolesViolation(userOperation)
             const success = this.mempool.add(userOperation)
             if (!success) {
                 throw new RpcError(
@@ -787,14 +797,39 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async debug_bundler_dumpReputation(
-        _entryPoint: Address
+        entryPoint: Address
     ): Promise<BundlerDumpReputationsResponseResult> {
         if (this.environment !== "development") {
             throw new RpcError(
                 "debug_bundler_setRe is only available in development environment"
             )
         }
+        if (this.entryPoint !== entryPoint) {
+            throw new RpcError(
+                `EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.entryPoint}`
+            )
+        }
         return this.reputationManager.dumpReputations()
+    }
+
+    async debug_bundler_getStakeStatus(
+        address: Address,
+        entryPoint: Address
+    ): Promise<BundlerGetStakeStatusResponseResult> {
+        if (this.environment !== "development") {
+            throw new RpcError(
+                "debug_bundler_getStakeStatus is only available in development environment"
+            )
+        }
+        if (this.entryPoint !== entryPoint) {
+            throw new RpcError(
+                `EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.entryPoint}`
+            )
+        }
+        return bundlerGetStakeStatusResponseSchema.parse({
+            method: "debug_bundler_getStakeStatus",
+            result: await this.reputationManager.getStakeStatus(address)
+        }).result
     }
 
     async debug_bundler_setReputation(
