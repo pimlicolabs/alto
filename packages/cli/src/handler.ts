@@ -305,6 +305,7 @@ export const bundlerHandler = async (
         validator,
         client,
         parsedArgs.entryPoint,
+        parsedArgs.safeMode,
         logger.child({ module: "mempool" }),
         metrics
     )

@@ -91,7 +91,10 @@ export class NullMempool implements Mempool {
     removeSubmitted(_: `0x${string}`): void {
         throw new Error("Method not implemented.")
     }
-    add(_op: UserOperation, _referencedContracts?: ReferencedCodeHashes): boolean {
+    add(
+        _op: UserOperation,
+        _referencedContracts?: ReferencedCodeHashes
+    ): boolean {
         return false
     }
     async checkReputationAndMultipleRolesViolation(
@@ -115,6 +118,7 @@ export class MemoryMempool implements Mempool {
     private throttledEntityBundleCount: number
     private logger: Logger
     private validator: IValidator
+    private safeMode: boolean
 
     constructor(
         monitor: Monitor,
@@ -122,6 +126,7 @@ export class MemoryMempool implements Mempool {
         validator: IValidator,
         publicClient: PublicClient<Transport, Chain>,
         entryPointAddress: Address,
+        safeMode: boolean,
         logger: Logger,
         metrics: Metrics,
         throttledEntityBundleCount?: number
@@ -131,6 +136,7 @@ export class MemoryMempool implements Mempool {
         this.validator = validator
         this.publicClient = publicClient
         this.entryPointAddress = entryPointAddress
+        this.safeMode = safeMode
         this.logger = logger
         this.store = new MemoryStore(logger, metrics)
         this.throttledEntityBundleCount = throttledEntityBundleCount ?? 4
@@ -203,6 +209,7 @@ export class MemoryMempool implements Mempool {
         op: UserOperation,
         validationResult: ValidationResult
     ): Promise<void> {
+        if (!this.safeMode) return
         await this.reputationManager.checkReputation(op, validationResult)
 
         const knownEntities = this.getKnownEntities()
@@ -373,6 +380,16 @@ export class MemoryMempool implements Mempool {
         senders: Set<string>
         storageMap: StorageMap
     }> {
+        if (!this.safeMode) {
+            return {
+                skip: false,
+                paymasterDeposit,
+                stakedEntityCount,
+                knownEntities,
+                senders,
+                storageMap
+            }
+        }
         const paymaster = getAddressFromInitCodeOrPaymasterAndData(
             opInfo.userOperation.paymasterAndData
         )?.toLowerCase() as Address | undefined
