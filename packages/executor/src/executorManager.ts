@@ -54,7 +54,8 @@ export class ExecutorManager {
         pollingInterval: number,
         logger: Logger,
         metrics: Metrics,
-        bundleMode: BundlingMode
+        bundleMode: BundlingMode,
+        bundleFequencey: number
     ) {
         this.reputationManager = reputationManager
         this.executor = executor
@@ -69,7 +70,7 @@ export class ExecutorManager {
         if (bundleMode === "auto") {
             this.timer = setInterval(async () => {
                 await this.bundle()
-            }, 1000)
+            }, bundleFequencey)
         }
     }
 

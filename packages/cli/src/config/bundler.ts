@@ -47,6 +47,7 @@ export const bundlerArgsSchema = z.object({
     logEnvironment: z.enum(["production", "development"]),
 
     bundleMode: z.enum(["auto", "manual"]),
+    bundleFequencey: z.number().int().min(0),
 
     safeMode: z.boolean().optional(),
 

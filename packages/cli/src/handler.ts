@@ -333,7 +333,8 @@ export const bundlerHandler = async (
         parsedArgs.pollingInterval,
         logger.child({ module: "executor" }),
         metrics,
-        parsedArgs.bundleMode
+        parsedArgs.bundleMode,
+        parsedArgs.bundleFequencey
     )
 
     const nonceQueuer = new NonceQueuer(

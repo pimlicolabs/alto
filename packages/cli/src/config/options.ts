@@ -156,7 +156,8 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "string"
     },
     bundleMode: {
-        description: "set if the bundler should auto bundle or not.",
+        description:
+            "Set if the bundler should run in auto bundle mode or not.",
         type: "string",
         require: false,
         default: "auto"
@@ -166,6 +167,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "boolean",
         require: false,
         default: false
+    },
+    bundleFequencey: {
+        description: "How ofter in milliseconds to check and build new bundles",
+        type: "number",
+        require: false,
+        default: 1000
     }
 }
 
