@@ -429,7 +429,6 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
         try {
             await this.publicClient.call({
                 account: wallet,
-                // to:
                 data: deployData
             })
         } catch (e) {
