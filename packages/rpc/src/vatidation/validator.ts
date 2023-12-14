@@ -448,7 +448,7 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
 
         const wallet = await this.senderManager.getWallet()
 
-        let hash: string = ""
+        let hash = ""
 
         try {
             await this.publicClient.call({
