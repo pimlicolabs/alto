@@ -49,11 +49,7 @@ export const bundlerArgsSchema = z.object({
     bundleMode: z.enum(["auto", "manual"]),
     bundleFequencey: z.number().int().min(0),
 
-    safeMode: z.boolean().optional(),
-
-    lokiHost: z.string().optional(),
-    lokiUsername: z.string().optional(),
-    lokiPassword: z.string().optional(),
+    safeMode: z.boolean(),
 
     tenderlyEnabled: z.boolean().optional(),
     minimumGasPricePercent: z.number().int().min(0),
