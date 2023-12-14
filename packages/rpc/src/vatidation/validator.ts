@@ -586,7 +586,7 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
             senderInfo,
             factoryInfo,
             paymasterInfo,
-            aggregatorInfo // may be missing (exists only SimulationResultWithAggregator
+            aggregatorInfo // may be missing (exists only SimulationResultWithAggregator)
         ] = errorResult.errorArgs
 
         // extract address from "data" (first 20 bytes)
