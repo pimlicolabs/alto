@@ -34,6 +34,8 @@ import {
     Hex,
     encodeDeployData,
     ExecutionRevertedError
+    ContractFunctionExecutionError,
+    BaseError
 } from "viem"
 import { hexDataSchema } from "@alto/types"
 import { z } from "zod"
@@ -47,6 +49,7 @@ import { debug_traceCall } from "./tracer"
 import { tracerResultParser } from "./TracerResultParser"
 import { IValidator } from "@alto/types"
 import { SenderManager } from "@alto/executor"
+import * as sentry from "@sentry/node"
 
 // let id = 0
 
@@ -115,15 +118,34 @@ async function getSimulationResult(
     const entryPointErrorSchemaParsing = usingTenderly
         ? entryPointErrorsSchema.safeParse(errorResult)
         : entryPointExecutionErrorSchema.safeParse(errorResult)
+
     if (!entryPointErrorSchemaParsing.success) {
-        const err = fromZodError(entryPointErrorSchemaParsing.error)
-        logger.error(
-            { error: err.message },
-            "unexpected error during valiation"
-        )
-        logger.error(JSON.stringify(errorResult))
-        err.message = `User Operation simulation returned unexpected invalid response: ${err.message}`
-        throw err
+        try {
+            const err = fromZodError(entryPointErrorSchemaParsing.error)
+            logger.error(
+                { error: err.message },
+                "unexpected error during valiation"
+            )
+            logger.error(JSON.stringify(errorResult))
+            err.message = `User Operation simulation returned unexpected invalid response: ${err.message}`
+            throw err
+        } catch {
+            if (errorResult instanceof BaseError) {
+                const revertError = errorResult.walk(
+                    (err) => err instanceof ContractFunctionExecutionError
+                )
+                throw new RpcError(
+                    `UserOperation reverted during simulation with reason: ${
+                        (revertError?.cause as any)?.reason
+                    }`,
+                    ValidationErrors.SimulateValidation
+                )
+            }
+            sentry.captureException(errorResult)
+            throw new Error(
+                `User Operation simulation returned unexpected invalid response: ${errorResult}`
+            )
+        }
     }
 
     const errorData = entryPointErrorSchemaParsing.data
@@ -386,8 +408,10 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
         }
     > {
         try {
-            const validationResult =
-                await this.getValidationResult(userOperation, referencedContracts)
+            const validationResult = await this.getValidationResult(
+                userOperation,
+                referencedContracts
+            )
 
             if (validationResult.returnInfo.sigFailed) {
                 throw new RpcError(

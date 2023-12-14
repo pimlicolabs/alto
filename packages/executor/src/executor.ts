@@ -1,11 +1,5 @@
-import { EntryPointAbi, TransactionInfo, BundleResult } from "@alto/types"
-import { Address, HexData32, UserOperation } from "@alto/types"
-import {
-    Logger,
-    Metrics,
-    getUserOperationHash,
-    parseViemError
-} from "@alto/utils"
+import { Address, BundleResult, EntryPointAbi, HexData32, TransactionInfo, UserOperation } from "@alto/types"
+import { Logger, Metrics, getGasPrice, getUserOperationHash, parseViemError } from "@alto/utils"
 import { Mutex } from "async-mutex"
 import {
     Account,
@@ -20,13 +14,9 @@ import {
     getContract
 } from "viem"
 import { SenderManager } from "./senderManager"
-import { getGasPrice } from "@alto/utils"
-import {
-    filterOpsAndEstimateGas,
-    flushStuckTransaction,
-    simulatedOpsToResults
-} from "./utils"
 import { IReputationManager } from "@alto/mempool"
+import { filterOpsAndEstimateGas, flushStuckTransaction, simulatedOpsToResults } from "./utils"
+import * as sentry from "@sentry/node"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -284,10 +274,8 @@ export class BasicExecutor implements IExecutor {
         } catch (err: unknown) {
             const e = parseViemError(err)
             if (!e) {
-                childLogger.error(
-                    { error: err },
-                    "unknown error replacing transaction"
-                )
+                sentry.captureException(err)
+                childLogger.error({ error: err }, "unknown error replacing transaction")
             }
 
             if (e instanceof NonceTooLowError) {
@@ -452,35 +440,39 @@ export class BasicExecutor implements IExecutor {
             "got gas limit"
         )
 
-        const gasLimitToUse = this.useUserOperationGasLimitsForSubmission
-            ? opsToBundle.reduce(
-                  (acc, op) =>
-                      acc +
-                      op.userOperation.preVerificationGas +
-                      3n * op.userOperation.verificationGasLimit +
-                      op.userOperation.callGasLimit,
-                  0n
-              ) * 1n
-            : gasLimit
-
-        const txHash = await ep.write.handleOps(
-            [opsToBundle.map((op) => op.userOperation), wallet.address],
-            this.noEip1559Support
-                ? {
-                      account: wallet,
-                      gas: gasLimitToUse,
-                      gasPrice: gasPriceParameters.maxFeePerGas,
-                      nonce: nonce
-                  }
-                : {
-                      account: wallet,
-                      gas: gasLimit,
-                      maxFeePerGas: gasPriceParameters.maxFeePerGas,
-                      maxPriorityFeePerGas:
-                          gasPriceParameters.maxPriorityFeePerGas,
-                      nonce: nonce
-                  }
-        )
+        let txHash: HexData32
+        try {
+            txHash = await ep.write.handleOps(
+                [opsToBundle.map((op) => op.userOperation), wallet.address],
+                this.noEip1559Support
+                    ? {
+                          account: wallet,
+                          gas: gasLimit,
+                          gasPrice: gasPriceParameters.maxFeePerGas,
+                          nonce: nonce
+                      }
+                    : {
+                          account: wallet,
+                          gas: gasLimit,
+                          maxFeePerGas: gasPriceParameters.maxFeePerGas,
+                          maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
+                          nonce: nonce
+                      }
+            )
+        } catch (err: unknown) {
+            sentry.captureException(err)
+            childLogger.error({ error: JSON.stringify(err) }, "error submitting bundle transaction")
+            this.markWalletProcessed(wallet)
+            return opsWithHashes.map((owh) => {
+                return {
+                    success: false,
+                    error: {
+                        userOpHash: owh.userOperationHash,
+                        reason: "INTERNAL FAILURE"
+                    }
+                }
+            })
+        }
 
         const userOperationInfos = opsToBundle.map((op) => {
             this.metrics.userOperationsSubmitted.inc()

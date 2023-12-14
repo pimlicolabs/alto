@@ -23,15 +23,10 @@ export class MemoryStore {
         const store = this.outstandingUserOperations
 
         store.push(op)
-        this.logger.debug(
-            { userOpHash: op.userOperationHash, store: "outstanding" },
-            "added user op to outstanding mempool"
-        )
-        this.metrics.userOperationsInMempool.metric
+        this.logger.debug({ userOpHash: op.userOperationHash, store: "outstanding" }, "added user op to mempool")
+        this.metrics.userOperationsInMempool
             .labels({
-                status: "outstanding",
-                chainId: this.metrics.userOperationsInMempool.chainId,
-                network: this.metrics.userOperationsInMempool.network
+                status: "outstanding"
             })
             .inc()
     }
@@ -40,15 +35,10 @@ export class MemoryStore {
         const store = this.processingUserOperations
 
         store.push(op)
-        this.logger.debug(
-            { userOpHash: op.userOperationHash, store: "processing" },
-            "added user op to processing mempool"
-        )
-        this.metrics.userOperationsInMempool.metric
+        this.logger.debug({ userOpHash: op.userOperationHash, store: "processing" }, "added user op to mempool")
+        this.metrics.userOperationsInMempool
             .labels({
-                status: "processing",
-                chainId: this.metrics.userOperationsInMempool.chainId,
-                network: this.metrics.userOperationsInMempool.network
+                status: "processing"
             })
             .inc()
     }
@@ -64,11 +54,9 @@ export class MemoryStore {
             },
             "added user op to submitted mempool"
         )
-        this.metrics.userOperationsInMempool.metric
+        this.metrics.userOperationsInMempool
             .labels({
-                status: "submitted",
-                chainId: this.metrics.userOperationsInMempool.chainId,
-                network: this.metrics.userOperationsInMempool.network
+                status: "submitted"
             })
             .inc()
     }
@@ -86,15 +74,10 @@ export class MemoryStore {
         }
 
         this.outstandingUserOperations.splice(index, 1)
-        this.logger.debug(
-            { userOpHash, store: "outstanding" },
-            "removed user op from outstanding mempool"
-        )
-        this.metrics.userOperationsInMempool.metric
+        this.logger.debug({ userOpHash, store: "outstanding" }, "removed user op from mempool")
+        this.metrics.userOperationsInMempool
             .labels({
-                status: "outstanding",
-                chainId: this.metrics.userOperationsInMempool.chainId,
-                network: this.metrics.userOperationsInMempool.network
+                status: "outstanding"
             })
             .dec()
     }
@@ -112,15 +95,10 @@ export class MemoryStore {
         }
 
         this.processingUserOperations.splice(index, 1)
-        this.logger.debug(
-            { userOpHash, store: "processing" },
-            "removed user op from processed mempool"
-        )
-        this.metrics.userOperationsInMempool.metric
+        this.logger.debug({ userOpHash, store: "processing" }, "removed user op from mempool")
+        this.metrics.userOperationsInMempool
             .labels({
-                status: "processing",
-                chainId: this.metrics.userOperationsInMempool.chainId,
-                network: this.metrics.userOperationsInMempool.network
+                status: "processing"
             })
             .dec()
     }
@@ -138,15 +116,10 @@ export class MemoryStore {
         }
 
         this.submittedUserOperations.splice(index, 1)
-        this.logger.debug(
-            { userOpHash, store: "submitted" },
-            "removed user op from submitted mempool"
-        )
-        this.metrics.userOperationsInMempool.metric
+        this.logger.debug({ userOpHash, store: "submitted" }, "removed user op from mempool")
+        this.metrics.userOperationsInMempool
             .labels({
-                status: "submitted",
-                chainId: this.metrics.userOperationsInMempool.chainId,
-                network: this.metrics.userOperationsInMempool.network
+                status: "submitted"
             })
             .dec()
     }

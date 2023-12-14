@@ -19,6 +19,7 @@ export function getAddressFromInitCodeOrPaymasterAndData(
     }
     return undefined
 }
+import * as sentry from "@sentry/node"
 
 export const transactionIncluded = async (
     txHash: HexData32,
@@ -59,6 +60,7 @@ export const transactionIncluded = async (
                             }
                             return undefined
                         } catch (_e) {
+                            sentry.captureException(_e)
                             return undefined
                         }
                     }

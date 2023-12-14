@@ -272,7 +272,6 @@ export class RpcHandler implements IRpcEndpoint {
                 "user operation max fee per gas must be larger than 0 during gas estimation"
             )
         }
-
         let preVerificationGas = calcPreVerificationGas(userOperation)
 
         if (this.chainId === 59140 || this.chainId === 59142) {
@@ -289,7 +288,8 @@ export class RpcHandler implements IRpcEndpoint {
                 this.publicClient,
                 userOperation,
                 entryPoint,
-                preVerificationGas
+                preVerificationGas,
+                this.logger
             )
         } else if (this.chainId === chains.arbitrum.id) {
             preVerificationGas = await calcArbitrumPreVerificationGas(
@@ -308,7 +308,12 @@ export class RpcHandler implements IRpcEndpoint {
             userOperation.verificationGasLimit = 10_000_000n
             userOperation.callGasLimit = 10_000_000n
 
-            if (this.chainId === 84531 || this.chainId === 8453) {
+            if (
+                this.chainId === 84531 ||
+                this.chainId === 8453 ||
+                this.chainId === chains.celoAlfajores.id ||
+                this.chainId === chains.celo.id
+            ) {
                 userOperation.verificationGasLimit = 1_000_000n
                 userOperation.callGasLimit = 1_000_000n
             }
@@ -503,6 +508,7 @@ export class RpcHandler implements IRpcEndpoint {
             this.chainId === 47279324479 ||
             this.chainId === chains.bsc.id ||
             this.chainId === chains.arbitrum.id ||
+            this.chainId === chains.arbitrumGoerli.id ||
             this.chainId === chains.baseGoerli.id ||
             this.chainId === chains.avalanche.id ||
             this.chainId === chains.avalancheFuji.id ||
@@ -605,6 +611,7 @@ export class RpcHandler implements IRpcEndpoint {
             this.chainId === 47279324479 ||
             this.chainId === chains.bsc.id ||
             this.chainId === chains.arbitrum.id ||
+            this.chainId === chains.arbitrumGoerli.id ||
             this.chainId === chains.baseGoerli.id ||
             this.chainId === chains.avalanche.id ||
             this.chainId === chains.avalancheFuji.id ||

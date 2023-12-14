@@ -7,6 +7,7 @@ import {
     WalletClient,
     formatTransactionRequest
 } from "viem"
+import * as sentry from "@sentry/node"
 // from:https://geth.ethereum.org/docs/rpc/ns-debug#javascript-based-tracing
 //
 
@@ -42,6 +43,8 @@ export async function debug_traceCall(
                 //         .join("\n")
                 // )
                 throw e
+            } else {
+                sentry.captureException(e)
             }
         })
     // console.log("ret=", ret)
@@ -196,7 +199,7 @@ export interface LogCallFrame {
 export interface LogFrameResult {
     getGasUsed: () => number // - returns amount of gas used throughout the frame as a Number
     getOutput: () => Buffer // - returns the output as a buffer
-    getError: () => any // - returns an error if one occured during execution and undefined` otherwise
+    getError: () => any // - returns an error if one occurred during execution and undefined` otherwise
 }
 
 export interface LogOpCode {
@@ -234,7 +237,7 @@ export interface LogStep {
     getCost: () => number // returns the cost of the opcode as a Number
     getDepth: () => number // returns the execution depth as a Number
     getRefund: () => number // returns the amount to be refunded as a Number
-    getError: () => string | undefined //  returns information about the error if one occured, otherwise returns undefined
+    getError: () => string | undefined //  returns information about the error if one occurred, otherwise returns undefined
     // If error is non-empty, all other fields should be ignored.
 }
 

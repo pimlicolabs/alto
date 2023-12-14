@@ -56,127 +56,145 @@ const preFlightChecks = async (
     }
 }
 
-const customTestnet: Chain = {
-    id: 36865,
-    name: "Custom Testnet",
-    network: "custom-testnet",
-    nativeCurrency: {
-        name: "Ether",
-        symbol: "ETH",
-        decimals: 18
-    },
-    rpcUrls: {
-        default: {
-            http: ["http://127.0.0.1:8545"]
+const customChains: Chain[] = [
+    {
+        id: 36865,
+        name: "Custom Testnet",
+        network: "custom-testnet",
+        nativeCurrency: {
+            name: "Ether",
+            symbol: "ETH",
+            decimals: 18
         },
-        public: {
-            http: ["http://127.0.0.1:8545"]
+        rpcUrls: {
+            default: {
+                http: ["http://127.0.0.1:8545"]
+            },
+            public: {
+                http: ["http://127.0.0.1:8545"]
+            }
+        },
+        testnet: true
+    },
+    {
+        id: 335,
+        name: "DFK Subnet Testnet",
+        network: "dfk-test-chain",
+        nativeCurrency: {
+            name: "JEWEL",
+            symbol: "JEWEL",
+            decimals: 18
+        },
+        rpcUrls: {
+            default: {
+                http: ["https://subnets.avax.network/defi-kingdoms/dfk-chain-testnet/rpc"]
+            },
+            public: {
+                http: ["https://subnets.avax.network/defi-kingdoms/dfk-chain-testnet/rpc"]
+            }
+        },
+        testnet: true
+    },
+    {
+        id: 59144,
+        name: "Linea Mainnet",
+        network: "linea",
+        nativeCurrency: {
+            name: "ETH",
+            symbol: "ETH",
+            decimals: 18
+        },
+        rpcUrls: {
+            default: {
+                http: []
+            },
+            public: {
+                http: []
+            }
+        },
+        testnet: false
+    },
+    {
+        id: 47279324479,
+        name: "Xai Goerli Orbit",
+        network: "xai-goerli-orbit",
+        nativeCurrency: {
+            name: "ETH",
+            symbol: "ETH",
+            decimals: 18
+        },
+        rpcUrls: {
+            default: {
+                http: []
+            },
+            public: {
+                http: []
+            }
+        },
+        testnet: false
+    },
+    {
+        id: 3163830386846714,
+        name: "Parallel testnet",
+        network: "parallel-l3-testnet",
+        nativeCurrency: {
+            name: "testnetETH",
+            symbol: "testnetETH",
+            decimals: 18
+        },
+        rpcUrls: {
+            default: {
+                http: []
+            },
+            public: {
+                http: []
+            }
+        },
+        testnet: true
+    },
+    {
+        id: 22222,
+        name: "Nautilus",
+        network: "nautilus",
+        nativeCurrency: {
+            name: "ZBC",
+            symbol: "ZBC",
+            decimals: 18
+        },
+        rpcUrls: {
+            default: {
+                http: []
+            },
+            public: {
+                http: []
+            }
         }
     },
-    testnet: true
-}
-
-const dfkTestnet: Chain = {
-    id: 335,
-    name: "DFK Subnet Testnet",
-    network: "dfk-test-chain",
-    nativeCurrency: {
-        name: "JEWEL",
-        symbol: "JEWEL",
-        decimals: 18
-    },
-    rpcUrls: {
-        default: {
-            http: [
-                "https://subnets.avax.network/defi-kingdoms/dfk-chain-testnet/rpc"
-            ]
+    {
+        id: 957,
+        name: "Lyra",
+        network: "lyra",
+        nativeCurrency: {
+            name: "ETH",
+            symbol: "ETH",
+            decimals: 18
         },
-        public: {
-            http: [
-                "https://subnets.avax.network/defi-kingdoms/dfk-chain-testnet/rpc"
-            ]
-        }
-    },
-    testnet: true
-}
-
-const xaiGoerliOrbit: Chain = {
-    id: 47279324479,
-    name: "Xai Goerli Orbit",
-    network: "xai-goerli-orbit",
-    nativeCurrency: {
-        name: "ETH",
-        symbol: "ETH",
-        decimals: 18
-    },
-    rpcUrls: {
-        default: {
-            http: []
+        rpcUrls: {
+            default: {
+                http: ["https://rpc.lyra.finance"]
+            },
+            public: {
+                http: ["https://rpc.lyra.finance"]
+            }
         },
-        public: {
-            http: []
-        }
-    },
-    testnet: false
-}
-
-const nautilus: Chain = {
-    id: 22222,
-    name: "Nautilus",
-    network: "nautilus",
-    nativeCurrency: {
-        name: "ZBC",
-        symbol: "ZBC",
-        decimals: 18
-    },
-    rpcUrls: {
-        default: {
-            http: []
-        },
-        public: {
-            http: []
-        }
+        testnet: false
     }
-}
-
-const lyra: Chain = {
-    id: 901,
-    name: "Lyra",
-    network: "lyra",
-    nativeCurrency: {
-        name: "ETH",
-        symbol: "ETH",
-        decimals: 18
-    },
-    rpcUrls: {
-        default: {
-            http: []
-        },
-        public: {
-            http: []
-        }
-    }
-}
+]
 
 function getChain(chainId: number): Chain {
-    if (chainId === 36865) {
-        return customTestnet
-    }
-
-    if (chainId === 335) {
-        return dfkTestnet
-    }
-
-    if (chainId === 47279324479) {
-        return xaiGoerliOrbit
-    }
-
-    if (chainId === 22222) {
-        return nautilus
-    }
-
-    if (chainId === 901) {
-        return lyra
+    const customChain = customChains.find((chain) => chain.id === chainId)
+    if (customChain) {
+        return customChain
     }
 
     for (const chain of Object.values(chains)) {
@@ -214,12 +232,8 @@ export const bundlerHandler = async (
     })
 
     const registry = new Registry()
-    const metrics = createMetrics(
-        registry,
-        chainId,
-        chain.name,
-        parsedArgs.environment
-    )
+    registry.setDefaultLabels({ network: chain.name, chainId })
+    const metrics = createMetrics(registry)
 
     await preFlightChecks(client, parsedArgs)
 
@@ -231,15 +245,7 @@ export const bundlerHandler = async (
     if (parsedArgs.logEnvironment === "development") {
         logger = initDebugLogger(parsedArgs.logLevel)
     } else {
-        logger = initProductionLogger(
-            parsedArgs.logLevel,
-            chainId,
-            chain.name,
-            parsedArgs.environment,
-            parsedArgs.lokiHost,
-            parsedArgs.lokiUsername,
-            parsedArgs.lokiPassword
-        )
+        logger = initProductionLogger(parsedArgs.logLevel)
     }
 
     const senderManager = new SenderManager(

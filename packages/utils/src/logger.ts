@@ -1,6 +1,5 @@
-import logger, { pino, Logger, SerializerFn } from "pino"
+import logger, { Logger, SerializerFn } from "pino"
 import { toHex } from "viem"
-import "pino-loki"
 
 // customFormatter.ts
 type AnyObject = { [key: string]: any }
@@ -10,6 +9,12 @@ function bigintToJson(_key: string, value: any): any {
         return toHex(value)
     }
     return value
+}
+
+function logLevel(label: string) {
+    return {
+        level: label
+    }
 }
 
 function stringifyWithCircularHandling(obj: AnyObject, replacer?: (key: string, value: any) => any): string {
@@ -53,6 +58,7 @@ export const initDebugLogger = (level = "debug"): Logger => {
             }
         },
         formatters: {
+            level: logLevel,
             log: customSerializer
         }
     })
@@ -62,41 +68,14 @@ export const initDebugLogger = (level = "debug"): Logger => {
     return l
 }
 
-export const initProductionLogger = (
-    level: string,
-    chainId: number,
-    network: string,
-    environment: string,
-    lokiHost?: string,
-    lokiUsername?: string,
-    lokiPassword?: string
-): Logger => {
-    if (lokiHost && lokiUsername && lokiPassword) {
-        const transport = pino.transport({
-            target: "pino-loki",
-            options: {
-                batching: true,
-                interval: 1,
-                labels: { app: "alto", chainId: chainId.toString(), env: environment, network },
-                host: lokiHost,
-                basicAuth: {
-                    username: lokiUsername,
-                    password: lokiPassword
-                },
-                replaceTimestamp: false
-            }
-        })
-
-        const l = logger(transport)
-        l.level = level
-        return l
-    } else {
-        const l = logger({
-            formatters: {
-                log: customSerializer
-            }
-        })
-        l.level = level
-        return l
-    }
+export const initProductionLogger = (level: string): Logger => {
+    const l = logger({
+        base: undefined, // do not log pid and hostname, we don't need it
+        formatters: {
+            level: logLevel,
+            log: customSerializer
+        }
+    })
+    l.level = level
+    return l
 }

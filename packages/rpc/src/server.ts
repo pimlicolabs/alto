@@ -10,6 +10,7 @@ import Fastify, { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { toHex } from "viem"
 import { fromZodError } from "zod-validation-error"
 import { Registry } from "prom-client"
+import * as sentry from "@sentry/node"
 
 // jsonBigIntOverride.ts
 const originalJsonStringify = JSON.stringify
@@ -44,6 +45,16 @@ JSON.stringify = function (
     return originalJsonStringify(value, wrapperReplacer, space)
 }
 
+declare module "fastify" {
+    interface FastifyRequest {
+        rpcMethod: string
+    }
+
+    interface FastifyReply {
+        rpcStatus: "failed" | "success"
+    }
+}
+
 export class Server {
     private fastify: FastifyInstance
     private rpcEndpoint: IRpcEndpoint
@@ -68,6 +79,30 @@ export class Server {
         this.fastify.register(require("fastify-cors"), {
             origin: "*",
             methods: ["POST", "GET", "OPTIONS"]
+        })
+
+        this.fastify.decorateRequest("rpcMethod", null)
+        this.fastify.decorateReply("rpcStatus", null)
+
+        this.fastify.addHook("onResponse", async (request, reply) => {
+            const ignoredRoutes = ["/health", "/metrics"]
+            if (ignoredRoutes.includes(request.routeOptions.url)) {
+                return
+            }
+
+            const labels = {
+                route: request.routeOptions.url,
+                code: reply.statusCode,
+                method: request.method,
+                rpc_method: request.rpcMethod,
+                rpc_status: reply.rpcStatus
+            }
+
+            this.metrics.httpRequests.labels(labels).inc()
+
+            const durationMs = reply.getResponseTime()
+            const durationSeconds = durationMs / 1000
+            this.metrics.httpRequestsDuration.labels(labels).observe(durationSeconds)
         })
 
         this.fastify.post("/rpc", this.rpc.bind(this))
@@ -96,22 +131,9 @@ export class Server {
         await reply.status(200).send("OK")
     }
 
-    public async rpc(
-        request: FastifyRequest,
-        reply: FastifyReply
-    ): Promise<void> {
-        const requestInfo: {
-            receivedAt: number
-            method: string | null
-            statusCode: number | null
-            id: number | null
-        } = {
-            receivedAt: Date.now(),
-            method: null,
-            statusCode: null,
-            id: null
-        }
-
+    public async rpc(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+        reply.rpcStatus = "failed" // default to failed
+        let requestId
         try {
             const contentTypeHeader = request.headers["content-type"]
             if (contentTypeHeader !== "application/json") {
@@ -137,7 +159,7 @@ export class Server {
 
             const jsonRpcRequest = jsonRpcParsing.data
 
-            requestInfo.id = jsonRpcRequest.id
+            requestId = jsonRpcRequest.id
 
             const bundlerRequestParsing =
                 bundlerRequestSchema.safeParse(jsonRpcRequest)
@@ -152,6 +174,7 @@ export class Server {
             }
 
             const bundlerRequest = bundlerRequestParsing.data
+            request.rpcMethod = bundlerRequest.method
             this.fastify.log.info(
                 {
                     data: JSON.stringify(bundlerRequest, null),
@@ -159,34 +182,24 @@ export class Server {
                 },
                 "incoming request"
             )
-            try {
-                const result =
-                    await this.rpcEndpoint.handleMethod(bundlerRequest)
-                const jsonRpcResponse: JSONRPCResponse = {
-                    jsonrpc: "2.0",
-                    id: jsonRpcRequest.id,
-                    result: result.result
-                }
-
-                await reply.status(200).send(jsonRpcResponse)
-                requestInfo.statusCode = 200
-                requestInfo.method = bundlerRequest.method
-                this.fastify.log.info(
-                    {
-                        data: JSON.stringify(jsonRpcResponse),
-                        method: bundlerRequest.method
-                    },
-                    "sent reply"
-                )
-            } catch (e: unknown) {
-                requestInfo.method = bundlerRequest.method
-                throw e
+            const result = await this.rpcEndpoint.handleMethod(bundlerRequest)
+            const jsonRpcResponse: JSONRPCResponse = {
+                jsonrpc: "2.0",
+                id: jsonRpcRequest.id,
+                result: result.result
             }
+
+            await reply.status(200).send(jsonRpcResponse)
+            reply.rpcStatus = "success"
+            this.fastify.log.info(
+                { data: JSON.stringify(jsonRpcResponse), method: bundlerRequest.method },
+                "sent reply"
+            )
         } catch (err) {
             if (err instanceof RpcError) {
                 const rpcError = {
                     jsonrpc: "2.0",
-                    id: requestInfo.id,
+                    id: requestId,
                     error: {
                         message: err.message,
                         data: err.data,
@@ -194,43 +207,32 @@ export class Server {
                     }
                 }
                 await reply.status(200).send(rpcError)
-                requestInfo.statusCode = 200
                 this.fastify.log.info(rpcError, "error reply")
             } else if (err instanceof Error) {
+                sentry.captureException(err)
                 const rpcError = {
                     jsonrpc: "2.0",
-                    id: requestInfo.id,
+                    id: requestId,
                     error: {
                         message: err.message
                     }
                 }
 
                 await reply.status(500).send(rpcError)
-                requestInfo.statusCode = 500
                 this.fastify.log.error(err, "error reply (non-rpc)")
             } else {
                 const rpcError = {
                     jsonrpc: "2.0",
-                    id: requestInfo.id,
+                    id: requestId,
                     error: {
                         message: "Unknown error"
                     }
                 }
 
                 await reply.status(500).send(rpcError)
-                requestInfo.statusCode = 500
                 this.fastify.log.info(reply.raw, "error reply (non-rpc)")
             }
         }
-
-        this.metrics.httpRequestDuration.metric
-            .labels({
-                chainId: this.metrics.httpRequestDuration.chainId,
-                network: this.metrics.httpRequestDuration.network,
-                status_code: requestInfo.statusCode.toString(),
-                method: requestInfo.method ?? "unknown"
-            })
-            .observe((Date.now() - requestInfo.receivedAt) / 1000)
     }
 
     public async serveMetrics(

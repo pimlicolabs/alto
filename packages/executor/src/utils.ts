@@ -19,6 +19,7 @@ import {
     WalletClient,
     decodeErrorResult
 } from "viem"
+import * as sentry from "@sentry/node"
 
 export function simulatedOpsToResults(
     simulatedOps: {
@@ -129,8 +130,11 @@ export async function filterOpsAndEstimateGas(
                         failingOp.reason
                     )
                 } else {
+                    sentry.captureException(err)
                     logger.error(
-                        { error: parsingResult.error },
+                        {
+                            error: parsingResult.error
+                        },
                         "failed to parse failedOpError"
                     )
                     return { simulatedOps: [], gasLimit: 0n }
@@ -177,10 +181,8 @@ export async function filterOpsAndEstimateGas(
                     return { simulatedOps: [], gasLimit: 0n }
                 }
             } else {
-                logger.error(
-                    { error: JSON.stringify(err) },
-                    "error estimating gas"
-                )
+                sentry.captureException(err)
+                logger.error({ error: JSON.stringify(err) }, "error estimating gas")
                 return { simulatedOps: [], gasLimit: 0n }
             }
         }
@@ -246,6 +248,7 @@ export async function flushStuckTransaction(
 
             await transactionIncluded(txHash, publicClient)
         } catch (e) {
+            sentry.captureException(e)
             logger.warn({ error: e }, "error flushing stuck transaction")
         }
     }
