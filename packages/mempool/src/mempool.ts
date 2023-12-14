@@ -3,15 +3,19 @@
 // import { EntryPointAbi } from "../types/EntryPoint"
 import {
     RpcError,
+    StorageMap,
     SubmittedUserOperation,
     TransactionInfo,
     UserOperation,
     UserOperationInfo,
-    ValidationErrors
+    ValidationErrors,
+    IValidator,
+    ValidationResult,
+    EntryPointAbi
 } from "@alto/types"
 import { HexData32 } from "@alto/types"
 import { Monitor } from "./monitoring"
-import { Address, Chain, PublicClient, Transport } from "viem"
+import { Address, Chain, PublicClient, Transport, getContract } from "viem"
 import {
     Logger,
     Metrics,
@@ -19,11 +23,14 @@ import {
     getUserOperationHash
 } from "@alto/utils"
 import { MemoryStore } from "./store"
-import { IReputationManager } from "./reputationManager"
+import { IReputationManager, ReputationStatuses } from "./reputationManager"
 
 export interface Mempool {
     add(op: UserOperation): boolean
-    checkMultipleRolesViolation(op: UserOperation): Promise<void>
+    checkReputationAndMultipleRolesViolation(
+        _op: UserOperation,
+        _validationResult: ValidationResult
+    ): Promise<void>
 
     /**
      * Takes an array of user operations from the mempool, also marking them as submitted.
@@ -32,7 +39,7 @@ export interface Mempool {
      * @param minOps The minimum number of user operations to take.
      * @returns An array of user operations to submit.
      */
-    process(gasLimit?: bigint, minOps?: number): UserOperation[]
+    process(gasLimit: bigint, minOps?: number): Promise<UserOperation[]>
 
     replaceSubmitted(
         userOperation: UserOperationInfo,
@@ -86,11 +93,14 @@ export class NullMempool implements Mempool {
     add(_op: UserOperation) {
         return false
     }
-    async checkMultipleRolesViolation(_op: UserOperation): Promise<void> {
+    async checkReputationAndMultipleRolesViolation(
+        _op: UserOperation,
+        _validationResult: ValidationResult
+    ): Promise<void> {
         return
     }
 
-    process(_?: bigint, __?: number): UserOperation[] {
+    async process(_: bigint, __?: number): Promise<UserOperation[]> {
         return []
     }
 }
@@ -101,20 +111,28 @@ export class MemoryMempool implements Mempool {
     private entryPointAddress: Address
     private reputationManager: IReputationManager
     private store: MemoryStore
+    private throttledEntityBundleCount: number
+    private logger: Logger
+    private validator: IValidator
 
     constructor(
         monitor: Monitor,
         reputationManager: IReputationManager,
+        validator: IValidator,
         publicClient: PublicClient<Transport, Chain>,
         entryPointAddress: Address,
         logger: Logger,
-        metrics: Metrics
+        metrics: Metrics,
+        throttledEntityBundleCount?: number
     ) {
         this.reputationManager = reputationManager
         this.monitor = monitor
+        this.validator = validator
         this.publicClient = publicClient
         this.entryPointAddress = entryPointAddress
+        this.logger = logger
         this.store = new MemoryStore(logger, metrics)
+        this.throttledEntityBundleCount = throttledEntityBundleCount ?? 4
     }
 
     replaceSubmitted(
@@ -180,7 +198,12 @@ export class MemoryMempool implements Mempool {
         this.store.removeProcessing(userOpHash)
     }
 
-    async checkMultipleRolesViolation(op: UserOperation): Promise<void> {
+    async checkReputationAndMultipleRolesViolation(
+        op: UserOperation,
+        validationResult: ValidationResult
+    ): Promise<void> {
+        await this.reputationManager.checkReputation(op, validationResult)
+
         const knownEntities = this.getKnownEntities()
 
         if (
@@ -197,23 +220,27 @@ export class MemoryMempool implements Mempool {
             op.paymasterAndData
         )
 
-        if (paymaster && knownEntities.sender.has(paymaster.toLowerCase() as Address)) {
+        if (
+            paymaster &&
+            knownEntities.sender.has(paymaster.toLowerCase() as Address)
+        ) {
             throw new RpcError(
                 `A Paymaster at ${paymaster} in this UserOperation is used as a sender entity in another UserOperation currently in mempool.`,
                 ValidationErrors.OpcodeValidation
             )
         }
 
-
         const factory = getAddressFromInitCodeOrPaymasterAndData(op.initCode)
 
-        if (factory && knownEntities.sender.has(factory.toLowerCase() as Address)) {
+        if (
+            factory &&
+            knownEntities.sender.has(factory.toLowerCase() as Address)
+        ) {
             throw new RpcError(
                 `A Factory at ${factory} in this UserOperation is used as a sender entity in another UserOperation currently in mempool.`,
                 ValidationErrors.OpcodeValidation
             )
         }
-
     }
 
     getKnownEntities(): {
@@ -321,39 +348,271 @@ export class MemoryMempool implements Mempool {
         return true
     }
 
-    process(maxGasLimit?: bigint, minOps?: number): UserOperation[] {
-        const outstandingUserOperations = this.store.dumpOutstanding().slice()
-        if (maxGasLimit) {
-            let opsTaken = 0
-            let gasUsed = 0n
-            const result: UserOperation[] = []
-            for (const opInfo of outstandingUserOperations) {
-                gasUsed +=
-                    opInfo.userOperation.callGasLimit +
-                    opInfo.userOperation.verificationGasLimit * 3n +
-                    opInfo.userOperation.preVerificationGas
-                if (gasUsed > maxGasLimit && opsTaken >= (minOps || 0)) {
-                    break
-                }
-                this.reputationManager.decreaseUserOperationCount(
-                    opInfo.userOperation
-                )
-                this.store.removeOutstanding(opInfo.userOperationHash)
-                this.store.addProcessing(opInfo)
-                result.push(opInfo.userOperation)
-                opsTaken++
+    async shouldSkip(
+        opInfo: UserOperationInfo,
+        paymasterDeposit: { [paymaster: string]: bigint },
+        stakedEntityCount: { [addr: string]: number },
+        knownEntities: {
+            sender: Set<`0x${string}`>
+            paymasters: Set<`0x${string}`>
+            facotries: Set<`0x${string}`>
+        },
+        senders: Set<string>,
+        storageMap: StorageMap
+    ): Promise<{
+        skip: boolean
+        paymasterDeposit: { [paymaster: string]: bigint }
+        stakedEntityCount: { [addr: string]: number }
+        knownEntities: {
+            sender: Set<`0x${string}`>
+            paymasters: Set<`0x${string}`>
+            facotries: Set<`0x${string}`>
+        }
+        senders: Set<string>
+        storageMap: StorageMap
+    }> {
+        const paymaster = getAddressFromInitCodeOrPaymasterAndData(
+            opInfo.userOperation.paymasterAndData
+        )?.toLowerCase() as Address | undefined
+        const factory = getAddressFromInitCodeOrPaymasterAndData(
+            opInfo.userOperation.initCode
+        )?.toLowerCase() as Address | undefined
+        const paymasterStatus = this.reputationManager.getStatus(paymaster)
+        const factoryStatus = this.reputationManager.getStatus(factory)
+
+        if (
+            paymasterStatus === ReputationStatuses.BANNED ||
+            factoryStatus === ReputationStatuses.BANNED
+        ) {
+            this.store.removeOutstanding(opInfo.userOperationHash)
+            return {
+                skip: true,
+                paymasterDeposit,
+                stakedEntityCount,
+                knownEntities,
+                senders,
+                storageMap
             }
-            return result
         }
 
-        return outstandingUserOperations.map((opInfo) => {
+        if (
+            paymasterStatus === ReputationStatuses.THROTTLED &&
+            paymaster &&
+            stakedEntityCount[paymaster] >= this.throttledEntityBundleCount
+        ) {
+            this.logger.info(
+                {
+                    paymaster,
+                    opHash: opInfo.userOperationHash
+                },
+                "Throttled paymaster skipped"
+            )
+            return {
+                skip: true,
+                paymasterDeposit,
+                stakedEntityCount,
+                knownEntities,
+                senders,
+                storageMap
+            }
+        }
+
+        if (
+            factoryStatus === ReputationStatuses.THROTTLED &&
+            factory &&
+            stakedEntityCount[factory] >= this.throttledEntityBundleCount
+        ) {
+            this.logger.info(
+                {
+                    factory,
+                    opHash: opInfo.userOperationHash
+                },
+                "Throttled factory skipped"
+            )
+            return {
+                skip: true,
+                paymasterDeposit,
+                stakedEntityCount,
+                knownEntities,
+                senders,
+                storageMap
+            }
+        }
+
+        if (senders.has(opInfo.userOperation.sender)) {
+            this.logger.info(
+                {
+                    sender: opInfo.userOperation.sender,
+                    opHash: opInfo.userOperationHash
+                },
+                "Sender skipped because already included in bundle"
+            )
+            return {
+                skip: true,
+                paymasterDeposit,
+                stakedEntityCount,
+                knownEntities,
+                senders,
+                storageMap
+            }
+        }
+
+        let validationResult: ValidationResult & { storageMap: StorageMap }
+
+        try {
+            validationResult = await this.validator.validateUserOperation(
+                opInfo.userOperation
+            )
+        } catch (e) {
+            this.logger.error(
+                {
+                    opHash: opInfo.userOperationHash,
+                    error: JSON.stringify(e)
+                },
+                "2nd Validation error"
+            )
+            this.store.removeOutstanding(opInfo.userOperationHash)
+            return {
+                skip: true,
+                paymasterDeposit,
+                stakedEntityCount,
+                knownEntities,
+                senders,
+                storageMap
+            }
+        }
+
+        for (const storageAddress of Object.keys(validationResult.storageMap)) {
+            if (
+                storageAddress.toLowerCase() !==
+                    opInfo.userOperation.sender.toLowerCase() &&
+                knownEntities.sender.has(
+                    storageAddress.toLowerCase() as Address
+                )
+            ) {
+                this.logger.info(
+                    {
+                        storageAddress,
+                        opHash: opInfo.userOperationHash
+                    },
+                    "Storage address skipped"
+                )
+                return {
+                    skip: true,
+                    paymasterDeposit,
+                    stakedEntityCount,
+                    knownEntities,
+                    senders,
+                    storageMap
+                }
+            }
+        }
+
+        if (paymaster) {
+            if (paymasterDeposit[paymaster] === undefined) {
+                const entryPointContract = getContract({
+                    abi: EntryPointAbi,
+                    address: this.entryPointAddress,
+                    publicClient: this.publicClient
+                })
+                paymasterDeposit[paymaster] =
+                    await entryPointContract.read.balanceOf([paymaster])
+            }
+            if (
+                paymasterDeposit[paymaster] <
+                validationResult.returnInfo.prefund
+            ) {
+                this.logger.info(
+                    {
+                        paymaster,
+                        opHash: opInfo.userOperationHash
+                    },
+                    "Paymaster skipped because of insufficient balance left to sponsor all user ops in the bundle"
+                )
+                return {
+                    skip: true,
+                    paymasterDeposit,
+                    stakedEntityCount,
+                    knownEntities,
+                    senders,
+                    storageMap
+                }
+            }
+            stakedEntityCount[paymaster] =
+                (stakedEntityCount[paymaster] ?? 0) + 1
+            paymasterDeposit[paymaster] -= validationResult.returnInfo.prefund
+        }
+
+        if (factory) {
+            stakedEntityCount[factory] = (stakedEntityCount[factory] ?? 0) + 1
+        }
+
+        senders.add(opInfo.userOperation.sender)
+
+        return {
+            skip: false,
+            paymasterDeposit,
+            stakedEntityCount,
+            knownEntities,
+            senders,
+            storageMap
+        }
+    }
+
+    async process(
+        maxGasLimit: bigint,
+        minOps?: number
+    ): Promise<UserOperation[]> {
+        const outstandingUserOperations = this.store.dumpOutstanding().slice()
+        let opsTaken = 0
+        let gasUsed = 0n
+        const result: UserOperation[] = []
+
+        // paymaster deposit should be enough for all UserOps in the bundle.
+        let paymasterDeposit: { [paymaster: string]: bigint } = {}
+        // throttled paymasters and deployers are allowed only small UserOps per bundle.
+        let stakedEntityCount: { [addr: string]: number } = {}
+        // each sender is allowed only once per bundle
+        let senders = new Set<string>()
+        let knownEntities = this.getKnownEntities()
+
+        let storageMap: StorageMap = {}
+
+        for (const opInfo of outstandingUserOperations) {
+            gasUsed +=
+                opInfo.userOperation.callGasLimit +
+                opInfo.userOperation.verificationGasLimit * 3n +
+                opInfo.userOperation.preVerificationGas
+            if (gasUsed > maxGasLimit && opsTaken >= (minOps || 0)) {
+                break
+            }
+            const skipResult = await this.shouldSkip(
+                opInfo,
+                paymasterDeposit,
+                stakedEntityCount,
+                knownEntities,
+                senders,
+                storageMap
+            )
+            paymasterDeposit = skipResult.paymasterDeposit
+            stakedEntityCount = skipResult.stakedEntityCount
+            knownEntities = skipResult.knownEntities
+            senders = skipResult.senders
+            storageMap = skipResult.storageMap
+
+            if (skipResult.skip) {
+                continue
+            }
+
             this.reputationManager.decreaseUserOperationCount(
                 opInfo.userOperation
             )
             this.store.removeOutstanding(opInfo.userOperationHash)
             this.store.addProcessing(opInfo)
-            return opInfo.userOperation
-        })
+            result.push(opInfo.userOperation)
+            opsTaken++
+        }
+        return result
     }
 
     get(opHash: HexData32): UserOperation | null {

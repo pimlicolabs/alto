@@ -28,7 +28,8 @@ import {
     BundlerSetReputationsRequestParams,
     BundlerClearMempoolResponseResult,
     BundlerGetStakeStatusResponseResult,
-    bundlerGetStakeStatusResponseSchema
+    bundlerGetStakeStatusResponseSchema,
+    IValidator
 } from "@alto/types"
 import {
     Logger,
@@ -60,7 +61,6 @@ import {
     estimateVerificationGasLimit
 } from "./gasEstimation"
 import { NonceQueuer } from "./nonceQueuer"
-import { IValidator } from "./vatidation"
 import { ExecutorManager } from "@alto/executor"
 
 export interface IRpcEndpoint {
@@ -461,8 +461,12 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
         if (userOperationNonceValue === currentNonceValue) {
-            await this.validator.validateUserOperation(userOperation)
-            await this.mempool.checkMultipleRolesViolation(userOperation)
+            const validationResult =
+                await this.validator.validateUserOperation(userOperation)
+            await this.mempool.checkReputationAndMultipleRolesViolation(
+                userOperation,
+                validationResult
+            )
             const success = this.mempool.add(userOperation)
             if (!success) {
                 throw new RpcError(

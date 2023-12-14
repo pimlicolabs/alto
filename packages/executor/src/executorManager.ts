@@ -85,7 +85,7 @@ export class ExecutorManager {
     }
 
     async bundleNow(): Promise<Hash> {
-        const ops = this.mempool.process(5_000_000n, 1)
+        const ops = await this.mempool.process(5_000_000n, 1)
         if (ops.length === 0) {
             throw new Error("no ops to bundle")
         }
@@ -141,7 +141,7 @@ export class ExecutorManager {
         const opsToBundle: UserOperation[][] = []
         // rome-ignore lint/nursery/noConstantCondition: <explanation>
         while (true) {
-            const ops = this.mempool.process(5_000_000n, 1)
+            const ops = await this.mempool.process(5_000_000n, 1)
             if (ops?.length > 0) {
                 opsToBundle.push(ops)
             } else {

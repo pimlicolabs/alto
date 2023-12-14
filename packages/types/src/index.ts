@@ -11,3 +11,4 @@ export * from "./contracts/SimpleAccountFactory"
 export * from "./validation"
 export * from "./gasPrice"
 export * from "./mempool"
+export * from './interfaces'

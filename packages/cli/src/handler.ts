@@ -7,7 +7,6 @@ import {
     NullRepuationManager
 } from "@alto/mempool"
 import {
-    IValidator,
     NonceQueuer,
     RpcHandler,
     SafeValidator,
@@ -32,6 +31,7 @@ import {
 import * as chains from "viem/chains"
 import { fromZodError } from "zod-validation-error"
 import { IBundlerArgs, IBundlerArgsInput, bundlerArgsSchema } from "./config"
+import { IValidator } from "@alto/types"
 
 const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
     // validate every arg, make typesafe so if i add a new arg i have to validate it
@@ -251,7 +251,7 @@ export const bundlerHandler = async (
             parsedArgs.entryPoint,
             BigInt(parsedArgs.minStake),
             BigInt(parsedArgs.minUnstakeDelay),
-            logger.child({ module: "reputation_manager" }),
+            logger.child({ module: "reputation_manager" })
         )
 
         validator = new SafeValidator(
@@ -260,7 +260,6 @@ export const bundlerHandler = async (
             logger.child({ module: "rpc" }),
             metrics,
             parsedArgs.utilityPrivateKey,
-            reputationManager,
             parsedArgs.tenderlyEnabled
         )
     } else {
@@ -302,6 +301,7 @@ export const bundlerHandler = async (
     const mempool = new MemoryMempool(
         monitor,
         reputationManager,
+        validator,
         client,
         parsedArgs.entryPoint,
         logger.child({ module: "mempool" }),

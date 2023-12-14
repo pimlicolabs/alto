@@ -18,6 +18,7 @@ export interface IReputationManager {
     updateUserOperationSeenStatus(userOperation: UserOperation): void
     increaseUserOperationCount(userOperation: UserOperation): void
     decreaseUserOperationCount(userOperation: UserOperation): void
+    getStatus(address?: Address): ReputationStatus
     updateUserOperationIncludedStatus(
         userOperation: UserOperation,
         accountDeployed: boolean
@@ -47,9 +48,15 @@ export enum EntityType {
 }
 
 export type ReputationStatus = 0n | 1n | 2n
-const OK: ReputationStatus = 0n
-const THROTTLED: ReputationStatus = 1n
-const BANNED: ReputationStatus = 2n
+export const ReputationStatuses: {
+    OK: ReputationStatus,
+    THROTTLED: ReputationStatus,
+    BANNED: ReputationStatus
+} = {
+    OK: 0n,
+    THROTTLED: 1n,
+    BANNED: 2n
+}
 
 export interface ReputationEntry {
     address: Address
@@ -110,6 +117,10 @@ export class NullRepuationManager implements IReputationManager {
 
     dumpReputations(): ReputationEntry[] {
         return []
+    }
+
+    getStatus(_address?: `0x${string}` | undefined): ReputationStatus {
+        throw new Error("Method not implemented.")
     }
 
     getStakeStatus(_: Address): Promise<{
@@ -476,14 +487,14 @@ export class ReputationManager implements IReputationManager {
     getStatus(address?: Address): ReputationStatus {
         address = address?.toLowerCase() as Address
         if (!address || this.whitelist.has(address)) {
-            return OK
+            return ReputationStatuses.OK
         }
         if (this.blackList.has(address)) {
-            return BANNED
+            return ReputationStatuses.BANNED
         }
         const entry = this.entries[address]
         if (!entry) {
-            return OK
+            return ReputationStatuses.OK
         }
         const minExpectedIncluded =
             entry.opsSeen / this.bundlerReputationParams.minInclusionDenominator
@@ -506,23 +517,23 @@ export class ReputationManager implements IReputationManager {
             minExpectedIncluded <=
             entry.opsIncluded + this.bundlerReputationParams.throttlingSlack
         ) {
-            entry.status = OK
-            return OK
+            entry.status = ReputationStatuses.OK
+            return ReputationStatuses.OK
         } else if (
             minExpectedIncluded <=
             entry.opsIncluded + this.bundlerReputationParams.banSlack
         ) {
-            entry.status = THROTTLED
-            return THROTTLED
+            entry.status = ReputationStatuses.THROTTLED
+            return ReputationStatuses.THROTTLED
         } else {
-            entry.status = BANNED
-            return BANNED
+            entry.status = ReputationStatuses.BANNED
+            return ReputationStatuses.BANNED
         }
     }
 
     checkBanned(entityType: EntityType, stakeInfo: StakeInfo) {
         const status = this.getStatus(stakeInfo.addr as Address)
-        if (status === BANNED) {
+        if (status === ReputationStatuses.BANNED) {
             throw new RpcError(
                 `${entityType} ${stakeInfo.addr} is banned from using the pimlico`,
                 ValidationErrors.Reputation
@@ -532,7 +543,7 @@ export class ReputationManager implements IReputationManager {
 
     checkThrottled(entityType: EntityType, stakeInfo: StakeInfo) {
         const status = this.getStatus(stakeInfo.addr as Address)
-        if (status === THROTTLED) {
+        if (status === ReputationStatuses.THROTTLED) {
             throw new RpcError(
                 `${entityType} ${stakeInfo.addr} is throttled by the pimlico`,
                 ValidationErrors.Reputation

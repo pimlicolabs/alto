@@ -1,4 +1,8 @@
-import { HexData32, SubmittedUserOperation, UserOperationInfo } from "@alto/types"
+import {
+    HexData32,
+    SubmittedUserOperation,
+    UserOperationInfo
+} from "@alto/types"
 import { Logger, Metrics } from "@alto/utils"
 
 export class MemoryStore {
@@ -19,7 +23,10 @@ export class MemoryStore {
         const store = this.outstandingUserOperations
 
         store.push(op)
-        this.logger.debug({ userOpHash: op.userOperationHash, store: "outstanding" }, "added user op to mempool")
+        this.logger.debug(
+            { userOpHash: op.userOperationHash, store: "outstanding" },
+            "added user op to outstanding mempool"
+        )
         this.metrics.userOperationsInMempool.metric
             .labels({
                 status: "outstanding",
@@ -33,7 +40,10 @@ export class MemoryStore {
         const store = this.processingUserOperations
 
         store.push(op)
-        this.logger.debug({ userOpHash: op.userOperationHash, store: "processing" }, "added user op to mempool")
+        this.logger.debug(
+            { userOpHash: op.userOperationHash, store: "processing" },
+            "added user op to processing mempool"
+        )
         this.metrics.userOperationsInMempool.metric
             .labels({
                 status: "processing",
@@ -48,8 +58,11 @@ export class MemoryStore {
 
         store.push(op)
         this.logger.debug(
-            { userOpHash: op.userOperation.userOperationHash, store: "submitted" },
-            "added user op to mempool"
+            {
+                userOpHash: op.userOperation.userOperationHash,
+                store: "submitted"
+            },
+            "added user op to submitted mempool"
         )
         this.metrics.userOperationsInMempool.metric
             .labels({
@@ -61,14 +74,22 @@ export class MemoryStore {
     }
 
     removeOutstanding(userOpHash: HexData32) {
-        const index = this.outstandingUserOperations.findIndex((op) => op.userOperationHash === userOpHash)
+        const index = this.outstandingUserOperations.findIndex(
+            (op) => op.userOperationHash === userOpHash
+        )
         if (index === -1) {
-            this.logger.warn({ userOpHash, store: "outstanding" }, "tried to remove non-existent user op from mempool")
+            this.logger.warn(
+                { userOpHash, store: "outstanding" },
+                "tried to remove non-existent user op from mempool"
+            )
             return
         }
 
         this.outstandingUserOperations.splice(index, 1)
-        this.logger.debug({ userOpHash, store: "outstanding" }, "removed user op from outstanding mempool")
+        this.logger.debug(
+            { userOpHash, store: "outstanding" },
+            "removed user op from outstanding mempool"
+        )
         this.metrics.userOperationsInMempool.metric
             .labels({
                 status: "outstanding",
@@ -79,14 +100,22 @@ export class MemoryStore {
     }
 
     removeProcessing(userOpHash: HexData32) {
-        const index = this.processingUserOperations.findIndex((op) => op.userOperationHash === userOpHash)
+        const index = this.processingUserOperations.findIndex(
+            (op) => op.userOperationHash === userOpHash
+        )
         if (index === -1) {
-            this.logger.warn({ userOpHash, store: "outstanding" }, "tried to remove non-existent user op from mempool")
+            this.logger.warn(
+                { userOpHash, store: "outstanding" },
+                "tried to remove non-existent user op from mempool"
+            )
             return
         }
 
         this.processingUserOperations.splice(index, 1)
-        this.logger.debug({ userOpHash, store: "processing" }, "removed user op from processed mempool")
+        this.logger.debug(
+            { userOpHash, store: "processing" },
+            "removed user op from processed mempool"
+        )
         this.metrics.userOperationsInMempool.metric
             .labels({
                 status: "processing",
@@ -97,14 +126,22 @@ export class MemoryStore {
     }
 
     removeSubmitted(userOpHash: HexData32) {
-        const index = this.submittedUserOperations.findIndex((op) => op.userOperation.userOperationHash === userOpHash)
+        const index = this.submittedUserOperations.findIndex(
+            (op) => op.userOperation.userOperationHash === userOpHash
+        )
         if (index === -1) {
-            this.logger.warn({ userOpHash, store: "submitted" }, "tried to remove non-existent user op from mempool")
+            this.logger.warn(
+                { userOpHash, store: "submitted" },
+                "tried to remove non-existent user op from mempool"
+            )
             return
         }
 
         this.submittedUserOperations.splice(index, 1)
-        this.logger.debug({ userOpHash, store: "submitted" }, "removed user op from submitted mempool")
+        this.logger.debug(
+            { userOpHash, store: "submitted" },
+            "removed user op from submitted mempool"
+        )
         this.metrics.userOperationsInMempool.metric
             .labels({
                 status: "submitted",
@@ -115,30 +152,54 @@ export class MemoryStore {
     }
 
     dumpOutstanding(): UserOperationInfo[] {
-        this.logger.trace({ store: "outstanding", length: this.outstandingUserOperations.length }, "dumping mempool")
+        this.logger.trace(
+            {
+                store: "outstanding",
+                length: this.outstandingUserOperations.length
+            },
+            "dumping mempool"
+        )
         return this.outstandingUserOperations
     }
 
     dumpProcessing(): UserOperationInfo[] {
-        this.logger.trace({ store: "processing", length: this.processingUserOperations.length }, "dumping mempool")
+        this.logger.trace(
+            {
+                store: "processing",
+                length: this.processingUserOperations.length
+            },
+            "dumping mempool"
+        )
         return this.processingUserOperations
     }
 
     dumpSubmitted(): SubmittedUserOperation[] {
-        this.logger.trace({ store: "submitted", length: this.submittedUserOperations.length }, "dumping mempool")
+        this.logger.trace(
+            { store: "submitted", length: this.submittedUserOperations.length },
+            "dumping mempool"
+        )
         return this.submittedUserOperations
     }
 
     clear(from: "outstanding" | "processing" | "submitted") {
         if (from === "outstanding") {
             this.outstandingUserOperations = []
-            this.logger.debug({ store: from, length: this.outstandingUserOperations.length }, "clearing mempool")
+            this.logger.debug(
+                { store: from, length: this.outstandingUserOperations.length },
+                "clearing mempool"
+            )
         } else if (from === "processing") {
             this.processingUserOperations = []
-            this.logger.debug({ store: from, length: this.processingUserOperations.length }, "clearing mempool")
+            this.logger.debug(
+                { store: from, length: this.processingUserOperations.length },
+                "clearing mempool"
+            )
         } else if (from === "submitted") {
             this.submittedUserOperations = []
-            this.logger.debug({ store: from, length: this.submittedUserOperations.length }, "clearing mempool")
+            this.logger.debug(
+                { store: from, length: this.submittedUserOperations.length },
+                "clearing mempool"
+            )
         } else {
             throw new Error("unreachable")
         }

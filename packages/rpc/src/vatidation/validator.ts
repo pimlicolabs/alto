@@ -4,10 +4,12 @@ import {
     ExecutionResult,
     RpcError,
     StakeInfo,
+    StorageMap,
     UserOperation,
     ValidationErrors,
     ValidationResultWithAggregation,
     entryPointErrorsSchema,
+    ReferencedCodeHashes,
     entryPointExecutionErrorSchema
 } from "@alto/types"
 import { ValidationResult } from "@alto/types"
@@ -39,22 +41,7 @@ import {
 } from "./BundlerCollectorTracer"
 import { debug_traceCall } from "./tracer"
 import { tracerResultParser } from "./TracerResultParser"
-import { IReputationManager } from "@alto/mempool"
-
-export interface IValidator {
-    getExecutionResult(
-        userOperation: UserOperation,
-        usingTenderly?: boolean
-    ): Promise<ExecutionResult>
-    getValidationResult(
-        userOperation: UserOperation,
-        usingTenderly?: boolean
-    ): Promise<ValidationResult>
-    validateUserOperation(
-        userOperation: UserOperation,
-        usingTenderly?: boolean
-    ): Promise<ValidationResult>
-}
+import { IValidator } from "@alto/types"
 
 // let id = 0
 
@@ -117,7 +104,9 @@ async function getSimulationResult(
     logger: Logger,
     simulationType: "validation" | "execution",
     usingTenderly = false
-) {
+): Promise<
+    ValidationResult | ValidationResultWithAggregation | ExecutionResult
+> {
     const entryPointErrorSchemaParsing = usingTenderly
         ? entryPointErrorsSchema.safeParse(errorResult)
         : entryPointExecutionErrorSchema.safeParse(errorResult)
@@ -218,13 +207,12 @@ export class UnsafeValidator implements IValidator {
                 data: tenderlyResult
             })
 
-            // @ts-ignore
             return getSimulationResult(
                 errorResult,
                 this.logger,
                 "execution",
                 this.usingTenderly
-            )
+            ) as Promise<ExecutionResult>
         }
         const errorResult = await entryPointContract.simulate
             .simulateHandleOp(
@@ -244,18 +232,23 @@ export class UnsafeValidator implements IValidator {
                 throw e
             })
 
-        // @ts-ignore
         return getSimulationResult(
             errorResult,
             this.logger,
             "execution",
             this.usingTenderly
-        )
+        ) as Promise<ExecutionResult>
     }
 
     async getValidationResult(
-        userOperation: UserOperation
-    ): Promise<ValidationResult | ValidationResultWithAggregation> {
+        userOperation: UserOperation,
+        _codeHashes?: ReferencedCodeHashes
+    ): Promise<
+        (ValidationResult | ValidationResultWithAggregation) & {
+            storageMap: StorageMap
+            referencedContracts?: ReferencedCodeHashes
+        }
+    > {
         const entryPointContract = getContract({
             address: this.entryPoint,
             abi: EntryPointAbi,
@@ -283,13 +276,15 @@ export class UnsafeValidator implements IValidator {
                 data: tenderlyResult
             })
 
-            // @ts-ignore
-            return getSimulationResult(
-                errorResult,
-                this.logger,
-                "validation",
-                this.usingTenderly
-            )
+            return {
+                ...((await getSimulationResult(
+                    errorResult,
+                    this.logger,
+                    "validation",
+                    this.usingTenderly
+                )) as ValidationResult | ValidationResultWithAggregation),
+                storageMap: {}
+            }
         }
 
         const errorResult = await entryPointContract.simulate
@@ -301,18 +296,22 @@ export class UnsafeValidator implements IValidator {
                 throw e
             })
 
-        // @ts-ignore
-        return getSimulationResult(
-            errorResult,
-            this.logger,
-            "validation",
-            this.usingTenderly
-        )
+        return {
+            ...((await getSimulationResult(
+                errorResult,
+                this.logger,
+                "validation",
+                this.usingTenderly
+            )) as ValidationResult | ValidationResultWithAggregation),
+            storageMap: {}
+        }
     }
 
-    async validateUserOperation(
-        userOperation: UserOperation
-    ): Promise<ValidationResult | ValidationResultWithAggregation> {
+    async validateUserOperation(userOperation: UserOperation): Promise<
+        (ValidationResult | ValidationResultWithAggregation) & {
+            storageMap: StorageMap
+        }
+    > {
         try {
             const validationResult =
                 await this.getValidationResult(userOperation)
@@ -346,15 +345,12 @@ export class UnsafeValidator implements IValidator {
 }
 
 export class SafeValidator extends UnsafeValidator implements IValidator {
-    reputationManager: IReputationManager
-
     constructor(
         publicClient: PublicClient<Transport, Chain>,
         entryPoint: Address,
         logger: Logger,
         metrics: Metrics,
         utilityWallet: Account,
-        reputationManager: IReputationManager,
         usingTenderly = false
     ) {
         super(
@@ -365,20 +361,16 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
             utilityWallet,
             usingTenderly
         )
-        this.reputationManager = reputationManager
     }
 
-    async validateUserOperation(
-        userOperation: UserOperation
-    ): Promise<ValidationResult | ValidationResultWithAggregation> {
+    async validateUserOperation(userOperation: UserOperation): Promise<
+        (ValidationResult | ValidationResultWithAggregation) & {
+            storageMap: StorageMap
+        }
+    > {
         try {
             const validationResult =
                 await this.getValidationResult(userOperation)
-
-            await this.reputationManager.checkReputation(
-                userOperation,
-                validationResult
-            )
 
             if (validationResult.returnInfo.sigFailed) {
                 throw new RpcError(
@@ -406,32 +398,66 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
         }
     }
 
+    async getCodeHashes(addresses: string[]): Promise<ReferencedCodeHashes> {
+        const { hash } = await runContractScript(
+            this.entryPoint.provider,
+            new CodeHashGetter__factory(),
+            [addresses]
+        )
+
+        return {
+            hash,
+            addresses
+        }
+    }
+
     async getValidationResult(
-        userOperation: UserOperation
-    ): Promise<ValidationResult | ValidationResultWithAggregation> {
+        userOperation: UserOperation,
+        codeHashes?: ReferencedCodeHashes
+    ): Promise<
+        (ValidationResult | ValidationResultWithAggregation) & {
+            referencedContracts?: ReferencedCodeHashes
+            storageMap: StorageMap
+        }
+    > {
         if (this.usingTenderly) {
             return super.getValidationResult(userOperation)
+        }
+
+        if (codeHashes && codeHashes.addresses.length > 0) {
+            const { hash } = await this.getCodeHashes(codeHashes.addresses)
+            if (hash !== codeHashes.hash) {
+                throw new RpcError(
+                    "code hashes mismatch",
+                    ValidationErrors.OpcodeValidation
+                )
+            }
         }
 
         const [res, tracerResult] =
             await this.getValidationResultWithTracer(userOperation)
 
-        // const [contractAddresses, storageMap] =
-        tracerResultParser(
+        const [contractAddresses, storageMap] = tracerResultParser(
             userOperation,
             tracerResult,
             res,
             this.entryPoint.toLowerCase() as Address
         )
 
-        // const [contractAddresses, storageMap] = tracerResultParser(userOp, tracerResult, res, this.entryPoint)
+        if (!codeHashes) {
+            codeHashes = await this.getCodeHashes(contractAddresses)
+        }
 
         if ((res as any) === "0x") {
             throw new Error(
                 "simulateValidation reverted with no revert string!"
             )
         }
-        return res
+        return {
+            ...res,
+            referencedContracts: codeHashes,
+            storageMap
+        }
     }
 
     async getValidationResultWithTracer(
