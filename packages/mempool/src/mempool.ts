@@ -11,7 +11,8 @@ import {
     ValidationErrors,
     IValidator,
     ValidationResult,
-    EntryPointAbi
+    EntryPointAbi,
+    ReferencedCodeHashes
 } from "@alto/types"
 import { HexData32 } from "@alto/types"
 import { Monitor } from "./monitoring"
@@ -26,7 +27,7 @@ import { MemoryStore } from "./store"
 import { IReputationManager, ReputationStatuses } from "./reputationManager"
 
 export interface Mempool {
-    add(op: UserOperation): boolean
+    add(op: UserOperation, referencedContracts?: ReferencedCodeHashes): boolean
     checkReputationAndMultipleRolesViolation(
         _op: UserOperation,
         _validationResult: ValidationResult
@@ -90,7 +91,7 @@ export class NullMempool implements Mempool {
     removeSubmitted(_: `0x${string}`): void {
         throw new Error("Method not implemented.")
     }
-    add(_op: UserOperation) {
+    add(_op: UserOperation, _referencedContracts?: ReferencedCodeHashes): boolean {
         return false
     }
     async checkReputationAndMultipleRolesViolation(
@@ -281,7 +282,7 @@ export class MemoryMempool implements Mempool {
         return entities
     }
 
-    add(op: UserOperation) {
+    add(op: UserOperation, referencedContracts?: ReferencedCodeHashes) {
         const outstandingOps = [...this.store.dumpOutstanding()]
 
         const processedOrSubmittedOps = [
@@ -338,7 +339,8 @@ export class MemoryMempool implements Mempool {
             userOperation: op,
             userOperationHash: hash,
             firstSubmitted: oldUserOp ? oldUserOp.firstSubmitted : Date.now(),
-            lastReplaced: Date.now()
+            lastReplaced: Date.now(),
+            referencedContracts
         })
         this.monitor.setUserOperationStatus(hash, {
             status: "not_submitted",
@@ -461,7 +463,8 @@ export class MemoryMempool implements Mempool {
 
         try {
             validationResult = await this.validator.validateUserOperation(
-                opInfo.userOperation
+                opInfo.userOperation,
+                opInfo.referencedContracts
             )
         } catch (e) {
             this.logger.error(

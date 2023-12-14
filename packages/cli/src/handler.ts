@@ -242,6 +242,15 @@ export const bundlerHandler = async (
         )
     }
 
+    const senderManager = new SenderManager(
+        parsedArgs.signerPrivateKeys,
+        parsedArgs.utilityPrivateKey,
+        logger.child({ module: "executor" }),
+        metrics,
+        parsedArgs.noEip1559Support,
+        parsedArgs.maxSigners
+    )
+
     let validator: IValidator
     let reputationManager: IReputationManager
 
@@ -256,6 +265,7 @@ export const bundlerHandler = async (
 
         validator = new SafeValidator(
             client,
+            senderManager,
             parsedArgs.entryPoint,
             logger.child({ module: "rpc" }),
             metrics,
@@ -273,15 +283,6 @@ export const bundlerHandler = async (
             parsedArgs.tenderlyEnabled
         )
     }
-
-    const senderManager = new SenderManager(
-        parsedArgs.signerPrivateKeys,
-        parsedArgs.utilityPrivateKey,
-        logger.child({ module: "executor" }),
-        metrics,
-        parsedArgs.noEip1559Support,
-        parsedArgs.maxSigners
-    )
 
     await senderManager.validateAndRefillWallets(
         client,

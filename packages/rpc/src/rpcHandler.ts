@@ -467,7 +467,7 @@ export class RpcHandler implements IRpcEndpoint {
                 userOperation,
                 validationResult
             )
-            const success = this.mempool.add(userOperation)
+            const success = this.mempool.add(userOperation, validationResult.referencedContracts)
             if (!success) {
                 throw new RpcError(
                     "UserOperation reverted during simulation with reason: AA25 invalid account nonce",

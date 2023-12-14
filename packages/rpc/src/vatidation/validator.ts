@@ -10,7 +10,9 @@ import {
     ValidationResultWithAggregation,
     entryPointErrorsSchema,
     ReferencedCodeHashes,
-    entryPointExecutionErrorSchema
+    entryPointExecutionErrorSchema,
+    CodeHashGetterBytecode,
+    CodeHashGetterAbi
 } from "@alto/types"
 import { ValidationResult } from "@alto/types"
 import {
@@ -29,7 +31,9 @@ import {
     zeroAddress,
     keccak256,
     decodeAbiParameters,
-    Hex
+    Hex,
+    encodeDeployData,
+    ExecutionRevertedError
 } from "viem"
 import { hexDataSchema } from "@alto/types"
 import { z } from "zod"
@@ -42,6 +46,7 @@ import {
 import { debug_traceCall } from "./tracer"
 import { tracerResultParser } from "./TracerResultParser"
 import { IValidator } from "@alto/types"
+import { SenderManager } from "@alto/executor"
 
 // let id = 0
 
@@ -307,9 +312,13 @@ export class UnsafeValidator implements IValidator {
         }
     }
 
-    async validateUserOperation(userOperation: UserOperation): Promise<
+    async validateUserOperation(
+        userOperation: UserOperation,
+        _referencedContracts?: ReferencedCodeHashes
+    ): Promise<
         (ValidationResult | ValidationResultWithAggregation) & {
             storageMap: StorageMap
+            referencedContracts?: ReferencedCodeHashes
         }
     > {
         try {
@@ -345,8 +354,11 @@ export class UnsafeValidator implements IValidator {
 }
 
 export class SafeValidator extends UnsafeValidator implements IValidator {
+    private senderManager: SenderManager
+
     constructor(
         publicClient: PublicClient<Transport, Chain>,
+        senderManager: SenderManager,
         entryPoint: Address,
         logger: Logger,
         metrics: Metrics,
@@ -361,16 +373,21 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
             utilityWallet,
             usingTenderly
         )
+        this.senderManager = senderManager
     }
 
-    async validateUserOperation(userOperation: UserOperation): Promise<
+    async validateUserOperation(
+        userOperation: UserOperation,
+        referencedContracts?: ReferencedCodeHashes
+    ): Promise<
         (ValidationResult | ValidationResultWithAggregation) & {
             storageMap: StorageMap
+            referencedContracts?: ReferencedCodeHashes
         }
     > {
         try {
             const validationResult =
-                await this.getValidationResult(userOperation)
+                await this.getValidationResult(userOperation, referencedContracts)
 
             if (validationResult.returnInfo.sigFailed) {
                 throw new RpcError(
@@ -399,11 +416,28 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
     }
 
     async getCodeHashes(addresses: string[]): Promise<ReferencedCodeHashes> {
-        const { hash } = await runContractScript(
-            this.entryPoint.provider,
-            new CodeHashGetter__factory(),
-            [addresses]
-        )
+        const deployData = encodeDeployData({
+            abi: CodeHashGetterAbi,
+            bytecode: CodeHashGetterBytecode,
+            args: [addresses]
+        })
+
+        const wallet = await this.senderManager.getWallet()
+
+        let hash: string = ""
+
+        try {
+            await this.publicClient.call({
+                account: wallet,
+                // to:
+                data: deployData
+            })
+        } catch (e) {
+            const error = e as ExecutionRevertedError
+            hash = (error.walk() as any).data
+        }
+
+        this.senderManager.pushWallet(wallet)
 
         return {
             hash,

@@ -1,7 +1,7 @@
+import { ReferencedCodeHashes } from "./mempool"
 import { UserOperation } from "./schemas"
 import {
     ExecutionResult,
-    ReferencedCodeHashes,
     StorageMap,
     ValidationResult,
     ValidationResultWithAggregation
@@ -23,10 +23,11 @@ export interface IValidator {
     >
     validateUserOperation(
         userOperation: UserOperation,
-        usingTenderly?: boolean
+        referencedContracts?: ReferencedCodeHashes
     ): Promise<
         (ValidationResult | ValidationResultWithAggregation) & {
             storageMap: StorageMap
+            referencedContracts?: ReferencedCodeHashes
         }
     >
 }
