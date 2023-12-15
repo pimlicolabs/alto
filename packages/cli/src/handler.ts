@@ -110,25 +110,6 @@ const customChains: Chain[] = [
         nativeCurrency: {
             name: "testnetETH",
             symbol: "testnetETH",
-            decimals: 18,
-        },
-        rpcUrls: {
-            default: {
-                http: [],
-            },
-            public: {
-                http: [],
-            },
-        },
-        testnet: true,
-    },
-    {
-        id: 901,
-        name: "Lyra",
-        network: "lyra",
-        nativeCurrency: {
-            name: "ETH",
-            symbol: "ETH",
             decimals: 18
         },
         rpcUrls: {
@@ -138,7 +119,8 @@ const customChains: Chain[] = [
             public: {
                 http: []
             }
-        }
+        },
+        testnet: true
     },
     {
         id: 22222,
@@ -157,13 +139,32 @@ const customChains: Chain[] = [
                 http: []
             }
         }
+    },
+    {
+        id: 957,
+        name: "Lyra",
+        network: "lyra",
+        nativeCurrency: {
+            name: "ETH",
+            symbol: "ETH",
+            decimals: 18
+        },
+        rpcUrls: {
+            default: {
+                http: ["https://rpc.lyra.finance"]
+            },
+            public: {
+                http: ["https://rpc.lyra.finance"]
+            }
+        },
+        testnet: false
     }
 ]
 
 function getChain(chainId: number): Chain {
     const customChain = customChains.find((chain) => chain.id === chainId)
     if (customChain) {
-        return customChain;
+        return customChain
     }
 
     for (const chain of Object.values(chains)) {
@@ -196,7 +197,8 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
     })
 
     const registry = new Registry()
-    const metrics = createMetrics(registry, chainId, chain.name, parsedArgs.environment)
+    registry.setDefaultLabels({ network: chain.name, chainId })
+    const metrics = createMetrics(registry)
 
     await preFlightChecks(client, parsedArgs)
 
