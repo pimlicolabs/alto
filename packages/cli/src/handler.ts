@@ -87,10 +87,14 @@ const customChains: Chain[] = [
         },
         rpcUrls: {
             default: {
-                http: ["https://subnets.avax.network/defi-kingdoms/dfk-chain-testnet/rpc"]
+                http: [
+                    "https://subnets.avax.network/defi-kingdoms/dfk-chain-testnet/rpc"
+                ]
             },
             public: {
-                http: ["https://subnets.avax.network/defi-kingdoms/dfk-chain-testnet/rpc"]
+                http: [
+                    "https://subnets.avax.network/defi-kingdoms/dfk-chain-testnet/rpc"
+                ]
             }
         },
         testnet: true

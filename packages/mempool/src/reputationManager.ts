@@ -49,8 +49,8 @@ export enum EntityType {
 
 export type ReputationStatus = 0n | 1n | 2n
 export const ReputationStatuses: {
-    OK: ReputationStatus,
-    THROTTLED: ReputationStatus,
+    OK: ReputationStatus
+    THROTTLED: ReputationStatus
     BANNED: ReputationStatus
 } = {
     OK: 0n,

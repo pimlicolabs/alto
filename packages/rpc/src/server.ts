@@ -102,7 +102,9 @@ export class Server {
 
             const durationMs = reply.getResponseTime()
             const durationSeconds = durationMs / 1000
-            this.metrics.httpRequestsDuration.labels(labels).observe(durationSeconds)
+            this.metrics.httpRequestsDuration
+                .labels(labels)
+                .observe(durationSeconds)
         })
 
         this.fastify.post("/rpc", this.rpc.bind(this))
@@ -131,7 +133,10 @@ export class Server {
         await reply.status(200).send("OK")
     }
 
-    public async rpc(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    public async rpc(
+        request: FastifyRequest,
+        reply: FastifyReply
+    ): Promise<void> {
         reply.rpcStatus = "failed" // default to failed
         let requestId
         try {
@@ -192,7 +197,10 @@ export class Server {
             await reply.status(200).send(jsonRpcResponse)
             reply.rpcStatus = "success"
             this.fastify.log.info(
-                { data: JSON.stringify(jsonRpcResponse), method: bundlerRequest.method },
+                {
+                    data: JSON.stringify(jsonRpcResponse),
+                    method: bundlerRequest.method
+                },
                 "sent reply"
             )
         } catch (err) {

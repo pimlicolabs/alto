@@ -2,8 +2,19 @@
     "$schema": "./node_modules/rome/configuration_schema.json",
     "files": {
         "ignore": [
-            "node_modules", "**/node_modules", "CHANGELOG.md", "cache", "coverage", "dist", "tsconfig.json",
-            "tsconfig.*.json", "generated.ts", "pnpm-lock.yaml", "**/**/lib", ".nyc_output", "spec-tests"
+            "node_modules",
+            "**/node_modules",
+            "CHANGELOG.md",
+            "cache",
+            "coverage",
+            "dist",
+            "tsconfig.json",
+            "tsconfig.*.json",
+            "generated.ts",
+            "pnpm-lock.yaml",
+            "**/**/lib",
+            ".nyc_output",
+            "spec-tests"
         ]
     },
     "organizeImports": {

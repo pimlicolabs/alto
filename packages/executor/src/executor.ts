@@ -1,5 +1,18 @@
-import { Address, BundleResult, EntryPointAbi, HexData32, TransactionInfo, UserOperation } from "@alto/types"
-import { Logger, Metrics, getGasPrice, getUserOperationHash, parseViemError } from "@alto/utils"
+import {
+    Address,
+    BundleResult,
+    EntryPointAbi,
+    HexData32,
+    TransactionInfo,
+    UserOperation
+} from "@alto/types"
+import {
+    Logger,
+    Metrics,
+    getGasPrice,
+    getUserOperationHash,
+    parseViemError
+} from "@alto/utils"
 import { Mutex } from "async-mutex"
 import {
     Account,
@@ -15,7 +28,11 @@ import {
 } from "viem"
 import { SenderManager } from "./senderManager"
 import { IReputationManager } from "@alto/mempool"
-import { filterOpsAndEstimateGas, flushStuckTransaction, simulatedOpsToResults } from "./utils"
+import {
+    filterOpsAndEstimateGas,
+    flushStuckTransaction,
+    simulatedOpsToResults
+} from "./utils"
 import * as sentry from "@sentry/node"
 
 export interface GasEstimateResult {
@@ -275,7 +292,10 @@ export class BasicExecutor implements IExecutor {
             const e = parseViemError(err)
             if (!e) {
                 sentry.captureException(err)
-                childLogger.error({ error: err }, "unknown error replacing transaction")
+                childLogger.error(
+                    { error: err },
+                    "unknown error replacing transaction"
+                )
             }
 
             if (e instanceof NonceTooLowError) {
@@ -455,13 +475,17 @@ export class BasicExecutor implements IExecutor {
                           account: wallet,
                           gas: gasLimit,
                           maxFeePerGas: gasPriceParameters.maxFeePerGas,
-                          maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
+                          maxPriorityFeePerGas:
+                              gasPriceParameters.maxPriorityFeePerGas,
                           nonce: nonce
                       }
             )
         } catch (err: unknown) {
             sentry.captureException(err)
-            childLogger.error({ error: JSON.stringify(err) }, "error submitting bundle transaction")
+            childLogger.error(
+                { error: JSON.stringify(err) },
+                "error submitting bundle transaction"
+            )
             this.markWalletProcessed(wallet)
             return opsWithHashes.map((owh) => {
                 return {

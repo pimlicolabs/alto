@@ -12,4 +12,4 @@ export * from "./contracts/CodeHashGetter"
 export * from "./validation"
 export * from "./gasPrice"
 export * from "./mempool"
-export * from './interfaces'
+export * from "./interfaces"

@@ -5,7 +5,7 @@ import {
     PublicClient,
     decodeEventLog,
     encodeAbiParameters,
-    keccak256,
+    keccak256
 } from "viem"
 
 export function getAddressFromInitCodeOrPaymasterAndData(
@@ -96,8 +96,10 @@ export const transactionIncluded = async (
                     {}
                 )
 
-
-            const success = Object.values(r).reduce((x, v) => x || v.success, false)
+            const success = Object.values(r).reduce(
+                (x, v) => x || v.success,
+                false
+            )
 
             if (success) {
                 return {

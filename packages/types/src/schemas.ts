@@ -342,7 +342,7 @@ const bundlerGetStakeStatusResponseSchema = z.object({
                 .string()
                 .or(z.number())
                 .or(z.bigint())
-                .transform((val) => Number(val).toString()),
+                .transform((val) => Number(val).toString())
         }),
         isStaked: z.boolean()
     })

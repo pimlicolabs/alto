@@ -23,7 +23,10 @@ export class MemoryStore {
         const store = this.outstandingUserOperations
 
         store.push(op)
-        this.logger.debug({ userOpHash: op.userOperationHash, store: "outstanding" }, "added user op to mempool")
+        this.logger.debug(
+            { userOpHash: op.userOperationHash, store: "outstanding" },
+            "added user op to mempool"
+        )
         this.metrics.userOperationsInMempool
             .labels({
                 status: "outstanding"
@@ -35,7 +38,10 @@ export class MemoryStore {
         const store = this.processingUserOperations
 
         store.push(op)
-        this.logger.debug({ userOpHash: op.userOperationHash, store: "processing" }, "added user op to mempool")
+        this.logger.debug(
+            { userOpHash: op.userOperationHash, store: "processing" },
+            "added user op to mempool"
+        )
         this.metrics.userOperationsInMempool
             .labels({
                 status: "processing"
@@ -74,7 +80,10 @@ export class MemoryStore {
         }
 
         this.outstandingUserOperations.splice(index, 1)
-        this.logger.debug({ userOpHash, store: "outstanding" }, "removed user op from mempool")
+        this.logger.debug(
+            { userOpHash, store: "outstanding" },
+            "removed user op from mempool"
+        )
         this.metrics.userOperationsInMempool
             .labels({
                 status: "outstanding"
@@ -95,7 +104,10 @@ export class MemoryStore {
         }
 
         this.processingUserOperations.splice(index, 1)
-        this.logger.debug({ userOpHash, store: "processing" }, "removed user op from mempool")
+        this.logger.debug(
+            { userOpHash, store: "processing" },
+            "removed user op from mempool"
+        )
         this.metrics.userOperationsInMempool
             .labels({
                 status: "processing"
@@ -116,7 +128,10 @@ export class MemoryStore {
         }
 
         this.submittedUserOperations.splice(index, 1)
-        this.logger.debug({ userOpHash, store: "submitted" }, "removed user op from mempool")
+        this.logger.debug(
+            { userOpHash, store: "submitted" },
+            "removed user op from mempool"
+        )
         this.metrics.userOperationsInMempool
             .labels({
                 status: "submitted"

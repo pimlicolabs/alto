@@ -8,7 +8,15 @@
 // the validation rules are defined in erc-aa-validation.md
 
 import { Hex } from "viem"
-import { LogCallFrame, LogContext, LogDb, LogFrameResult, LogStep, LogTracer } from "./tracer"
+import {
+    LogCallFrame,
+    LogContext,
+    LogDb,
+    LogFrameResult,
+    LogStep,
+    LogTracer
+} from "./tracer"
+import { autoDiscoverNodePerformanceMonitoringIntegrations } from "@sentry/node"
 
 // functions available in a context of geth tracer
 declare function toHex(a: any): Hex
@@ -123,7 +131,8 @@ export function bundlerCollectorTracer(): BundlerCollectorTracer {
         lastOp: "",
         lastThreeOpcodes: [],
         // event sent after all validations are done: keccak("BeforeExecution()")
-        stopCollectingTopic: "bb47ee3e183a558b1a2ff0874b079f3fc5478b7454eacf2bfc5af2ff5878f972",
+        stopCollectingTopic:
+            "bb47ee3e183a558b1a2ff0874b079f3fc5478b7454eacf2bfc5af2ff5878f972",
         stopCollecting: false,
         topLevelCallCounter: 0,
 
@@ -214,7 +223,10 @@ export function bundlerCollectorTracer(): BundlerCollectorTracer {
                     // from opcode
                     const ofs = parseInt(log.stack.peek(0).toString())
                     const len = parseInt(log.stack.peek(1).toString())
-                    const data = toHex(log.memory.slice(ofs, ofs + len)).slice(0, 4000) as Hex
+                    const data = toHex(log.memory.slice(ofs, ofs + len)).slice(
+                        0,
+                        4000
+                    ) as Hex
                     // this.debug.push(opcode + ' ' + data)
                     this.calls.push({
                         type: opcode,
@@ -234,9 +246,13 @@ export function bundlerCollectorTracer(): BundlerCollectorTracer {
                     // stack.peek(2) - value
                     const ofs = parseInt(log.stack.peek(3).toString())
                     // stack.peek(4) - len
-                    const topLevelMethodSig = toHex(log.memory.slice(ofs, ofs + 4))
+                    const topLevelMethodSig = toHex(
+                        log.memory.slice(ofs, ofs + 4)
+                    )
 
-                    this.currentLevel = this.callsFromEntryPoint[this.topLevelCallCounter] = {
+                    this.currentLevel = this.callsFromEntryPoint[
+                        this.topLevelCallCounter
+                    ] = {
                         topLevelMethodSig,
                         topLevelTargetAddress,
                         access: {},
@@ -256,15 +272,25 @@ export function bundlerCollectorTracer(): BundlerCollectorTracer {
                 return
             }
 
-            const lastOpInfo = this.lastThreeOpcodes[this.lastThreeOpcodes.length - 2]
+            const lastOpInfo =
+                this.lastThreeOpcodes[this.lastThreeOpcodes.length - 2]
             // store all addresses touched by EXTCODE* opcodes
-            if (lastOpInfo && lastOpInfo.opcode && lastOpInfo.opcode.match(/^(EXT.*)$/) != null) {
+            if (
+                lastOpInfo &&
+                lastOpInfo.opcode &&
+                lastOpInfo.opcode.match(/^(EXT.*)$/) != null
+            ) {
                 const addr = toAddress(lastOpInfo.stackTop3[0].toString(16))
                 const addrHex = toHex(addr)
-                const last3opcodesString = this.lastThreeOpcodes.map((x) => x.opcode).join(" ")
+                const last3opcodesString = this.lastThreeOpcodes
+                    .map((x) => x.opcode)
+                    .join(" ")
                 // only store the last EXTCODE* opcode per address - could even be a boolean for our current use-case
                 // [OP-051]
-                if (last3opcodesString.match(/^(\w+) EXTCODESIZE ISZERO$/) == null) {
+                if (
+                    last3opcodesString.match(/^(\w+) EXTCODESIZE ISZERO$/) ==
+                    null
+                ) {
                     this.currentLevel.extCodeAccessInfo[addrHex] = opcode
                     // this.debug.push(`potentially illegal EXTCODESIZE without ISZERO for ${addrHex}`)
                 } else {
@@ -274,19 +300,28 @@ export function bundlerCollectorTracer(): BundlerCollectorTracer {
 
             // not using 'isPrecompiled' to only allow the ones defined by the ERC-4337 as stateless precompiles
             // [OP-062]
-            const isAllowedPrecompiled: (address: any) => boolean = (address) => {
+            const isAllowedPrecompiled: (address: any) => boolean = (
+                address
+            ) => {
                 const addrHex = toHex(address)
                 const addressInt = parseInt(addrHex)
                 // this.debug.push(`isPrecompiled address=${addrHex} addressInt=${addressInt}`)
                 return addressInt > 0 && addressInt < 10
             }
             // [OP-041]
-            if (opcode.match(/^(EXT.*|CALL|CALLCODE|DELEGATECALL|STATICCALL)$/) != null) {
+            if (
+                opcode.match(
+                    /^(EXT.*|CALL|CALLCODE|DELEGATECALL|STATICCALL)$/
+                ) != null
+            ) {
                 const idx = opcode.startsWith("EXT") ? 0 : 1
                 const addr = toAddress(log.stack.peek(idx).toString(16))
                 const addrHex = toHex(addr)
                 // this.debug.push('op=' + opcode + ' last=' + this.lastOp + ' stacksize=' + log.stack.length() + ' addr=' + addrHex)
-                if (this.currentLevel.contractSize[addrHex] == null && !isAllowedPrecompiled(addr)) {
+                if (
+                    this.currentLevel.contractSize[addrHex] == null &&
+                    !isAllowedPrecompiled(addr)
+                ) {
                     this.currentLevel.contractSize[addrHex] = {
                         contractSize: db.getCode(addr).length,
                         opcode
@@ -327,7 +362,10 @@ export function bundlerCollectorTracer(): BundlerCollectorTracer {
                 if (opcode === "SLOAD") {
                     // read slot values before this UserOp was created
                     // (so saving it if it was written before the first read)
-                    if (access.reads[slotHex] == null && access.writes[slotHex] == null) {
+                    if (
+                        access.reads[slotHex] == null &&
+                        access.writes[slotHex] == null
+                    ) {
                         access.reads[slotHex] = toHex(db.getState(addr, slot))
                     }
                 } else {

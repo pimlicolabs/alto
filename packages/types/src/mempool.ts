@@ -3,11 +3,11 @@ import { HexData32, UserOperation } from "."
 import { Abi, Chain, WriteContractParameters } from "viem"
 
 export interface ReferencedCodeHashes {
-  // addresses accessed during this user operation
-  addresses: string[]
+    // addresses accessed during this user operation
+    addresses: string[]
 
-  // keccak over the code of all referenced addresses
-  hash: string
+    // keccak over the code of all referenced addresses
+    hash: string
 }
 
 export type TransactionInfo = {

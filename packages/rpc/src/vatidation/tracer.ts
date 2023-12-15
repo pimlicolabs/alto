@@ -30,7 +30,10 @@ export async function debug_traceCall(
     const ret = await client
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
-        .request({ method: "debug_traceCall", params: [formatTransactionRequest(tx), "latest", traceOptions] })
+        .request({
+            method: "debug_traceCall",
+            params: [formatTransactionRequest(tx), "latest", traceOptions]
+        })
         .catch((e: unknown) => {
             if (e instanceof Error) {
                 // console.log("ex=", e.message)
@@ -70,7 +73,10 @@ export async function debug_traceTransaction(
 ): Promise<TraceResult> {
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
-    const ret = await client.request({ method: "debug_traceTransaction", params: [hash, tracer2string(options)] })
+    const ret = await client.request({
+        method: "debug_traceTransaction",
+        params: [hash, tracer2string(options)]
+    })
     // const tx = await provider.getTransaction(hash)
     // return applyTracer(tx, ret, options)
     return ret
@@ -85,7 +91,8 @@ export function getTracerBodyString(func: LogTracerFunc): string {
     const tracerFunc = func.toString()
     // function must return a plain object:
     //  function xyz() { return {...}; }
-    const regexp = /function \w+\s*\(\s*\)\s*{\s*return\s*(\{[\s\S]+\});?\s*\}\s*$/ // (\{[\s\S]+\}); \} $/
+    const regexp =
+        /function \w+\s*\(\s*\)\s*{\s*return\s*(\{[\s\S]+\});?\s*\}\s*$/ // (\{[\s\S]+\}); \} $/
     const match = tracerFunc.match(regexp)
 
     if (match === null) {
