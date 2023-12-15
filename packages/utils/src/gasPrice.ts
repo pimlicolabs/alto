@@ -143,6 +143,8 @@ export async function getGasPrice(
 
     const defaultGasFee = getDefaultGasFee(chainId)
 
+    maxPriorityFeePerGas = maxPriorityFeePerGas > gasPrice ? gasPrice : maxPriorityFeePerGas
+
     return bumpTheGasPrice(chainId, {
         maxFeePerGas: gasPrice,
         maxPriorityFeePerGas: maxPriorityFeePerGas > defaultGasFee ? maxPriorityFeePerGas : defaultGasFee
