@@ -201,7 +201,8 @@ export class RpcHandler implements IRpcEndpoint {
             this.chainId === chains.base.id ||
             this.chainId === chains.baseGoerli.id ||
             this.chainId === chains.opBNB.id ||
-            this.chainId === chains.opBNBTestnet.id
+            this.chainId === chains.opBNBTestnet.id ||
+            this.chainId === 957 // Lyra chain
         ) {
             preVerificationGas = await calcOptimismPreVerificationGas(
                 this.publicClient,
