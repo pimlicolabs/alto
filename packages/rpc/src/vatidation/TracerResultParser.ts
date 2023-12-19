@@ -35,6 +35,12 @@ interface CallEntry {
     value?: Hex
 }
 
+type StakeInfoEntities = {
+    factory?: StakeInfo
+    account?: StakeInfo
+    paymaster?: StakeInfo
+}
+
 const abi = [...SenderCreatorAbi, ...EntryPointAbi, ...PaymasterAbi] as Abi
 
 const functionSignatureToMethodName = (hash: any) => {
@@ -149,7 +155,7 @@ function parseCallStack(tracerResults: BundlerTracerResult): CallEntry[] {
  * @param keccak array of buffers that were given to keccak in the transaction
  */
 function parseEntitySlots(
-    stakeInfoEntities: { [addr: string]: StakeInfo | undefined },
+    stakeInfoEntities: StakeInfoEntities,
     keccak: Hex[]
 ): {
     [addr: string]: Set<string>
@@ -465,7 +471,7 @@ export function tracerResultParser(
     const sender = userOp.sender.toLowerCase()
     // stake info per "number" level (factory, sender, paymaster)
     // we only use stake info if we notice a memory reference that require stake
-    const stakeInfoEntities = {
+    const stakeInfoEntities: StakeInfoEntities = {
         factory: validationResult.factoryInfo,
         account: validationResult.senderInfo,
         paymaster: validationResult.paymasterInfo
@@ -476,7 +482,8 @@ export function tracerResultParser(
         tracerResults.keccak as Hex[]
     )
 
-    for (const [entityTitle, entStakes] of Object.entries(stakeInfoEntities)) {
+    for (const [title, entStakes] of Object.entries(stakeInfoEntities)) {
+        const entityTitle = title as keyof StakeInfoEntities
         const entityAddr = (entStakes?.addr ?? "").toLowerCase()
         const currentNumLevel = tracerResults.callsFromEntryPoint.find(
             (info) =>
