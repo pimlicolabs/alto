@@ -1,4 +1,5 @@
 import { addressSchema, hexData32Schema } from "@alto/types"
+import { Hex } from "viem"
 import { Account, privateKeyToAccount } from "viem/accounts"
 import { z } from "zod"
 
@@ -20,7 +21,7 @@ export const bundlerArgsSchema = z.object({
             .transform((val) =>
                 val
                     .split(",")
-                    .map((val) => privateKeyToAccount(val) satisfies Account)
+                    .map((val) => privateKeyToAccount(val as Hex) satisfies Account)
             )
     ]),
     signerPrivateKeysExtra: z
@@ -40,7 +41,7 @@ export const bundlerArgsSchema = z.object({
                     val
                         .split(",")
                         .map(
-                            (val) => privateKeyToAccount(val) satisfies Account
+                            (val) => privateKeyToAccount(val as Hex) satisfies Account
                         )
                 )
         ])

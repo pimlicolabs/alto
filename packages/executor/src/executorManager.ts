@@ -43,6 +43,7 @@ export class ExecutorManager {
     private unWatch: WatchBlocksReturnType | undefined
     private currentlyHandlingBlock = false
     private timer?: NodeJS.Timer
+    private bundlerFrequency: number
 
     constructor(
         executor: IExecutor,
@@ -55,7 +56,7 @@ export class ExecutorManager {
         logger: Logger,
         metrics: Metrics,
         bundleMode: BundlingMode,
-        bundleFequencey: number
+        bundlerFrequency: number
     ) {
         this.reputationManager = reputationManager
         this.executor = executor
@@ -66,11 +67,12 @@ export class ExecutorManager {
         this.pollingInterval = pollingInterval
         this.logger = logger
         this.metrics = metrics
+        this.bundlerFrequency = bundlerFrequency
 
         if (bundleMode === "auto") {
             this.timer = setInterval(async () => {
                 await this.bundle()
-            }, bundleFequencey)
+            }, bundlerFrequency)
         }
     }
 
@@ -78,7 +80,7 @@ export class ExecutorManager {
         if (bundleMode === "auto" && !this.timer) {
             this.timer = setInterval(async () => {
                 await this.bundle()
-            }, 1000)
+            }, this.bundlerFrequency)
         } else if (bundleMode === "manual" && this.timer) {
             clearInterval(this.timer)
             this.timer = undefined

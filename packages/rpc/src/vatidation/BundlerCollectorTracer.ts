@@ -7,7 +7,7 @@
 // where xxx is OP/STO/COD/EP/SREP/EREP/UREP/ALT, and ### is a number
 // the validation rules are defined in erc-aa-validation.md
 
-import { Hex } from "viem"
+import { Hex, Address } from "viem"
 import {
     LogCallFrame,
     LogContext,
@@ -16,7 +16,6 @@ import {
     LogStep,
     LogTracer
 } from "./tracer"
-import { autoDiscoverNodePerformanceMonitoringIntegrations } from "@sentry/node"
 
 // functions available in a context of geth tracer
 declare function toHex(a: any): Hex
@@ -47,10 +46,10 @@ export interface BundlerTracerResult {
 
 export interface MethodInfo {
     type: string
-    from: string
-    to: string
+    from: Address
+    to: Address
     method: string
-    value: any
+    value: bigint
     gas: number
 }
 
@@ -138,14 +137,13 @@ export function bundlerCollectorTracer(): BundlerCollectorTracer {
 
         fault(log: LogStep, _db: LogDb): void {
             this.debug.push(
-                "fault depth=",
-                log.getDepth(),
-                " gas=",
-                log.getGas(),
-                " cost=",
-                log.getCost(),
-                " err=",
-                log.getError()
+                JSON.stringify({
+                    type: "fault",
+                    depth: log.getDepth(),
+                    gas: log.getGas(),
+                    cost: log.getCost(),
+                    err: log.getError()
+                })
             )
         },
 
@@ -163,7 +161,6 @@ export function bundlerCollectorTracer(): BundlerCollectorTracer {
             if (this.stopCollecting) {
                 return
             }
-            // this.debug.push('enter gas=', frame.getGas(), ' type=', frame.getType(), ' to=', toHex(frame.getTo()), ' in=', toHex(frame.getInput()).slice(0, 500))
             this.calls.push({
                 type: frame.getType(),
                 from: toHex(frame.getFrom()),
@@ -208,7 +205,6 @@ export function bundlerCollectorTracer(): BundlerCollectorTracer {
             if (this.lastThreeOpcodes.length > 3) {
                 this.lastThreeOpcodes.shift()
             }
-            // this.debug.push(this.lastOp + '-' + opcode + '-' + log.getDepth() + '-' + log.getGas() + '-' + log.getCost())
             if (
                 log.getGas() < log.getCost() ||
                 // special rule for SSTORE with gas metering
@@ -282,19 +278,14 @@ export function bundlerCollectorTracer(): BundlerCollectorTracer {
             ) {
                 const addr = toAddress(lastOpInfo.stackTop3[0].toString(16))
                 const addrHex = toHex(addr)
-                const last3opcodesString = this.lastThreeOpcodes
-                    .map((x) => x.opcode)
-                    .join(" ")
-                // only store the last EXTCODE* opcode per address - could even be a boolean for our current use-case
+
                 // [OP-051]
                 if (
-                    last3opcodesString.match(/^(\w+) EXTCODESIZE ISZERO$/) ==
-                    null
+                    this.lastThreeOpcodes.length === 3 &&
+                    this.lastThreeOpcodes[1].opcode === "EXTCODESIZE" &&
+                    this.lastThreeOpcodes[2].opcode === "ISZERO"
                 ) {
                     this.currentLevel.extCodeAccessInfo[addrHex] = opcode
-                    // this.debug.push(`potentially illegal EXTCODESIZE without ISZERO for ${addrHex}`)
-                } else {
-                    // this.debug.push(`safe EXTCODESIZE with ISZERO for ${addrHex}`)
                 }
             }
 
