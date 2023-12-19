@@ -29,8 +29,6 @@ import {
     Transport,
     Chain,
     zeroAddress,
-    keccak256,
-    decodeAbiParameters,
     Hex,
     encodeDeployData,
     ExecutionRevertedError,
@@ -69,42 +67,6 @@ async function simulateTenderlyCall(publicClient: PublicClient, params: any) {
         .parse(response)
 
     return parsedObject.cause.data
-}
-
-const ErrorSig = keccak256(Buffer.from("Error(string)")).slice(0, 10) // 0x08c379a0
-const FailedOpSig = keccak256(Buffer.from("FailedOp(uint256,string)")).slice(
-    0,
-    10
-) // 0x220266b6
-
-interface DecodedError {
-    message: string
-    opIndex?: number
-}
-
-/**
- * decode bytes thrown by revert as Error(message) or FailedOp(opIndex,paymaster,message)
- */
-export function decodeErrorReason(error: string): DecodedError | null {
-    if (error.startsWith(ErrorSig)) {
-        const [message] = decodeAbiParameters(
-            ["string"],
-            `0x${error.substring(10)}`
-        ) as [string]
-        return { message }
-    }
-    if (error.startsWith(FailedOpSig)) {
-        let [opIndex, message] = decodeAbiParameters(
-            ["uint256", "string"],
-            `0x${error.substring(10)}`
-        ) as [number, string]
-        message = `FailedOp: ${message as string}`
-        return {
-            message,
-            opIndex
-        }
-    }
-    return null
 }
 
 async function getSimulationResult(
@@ -568,9 +530,7 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
             if (e.code != null) {
                 throw e
             }
-            // not a known error of EntryPoint (probably, only Error(string), since FailedOp is handled above)
-            const err = decodeErrorReason(data)
-            throw new RpcError(err != null ? err.message : data, 111)
+            throw new RpcError(data)
         }
     }
 
