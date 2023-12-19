@@ -38,7 +38,7 @@ export interface BundlerTracerResult {
     /**
      * values passed into KECCAK opcode
      */
-    keccak: string[]
+    keccak: Hex[]
     calls: Array<ExitInfo | MethodInfo>
     logs: LogInfo[]
     debug: any[]
@@ -60,8 +60,8 @@ export interface ExitInfo {
 }
 
 export interface TopLevelCallInfo {
-    topLevelMethodSig: string
-    topLevelTargetAddress: string
+    topLevelMethodSig: Hex
+    topLevelTargetAddress: Address
     opcodes: { [opcode: string]: number }
     access: { [address: string]: AccessInfo }
     contractSize: { [addr: string]: ContractSizeInfo }
