@@ -419,7 +419,7 @@ export class MemoryMempool implements Mempool {
             paymaster &&
             stakedEntityCount[paymaster] >= this.throttledEntityBundleCount
         ) {
-            this.logger.info(
+            this.logger.trace(
                 {
                     paymaster,
                     opHash: opInfo.userOperationHash
@@ -441,7 +441,7 @@ export class MemoryMempool implements Mempool {
             factory &&
             stakedEntityCount[factory] >= this.throttledEntityBundleCount
         ) {
-            this.logger.info(
+            this.logger.trace(
                 {
                     factory,
                     opHash: opInfo.userOperationHash
@@ -459,7 +459,7 @@ export class MemoryMempool implements Mempool {
         }
 
         if (senders.has(opInfo.userOperation.sender)) {
-            this.logger.info(
+            this.logger.trace(
                 {
                     sender: opInfo.userOperation.sender,
                     opHash: opInfo.userOperationHash
@@ -510,7 +510,7 @@ export class MemoryMempool implements Mempool {
                     storageAddress.toLowerCase() as Address
                 )
             ) {
-                this.logger.info(
+                this.logger.trace(
                     {
                         storageAddress,
                         opHash: opInfo.userOperationHash
@@ -542,7 +542,7 @@ export class MemoryMempool implements Mempool {
                 paymasterDeposit[paymaster] <
                 validationResult.returnInfo.prefund
             ) {
-                this.logger.info(
+                this.logger.trace(
                     {
                         paymaster,
                         opHash: opInfo.userOperationHash
