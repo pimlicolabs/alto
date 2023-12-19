@@ -345,7 +345,7 @@ export const bundlerHandler = async (
         logger.child({ module: "executor" }),
         metrics,
         parsedArgs.bundleMode,
-        parsedArgs.bundleFequencey
+        parsedArgs.bundlerFrequency
     )
 
     const nonceQueuer = new NonceQueuer(

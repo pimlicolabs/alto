@@ -156,7 +156,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: false
     },
-    bundleFequencey: {
+    bundlerFrequency: {
         description: "How ofter in milliseconds to check and build new bundles",
         type: "number",
         require: false,
