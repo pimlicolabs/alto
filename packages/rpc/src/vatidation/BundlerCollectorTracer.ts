@@ -281,12 +281,19 @@ export function bundlerCollectorTracer(): BundlerCollectorTracer {
 
                 // [OP-051]
                 if (
-                    this.lastThreeOpcodes.length === 3 &&
-                    this.lastThreeOpcodes[1].opcode === "EXTCODESIZE" &&
-                    this.lastThreeOpcodes[2].opcode === "ISZERO"
+                    !(
+                        this.lastThreeOpcodes[0].opcode.match(/\w+/) !== null &&
+                        this.lastThreeOpcodes[1].opcode === "EXTCODESIZE" &&
+                        this.lastThreeOpcodes[2].opcode === "ISZERO"
+                    )
                 ) {
                     this.currentLevel.extCodeAccessInfo[addrHex] = opcode
                 }
+
+                // this.debug.push({
+                //     last3opcodes: JSON.stringify(this.lastThreeOpcodes.map(x => x.opcode)),
+                //     extCodeAccessInfo: this.currentLevel.extCodeAccessInfo
+                // })
             }
 
             // not using 'isPrecompiled' to only allow the ones defined by the ERC-4337 as stateless precompiles
