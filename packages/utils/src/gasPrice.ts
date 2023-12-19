@@ -116,6 +116,14 @@ const getFallBackMaxPriorityFeePerGas = async (publicClient: PublicClient, gasPr
     return feeAverage < gasPrice ? feeAverage : gasPrice
 }
 
+const getGasPriceFromRpc = async (publicClient: PublicClient) => {
+    try {
+        return publicClient.getGasPrice()
+    } catch {
+        return null
+    }
+}
+
 export async function getGasPrice(
     chainId: number,
     publicClient: PublicClient,
@@ -128,17 +136,22 @@ export async function getGasPrice(
         }
     }
 
-    let maxPriorityFeePerGas: bigint
-
-    const [gasPrice, rpcMaxPriorityFeePerGas] = await Promise.all([
-        publicClient.getGasPrice(),
+    let [gasPrice, maxPriorityFeePerGas]: [bigint | null, bigint | null] = await Promise.all([
+        getGasPriceFromRpc(publicClient),
         estimateMaxPriorityFeePerGas(publicClient)
     ])
 
-    if (rpcMaxPriorityFeePerGas === null) {
-        maxPriorityFeePerGas = await getFallBackMaxPriorityFeePerGas(publicClient, gasPrice)
+    if (maxPriorityFeePerGas === null) {
+        maxPriorityFeePerGas = await getFallBackMaxPriorityFeePerGas(publicClient, gasPrice ?? 0n)
     } else {
-        maxPriorityFeePerGas = rpcMaxPriorityFeePerGas
+        maxPriorityFeePerGas = maxPriorityFeePerGas
+    }
+
+    if (gasPrice === null) {
+        const block = await publicClient.getBlock({
+            blockTag: "latest"
+        })
+        gasPrice = maxPriorityFeePerGas + (block.baseFeePerGas ?? 0n)
     }
 
     const defaultGasFee = getDefaultGasFee(chainId)
