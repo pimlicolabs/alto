@@ -16,7 +16,14 @@ import {
 } from "@alto/types"
 import { HexData32 } from "@alto/types"
 import { Monitor } from "./monitoring"
-import { Address, Chain, PublicClient, Transport, getContract } from "viem"
+import {
+    Address,
+    Chain,
+    PublicClient,
+    Transport,
+    getAddress,
+    getContract
+} from "viem"
 import {
     Logger,
     Metrics,
@@ -28,10 +35,7 @@ import { IReputationManager, ReputationStatuses } from "./reputationManager"
 
 export interface Mempool {
     add(op: UserOperation, referencedContracts?: ReferencedCodeHashes): boolean
-    checkReputationAndMultipleRolesViolation(
-        _op: UserOperation,
-        _validationResult: ValidationResult
-    ): Promise<void>
+    checkEntityMultipleRoleViolation(_op: UserOperation): Promise<void>
 
     /**
      * Takes an array of user operations from the mempool, also marking them as submitted.
@@ -97,10 +101,7 @@ export class NullMempool implements Mempool {
     ): boolean {
         return false
     }
-    async checkReputationAndMultipleRolesViolation(
-        _op: UserOperation,
-        _validationResult: ValidationResult
-    ): Promise<void> {
+    async checkEntityMultipleRoleViolation(_op: UserOperation): Promise<void> {
         return
     }
 
@@ -205,18 +206,13 @@ export class MemoryMempool implements Mempool {
         this.store.removeProcessing(userOpHash)
     }
 
-    async checkReputationAndMultipleRolesViolation(
-        op: UserOperation,
-        validationResult: ValidationResult
-    ): Promise<void> {
+    async checkEntityMultipleRoleViolation(op: UserOperation): Promise<void> {
         if (!this.safeMode) return
-        await this.reputationManager.checkReputation(op, validationResult)
-
         const knownEntities = this.getKnownEntities()
 
         if (
-            knownEntities.paymasters.has(op.sender.toLowerCase() as Address) ||
-            knownEntities.facotries.has(op.sender.toLowerCase() as Address)
+            knownEntities.paymasters.has(op.sender) ||
+            knownEntities.facotries.has(op.sender)
         ) {
             throw new RpcError(
                 `The sender address "${op.sender}" is used as a different entity in another UserOperation currently in mempool`,
@@ -228,10 +224,7 @@ export class MemoryMempool implements Mempool {
             op.paymasterAndData
         )
 
-        if (
-            paymaster &&
-            knownEntities.sender.has(paymaster.toLowerCase() as Address)
-        ) {
+        if (paymaster && knownEntities.sender.has(paymaster)) {
             throw new RpcError(
                 `A Paymaster at ${paymaster} in this UserOperation is used as a sender entity in another UserOperation currently in mempool.`,
                 ValidationErrors.OpcodeValidation
@@ -240,10 +233,7 @@ export class MemoryMempool implements Mempool {
 
         const factory = getAddressFromInitCodeOrPaymasterAndData(op.initCode)
 
-        if (
-            factory &&
-            knownEntities.sender.has(factory.toLowerCase() as Address)
-        ) {
+        if (factory && knownEntities.sender.has(factory)) {
             throw new RpcError(
                 `A Factory at ${factory} in this UserOperation is used as a sender entity in another UserOperation currently in mempool.`,
                 ValidationErrors.OpcodeValidation
@@ -269,20 +259,18 @@ export class MemoryMempool implements Mempool {
         }
 
         for (const op of allOps) {
-            entities.sender.add(
-                op.userOperation.sender.toLowerCase() as Address
-            )
+            entities.sender.add(op.userOperation.sender)
             const paymaster = getAddressFromInitCodeOrPaymasterAndData(
                 op.userOperation.paymasterAndData
             )
             if (paymaster) {
-                entities.paymasters.add(paymaster.toLowerCase() as Address)
+                entities.paymasters.add(paymaster)
             }
             const factory = getAddressFromInitCodeOrPaymasterAndData(
                 op.userOperation.initCode
             )
             if (factory) {
-                entities.facotries.add(factory.toLowerCase() as Address)
+                entities.facotries.add(factory)
             }
         }
 
@@ -392,10 +380,10 @@ export class MemoryMempool implements Mempool {
         }
         const paymaster = getAddressFromInitCodeOrPaymasterAndData(
             opInfo.userOperation.paymasterAndData
-        )?.toLowerCase() as Address | undefined
+        )
         const factory = getAddressFromInitCodeOrPaymasterAndData(
             opInfo.userOperation.initCode
-        )?.toLowerCase() as Address | undefined
+        )
         const paymasterStatus = this.reputationManager.getStatus(paymaster)
         const factoryStatus = this.reputationManager.getStatus(factory)
 
@@ -503,12 +491,11 @@ export class MemoryMempool implements Mempool {
         }
 
         for (const storageAddress of Object.keys(validationResult.storageMap)) {
+            const address = getAddress(storageAddress)
+
             if (
-                storageAddress.toLowerCase() !==
-                    opInfo.userOperation.sender.toLowerCase() &&
-                knownEntities.sender.has(
-                    storageAddress.toLowerCase() as Address
-                )
+                address !== opInfo.userOperation.sender &&
+                knownEntities.sender.has(address)
             ) {
                 this.logger.trace(
                     {

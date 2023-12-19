@@ -468,9 +468,12 @@ export class RpcHandler implements IRpcEndpoint {
         if (userOperationNonceValue === currentNonceValue) {
             const validationResult =
                 await this.validator.validateUserOperation(userOperation)
-            await this.mempool.checkReputationAndMultipleRolesViolation(
+            await this.reputationManager.checkReputation(
                 userOperation,
                 validationResult
+            )
+            await this.mempool.checkEntityMultipleRoleViolation(
+                userOperation
             )
             const success = this.mempool.add(
                 userOperation,

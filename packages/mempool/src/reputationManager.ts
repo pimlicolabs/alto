@@ -8,7 +8,7 @@ import {
     ValidationResultWithAggregation
 } from "@alto/types"
 import { Logger, getAddressFromInitCodeOrPaymasterAndData } from "@alto/utils"
-import { Address, PublicClient, getContract } from "viem"
+import { Address, PublicClient, getAddress, getContract } from "viem"
 
 export interface IReputationManager {
     checkReputation(
@@ -184,10 +184,10 @@ export class ReputationManager implements IReputationManager {
         this.bundlerReputationParams =
             bundlerReputationParams ?? BundlerReputationParams
         for (const address of blackList || []) {
-            this.blackList.add(address.toLowerCase() as Address)
+            this.blackList.add(address)
         }
         for (const address of whiteList || []) {
-            this.whitelist.add(address.toLowerCase() as Address)
+            this.whitelist.add(address)
         }
     }
 
@@ -199,9 +199,9 @@ export class ReputationManager implements IReputationManager {
         }[]
     ): void {
         for (const reputation of reputations) {
-            const address = reputation.address.toLowerCase() as Address
+            const address = getAddress(reputation.address)
             this.entries[address] = {
-                address: reputation.address,
+                address,
                 opsSeen: BigInt(reputation.opsSeen),
                 opsIncluded: BigInt(reputation.opsIncluded)
             }
@@ -294,13 +294,13 @@ export class ReputationManager implements IReputationManager {
     }
 
     getEntityCount(address: Address): bigint {
-        return this.entityCount[address.toLowerCase() as Address] ?? 0
+        return this.entityCount[address] ?? 0
     }
 
     increaseSeen(address: Address): void {
-        const entry = this.entries[address.toLowerCase() as Address]
+        const entry = this.entries[address]
         if (!entry) {
-            this.entries[address.toLowerCase() as Address] = {
+            this.entries[address] = {
                 address,
                 opsSeen: 1n,
                 opsIncluded: 0n
@@ -311,9 +311,9 @@ export class ReputationManager implements IReputationManager {
     }
 
     updateCrashedHandleOps(address: Address): void {
-        const entry = this.entries[address.toLowerCase() as Address]
+        const entry = this.entries[address]
         if (!entry) {
-            this.entries[address.toLowerCase() as Address] = {
+            this.entries[address] = {
                 address,
                 opsSeen: 1000n,
                 opsIncluded: 0n
@@ -349,9 +349,9 @@ export class ReputationManager implements IReputationManager {
     }
 
     updateIncludedStatus(address: Address): void {
-        const entry = this.entries[address.toLowerCase() as Address]
+        const entry = this.entries[address]
         if (!entry) {
-            this.entries[address.toLowerCase() as Address] = {
+            this.entries[address] = {
                 address,
                 opsSeen: 0n,
                 opsIncluded: 1n
@@ -411,12 +411,12 @@ export class ReputationManager implements IReputationManager {
     }
 
     increaseUserOperationCount(userOperation: UserOperation) {
-        const sender = userOperation.sender.toLowerCase() as Address
+        const sender = userOperation.sender
         this.entityCount[sender] = (this.entityCount[sender] ?? 0n) + 1n
 
         let paymaster = getAddressFromInitCodeOrPaymasterAndData(
             userOperation.paymasterAndData
-        )?.toLowerCase() as Address | undefined
+        )
         if (paymaster) {
             this.entityCount[paymaster] =
                 (this.entityCount[paymaster] ?? 0n) + 1n
@@ -424,14 +424,14 @@ export class ReputationManager implements IReputationManager {
 
         let factory = getAddressFromInitCodeOrPaymasterAndData(
             userOperation.initCode
-        )?.toLowerCase() as Address | undefined
+        )
         if (factory) {
             this.entityCount[factory] = (this.entityCount[factory] ?? 0n) + 1n
         }
     }
 
     decreaseUserOperationCount(userOperation: UserOperation) {
-        const sender = userOperation.sender.toLowerCase() as Address
+        const sender = userOperation.sender
         this.entityCount[sender] = (this.entityCount[sender] ?? 0n) - 1n
 
         this.entityCount[sender] =
@@ -439,7 +439,7 @@ export class ReputationManager implements IReputationManager {
 
         let paymaster = getAddressFromInitCodeOrPaymasterAndData(
             userOperation.paymasterAndData
-        )?.toLowerCase() as Address | undefined
+        )
         if (paymaster) {
             this.entityCount[paymaster] =
                 (this.entityCount[paymaster] ?? 0n) - 1n
@@ -452,7 +452,7 @@ export class ReputationManager implements IReputationManager {
 
         let factory = getAddressFromInitCodeOrPaymasterAndData(
             userOperation.initCode
-        )?.toLowerCase() as Address | undefined
+        )
         if (factory) {
             this.entityCount[factory] = (this.entityCount[factory] ?? 0n) - 1n
 
@@ -485,7 +485,6 @@ export class ReputationManager implements IReputationManager {
     }
 
     getStatus(address?: Address): ReputationStatus {
-        address = address?.toLowerCase() as Address
         if (!address || this.whitelist.has(address)) {
             return ReputationStatuses.OK
         }
@@ -552,7 +551,7 @@ export class ReputationManager implements IReputationManager {
     }
 
     isWhiteListed(address: Address): boolean {
-        return this.whitelist.has(address.toLowerCase() as Address)
+        return this.whitelist.has(address)
     }
 
     checkStake(entityType: EntityType, stakeInfo: StakeInfo) {
@@ -584,7 +583,6 @@ export class ReputationManager implements IReputationManager {
     }
 
     calCulateMaxMempoolUserOperationsPerEntity(address: Address): bigint {
-        address = address.toLowerCase() as Address
         const entry = this.entries[address]
         if (!entry) {
             return this.maxMempoolUserOperationsPerNewUnstakedEntity

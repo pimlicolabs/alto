@@ -5,21 +5,22 @@ import {
     PublicClient,
     decodeEventLog,
     encodeAbiParameters,
+    getAddress,
     keccak256
 } from "viem"
+import * as sentry from "@sentry/node"
 
 export function getAddressFromInitCodeOrPaymasterAndData(
     data: Hex
-): string | undefined {
+): Address | undefined {
     if (!data) {
         return undefined
     }
     if (data.length >= 42) {
-        return data.slice(0, 42)
+        return getAddress(data.slice(0, 42))
     }
     return undefined
 }
-import * as sentry from "@sentry/node"
 
 export const transactionIncluded = async (
     txHash: HexData32,
