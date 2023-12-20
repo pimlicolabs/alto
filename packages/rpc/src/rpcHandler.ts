@@ -1,3 +1,4 @@
+import { IExecutor } from "@alto/executor"
 import { Mempool, Monitor } from "@alto/mempool"
 import {
     Address,
@@ -20,6 +21,8 @@ import {
     SendUserOperationResponseResult,
     SupportedEntryPointsResponseResult,
     UserOperation,
+    bundleBulkerAbi,
+    bundleBulkerAddress,
     logSchema,
     receiptSchema
 } from "@alto/types"
@@ -35,6 +38,7 @@ import {
 } from "@alto/utils"
 import {
     Chain,
+    Hex,
     PublicClient,
     Transaction,
     TransactionNotFoundError,
@@ -70,6 +74,7 @@ export class RpcHandler implements IRpcEndpoint {
     publicClient: PublicClient<Transport, Chain>
     validator: IValidator
     mempool: Mempool
+    executor: IExecutor
     monitor: Monitor
     nonceQueuer: NonceQueuer
     usingTenderly: boolean
@@ -84,6 +89,7 @@ export class RpcHandler implements IRpcEndpoint {
         publicClient: PublicClient<Transport, Chain>,
         validator: IValidator,
         mempool: Mempool,
+        executor: IExecutor,
         monitor: Monitor,
         nonceQueuer: NonceQueuer,
         usingTenderly: boolean,
@@ -96,6 +102,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.publicClient = publicClient
         this.validator = validator
         this.mempool = mempool
+        this.executor = executor
         this.monitor = monitor
         this.nonceQueuer = nonceQueuer
         this.usingTenderly = usingTenderly
@@ -167,6 +174,11 @@ export class RpcHandler implements IRpcEndpoint {
                 return {
                     method,
                     result: await this.pimlico_getUserOperationGasPrice(...request.params)
+                }
+            case "pimlico_sendCompressedUserOperations":
+                return {
+                    method,
+                    result: await this.pimlico_sendCompressedUserOperations(...request.params)
                 }
         }
     }
@@ -631,4 +643,35 @@ export class RpcHandler implements IRpcEndpoint {
             }
         }
     }
+
+    async pimlico_sendCompressedUserOperations(
+        compressedBytes: Hex,
+        entryPoint: Address
+    ) {
+        const bundleBulker = getContract({
+            address: bundleBulkerAddress,
+            abi: bundleBulkerAbi,
+            publicClient: this.publicClient,
+        })
+
+        const inflatedOps = await bundleBulker.read.inflate([compressedBytes])
+
+        for (const op of inflatedOps[0]) {
+            await this.validator.validateUserOperation(op)
+            
+        }
+
+        const bundleResults = await this.executor.bundleCompressed(entryPoint, compressedBytes)
+        
+        
+        return bundleResults.map((result) => {
+            if (result.success) {
+                this.executor.markWalletProcessed(result.value.transactionInfo.executor)
+                return result.value.userOperation.userOperationHash
+            } else {
+                throw new RpcError(result.error.reason)
+            }
+        })
+    }
+
 }

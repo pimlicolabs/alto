@@ -1,10 +1,12 @@
-import { Address, BundleResult, EntryPointAbi, HexData32, TransactionInfo, UserOperation } from "@alto/types"
+import { Address, BundleResult, EntryPointAbi, HexData32, TransactionInfo, UserOperation, bundleBulkerAbi, bundleBulkerAddress } from "@alto/types"
 import { Logger, Metrics, getGasPrice, getUserOperationHash, parseViemError } from "@alto/utils"
+import * as sentry from "@sentry/node"
 import { Mutex } from "async-mutex"
 import {
     Account,
     Chain,
     FeeCapTooLowError,
+    Hex,
     InsufficientFundsError,
     IntrinsicGasTooLowError,
     NonceTooLowError,
@@ -15,7 +17,6 @@ import {
 } from "viem"
 import { SenderManager } from "./senderManager"
 import { filterOpsAndEstimateGas, flushStuckTransaction, simulatedOpsToResults } from "./utils"
-import * as sentry from "@sentry/node"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -37,6 +38,7 @@ export type ReplaceTransactionResult =
 
 export interface IExecutor {
     bundle(entryPoint: Address, ops: UserOperation[]): Promise<BundleResult[]>
+    bundleCompressed(entryPoint: Address, compressedOps: Hex): Promise<BundleResult[]>
     replaceTransaction(transactionInfo: TransactionInfo): Promise<ReplaceTransactionResult>
     cancelOps(entryPoint: Address, ops: UserOperation[]): Promise<void>
     markWalletProcessed(executor: Account): Promise<void>
@@ -45,6 +47,9 @@ export interface IExecutor {
 
 export class NullExecutor implements IExecutor {
     async bundle(entryPoint: Address, ops: UserOperation[]): Promise<BundleResult[]> {
+        return []
+    }
+    async bundleCompressed(entryPoint: Address, compressedOps: Hex): Promise<BundleResult[]> {
         return []
     }
     async replaceTransaction(transactionInfo: TransactionInfo): Promise<ReplaceTransactionResult> {
@@ -410,6 +415,160 @@ export class BasicExecutor implements IExecutor {
             return {
                 userOperation: op.userOperation,
                 userOperationHash: op.userOperationHash,
+                lastReplaced: Date.now(),
+                firstSubmitted: Date.now()
+            }
+        })
+
+        const transactionInfo: TransactionInfo = {
+            transactionHash: txHash,
+            previousTransactionHashes: [],
+            transactionRequest: {
+                address: ep.address,
+                abi: ep.abi,
+                functionName: "handleOps",
+                args: [opsToBundle.map((owh) => owh.userOperation), wallet.address],
+                gas: gasLimit,
+                account: wallet,
+                chain: this.walletClient.chain,
+                maxFeePerGas: gasPriceParameters.maxFeePerGas,
+                maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
+                nonce: nonce
+            },
+            executor: wallet,
+            userOperationInfos,
+            lastReplaced: Date.now(),
+            firstSubmitted: Date.now(),
+            timesPotentiallyIncluded: 0
+        }
+
+        const userOperationResults: BundleResult[] = simulatedOpsToResults(simulatedOps, transactionInfo)
+
+        childLogger.info(
+            { txHash, opHashes: opsToBundle.map((owh) => owh.userOperationHash) },
+            "submitted bundle transaction"
+        )
+
+        this.metrics.bundlesSubmitted.inc()
+
+        return userOperationResults
+    }
+
+    async bundleCompressed(entryPoint: Address, compressedOps: Hex): Promise<BundleResult[]> {
+        const wallet = await this.senderManager.getWallet()
+
+        const ep = getContract({
+            abi: EntryPointAbi,
+            address: entryPoint,
+            publicClient: this.publicClient,
+            walletClient: this.walletClient
+        })
+
+        let childLogger = this.logger.child({
+            userOperations: compressedOps,
+            entryPoint
+        })
+        childLogger.debug("bundling user operation")
+
+        const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
+        childLogger.debug({ gasPriceParameters }, "got gas price")
+
+        const nonce = await this.publicClient.getTransactionCount({
+            address: wallet.address,
+            blockTag: "pending"
+        })
+        childLogger.trace({ nonce }, "got nonce")
+
+        const bundleBulker = getContract({
+            address: bundleBulkerAddress,
+            abi: bundleBulkerAbi,
+            publicClient: this.publicClient,
+            walletClient: this.walletClient
+        })
+
+        const inflatedOps = await bundleBulker.read.inflate([compressedOps])
+
+        const { gasLimit, simulatedOps } = await filterOpsAndEstimateGas(
+            ep,
+            wallet,
+            inflatedOps[0].map((op) => {
+                return {
+                    userOperation: op,
+                    userOperationHash: getUserOperationHash(op, entryPoint, this.walletClient.chain.id)    
+                }
+            }),
+            nonce,
+            gasPriceParameters.maxFeePerGas,
+            gasPriceParameters.maxPriorityFeePerGas,
+            "pending",
+            this.noEip1559Support,
+            this.customGasLimitForEstimation,
+            childLogger
+        )
+
+        if (simulatedOps.length === 0) {
+            childLogger.warn("no ops to bundle")
+            this.markWalletProcessed(wallet)
+            return inflatedOps[0].map((op) => {
+                return {
+                    success: false,
+                    error: {
+                        userOpHash: getUserOperationHash(op, entryPoint, this.walletClient.chain.id),
+                        reason: "INTERNAL FAILURE"
+                    }
+                }
+            })
+        }
+
+        // if not all succeeded, return error
+        if (simulatedOps.some((op) => op.reason !== undefined)) {
+            childLogger.warn("some ops failed simulation")
+            this.markWalletProcessed(wallet)
+            return simulatedOps.map((op) => {
+                return {
+                    success: false,
+                    error: {
+                        userOpHash: op.op.userOperationHash,
+                        reason: op.reason as string
+                    }
+                }
+            })
+        }
+
+        const opsToBundle = simulatedOps.filter((op) => op.reason === undefined).map((op) => op.op)
+
+        let txHash: HexData32
+        try {
+            txHash = await bundleBulker.write.submit([compressedOps],
+                this.noEip1559Support
+                    ? {
+                          account: wallet,
+                          gas: gasLimit,
+                          gasPrice: gasPriceParameters.maxFeePerGas,
+                          nonce: nonce
+                      }
+                    : {
+                          account: wallet,
+                          gas: gasLimit,
+                          maxFeePerGas: gasPriceParameters.maxFeePerGas,
+                          maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
+                          nonce: nonce
+                      }
+            )
+        } catch (err: unknown) {
+            sentry.captureException(err)
+            childLogger.error({ error: JSON.stringify(err) }, "error submitting bundle transaction")
+            this.markWalletProcessed(wallet)
+            return []
+        }
+
+        const userOperationInfos = opsToBundle.map((op) => {
+            this.metrics.userOperationsSubmitted.inc()
+
+            return {
+                userOperation: op.userOperation,
+                userOperationHash: op.userOperationHash,
+                compressedBytes: compressedOps,
                 lastReplaced: Date.now(),
                 firstSubmitted: Date.now()
             }

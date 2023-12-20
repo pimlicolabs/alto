@@ -171,6 +171,11 @@ const pimlicoGetUserOperationGasPriceRequestSchema = z.object({
     params: z.tuple([])
 })
 
+const pimlicoSendCompressedUserOperationsRequestSchema = z.object({
+    method: z.literal("pimlico_sendCompressedUserOperations"),
+    params: z.tuple([hexDataSchema, addressSchema])
+})
+
 const bundlerRequestSchema = z.discriminatedUnion("method", [
     chainIdRequestSchema,
     supportedEntryPointsRequestSchema,
@@ -183,7 +188,8 @@ const bundlerRequestSchema = z.discriminatedUnion("method", [
     bundlerSendBundleNowRequestSchema,
     bundlerSetBundlingModeRequestSchema,
     pimlicoGetUserOperationStatusRequestSchema,
-    pimlicoGetUserOperationGasPriceRequestSchema
+    pimlicoGetUserOperationGasPriceRequestSchema,
+    pimlicoSendCompressedUserOperationsRequestSchema
 ])
 
 const chainIdResponseSchema = z.object({
@@ -322,6 +328,11 @@ const pimlicoGetUserOperationGasPriceResponseSchema = z.object({
     result: gasPriceSchema
 })
 
+const pimlicoSendCompressedUserOperationsResponseSchema = z.object({
+    method: z.literal("pimlico_sendCompressedUserOperations"),
+    result: z.array(hexData32Schema)
+})
+
 const bundlerResponseSchema = z.discriminatedUnion("method", [
     chainIdResponseSchema,
     supportedEntryPointsResponseSchema,
@@ -334,7 +345,8 @@ const bundlerResponseSchema = z.discriminatedUnion("method", [
     bundlerSendBundleNowResponseSchema,
     bundlerSetBundlingModeResponseSchema,
     pimlicoGetUserOperationStatusResponseSchema,
-    pimlicoGetUserOperationGasPriceResponseSchema
+    pimlicoGetUserOperationGasPriceResponseSchema,
+    pimlicoSendCompressedUserOperationsResponseSchema
 ])
 
 export type BundlingMode = z.infer<typeof bundlerSetBundlingModeRequestSchema>["params"][0]
@@ -406,38 +418,17 @@ export type JSONRPCRequest = z.infer<typeof jsonRpcSchema>
 export type JSONRPCResponse = z.infer<typeof jsonRpcResultSchema>
 
 export {
-    chainIdRequestSchema,
-    supportedEntryPointsRequestSchema,
-    estimateUserOperationGasRequestSchema,
-    sendUserOperationRequestSchema,
-    getUserOperationByHashRequestSchema,
-    getUserOperationReceiptRequestSchema,
     bundlerClearStateRequestSchema,
-    bundlerDumpMempoolRequestSchema,
-    bundlerSendBundleNowRequestSchema,
-    bundlerSetBundlingModeRequestSchema,
-    pimlicoGetUserOperationStatusRequestSchema,
-    pimlicoGetUserOperationGasPriceRequestSchema,
-    bundlerRequestSchema,
-    jsonRpcSchema,
-    jsonRpcResultSchema,
-    userOperationSchema
+    bundlerDumpMempoolRequestSchema, bundlerRequestSchema, bundlerSendBundleNowRequestSchema,
+    bundlerSetBundlingModeRequestSchema, chainIdRequestSchema, estimateUserOperationGasRequestSchema, getUserOperationByHashRequestSchema,
+    getUserOperationReceiptRequestSchema, jsonRpcResultSchema, jsonRpcSchema, pimlicoGetUserOperationGasPriceRequestSchema, pimlicoGetUserOperationStatusRequestSchema, sendUserOperationRequestSchema, supportedEntryPointsRequestSchema, userOperationSchema
 }
 
 export {
-    chainIdResponseSchema,
-    supportedEntryPointsResponseSchema,
-    estimateUserOperationGasResponseSchema,
-    sendUserOperationResponseSchema,
-    getUserOperationByHashResponseSchema,
-    getUserOperationReceiptResponseSchema,
     bundlerClearStateResponseSchema,
-    bundlerDumpMempoolResponseSchema,
-    bundlerSendBundleNowResponseSchema,
-    bundlerSetBundlingModeResponseSchema,
-    pimlicoGetUserOperationStatusResponseSchema,
-    pimlicoGetUserOperationGasPriceResponseSchema,
-    bundlerResponseSchema
+    bundlerDumpMempoolResponseSchema, bundlerResponseSchema, bundlerSendBundleNowResponseSchema,
+    bundlerSetBundlingModeResponseSchema, chainIdResponseSchema, estimateUserOperationGasResponseSchema, getUserOperationByHashResponseSchema,
+    getUserOperationReceiptResponseSchema, pimlicoGetUserOperationGasPriceResponseSchema, pimlicoGetUserOperationStatusResponseSchema, sendUserOperationResponseSchema, supportedEntryPointsResponseSchema
 }
 
 export { addressSchema, hexData32Schema, hexDataSchema, logSchema, receiptSchema }

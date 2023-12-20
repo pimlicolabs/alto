@@ -280,6 +280,7 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         client,
         validator,
         mempool,
+        executor,
         monitor,
         nonceQueuer,
         parsedArgs.tenderlyEnabled ?? false,
