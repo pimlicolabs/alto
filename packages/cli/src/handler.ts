@@ -218,7 +218,8 @@ export const bundlerHandler = async (args: IBundlerArgsInput): Promise<void> => 
         logger.child({ module: "rpc" }),
         metrics,
         parsedArgs.utilityPrivateKey,
-        parsedArgs.tenderlyEnabled
+        parsedArgs.tenderlyEnabled,
+        parsedArgs.customGasLimitForEstimation
     )
     const senderManager = new SenderManager(
         parsedArgs.signerPrivateKeys,

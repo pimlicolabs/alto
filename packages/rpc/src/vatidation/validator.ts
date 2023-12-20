@@ -114,6 +114,7 @@ export class UnsafeValidator implements IValidator {
     metrics: Metrics
     utilityWallet: Account
     usingTenderly: boolean
+    customGasLimitForEstimation?: bigint
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
@@ -121,7 +122,8 @@ export class UnsafeValidator implements IValidator {
         logger: Logger,
         metrics: Metrics,
         utilityWallet: Account,
-        usingTenderly = false
+        usingTenderly = false,
+        customGasLimitForEstimation?: bigint,
     ) {
         this.publicClient = publicClient
         this.entryPoint = entryPoint
@@ -129,6 +131,7 @@ export class UnsafeValidator implements IValidator {
         this.metrics = metrics
         this.utilityWallet = utilityWallet
         this.usingTenderly = usingTenderly
+        this.customGasLimitForEstimation = customGasLimitForEstimation
     }
 
     async getExecutionResult(userOperation: UserOperation): Promise<ExecutionResult> {
@@ -161,7 +164,8 @@ export class UnsafeValidator implements IValidator {
         } else {
             const errorResult = await entryPointContract.simulate
                 .simulateHandleOp([userOperation, "0x0000000000000000000000000000000000000000", "0x"], {
-                    account: this.utilityWallet
+                    account: this.utilityWallet,
+                    gas:  this.customGasLimitForEstimation
                 })
                 .catch((e) => {
                     if (e instanceof Error) {
