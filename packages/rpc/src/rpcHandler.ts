@@ -233,8 +233,8 @@ export class RpcHandler implements IRpcEndpoint {
                 this.chainId === chains.celoAlfajores.id ||
                 this.chainId === chains.celo.id
             ) {
-                userOperation.verificationGasLimit = 1_000_000n
-                userOperation.callGasLimit = 1_000_000n
+                userOperation.verificationGasLimit = 10_000_000n
+                userOperation.callGasLimit = 10_000_000n
             }
 
             const executionResult = await this.validator.getExecutionResult(userOperation)
