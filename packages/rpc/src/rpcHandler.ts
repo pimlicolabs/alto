@@ -240,8 +240,13 @@ export class RpcHandler implements IRpcEndpoint {
             const executionResult = await this.validator.getExecutionResult(userOperation)
 
             verificationGasLimit = ((executionResult.preOpGas - userOperation.preVerificationGas) * 3n) / 2n
+
+            const blockBaseFee = (await this.publicClient.getBlock()).baseFeePerGas
+
+            const gasPrice = userOperation.maxFeePerGas < (blockBaseFee ?? 0n) + userOperation.maxPriorityFeePerGas ? userOperation.maxFeePerGas : userOperation.maxPriorityFeePerGas + (blockBaseFee ?? 0n)
+
             const calculatedCallGasLimit =
-                executionResult.paid / userOperation.maxFeePerGas - executionResult.preOpGas + 21000n + 50000n
+                executionResult.paid / gasPrice - executionResult.preOpGas + 21000n + 50000n
 
             callGasLimit = calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n
         } else {
@@ -455,7 +460,7 @@ export class RpcHandler implements IRpcEndpoint {
         // Only query up to the last `fullBlockRange` = 20000 blocks
         const latestBlock = await this.publicClient.getBlockNumber()
         let fullBlockRange = 20000n
-        if(this.chainId === chains.arbitrum.id) {
+        if (this.chainId === chains.arbitrum.id) {
             fullBlockRange = 1000000n
         }
 
