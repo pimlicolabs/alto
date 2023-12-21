@@ -241,13 +241,12 @@ export class RpcHandler implements IRpcEndpoint {
 
             verificationGasLimit = ((executionResult.preOpGas - userOperation.preVerificationGas) * 3n) / 2n
 
-            const blockBaseFee = (await this.publicClient.getBlock()).baseFeePerGas
-
             let gasPrice: bigint
 
             if (userOperation.maxPriorityFeePerGas === userOperation.maxFeePerGas) {
                 gasPrice = userOperation.maxFeePerGas
             } else {
+                const blockBaseFee = (await this.publicClient.getBlock()).baseFeePerGas
                 gasPrice =
                     userOperation.maxFeePerGas < (blockBaseFee ?? 0n) + userOperation.maxPriorityFeePerGas
                         ? userOperation.maxFeePerGas
