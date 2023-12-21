@@ -325,8 +325,26 @@ export class RpcHandler implements IRpcEndpoint {
                 ((executionResult.preOpGas - userOperation.preVerificationGas) *
                     3n) /
                 2n
+
+            let gasPrice: bigint
+
+            if (
+                userOperation.maxPriorityFeePerGas ===
+                userOperation.maxFeePerGas
+            ) {
+                gasPrice = userOperation.maxFeePerGas
+            } else {
+                const blockBaseFee = (await this.publicClient.getBlock())
+                    .baseFeePerGas
+                gasPrice =
+                    userOperation.maxFeePerGas <
+                    (blockBaseFee ?? 0n) + userOperation.maxPriorityFeePerGas
+                        ? userOperation.maxFeePerGas
+                        : userOperation.maxPriorityFeePerGas +
+                          (blockBaseFee ?? 0n)
+            }
             const calculatedCallGasLimit =
-                executionResult.paid / userOperation.maxFeePerGas -
+                executionResult.paid / gasPrice -
                 executionResult.preOpGas +
                 21000n +
                 50000n
@@ -472,9 +490,7 @@ export class RpcHandler implements IRpcEndpoint {
                 userOperation,
                 validationResult
             )
-            await this.mempool.checkEntityMultipleRoleViolation(
-                userOperation
-            )
+            await this.mempool.checkEntityMultipleRoleViolation(userOperation)
             const success = this.mempool.add(
                 userOperation,
                 validationResult.referencedContracts
@@ -611,12 +627,15 @@ export class RpcHandler implements IRpcEndpoint {
         // Only query up to the last `fullBlockRange` = 20000 blocks
         const latestBlock = await this.publicClient.getBlockNumber()
         let fullBlockRange = 20000n
+        if (this.chainId === chains.arbitrum.id) {
+            fullBlockRange = 1000000n
+        }
+
         if (
             this.chainId === 335 ||
             this.chainId === chains.base.id ||
             this.chainId === 47279324479 ||
             this.chainId === chains.bsc.id ||
-            this.chainId === chains.arbitrum.id ||
             this.chainId === chains.arbitrumGoerli.id ||
             this.chainId === chains.baseGoerli.id ||
             this.chainId === chains.avalanche.id ||

@@ -10,6 +10,7 @@
         "clean-modules": "rm -rf ./packages/*/node_modules node_modules",
         "build": "pnpm -r run build",
         "start": "node packages/cli/lib/alto.js run",
+        "dev": "node --inspect packages/cli/lib/alto.js run",
         "test": "pnpm -r --workspace-concurrency 1 test --verbose=true",
         "test:spec": "./test/run-spec-tests.sh",
         "lint": "rome check ./",
