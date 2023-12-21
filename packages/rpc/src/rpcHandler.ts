@@ -455,12 +455,15 @@ export class RpcHandler implements IRpcEndpoint {
         // Only query up to the last `fullBlockRange` = 20000 blocks
         const latestBlock = await this.publicClient.getBlockNumber()
         let fullBlockRange = 20000n
+        if(this.chainId === chains.arbitrum.id) {
+            fullBlockRange = 1000000n
+        }
+
         if (
             this.chainId === 335 ||
             this.chainId === chains.base.id ||
             this.chainId === 47279324479 ||
             this.chainId === chains.bsc.id ||
-            this.chainId === chains.arbitrum.id ||
             this.chainId === chains.arbitrumGoerli.id ||
             this.chainId === chains.baseGoerli.id ||
             this.chainId === chains.avalanche.id ||
