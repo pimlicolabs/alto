@@ -243,10 +243,17 @@ export class RpcHandler implements IRpcEndpoint {
 
             const blockBaseFee = (await this.publicClient.getBlock()).baseFeePerGas
 
-            const gasPrice = userOperation.maxFeePerGas < (blockBaseFee ?? 0n) + userOperation.maxPriorityFeePerGas ? userOperation.maxFeePerGas : userOperation.maxPriorityFeePerGas + (blockBaseFee ?? 0n)
+            let gasPrice: bigint
 
-            const calculatedCallGasLimit =
-                executionResult.paid / gasPrice - executionResult.preOpGas + 21000n + 50000n
+            if (userOperation.maxPriorityFeePerGas === userOperation.maxFeePerGas) {
+                gasPrice = userOperation.maxFeePerGas
+            } else {
+                gasPrice =
+                    userOperation.maxFeePerGas < (blockBaseFee ?? 0n) + userOperation.maxPriorityFeePerGas
+                        ? userOperation.maxFeePerGas
+                        : userOperation.maxPriorityFeePerGas + (blockBaseFee ?? 0n)
+            }
+            const calculatedCallGasLimit = executionResult.paid / gasPrice - executionResult.preOpGas + 21000n + 50000n
 
             callGasLimit = calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n
         } else {
