@@ -27,6 +27,13 @@ pnpm test # note: foundry must be installed on the machine for this to work
 - :gear: [NodeJS](https://nodejs.org/) (LTS)
 - :toolbox: [Pnpm](https://pnpm.io/)
 
+## How to test bundler specs
+
+- Run Geth node or any other node that support debug_traceCall
+- Clone [bundler-spec-tests](https://github.com/eth-infinitism/bundler-spec-tests) repo.
+- build & run bundler with `--environment development --bundleMode manual --safeMode true`
+
+
 ## License
 
 Distributed under the GPL-3.0 License. See [LICENSE](./LICENSE) for more information.

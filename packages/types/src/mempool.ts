@@ -2,10 +2,24 @@ import { Account } from "viem/accounts"
 import { HexData32, UserOperation } from "."
 import { Abi, Chain, WriteContractParameters } from "viem"
 
+export interface ReferencedCodeHashes {
+    // addresses accessed during this user operation
+    addresses: string[]
+
+    // keccak over the code of all referenced addresses
+    hash: string
+}
+
 export type TransactionInfo = {
     transactionHash: HexData32
     previousTransactionHashes: HexData32[]
-    transactionRequest: WriteContractParameters<Abi | readonly unknown[], string, Chain, Account, Chain> & {
+    transactionRequest: WriteContractParameters<
+        Abi | readonly unknown[],
+        string,
+        Chain,
+        Account,
+        Chain
+    > & {
         nonce: number
         maxFeePerGas: bigint
         maxPriorityFeePerGas: bigint
@@ -23,6 +37,7 @@ export type UserOperationInfo = {
     userOperationHash: HexData32
     lastReplaced: number
     firstSubmitted: number
+    referencedContracts?: ReferencedCodeHashes
 }
 
 export enum SubmissionStatus {

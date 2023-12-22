@@ -15,10 +15,19 @@ import {
 import { expect } from "earl"
 import { RpcHandler } from ".."
 import { RpcHandlerConfig } from "@alto/config"
-import { Address, EntryPoint_bytecode, EntryPointAbi, hexNumberSchema, UserOperation } from "@alto/types"
+import {
+    Address,
+    EntryPoint_bytecode,
+    EntryPointAbi,
+    hexNumberSchema,
+    UserOperation
+} from "@alto/types"
 import { z } from "zod"
 import { UnsafeValidator } from "@alto/validator"
-import { SimpleAccountFactoryAbi, SimpleAccountFactoryBytecode } from "@alto/types/src/contracts/SimpleAccountFactory"
+import {
+    SimpleAccountFactoryAbi,
+    SimpleAccountFactoryBytecode
+} from "@alto/types/src/contracts/SimpleAccountFactory"
 import { NullExecutor } from "@alto/executor/src"
 import { Registry } from "prom-client"
 import { Monitor, NullMempool } from "@alto/mempool"
@@ -35,10 +44,17 @@ describe("handler", () => {
     beforeEach(async function () {
         // destructure the return value
         anvilProcess = await launchAnvil()
-        const privateKey = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" // first private key in anvil
+        const privateKey =
+            "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" // first private key in anvil
         signer = privateKeyToAccount(privateKey)
         clients = await createClients(signer)
-        entryPoint = await deployContract(clients, signer.address, EntryPointAbi, [], EntryPoint_bytecode)
+        entryPoint = await deployContract(
+            clients,
+            signer.address,
+            EntryPointAbi,
+            [],
+            EntryPoint_bytecode
+        )
         simpleAccountFactory = await deployContract(
             clients,
             signer.address,
@@ -50,7 +66,13 @@ describe("handler", () => {
         const metrics = createMetrics(new Registry(), false)
 
         const logger = initDebugLogger("silent")
-        const validator = new UnsafeValidator(clients.public, entryPoint, logger, metrics, signer)
+        const validator = new UnsafeValidator(
+            clients.public,
+            entryPoint,
+            logger,
+            metrics,
+            signer
+        )
         const rpcHandlerConfig: RpcHandlerConfig = {
             entryPoint: entryPoint,
             usingTenderly: false
@@ -123,7 +145,10 @@ describe("handler", () => {
             //     }
             // )
 
-            await clients.test.setBalance({ address: sender, value: parseEther("1") })
+            await clients.test.setBalance({
+                address: sender,
+                value: parseEther("1")
+            })
 
             // await clients.wallet.writeContract(request)
             // await clients.test.mine({ blocks: 1 })
@@ -144,10 +169,16 @@ describe("handler", () => {
 
             const opHash = getUserOpHash(op, entryPoint, foundry.id)
 
-            const signature = await clients.wallet.signMessage({ account: signer, message: opHash })
+            const signature = await clients.wallet.signMessage({
+                account: signer,
+                message: opHash
+            })
             op.signature = signature
 
-            const gas = await handler.eth_estimateUserOperationGas(op, entryPoint)
+            const gas = await handler.eth_estimateUserOperationGas(
+                op,
+                entryPoint
+            )
 
             /*
                 preVerificationGas: 43852n,

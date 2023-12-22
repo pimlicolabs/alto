@@ -1,11 +1,26 @@
-import { UserOperation, SubmittedUserOperation, TransactionInfo } from "@alto/types"
-import { Mempool, Monitor } from "@alto/mempool"
+import {
+    UserOperation,
+    SubmittedUserOperation,
+    TransactionInfo,
+    BundlingMode
+} from "@alto/types"
+import { IReputationManager, Mempool, Monitor } from "@alto/mempool"
 import { IExecutor } from "./executor"
-import { Address, Block, Chain, PublicClient, Transport, WatchBlocksReturnType } from "viem"
+import {
+    Address,
+    Block,
+    Chain,
+    Hash,
+    PublicClient,
+    Transport,
+    WatchBlocksReturnType
+} from "viem"
 import { Logger, Metrics, transactionIncluded } from "@alto/utils"
 import { getGasPrice } from "@alto/utils"
 
-function getTransactionsFromUserOperationEntries(entries: SubmittedUserOperation[]): TransactionInfo[] {
+function getTransactionsFromUserOperationEntries(
+    entries: SubmittedUserOperation[]
+): TransactionInfo[] {
     return Array.from(
         new Set(
             entries.map((entry) => {
@@ -24,20 +39,26 @@ export class ExecutorManager {
     private pollingInterval: number
     private logger: Logger
     private metrics: Metrics
-
+    private reputationManager: IReputationManager
     private unWatch: WatchBlocksReturnType | undefined
     private currentlyHandlingBlock = false
+    private timer?: NodeJS.Timer
+    private bundlerFrequency: number
 
     constructor(
         executor: IExecutor,
         mempool: Mempool,
         monitor: Monitor,
+        reputationManager: IReputationManager,
         publicClient: PublicClient<Transport, Chain>,
         entryPointAddress: Address,
         pollingInterval: number,
         logger: Logger,
-        metrics: Metrics
+        metrics: Metrics,
+        bundleMode: BundlingMode,
+        bundlerFrequency: number
     ) {
+        this.reputationManager = reputationManager
         this.executor = executor
         this.mempool = mempool
         this.monitor = monitor
@@ -46,17 +67,84 @@ export class ExecutorManager {
         this.pollingInterval = pollingInterval
         this.logger = logger
         this.metrics = metrics
+        this.bundlerFrequency = bundlerFrequency
 
-        setInterval(async () => {
-            await this.bundle()
-        }, 1000)
+        if (bundleMode === "auto") {
+            this.timer = setInterval(async () => {
+                await this.bundle()
+            }, bundlerFrequency)
+        }
+    }
+
+    setBundlingMode(bundleMode: BundlingMode): void {
+        if (bundleMode === "auto" && !this.timer) {
+            this.timer = setInterval(async () => {
+                await this.bundle()
+            }, this.bundlerFrequency)
+        } else if (bundleMode === "manual" && this.timer) {
+            clearInterval(this.timer)
+            this.timer = undefined
+        }
+    }
+
+    async bundleNow(): Promise<Hash> {
+        const ops = await this.mempool.process(5_000_000n, 1)
+        if (ops.length === 0) {
+            throw new Error("no ops to bundle")
+        }
+
+        const txHash = await this.sendToExecutor(ops)
+
+        if (!txHash) {
+            throw new Error("no tx hash")
+        }
+        return txHash
+    }
+
+    async sendToExecutor(ops: UserOperation[]) {
+        const results = await this.executor.bundle(this.entryPointAddress, ops)
+        let txHash
+        for (const result of results) {
+            if (result.success === true) {
+                const res = result.value
+
+                this.mempool.markSubmitted(
+                    res.userOperation.userOperationHash,
+                    res.transactionInfo
+                )
+                // this.monitoredTransactions.set(result.transactionInfo.transactionHash, result.transactionInfo)
+                this.monitor.setUserOperationStatus(
+                    res.userOperation.userOperationHash,
+                    {
+                        status: "submitted",
+                        transactionHash: res.transactionInfo.transactionHash
+                    }
+                )
+                txHash = res.transactionInfo.transactionHash
+                this.startWatchingBlocks(this.handleBlock.bind(this))
+            } else {
+                this.mempool.removeProcessing(result.error.userOpHash)
+                this.monitor.setUserOperationStatus(result.error.userOpHash, {
+                    status: "rejected",
+                    transactionHash: null
+                })
+                this.logger.warn(
+                    {
+                        userOpHash: result.error.userOpHash,
+                        reason: result.error.reason
+                    },
+                    "user operation rejected"
+                )
+            }
+        }
+        return txHash
     }
 
     async bundle() {
         const opsToBundle: UserOperation[][] = []
         // rome-ignore lint/nursery/noConstantCondition: <explanation>
         while (true) {
-            const ops = this.mempool.process(5_000_000n, 1)
+            const ops = await this.mempool.process(5_000_000n, 1)
             if (ops?.length > 0) {
                 opsToBundle.push(ops)
             } else {
@@ -70,32 +158,7 @@ export class ExecutorManager {
 
         await Promise.all(
             opsToBundle.map(async (ops) => {
-                const results = await this.executor.bundle(this.entryPointAddress, ops)
-
-                for (const result of results) {
-                    if (result.success === true) {
-                        const res = result.value
-
-                        this.mempool.markSubmitted(res.userOperation.userOperationHash, res.transactionInfo)
-                        // this.monitoredTransactions.set(result.transactionInfo.transactionHash, result.transactionInfo)
-                        this.monitor.setUserOperationStatus(res.userOperation.userOperationHash, {
-                            status: "submitted",
-                            transactionHash: res.transactionInfo.transactionHash
-                        })
-
-                        this.startWatchingBlocks(this.handleBlock.bind(this))
-                    } else {
-                        this.mempool.removeProcessing(result.error.userOpHash)
-                        this.monitor.setUserOperationStatus(result.error.userOpHash, {
-                            status: "rejected",
-                            transactionHash: null
-                        })
-                        this.logger.warn(
-                            { userOpHash: result.error.userOpHash, reason: result.error.reason },
-                            "user operation rejected"
-                        )
-                    }
-                }
+                await this.sendToExecutor(ops)
             })
         )
     }
@@ -138,7 +201,10 @@ export class ExecutorManager {
     }
 
     private async refreshTransactionStatus(transactionInfo: TransactionInfo) {
-        const hashesToCheck = [transactionInfo.transactionHash, ...transactionInfo.previousTransactionHashes]
+        const hashesToCheck = [
+            transactionInfo.transactionHash,
+            ...transactionInfo.previousTransactionHashes
+        ]
 
         const opInfos = transactionInfo.userOperationInfos
         // const opHashes = transactionInfo.userOperationInfos.map((opInfo) => opInfo.userOperationHash)
@@ -147,13 +213,19 @@ export class ExecutorManager {
             hashesToCheck.map(async (hash) => {
                 return {
                     hash: hash,
-                    status: await transactionIncluded(hash, this.publicClient)
+                    transactionStatuses: await transactionIncluded(
+                        hash,
+                        this.publicClient
+                    )
                 }
             })
         )
 
         const status = transactionStatuses.find(
-            (status) => status.status === "included" || status.status === "failed" || status.status === "reverted"
+            (status) =>
+                status.transactionStatuses.status === "included" ||
+                status.transactionStatuses.status === "failed" ||
+                status.transactionStatuses.status === "reverted"
         )
 
         if (!status) {
@@ -170,10 +242,17 @@ export class ExecutorManager {
             return
         }
 
-        if (status.status === "included") {
+        if (status.transactionStatuses.status === "included") {
             opInfos.map((info) => {
                 this.metrics.userOperationsIncluded.inc()
-                this.metrics.userOperationInclusionDuration.observe((Date.now() - info.firstSubmitted) / 1000)
+                this.metrics.userOperationInclusionDuration.observe(
+                    (Date.now() - info.firstSubmitted) / 1000
+                )
+                this.reputationManager.updateUserOperationIncludedStatus(
+                    info.userOperation,
+                    status.transactionStatuses[info.userOperationHash]
+                        .accountDeployed
+                )
                 this.mempool.removeSubmitted(info.userOperationHash)
                 this.monitor.setUserOperationStatus(info.userOperationHash, {
                     status: "included",
@@ -189,7 +268,10 @@ export class ExecutorManager {
             })
 
             this.executor.markWalletProcessed(transactionInfo.executor)
-        } else if (status.status === "failed" || status.status === "reverted") {
+        } else if (
+            status.transactionStatuses.status === "failed" ||
+            status.transactionStatuses.status === "reverted"
+        ) {
             opInfos.map((info) => {
                 this.mempool.removeSubmitted(info.userOperationHash)
                 this.monitor.setUserOperationStatus(info.userOperationHash, {
@@ -241,16 +323,27 @@ export class ExecutorManager {
         await this.refreshUserOperationStatuses()
 
         // for all still not included check if needs to be replaced (based on gas price)
-        const gasPriceParameters = await getGasPrice(this.publicClient.chain.id, this.publicClient, this.logger)
-        this.logger.trace({ gasPriceParameters }, "fetched gas price parameters")
+        const gasPriceParameters = await getGasPrice(
+            this.publicClient.chain.id,
+            this.publicClient,
+            this.logger
+        )
+        this.logger.trace(
+            { gasPriceParameters },
+            "fetched gas price parameters"
+        )
 
-        const transactionInfos = getTransactionsFromUserOperationEntries(this.mempool.dumpSubmittedOps())
+        const transactionInfos = getTransactionsFromUserOperationEntries(
+            this.mempool.dumpSubmittedOps()
+        )
 
         await Promise.all(
             transactionInfos.map(async (txInfo) => {
                 if (
-                    txInfo.transactionRequest.maxFeePerGas >= gasPriceParameters.maxFeePerGas &&
-                    txInfo.transactionRequest.maxPriorityFeePerGas >= gasPriceParameters.maxPriorityFeePerGas
+                    txInfo.transactionRequest.maxFeePerGas >=
+                        gasPriceParameters.maxFeePerGas &&
+                    txInfo.transactionRequest.maxPriorityFeePerGas >=
+                        gasPriceParameters.maxPriorityFeePerGas
                 ) {
                     return
                 }
@@ -260,7 +353,9 @@ export class ExecutorManager {
         )
 
         // for any left check if enough time has passed, if so replace
-        const transactionInfos2 = getTransactionsFromUserOperationEntries(this.mempool.dumpSubmittedOps())
+        const transactionInfos2 = getTransactionsFromUserOperationEntries(
+            this.mempool.dumpSubmittedOps()
+        )
         await Promise.all(
             transactionInfos2.map(async (txInfo) => {
                 if (Date.now() - txInfo.lastReplaced < 5 * 60 * 1000) {
@@ -274,18 +369,27 @@ export class ExecutorManager {
         this.currentlyHandlingBlock = false
     }
 
-    async replaceTransaction(txInfo: TransactionInfo, reason: string): Promise<void> {
+    async replaceTransaction(
+        txInfo: TransactionInfo,
+        reason: string
+    ): Promise<void> {
         const replaceResult = await this.executor.replaceTransaction(txInfo)
         if (replaceResult.status === "failed") {
             txInfo.userOperationInfos.map((opInfo) => {
                 this.mempool.removeSubmitted(opInfo.userOperationHash)
             })
 
-            this.logger.warn({ oldTxHash: txInfo.transactionHash, reason }, "failed to replace transaction")
+            this.logger.warn(
+                { oldTxHash: txInfo.transactionHash, reason },
+                "failed to replace transaction"
+            )
 
             return
         } else if (replaceResult.status === "potentially_already_included") {
-            this.logger.info({ oldTxHash: txInfo.transactionHash, reason }, "transaction potentially already included")
+            this.logger.info(
+                { oldTxHash: txInfo.transactionHash, reason },
+                "transaction potentially already included"
+            )
             txInfo.timesPotentiallyIncluded += 1
 
             if (txInfo.timesPotentiallyIncluded >= 3) {
@@ -306,10 +410,15 @@ export class ExecutorManager {
         const newTxInfo = replaceResult.transactionInfo
 
         const missingOps = txInfo.userOperationInfos.filter(
-            (info) => !newTxInfo.userOperationInfos.map((ni) => ni.userOperationHash).includes(info.userOperationHash)
+            (info) =>
+                !newTxInfo.userOperationInfos
+                    .map((ni) => ni.userOperationHash)
+                    .includes(info.userOperationHash)
         )
         const matchingOps = txInfo.userOperationInfos.filter((info) =>
-            newTxInfo.userOperationInfos.map((ni) => ni.userOperationHash).includes(info.userOperationHash)
+            newTxInfo.userOperationInfos
+                .map((ni) => ni.userOperationHash)
+                .includes(info.userOperationHash)
         )
 
         matchingOps.map((opInfo) => {
@@ -319,7 +428,11 @@ export class ExecutorManager {
         missingOps.map((opInfo) => {
             this.mempool.removeSubmitted(opInfo.userOperationHash)
             this.logger.warn(
-                { oldTxHash: txInfo.transactionHash, newTxHash: newTxInfo.transactionHash, reason },
+                {
+                    oldTxHash: txInfo.transactionHash,
+                    newTxHash: newTxInfo.transactionHash,
+                    reason
+                },
                 "missing op in new tx"
             )
         })

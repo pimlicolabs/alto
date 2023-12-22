@@ -19,7 +19,9 @@ if (process.env.SENTRY_DSN) {
     })
 }
 
-export const yarg = yargs((hideBin as (args: string[]) => string[])(process.argv))
+export const yarg = yargs(
+    (hideBin as (args: string[]) => string[])(process.argv)
+)
 
 const topBanner = `🏔️ Alto: TypeScript ERC-4337 Bundler.
   * by Pimlico, 2023`
@@ -74,7 +76,11 @@ alto.fail((msg, err) => {
     }
 
     const errorMessage =
-        err !== undefined ? (err instanceof YargsError ? err.message : err.stack) : msg || "Unknown error"
+        err !== undefined
+            ? err instanceof YargsError
+                ? err.message
+                : err.stack
+            : msg || "Unknown error"
 
     // eslint-disable-next-line no-console
     console.error(` ✖ ${errorMessage}\n`)

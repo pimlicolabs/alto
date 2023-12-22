@@ -48,7 +48,10 @@ export async function getPolygonGasPriceParameters(
 
         return parsedData.fast
     } catch (e) {
-        logger.error({ error: e }, "failed to get gas price from gas station, using default")
+        logger.error(
+            { error: e },
+            "failed to get gas price from gas station, using default"
+        )
     }
 
     const gasPrice = await publicClient.getGasPrice()
@@ -100,7 +103,8 @@ export async function getGasPrice(
         }
     }
 
-    let maxPriorityFeePerGas = 2_000_000_000n > gasPrice ? gasPrice : 2_000_000_000n
+    let maxPriorityFeePerGas =
+        2_000_000_000n > gasPrice ? gasPrice : 2_000_000_000n
     const feeHistory = await publicClient.getFeeHistory({
         blockCount: 10,
         rewardPercentiles: [20],
@@ -111,7 +115,8 @@ export async function getGasPrice(
         gasPrice = (gasPrice * 3n) / 2n
         maxPriorityFeePerGas = gasPrice
     } else {
-        const feeAverage = feeHistory.reward.reduce((acc, cur) => cur[0] + acc, 0n) / 10n
+        const feeAverage =
+            feeHistory.reward.reduce((acc, cur) => cur[0] + acc, 0n) / 10n
         if (feeAverage > gasPrice) {
             gasPrice = feeAverage
         }
