@@ -637,7 +637,7 @@ export function tracerResultParser(
                 const [title] =
                     Object.entries(stakeInfoEntities).find(
                         ([title, info]) =>
-                            info?.addr.toLowerCase() === addr.toLowerCase()
+                            info?.addr?.toLowerCase() === addr.toLowerCase()
                     ) ?? []
 
                 return title ?? addr
