@@ -9,12 +9,7 @@ import {
 export type Metrics = ReturnType<typeof createMetrics>
 
 export function createMetrics(registry: Registry, register = true) {
-    collectDefaultMetrics({
-        register: registry,
-        prefix: "alto_",
-        // eventLoopMonitoringPrecision with sampling rate in milliseconds
-        eventLoopMonitoringPrecision: 10
-    })
+    collectDefaultMetrics({ register: registry })
 
     const registers = register ? [registry] : []
 
