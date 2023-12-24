@@ -388,4 +388,19 @@ export const bundlerHandler = async (
         metrics
     )
     await server.start()
+
+    const gracefulShutdown = async (signal: string) => {
+        logger.info(`${signal} received, shutting down`)
+        const outstanding = mempool.dumpOutstanding().length
+        const submitted = mempool.dumpSubmittedOps().length
+        logger.info({outstanding, submitted}, "dumping mempool")
+
+        await server.stop()
+        logger.info("server stopped")
+
+        process.exit(0)
+    }
+
+    process.on("SIGINT", gracefulShutdown)
+    process.on("SIGTERM", gracefulShutdown)
 }
