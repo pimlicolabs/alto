@@ -339,7 +339,14 @@ export class ExecutorManager {
 
         await Promise.all(
             transactionInfos.map(async (txInfo) => {
-                // if transcation is not included in the very next block, bump the gas fees by 10%
+                if (
+                    txInfo.transactionRequest.maxFeePerGas >=
+                        gasPriceParameters.maxFeePerGas &&
+                    txInfo.transactionRequest.maxPriorityFeePerGas >=
+                        gasPriceParameters.maxPriorityFeePerGas
+                ) {
+                    return
+                }
 
                 await this.replaceTransaction(txInfo, "gas_price")
             })
