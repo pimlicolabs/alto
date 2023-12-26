@@ -70,6 +70,8 @@ export interface Mempool {
 
     dumpOutstanding(): UserOperationInfo[]
 
+    dumpProcessing(): UserOperationInfo[]
+
     clear(): void
 }
 
@@ -90,6 +92,9 @@ export class NullMempool implements Mempool {
         throw new Error("Method not implemented.")
     }
     dumpSubmittedOps(): SubmittedUserOperation[] {
+        throw new Error("Method not implemented.")
+    }
+    dumpProcessing(): UserOperationInfo[] {
         throw new Error("Method not implemented.")
     }
     removeSubmitted(_: `0x${string}`): void {
@@ -192,6 +197,10 @@ export class MemoryMempool implements Mempool {
 
     dumpOutstanding(): UserOperationInfo[] {
         return this.store.dumpOutstanding()
+    }
+
+    dumpProcessing(): UserOperationInfo[] {
+        return this.store.dumpProcessing()
     }
 
     dumpSubmittedOps(): SubmittedUserOperation[] {

@@ -397,7 +397,8 @@ export const bundlerHandler = async (
 
         const outstanding = mempool.dumpOutstanding().length
         const submitted = mempool.dumpSubmittedOps().length
-        logger.info({outstanding, submitted}, "dumping mempool before shutdown")
+        const processing = mempool.dumpProcessing().length
+        logger.info({outstanding, submitted, processing}, "dumping mempool before shutdown")
 
         process.exit(0)
     }
