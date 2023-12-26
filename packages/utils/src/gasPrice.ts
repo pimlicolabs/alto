@@ -143,15 +143,13 @@ export async function getGasPrice(
 
     if (maxPriorityFeePerGas === null) {
         maxPriorityFeePerGas = await getFallBackMaxPriorityFeePerGas(publicClient, gasPrice ?? 0n)
-    } else {
-        maxPriorityFeePerGas = maxPriorityFeePerGas
     }
 
     if (gasPrice === null) {
         const block = await publicClient.getBlock({
             blockTag: "latest"
         })
-        gasPrice = maxPriorityFeePerGas + (block.baseFeePerGas ?? 0n)
+        gasPrice = maxPriorityFeePerGas + (2 * block.baseFeePerGas ?? 0n)
     }
 
     const defaultGasFee = getDefaultGasFee(chainId)

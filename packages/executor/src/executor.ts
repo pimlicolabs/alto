@@ -149,7 +149,8 @@ export class BasicExecutor implements IExecutor {
         )
 
         newRequest.maxFeePerGas =
-            gasPriceParameters.maxFeePerGas > (newRequest.maxFeePerGas * 11n) / 10n
+            gasPriceParameters.maxFeePerGas >
+            (newRequest.maxFeePerGas * 11n) / 10n
                 ? gasPriceParameters.maxFeePerGas
                 : (newRequest.maxFeePerGas * 11n) / 10n
 
