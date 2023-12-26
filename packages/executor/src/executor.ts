@@ -114,9 +114,9 @@ export class BasicExecutor implements IExecutor {
         const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
 
         newRequest.maxFeePerGas =
-            gasPriceParameters.maxFeePerGas > (newRequest.maxFeePerGas * 11n) / 10n
+            gasPriceParameters.maxFeePerGas > (newRequest.maxFeePerGas * 111n) / 100n
                 ? gasPriceParameters.maxFeePerGas
-                : (newRequest.maxFeePerGas * 11n) / 10n
+                : (newRequest.maxFeePerGas * 111n) / 100n
 
         newRequest.maxPriorityFeePerGas =
             gasPriceParameters.maxPriorityFeePerGas > (newRequest.maxPriorityFeePerGas * 11n) / 10n
