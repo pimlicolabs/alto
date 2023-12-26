@@ -1,4 +1,4 @@
-import { Mempool, Monitor } from "@alto/mempool"
+import { IReputationManager, Mempool, Monitor } from "@alto/mempool"
 import {
     Address,
     BundlerClearStateResponseResult,
@@ -21,7 +21,15 @@ import {
     SupportedEntryPointsResponseResult,
     UserOperation,
     logSchema,
-    receiptSchema
+    receiptSchema,
+    Environment,
+    ValidationErrors,
+    BundlerDumpReputationsResponseResult,
+    BundlerSetReputationsRequestParams,
+    BundlerClearMempoolResponseResult,
+    BundlerGetStakeStatusResponseResult,
+    bundlerGetStakeStatusResponseSchema,
+    IValidator
 } from "@alto/types"
 import {
     Logger,
@@ -48,9 +56,12 @@ import {
 import * as chains from "viem/chains"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
-import { estimateCallGasLimit, estimateVerificationGasLimit } from "./gasEstimation"
+import {
+    estimateCallGasLimit,
+    estimateVerificationGasLimit
+} from "./gasEstimation"
 import { NonceQueuer } from "./nonceQueuer"
-import { IValidator } from "./vatidation"
+import { ExecutorManager } from "@alto/executor"
 
 export interface IRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>
@@ -60,9 +71,16 @@ export interface IRpcEndpoint {
         userOperation: UserOperation,
         entryPoint: Address
     ): Promise<EstimateUserOperationGasResponseResult>
-    eth_sendUserOperation(userOperation: UserOperation, entryPoint: Address): Promise<SendUserOperationResponseResult>
-    eth_getUserOperationByHash(userOperationHash: HexData32): Promise<GetUserOperationByHashResponseResult>
-    eth_getUserOperationReceipt(userOperationHash: HexData32): Promise<GetUserOperationReceiptResponseResult>
+    eth_sendUserOperation(
+        userOperation: UserOperation,
+        entryPoint: Address
+    ): Promise<SendUserOperationResponseResult>
+    eth_getUserOperationByHash(
+        userOperationHash: HexData32
+    ): Promise<GetUserOperationByHashResponseResult>
+    eth_getUserOperationReceipt(
+        userOperationHash: HexData32
+    ): Promise<GetUserOperationReceiptResponseResult>
 }
 
 export class RpcHandler implements IRpcEndpoint {
@@ -78,6 +96,9 @@ export class RpcHandler implements IRpcEndpoint {
     logger: Logger
     metrics: Metrics
     chainId: number
+    environment: Environment
+    executorManager: ExecutorManager
+    reputationManager: IReputationManager
 
     constructor(
         entryPoint: Address,
@@ -86,11 +107,14 @@ export class RpcHandler implements IRpcEndpoint {
         mempool: Mempool,
         monitor: Monitor,
         nonceQueuer: NonceQueuer,
+        executorManager: ExecutorManager,
+        reputationManager: IReputationManager,
         usingTenderly: boolean,
         minimumGasPricePercent: number,
         noEthCallOverrideSupport: boolean,
         logger: Logger,
-        metrics: Metrics
+        metrics: Metrics,
+        environment: Environment
     ) {
         this.entryPoint = entryPoint
         this.publicClient = publicClient
@@ -103,8 +127,10 @@ export class RpcHandler implements IRpcEndpoint {
         this.noEthCallOverrideSupport = noEthCallOverrideSupport
         this.logger = logger
         this.metrics = metrics
-
+        this.environment = environment
         this.chainId = publicClient.chain.id
+        this.executorManager = executorManager
+        this.reputationManager = reputationManager
     }
 
     async handleMethod(request: BundlerRequest): Promise<BundlerResponse> {
@@ -112,16 +138,23 @@ export class RpcHandler implements IRpcEndpoint {
         const method = request.method
         switch (method) {
             case "eth_chainId":
-                return { method, result: await this.eth_chainId(...request.params) }
+                return {
+                    method,
+                    result: await this.eth_chainId(...request.params)
+                }
             case "eth_supportedEntryPoints":
                 return {
                     method,
-                    result: await this.eth_supportedEntryPoints(...request.params)
+                    result: await this.eth_supportedEntryPoints(
+                        ...request.params
+                    )
                 }
             case "eth_estimateUserOperationGas":
                 return {
                     method,
-                    result: await this.eth_estimateUserOperationGas(...request.params)
+                    result: await this.eth_estimateUserOperationGas(
+                        ...request.params
+                    )
                 }
             case "eth_sendUserOperation":
                 return {
@@ -131,42 +164,86 @@ export class RpcHandler implements IRpcEndpoint {
             case "eth_getUserOperationByHash":
                 return {
                     method,
-                    result: await this.eth_getUserOperationByHash(...request.params)
+                    result: await this.eth_getUserOperationByHash(
+                        ...request.params
+                    )
                 }
             case "eth_getUserOperationReceipt":
                 return {
                     method,
-                    result: await this.eth_getUserOperationReceipt(...request.params)
+                    result: await this.eth_getUserOperationReceipt(
+                        ...request.params
+                    )
+                }
+            case "debug_bundler_clearMempool":
+                return {
+                    method,
+                    result: await this.debug_bundler_clearMempool(
+                        ...request.params
+                    )
                 }
             case "debug_bundler_clearState":
                 return {
                     method,
-                    result: await this.debug_bundler_clearState(...request.params)
+                    result: await this.debug_bundler_clearState(
+                        ...request.params
+                    )
                 }
             case "debug_bundler_dumpMempool":
                 return {
                     method,
-                    result: await this.debug_bundler_dumpMempool(...request.params)
+                    result: await this.debug_bundler_dumpMempool(
+                        ...request.params
+                    )
                 }
             case "debug_bundler_sendBundleNow":
                 return {
                     method,
-                    result: await this.debug_bundler_sendBundleNow(...request.params)
+                    result: await this.debug_bundler_sendBundleNow(
+                        ...request.params
+                    )
                 }
             case "debug_bundler_setBundlingMode":
                 return {
                     method,
-                    result: await this.debug_bundler_setBundlingMode(...request.params)
+                    result: await this.debug_bundler_setBundlingMode(
+                        ...request.params
+                    )
+                }
+            case "debug_bundler_setReputation":
+                return {
+                    method,
+                    result: await this.debug_bundler_setReputation(
+                        request.params
+                    )
+                }
+            case "debug_bundler_dumpReputation":
+                return {
+                    method,
+                    result: await this.debug_bundler_dumpReputation(
+                        ...request.params
+                    )
+                }
+            case "debug_bundler_getStakeStatus":
+                return {
+                    method,
+                    result: await this.debug_bundler_getStakeStatus(
+                        ...request.params
+                    )
                 }
             case "pimlico_getUserOperationStatus":
                 return {
                     method,
-                    result: await this.pimlico_getUserOperationStatus(...request.params)
+                    result: await this.pimlico_getUserOperationStatus(
+                        ...request.params
+                    )
                 }
             case "pimlico_getUserOperationGasPrice":
                 return {
                     method,
-                    result: await this.pimlico_getUserOperationGasPrice(...request.params)
+                    result: await this.pimlico_getUserOperationGasPrice(
+                        ...request.params
+                    )
                 }
         }
     }
@@ -185,11 +262,15 @@ export class RpcHandler implements IRpcEndpoint {
     ): Promise<EstimateUserOperationGasResponseResult> {
         // check if entryPoint is supported, if not throw
         if (this.entryPoint !== entryPoint) {
-            throw new Error(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.entryPoint}`)
+            throw new Error(
+                `EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.entryPoint}`
+            )
         }
 
         if (userOperation.maxFeePerGas === 0n) {
-            throw new RpcError("user operation max fee per gas must be larger than 0 during gas estimation")
+            throw new RpcError(
+                "user operation max fee per gas must be larger than 0 during gas estimation"
+            )
         }
         let preVerificationGas = calcPreVerificationGas(userOperation)
 
@@ -238,13 +319,39 @@ export class RpcHandler implements IRpcEndpoint {
                 userOperation.callGasLimit = 1_000_000n
             }
 
-            const executionResult = await this.validator.getExecutionResult(userOperation)
+            const executionResult =
+                await this.validator.getExecutionResult(userOperation)
 
-            verificationGasLimit = ((executionResult.preOpGas - userOperation.preVerificationGas) * 3n) / 2n
+            verificationGasLimit =
+                ((executionResult.preOpGas - userOperation.preVerificationGas) *
+                    3n) /
+                2n
+
+            let gasPrice: bigint
+
+            if (
+                userOperation.maxPriorityFeePerGas ===
+                userOperation.maxFeePerGas
+            ) {
+                gasPrice = userOperation.maxFeePerGas
+            } else {
+                const blockBaseFee = (await this.publicClient.getBlock())
+                    .baseFeePerGas
+                gasPrice =
+                    userOperation.maxFeePerGas <
+                    (blockBaseFee ?? 0n) + userOperation.maxPriorityFeePerGas
+                        ? userOperation.maxFeePerGas
+                        : userOperation.maxPriorityFeePerGas +
+                          (blockBaseFee ?? 0n)
+            }
             const calculatedCallGasLimit =
-                executionResult.paid / userOperation.maxFeePerGas - executionResult.preOpGas + 21000n + 50000n
+                executionResult.paid / gasPrice -
+                executionResult.preOpGas +
+                21000n +
+                50000n
 
-            callGasLimit = calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n
+            callGasLimit =
+                calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n
         } else {
             userOperation.maxFeePerGas = 0n
             userOperation.maxPriorityFeePerGas = 0n
@@ -262,7 +369,9 @@ export class RpcHandler implements IRpcEndpoint {
             userOperation.preVerificationGas = preVerificationGas
             userOperation.verificationGasLimit = verificationGasLimit
 
-            this.metrics.verificationGasLimitEstimationTime.observe((Date.now() - time) / 1000)
+            this.metrics.verificationGasLimitEstimationTime.observe(
+                (Date.now() - time) / 1000
+            )
 
             callGasLimit = await estimateCallGasLimit(
                 userOperation,
@@ -286,18 +395,34 @@ export class RpcHandler implements IRpcEndpoint {
         entryPoint: Address
     ): Promise<SendUserOperationResponseResult> {
         if (this.entryPoint !== entryPoint) {
-            throw new RpcError(`EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.entryPoint}`)
+            throw new RpcError(
+                `EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.entryPoint}`
+            )
         }
 
-        if (this.chainId === chains.celoAlfajores.id || this.chainId === chains.celo.id) {
-            if (userOperation.maxFeePerGas !== userOperation.maxPriorityFeePerGas) {
-                throw new RpcError("maxPriorityFeePerGas must equal maxFeePerGas on Celo chains")
+        if (
+            this.chainId === chains.celoAlfajores.id ||
+            this.chainId === chains.celo.id
+        ) {
+            if (
+                userOperation.maxFeePerGas !==
+                userOperation.maxPriorityFeePerGas
+            ) {
+                throw new RpcError(
+                    "maxPriorityFeePerGas must equal maxFeePerGas on Celo chains"
+                )
             }
         }
 
         if (this.minimumGasPricePercent !== 0) {
-            const gasPrice = await getGasPrice(this.chainId, this.publicClient, this.logger)
-            const minMaxFeePerGas = (gasPrice.maxFeePerGas * BigInt(this.minimumGasPricePercent)) / 100n
+            const gasPrice = await getGasPrice(
+                this.chainId,
+                this.publicClient,
+                this.logger
+            )
+            const minMaxFeePerGas =
+                (gasPrice.maxFeePerGas * BigInt(this.minimumGasPricePercent)) /
+                100n
             if (userOperation.maxFeePerGas < minMaxFeePerGas) {
                 throw new RpcError(
                     `maxFeePerGas must be at least ${minMaxFeePerGas} (current maxFeePerGas: ${gasPrice.maxFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
@@ -323,7 +448,9 @@ export class RpcHandler implements IRpcEndpoint {
             userOperation.verificationGasLimit === 0n ||
             userOperation.callGasLimit === 0n
         ) {
-            throw new RpcError("user operation gas limits must be larger than 0")
+            throw new RpcError(
+                "user operation gas limits must be larger than 0"
+            )
         }
 
         const entryPointContract = getContract({
@@ -332,34 +459,68 @@ export class RpcHandler implements IRpcEndpoint {
             publicClient: this.publicClient
         })
 
-        const [nonceKey, userOperationNonceValue] = getNonceKeyAndValue(userOperation.nonce)
+        const [nonceKey, userOperationNonceValue] = getNonceKeyAndValue(
+            userOperation.nonce
+        )
 
-        const getNonceResult = await entryPointContract.read.getNonce([userOperation.sender, nonceKey], {
-            blockTag: "latest"
-        })
+        const getNonceResult = await entryPointContract.read.getNonce(
+            [userOperation.sender, nonceKey],
+            {
+                blockTag: "latest"
+            }
+        )
 
         const [_, currentNonceValue] = getNonceKeyAndValue(getNonceResult)
 
         if (userOperationNonceValue < currentNonceValue) {
-            throw new RpcError("UserOperation reverted during simulation with reason: AA25 invalid account nonce")
-        } else if (userOperationNonceValue === currentNonceValue) {
-            await this.validator.validateUserOperation(userOperation)
-            const success = this.mempool.add(userOperation)
+            throw new RpcError(
+                "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
+                ValidationErrors.InvalidFields
+            )
+        }
+        if (userOperationNonceValue > currentNonceValue + 10n) {
+            throw new RpcError(
+                "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
+                ValidationErrors.InvalidFields
+            )
+        }
+        if (userOperationNonceValue === currentNonceValue) {
+            const validationResult =
+                await this.validator.validateUserOperation(userOperation)
+            await this.reputationManager.checkReputation(
+                userOperation,
+                validationResult
+            )
+            await this.mempool.checkEntityMultipleRoleViolation(userOperation)
+            const success = this.mempool.add(
+                userOperation,
+                validationResult.referencedContracts
+            )
             if (!success) {
-                throw new RpcError("UserOperation reverted during simulation with reason: AA25 invalid account nonce")
+                throw new RpcError(
+                    "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
+                    ValidationErrors.InvalidFields
+                )
             }
-        } else if (userOperationNonceValue > currentNonceValue + 10n) {
-            throw new RpcError("UserOperation reverted during simulation with reason: AA25 invalid account nonce")
         } else {
             this.nonceQueuer.add(userOperation)
         }
 
-        const hash = getUserOperationHash(userOperation, entryPoint, this.chainId)
+        const hash = getUserOperationHash(
+            userOperation,
+            entryPoint,
+            this.chainId
+        )
         return hash
     }
 
-    async eth_getUserOperationByHash(userOperationHash: HexData32): Promise<GetUserOperationByHashResponseResult> {
-        const userOperationEventAbiItem = getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
+    async eth_getUserOperationByHash(
+        userOperationHash: HexData32
+    ): Promise<GetUserOperationByHashResponseResult> {
+        const userOperationEventAbiItem = getAbiItem({
+            abi: EntryPointAbi,
+            name: "UserOperationEvent"
+        })
 
         // Only query up to the last `fullBlockRange` = 20000 blocks
         const latestBlock = await this.publicClient.getBlockNumber()
@@ -407,7 +568,9 @@ export class RpcHandler implements IRpcEndpoint {
             return null
         }
 
-        const getTransaction = async (txHash: HexData32): Promise<Transaction> => {
+        const getTransaction = async (
+            txHash: HexData32
+        ): Promise<Transaction> => {
             try {
                 return await this.publicClient.getTransaction({ hash: txHash })
             } catch (e) {
@@ -422,14 +585,18 @@ export class RpcHandler implements IRpcEndpoint {
         const tx = await getTransaction(txHash)
         let op: any = undefined
         try {
-            const decoded = decodeFunctionData({ abi: EntryPointAbi, data: tx.input })
+            const decoded = decodeFunctionData({
+                abi: EntryPointAbi,
+                data: tx.input
+            })
             if (decoded.functionName !== "handleOps") {
                 return null
             }
             const ops = decoded.args[0]
             op = ops.find(
                 (op: UserOperation) =>
-                    op.sender === userOperationEvent.args.sender && op.nonce === userOperationEvent.args.nonce
+                    op.sender === userOperationEvent.args.sender &&
+                    op.nonce === userOperationEvent.args.nonce
             )
         } catch {
             return null
@@ -450,18 +617,26 @@ export class RpcHandler implements IRpcEndpoint {
         return result
     }
 
-    async eth_getUserOperationReceipt(userOperationHash: HexData32): Promise<GetUserOperationReceiptResponseResult> {
-        const userOperationEventAbiItem = getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
+    async eth_getUserOperationReceipt(
+        userOperationHash: HexData32
+    ): Promise<GetUserOperationReceiptResponseResult> {
+        const userOperationEventAbiItem = getAbiItem({
+            abi: EntryPointAbi,
+            name: "UserOperationEvent"
+        })
 
         // Only query up to the last `fullBlockRange` = 20000 blocks
         const latestBlock = await this.publicClient.getBlockNumber()
         let fullBlockRange = 20000n
+        if (this.chainId === chains.arbitrum.id) {
+            fullBlockRange = 1000000n
+        }
+
         if (
             this.chainId === 335 ||
             this.chainId === chains.base.id ||
             this.chainId === 47279324479 ||
             this.chainId === chains.bsc.id ||
-            this.chainId === chains.arbitrum.id ||
             this.chainId === chains.arbitrumGoerli.id ||
             this.chainId === chains.baseGoerli.id ||
             this.chainId === chains.avalanche.id ||
@@ -512,9 +687,13 @@ export class RpcHandler implements IRpcEndpoint {
             return null
         }
 
-        const getTransactionReceipt = async (txHash: HexData32): Promise<TransactionReceipt> => {
+        const getTransactionReceipt = async (
+            txHash: HexData32
+        ): Promise<TransactionReceipt> => {
             try {
-                return await this.publicClient.getTransactionReceipt({ hash: txHash })
+                return await this.publicClient.getTransactionReceipt({
+                    hash: txHash
+                })
             } catch (e) {
                 if (e instanceof TransactionReceiptNotFoundError) {
                     return getTransactionReceipt(txHash)
@@ -594,19 +773,112 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async debug_bundler_clearState(): Promise<BundlerClearStateResponseResult> {
-        throw new Error("Method not implemented.")
+        if (this.environment !== "development") {
+            throw new RpcError(
+                "debug_bundler_clearState is only available in development environment"
+            )
+        }
+        this.mempool.clear()
+        this.reputationManager.clear()
+        return "ok"
     }
 
-    async debug_bundler_dumpMempool(_entryPoint: Address): Promise<BundlerDumpMempoolResponseResult> {
-        throw new Error("Method not implemented.")
+    async debug_bundler_clearMempool(): Promise<BundlerClearMempoolResponseResult> {
+        if (this.environment !== "development") {
+            throw new RpcError(
+                "debug_bundler_clearMempool is only available in development environment"
+            )
+        }
+        this.mempool.clear()
+        this.reputationManager.clearEntityCount()
+        return "ok"
+    }
+
+    async debug_bundler_dumpMempool(
+        entryPoint: Address
+    ): Promise<BundlerDumpMempoolResponseResult> {
+        if (this.environment !== "development") {
+            throw new RpcError(
+                "debug_bundler_dumpMempool is only available in development environment"
+            )
+        }
+        if (this.entryPoint !== entryPoint) {
+            throw new RpcError(
+                `EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.entryPoint}`
+            )
+        }
+        return this.mempool
+            .dumpOutstanding()
+            .map((userOpInfo) => userOpInfo.userOperation)
     }
 
     async debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
-        throw new Error("Method not implemented.")
+        if (this.environment !== "development") {
+            throw new RpcError(
+                "debug_bundler_sendBundleNow is only available in development environment"
+            )
+        }
+        return this.executorManager.bundleNow()
     }
 
-    async debug_bundler_setBundlingMode(_bundlingMode: BundlingMode): Promise<BundlerSetBundlingModeResponseResult> {
-        throw new Error("Method not implemented.")
+    async debug_bundler_setBundlingMode(
+        bundlingMode: BundlingMode
+    ): Promise<BundlerSetBundlingModeResponseResult> {
+        if (this.environment !== "development") {
+            throw new RpcError(
+                "debug_bundler_setBundlingMode is only available in development environment"
+            )
+        }
+        this.executorManager.setBundlingMode(bundlingMode)
+        return "ok"
+    }
+
+    async debug_bundler_dumpReputation(
+        entryPoint: Address
+    ): Promise<BundlerDumpReputationsResponseResult> {
+        if (this.environment !== "development") {
+            throw new RpcError(
+                "debug_bundler_setRe is only available in development environment"
+            )
+        }
+        if (this.entryPoint !== entryPoint) {
+            throw new RpcError(
+                `EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.entryPoint}`
+            )
+        }
+        return this.reputationManager.dumpReputations()
+    }
+
+    async debug_bundler_getStakeStatus(
+        address: Address,
+        entryPoint: Address
+    ): Promise<BundlerGetStakeStatusResponseResult> {
+        if (this.environment !== "development") {
+            throw new RpcError(
+                "debug_bundler_getStakeStatus is only available in development environment"
+            )
+        }
+        if (this.entryPoint !== entryPoint) {
+            throw new RpcError(
+                `EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.entryPoint}`
+            )
+        }
+        return bundlerGetStakeStatusResponseSchema.parse({
+            method: "debug_bundler_getStakeStatus",
+            result: await this.reputationManager.getStakeStatus(address)
+        }).result
+    }
+
+    async debug_bundler_setReputation(
+        args: BundlerSetReputationsRequestParams
+    ): Promise<BundlerSetBundlingModeResponseResult> {
+        if (this.environment !== "development") {
+            throw new RpcError(
+                "debug_bundler_setReputation is only available in development environment"
+            )
+        }
+        this.reputationManager.setReputation(args[0])
+        return "ok"
     }
 
     async pimlico_getUserOperationStatus(
@@ -616,19 +888,26 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async pimlico_getUserOperationGasPrice(): Promise<PimlicoGetUserOperationGasPriceResponseResult> {
-        const gasPrice = await getGasPrice(this.chainId, this.publicClient, this.logger)
+        const gasPrice = await getGasPrice(
+            this.chainId,
+            this.publicClient,
+            this.logger
+        )
         return {
             slow: {
                 maxFeePerGas: (gasPrice.maxFeePerGas * 105n) / 100n,
-                maxPriorityFeePerGas: (gasPrice.maxPriorityFeePerGas * 105n) / 100n
+                maxPriorityFeePerGas:
+                    (gasPrice.maxPriorityFeePerGas * 105n) / 100n
             },
             standard: {
                 maxFeePerGas: (gasPrice.maxFeePerGas * 110n) / 100n,
-                maxPriorityFeePerGas: (gasPrice.maxPriorityFeePerGas * 110n) / 100n
+                maxPriorityFeePerGas:
+                    (gasPrice.maxPriorityFeePerGas * 110n) / 100n
             },
             fast: {
                 maxFeePerGas: (gasPrice.maxFeePerGas * 115n) / 100n,
-                maxPriorityFeePerGas: (gasPrice.maxPriorityFeePerGas * 115n) / 100n
+                maxPriorityFeePerGas:
+                    (gasPrice.maxPriorityFeePerGas * 115n) / 100n
             }
         }
     }

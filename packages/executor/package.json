@@ -7,7 +7,13 @@
     "license": "GPL-3.0-or-later",
     "main": "lib/index.js",
     "types": "lib/index.d.ts",
-    "files": ["lib/**/*.d.ts", "lib/**/*.js", "lib/**/*.js.map", "*.d.ts", "*.js"],
+    "files": [
+        "lib/**/*.d.ts",
+        "lib/**/*.js",
+        "lib/**/*.js.map",
+        "*.d.ts",
+        "*.js"
+    ],
     "scripts": {
         "build": "tsc -p ./tsconfig.build.json",
         "test": "test -d test && mocha test/**/*.test.ts --exit || echo 'No test folder found. Skipping tests.'",

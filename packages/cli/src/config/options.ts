@@ -23,7 +23,8 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: true
     },
     maxSigners: {
-        description: "Maximum number of signers to use from the list of signer private keys",
+        description:
+            "Maximum number of signers to use from the list of signer private keys",
         type: "number"
     },
     minBalance: {
@@ -71,7 +72,8 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         default: 3
     },
     maxBundleSize: {
-        description: "Maximum number of operations in mempool before a bundle is submitted",
+        description:
+            "Maximum number of operations in mempool before a bundle is submitted",
         type: "number",
         require: true,
         default: 3
@@ -113,7 +115,8 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         default: false
     },
     minimumGasPricePercent: {
-        description: "Minimum % of userop gasPrice compared to gasPrice used by the bundler",
+        description:
+            "Minimum % of userop gasPrice compared to gasPrice used by the bundler",
         type: "number",
         require: true,
         default: 0
@@ -139,6 +142,25 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
     customGasLimitForEstimation: {
         description: "Custom gas limit for estimation",
         type: "string"
+    },
+    bundleMode: {
+        description:
+            "Set if the bundler should run in auto bundle mode or not.",
+        type: "string",
+        require: false,
+        default: "auto"
+    },
+    safeMode: {
+        description: "Enable safe mode",
+        type: "boolean",
+        require: false,
+        default: false
+    },
+    bundlerFrequency: {
+        description: "How ofter in milliseconds to check and build new bundles",
+        type: "number",
+        require: false,
+        default: 1000
     }
 }
 

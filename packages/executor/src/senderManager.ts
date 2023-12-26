@@ -14,7 +14,10 @@ import {
 } from "viem"
 import { getGasPrice } from "@alto/utils"
 
-const waitForTransactionReceipt = async (publicClient: PublicClient, tx: HexData32): Promise<TransactionReceipt> => {
+const waitForTransactionReceipt = async (
+    publicClient: PublicClient,
+    tx: HexData32
+): Promise<TransactionReceipt> => {
     try {
         return await publicClient.waitForTransactionReceipt({ hash: tx })
     } catch {
@@ -56,19 +59,30 @@ export class SenderManager {
         this.semaphore = new Semaphore(this.availableWallets.length)
     }
 
-    async validateWallets(publicClient: PublicClient, minBalance: bigint): Promise<void> {
+    async validateWallets(
+        publicClient: PublicClient,
+        minBalance: bigint
+    ): Promise<void> {
         const promises = this.availableWallets.map(async (wallet) => {
-            const balance = await publicClient.getBalance({ address: wallet.address })
+            const balance = await publicClient.getBalance({
+                address: wallet.address
+            })
 
             if (balance < minBalance) {
                 this.logger.error(
-                    { balance, requiredBalance: minBalance, executor: wallet.address },
+                    {
+                        balance,
+                        requiredBalance: minBalance,
+                        executor: wallet.address
+                    },
                     "wallet has insufficient balance"
                 )
                 throw new Error(
-                    `wallet ${wallet.address} has insufficient balance ${formatEther(balance)} < ${formatEther(
-                        minBalance
-                    )}`
+                    `wallet ${
+                        wallet.address
+                    } has insufficient balance ${formatEther(
+                        balance
+                    )} < ${formatEther(minBalance)}`
                 )
             }
         })
@@ -81,30 +95,44 @@ export class SenderManager {
         walletClient: WalletClient<Transport, Chain, undefined>,
         minBalance: bigint
     ): Promise<void> {
-        const utilityWalletBalance = await publicClient.getBalance({ address: this.utilityAccount.address })
+        const utilityWalletBalance = await publicClient.getBalance({
+            address: this.utilityAccount.address
+        })
 
         const balancesMissing: Record<Address, bigint> = {}
 
-        const balanceRequestPromises = this.availableWallets.map(async (wallet) => {
-            const balance = await publicClient.getBalance({ address: wallet.address })
+        const balanceRequestPromises = this.availableWallets.map(
+            async (wallet) => {
+                const balance = await publicClient.getBalance({
+                    address: wallet.address
+                })
 
-            if (balance < minBalance) {
-                const missingBalance = (minBalance * 6n) / 5n - balance
-                balancesMissing[wallet.address] = missingBalance
+                if (balance < minBalance) {
+                    const missingBalance = (minBalance * 6n) / 5n - balance
+                    balancesMissing[wallet.address] = missingBalance
+                }
             }
-        })
+        )
 
         await Promise.all(balanceRequestPromises)
 
-        const totalBalanceMissing = Object.values(balancesMissing).reduce((a, b) => a + b, 0n)
+        const totalBalanceMissing = Object.values(balancesMissing).reduce(
+            (a, b) => a + b,
+            0n
+        )
         if (utilityWalletBalance < (totalBalanceMissing * 11n) / 10n) {
-            this.logger.info({ balancesMissing, totalBalanceMissing }, "balances missing")
+            this.logger.info(
+                { balancesMissing, totalBalanceMissing },
+                "balances missing"
+            )
             this.logger.error(
                 { utilityWalletBalance, totalBalanceMissing },
                 "utility wallet has insufficient balance to refill wallets"
             )
             throw new Error(
-                `utility wallet ${this.utilityAccount.address} has insufficient balance ${formatEther(
+                `utility wallet ${
+                    this.utilityAccount.address
+                } has insufficient balance ${formatEther(
                     utilityWalletBalance
                 )} < ${formatEther(totalBalanceMissing)}`
             )
@@ -117,9 +145,15 @@ export class SenderManager {
                 this.logger
             )
 
-            if (walletClient.chain.id === 59140 || walletClient.chain.id === 137 || walletClient.chain.id === 10) {
+            if (
+                walletClient.chain.id === 59140 ||
+                walletClient.chain.id === 137 ||
+                walletClient.chain.id === 10
+            ) {
                 const instructions = []
-                for (const [address, missingBalance] of Object.entries(balancesMissing)) {
+                for (const [address, missingBalance] of Object.entries(
+                    balancesMissing
+                )) {
                     instructions.push({
                         to: address as Address,
                         value: missingBalance,
@@ -151,23 +185,39 @@ export class SenderManager {
 
                 await waitForTransactionReceipt(publicClient, tx)
 
-                for (const [address, missingBalance] of Object.entries(balancesMissing)) {
-                    this.logger.info({ tx, executor: address, missingBalance }, "refilled wallet")
+                for (const [address, missingBalance] of Object.entries(
+                    balancesMissing
+                )) {
+                    this.logger.info(
+                        { tx, executor: address, missingBalance },
+                        "refilled wallet"
+                    )
                 }
             } else {
-                for (const [address, missingBalance] of Object.entries(balancesMissing)) {
+                for (const [address, missingBalance] of Object.entries(
+                    balancesMissing
+                )) {
                     const tx = await walletClient.sendTransaction({
                         account: this.utilityAccount,
                         // @ts-ignore
                         to: address,
                         value: missingBalance,
-                        maxFeePerGas: this.noEip1559Support ? undefined : maxFeePerGas,
-                        maxPriorityFeePerGas: this.noEip1559Support ? undefined : maxPriorityFeePerGas,
-                        gasPrice: this.noEip1559Support ? maxFeePerGas : undefined
+                        maxFeePerGas: this.noEip1559Support
+                            ? undefined
+                            : maxFeePerGas,
+                        maxPriorityFeePerGas: this.noEip1559Support
+                            ? undefined
+                            : maxPriorityFeePerGas,
+                        gasPrice: this.noEip1559Support
+                            ? maxFeePerGas
+                            : undefined
                     })
 
                     await waitForTransactionReceipt(publicClient, tx)
-                    this.logger.info({ tx, executor: address, missingBalance }, "refilled wallet")
+                    this.logger.info(
+                        { tx, executor: address, missingBalance },
+                        "refilled wallet"
+                    )
                 }
             }
         } else {
@@ -176,7 +226,9 @@ export class SenderManager {
     }
 
     async getWallet(): Promise<Account> {
-        this.logger.trace(`waiting for semaphore with count ${this.semaphore.getValue()}`)
+        this.logger.trace(
+            `waiting for semaphore with count ${this.semaphore.getValue()}`
+        )
         await this.semaphore.waitForUnlock()
         await this.semaphore.acquire()
         const wallet = this.availableWallets.shift()
@@ -188,7 +240,10 @@ export class SenderManager {
             throw new Error("no more wallets")
         }
 
-        this.logger.trace({ executor: wallet.address }, "got wallet from sender manager")
+        this.logger.trace(
+            { executor: wallet.address },
+            "got wallet from sender manager"
+        )
 
         this.metrics.walletsAvailable.set(this.availableWallets.length)
 
@@ -199,7 +254,10 @@ export class SenderManager {
         // push to the end of the queue
         this.availableWallets.push(wallet)
         this.semaphore.release()
-        this.logger.trace({ executor: wallet.address }, "pushed wallet to sender manager")
+        this.logger.trace(
+            { executor: wallet.address },
+            "pushed wallet to sender manager"
+        )
         this.metrics.walletsAvailable.set(this.availableWallets.length)
         return
     }

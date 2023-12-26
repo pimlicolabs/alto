@@ -17,7 +17,10 @@ function logLevel(label: string) {
     }
 }
 
-function stringifyWithCircularHandling(obj: AnyObject, replacer?: (key: string, value: any) => any): string {
+function stringifyWithCircularHandling(
+    obj: AnyObject,
+    replacer?: (key: string, value: any) => any
+): string {
     const cache: Set<any> = new Set()
     return JSON.stringify(obj, (key, value) => {
         if (typeof value === "object" && value !== null) {
@@ -39,7 +42,9 @@ export const customSerializer: SerializerFn = (input: AnyObject): AnyObject => {
             const value = input[key]
             if (typeof value === "object" && value !== null) {
                 // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument
-                output[key] = JSON.parse(stringifyWithCircularHandling(value, bigintToJson))
+                output[key] = JSON.parse(
+                    stringifyWithCircularHandling(value, bigintToJson)
+                )
             } else {
                 // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
                 output[key] = bigintToJson(key, value)

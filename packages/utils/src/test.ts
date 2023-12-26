@@ -118,7 +118,11 @@ export const deployContract = async (
     return contractAddress
 }
 
-export function getUserOpHash(op: UserOperation, entryPoint: Address, chainId: number): HexData32 {
+export function getUserOpHash(
+    op: UserOperation,
+    entryPoint: Address,
+    chainId: number
+): HexData32 {
     const hashedUserOp = {
         sender: op.sender,
         nonce: op.nonce,
@@ -148,20 +152,23 @@ export function getUserOpHash(op: UserOperation, entryPoint: Address, chainId: n
         name: "hashedUserOp",
         type: "tuple"
     }
-    const encoded: HexData = encodeAbiParameters([userOpType], [{ ...hashedUserOp }])
+    const encoded: HexData = encodeAbiParameters(
+        [userOpType],
+        [{ ...hashedUserOp }]
+    )
     // remove leading word (total length) and trailing word (zero-length signature)
 
     const userOpHash = keccak256(encoded)
-    const enc = encodeAbiParameters(parseAbiParameters("bytes32, address, uint256"), [
-        userOpHash,
-        entryPoint,
-        BigInt(chainId)
-    ])
+    const enc = encodeAbiParameters(
+        parseAbiParameters("bytes32, address, uint256"),
+        [userOpHash, entryPoint, BigInt(chainId)]
+    )
     return keccak256(enc)
 }
 
 export const parseSenderAddressError = (e: Error): Address => {
-    const entryPointExecutionErrorSchemaParsing = entryPointExecutionErrorSchema.safeParse(e)
+    const entryPointExecutionErrorSchemaParsing =
+        entryPointExecutionErrorSchema.safeParse(e)
     if (!entryPointExecutionErrorSchemaParsing.success) {
         sentry.captureException(e)
         throw fromZodError(entryPointExecutionErrorSchemaParsing.error)

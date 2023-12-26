@@ -1,5 +1,18 @@
-import { Address, BundleResult, EntryPointAbi, HexData32, TransactionInfo, UserOperation } from "@alto/types"
-import { Logger, Metrics, getGasPrice, getUserOperationHash, parseViemError } from "@alto/utils"
+import {
+    Address,
+    BundleResult,
+    EntryPointAbi,
+    HexData32,
+    TransactionInfo,
+    UserOperation
+} from "@alto/types"
+import {
+    Logger,
+    Metrics,
+    getGasPrice,
+    getUserOperationHash,
+    parseViemError
+} from "@alto/utils"
 import { Mutex } from "async-mutex"
 import {
     Account,
@@ -14,7 +27,12 @@ import {
     getContract
 } from "viem"
 import { SenderManager } from "./senderManager"
-import { filterOpsAndEstimateGas, flushStuckTransaction, simulatedOpsToResults } from "./utils"
+import { IReputationManager } from "@alto/mempool"
+import {
+    filterOpsAndEstimateGas,
+    flushStuckTransaction,
+    simulatedOpsToResults
+} from "./utils"
 import * as sentry from "@sentry/node"
 
 export interface GasEstimateResult {
@@ -37,17 +55,24 @@ export type ReplaceTransactionResult =
 
 export interface IExecutor {
     bundle(entryPoint: Address, ops: UserOperation[]): Promise<BundleResult[]>
-    replaceTransaction(transactionInfo: TransactionInfo): Promise<ReplaceTransactionResult>
+    replaceTransaction(
+        transactionInfo: TransactionInfo
+    ): Promise<ReplaceTransactionResult>
     cancelOps(entryPoint: Address, ops: UserOperation[]): Promise<void>
     markWalletProcessed(executor: Account): Promise<void>
     flushStuckTransactions(): Promise<void>
 }
 
 export class NullExecutor implements IExecutor {
-    async bundle(entryPoint: Address, ops: UserOperation[]): Promise<BundleResult[]> {
+    async bundle(
+        entryPoint: Address,
+        ops: UserOperation[]
+    ): Promise<BundleResult[]> {
         return []
     }
-    async replaceTransaction(transactionInfo: TransactionInfo): Promise<ReplaceTransactionResult> {
+    async replaceTransaction(
+        transactionInfo: TransactionInfo
+    ): Promise<ReplaceTransactionResult> {
         return { status: "failed" }
     }
     async replaceOps(opHahes: HexData32[]): Promise<void> {}
@@ -69,6 +94,7 @@ export class BasicExecutor implements IExecutor {
     noEip1559Support: boolean
     customGasLimitForEstimation?: bigint
     useUserOperationGasLimitsForSubmission: boolean
+    reputationManager: IReputationManager
 
     mutex: Mutex
 
@@ -76,6 +102,7 @@ export class BasicExecutor implements IExecutor {
         publicClient: PublicClient,
         walletClient: WalletClient<Transport, Chain, Account | undefined>,
         senderManager: SenderManager,
+        reputationManager: IReputationManager,
         entryPoint: Address,
         logger: Logger,
         metrics: Metrics,
@@ -87,13 +114,15 @@ export class BasicExecutor implements IExecutor {
         this.publicClient = publicClient
         this.walletClient = walletClient
         this.senderManager = senderManager
+        this.reputationManager = reputationManager
         this.entryPoint = entryPoint
         this.logger = logger
         this.metrics = metrics
         this.simulateTransaction = simulateTransaction
         this.noEip1559Support = noEip1559Support
         this.customGasLimitForEstimation = customGasLimitForEstimation
-        this.useUserOperationGasLimitsForSubmission = useUserOperationGasLimitsForSubmission
+        this.useUserOperationGasLimitsForSubmission =
+            useUserOperationGasLimitsForSubmission
 
         this.mutex = new Mutex()
     }
@@ -108,10 +137,16 @@ export class BasicExecutor implements IExecutor {
         }
     }
 
-    async replaceTransaction(transactionInfo: TransactionInfo): Promise<ReplaceTransactionResult> {
+    async replaceTransaction(
+        transactionInfo: TransactionInfo
+    ): Promise<ReplaceTransactionResult> {
         const newRequest = { ...transactionInfo.transactionRequest }
 
-        const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
+        const gasPriceParameters = await getGasPrice(
+            this.walletClient.chain.id,
+            this.publicClient,
+            this.logger
+        )
 
         newRequest.maxFeePerGas =
             gasPriceParameters.maxFeePerGas > (newRequest.maxFeePerGas * 111n) / 100n
@@ -119,7 +154,8 @@ export class BasicExecutor implements IExecutor {
                 : (newRequest.maxFeePerGas * 111n) / 100n
 
         newRequest.maxPriorityFeePerGas =
-            gasPriceParameters.maxPriorityFeePerGas > (newRequest.maxPriorityFeePerGas * 11n) / 10n
+            gasPriceParameters.maxPriorityFeePerGas >
+            (newRequest.maxPriorityFeePerGas * 11n) / 10n
                 ? gasPriceParameters.maxPriorityFeePerGas
                 : (newRequest.maxPriorityFeePerGas * 11n) / 10n
         newRequest.account = transactionInfo.executor
@@ -141,6 +177,7 @@ export class BasicExecutor implements IExecutor {
             "latest",
             this.noEip1559Support,
             this.customGasLimitForEstimation,
+            this.reputationManager,
             this.logger
         )
 
@@ -157,7 +194,9 @@ export class BasicExecutor implements IExecutor {
 
         if (
             result.simulatedOps.every(
-                (op) => op.reason === "AA25 invalid account nonce" || op.reason === "AA10 sender already constructed"
+                (op) =>
+                    op.reason === "AA25 invalid account nonce" ||
+                    op.reason === "AA10 sender already constructed"
             )
         ) {
             childLogger.trace(
@@ -196,12 +235,19 @@ export class BasicExecutor implements IExecutor {
               ) * 1n
             : result.gasLimit
 
-        newRequest.args = [opsToBundle.map((owh) => owh.userOperation), transactionInfo.executor.address]
+        newRequest.args = [
+            opsToBundle.map((owh) => owh.userOperation),
+            transactionInfo.executor.address
+        ]
 
         try {
             childLogger.info(
                 {
-                    newRequest: { ...newRequest, abi: undefined, chain: undefined },
+                    newRequest: {
+                        ...newRequest,
+                        abi: undefined,
+                        chain: undefined
+                    },
                     executor: newRequest.account.address,
                     opsToBundle: opsToBundle.map((op) => op.userOperationHash)
                 },
@@ -245,11 +291,17 @@ export class BasicExecutor implements IExecutor {
             const e = parseViemError(err)
             if (!e) {
                 sentry.captureException(err)
-                childLogger.error({ error: err }, "unknown error replacing transaction")
+                childLogger.error(
+                    { error: err },
+                    "unknown error replacing transaction"
+                )
             }
 
             if (e instanceof NonceTooLowError) {
-                childLogger.trace({ error: e }, "nonce too low, potentially already included")
+                childLogger.trace(
+                    { error: e },
+                    "nonce too low, potentially already included"
+                )
                 return { status: "potentially_already_included" }
             }
 
@@ -258,11 +310,17 @@ export class BasicExecutor implements IExecutor {
             }
 
             if (e instanceof InsufficientFundsError) {
-                childLogger.warn({ error: e }, "insufficient funds, not replacing")
+                childLogger.warn(
+                    { error: e },
+                    "insufficient funds, not replacing"
+                )
             }
 
             if (e instanceof IntrinsicGasTooLowError) {
-                childLogger.warn({ error: e }, "intrinsic gas too low, not replacing")
+                childLogger.warn(
+                    { error: e },
+                    "intrinsic gas too low, not replacing"
+                )
             }
 
             childLogger.warn({ error: e }, "error replacing transaction")
@@ -272,9 +330,18 @@ export class BasicExecutor implements IExecutor {
     }
 
     async flushStuckTransactions(): Promise<void> {
-        const gasPrice = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
+        const gasPrice = await getGasPrice(
+            this.walletClient.chain.id,
+            this.publicClient,
+            this.logger
+        )
 
-        const wallets = Array.from(new Set([...this.senderManager.wallets, this.senderManager.utilityAccount]))
+        const wallets = Array.from(
+            new Set([
+                ...this.senderManager.wallets,
+                this.senderManager.utilityAccount
+            ])
+        )
         const promises = wallets.map(async (wallet) => {
             return flushStuckTransaction(
                 this.publicClient,
@@ -288,11 +355,18 @@ export class BasicExecutor implements IExecutor {
         await Promise.all(promises)
     }
 
-    async bundle(entryPoint: Address, ops: UserOperation[]): Promise<BundleResult[]> {
+    async bundle(
+        entryPoint: Address,
+        ops: UserOperation[]
+    ): Promise<BundleResult[]> {
         const opsWithHashes = ops.map((op) => {
             return {
                 userOperation: op,
-                userOperationHash: getUserOperationHash(op, entryPoint, this.walletClient.chain.id)
+                userOperationHash: getUserOperationHash(
+                    op,
+                    entryPoint,
+                    this.walletClient.chain.id
+                )
             }
         })
 
@@ -311,7 +385,11 @@ export class BasicExecutor implements IExecutor {
         })
         childLogger.debug("bundling user operation")
 
-        const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
+        const gasPriceParameters = await getGasPrice(
+            this.walletClient.chain.id,
+            this.publicClient,
+            this.logger
+        )
         childLogger.debug({ gasPriceParameters }, "got gas price")
 
         const nonce = await this.publicClient.getTransactionCount({
@@ -330,11 +408,14 @@ export class BasicExecutor implements IExecutor {
             "pending",
             this.noEip1559Support,
             this.customGasLimitForEstimation,
+            this.reputationManager,
             childLogger
         )
 
         if (simulatedOps.length === 0) {
-            childLogger.error("gas limit simulation encountered unexpected failure")
+            childLogger.error(
+                "gas limit simulation encountered unexpected failure"
+            )
             this.markWalletProcessed(wallet)
             return opsWithHashes.map((owh) => {
                 return {
@@ -361,14 +442,22 @@ export class BasicExecutor implements IExecutor {
             })
         }
 
-        const opsToBundle = simulatedOps.filter((op) => op.reason === undefined).map((op) => op.op)
+        const opsToBundle = simulatedOps
+            .filter((op) => op.reason === undefined)
+            .map((op) => op.op)
 
         childLogger = this.logger.child({
             userOperations: opsToBundle.map((oh) => oh.userOperation),
             entryPoint
         })
 
-        childLogger.trace({ gasLimit, opsToBundle: opsToBundle.map((sop) => sop.userOperationHash) }, "got gas limit")
+        childLogger.trace(
+            {
+                gasLimit,
+                opsToBundle: opsToBundle.map((sop) => sop.userOperationHash)
+            },
+            "got gas limit"
+        )
 
         let txHash: HexData32
         try {
@@ -385,13 +474,17 @@ export class BasicExecutor implements IExecutor {
                           account: wallet,
                           gas: gasLimit,
                           maxFeePerGas: gasPriceParameters.maxFeePerGas,
-                          maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
+                          maxPriorityFeePerGas:
+                              gasPriceParameters.maxPriorityFeePerGas,
                           nonce: nonce
                       }
             )
         } catch (err: unknown) {
             sentry.captureException(err)
-            childLogger.error({ error: JSON.stringify(err) }, "error submitting bundle transaction")
+            childLogger.error(
+                { error: JSON.stringify(err) },
+                "error submitting bundle transaction"
+            )
             this.markWalletProcessed(wallet)
             return opsWithHashes.map((owh) => {
                 return {
@@ -422,7 +515,10 @@ export class BasicExecutor implements IExecutor {
                 address: ep.address,
                 abi: ep.abi,
                 functionName: "handleOps",
-                args: [opsToBundle.map((owh) => owh.userOperation), wallet.address],
+                args: [
+                    opsToBundle.map((owh) => owh.userOperation),
+                    wallet.address
+                ],
                 gas: gasLimit,
                 account: wallet,
                 chain: this.walletClient.chain,
@@ -437,10 +533,16 @@ export class BasicExecutor implements IExecutor {
             timesPotentiallyIncluded: 0
         }
 
-        const userOperationResults: BundleResult[] = simulatedOpsToResults(simulatedOps, transactionInfo)
+        const userOperationResults: BundleResult[] = simulatedOpsToResults(
+            simulatedOps,
+            transactionInfo
+        )
 
         childLogger.info(
-            { txHash, opHashes: opsToBundle.map((owh) => owh.userOperationHash) },
+            {
+                txHash,
+                opHashes: opsToBundle.map((owh) => owh.userOperationHash)
+            },
             "submitted bundle transaction"
         )
 

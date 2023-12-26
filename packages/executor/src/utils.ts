@@ -1,4 +1,11 @@
-import { BundleResult, EntryPointAbi, TransactionInfo, UserOperationWithHash, failedOpErrorSchema } from "@alto/types"
+import { IReputationManager } from "@alto/mempool"
+import {
+    BundleResult,
+    EntryPointAbi,
+    TransactionInfo,
+    UserOperationWithHash,
+    failedOpErrorSchema
+} from "@alto/types"
 import { Logger, parseViemError, transactionIncluded } from "@alto/utils"
 import {
     Account,
@@ -57,6 +64,7 @@ export async function filterOpsAndEstimateGas(
     blockTag: "latest" | "pending",
     onlyPre1559: boolean,
     customGasLimitForEstimation: bigint | undefined,
+    reputationManager: IReputationManager,
     logger: Logger
 ) {
     const simulatedOps: {
@@ -71,7 +79,12 @@ export async function filterOpsAndEstimateGas(
     while (simulatedOps.filter((op) => op.reason === undefined).length > 0) {
         try {
             gasLimit = await ep.estimateGas.handleOps(
-                [simulatedOps.filter((op) => op.reason === undefined).map((op) => op.op.userOperation), wallet.address],
+                [
+                    simulatedOps
+                        .filter((op) => op.reason === undefined)
+                        .map((op) => op.op.userOperation),
+                    wallet.address
+                ],
                 onlyPre1559
                     ? {
                           account: wallet,
@@ -107,11 +120,15 @@ export async function filterOpsAndEstimateGas(
                         "user op in batch invalid"
                     )
 
-                    const failingOp = simulatedOps.filter((op) => op.reason === undefined)[
-                        Number(failedOpError.args.opIndex)
-                    ]
+                    const failingOp = simulatedOps.filter(
+                        (op) => op.reason === undefined
+                    )[Number(failedOpError.args.opIndex)]
 
                     failingOp.reason = failedOpError.args.reason
+                    reputationManager.crashedHandleOps(
+                        failingOp.op.userOperation,
+                        failingOp.reason
+                    )
                 } else {
                     sentry.captureException(err)
                     logger.error(
@@ -142,22 +159,33 @@ export async function filterOpsAndEstimateGas(
 
                     if (errorResult.errorName !== "FailedOp") {
                         logger.error(
-                            { errorName: errorResult.errorName, args: errorResult.args },
+                            {
+                                errorName: errorResult.errorName,
+                                args: errorResult.args
+                            },
                             "unexpected error result"
                         )
                         return { simulatedOps: [], gasLimit: 0n }
                     }
 
-                    const failingOp = simulatedOps.filter((op) => op.reason === undefined)[Number(errorResult.args[0])]
+                    const failingOp = simulatedOps.filter(
+                        (op) => op.reason === undefined
+                    )[Number(errorResult.args[0])]
 
                     failingOp.reason = errorResult.args[1]
                 } catch (e: unknown) {
-                    logger.error({ error: JSON.stringify(err) }, "failed to parse error result")
+                    logger.error(
+                        { error: JSON.stringify(err) },
+                        "failed to parse error result"
+                    )
                     return { simulatedOps: [], gasLimit: 0n }
                 }
             } else {
                 sentry.captureException(err)
-                logger.error({ error: JSON.stringify(err) }, "error estimating gas")
+                logger.error(
+                    { error: JSON.stringify(err) },
+                    "error estimating gas"
+                )
                 return { simulatedOps: [], gasLimit: 0n }
             }
         }
@@ -181,7 +209,10 @@ export async function flushStuckTransaction(
         blockTag: "pending"
     })
 
-    logger.debug({ latestNonce, pendingNonce, wallet: wallet.address }, "checking for stuck transactions")
+    logger.debug(
+        { latestNonce, pendingNonce, wallet: wallet.address },
+        "checking for stuck transactions"
+    )
 
     // same nonce is okay
     if (latestNonce === pendingNonce) {
@@ -193,9 +224,16 @@ export async function flushStuckTransaction(
         return
     }
 
-    logger.info({ latestNonce, pendingNonce, wallet: wallet.address }, "found stuck transaction, flushing")
+    logger.info(
+        { latestNonce, pendingNonce, wallet: wallet.address },
+        "found stuck transaction, flushing"
+    )
 
-    for (let nonceToFlush = latestNonce; nonceToFlush < pendingNonce; nonceToFlush++) {
+    for (
+        let nonceToFlush = latestNonce;
+        nonceToFlush < pendingNonce;
+        nonceToFlush++
+    ) {
         try {
             const txHash = await walletClient.sendTransaction({
                 account: wallet,
@@ -206,7 +244,10 @@ export async function flushStuckTransaction(
                 maxPriorityFeePerGas: gasPrice
             })
 
-            logger.debug({ txHash, nonce: nonceToFlush, wallet: wallet.address }, "flushed stuck transaction")
+            logger.debug(
+                { txHash, nonce: nonceToFlush, wallet: wallet.address },
+                "flushed stuck transaction"
+            )
 
             await transactionIncluded(txHash, publicClient)
         } catch (e) {

@@ -1,4 +1,5 @@
 export enum ValidationErrors {
+    InvalidRequest = -32601,
     InvalidFields = -32602,
     SimulateValidation = -32500,
     SimulatePaymasterValidation = -32501,
@@ -26,3 +27,5 @@ export class RpcError extends Error {
         this.data = data
     }
 }
+
+export type Environment = "production" | "staging" | "development"

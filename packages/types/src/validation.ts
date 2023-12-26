@@ -5,7 +5,7 @@ import { EntryPointAbi } from "./contracts/EntryPoint"
 import { RpcError } from "."
 
 export type StakeInfo = {
-    addr: string
+    addr?: string
     stake: bigint
     unstakeDelaySec: bigint
 }
@@ -21,22 +21,28 @@ export type StorageMap = {
 // hexnum regex
 const hexPattern = /^0x[0-9a-f]*$/
 
-export const signatureValidationFailedSchema = z.tuple([addressSchema]).transform((val) => {
-    return { aggregator: val[0] }
-})
+export const signatureValidationFailedSchema = z
+    .tuple([addressSchema])
+    .transform((val) => {
+        return { aggregator: val[0] }
+    })
 
-export type SignatureValidationFailed = z.infer<typeof signatureValidationFailedSchema>
+export type SignatureValidationFailed = z.infer<
+    typeof signatureValidationFailedSchema
+>
 
 export const signatureValidationFailedErrorSchema = z.object({
     args: signatureValidationFailedSchema,
     errorName: z.literal("SignatureValidationFailed")
 })
 
-export const senderAddressResultSchema = z.tuple([addressSchema]).transform((val) => {
-    return {
-        sender: val[0]
-    }
-})
+export const senderAddressResultSchema = z
+    .tuple([addressSchema])
+    .transform((val) => {
+        return {
+            sender: val[0]
+        }
+    })
 
 export type SenderAddressResult = z.infer<typeof senderAddressResultSchema>
 
@@ -45,9 +51,11 @@ export const senderAddressResultErrorSchema = z.object({
     errorName: z.literal("SenderAddressResult")
 })
 
-export const failedOpSchema = z.tuple([z.bigint(), z.string()]).transform((val) => {
-    return { opIndex: val[0], reason: val[1] }
-})
+export const failedOpSchema = z
+    .tuple([z.bigint(), z.string()])
+    .transform((val) => {
+        return { opIndex: val[0], reason: val[1] }
+    })
 
 export type FailedOp = z.infer<typeof failedOpSchema>
 
@@ -57,7 +65,14 @@ export const failedOpErrorSchema = z.object({
 })
 
 export const executionResultSchema = z
-    .tuple([z.bigint(), z.bigint(), z.number(), z.number(), z.boolean(), z.string().regex(hexPattern)])
+    .tuple([
+        z.bigint(),
+        z.bigint(),
+        z.number(),
+        z.number(),
+        z.boolean(),
+        z.string().regex(hexPattern)
+    ])
     .transform((val) => {
         return {
             preOpGas: val[0],
@@ -77,6 +92,7 @@ export const executionResultErrorSchema = z.object({
 })
 
 const stakeInfoSchema = z.object({
+    addr: z.string().optional(),
     stake: z.bigint(),
     unstakeDelaySec: z.bigint()
 })
@@ -95,8 +111,8 @@ export const validationResultSchema = z
                 .transform((val) => val as HexData)
         }),
         stakeInfoSchema,
-        stakeInfoSchema,
-        stakeInfoSchema
+        stakeInfoSchema.optional(),
+        stakeInfoSchema.optional()
     ])
     .transform((val) => {
         return {
@@ -130,12 +146,14 @@ export const validationResultWithAggregationSchema = z
                 .transform((val) => val as HexData)
         }),
         stakeInfoSchema,
-        stakeInfoSchema,
-        stakeInfoSchema,
-        z.object({
-            aggregator: addressSchema,
-            stakeInfo: stakeInfoSchema
-        })
+        stakeInfoSchema.optional(),
+        stakeInfoSchema.optional(),
+        z
+            .object({
+                aggregator: addressSchema,
+                stakeInfo: stakeInfoSchema
+            })
+            .optional()
     ])
     .transform((val) => {
         return {
@@ -147,7 +165,9 @@ export const validationResultWithAggregationSchema = z
         }
     })
 
-export type ValidationResultWithAggregation = z.infer<typeof validationResultWithAggregationSchema>
+export type ValidationResultWithAggregation = z.infer<
+    typeof validationResultWithAggregationSchema
+>
 
 export const validationResultWithAggregationErrorSchema = z.object({
     args: validationResultWithAggregationSchema,
@@ -178,12 +198,14 @@ export const vmExecutionError = z.object({
             data: z.string().transform((val) => {
                 const errorHexData = val.split("Reverted ")[1] as HexData
                 if (errorHexData === "0x") {
-                    console.log(val)
                     throw new RpcError(
                         `User operation reverted on-chain with unknown error (some chains don't return revert reason) ${val}`
                     )
                 }
-                const errorResult = decodeErrorResult({ abi: EntryPointAbi, data: errorHexData })
+                const errorResult = decodeErrorResult({
+                    abi: EntryPointAbi,
+                    data: errorHexData
+                })
                 return entryPointErrorsSchema.parse(errorResult)
             })
         })
@@ -193,14 +215,18 @@ export const vmExecutionError = z.object({
 export const entryPointExecutionErrorSchema = z
     .object({
         name: z.literal("ContractFunctionExecutionError"),
-        cause: z.discriminatedUnion("name", [errorCauseSchema, vmExecutionError])
+        cause: z.discriminatedUnion("name", [
+            errorCauseSchema,
+            vmExecutionError
+        ])
     })
     .transform((val) => {
         if (val.cause.name === "CallExecutionError") {
             return val.cause.cause.cause.data
-        } else {
-            return val.cause.data
         }
+        return val.cause.data
     })
 
-export type EntryPointExecutionError = z.infer<typeof entryPointExecutionErrorSchema>
+export type EntryPointExecutionError = z.infer<
+    typeof entryPointExecutionErrorSchema
+>

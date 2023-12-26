@@ -18,11 +18,11 @@ export const hexNumberSchema = z
 const hexDataSchema = z
     .string()
     .regex(hexDataPattern, { message: "not valid hex data" })
-    .transform((val) => val.toLowerCase() as Hex)
+    .transform((val) => val as Hex)
 const hexData32Schema = z
     .string()
     .regex(hexData32Pattern, { message: "not valid 32-byte hex data" })
-    .transform((val) => val.toLowerCase() as Hash)
+    .transform((val) => val as Hash)
 
 export type Address = z.infer<typeof addressSchema>
 export type HexNumber = z.infer<typeof hexNumberSchema>
@@ -133,16 +133,31 @@ const sendUserOperationRequestSchema = z.object({
 
 const getUserOperationByHashRequestSchema = z.object({
     method: z.literal("eth_getUserOperationByHash"),
-    params: z.tuple([hexData32Schema])
+    params: z.tuple([
+        z
+            .string()
+            .regex(hexData32Pattern, { message: "Missing/invalid userOpHash" })
+            .transform((val) => val as Hex)
+    ])
 })
 
 const getUserOperationReceiptRequestSchema = z.object({
     method: z.literal("eth_getUserOperationReceipt"),
-    params: z.tuple([hexData32Schema])
+    params: z.tuple([
+        z
+            .string()
+            .regex(hexData32Pattern, { message: "Missing/invalid userOpHash" })
+            .transform((val) => val as Hex)
+    ])
 })
 
 const bundlerClearStateRequestSchema = z.object({
     method: z.literal("debug_bundler_clearState"),
+    params: z.tuple([])
+})
+
+const bundlerClearMempoolRequestSchema = z.object({
+    method: z.literal("debug_bundler_clearMempool"),
     params: z.tuple([])
 })
 
@@ -159,6 +174,30 @@ const bundlerSendBundleNowRequestSchema = z.object({
 const bundlerSetBundlingModeRequestSchema = z.object({
     method: z.literal("debug_bundler_setBundlingMode"),
     params: z.tuple([z.enum(["manual", "auto"])])
+})
+
+const bundlerSetReputationsRequestSchema = z.object({
+    method: z.literal("debug_bundler_setReputation"),
+    params: z.tuple([
+        z.array(
+            z.object({
+                address: addressSchema,
+                opsSeen: hexNumberSchema,
+                opsIncluded: hexNumberSchema
+            })
+        ),
+        addressSchema
+    ])
+})
+
+const bundlerDumpReputationsRequestSchema = z.object({
+    method: z.literal("debug_bundler_dumpReputation"),
+    params: z.tuple([addressSchema])
+})
+
+const pimlicoGetStakeStatusRequestSchema = z.object({
+    method: z.literal("debug_bundler_getStakeStatus"),
+    params: z.tuple([addressSchema, addressSchema])
 })
 
 const pimlicoGetUserOperationStatusRequestSchema = z.object({
@@ -179,9 +218,13 @@ const bundlerRequestSchema = z.discriminatedUnion("method", [
     getUserOperationByHashRequestSchema,
     getUserOperationReceiptRequestSchema,
     bundlerClearStateRequestSchema,
+    bundlerClearMempoolRequestSchema,
     bundlerDumpMempoolRequestSchema,
     bundlerSendBundleNowRequestSchema,
     bundlerSetBundlingModeRequestSchema,
+    bundlerSetReputationsRequestSchema,
+    bundlerDumpReputationsRequestSchema,
+    pimlicoGetStakeStatusRequestSchema,
     pimlicoGetUserOperationStatusRequestSchema,
     pimlicoGetUserOperationGasPriceRequestSchema
 ])
@@ -275,9 +318,34 @@ const bundlerClearStateResponseSchema = z.object({
     result: z.literal("ok")
 })
 
+const bundlerClearMempoolResponseSchema = z.object({
+    method: z.literal("debug_bundler_clearMempool"),
+    result: z.literal("ok")
+})
+
 const bundlerDumpMempoolResponseSchema = z.object({
     method: z.literal("debug_bundler_dumpMempool"),
     result: z.array(userOperationSchema)
+})
+
+const bundlerGetStakeStatusResponseSchema = z.object({
+    method: z.literal("debug_bundler_getStakeStatus"),
+    result: z.object({
+        stakeInfo: z.object({
+            addr: z.string(),
+            stake: z
+                .string()
+                .or(z.number())
+                .or(z.bigint())
+                .transform((val) => Number(val).toString()),
+            unstakeDelaySec: z
+                .string()
+                .or(z.number())
+                .or(z.bigint())
+                .transform((val) => Number(val).toString())
+        }),
+        isStaked: z.boolean()
+    })
 })
 
 const bundlerSendBundleNowResponseSchema = z.object({
@@ -290,8 +358,34 @@ const bundlerSetBundlingModeResponseSchema = z.object({
     result: z.literal("ok")
 })
 
+const bundlerSetReputationsResponseSchema = z.object({
+    method: z.literal("debug_bundler_setReputation"),
+    result: z.literal("ok")
+})
+
+const bundlerDumpReputationsResponseSchema = z.object({
+    method: z.literal("debug_bundler_dumpReputation"),
+    // TODO: FIX
+    result: z.array(
+        z.object({
+            address: addressSchema,
+            opsSeen: hexNumberSchema,
+            opsIncluded: hexNumberSchema,
+            status: hexNumberSchema.optional()
+        })
+    )
+})
+
 const userOperationStatus = z.object({
-    status: z.enum(["not_found", "not_submitted", "submitted", "rejected", "reverted", "included", "failed"]),
+    status: z.enum([
+        "not_found",
+        "not_submitted",
+        "submitted",
+        "rejected",
+        "reverted",
+        "included",
+        "failed"
+    ]),
     transactionHash: hexData32Schema.or(z.null())
 })
 
@@ -330,38 +424,114 @@ const bundlerResponseSchema = z.discriminatedUnion("method", [
     getUserOperationByHashResponseSchema,
     getUserOperationReceiptResponseSchema,
     bundlerClearStateResponseSchema,
+    bundlerClearMempoolResponseSchema,
     bundlerDumpMempoolResponseSchema,
+    bundlerGetStakeStatusResponseSchema,
     bundlerSendBundleNowResponseSchema,
     bundlerSetBundlingModeResponseSchema,
+    bundlerSetReputationsResponseSchema,
+    bundlerDumpReputationsResponseSchema,
     pimlicoGetUserOperationStatusResponseSchema,
     pimlicoGetUserOperationGasPriceResponseSchema
 ])
 
-export type BundlingMode = z.infer<typeof bundlerSetBundlingModeRequestSchema>["params"][0]
+export type BundlingMode = z.infer<
+    typeof bundlerSetBundlingModeRequestSchema
+>["params"][0]
+
+export type Reputations = z.infer<
+    typeof bundlerSetReputationsRequestSchema
+>["params"][0]
 
 export type ChainIdResponse = z.infer<typeof chainIdResponseSchema>
-export type SupportedEntryPointsResponse = z.infer<typeof supportedEntryPointsResponseSchema>
-export type EstimateUserOperationGasResponse = z.infer<typeof estimateUserOperationGasResponseSchema>
-export type SendUserOperationResponse = z.infer<typeof sendUserOperationResponseSchema>
-export type GetUserOperationByHashResponse = z.infer<typeof getUserOperationByHashResponseSchema>
-export type GetUserOperationReceiptResponse = z.infer<typeof getUserOperationReceiptResponseSchema>
-export type BundlerClearStateResponse = z.infer<typeof bundlerClearStateResponseSchema>
-export type BundlerDumpMempoolResponse = z.infer<typeof bundlerDumpMempoolResponseSchema>
-export type BundlerSendBundleNowResponse = z.infer<typeof bundlerSendBundleNowResponseSchema>
-export type BundlerSetBundlingModeResponse = z.infer<typeof bundlerSetBundlingModeResponseSchema>
-export type PimlicoGetUserOperationStatusResponse = z.infer<typeof pimlicoGetUserOperationStatusResponseSchema>
-export type PimlicoGetUserOperationGasPriceResponse = z.infer<typeof pimlicoGetUserOperationGasPriceResponseSchema>
+export type SupportedEntryPointsResponse = z.infer<
+    typeof supportedEntryPointsResponseSchema
+>
+export type EstimateUserOperationGasResponse = z.infer<
+    typeof estimateUserOperationGasResponseSchema
+>
+export type SendUserOperationResponse = z.infer<
+    typeof sendUserOperationResponseSchema
+>
+export type GetUserOperationByHashResponse = z.infer<
+    typeof getUserOperationByHashResponseSchema
+>
+export type GetUserOperationReceiptResponse = z.infer<
+    typeof getUserOperationReceiptResponseSchema
+>
+export type BundlerClearStateResponse = z.infer<
+    typeof bundlerClearStateResponseSchema
+>
+export type BundlerClearMempoolResponse = z.infer<
+    typeof bundlerClearMempoolResponseSchema
+>
+export type BundlerDumpMempoolResponse = z.infer<
+    typeof bundlerDumpMempoolResponseSchema
+>
+export type BundlerGetStakeStatusResponse = z.infer<
+    typeof bundlerGetStakeStatusResponseSchema
+>
+export type BundlerSendBundleNowResponse = z.infer<
+    typeof bundlerSendBundleNowResponseSchema
+>
+export type BundlerSetBundlingModeResponse = z.infer<
+    typeof bundlerSetBundlingModeResponseSchema
+>
+export type BundlerSetReputationsResponse = z.infer<
+    typeof bundlerSetReputationsResponseSchema
+>
+export type BundlerDumpReputationsResponse = z.infer<
+    typeof bundlerDumpReputationsResponseSchema
+>
+export type PimlicoGetUserOperationStatusResponse = z.infer<
+    typeof pimlicoGetUserOperationStatusResponseSchema
+>
+export type PimlicoGetUserOperationGasPriceResponse = z.infer<
+    typeof pimlicoGetUserOperationGasPriceResponseSchema
+>
 
-export type ChainIdResponseResult = z.infer<typeof chainIdResponseSchema>["result"]
-export type SupportedEntryPointsResponseResult = z.infer<typeof supportedEntryPointsResponseSchema>["result"]
-export type EstimateUserOperationGasResponseResult = z.infer<typeof estimateUserOperationGasResponseSchema>["result"]
-export type SendUserOperationResponseResult = z.infer<typeof sendUserOperationResponseSchema>["result"]
-export type GetUserOperationByHashResponseResult = z.infer<typeof getUserOperationByHashResponseSchema>["result"]
-export type GetUserOperationReceiptResponseResult = z.infer<typeof getUserOperationReceiptResponseSchema>["result"]
-export type BundlerClearStateResponseResult = z.infer<typeof bundlerClearStateResponseSchema>["result"]
-export type BundlerDumpMempoolResponseResult = z.infer<typeof bundlerDumpMempoolResponseSchema>["result"]
-export type BundlerSendBundleNowResponseResult = z.infer<typeof bundlerSendBundleNowResponseSchema>["result"]
-export type BundlerSetBundlingModeResponseResult = z.infer<typeof bundlerSetBundlingModeResponseSchema>["result"]
+export type ChainIdResponseResult = z.infer<
+    typeof chainIdResponseSchema
+>["result"]
+export type SupportedEntryPointsResponseResult = z.infer<
+    typeof supportedEntryPointsResponseSchema
+>["result"]
+export type EstimateUserOperationGasResponseResult = z.infer<
+    typeof estimateUserOperationGasResponseSchema
+>["result"]
+export type SendUserOperationResponseResult = z.infer<
+    typeof sendUserOperationResponseSchema
+>["result"]
+export type GetUserOperationByHashResponseResult = z.infer<
+    typeof getUserOperationByHashResponseSchema
+>["result"]
+export type GetUserOperationReceiptResponseResult = z.infer<
+    typeof getUserOperationReceiptResponseSchema
+>["result"]
+export type BundlerClearStateResponseResult = z.infer<
+    typeof bundlerClearStateResponseSchema
+>["result"]
+export type BundlerClearMempoolResponseResult = z.infer<
+    typeof bundlerClearMempoolResponseSchema
+>["result"]
+export type BundlerDumpMempoolResponseResult = z.infer<
+    typeof bundlerDumpMempoolResponseSchema
+>["result"]
+export type BundlerGetStakeStatusResponseResult = z.infer<
+    typeof bundlerGetStakeStatusResponseSchema
+>["result"]
+export type BundlerSendBundleNowResponseResult = z.infer<
+    typeof bundlerSendBundleNowResponseSchema
+>["result"]
+export type BundlerSetBundlingModeResponseResult = z.infer<
+    typeof bundlerSetBundlingModeResponseSchema
+>["result"]
+export type BundlerSetReputationsResponseResult = z.infer<
+    typeof bundlerSetReputationsResponseSchema
+>["result"]
+export type BundlerDumpReputationsResponseResult = z.infer<
+    typeof bundlerDumpReputationsResponseSchema
+>["result"]
 export type PimlicoGetUserOperationStatusResponseResult = z.infer<
     typeof pimlicoGetUserOperationStatusResponseSchema
 >["result"]
@@ -372,28 +542,94 @@ export type PimlicoGetUserOperationGasPriceResponseResult = z.infer<
 export type BundlerResponse = z.infer<typeof bundlerResponseSchema>
 
 export type ChainIdRequest = z.infer<typeof chainIdRequestSchema>
-export type SupportedEntryPointsRequest = z.infer<typeof supportedEntryPointsRequestSchema>
-export type EstimateUserOperationGasRequest = z.infer<typeof estimateUserOperationGasRequestSchema>
-export type SendUserOperationRequest = z.infer<typeof sendUserOperationRequestSchema>
-export type GetUserOperationByHashRequest = z.infer<typeof getUserOperationByHashRequestSchema>
-export type GetUserOperationReceiptRequest = z.infer<typeof getUserOperationReceiptRequestSchema>
-export type BundlerClearStateRequest = z.infer<typeof bundlerClearStateRequestSchema>
-export type BundlerDumpMempoolRequest = z.infer<typeof bundlerDumpMempoolRequestSchema>
-export type BundlerSendBundleNowRequest = z.infer<typeof bundlerSendBundleNowRequestSchema>
-export type BundlerSetBundlingModeRequest = z.infer<typeof bundlerSetBundlingModeRequestSchema>
-export type PimlicoGetUserOperationStatusRequest = z.infer<typeof pimlicoGetUserOperationStatusRequestSchema>
-export type PimlicoGetUserOperationGasPriceRequest = z.infer<typeof pimlicoGetUserOperationGasPriceRequestSchema>
+export type SupportedEntryPointsRequest = z.infer<
+    typeof supportedEntryPointsRequestSchema
+>
+export type EstimateUserOperationGasRequest = z.infer<
+    typeof estimateUserOperationGasRequestSchema
+>
+export type SendUserOperationRequest = z.infer<
+    typeof sendUserOperationRequestSchema
+>
+export type GetUserOperationByHashRequest = z.infer<
+    typeof getUserOperationByHashRequestSchema
+>
+export type GetUserOperationReceiptRequest = z.infer<
+    typeof getUserOperationReceiptRequestSchema
+>
+export type BundlerClearStateRequest = z.infer<
+    typeof bundlerClearStateRequestSchema
+>
+export type BundlerClearMempoolRequest = z.infer<
+    typeof bundlerClearMempoolRequestSchema
+>
+export type BundlerDumpMempoolRequest = z.infer<
+    typeof bundlerDumpMempoolRequestSchema
+>
+export type BundlerSendBundleNowRequest = z.infer<
+    typeof bundlerSendBundleNowRequestSchema
+>
+export type BundlerSetBundlingModeRequest = z.infer<
+    typeof bundlerSetBundlingModeRequestSchema
+>
+export type BundlerSetReputationsRequest = z.infer<
+    typeof bundlerSetReputationsRequestSchema
+>
+export type BundlerDumpReputationsRequest = z.infer<
+    typeof bundlerDumpReputationsRequestSchema
+>
+export type BundlerGetStakeStatusRequest = z.infer<
+    typeof pimlicoGetStakeStatusRequestSchema
+>
+export type PimlicoGetUserOperationStatusRequest = z.infer<
+    typeof pimlicoGetUserOperationStatusRequestSchema
+>
+export type PimlicoGetUserOperationGasPriceRequest = z.infer<
+    typeof pimlicoGetUserOperationGasPriceRequestSchema
+>
 
-export type ChainIdRequestParams = z.infer<typeof chainIdRequestSchema>["params"]
-export type SupportedEntryPointsRequestParams = z.infer<typeof supportedEntryPointsRequestSchema>["params"]
-export type EstimateUserOperationGasRequestParams = z.infer<typeof estimateUserOperationGasRequestSchema>["params"]
-export type SendUserOperationRequestParams = z.infer<typeof sendUserOperationRequestSchema>["params"]
-export type GetUserOperationByHashRequestParams = z.infer<typeof getUserOperationByHashRequestSchema>["params"]
-export type GetUserOperationReceiptRequestParams = z.infer<typeof getUserOperationReceiptRequestSchema>["params"]
-export type BundlerClearStateRequestParams = z.infer<typeof bundlerClearStateRequestSchema>["params"]
-export type BundlerDumpMempoolRequestParams = z.infer<typeof bundlerDumpMempoolRequestSchema>["params"]
-export type BundlerSendBundleNowRequestParams = z.infer<typeof bundlerSendBundleNowRequestSchema>["params"]
-export type BundlerSetBundlingModeRequestParams = z.infer<typeof bundlerSetBundlingModeRequestSchema>["params"]
+export type ChainIdRequestParams = z.infer<
+    typeof chainIdRequestSchema
+>["params"]
+export type SupportedEntryPointsRequestParams = z.infer<
+    typeof supportedEntryPointsRequestSchema
+>["params"]
+export type EstimateUserOperationGasRequestParams = z.infer<
+    typeof estimateUserOperationGasRequestSchema
+>["params"]
+export type SendUserOperationRequestParams = z.infer<
+    typeof sendUserOperationRequestSchema
+>["params"]
+export type GetUserOperationByHashRequestParams = z.infer<
+    typeof getUserOperationByHashRequestSchema
+>["params"]
+export type GetUserOperationReceiptRequestParams = z.infer<
+    typeof getUserOperationReceiptRequestSchema
+>["params"]
+export type BundlerClearStateRequestParams = z.infer<
+    typeof bundlerClearStateRequestSchema
+>["params"]
+export type BundlerClearMempoolRequestParams = z.infer<
+    typeof bundlerClearMempoolRequestSchema
+>["params"]
+export type BundlerDumpMempoolRequestParams = z.infer<
+    typeof bundlerDumpMempoolRequestSchema
+>["params"]
+export type BundlerSendBundleNowRequestParams = z.infer<
+    typeof bundlerSendBundleNowRequestSchema
+>["params"]
+export type BundlerSetBundlingModeRequestParams = z.infer<
+    typeof bundlerSetBundlingModeRequestSchema
+>["params"]
+export type BundlerSetReputationsRequestParams = z.infer<
+    typeof bundlerSetReputationsRequestSchema
+>["params"]
+export type BundlerDumpReputationsRequestParams = z.infer<
+    typeof bundlerDumpReputationsRequestSchema
+>["params"]
+export type BundlerGetStakeStatusRequestParams = z.infer<
+    typeof pimlicoGetStakeStatusRequestSchema
+>["params"]
 export type PimlicoGetUserOperationStatusRequestParams = z.infer<
     typeof pimlicoGetUserOperationStatusRequestSchema
 >["params"]
@@ -413,9 +649,13 @@ export {
     getUserOperationByHashRequestSchema,
     getUserOperationReceiptRequestSchema,
     bundlerClearStateRequestSchema,
+    bundlerClearMempoolRequestSchema,
     bundlerDumpMempoolRequestSchema,
     bundlerSendBundleNowRequestSchema,
     bundlerSetBundlingModeRequestSchema,
+    bundlerSetReputationsRequestSchema,
+    bundlerDumpReputationsRequestSchema,
+    pimlicoGetStakeStatusRequestSchema,
     pimlicoGetUserOperationStatusRequestSchema,
     pimlicoGetUserOperationGasPriceRequestSchema,
     bundlerRequestSchema,
@@ -432,12 +672,22 @@ export {
     getUserOperationByHashResponseSchema,
     getUserOperationReceiptResponseSchema,
     bundlerClearStateResponseSchema,
+    bundlerClearMempoolResponseSchema,
     bundlerDumpMempoolResponseSchema,
+    bundlerGetStakeStatusResponseSchema,
     bundlerSendBundleNowResponseSchema,
     bundlerSetBundlingModeResponseSchema,
+    bundlerSetReputationsResponseSchema,
+    bundlerDumpReputationsResponseSchema,
     pimlicoGetUserOperationStatusResponseSchema,
     pimlicoGetUserOperationGasPriceResponseSchema,
     bundlerResponseSchema
 }
 
-export { addressSchema, hexData32Schema, hexDataSchema, logSchema, receiptSchema }
+export {
+    addressSchema,
+    hexData32Schema,
+    hexDataSchema,
+    logSchema,
+    receiptSchema
+}

@@ -1,7 +1,10 @@
 import { expect } from "earl"
 import { entryPointErrorsSchema } from "../src"
 import "./validationTestErrors"
-import { contractRevertErrorExample, vmExecutionErrorExample } from "./validationTestErrors"
+import {
+    contractRevertErrorExample,
+    vmExecutionErrorExample
+} from "./validationTestErrors"
 
 describe("validation", () => {
     // it("should parse VM Execution Error (error on Gnosis)", function () {
