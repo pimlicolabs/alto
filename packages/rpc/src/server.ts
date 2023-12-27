@@ -6,7 +6,7 @@ import {
 } from "@alto/types"
 import { RpcError, ValidationErrors } from "@alto/types"
 import { Logger, Metrics } from "@alto/utils"
-import Fastify, { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
+import Fastify, { FastifyInstance, FastifyReply, FastifyRequest, FastifyBaseLogger } from "fastify"
 import { toHex } from "viem"
 import { fromZodError } from "zod-validation-error"
 import { Registry } from "prom-client"
@@ -71,7 +71,7 @@ export class Server {
         metrics: Metrics
     ) {
         this.fastify = Fastify({
-            logger,
+            logger: logger as FastifyBaseLogger, // workaround for https://github.com/fastify/fastify/issues/4960
             requestTimeout: requestTimeout,
             disableRequestLogging: true
         })
