@@ -137,6 +137,7 @@ export class Server {
         request: FastifyRequest,
         reply: FastifyReply
     ): Promise<void> {
+        this.fastify.log.debug(request.headers, "request headers")
         reply.rpcStatus = "failed" // default to failed
         let requestId
         try {
