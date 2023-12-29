@@ -316,15 +316,15 @@ export class UnsafeValidator implements IValidator {
                 )
             }
 
-            if (
-                validationResult.returnInfo.validUntil <
-                Date.now() / 1000 + 30
-            ) {
-                throw new RpcError(
-                    "expires too soon",
-                    ValidationErrors.ExpiresShortly
-                )
-            }
+            // if (
+            //     validationResult.returnInfo.validUntil <
+            //     Date.now() / 1000 + 30
+            // ) {
+            //     throw new RpcError(
+            //         "expires too soon",
+            //         ValidationErrors.ExpiresShortly
+            //     )
+            // }
 
             this.metrics.userOperationsValidationSuccess.inc()
 
@@ -382,15 +382,15 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
                 )
             }
 
-            if (
-                validationResult.returnInfo.validUntil <
-                Date.now() / 1000 + 30
-            ) {
-                throw new RpcError(
-                    "expires too soon",
-                    ValidationErrors.ExpiresShortly
-                )
-            }
+            // if (
+            //     validationResult.returnInfo.validUntil <
+            //     Date.now() / 1000 + 30
+            // ) {
+            //     throw new RpcError(
+            //         "expires too soon",
+            //         ValidationErrors.ExpiresShortly
+            //     )
+            // }
 
             this.metrics.userOperationsValidationSuccess.inc()
 
