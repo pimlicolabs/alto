@@ -13,7 +13,8 @@ import {
     PublicClient,
     Transport,
     WalletClient,
-    getContract
+    getContract,
+    encodeFunctionData,
 } from "viem"
 import { SenderManager } from "./senderManager"
 import { filterOpsAndEstimateGas, flushStuckTransaction, simulatedOpsToResults } from "./utils"
@@ -487,8 +488,13 @@ export class BasicExecutor implements IExecutor {
         })
 
         const inflatedOps = await bundleBulker.read.inflate([compressedOps])
+        const inflateGasLimit = await this.publicClient.estimateGas({
+            account: wallet,
+            to: bundleBulkerAddress,
+            data: encodeFunctionData({ abi: bundleBulkerAbi, functionName: "inflate", args: [compressedOps] })
+        })
 
-        const { gasLimit, simulatedOps } = await filterOpsAndEstimateGas(
+        let { gasLimit, simulatedOps } = await filterOpsAndEstimateGas(
             ep,
             wallet,
             inflatedOps[0].map((op) => {
@@ -520,6 +526,7 @@ export class BasicExecutor implements IExecutor {
             })
         }
 
+        gasLimit += inflateGasLimit
         // if not all succeeded, return error
         if (simulatedOps.some((op) => op.reason !== undefined)) {
             childLogger.warn("some ops failed simulation")
