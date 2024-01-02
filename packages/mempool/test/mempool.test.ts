@@ -22,7 +22,12 @@ import {
 } from "@alto/utils"
 import { ChildProcess } from "child_process"
 import { Account } from "viem"
-import { BasicExecutor, IExecutor, NullExecutor, SenderManager } from "@alto/executor"
+import {
+    BasicExecutor,
+    IExecutor,
+    NullExecutor,
+    SenderManager
+} from "@alto/executor"
 import { privateKeyToAccount } from "viem/accounts"
 import { createOp, generateAccounts } from "@alto/executor/test/utils"
 import { Registry } from "prom-client"
@@ -44,13 +49,21 @@ describe("mempool", () => {
     beforeEach(async () => {
         // destructure the return value
         anvilProcess = await launchAnvil()
-        const privateKey = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-        const privateKey2 = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+        const privateKey =
+            "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+        const privateKey2 =
+            "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
 
         signer = privateKeyToAccount(privateKey)
         signer2 = privateKeyToAccount(privateKey2)
         clients = await createClients(signer)
-        entryPoint = await deployContract(clients, signer.address, EntryPointAbi, [], EntryPoint_bytecode)
+        entryPoint = await deployContract(
+            clients,
+            signer.address,
+            EntryPointAbi,
+            [],
+            EntryPoint_bytecode
+        )
 
         const logger = initDebugLogger("silent")
 
@@ -58,7 +71,12 @@ describe("mempool", () => {
 
         const metrics = createMetrics(new Registry(), false)
 
-        const senderManager = new SenderManager(accounts, accounts[0], logger, metrics)
+        const senderManager = new SenderManager(
+            accounts,
+            accounts[0],
+            logger,
+            metrics
+        )
 
         simpleAccountFactory = await deployContract(
             clients,
@@ -83,13 +101,26 @@ describe("mempool", () => {
             bundle: mockFn()
         })
 
-        mempool = new MemoryMempool(executor, new Monitor(), clients.public, entryPoint, 1000, logger, metrics)
+        mempool = new MemoryMempool(
+            executor,
+            new Monitor(),
+            clients.public,
+            entryPoint,
+            1000,
+            logger,
+            metrics
+        )
 
         await clients.test.setAutomine(false)
     })
 
     it("should add op to mempool", async function () {
-        const op = await createOp(entryPoint, simpleAccountFactory, signer, clients)
+        const op = await createOp(
+            entryPoint,
+            simpleAccountFactory,
+            signer,
+            clients
+        )
         const opHash = getUserOpHash(op, entryPoint, foundry.id)
 
         const success = mempool.add(op, opHash)
@@ -104,7 +135,12 @@ describe("mempool", () => {
     })
 
     it("should bundle correctly", async function () {
-        const op = await createOp(entryPoint, simpleAccountFactory, signer, clients)
+        const op = await createOp(
+            entryPoint,
+            simpleAccountFactory,
+            signer,
+            clients
+        )
         const opHash = getUserOpHash(op, entryPoint, foundry.id)
 
         const success = mempool.add(op, opHash)

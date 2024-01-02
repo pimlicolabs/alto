@@ -1,5 +1,6 @@
 import {
     EntryPointAbi,
+    ExecutionErrors,
     ExecutionResult,
     RpcError,
     UserOperation,
@@ -9,9 +10,19 @@ import {
 } from "@alto/types"
 import { Logger, Metrics } from "@alto/utils"
 import type { Chain, Hex, RpcRequestErrorType, Transport } from "viem"
-import { Address, PublicClient, decodeErrorResult, encodeFunctionData, toHex, zeroAddress } from "viem"
+import {
+    Address,
+    PublicClient,
+    decodeErrorResult,
+    encodeFunctionData,
+    toHex,
+    zeroAddress
+} from "viem"
 import { z } from "zod"
-import { ExecuteSimulatorAbi, ExecuteSimulatorDeployedBytecode } from "./ExecuteSimulator"
+import {
+    ExecuteSimulatorAbi,
+    ExecuteSimulatorDeployedBytecode
+} from "./ExecuteSimulator"
 
 async function simulateHandleOp(
     userOperation: UserOperation,
@@ -73,14 +84,19 @@ async function simulateHandleOp(
 
         const cause = causeParseResult.data
 
-        const decodedError = decodeErrorResult({ abi: EntryPointAbi, data: cause.data })
+        const decodedError = decodeErrorResult({
+            abi: EntryPointAbi,
+            data: cause.data
+        })
 
         if (decodedError.errorName === "FailedOp") {
             return { result: "failed", data: decodedError.args[1] } as const
         }
 
         if (decodedError.errorName === "ExecutionResult") {
-            const parsedExecutionResult = executionResultSchema.parse(decodedError.args)
+            const parsedExecutionResult = executionResultSchema.parse(
+                decodedError.args
+            )
             return { result: "execution", data: parsedExecutionResult } as const
         }
     }
@@ -121,7 +137,14 @@ export async function estimateVerificationGasLimit(
     userOperation.callGasLimit = 0n
 
     let simulationCounter = 1
-    const initial = await simulateHandleOp(userOperation, entryPoint, publicClient, false, zeroAddress, "0x")
+    const initial = await simulateHandleOp(
+        userOperation,
+        entryPoint,
+        publicClient,
+        false,
+        zeroAddress,
+        "0x"
+    )
 
     if (initial.result === "execution") {
         upper = 6n * (initial.data.preOpGas - userOperation.preVerificationGas)
@@ -139,7 +162,14 @@ export async function estimateVerificationGasLimit(
         userOperation.verificationGasLimit = mid
         userOperation.callGasLimit = 0n
 
-        const error = await simulateHandleOp(userOperation, entryPoint, publicClient, false, zeroAddress, "0x")
+        const error = await simulateHandleOp(
+            userOperation,
+            entryPoint,
+            publicClient,
+            false,
+            zeroAddress,
+            "0x"
+        )
         simulationCounter++
 
         if (error.result === "execution") {
@@ -202,12 +232,19 @@ export async function estimateCallGasLimit(
 
     userOperation.callGasLimit = 0n
 
-    const error = await simulateHandleOp(userOperation, entryPoint, publicClient, true, entryPoint, targetCallData)
+    const error = await simulateHandleOp(
+        userOperation,
+        entryPoint,
+        publicClient,
+        true,
+        entryPoint,
+        targetCallData
+    )
 
     if (error.result === "failed") {
         throw new RpcError(
             `UserOperation reverted during simulation with reason: ${error.data}`,
-            ValidationErrors.SimulateValidation
+            ExecutionErrors.UserOperationReverted
         )
     }
 
@@ -223,11 +260,34 @@ export async function estimateCallGasLimit(
         upper = 6n * result.gasUsed
         final = 6n * result.gasUsed
     } else {
-        throw new RpcError(
-            "UserOperation reverted during execution phase",
-            ValidationErrors.SimulateValidation,
-            result.revertData
-        )
+        try {
+            const reason = decodeErrorResult({
+                abi: [
+                    {
+                        inputs: [
+                            {
+                                name: "reason",
+                                type: "string"
+                            }
+                        ],
+                        name: "Error",
+                        type: "error"
+                    }
+                ],
+                data: result.revertData
+            })
+            throw new RpcError(
+                `UserOperation reverted during execution phase with reason: ${reason.args[0]}`,
+                ExecutionErrors.UserOperationReverted
+            )
+        } catch (e) {
+            if (e instanceof RpcError) throw e
+            throw new RpcError(
+                "UserOperation reverted during execution phase",
+                ExecutionErrors.UserOperationReverted,
+                result.revertData
+            )
+        }
     }
 
     // binary search
@@ -241,7 +301,14 @@ export async function estimateCallGasLimit(
             args: [userOperation.sender, userOperation.callData, mid]
         })
 
-        const error = await simulateHandleOp(userOperation, entryPoint, publicClient, true, entryPoint, targetCallData)
+        const error = await simulateHandleOp(
+            userOperation,
+            entryPoint,
+            publicClient,
+            true,
+            entryPoint,
+            targetCallData
+        )
 
         if (error.result !== "execution") {
             throw new Error("Unexpected error")

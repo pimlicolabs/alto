@@ -11,7 +11,10 @@ export class Monitor {
         this.userOperationTimeouts = {}
     }
 
-    public setUserOperationStatus(userOperation: HexData32, status: UserOperationStatus): void {
+    public setUserOperationStatus(
+        userOperation: HexData32,
+        status: UserOperationStatus
+    ): void {
         // Clear existing timer if it exists
         if (this.userOperationTimeouts[userOperation]) {
             clearTimeout(this.userOperationTimeouts[userOperation])
@@ -27,7 +30,9 @@ export class Monitor {
         }, this.timeout)
     }
 
-    public getUserOperationStatus(userOperation: HexData32): UserOperationStatus {
+    public getUserOperationStatus(
+        userOperation: HexData32
+    ): UserOperationStatus {
         const status = this.userOperationToStatus[userOperation]
         if (status === undefined) {
             return {

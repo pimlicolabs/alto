@@ -157,17 +157,28 @@ export function packUserOp(op: UserOperation): `0x${string}` {
  * @param userOp filled userOp to calculate. The only possible missing fields can be the signature and preVerificationGas itself
  * @param overheads gas overheads to use, to override the default values
  */
-export function calcPreVerificationGas(userOperation: UserOperation, overheads?: Partial<GasOverheads>): bigint {
+export function calcPreVerificationGas(
+    userOperation: UserOperation,
+    overheads?: Partial<GasOverheads>
+): bigint {
     const ov = { ...DefaultGasOverheads, ...(overheads ?? {}) }
 
     const p = userOperation
     p.preVerificationGas ?? 21000n // dummy value, just for calldata cost
-    p.signature = p.signature === "0x" ? toHex(Buffer.alloc(ov.sigSize, 1)) : p.signature // dummy signature
+    p.signature =
+        p.signature === "0x" ? toHex(Buffer.alloc(ov.sigSize, 1)) : p.signature // dummy signature
 
     const packed = toBytes(packUserOp(p))
     const lengthInWord = (packed.length + 31) / 32
-    const callDataCost = packed.map((x) => (x === 0 ? ov.zeroByte : ov.nonZeroByte)).reduce((sum, x) => sum + x)
-    const ret = Math.round(callDataCost + ov.fixed / ov.bundleSize + ov.perUserOp + ov.perUserOpWord * lengthInWord)
+    const callDataCost = packed
+        .map((x) => (x === 0 ? ov.zeroByte : ov.nonZeroByte))
+        .reduce((sum, x) => sum + x)
+    const ret = Math.round(
+        callDataCost +
+            ov.fixed / ov.bundleSize +
+            ov.perUserOp +
+            ov.perUserOpWord * lengthInWord
+    )
     return BigInt(ret)
 }
 
@@ -207,7 +218,10 @@ export async function calcOptimismPreVerificationGas(
     }
 
     const selector = getFunctionSelector(EntryPointAbi[27])
-    const paramData = encodeAbiParameters(EntryPointAbi[27].inputs, [[randomDataUserOp], entryPoint])
+    const paramData = encodeAbiParameters(EntryPointAbi[27].inputs, [
+        [randomDataUserOp],
+        entryPoint
+    ])
     const data = concat([selector, paramData])
 
     const latestBlock = await publicClient.getBlock()
@@ -237,12 +251,19 @@ export async function calcOptimismPreVerificationGas(
         publicClient
     })
 
-    const { result: l1Fee } = await opGasPriceOracle.simulate.getL1Fee([serializedTx])
+    const { result: l1Fee } = await opGasPriceOracle.simulate.getL1Fee([
+        serializedTx
+    ])
 
-    const gasPrice = await getGasPrice(publicClient.chain.id, publicClient, logger)
+    const gasPrice = await getGasPrice(
+        publicClient.chain.id,
+        publicClient,
+        logger
+    )
 
     const l2MaxFee = gasPrice.maxFeePerGas
-    const l2PriorityFee = latestBlock.baseFeePerGas + gasPrice.maxPriorityFeePerGas
+    const l2PriorityFee =
+        latestBlock.baseFeePerGas + gasPrice.maxPriorityFeePerGas
 
     const l2price = l2MaxFee < l2PriorityFee ? l2MaxFee : l2PriorityFee
 
@@ -298,7 +319,10 @@ export async function calcArbitrumPreVerificationGas(
     staticFee: bigint
 ) {
     const selector = getFunctionSelector(EntryPointAbi[27])
-    const paramData = encodeAbiParameters(EntryPointAbi[27].inputs, [[op], entryPoint])
+    const paramData = encodeAbiParameters(EntryPointAbi[27].inputs, [
+        [op],
+        entryPoint
+    ])
     const data = concat([selector, paramData])
 
     const precompileAddress = "0x00000000000000000000000000000000000000C8"
@@ -325,13 +349,20 @@ export async function calcArbitrumPreVerificationGas(
         publicClient
     })
 
-    const { result } = await arbGasPriceOracle.simulate.gasEstimateL1Component([entryPoint, false, serializedTx])
+    const { result } = await arbGasPriceOracle.simulate.gasEstimateL1Component([
+        entryPoint,
+        false,
+        serializedTx
+    ])
 
     return result[0] + staticFee
 }
 
 export function parseViemError(err: unknown) {
-    if (err instanceof ContractFunctionExecutionError || err instanceof TransactionExecutionError) {
+    if (
+        err instanceof ContractFunctionExecutionError ||
+        err instanceof TransactionExecutionError
+    ) {
         const e = err.cause
         if (e instanceof NonceTooLowError) {
             return e

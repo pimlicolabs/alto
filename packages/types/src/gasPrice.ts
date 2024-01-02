@@ -24,9 +24,13 @@ import { z } from "zod"
 const gasPrice = z
     .object({
         // @ts-ignore
-        maxFee: z.union([z.number(), z.string()]).transform((val) => parseGwei(`${val}`)),
+        maxFee: z
+            .union([z.number(), z.string()])
+            .transform((val) => parseGwei(`${val}`)),
         // @ts-ignore
-        maxPriorityFee: z.union([z.number(), z.string()]).transform((val) => parseGwei(`${val}`))
+        maxPriorityFee: z
+            .union([z.number(), z.string()])
+            .transform((val) => parseGwei(`${val}`))
     })
     .transform((val) => {
         return {

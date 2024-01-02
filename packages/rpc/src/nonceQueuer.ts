@@ -19,7 +19,12 @@ export class NonceQueuer {
     entryPoint: Address
     logger: Logger
 
-    constructor(mempool: Mempool, publicClient: PublicClient<Transport, Chain>, entryPoint: Address, logger: Logger) {
+    constructor(
+        mempool: Mempool,
+        publicClient: PublicClient<Transport, Chain>,
+        entryPoint: Address,
+        logger: Logger
+    ) {
         this.mempool = mempool
         this.publicClient = publicClient
         this.entryPoint = entryPoint
@@ -40,7 +45,10 @@ export class NonceQueuer {
             return
         }
 
-        const availableOps = await this.getAvailableUserOperations(this.publicClient, this.entryPoint)
+        const availableOps = await this.getAvailableUserOperations(
+            this.publicClient,
+            this.entryPoint
+        )
 
         if (availableOps.length === 0) {
             return
@@ -65,7 +73,11 @@ export class NonceQueuer {
     add(userOperation: UserOperation) {
         const [nonceKey, nonceValue] = getNonceKeyAndValue(userOperation.nonce)
         this.queuedUserOperations.push({
-            userOperationHash: getUserOperationHash(userOperation, this.entryPoint, this.publicClient.chain.id),
+            userOperationHash: getUserOperationHash(
+                userOperation,
+                this.entryPoint,
+                this.publicClient.chain.id
+            ),
             userOperation: userOperation,
             nonceKey: nonceKey,
             nonceValue: nonceValue,
@@ -74,16 +86,25 @@ export class NonceQueuer {
     }
 
     private async resubmitUserOperation(userOperation: UserOperation) {
-        this.logger.info({ userOperation: userOperation }, "submitting user operation from nonce queue")
+        this.logger.info(
+            { userOperation: userOperation },
+            "submitting user operation from nonce queue"
+        )
         const result = this.mempool.add(userOperation)
         if (result) {
-            this.logger.info({ userOperation: userOperation, result: result }, "added user operation")
+            this.logger.info(
+                { userOperation: userOperation, result: result },
+                "added user operation"
+            )
         } else {
             this.logger.error("error adding user operation")
         }
     }
 
-    async getAvailableUserOperations(publicClient: PublicClient, entryPoint: Address) {
+    async getAvailableUserOperations(
+        publicClient: PublicClient,
+        entryPoint: Address
+    ) {
         const queuedUserOperations = this.queuedUserOperations.slice()
 
         const results = await publicClient.multicall({
@@ -110,7 +131,10 @@ export class NonceQueuer {
             const result = results[i]
 
             if (result.status !== "success") {
-                this.logger.error({ error: result.error }, "error fetching nonce")
+                this.logger.error(
+                    { error: result.error },
+                    "error fetching nonce"
+                )
                 continue
             }
 

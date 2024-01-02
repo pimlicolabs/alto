@@ -19,8 +19,13 @@ describe("Monitor", () => {
 
     it("should return not_found status for an unknown user operation", () => {
         const monitor = new Monitor(timeout)
-        const retrievedStatus = monitor.getUserOperationStatus("0xunknownuseroperation")
-        expect(retrievedStatus).toEqual({ status: "not_found", transactionHash: null })
+        const retrievedStatus = monitor.getUserOperationStatus(
+            "0xunknownuseroperation"
+        )
+        expect(retrievedStatus).toEqual({
+            status: "not_found",
+            transactionHash: null
+        })
     })
 
     it("should clear existing user operation status after timeout", async function () {
@@ -31,7 +36,10 @@ describe("Monitor", () => {
 
         await new Promise((resolve) => setTimeout(resolve, timeout + 500))
         const retrievedStatus = monitor.getUserOperationStatus(userOperation)
-        expect(retrievedStatus).toEqual({ status: "not_found", transactionHash: null })
+        expect(retrievedStatus).toEqual({
+            status: "not_found",
+            transactionHash: null
+        })
     })
 
     it("should overwrite existing user operation status and reset timeout", async () => {

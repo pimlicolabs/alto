@@ -1,9 +1,15 @@
 import { Argv, Options } from "yargs"
 
-export type CliCommandOptions<OwnArgs> = Required<{ [key in keyof OwnArgs]: Options }>
+export type CliCommandOptions<OwnArgs> = Required<{
+    [key in keyof OwnArgs]: Options
+}>
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface CliCommand<OwnArgs = Record<never, never>, ParentArgs = Record<never, never>, R = any> {
+export interface CliCommand<
+    OwnArgs = Record<never, never>,
+    ParentArgs = Record<never, never>,
+    R = any
+> {
     command: string
     describe: string
     examples?: { command: string; description: string }[]
@@ -21,7 +27,10 @@ export interface CliCommand<OwnArgs = Record<never, never>, ParentArgs = Record<
  * @param cliCommand
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function registerCommandToYargs(yargs: Argv<any>, cliCommand: CliCommand<any, any>): void {
+export function registerCommandToYargs(
+    yargs: Argv<any>,
+    cliCommand: CliCommand<any, any>
+): void {
     yargs.command({
         command: cliCommand.command,
         describe: cliCommand.describe,
@@ -32,7 +41,10 @@ export function registerCommandToYargs(yargs: Argv<any>, cliCommand: CliCommand<
             }
             if (cliCommand.examples) {
                 for (const example of cliCommand.examples) {
-                    yargsBuilder.example(`$0 ${example.command}`, example.description)
+                    yargsBuilder.example(
+                        `$0 ${example.command}`,
+                        example.description
+                    )
                 }
             }
             return yargs
