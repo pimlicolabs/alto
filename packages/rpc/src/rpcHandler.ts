@@ -338,10 +338,10 @@ export class RpcHandler implements IRpcEndpoint {
                     .baseFeePerGas
                 gasPrice =
                     userOperation.maxFeePerGas <
-                    (blockBaseFee ?? 0n) + userOperation.maxPriorityFeePerGas
+                        (blockBaseFee ?? 0n) + userOperation.maxPriorityFeePerGas
                         ? userOperation.maxFeePerGas
                         : userOperation.maxPriorityFeePerGas +
-                          (blockBaseFee ?? 0n)
+                        (blockBaseFee ?? 0n)
             }
             const calculatedCallGasLimit =
                 executionResult.paid / gasPrice -
@@ -473,13 +473,13 @@ export class RpcHandler implements IRpcEndpoint {
 
         if (userOperationNonceValue < currentNonceValue) {
             throw new RpcError(
-                "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
+                `UserOperation reverted during simulation with reason: AA25 invalid account nonce. Expected: ${currentNonceValue} got ${userOperationNonceValue}`,
                 ValidationErrors.InvalidFields
             )
         }
         if (userOperationNonceValue > currentNonceValue + 10n) {
             throw new RpcError(
-                "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
+                `UserOperation reverted during simulation with reason: AA25 invalid account nonce. Expected: ${currentNonceValue} got ${userOperationNonceValue}`,
                 ValidationErrors.InvalidFields
             )
         }

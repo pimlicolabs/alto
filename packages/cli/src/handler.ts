@@ -352,7 +352,8 @@ export const bundlerHandler = async (
         mempool,
         client,
         parsedArgs.entryPoint,
-        logger.child({ module: "nonce_queuer" })
+        logger.child({ module: "nonce_queuer" }),
+        monitor
     )
 
     const rpcEndpoint = new RpcHandler(
@@ -398,7 +399,7 @@ export const bundlerHandler = async (
         const outstanding = mempool.dumpOutstanding().length
         const submitted = mempool.dumpSubmittedOps().length
         const processing = mempool.dumpProcessing().length
-        logger.info({outstanding, submitted, processing}, "dumping mempool before shutdown")
+        logger.info({ outstanding, submitted, processing }, "dumping mempool before shutdown")
 
         process.exit(0)
     }

@@ -1,7 +1,7 @@
 import { EntryPointAbi, UserOperation } from "@alto/types"
 import { Logger, getNonceKeyAndValue, getUserOperationHash } from "@alto/utils"
 import { Address, Chain, Hash, PublicClient, Transport } from "viem"
-import { Mempool } from "@alto/mempool"
+import { Mempool, Monitor } from "@alto/mempool"
 
 type QueuedUserOperation = {
     userOperationHash: Hash
@@ -18,17 +18,20 @@ export class NonceQueuer {
     publicClient: PublicClient<Transport, Chain>
     entryPoint: Address
     logger: Logger
+    monitor: Monitor
 
     constructor(
         mempool: Mempool,
         publicClient: PublicClient<Transport, Chain>,
         entryPoint: Address,
-        logger: Logger
+        logger: Logger,
+        monitor: Monitor
     ) {
         this.mempool = mempool
         this.publicClient = publicClient
         this.entryPoint = entryPoint
         this.logger = logger
+        this.monitor = monitor;
 
         setInterval(() => {
             this.process()
@@ -38,7 +41,11 @@ export class NonceQueuer {
     async process() {
         // remove queued ops that have been in the queue for more than 15 minutes
         this.queuedUserOperations = this.queuedUserOperations.filter((qop) => {
-            return qop.addedAt > Date.now() - 1000 * 60 * 15
+            const isStale = qop.addedAt <= Date.now() - 1000 * 60 * 15;
+            if (isStale) {
+                this.monitor.setUserOperationStatus(qop.userOperationHash, { status: "rejected", transactionHash: null });
+            }
+            return !isStale;
         })
 
         if (this.queuedUserOperations.length === 0) {
@@ -71,21 +78,26 @@ export class NonceQueuer {
     }
 
     add(userOperation: UserOperation) {
+        const userOperationHash = getUserOperationHash(
+            userOperation,
+            this.entryPoint,
+            this.publicClient.chain.id
+        )
         const [nonceKey, nonceValue] = getNonceKeyAndValue(userOperation.nonce)
         this.queuedUserOperations.push({
-            userOperationHash: getUserOperationHash(
-                userOperation,
-                this.entryPoint,
-                this.publicClient.chain.id
-            ),
+            userOperationHash,
             userOperation: userOperation,
             nonceKey: nonceKey,
             nonceValue: nonceValue,
             addedAt: Date.now()
         })
+        this.monitor.setUserOperationStatus(userOperationHash, {
+            status: "waiting_on_prev_nonce",
+            transactionHash: null
+        })
     }
 
-    private async resubmitUserOperation(userOperation: UserOperation) {
+    private resubmitUserOperation(userOperation: UserOperation) {
         this.logger.info(
             { userOperation: userOperation },
             "submitting user operation from nonce queue"
