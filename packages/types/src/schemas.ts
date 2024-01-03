@@ -385,7 +385,7 @@ const userOperationStatus = z.object({
         "reverted",
         "included",
         "failed",
-        "waiting_on_prev_nonce",
+        "queued",
     ]),
     transactionHash: hexData32Schema.or(z.null())
 })

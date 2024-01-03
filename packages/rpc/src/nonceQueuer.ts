@@ -92,7 +92,7 @@ export class NonceQueuer {
             addedAt: Date.now()
         })
         this.monitor.setUserOperationStatus(userOperationHash, {
-            status: "waiting_on_prev_nonce",
+            status: "queued",
             transactionHash: null
         })
     }
