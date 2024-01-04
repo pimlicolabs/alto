@@ -43,7 +43,7 @@ export class NonceQueuer {
         this.queuedUserOperations = this.queuedUserOperations.filter((qop) => {
             const isStale = qop.addedAt <= Date.now() - 1000 * 60 * 15;
             if (isStale) {
-                this.monitor.setUserOperationStatus(qop.userOperationHash, { status: "rejected", transactionHash: null });
+                this.monitor.setUserOperationStatus(qop.userOperationHash, { status: "not_found", transactionHash: null });
             }
             return !isStale;
         })
