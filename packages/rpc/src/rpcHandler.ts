@@ -1,20 +1,27 @@
 import { IExecutor } from "@alto/executor"
+import { ExecutorManager } from "@alto/executor"
 import { IReputationManager, Mempool, Monitor } from "@alto/mempool"
 import {
     Address,
+    BundlerClearMempoolResponseResult,
     BundlerClearStateResponseResult,
     BundlerDumpMempoolResponseResult,
+    BundlerDumpReputationsResponseResult,
+    BundlerGetStakeStatusResponseResult,
     BundlerRequest,
     BundlerResponse,
     BundlerSendBundleNowResponseResult,
     BundlerSetBundlingModeResponseResult,
+    BundlerSetReputationsRequestParams,
     BundlingMode,
     ChainIdResponseResult,
     EntryPointAbi,
+    Environment,
     EstimateUserOperationGasResponseResult,
     GetUserOperationByHashResponseResult,
     GetUserOperationReceiptResponseResult,
     HexData32,
+    IValidator,
     PimlicoGetUserOperationGasPriceResponseResult,
     PimlicoGetUserOperationStatusResponseResult,
     RpcError,
@@ -25,14 +32,8 @@ import {
     bundleBulkerAddress,
     logSchema,
     receiptSchema,
-    Environment,
     ValidationErrors,
-    BundlerDumpReputationsResponseResult,
-    BundlerSetReputationsRequestParams,
-    BundlerClearMempoolResponseResult,
-    BundlerGetStakeStatusResponseResult,
     bundlerGetStakeStatusResponseSchema,
-    IValidator
 } from "@alto/types"
 import {
     Logger,
@@ -65,7 +66,6 @@ import {
     estimateVerificationGasLimit
 } from "./gasEstimation"
 import { NonceQueuer } from "./nonceQueuer"
-import { ExecutorManager } from "@alto/executor"
 
 export interface IRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>
@@ -486,13 +486,13 @@ export class RpcHandler implements IRpcEndpoint {
         if (userOperationNonceValue < currentNonceValue) {
             throw new RpcError(
                 "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
-                ValidationErrors.InvalidFields
+                ValidationErrors.SimulateValidation
             )
         }
         if (userOperationNonceValue > currentNonceValue + 10n) {
             throw new RpcError(
                 "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
-                ValidationErrors.InvalidFields
+                ValidationErrors.SimulateValidation
             )
         }
         if (userOperationNonceValue === currentNonceValue) {
@@ -510,7 +510,7 @@ export class RpcHandler implements IRpcEndpoint {
             if (!success) {
                 throw new RpcError(
                     "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
-                    ValidationErrors.InvalidFields
+                    ValidationErrors.SimulateValidation
                 )
             }
         } else {

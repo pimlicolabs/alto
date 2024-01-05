@@ -138,25 +138,6 @@ const customChains: Chain[] = [
         testnet: false
     },
     {
-        id: 3163830386846714,
-        name: "Parallel testnet",
-        network: "parallel-l3-testnet",
-        nativeCurrency: {
-            name: "testnetETH",
-            symbol: "testnetETH",
-            decimals: 18
-        },
-        rpcUrls: {
-            default: {
-                http: []
-            },
-            public: {
-                http: []
-            }
-        },
-        testnet: true
-    },
-    {
         id: 22222,
         name: "Nautilus",
         network: "nautilus",
@@ -189,6 +170,25 @@ const customChains: Chain[] = [
             },
             public: {
                 http: ["https://rpc.lyra.finance"]
+            }
+        },
+        testnet: false
+    },
+    {
+        id: 7887,
+        name: "Kinto Mainnet",
+        network: "kinto-mainnet",
+        nativeCurrency: {
+            name: "ETH",
+            symbol: "ETH",
+            decimals: 18
+        },
+        rpcUrls: {
+            default: {
+                http: ["https://kinto-mainnet.calderachain.xyz/http"]
+            },
+            public: {
+                http: ["https://kinto-mainnet.calderachain.xyz/http"]
             }
         },
         testnet: false
