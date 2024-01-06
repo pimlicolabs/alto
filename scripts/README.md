@@ -4,7 +4,7 @@ Simple bash script to deploy and run a local alto + anvil instance in forked mod
 
 ### Running
 
-To run the local instance use this command.
+To run the local instances use this command.
 
 ```console
 ./run-local-fork.sh --rpc-url <rpc> --block-num <some-block> ...
