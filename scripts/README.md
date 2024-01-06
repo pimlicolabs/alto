@@ -1,6 +1,6 @@
 # Scripts For Local Testing
 
-Simple bash script to deploy run a local alto and anvil instance in forked mode (uses state from mainnet).
+Simple bash script to deploy and run a local alto + anvil instance in forked mode (uses state from mainnet).
 
 ### Cli Flags + Options
 
@@ -24,10 +24,13 @@ Misc Options
    --tmux                   Launch anvil + alto in a tmux split
 ```
 
-
 ### Running
+
+To run the local instance use this command.
 
 ```console
 ./run-local-fork.sh --rpc-url <rpc> --block-num <some-block> ...
 ```
 > `--rpc-url` and `--block-num` are required fields
+
+*Note:* make sure you don't rename the repo when cloning. The script searches for the directory named `alto` and treats it as the project root.
