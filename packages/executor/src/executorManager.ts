@@ -266,7 +266,7 @@ export class ExecutorManager {
                     (Date.now() - info.firstSubmitted) / 1000
                 )
                 this.reputationManager.updateUserOperationIncludedStatus(
-                    info.mempoolOperation.getUserOperation(),
+                    info.mempoolUserOp.getUserOperation(),
                     status.transactionStatuses[info.userOperationHash]
                         .accountDeployed
                 )

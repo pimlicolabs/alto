@@ -175,7 +175,7 @@ export class BasicExecutor implements IExecutor {
         })
 
         const opsWithHashes = transactionInfo.userOperationInfos.map((_op) => {
-            const op = _op.mempoolOperation.getUserOperation()
+            const op = _op.mempoolUserOp.getUserOperation()
             return {
                 userOperation: op,
                 userOperationHash: getUserOperationHash(op, this.entryPoint, this.walletClient.chain.id)
@@ -243,15 +243,15 @@ export class BasicExecutor implements IExecutor {
             ? opsToBundle.reduce(
                 (acc, op) =>
                     acc +
-                    op.mempoolOperation.getUserOperation().preVerificationGas +
-                    3n * op.mempoolOperation.getUserOperation().verificationGasLimit +
-                    op.mempoolOperation.getUserOperation().callGasLimit,
+                    op.mempoolUserOp.getUserOperation().preVerificationGas +
+                    3n * op.mempoolUserOp.getUserOperation().verificationGasLimit +
+                    op.mempoolUserOp.getUserOperation().callGasLimit,
                 0n
             ) * 1n
             : result.gasLimit
 
         newRequest.args = [
-            opsToBundle.map((owh) => owh.mempoolOperation.getUserOperation()),
+            opsToBundle.map((owh) => owh.mempoolUserOp.getUserOperation()),
             transactionInfo.executor.address
         ]
 
@@ -293,7 +293,7 @@ export class BasicExecutor implements IExecutor {
                 lastReplaced: Date.now(),
                 userOperationInfos: opsToBundle.map((op) => {
                     return {
-                        mempoolOperation: op.mempoolOperation,
+                        mempoolUserOp: op.mempoolUserOp,
                         userOperationHash: op.userOperationHash,
                         lastReplaced: Date.now(),
                         firstSubmitted: op.firstSubmitted
@@ -516,7 +516,7 @@ export class BasicExecutor implements IExecutor {
             this.metrics.userOperationsSubmitted.inc()
 
             return {
-                mempoolOperation: new NormalMempoolUserOp(op.userOperation),
+                mempoolUserOp: new NormalMempoolUserOp(op.userOperation),
                 userOperationHash: op.userOperationHash,
                 lastReplaced: Date.now(),
                 firstSubmitted: Date.now()
@@ -690,7 +690,7 @@ async bundleCompressed(compressedOp: CompressedUserOp): Promise<BundleResult[]> 
             this.metrics.userOperationsSubmitted.inc()
 
             return {
-                mempoolOperation: new NormalMempoolUserOp(op.userOperation),
+                mempoolUserOp: new NormalMempoolUserOp(op.userOperation),
                 userOperationHash: op.userOperationHash,
                 compressedBytes: compressedOp,
                 lastReplaced: Date.now(),

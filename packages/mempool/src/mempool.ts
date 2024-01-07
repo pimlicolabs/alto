@@ -191,7 +191,7 @@ export class MemoryMempool implements Mempool {
         }
 
         for (const mempoolOp of allOps) {
-            const op = mempoolOp.mempoolOperation.getUserOperation()
+            const op = mempoolOp.mempoolUserOp.getUserOperation()
             entities.sender.add(op.sender)
             const paymaster = getAddressFromInitCodeOrPaymasterAndData(
                 op.paymasterAndData
@@ -223,7 +223,7 @@ export class MemoryMempool implements Mempool {
         if (
             processedOrSubmittedOps.find(
                 (uo) => {
-                    const userOp = uo.mempoolOperation.getUserOperation()
+                    const userOp = uo.mempoolUserOp.getUserOperation()
                     userOp.sender === op.sender &&
                     userOp.nonce === op.nonce
                 }
@@ -235,13 +235,13 @@ export class MemoryMempool implements Mempool {
         this.reputationManager.updateUserOperationSeenStatus(op)
         const oldUserOp = outstandingOps.find(
             (uo) => {
-                const userOp = uo.mempoolOperation.getUserOperation()
+                const userOp = uo.mempoolUserOp.getUserOperation()
                 userOp.sender === op.sender &&
                 userOp.nonce === op.nonce
             }
         )
         if (oldUserOp) {
-            const oldOp = oldUserOp.mempoolOperation.getUserOperation()
+            const oldOp = oldUserOp.mempoolUserOp.getUserOperation()
             const oldMaxPriorityFeePerGas = oldOp.maxPriorityFeePerGas
             const newMaxPriorityFeePerGas = op.maxPriorityFeePerGas
             const oldMaxFeePerGas = oldOp.maxFeePerGas
@@ -270,7 +270,7 @@ export class MemoryMempool implements Mempool {
         )
 
         this.store.addOutstanding({
-            mempoolOperation: mempoolUserOp,
+            mempoolUserOp,
             userOperationHash: hash,
             firstSubmitted: oldUserOp ? oldUserOp.firstSubmitted : Date.now(),
             lastReplaced: Date.now(),
@@ -307,7 +307,7 @@ export class MemoryMempool implements Mempool {
         senders: Set<string>
         storageMap: StorageMap
     }> {
-        const op = opInfo.mempoolOperation.getUserOperation()
+        const op = opInfo.mempoolUserOp.getUserOperation()
         if (!this.safeMode) {
             return {
                 skip: false,
@@ -526,7 +526,7 @@ export class MemoryMempool implements Mempool {
         let storageMap: StorageMap = {}
 
         for (const opInfo of outstandingUserOperations) {
-            const op = opInfo.mempoolOperation.getUserOperation()
+            const op = opInfo.mempoolUserOp.getUserOperation()
             gasUsed +=
                 op.callGasLimit +
                 op.verificationGasLimit * 3n +
@@ -557,7 +557,7 @@ export class MemoryMempool implements Mempool {
             )
             this.store.removeOutstanding(opInfo.userOperationHash)
             this.store.addProcessing(opInfo)
-            result.push(opInfo.mempoolOperation)
+            result.push(opInfo.mempoolUserOp)
             opsTaken++
         }
         return result
@@ -568,14 +568,14 @@ export class MemoryMempool implements Mempool {
             .dumpOutstanding()
             .find((op) => op.userOperationHash === opHash)
         if (outstanding) {
-            return outstanding.mempoolOperation.getUserOperation()
+            return outstanding.mempoolUserOp.getUserOperation()
         }
 
         const submitted = this.store
             .dumpSubmitted()
             .find((op) => op.userOperation.userOperationHash === opHash)
         if (submitted) {
-            return submitted.userOperation.mempoolOperation.getUserOperation()
+            return submitted.userOperation.mempoolUserOp.getUserOperation()
         }
 
         return null

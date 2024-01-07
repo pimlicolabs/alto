@@ -35,7 +35,7 @@ export function simulatedOpsToResults(
                 success: true,
                 value: {
                     userOperation: {
-                        mempoolOperation: new NormalMempoolUserOp(sop.op.userOperation),
+                        mempoolUserOp: new NormalMempoolUserOp(sop.op.userOperation),
                         userOperationHash: sop.op.userOperationHash,
                         lastReplaced: Date.now(),
                         firstSubmitted: Date.now()
