@@ -27,12 +27,12 @@ import {
     RpcError,
     SendUserOperationResponseResult,
     SupportedEntryPointsResponseResult, UserOperation,
-    //bundleBulkerAbi,
     logSchema,
     receiptSchema,
     ValidationErrors,
     bundlerGetStakeStatusResponseSchema,
     CompressedUserOp,
+    CompressedMempoolUserOp,
 } from "@alto/types"
 import {
     Logger,
@@ -519,7 +519,8 @@ export class RpcHandler implements IRpcEndpoint {
                 )
             }
         } else {
-            this.nonceQueuer.add(userOperation)
+            const wrappedUserOp = new NormalMempoolUserOp(userOperation)
+            this.nonceQueuer.add(wrappedUserOp)
         }
 
         const hash = getUserOperationHash(
@@ -933,14 +934,14 @@ export class RpcHandler implements IRpcEndpoint {
         entryPoint: Address,
         inflator: Address
     ) {
-        // check if inflator is registered with our PerOpInflator
+        // check if inflator is registered with our PerOpInflator.
         const inflatorId = await this.compressionHandler.getInflatorRegisteredId(inflator, this.publicClient)
 
         if (inflatorId === 0) {
             throw new RpcError(`Inflator ${inflator} has not been registered`, ValidationErrors.InvalidFields)
         }
 
-        // infalte + validate user op.
+        // infalte + start to validate user op.
         const inflatorContract = getContract({
             address: inflator,
             abi: InflatorAbi,
@@ -950,12 +951,49 @@ export class RpcHandler implements IRpcEndpoint {
         const inflatedOps = (await inflatorContract.read.inflate([compressedCalldata]))[0];
 
         if (inflatedOps.length !== 1) {
-            throw new RpcError("Endpoint currenlty only supports one UserOperation", ValidationErrors.InvalidFields)
+            throw new RpcError("Endpoint currenlty only supports one compressed UserOperation", ValidationErrors.InvalidFields)
         }
 
         const inflatedOp = inflatedOps[0]
 
-        await this.validator.validateUserOperation(inflatedOp)
+        // check userOps inputs.
+        if (inflatedOp.verificationGasLimit < 10000n) {
+            throw new RpcError("verificationGasLimit must be at least 10000")
+        }
+
+        if (this.minimumGasPricePercent !== 0) {
+            const gasPrice = await getGasPrice(
+                this.chainId,
+                this.publicClient,
+                this.logger
+            )
+            const minMaxFeePerGas =
+                (gasPrice.maxFeePerGas * BigInt(this.minimumGasPricePercent)) /
+                100n
+            if (inflatedOp.maxFeePerGas < minMaxFeePerGas) {
+                throw new RpcError(
+                    `maxFeePerGas must be at least ${minMaxFeePerGas} (current maxFeePerGas: ${gasPrice.maxFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
+                )
+            }
+
+            if (inflatedOp.maxPriorityFeePerGas < minMaxFeePerGas) {
+                throw new RpcError(
+                    `maxPriorityFeePerGas must be at least ${minMaxFeePerGas} (current maxPriorityFeePerGas: ${gasPrice.maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
+                )
+            }
+        }
+
+        this.logger.trace({ inflatedOp, entryPoint }, "beginning validation on compressed userOp")
+
+        if (
+            inflatedOp.preVerificationGas === 0n ||
+            inflatedOp.verificationGasLimit === 0n ||
+            inflatedOp.callGasLimit === 0n
+        ) {
+            throw new RpcError(
+                "user operation gas limits must be larger than 0"
+            )
+        }
 
         // check if perUseropIsRegisterd to target BundleBulker
         const bundleBulker = this.compressionHandler.entryPointToBundleBulker[entryPoint]
@@ -967,7 +1005,7 @@ export class RpcHandler implements IRpcEndpoint {
 
         const compressedUserOp = new CompressedUserOp(
             compressedCalldata,
-            inflatedOps,
+            inflatedOp,
             bundleBulker,
             entryPoint,
             inflator,
@@ -975,16 +1013,66 @@ export class RpcHandler implements IRpcEndpoint {
             perOpInflatorId,
         );
 
-        const bundleResults = await this.executor.bundleCompressed(compressedUserOp)
-
-        return bundleResults.map((result) => {
-            if (result.success) {
-                this.executor.markWalletProcessed(result.value.transactionInfo.executor)
-                return result.value.userOperation.userOperationHash
-            } else {
-                throw new RpcError(result.error.reason)
-            }
+        const entryPointContract = getContract({
+            address: this.entryPoint,
+            abi: EntryPointAbi,
+            publicClient: this.publicClient
         })
-    }
 
+        const [nonceKey, userOperationNonceValue] = getNonceKeyAndValue(
+            inflatedOp.nonce
+        )
+
+        const getNonceResult = await entryPointContract.read.getNonce(
+            [inflatedOp.sender, nonceKey],
+            {
+                blockTag: "latest"
+            }
+        )
+
+        const [_, currentNonceValue] = getNonceKeyAndValue(getNonceResult)
+
+        if (userOperationNonceValue < currentNonceValue) {
+            throw new RpcError(
+                "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
+                ValidationErrors.SimulateValidation
+            )
+        }
+        if (userOperationNonceValue > currentNonceValue + 10n) {
+            throw new RpcError(
+                "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
+                ValidationErrors.SimulateValidation
+            )
+        }
+        if (userOperationNonceValue === currentNonceValue) {
+            const validationResult =
+                await this.validator.validateUserOperation(inflatedOp)
+                await this.reputationManager.checkReputation(
+                inflatedOp,
+                validationResult
+            )
+            await this.mempool.checkEntityMultipleRoleViolation(inflatedOp)
+            const success = this.mempool.add(
+                new CompressedMempoolUserOp(compressedUserOp),
+                validationResult.referencedContracts
+            )
+            if (!success) {
+                throw new RpcError(
+                    "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
+                    ValidationErrors.SimulateValidation
+                )
+            }
+        } else {
+            const wrappedUserOp = new CompressedMempoolUserOp(compressedUserOp)
+            this.nonceQueuer.add(wrappedUserOp)
+        }
+
+        const hash = getUserOperationHash(
+            inflatedOp,
+            entryPoint,
+            this.chainId
+        )
+
+        return [hash]
+    }
 }

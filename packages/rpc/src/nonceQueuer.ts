@@ -1,12 +1,11 @@
-import { EntryPointAbi, UserOperation } from "@alto/types"
+import { EntryPointAbi, MempoolUserOp } from "@alto/types"
 import { Logger, getNonceKeyAndValue, getUserOperationHash } from "@alto/utils"
 import { Address, Chain, Hash, PublicClient, Transport } from "viem"
 import { Mempool } from "@alto/mempool"
-import { MempoolUserOperation } from "@alto/mempool/src"
 
 type QueuedUserOperation = {
     userOperationHash: Hash
-    userOperation: UserOperation
+    mempoolUserOp: MempoolUserOp
     nonceKey: bigint
     nonceValue: bigint
     addedAt: number
@@ -62,7 +61,7 @@ export class NonceQueuer {
         })
 
         availableOps.map((op) => {
-            this.resubmitUserOperation(op.userOperation)
+            this.resubmitUserOperation(op.mempoolUserOp)
         })
 
         this.logger.info(
@@ -71,28 +70,29 @@ export class NonceQueuer {
         )
     }
 
-    add(userOperation: UserOperation) {
-        const [nonceKey, nonceValue] = getNonceKeyAndValue(userOperation.nonce)
+    add(mempoolUserOp: MempoolUserOp) {
+        const userOp = mempoolUserOp.getUserOperation()
+        const [nonceKey, nonceValue] = getNonceKeyAndValue(userOp.nonce)
         this.queuedUserOperations.push({
             userOperationHash: getUserOperationHash(
-                userOperation,
+                mempoolUserOp.getUserOperation(),
                 this.entryPoint,
                 this.publicClient.chain.id
             ),
-            userOperation: userOperation,
+            mempoolUserOp: mempoolUserOp,
             nonceKey: nonceKey,
             nonceValue: nonceValue,
             addedAt: Date.now()
         })
     }
 
-    resubmitUserOperation(mempoolUserOperation: MempoolUserOperation) {
-        const userOperation = mempoolUserOperation.getUserOperation()
+    resubmitUserOperation(mempoolUserOp: MempoolUserOp) {
+        const userOperation = mempoolUserOp.getUserOperation()
         this.logger.info(
             { userOperation: userOperation },
             "submitting user operation from nonce queue"
         )
-        const result = this.mempool.add(mempoolUserOperation)
+        const result = this.mempool.add(mempoolUserOp)
         if (result) {
             this.logger.info(
                 { userOperation: userOperation, result: result },
@@ -111,11 +111,12 @@ export class NonceQueuer {
 
         const results = await publicClient.multicall({
             contracts: queuedUserOperations.map((qop) => {
+                const userOp = qop.mempoolUserOp.getUserOperation()
                 return {
                     address: entryPoint,
                     abi: EntryPointAbi,
                     functionName: "getNonce",
-                    args: [qop.userOperation.sender, qop.nonceKey]
+                    args: [userOp.sender, qop.nonceKey]
                 }
             }),
             blockTag: "latest"

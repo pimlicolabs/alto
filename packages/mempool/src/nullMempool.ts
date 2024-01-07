@@ -1,5 +1,12 @@
-import { ReferencedCodeHashes, SubmittedUserOperation, TransactionInfo, UserOperation, UserOperationInfo } from "@alto/types"
-import { Mempool, MempoolUserOperation } from "./types"
+import {
+    MempoolUserOp,
+    ReferencedCodeHashes,
+    SubmittedUserOperation,
+    TransactionInfo,
+    UserOperation,
+    UserOperationInfo
+} from "@alto/types"
+import { Mempool } from "./types"
 
 export class NullMempool implements Mempool {
     clear(): void {
@@ -27,7 +34,7 @@ export class NullMempool implements Mempool {
         throw new Error("Method not implemented.")
     }
     add(
-        _op: MempoolUserOperation,
+        _op: MempoolUserOp,
         _referencedContracts?: ReferencedCodeHashes
     ): boolean {
         return false
