@@ -557,10 +557,11 @@ export class BasicExecutor implements IExecutor {
         return userOperationResults
     }
 
-async bundleCompressed(compressedOps: CompressedUserOp): Promise<BundleResult[]> {
+async bundleCompressed(compressedOp: CompressedUserOp): Promise<BundleResult[]> {
         const wallet = await this.senderManager.getWallet()
 
-        const { entryPointAddr, bundleBulkerAddr, inflatedUserOps: inflatedOps, inflatorAddr } = compressedOps
+        const { entryPointAddr, bundleBulkerAddr, inflatedUserOp, inflatorAddr } = compressedOp
+        const inflatedOps = [inflatedUserOp] // temp quick fix
 
         const ep = getContract({
             abi: EntryPointAbi,
@@ -570,7 +571,7 @@ async bundleCompressed(compressedOps: CompressedUserOp): Promise<BundleResult[]>
         })
 
         const childLogger = this.logger.child({
-            compressedUserOperations: compressedOps,
+            compressedUserOperations: compressedOp,
             entryPoint: entryPointAddr
         })
         childLogger.debug("bundling compressed user operation")
@@ -643,7 +644,7 @@ async bundleCompressed(compressedOps: CompressedUserOp): Promise<BundleResult[]>
             account: wallet,
             to: inflatorAddr,
             data: encodeFunctionData(
-                { abi: InflatorAbi, functionName: "inflate", args: [compressedOps.compressedCalldata] }
+                { abi: InflatorAbi, functionName: "inflate", args: [compressedOp.compressedCalldata] }
             )
         })
 
@@ -664,7 +665,7 @@ async bundleCompressed(compressedOps: CompressedUserOp): Promise<BundleResult[]>
             txHash = await this.walletClient.sendTransaction({
                 account: wallet,
                 to: bundleBulkerAddr,
-                data: compressedOps.bundleBulkerCalldata(),
+                data: compressedOp.bundleBulkerCalldata(),
                 gas: runningGasTotal,
                 nonce: nonce,
                 ...gasOptions
@@ -682,7 +683,7 @@ async bundleCompressed(compressedOps: CompressedUserOp): Promise<BundleResult[]>
             return {
                 userOperation: op.userOperation,
                 userOperationHash: op.userOperationHash,
-                compressedBytes: compressedOps,
+                compressedBytes: compressedOp,
                 lastReplaced: Date.now(),
                 firstSubmitted: Date.now()
             }
