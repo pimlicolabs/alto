@@ -61,7 +61,7 @@ export type TransactionInfo = {
 }
 
 export type UserOperationInfo = {
-    userOperation: UserOperation
+    mempoolOperation: MempoolUserOp
     userOperationHash: HexData32
     lastReplaced: number
     firstSubmitted: number

@@ -826,7 +826,7 @@ export class RpcHandler implements IRpcEndpoint {
         }
         return this.mempool
             .dumpOutstanding()
-            .map((userOpInfo) => userOpInfo.userOperation)
+            .map((userOpInfo) => userOpInfo.mempoolOperation.getUserOperation())
     }
 
     async debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {

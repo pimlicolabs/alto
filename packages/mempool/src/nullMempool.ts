@@ -43,7 +43,7 @@ export class NullMempool implements Mempool {
         return Promise.resolve()
     }
 
-    process(_: bigint, __?: number): Promise<UserOperation[]> {
+    process(_: bigint, __?: number): Promise<MempoolUserOp[]> {
         return Promise.resolve([])
     }
 }

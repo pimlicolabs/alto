@@ -7,7 +7,8 @@ import {
     UserOperation,
     InflatorAbi,
     CompressedUserOp,
-    UserOperationWithHash
+    UserOperationWithHash,
+    NormalMempoolUserOp
 } from "@alto/types"
 import {
     Logger,
@@ -173,10 +174,18 @@ export class BasicExecutor implements IExecutor {
             walletClient: this.walletClient
         })
 
+        const opsWithHashes = transactionInfo.userOperationInfos.map((_op) => {
+            const op = _op.mempoolOperation.getUserOperation()
+            return {
+                userOperation: op,
+                userOperationHash: getUserOperationHash(op, this.entryPoint, this.walletClient.chain.id)
+            }
+        })
+
         const result = await filterOpsAndEstimateGas(
             ep,
             transactionInfo.executor,
-            transactionInfo.userOperationInfos,
+            opsWithHashes,
             newRequest.nonce,
             newRequest.maxFeePerGas,
             newRequest.maxPriorityFeePerGas,
@@ -234,15 +243,15 @@ export class BasicExecutor implements IExecutor {
             ? opsToBundle.reduce(
                 (acc, op) =>
                     acc +
-                    op.userOperation.preVerificationGas +
-                    3n * op.userOperation.verificationGasLimit +
-                    op.userOperation.callGasLimit,
+                    op.mempoolOperation.getUserOperation().preVerificationGas +
+                    3n * op.mempoolOperation.getUserOperation().verificationGasLimit +
+                    op.mempoolOperation.getUserOperation().callGasLimit,
                 0n
             ) * 1n
             : result.gasLimit
 
         newRequest.args = [
-            opsToBundle.map((owh) => owh.userOperation),
+            opsToBundle.map((owh) => owh.mempoolOperation.getUserOperation()),
             transactionInfo.executor.address
         ]
 
@@ -284,7 +293,7 @@ export class BasicExecutor implements IExecutor {
                 lastReplaced: Date.now(),
                 userOperationInfos: opsToBundle.map((op) => {
                     return {
-                        userOperation: op.userOperation,
+                        mempoolOperation: op.mempoolOperation,
                         userOperationHash: op.userOperationHash,
                         lastReplaced: Date.now(),
                         firstSubmitted: op.firstSubmitted
@@ -507,7 +516,7 @@ export class BasicExecutor implements IExecutor {
             this.metrics.userOperationsSubmitted.inc()
 
             return {
-                userOperation: op.userOperation,
+                mempoolOperation: new NormalMempoolUserOp(op.userOperation),
                 userOperationHash: op.userOperationHash,
                 lastReplaced: Date.now(),
                 firstSubmitted: Date.now()
@@ -681,7 +690,7 @@ async bundleCompressed(compressedOp: CompressedUserOp): Promise<BundleResult[]> 
             this.metrics.userOperationsSubmitted.inc()
 
             return {
-                userOperation: op.userOperation,
+                mempoolOperation: new NormalMempoolUserOp(op.userOperation),
                 userOperationHash: op.userOperationHash,
                 compressedBytes: compressedOp,
                 lastReplaced: Date.now(),

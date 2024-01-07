@@ -2,6 +2,7 @@ import { IReputationManager } from "@alto/mempool"
 import {
     BundleResult,
     EntryPointAbi,
+    NormalMempoolUserOp,
     TransactionInfo,
     UserOperationWithHash,
     failedOpErrorSchema
@@ -34,7 +35,7 @@ export function simulatedOpsToResults(
                 success: true,
                 value: {
                     userOperation: {
-                        userOperation: sop.op.userOperation,
+                        mempoolOperation: new NormalMempoolUserOp(sop.op.userOperation),
                         userOperationHash: sop.op.userOperationHash,
                         lastReplaced: Date.now(),
                         firstSubmitted: Date.now()

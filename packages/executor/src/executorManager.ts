@@ -1,8 +1,9 @@
 import {
-    UserOperation,
     SubmittedUserOperation,
     TransactionInfo,
-    BundlingMode
+    BundlingMode,
+    MempoolUserOp,
+    CompressedMempoolUserOp
 } from "@alto/types"
 import { IReputationManager, Mempool, Monitor } from "@alto/mempool"
 import { IExecutor } from "./executor"
@@ -17,6 +18,7 @@ import {
 } from "viem"
 import { Logger, Metrics, transactionIncluded } from "@alto/utils"
 import { getGasPrice } from "@alto/utils"
+import { NormalMempoolUserOp } from "@alto/types/src"
 
 function getTransactionsFromUserOperationEntries(
     entries: SubmittedUserOperation[]
@@ -101,8 +103,24 @@ export class ExecutorManager {
         return txHash
     }
 
-    async sendToExecutor(ops: UserOperation[]) {
-        const results = await this.executor.bundle(this.entryPointAddress, ops)
+    async sendToExecutor(ops: MempoolUserOp[]) {
+        const normalOps = [];
+        const compressedOps = [];
+
+        for (const memOp of ops) {
+            if (memOp instanceof NormalMempoolUserOp) {
+                normalOps.push(memOp.getUserOperation());
+            } else if (memOp instanceof CompressedMempoolUserOp) {
+                compressedOps.push(memOp.compressedUserOp);
+            }
+        }
+
+        const results = []
+        results.push(... await this.executor.bundle(this.entryPointAddress, normalOps))
+        for (const compressedOp of compressedOps) {
+            results.push(... await this.executor.bundleCompressed(compressedOp))
+        }
+
         let txHash
         for (const result of results) {
             if (result.success === true) {
@@ -141,8 +159,7 @@ export class ExecutorManager {
     }
 
     async bundle() {
-        const opsToBundle: UserOperation[][] = []
-        // rome-ignore lint/nursery/noConstantCondition: <explanation>
+        const opsToBundle: MempoolUserOp[][] = []
         while (true) {
             const ops = await this.mempool.process(5_000_000n, 1)
             if (ops?.length > 0) {
@@ -249,7 +266,7 @@ export class ExecutorManager {
                     (Date.now() - info.firstSubmitted) / 1000
                 )
                 this.reputationManager.updateUserOperationIncludedStatus(
-                    info.userOperation,
+                    info.mempoolOperation.getUserOperation(),
                     status.transactionStatuses[info.userOperationHash]
                         .accountDeployed
                 )

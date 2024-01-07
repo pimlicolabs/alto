@@ -11,7 +11,7 @@ export interface Mempool {
      * @param minOps The minimum number of user operations to take.
      * @returns An array of user operations to submit.
      */
-    process(gasLimit: bigint, minOps?: number): Promise<UserOperation[]>
+    process(gasLimit: bigint, minOps?: number): Promise<MempoolUserOp[]>
 
     replaceSubmitted(
         userOperation: UserOperationInfo,
