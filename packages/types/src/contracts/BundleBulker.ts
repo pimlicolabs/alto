@@ -1,4 +1,3 @@
-export const bundleBulkerAddress = '0x3Fde2701a9a5FC30b1F1916ec465A2F04BC7c05d';
 export const bundleBulkerAbi = [
     {
         stateMutability: 'view',

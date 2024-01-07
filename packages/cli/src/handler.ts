@@ -7,6 +7,7 @@ import {
     NullRepuationManager
 } from "@alto/mempool"
 import {
+    CompressionHandler,
     NonceQueuer,
     RpcHandler,
     SafeValidator,
@@ -355,6 +356,12 @@ export const bundlerHandler = async (
         logger.child({ module: "nonce_queuer" })
     )
 
+    const compressionHandler = await CompressionHandler.createAsync(
+        [parsedArgs.bundleBulkerAddress], // will parse env as array in future when needed
+        parsedArgs.perOpInflatorAddress,
+        client
+    )
+
     const rpcEndpoint = new RpcHandler(
         parsedArgs.entryPoint,
         client,
@@ -370,7 +377,8 @@ export const bundlerHandler = async (
         parsedArgs.noEthCallOverrideSupport,
         logger.child({ module: "rpc" }),
         metrics,
-        parsedArgs.environment
+        parsedArgs.environment,
+        compressionHandler
     )
 
     // executor.flushStuckTransactions()

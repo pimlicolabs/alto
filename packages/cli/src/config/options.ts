@@ -32,6 +32,16 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "string",
         require: true
     },
+    perOpInflatorAddress: {
+        description: "Address of the PerOpInflator contract",
+        type: "string",
+        require: true,
+    },
+    bundleBulkerAddress: {
+        description: "Address of the BundleBulker contract",
+        type: "string",
+        require: true,
+    },
     refillInterval: {
         description: "Interval to refill the signer balance (in ms)",
         type: "number",
@@ -161,7 +171,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "number",
         require: false,
         default: 1000
-    }
+    },
 }
 
 export const bundlerCommand: CliCommand<IBundlerArgsInput> = {

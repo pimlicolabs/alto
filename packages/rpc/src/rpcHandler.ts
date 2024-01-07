@@ -26,14 +26,13 @@ import {
     PimlicoGetUserOperationStatusResponseResult,
     RpcError,
     SendUserOperationResponseResult,
-    SupportedEntryPointsResponseResult,
-    UserOperation,
-    bundleBulkerAbi,
-    bundleBulkerAddress,
+    SupportedEntryPointsResponseResult, UserOperation,
+    //bundleBulkerAbi,
     logSchema,
     receiptSchema,
     ValidationErrors,
     bundlerGetStakeStatusResponseSchema,
+    CompressedUserOp,
 } from "@alto/types"
 import {
     Logger,
@@ -66,6 +65,9 @@ import {
     estimateVerificationGasLimit
 } from "./gasEstimation"
 import { NonceQueuer } from "./nonceQueuer"
+import { InflatorAbi } from "@alto/types/src/contracts/Inflator"
+import { CompressionHandler } from "./compressionHandler"
+import { NormalMempoolUserOp } from "@alto/types/src/mempool"
 
 export interface IRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>
@@ -104,6 +106,7 @@ export class RpcHandler implements IRpcEndpoint {
     environment: Environment
     executorManager: ExecutorManager
     reputationManager: IReputationManager
+    compressionHandler: CompressionHandler
 
     constructor(
         entryPoint: Address,
@@ -120,7 +123,8 @@ export class RpcHandler implements IRpcEndpoint {
         noEthCallOverrideSupport: boolean,
         logger: Logger,
         metrics: Metrics,
-        environment: Environment
+        environment: Environment,
+        compressionHandler: CompressionHandler
     ) {
         this.entryPoint = entryPoint
         this.publicClient = publicClient
@@ -138,6 +142,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.chainId = publicClient.chain.id
         this.executorManager = executorManager
         this.reputationManager = reputationManager
+        this.compressionHandler = compressionHandler
     }
 
     async handleMethod(request: BundlerRequest): Promise<BundlerResponse> {
@@ -252,10 +257,10 @@ export class RpcHandler implements IRpcEndpoint {
                         ...request.params
                     )
                 }
-            case "pimlico_sendCompressedUserOperations":
+            case "pimlico_sendCompressedUserOperation":
                 return {
                     method,
-                    result: await this.pimlico_sendCompressedUserOperations(...request.params)
+                    result: await this.pimlico_sendCompressedUserOperation(...request.params)
                 }
         }
     }
@@ -350,10 +355,10 @@ export class RpcHandler implements IRpcEndpoint {
                     .baseFeePerGas
                 gasPrice =
                     userOperation.maxFeePerGas <
-                    (blockBaseFee ?? 0n) + userOperation.maxPriorityFeePerGas
+                        (blockBaseFee ?? 0n) + userOperation.maxPriorityFeePerGas
                         ? userOperation.maxFeePerGas
                         : userOperation.maxPriorityFeePerGas +
-                          (blockBaseFee ?? 0n)
+                        (blockBaseFee ?? 0n)
             }
             const calculatedCallGasLimit =
                 executionResult.paid / gasPrice -
@@ -504,7 +509,7 @@ export class RpcHandler implements IRpcEndpoint {
             )
             await this.mempool.checkEntityMultipleRoleViolation(userOperation)
             const success = this.mempool.add(
-                userOperation,
+                new NormalMempoolUserOp(userOperation),
                 validationResult.referencedContracts
             )
             if (!success) {
@@ -923,25 +928,54 @@ export class RpcHandler implements IRpcEndpoint {
         }
     }
 
-    async pimlico_sendCompressedUserOperations(
-        compressedBytes: Hex,
-        entryPoint: Address
+    async pimlico_sendCompressedUserOperation(
+        compressedCalldata: Hex,
+        entryPoint: Address,
+        inflator: Address
     ) {
-        const bundleBulker = getContract({
-            address: bundleBulkerAddress,
-            abi: bundleBulkerAbi,
+        // check if inflator is registered with our PerOpInflator
+        const inflatorId = await this.compressionHandler.getInflatorRegisteredId(inflator, this.publicClient)
+
+        if (inflatorId === 0) {
+            throw new RpcError(`Inflator ${inflator} has not been registered`, ValidationErrors.InvalidFields)
+        }
+
+        // infalte + validate user op.
+        const inflatorContract = getContract({
+            address: inflator,
+            abi: InflatorAbi,
             publicClient: this.publicClient,
         })
 
-        const inflatedOps = await bundleBulker.read.inflate([compressedBytes])
+        const inflatedOps = (await inflatorContract.read.inflate([compressedCalldata]))[0];
 
-        for (const op of inflatedOps[0]) {
-            await this.validator.validateUserOperation(op)
-
+        if (inflatedOps.length !== 1) {
+            throw new RpcError("Endpoint currenlty only supports one UserOperation", ValidationErrors.InvalidFields)
         }
 
-        const bundleResults = await this.executor.bundleCompressed(entryPoint, compressedBytes)
+        const inflatedOp = inflatedOps[0]
 
+        await this.validator.validateUserOperation(inflatedOp)
+
+        // check if perUseropIsRegisterd to target BundleBulker
+        const bundleBulker = this.compressionHandler.entryPointToBundleBulker[entryPoint]
+        const perOpInflatorId = this.compressionHandler.getPerOpInflatorRegisteredId(bundleBulker)
+
+        if (perOpInflatorId === undefined) {
+            throw new RpcError(`PerUserOp ${this.compressionHandler.getPerOpInflatorAddress()} has not been registered with BundelBulker`, ValidationErrors.InvalidFields)
+        }
+
+        const compressedUserOp = new CompressedUserOp(
+            compressedCalldata,
+            inflatedOps,
+            bundleBulker,
+            entryPoint,
+            inflator,
+            inflatorId,
+            perOpInflatorId,
+        );
+
+        const bundleResults = await this.executor.bundleCompressed(compressedUserOp)
 
         return bundleResults.map((result) => {
             if (result.success) {

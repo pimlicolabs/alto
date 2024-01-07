@@ -2,6 +2,7 @@ import { EntryPointAbi, UserOperation } from "@alto/types"
 import { Logger, getNonceKeyAndValue, getUserOperationHash } from "@alto/utils"
 import { Address, Chain, Hash, PublicClient, Transport } from "viem"
 import { Mempool } from "@alto/mempool"
+import { MempoolUserOperation } from "@alto/mempool/src"
 
 type QueuedUserOperation = {
     userOperationHash: Hash
@@ -85,12 +86,13 @@ export class NonceQueuer {
         })
     }
 
-    private async resubmitUserOperation(userOperation: UserOperation) {
+    resubmitUserOperation(mempoolUserOperation: MempoolUserOperation) {
+        const userOperation = mempoolUserOperation.getUserOperation()
         this.logger.info(
             { userOperation: userOperation },
             "submitting user operation from nonce queue"
         )
-        const result = this.mempool.add(userOperation)
+        const result = this.mempool.add(mempoolUserOperation)
         if (result) {
             this.logger.info(
                 { userOperation: userOperation, result: result },

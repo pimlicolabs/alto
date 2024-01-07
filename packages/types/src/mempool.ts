@@ -1,5 +1,5 @@
 import { Account } from "viem/accounts"
-import { HexData32, UserOperation } from "."
+import { HexData32, UserOperation, CompressedUserOp } from "."
 import { Abi, Chain, WriteContractParameters } from "viem"
 
 export interface ReferencedCodeHashes {
@@ -8,6 +8,34 @@ export interface ReferencedCodeHashes {
 
     // keccak over the code of all referenced addresses
     hash: string
+}
+
+export interface MempoolUserOp {
+    getUserOperation(): UserOperation
+}
+
+export class NormalMempoolUserOp implements MempoolUserOp {
+    userOperation: UserOperation
+
+    constructor(userOperation: UserOperation) {
+        this.userOperation = userOperation
+    }
+
+    getUserOperation(): UserOperation {
+        return this.userOperation
+    }
+}
+
+export class CompressedMempoolUserOp implements MempoolUserOp {
+    compressedUserOp: CompressedUserOp
+
+    constructor(compressedUserOp: CompressedUserOp) {
+        this.compressedUserOp = compressedUserOp
+    }
+
+    getUserOperation(): UserOperation {
+        return this.compressedUserOp.inflatedUserOp
+    }
 }
 
 export type TransactionInfo = {

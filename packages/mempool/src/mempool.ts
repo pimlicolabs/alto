@@ -32,88 +32,8 @@ import {
 } from "@alto/utils"
 import { MemoryStore } from "./store"
 import { IReputationManager, ReputationStatuses } from "./reputationManager"
-
-export interface Mempool {
-    add(op: UserOperation, referencedContracts?: ReferencedCodeHashes): boolean
-    checkEntityMultipleRoleViolation(_op: UserOperation): Promise<void>
-
-    /**
-     * Takes an array of user operations from the mempool, also marking them as submitted.
-     *
-     * @param gasLimit The maximum gas limit of user operations to take.
-     * @param minOps The minimum number of user operations to take.
-     * @returns An array of user operations to submit.
-     */
-    process(gasLimit: bigint, minOps?: number): Promise<UserOperation[]>
-
-    replaceSubmitted(
-        userOperation: UserOperationInfo,
-        transactionInfo: TransactionInfo
-    ): void
-
-    markSubmitted(userOpHash: HexData32, transactionInfo: TransactionInfo): void
-
-    /**
-     * Removes a user operation from the mempool.
-     *
-     * @param userOpHash The hash of the user operation to remove.
-     */
-    removeSubmitted(userOpHash: HexData32): void
-    removeProcessing(userOpHash: HexData32): void
-
-    /**
-     * Gets all user operation from the mempool.
-     *
-     * @returns An array of user operations.
-     */
-    dumpSubmittedOps(): SubmittedUserOperation[]
-
-    dumpOutstanding(): UserOperationInfo[]
-
-    dumpProcessing(): UserOperationInfo[]
-
-    clear(): void
-}
-
-export class NullMempool implements Mempool {
-    clear(): void {
-        throw new Error("Method not implemented.")
-    }
-    dumpOutstanding(): UserOperationInfo[] {
-        throw new Error("Method not implemented.")
-    }
-    removeProcessing(_: `0x${string}`): void {
-        throw new Error("Method not implemented.")
-    }
-    replaceSubmitted(_: UserOperationInfo, __: TransactionInfo): void {
-        throw new Error("Method not implemented.")
-    }
-    markSubmitted(_: `0x${string}`, __: TransactionInfo): void {
-        throw new Error("Method not implemented.")
-    }
-    dumpSubmittedOps(): SubmittedUserOperation[] {
-        throw new Error("Method not implemented.")
-    }
-    dumpProcessing(): UserOperationInfo[] {
-        throw new Error("Method not implemented.")
-    }
-    removeSubmitted(_: `0x${string}`): void {
-        throw new Error("Method not implemented.")
-    }
-    add(
-        _op: UserOperation,
-        _referencedContracts?: ReferencedCodeHashes
-    ): boolean {
-        return false
-    }
-    async checkEntityMultipleRoleViolation(_op: UserOperation): Promise<void> {
-        return
-    }
-
-    async process(_: bigint, __?: number): Promise<UserOperation[]> {
-        return []
-    }
-}
+import { Mempool } from "./types"
+import { MempoolUserOp } from "@alto/types/src"
 
 export class MemoryMempool implements Mempool {
     private monitor: Monitor
@@ -215,8 +135,9 @@ export class MemoryMempool implements Mempool {
         this.store.removeProcessing(userOpHash)
     }
 
-    async checkEntityMultipleRoleViolation(op: UserOperation): Promise<void> {
-        if (!this.safeMode) return
+    // biome-ignore lint/nursery/useAwait: keep async to adhere to interface
+    async  checkEntityMultipleRoleViolation(op: UserOperation): Promise<void> {
+        if (!this.safeMode) { return Promise.resolve() }
         const knownEntities = this.getKnownEntities()
 
         if (
@@ -248,6 +169,8 @@ export class MemoryMempool implements Mempool {
                 ValidationErrors.OpcodeValidation
             )
         }
+
+        return Promise.resolve()
     }
 
     getKnownEntities(): {
@@ -286,7 +209,9 @@ export class MemoryMempool implements Mempool {
         return entities
     }
 
-    add(op: UserOperation, referencedContracts?: ReferencedCodeHashes) {
+    add(_op: MempoolUserOp, referencedContracts?: ReferencedCodeHashes) {
+        const op = _op.getUserOperation()
+
         const outstandingOps = [...this.store.dumpOutstanding()]
 
         const processedOrSubmittedOps = [
