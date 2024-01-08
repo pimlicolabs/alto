@@ -174,8 +174,8 @@ export class BasicExecutor implements IExecutor {
             walletClient: this.walletClient
         })
 
-        const opsWithHashes = transactionInfo.userOperationInfos.map((_op) => {
-            const op = _op.mempoolUserOp.getUserOperation()
+        const opsWithHashes = transactionInfo.userOperationInfos.map((opInfo) => {
+            const op = opInfo.mempoolUserOp.getUserOperation()
             return {
                 userOperation: op,
                 userOperationHash: getUserOperationHash(op, this.entryPoint, this.walletClient.chain.id)

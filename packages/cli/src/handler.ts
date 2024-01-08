@@ -357,7 +357,7 @@ export const bundlerHandler = async (
     )
 
     const compressionHandler = await CompressionHandler.createAsync(
-        [parsedArgs.bundleBulkerAddress], // will parse env as array in future when needed
+        parsedArgs.bundleBulkerAddress,
         parsedArgs.perOpInflatorAddress,
         client
     )

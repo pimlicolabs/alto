@@ -1,79 +1,156 @@
 export const bundleBulkerAbi = [
-    {
-        stateMutability: 'view',
-        type: 'function',
-        inputs: [],
-        name: 'ENTRY_POINT',
-        outputs: [{ name: '', internalType: 'address', type: 'address' }],
-    },
-    {
-        stateMutability: 'view',
-        type: 'function',
-        inputs: [{ name: '', internalType: 'uint32', type: 'uint32' }],
-        name: 'idToInflator',
-        outputs: [{ name: '', internalType: 'address', type: 'address' }],
-    },
-    {
-        stateMutability: 'view',
-        type: 'function',
-        inputs: [{ name: 'compressed', internalType: 'bytes', type: 'bytes' }],
-        name: 'inflate',
-        outputs: [
-            {
-                name: 'ops',
-                internalType: 'struct UserOperation[]',
-                type: 'tuple[]',
-                components: [
-                    { name: 'sender', internalType: 'address', type: 'address' },
-                    { name: 'nonce', internalType: 'uint256', type: 'uint256' },
-                    { name: 'initCode', internalType: 'bytes', type: 'bytes' },
-                    { name: 'callData', internalType: 'bytes', type: 'bytes' },
-                    { name: 'callGasLimit', internalType: 'uint256', type: 'uint256' },
-                    {
-                        name: 'verificationGasLimit',
-                        internalType: 'uint256',
-                        type: 'uint256',
-                    },
-                    {
-                        name: 'preVerificationGas',
-                        internalType: 'uint256',
-                        type: 'uint256',
-                    },
-                    { name: 'maxFeePerGas', internalType: 'uint256', type: 'uint256' },
-                    {
-                        name: 'maxPriorityFeePerGas',
-                        internalType: 'uint256',
-                        type: 'uint256',
-                    },
-                    { name: 'paymasterAndData', internalType: 'bytes', type: 'bytes' },
-                    { name: 'signature', internalType: 'bytes', type: 'bytes' },
-                ],
-            },
-            { name: 'beneficiary', internalType: 'address payable', type: 'address' },
-        ],
-    },
-    {
-        stateMutability: 'view',
-        type: 'function',
-        inputs: [{ name: '', internalType: 'address', type: 'address' }],
-        name: 'inflatorToID',
-        outputs: [{ name: '', internalType: 'uint32', type: 'uint32' }],
-    },
-    {
-        stateMutability: 'nonpayable',
-        type: 'function',
-        inputs: [
-            { name: 'inflatorId', internalType: 'uint32', type: 'uint32' },
-            { name: 'inflator', internalType: 'address', type: 'address' },
-        ],
-        name: 'registerInflator',
-        outputs: [],
-    },
-    {
-        stateMutability: 'nonpayable',
-        type: 'function',
-        inputs: [{ name: 'compressed', internalType: 'bytes', type: 'bytes' }],
-        name: 'submit',
-        outputs: [],
-    },
-] as const;
+  {
+    type: "fallback",
+    stateMutability: "nonpayable"
+  },
+  {
+    type: "function",
+    name: "ENTRY_POINT",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "address",
+        internalType: "address"
+      }
+    ],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "idToInflator",
+    inputs: [
+      {
+        name: "",
+        type: "uint32",
+        internalType: "uint32"
+      }
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "address",
+        internalType: "contract IInflator"
+      }
+    ],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "inflate",
+    inputs: [
+      {
+        name: "compressed",
+        type: "bytes",
+        internalType: "bytes"
+      }
+    ],
+    outputs: [
+      {
+        name: "ops",
+        type: "tuple[]",
+        internalType: "struct UserOperation[]",
+        components: [
+          {
+            name: "sender",
+            type: "address",
+            internalType: "address"
+          },
+          {
+            name: "nonce",
+            type: "uint256",
+            internalType: "uint256"
+          },
+          {
+            name: "initCode",
+            type: "bytes",
+            internalType: "bytes"
+          },
+          {
+            name: "callData",
+            type: "bytes",
+            internalType: "bytes"
+          },
+          {
+            name: "callGasLimit",
+            type: "uint256",
+            internalType: "uint256"
+          },
+          {
+            name: "verificationGasLimit",
+            type: "uint256",
+            internalType: "uint256"
+          },
+          {
+            name: "preVerificationGas",
+            type: "uint256",
+            internalType: "uint256"
+          },
+          {
+            name: "maxFeePerGas",
+            type: "uint256",
+            internalType: "uint256"
+          },
+          {
+            name: "maxPriorityFeePerGas",
+            type: "uint256",
+            internalType: "uint256"
+          },
+          {
+            name: "paymasterAndData",
+            type: "bytes",
+            internalType: "bytes"
+          },
+          {
+            name: "signature",
+            type: "bytes",
+            internalType: "bytes"
+          }
+        ]
+      },
+      {
+        name: "beneficiary",
+        type: "address",
+        internalType: "address payable"
+      }
+    ],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "inflatorToID",
+    inputs: [
+      {
+        name: "",
+        type: "address",
+        internalType: "contract IInflator"
+      }
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "uint32",
+        internalType: "uint32"
+      }
+    ],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "registerInflator",
+    inputs: [
+      {
+        name: "inflatorId",
+        type: "uint32",
+        internalType: "uint32"
+      },
+      {
+        name: "inflator",
+        type: "address",
+        internalType: "contract IInflator"
+      }
+    ],
+    outputs: [],
+    stateMutability: "nonpayable"
+  }
+] as const
