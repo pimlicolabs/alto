@@ -350,6 +350,13 @@ export class RpcHandler implements IRpcEndpoint {
 
             callGasLimit =
                 calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n
+
+            if (
+                this.chainId === chains.baseGoerli.id ||
+                this.chainId === chains.base.id
+            ) {
+                callGasLimit = 110n * callGasLimit / 100n
+            }
         } else {
             userOperation.maxFeePerGas = 0n
             userOperation.maxPriorityFeePerGas = 0n
