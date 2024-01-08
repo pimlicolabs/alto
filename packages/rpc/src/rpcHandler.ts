@@ -93,6 +93,7 @@ export class RpcHandler implements IRpcEndpoint {
     usingTenderly: boolean
     minimumGasPricePercent: number
     noEthCallOverrideSupport: boolean
+    rpcMaxBlockRange: number | undefined
     logger: Logger
     metrics: Metrics
     chainId: number
@@ -112,6 +113,7 @@ export class RpcHandler implements IRpcEndpoint {
         usingTenderly: boolean,
         minimumGasPricePercent: number,
         noEthCallOverrideSupport: boolean,
+        rpcMaxBlockRange: number | undefined,
         logger: Logger,
         metrics: Metrics,
         environment: Environment
@@ -125,6 +127,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.usingTenderly = usingTenderly
         this.minimumGasPricePercent = minimumGasPricePercent
         this.noEthCallOverrideSupport = noEthCallOverrideSupport
+        this.rpcMaxBlockRange = rpcMaxBlockRange
         this.logger = logger
         this.metrics = metrics
         this.environment = environment
@@ -527,36 +530,22 @@ export class RpcHandler implements IRpcEndpoint {
             name: "UserOperationEvent"
         })
 
-        // Only query up to the last `fullBlockRange` = 20000 blocks
-        const latestBlock = await this.publicClient.getBlockNumber()
-        let fullBlockRange = 20000n
-        if (
-            this.chainId === 335 ||
-            this.chainId === chains.base.id ||
-            this.chainId === 47279324479 ||
-            this.chainId === chains.bsc.id ||
-            this.chainId === chains.arbitrum.id ||
-            this.chainId === chains.arbitrumGoerli.id ||
-            this.chainId === chains.baseGoerli.id ||
-            this.chainId === chains.avalanche.id ||
-            this.chainId === chains.avalancheFuji.id ||
-            this.chainId === chains.scroll.id
-        ) {
-            fullBlockRange = 2000n
-        }
-
-        let fromBlock: bigint
-        if (this.usingTenderly) {
-            fromBlock = latestBlock - 100n
-        } else {
-            fromBlock = latestBlock - fullBlockRange
+        let fromBlock: bigint | undefined = undefined
+        let toBlock: "latest" | undefined = undefined
+        if (this.rpcMaxBlockRange !== undefined) {
+            const latestBlock = await this.publicClient.getBlockNumber()
+            fromBlock = latestBlock - BigInt(this.rpcMaxBlockRange)
+            if (fromBlock < 0n) {
+                fromBlock = 0n
+            }
+            toBlock = "latest"
         }
 
         const filterResult = await this.publicClient.getLogs({
             address: this.entryPoint,
             event: userOperationEventAbiItem,
-            fromBlock: fromBlock > 0n ? fromBlock : 0n,
-            toBlock: "latest",
+            fromBlock,
+            toBlock,
             args: {
                 userOpHash: userOperationHash
             }
@@ -630,39 +619,22 @@ export class RpcHandler implements IRpcEndpoint {
             name: "UserOperationEvent"
         })
 
-        // Only query up to the last `fullBlockRange` = 20000 blocks
-        const latestBlock = await this.publicClient.getBlockNumber()
-        let fullBlockRange = 20000n
-        if (this.chainId === chains.arbitrum.id) {
-            fullBlockRange = 1000000n
-        }
-
-        if (
-            this.chainId === 335 ||
-            this.chainId === chains.base.id ||
-            this.chainId === 47279324479 ||
-            this.chainId === chains.bsc.id ||
-            this.chainId === chains.arbitrumGoerli.id ||
-            this.chainId === chains.baseGoerli.id ||
-            this.chainId === chains.avalanche.id ||
-            this.chainId === chains.avalancheFuji.id ||
-            this.chainId === chains.scroll.id
-        ) {
-            fullBlockRange = 2000n
-        }
-
-        let fromBlock: bigint
-        if (this.usingTenderly) {
-            fromBlock = latestBlock - 100n
-        } else {
-            fromBlock = latestBlock - fullBlockRange
+        let fromBlock: bigint | undefined = undefined
+        let toBlock: "latest" | undefined = undefined
+        if (this.rpcMaxBlockRange !== undefined) {
+            const latestBlock = await this.publicClient.getBlockNumber()
+            fromBlock = latestBlock - BigInt(this.rpcMaxBlockRange)
+            if (fromBlock < 0n) {
+                fromBlock = 0n
+            }
+            toBlock = "latest"
         }
 
         const filterResult = await this.publicClient.getLogs({
             address: this.entryPoint,
             event: userOperationEventAbiItem,
-            fromBlock: fromBlock > 0n ? fromBlock : 0n,
-            toBlock: "latest",
+            fromBlock,
+            toBlock,
             args: {
                 userOpHash: userOperationHash
             }

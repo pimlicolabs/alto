@@ -1,10 +1,10 @@
 import { BasicExecutor, ExecutorManager, SenderManager } from "@alto/executor"
 import {
+    IReputationManager,
     MemoryMempool,
     Monitor,
-    ReputationManager,
-    IReputationManager,
-    NullRepuationManager
+    NullRepuationManager,
+    ReputationManager
 } from "@alto/mempool"
 import {
     NonceQueuer,
@@ -13,6 +13,7 @@ import {
     Server,
     UnsafeValidator
 } from "@alto/rpc"
+import { IValidator } from "@alto/types"
 import {
     Logger,
     createMetrics,
@@ -31,7 +32,6 @@ import {
 import * as chains from "viem/chains"
 import { fromZodError } from "zod-validation-error"
 import { IBundlerArgs, IBundlerArgsInput, bundlerArgsSchema } from "./config"
-import { IValidator } from "@alto/types"
 
 const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
     // validate every arg, make typesafe so if i add a new arg i have to validate it
@@ -367,6 +367,7 @@ export const bundlerHandler = async (
         parsedArgs.tenderlyEnabled ?? false,
         parsedArgs.minimumGasPricePercent,
         parsedArgs.noEthCallOverrideSupport,
+        parsedArgs.rpcMaxBlockRange,
         logger.child({ module: "rpc" }),
         metrics,
         parsedArgs.environment

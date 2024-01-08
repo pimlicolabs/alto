@@ -161,6 +161,11 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "number",
         require: false,
         default: 1000
+    },
+    rpcMaxBlockRange: {
+        description: "Max block range for rpc calls",
+        type: "number",
+        require: false,
     }
 }
 

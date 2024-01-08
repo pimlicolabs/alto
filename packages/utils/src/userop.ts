@@ -1,4 +1,5 @@
 import { EntryPointAbi, HexData32, UserOperation } from "@alto/types"
+import * as sentry from "@sentry/node"
 import {
     Address,
     Hex,
@@ -8,7 +9,6 @@ import {
     getAddress,
     keccak256
 } from "viem"
-import * as sentry from "@sentry/node"
 
 export function getAddressFromInitCodeOrPaymasterAndData(
     data: Hex
