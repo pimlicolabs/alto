@@ -919,7 +919,7 @@ export class RpcHandler implements IRpcEndpoint {
             )
             await this.mempool.checkEntityMultipleRoleViolation(userOperation)
             const success = this.mempool.add(
-                userOperation,
+                op,
                 validationResult.referencedContracts
             )
             if (!success) {

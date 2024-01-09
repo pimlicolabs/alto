@@ -95,7 +95,7 @@ export type UserOperationRequest = {
 }
 
 export type UserOperationWithHash = {
-    userOperation: MempoolUserOperation
+    mempoolUserOperation: MempoolUserOperation
     userOperationHash: HexData32
 }
 

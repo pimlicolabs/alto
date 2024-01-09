@@ -30,7 +30,7 @@ import * as sentry from "@sentry/node"
 
 export function simulatedOpsToResults(
     simulatedOps: {
-        op: UserOperationWithHash
+        owh: UserOperationWithHash
         reason: string | undefined
     }[],
     transactionInfo: TransactionInfo
@@ -41,8 +41,8 @@ export function simulatedOpsToResults(
                 success: true,
                 value: {
                     userOperation: {
-                        mempoolUserOperation: sop.op.userOperation,
-                        userOperationHash: sop.op.userOperationHash,
+                        mempoolUserOperation: sop.owh.mempoolUserOperation,
+                        userOperationHash: sop.owh.userOperationHash,
                         lastReplaced: Date.now(),
                         firstSubmitted: Date.now()
                     },
@@ -53,7 +53,7 @@ export function simulatedOpsToResults(
         return {
             success: false,
             error: {
-                userOpHash: sop.op.userOperationHash,
+                userOpHash: sop.owh.userOperationHash,
                 reason: sop.reason as string
             }
         }
@@ -96,10 +96,10 @@ export async function filterOpsAndEstimateGas(
     logger: Logger
 ) {
     const simulatedOps: {
-        op: UserOperationWithHash
+        owh: UserOperationWithHash
         reason: string | undefined
-    }[] = ops.map((op) => {
-        return { op, reason: undefined }
+    }[] = ops.map((owh) => {
+        return { owh, reason: undefined }
     })
 
     let gasLimit: bigint
@@ -112,7 +112,7 @@ export async function filterOpsAndEstimateGas(
                 const ep = (callContext as DefaultFilterOpsAndEstimateGasParams).ep
                 const opsToSend = simulatedOps
                             .filter((op) => op.reason === undefined)
-                            .map((op) => (op.op.userOperation as UserOperation))
+                            .map((op) => (op.owh.mempoolUserOperation as UserOperation))
 
                 gasLimit = await ep.estimateGas.handleOps(
                     [
@@ -131,7 +131,7 @@ export async function filterOpsAndEstimateGas(
                 const { publicClient, bundleBulker, perOpInflatorId } = (callContext as CompressedFilterOpsAndEstimateGasParams)
                 const opsToSend = simulatedOps
                             .filter((op) => op.reason === undefined)
-                            .map((op) => (op.op.userOperation as CompressedUserOperation))
+                            .map((op) => (op.owh.mempoolUserOperation as CompressedUserOperation))
 
                 gasLimit = await publicClient.estimateGas({
                     to: bundleBulker,
@@ -156,7 +156,7 @@ export async function filterOpsAndEstimateGas(
                             failedOpError,
                             userOpHashes: simulatedOps
                                 .filter((op) => op.reason === undefined)
-                                .map((op) => op.op.userOperationHash)
+                                .map((op) => op.owh.userOperationHash)
                         },
                         "user op in batch invalid"
                     )
@@ -167,7 +167,7 @@ export async function filterOpsAndEstimateGas(
 
                     failingOp.reason = failedOpError.args.reason
                     reputationManager.crashedHandleOps(
-                        failingOp.op.userOperation,
+                        failingOp.owh.mempoolUserOperation,
                         failingOp.reason
                     )
                 } else {
@@ -193,7 +193,7 @@ export async function filterOpsAndEstimateGas(
                             args: errorResult.args,
                             userOpHashes: simulatedOps
                                 .filter((op) => op.reason === undefined)
-                                .map((op) => op.op.userOperationHash)
+                                .map((op) => op.owh.userOperationHash)
                         },
                         "user op in batch invalid"
                     )

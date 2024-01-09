@@ -7,7 +7,6 @@ import {
     UserOperation,
     CompressedUserOperation,
     UserOperationWithHash,
-    BundleBulkerAbi,
     deriveUserOperation,
 } from "@alto/types"
 import {
@@ -72,7 +71,7 @@ export interface IExecutor {
 }
 
 export class NullExecutor implements IExecutor {
-    async bundle(
+    async  bundle(
         entryPoint: Address,
         ops: UserOperation[]
     ): Promise<BundleResult[]> {
@@ -183,7 +182,7 @@ export class BasicExecutor implements IExecutor {
         const opsWithHashes = transactionInfo.userOperationInfos.map((opInfo) => {
             const op = deriveUserOperation(opInfo.mempoolUserOperation)
             return {
-                userOperation: op,
+                mempoolUserOperation: op,
                 userOperationHash: getUserOperationHash(op, this.entryPoint, this.walletClient.chain.id)
             }
         })
@@ -241,7 +240,7 @@ export class BasicExecutor implements IExecutor {
             .filter((op) => op.reason === undefined)
             .map((op) => {
                 const opInfo = transactionInfo.userOperationInfos.find(
-                    (info) => info.userOperationHash === op.op.userOperationHash
+                    (info) => info.userOperationHash === op.owh.userOperationHash
                 )
                 if (!opInfo) {
                     throw new Error("opInfo not found")
@@ -250,14 +249,13 @@ export class BasicExecutor implements IExecutor {
             })
 
         newRequest.gas = this.useUserOperationGasLimitsForSubmission
-            ? opsToBundle.reduce(
-                (acc, op) =>
-                    acc +
-                    deriveUserOperation(op.mempoolUserOperation).preVerificationGas +
-                    3n * deriveUserOperation(op.mempoolUserOperation).verificationGasLimit +
-                    deriveUserOperation(op.mempoolUserOperation).callGasLimit,
-                0n
-            ) * 1n
+            ? opsToBundle.reduce((acc, op) => {
+                    const userOperation = deriveUserOperation(op.mempoolUserOperation)
+                    return acc +
+                        userOperation.preVerificationGas +
+                        3n * userOperation.verificationGasLimit +
+                        userOperation.callGasLimit
+            }, 0n)
             : result.gasLimit
 
         // update calldata to include only ops that pass simulation
@@ -396,7 +394,7 @@ export class BasicExecutor implements IExecutor {
     ): Promise<BundleResult[]> {
         const opsWithHashes = ops.map((op) => {
             return {
-                userOperation: op,
+                mempoolUserOperation: op,
                 userOperationHash: getUserOperationHash(
                     op,
                     entryPoint,
@@ -415,7 +413,7 @@ export class BasicExecutor implements IExecutor {
         })
 
         let childLogger = this.logger.child({
-            userOperations: opsWithHashes.map((oh) => oh.userOperation),
+            userOperations: opsWithHashes.map((oh) => oh.mempoolUserOperation),
             entryPoint
         })
         childLogger.debug("bundling user operation")
@@ -475,7 +473,7 @@ export class BasicExecutor implements IExecutor {
                 return {
                     success: false,
                     error: {
-                        userOpHash: op.op.userOperationHash,
+                        userOpHash: op.owh.userOperationHash,
                         reason: op.reason as string
                     }
                 }
@@ -484,10 +482,10 @@ export class BasicExecutor implements IExecutor {
 
         const opsToBundle = simulatedOps
             .filter((op) => op.reason === undefined)
-            .map((op) => op.op)
+            .map((op) => op.owh)
 
         childLogger = this.logger.child({
-            userOperations: opsToBundle.map((oh) => oh.userOperation),
+            userOperations: opsToBundle.map((oh) => oh.mempoolUserOperation),
             entryPoint
         })
 
@@ -502,7 +500,7 @@ export class BasicExecutor implements IExecutor {
         let txHash: HexData32
         try {
             txHash = await ep.write.handleOps(
-                [opsToBundle.map((op) => (op.userOperation as UserOperation)), wallet.address],
+                [opsToBundle.map((owh) => (owh.mempoolUserOperation as UserOperation)), wallet.address],
                 this.noEip1559Support
                     ? {
                         account: wallet,
@@ -541,7 +539,7 @@ export class BasicExecutor implements IExecutor {
             this.metrics.userOperationsSubmitted.inc()
 
             return {
-                mempoolUserOperation: op.userOperation,
+                mempoolUserOperation: op.mempoolUserOperation,
                 userOperationHash: op.userOperationHash,
                 lastReplaced: Date.now(),
                 firstSubmitted: Date.now()
@@ -559,7 +557,7 @@ export class BasicExecutor implements IExecutor {
                     abi: ep.abi,
                     functionName: "handleOps",
                     args: [
-                        opsToBundle.map((owh) => (owh.userOperation as UserOperation)),
+                        opsToBundle.map((owh) => (owh.mempoolUserOperation as UserOperation)),
                         wallet.address
                     ],
                 }),
@@ -626,7 +624,7 @@ async bundleCompressed(entryPoint: Address, compressedOps: CompressedUserOperati
             wallet,
             compressedOps.map((op) => {
                 return {
-                    userOperation: op,
+                    mempoolUserOperation: op,
                     userOperationHash: getUserOperationHash(op.inflatedOp, entryPoint, this.walletClient.chain.id)
                 }
             }),
@@ -662,14 +660,14 @@ async bundleCompressed(entryPoint: Address, compressedOps: CompressedUserOperati
                 return {
                     success: false,
                     error: {
-                        userOpHash: op.op.userOperationHash,
+                        userOpHash: op.owh.userOperationHash,
                         reason: op.reason as string
                     }
                 }
             })
         }
 
-        opsToBundle = simulatedOps.filter((op) => op.reason === undefined).map((op) => op.op)
+        opsToBundle = simulatedOps.filter((op) => op.reason === undefined).map((op) => op.owh)
 
         let txHash: HexData32
         try {
@@ -698,22 +696,15 @@ async bundleCompressed(entryPoint: Address, compressedOps: CompressedUserOperati
             return []
         }
 
-        const userOperationInfos = opsToBundle.map((op) => {
+        const userOperationInfos = opsToBundle.map((owh) => {
             this.metrics.userOperationsSubmitted.inc()
 
             return {
-                mempoolUserOperation: op.userOperation,
-                userOperationHash: op.userOperationHash,
+                mempoolUserOperation: owh.mempoolUserOperation,
+                userOperationHash: owh.userOperationHash,
                 lastReplaced: Date.now(),
                 firstSubmitted: Date.now()
             }
-        })
-
-        const bb = getContract({
-            abi: BundleBulkerAbi,
-            address: this.compressionHandler.bundleBulkerAddress,
-            publicClient: this.publicClient,
-            walletClient: this.walletClient
         })
 
         const transactionInfo: TransactionInfo = {
@@ -721,7 +712,7 @@ async bundleCompressed(entryPoint: Address, compressedOps: CompressedUserOperati
             transactionHash: txHash,
             previousTransactionHashes: [],
             transactionRequest: {
-                address: bb.address,
+                address: this.compressionHandler.bundleBulkerAddress,
                 calldata: createCompressedCalldata(compressedOps, this.compressionHandler.perOpInflatorId),
                 gas: gasLimit,
                 account: wallet,
