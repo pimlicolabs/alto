@@ -4,41 +4,36 @@ import {
 import { Client, getContract } from "viem"
 
 export class CompressionHandler {
+    bundleBulkerAddress: Address
     perOpInflatorAddress: Address
     perOpInflatorId: number
-    bundleBulkerAddress: Address
 
-    private constructor() {
-        this.perOpInflatorAddress = "0x00"
-        this.perOpInflatorId = 0
-        this.bundleBulkerAddress = "0x00"
-    }
-
-    public static async createAsync(
+    constructor(
         bundleBulkerAddress: Address,
         perOpInflatorAddress: Address,
-        publicClient: Client,
-    ): Promise<CompressionHandler> {
-        const compressionHandler = new CompressionHandler()
+    ) {
+        this.bundleBulkerAddress = bundleBulkerAddress
+        this.perOpInflatorAddress = perOpInflatorAddress
+        this.perOpInflatorId = 0
+    }
 
+    public async fetchPerOpInflatorId(
+        publicClient: Client,
+    ) {
         const bundleBulker = getContract({
-            address: bundleBulkerAddress,
+            address: this.bundleBulkerAddress,
             abi: BundleBulkerAbi,
             publicClient,
         })
 
         // get our perOpInflator's id for this particular bundleBulker
-        const perOpInflatorId = await bundleBulker.read.inflatorToID([perOpInflatorAddress])
+        const perOpInflatorId = await bundleBulker.read.inflatorToID([this.perOpInflatorAddress])
 
         if (perOpInflatorId === 0) {
-            throw new Error(`perOpInflator ${perOpInflatorAddress} is not registered with BundleBulker`)
+            throw new Error(`perOpInflator ${this.perOpInflatorAddress} is not registered with BundleBulker`)
         }
 
-        compressionHandler.bundleBulkerAddress = bundleBulkerAddress
-        compressionHandler.perOpInflatorAddress = perOpInflatorAddress
-        compressionHandler.perOpInflatorId = perOpInflatorId
-
-        return compressionHandler
+        this.perOpInflatorId = perOpInflatorId
     }
 
     public async getInflatorRegisteredId(inflator: Address, publicClient: Client): Promise<number> {

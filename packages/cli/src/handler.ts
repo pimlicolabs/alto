@@ -7,19 +7,13 @@ import {
     NullRepuationManager
 } from "@alto/mempool"
 import {
-    CompressionHandler,
-    NonceQueuer,
-    RpcHandler,
-    SafeValidator,
-    Server,
-    UnsafeValidator
-} from "@alto/rpc"
-import {
     Logger,
     createMetrics,
     initDebugLogger,
-    initProductionLogger
+    initProductionLogger,
+    CompressionHandler,
 } from "@alto/utils"
+import { NonceQueuer, RpcHandler, SafeValidator, Server, UnsafeValidator } from "@alto/rpc"
 import { Registry } from "prom-client"
 import {
     Chain,
@@ -321,11 +315,11 @@ export const bundlerHandler = async (
         metrics
     )
 
-    const compressionHandler = await CompressionHandler.createAsync(
+    const compressionHandler = new CompressionHandler(
         parsedArgs.bundleBulkerAddress,
-        parsedArgs.perOpInflatorAddress,
-        client
+        parsedArgs.perOpInflatorAddress
     )
+    await compressionHandler.fetchPerOpInflatorId(client)
 
     const executor = new BasicExecutor(
         client,

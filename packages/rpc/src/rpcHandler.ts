@@ -1,4 +1,4 @@
-import { IExecutor, ExecutorManager  } from "../../executor/src"
+import { IExecutor, ExecutorManager  } from "@alto/executor"
 import { IReputationManager, Mempool, Monitor } from "@alto/mempool"
 import {
     Address,
