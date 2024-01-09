@@ -24,16 +24,15 @@ Alto Options
    -e,  --entry-point       entryPoint contract address, 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789 (DEFAULT)
 
 Anvil Options
-   -r,  --rpc-url           RPC url to fork from
-   -b,  --block-num         Fork block number
-   -t,  --timestamp
-   -p,  --port
-   -h,  --host              IP Address
-   -c,  --replace-code      Replace an addresses bytecode, usage: <address>,<bytecode-file>
+   -r <rpc-url>             RPC url to fork from
+   -b <block-num>           Fork block number
+   -t <timestamp>           Timestamp
+   -p <port>
+   -h <host>
+   -c <address>,<bytecode-file>
 
 Misc Options
-   --help
-   --tmux                   Launch anvil + alto in a tmux split
+   -t                       Launch anvil + alto in a tmux split
 
 EOF
 exit 1
@@ -67,36 +66,41 @@ fund_accounts() {
          $anvilHost:$anvilPort > /dev/null
 }
 
-args=$(getopt -a -o e:r:b:p:t:c:h --long entry-point:,rpc-url:,block-num:,timestamp:,port:,host:,replace-code:,tmux,help -- "$@")
-if [[ $? -gt 0 ]]; then
-  usage
-fi
-
-eval set -- ${args}
-while :
+while getopts "e:r:b:p:t:c:h" opt;
 do
-  case $1 in
-    -e | --entry-point)             entryPoint=$2;              shift 2 ;;
-    -r | --rpc-url)                 rpcUrl=$2;                  shift 2 ;;
-    -b | --block-num)               blockNum=$2;                shift 2 ;;
-    -t | --timestamp)               timestamp=$2;               shift 2 ;;
-    -p | --port)                    anvilPort=$2;               shift 2 ;;
-    -h | --host)                    anvilHost=$2;               shift 2 ;;
-    -c | --replace-code)            patchBytecode+=("$2");      shift 2 ;;
-    --tmux)                         tmux=1;                     shift 1 ;;
-    --help)                         usage;                      exit 0  ;;
-    # -- means the end of the arguments; drop this, and break out of the while loop.
-    --) shift; break ;;
-    *) >&2 echo Unsupported option: $1
-       usage ;;
+  case ${opt} in
+    e)
+        entryPoint=$OPTARG
+        ;;
+    r)
+        rpcUrl=$OPTARG
+        ;;
+    b)
+        blockNum=$OPTARG
+        ;;
+    t)
+        timestamp=$OPTARG
+        ;;
+    p)
+        anvilPort=$OPTARG
+        ;;
+    h)
+        anvilHost=$OPTARG
+        ;;
+    c)
+        patchBytecode+=($OPTARG)
+        ;;
+    t)
+        tmux=1
+        ;;
   esac
 done
 
 # check for required flags.
 isMissingFlag=0
 
-[ -z $rpcUrl ] && echo "[NOTE] Flag --rpc-url Missing" && isMissingFlag=1
-[ -z $blockNum ] && echo "[NOTE] Flag --block-num Missing" && isMissingFlag=1
+[ -z $rpcUrl ] && echo "[NOTE] Flag -r (rpc url) Missing" && isMissingFlag=1
+[ -z $blockNum ] && echo "[NOTE] Flag -b (block num) Missing" && isMissingFlag=1
 
 if [ $isMissingFlag -eq 1 ]; then
   exit 1

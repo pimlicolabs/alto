@@ -7,9 +7,10 @@ Simple bash script to deploy and run a local alto + anvil instance in forked mod
 To run the local instances use this command.
 
 ```console
-./run-local-fork.sh --rpc-url <rpc> --block-num <some-block> ...
+./run-local-fork.sh -r <rpc> -b <some-block> -e <address> ...
 ```
-> `--rpc-url` and `--block-num` are required fields
+
+`-r` (flag for rpc url) and `-b` (flag for block number) are required flags.
 
 > [!WARNING]
 > **Note:** make sure you don't rename the repo when cloning. The script searches for the directory named `alto` and treats it as the project root.
@@ -24,14 +25,13 @@ Alto Options
    -e,  --entry-point       entryPoint contract address, 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789 (DEFAULT)
 
 Anvil Options
-   -r,  --rpc-url           RPC url to fork from
-   -b,  --block-num         Fork block number
-   -t,  --timestamp         Starting timestamp
-   -p,  --port              Anvil port
-   -h,  --host              IP Address
-   -c,  --replace-code      Replace an addresses bytecode, usage: <address>,<bytecode-file>
+   -r <rpc-url>             RPC url to fork from
+   -b <block-num>           Fork block number
+   -t <timestamp>           Timestamp
+   -p <port>
+   -h <host>
+   -c <address>,<bytecode-file>
 
 Misc Options
-   --help
-   --tmux                   Launch anvil + alto in a tmux split
+   -t                       Launch anvil + alto in a tmux split
 ```
