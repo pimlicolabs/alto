@@ -1,4 +1,4 @@
-import { BasicExecutor, ExecutorManager, SenderManager } from "@alto/executor"
+import { BasicExecutor, ExecutorManager, SenderManager } from "../../executor/src"
 import {
     MemoryMempool,
     Monitor,
@@ -321,6 +321,12 @@ export const bundlerHandler = async (
         metrics
     )
 
+    const compressionHandler = await CompressionHandler.createAsync(
+        parsedArgs.bundleBulkerAddress,
+        parsedArgs.perOpInflatorAddress,
+        client
+    )
+
     const executor = new BasicExecutor(
         client,
         walletClient,
@@ -329,6 +335,7 @@ export const bundlerHandler = async (
         parsedArgs.entryPoint,
         logger.child({ module: "executor" }),
         metrics,
+        compressionHandler,
         !parsedArgs.tenderlyEnabled,
         parsedArgs.noEip1559Support,
         parsedArgs.customGasLimitForEstimation,
@@ -354,12 +361,6 @@ export const bundlerHandler = async (
         client,
         parsedArgs.entryPoint,
         logger.child({ module: "nonce_queuer" })
-    )
-
-    const compressionHandler = await CompressionHandler.createAsync(
-        parsedArgs.bundleBulkerAddress,
-        parsedArgs.perOpInflatorAddress,
-        client
     )
 
     const rpcEndpoint = new RpcHandler(

@@ -1,5 +1,5 @@
 import {
-    MempoolUserOp,
+    MempoolUserOperation,
     ReferencedCodeHashes,
     SubmittedUserOperation,
     TransactionInfo,
@@ -34,7 +34,7 @@ export class NullMempool implements Mempool {
         throw new Error("Method not implemented.")
     }
     add(
-        _op: MempoolUserOp,
+        _op: MempoolUserOperation,
         _referencedContracts?: ReferencedCodeHashes
     ): boolean {
         return false
@@ -43,7 +43,7 @@ export class NullMempool implements Mempool {
         return Promise.resolve()
     }
 
-    process(_: bigint, __?: number): Promise<MempoolUserOp[]> {
+    process(_: bigint, __?: number): Promise<MempoolUserOperation[]> {
         return Promise.resolve([])
     }
 }

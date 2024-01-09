@@ -1,7 +1,7 @@
-import { HexData32, MempoolUserOp, ReferencedCodeHashes, SubmittedUserOperation, TransactionInfo, UserOperation, UserOperationInfo } from "@alto/types"
+import { HexData32, MempoolUserOperation, ReferencedCodeHashes, SubmittedUserOperation, TransactionInfo, UserOperation, UserOperationInfo } from "@alto/types"
 
 export interface Mempool {
-    add(op: MempoolUserOp, referencedContracts?: ReferencedCodeHashes): boolean
+    add(op: MempoolUserOperation, referencedContracts?: ReferencedCodeHashes): boolean
     checkEntityMultipleRoleViolation(_op: UserOperation): Promise<void>
 
     /**
@@ -11,7 +11,7 @@ export interface Mempool {
      * @param minOps The minimum number of user operations to take.
      * @returns An array of user operations to submit.
      */
-    process(gasLimit: bigint, minOps?: number): Promise<MempoolUserOp[]>
+    process(gasLimit: bigint, minOps?: number): Promise<MempoolUserOperation[]>
 
     replaceSubmitted(
         userOperation: UserOperationInfo,

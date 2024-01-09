@@ -1,5 +1,5 @@
 import {
-    Address, PerOpInfaltorAbi, bundleBulkerAbi,
+    Address, PerOpInfaltorAbi, BundleBulkerAbi,
 } from "@alto/types"
 import { Client, getContract } from "viem"
 
@@ -23,7 +23,7 @@ export class CompressionHandler {
 
         const bundleBulker = getContract({
             address: bundleBulkerAddress,
-            abi: bundleBulkerAbi,
+            abi: BundleBulkerAbi,
             publicClient,
         })
 

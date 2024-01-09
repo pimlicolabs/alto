@@ -121,6 +121,9 @@ importers:
       '@alto/mempool':
         specifier: '*'
         version: link:../mempool
+      '@alto/rpc':
+        specifier: '*'
+        version: link:../rpc
       '@alto/types':
         specifier: '*'
         version: link:../types

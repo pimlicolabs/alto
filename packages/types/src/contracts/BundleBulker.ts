@@ -1,4 +1,4 @@
-export const bundleBulkerAbi = [
+export const BundleBulkerAbi = [
   {
     type: "fallback",
     stateMutability: "nonpayable"

@@ -1,5 +1,6 @@
 import { Hash, Hex, getAddress } from "viem"
 import { z } from "zod"
+import { MempoolUserOperation } from "./mempool"
 
 const hexDataPattern = /^0x[0-9A-Fa-f]*$/
 const addressPattern = /^0x[0-9,a-f,A-F]{40}$/
@@ -81,13 +82,20 @@ export type UserOperation = {
     signature: HexData
 }
 
+export type CompressedUserOperation = {
+    compressedCalldata: Hex
+    inflatedOp: UserOperation
+    inflatorAddress: Address
+    inflatorId: number
+}
+
 export type UserOperationRequest = {
     userOperation: UserOperation
     entryPoint: Address
 }
 
 export type UserOperationWithHash = {
-    userOperation: UserOperation
+    userOperation: MempoolUserOperation
     userOperationHash: HexData32
 }
 

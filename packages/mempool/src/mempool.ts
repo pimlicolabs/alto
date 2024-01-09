@@ -33,7 +33,7 @@ import {
 import { MemoryStore } from "./store"
 import { IReputationManager, ReputationStatuses } from "./reputationManager"
 import { Mempool } from "./types"
-import { MempoolUserOp } from "@alto/types/src"
+import { MempoolUserOperation, deriveUserOperation } from "@alto/types/src"
 
 export class MemoryMempool implements Mempool {
     private monitor: Monitor
@@ -191,7 +191,7 @@ export class MemoryMempool implements Mempool {
         }
 
         for (const mempoolOp of allOps) {
-            const op = mempoolOp.mempoolUserOp.getUserOperation()
+            const op = deriveUserOperation(mempoolOp.mempoolUserOperation)
             entities.sender.add(op.sender)
             const paymaster = getAddressFromInitCodeOrPaymasterAndData(
                 op.paymasterAndData
@@ -210,8 +210,8 @@ export class MemoryMempool implements Mempool {
         return entities
     }
 
-    add(mempoolUserOp: MempoolUserOp, referencedContracts?: ReferencedCodeHashes) {
-        const op = mempoolUserOp.getUserOperation()
+    add(mempoolUserOperation: MempoolUserOperation, referencedContracts?: ReferencedCodeHashes) {
+        const op = deriveUserOperation(mempoolUserOperation)
 
         const outstandingOps = [...this.store.dumpOutstanding()]
 
@@ -223,7 +223,7 @@ export class MemoryMempool implements Mempool {
         if (
             processedOrSubmittedOps.find(
                 (uo) => {
-                    const userOp = uo.mempoolUserOp.getUserOperation()
+                    const userOp = deriveUserOperation(uo.mempoolUserOperation)
                     userOp.sender === op.sender &&
                     userOp.nonce === op.nonce
                 }
@@ -235,13 +235,13 @@ export class MemoryMempool implements Mempool {
         this.reputationManager.updateUserOperationSeenStatus(op)
         const oldUserOp = outstandingOps.find(
             (uo) => {
-                const userOp = uo.mempoolUserOp.getUserOperation()
+                const userOp = deriveUserOperation(uo.mempoolUserOperation)
                 userOp.sender === op.sender &&
                 userOp.nonce === op.nonce
             }
         )
         if (oldUserOp) {
-            const oldOp = oldUserOp.mempoolUserOp.getUserOperation()
+            const oldOp = deriveUserOperation(oldUserOp.mempoolUserOperation)
             const oldMaxPriorityFeePerGas = oldOp.maxPriorityFeePerGas
             const newMaxPriorityFeePerGas = op.maxPriorityFeePerGas
             const oldMaxFeePerGas = oldOp.maxFeePerGas
@@ -270,7 +270,7 @@ export class MemoryMempool implements Mempool {
         )
 
         this.store.addOutstanding({
-            mempoolUserOp,
+            mempoolUserOperation,
             userOperationHash: hash,
             firstSubmitted: oldUserOp ? oldUserOp.firstSubmitted : Date.now(),
             lastReplaced: Date.now(),
@@ -307,7 +307,7 @@ export class MemoryMempool implements Mempool {
         senders: Set<string>
         storageMap: StorageMap
     }> {
-        const op = opInfo.mempoolUserOp.getUserOperation()
+        const op = deriveUserOperation(opInfo.mempoolUserOperation)
         if (!this.safeMode) {
             return {
                 skip: false,
@@ -509,11 +509,11 @@ export class MemoryMempool implements Mempool {
     async process(
         maxGasLimit: bigint,
         minOps?: number
-    ): Promise<MempoolUserOp[]> {
+    ): Promise<MempoolUserOperation[]> {
         const outstandingUserOperations = this.store.dumpOutstanding().slice()
         let opsTaken = 0
         let gasUsed = 0n
-        const result: MempoolUserOp[] = []
+        const result: MempoolUserOperation[] = []
 
         // paymaster deposit should be enough for all UserOps in the bundle.
         let paymasterDeposit: { [paymaster: string]: bigint } = {}
@@ -526,7 +526,7 @@ export class MemoryMempool implements Mempool {
         let storageMap: StorageMap = {}
 
         for (const opInfo of outstandingUserOperations) {
-            const op = opInfo.mempoolUserOp.getUserOperation()
+            const op = deriveUserOperation(opInfo.mempoolUserOperation)
             gasUsed +=
                 op.callGasLimit +
                 op.verificationGasLimit * 3n +
@@ -557,7 +557,7 @@ export class MemoryMempool implements Mempool {
             )
             this.store.removeOutstanding(opInfo.userOperationHash)
             this.store.addProcessing(opInfo)
-            result.push(opInfo.mempoolUserOp)
+            result.push(opInfo.mempoolUserOperation)
             opsTaken++
         }
         return result
@@ -568,14 +568,14 @@ export class MemoryMempool implements Mempool {
             .dumpOutstanding()
             .find((op) => op.userOperationHash === opHash)
         if (outstanding) {
-            return outstanding.mempoolUserOp.getUserOperation()
+            return deriveUserOperation(outstanding.mempoolUserOperation)
         }
 
         const submitted = this.store
             .dumpSubmitted()
             .find((op) => op.userOperation.userOperationHash === opHash)
         if (submitted) {
-            return submitted.userOperation.mempoolUserOp.getUserOperation()
+            return deriveUserOperation(submitted.userOperation.mempoolUserOperation)
         }
 
         return null

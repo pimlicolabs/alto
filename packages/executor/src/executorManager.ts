@@ -2,8 +2,8 @@ import {
     SubmittedUserOperation,
     TransactionInfo,
     BundlingMode,
-    MempoolUserOp,
-    CompressedMempoolUserOp
+    MempoolUserOperation,
+    CompressedUserOperation
 } from "@alto/types"
 import { IReputationManager, Mempool, Monitor } from "@alto/mempool"
 import { IExecutor } from "./executor"
@@ -18,7 +18,8 @@ import {
 } from "viem"
 import { Logger, Metrics, transactionIncluded } from "@alto/utils"
 import { getGasPrice } from "@alto/utils"
-import { NormalMempoolUserOp } from "@alto/types/src"
+import { UserOperation, deriveUserOperation } from "@alto/types/src"
+import { isCompressedType } from "@alto/types"
 
 function getTransactionsFromUserOperationEntries(
     entries: SubmittedUserOperation[]
@@ -103,23 +104,13 @@ export class ExecutorManager {
         return txHash
     }
 
-    async sendToExecutor(ops: MempoolUserOp[]) {
-        const normalOps = [];
-        const compressedOps = [];
-
-        for (const memOp of ops) {
-            if (memOp instanceof NormalMempoolUserOp) {
-                normalOps.push(memOp.getUserOperation());
-            } else if (memOp instanceof CompressedMempoolUserOp) {
-                compressedOps.push(memOp.compressedUserOp);
-            }
-        }
+    async sendToExecutor(mempoolOps: MempoolUserOperation[]) {
+        const ops = mempoolOps.filter((op) => !isCompressedType(op)).map((op) => (op as UserOperation))
+        const compressedOps = mempoolOps.filter((op) => isCompressedType(op)).map((op) => (op as CompressedUserOperation))
 
         const results = []
-        results.push(... await this.executor.bundle(this.entryPointAddress, normalOps))
-        for (const compressedOp of compressedOps) {
-            results.push(... await this.executor.bundleCompressed(compressedOp))
-        }
+        results.push(... await this.executor.bundle(this.entryPointAddress, ops))
+        results.push(... await this.executor.bundleCompressed(this.entryPointAddress, compressedOps))
 
         let txHash
         for (const result of results) {
@@ -159,7 +150,7 @@ export class ExecutorManager {
     }
 
     async bundle() {
-        const opsToBundle: MempoolUserOp[][] = []
+        const opsToBundle: MempoolUserOperation[][] = []
         while (true) {
             const ops = await this.mempool.process(5_000_000n, 1)
             if (ops?.length > 0) {
@@ -266,7 +257,7 @@ export class ExecutorManager {
                     (Date.now() - info.firstSubmitted) / 1000
                 )
                 this.reputationManager.updateUserOperationIncludedStatus(
-                    info.mempoolUserOp.getUserOperation(),
+                    deriveUserOperation(info.mempoolUserOperation),
                     status.transactionStatuses[info.userOperationHash]
                         .accountDeployed
                 )
@@ -402,7 +393,8 @@ export class ExecutorManager {
             )
 
             return
-        } else if (replaceResult.status === "potentially_already_included") {
+        }
+        if (replaceResult.status === "potentially_already_included") {
             this.logger.info(
                 { oldTxHash: txInfo.transactionHash, reason },
                 "transaction potentially already included"

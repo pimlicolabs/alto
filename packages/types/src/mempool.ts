@@ -1,6 +1,6 @@
 import { Account } from "viem/accounts"
-import { HexData32, UserOperation, CompressedUserOp } from "."
-import { Abi, Chain, WriteContractParameters } from "viem"
+import { HexData32, UserOperation, CompressedUserOperation } from "."
+import { Address, Chain, Hex } from "viem"
 
 export interface ReferencedCodeHashes {
     // addresses accessed during this user operation
@@ -10,48 +10,29 @@ export interface ReferencedCodeHashes {
     hash: string
 }
 
-export interface MempoolUserOp {
-    getUserOperation(): UserOperation
+export const deriveUserOperation = (op: MempoolUserOperation): UserOperation => {
+    return isCompressedType(op) ? (op as CompressedUserOperation).inflatedOp : (op as UserOperation)
 }
 
-export class NormalMempoolUserOp implements MempoolUserOp {
-    userOperation: UserOperation
-
-    constructor(userOperation: UserOperation) {
-        this.userOperation = userOperation
-    }
-
-    getUserOperation(): UserOperation {
-        return this.userOperation
-    }
+export const isCompressedType = (op: MempoolUserOperation): boolean => {
+    return "compressedCalldata" in op
 }
 
-export class CompressedMempoolUserOp implements MempoolUserOp {
-    compressedUserOp: CompressedUserOp
-
-    constructor(compressedUserOp: CompressedUserOp) {
-        this.compressedUserOp = compressedUserOp
-    }
-
-    getUserOperation(): UserOperation {
-        return this.compressedUserOp.inflatedUserOp
-    }
-}
+export type MempoolUserOperation = UserOperation | CompressedUserOperation
 
 export type TransactionInfo = {
+    transactionType: "default" | "compressed"
     transactionHash: HexData32
     previousTransactionHashes: HexData32[]
-    transactionRequest: WriteContractParameters<
-        Abi | readonly unknown[],
-        string,
-        Chain,
-        Account,
-        Chain
-    > & {
+    transactionRequest: {
+        account: Account,
+        address: Address,
+        calldata: Hex,
+        gas: bigint,
+        chain: Chain,
+        maxFeePerGas: bigint,
+        maxPriorityFeePerGas: bigint,
         nonce: number
-        maxFeePerGas: bigint
-        maxPriorityFeePerGas: bigint
-        account: Account
     }
     executor: Account
     userOperationInfos: UserOperationInfo[]
@@ -61,7 +42,7 @@ export type TransactionInfo = {
 }
 
 export type UserOperationInfo = {
-    mempoolUserOp: MempoolUserOp
+    mempoolUserOperation: MempoolUserOperation
     userOperationHash: HexData32
     lastReplaced: number
     firstSubmitted: number
