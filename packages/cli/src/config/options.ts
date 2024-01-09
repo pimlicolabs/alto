@@ -133,7 +133,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: true,
         default: false
     },
-    balanceStateOverrideAllowed: {
+    balanceOverrideAllowed: {
         description: "True if RPC url supports eth_call balance state overrides",
         type: "boolean",
         require: true,

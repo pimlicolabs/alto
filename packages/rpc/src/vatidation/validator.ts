@@ -147,7 +147,7 @@ export class UnsafeValidator implements IValidator {
     metrics: Metrics
     utilityWallet: Account
     usingTenderly: boolean
-    balanceStateOverrideAllowed: boolean
+    balanceOverrideAllowed: boolean
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
@@ -156,7 +156,7 @@ export class UnsafeValidator implements IValidator {
         metrics: Metrics,
         utilityWallet: Account,
         usingTenderly = false,
-        balanceStateOverrideAllowed = false
+        balanceOverrideAllowed = false
     ) {
         this.publicClient = publicClient
         this.entryPoint = entryPoint
@@ -164,7 +164,7 @@ export class UnsafeValidator implements IValidator {
         this.metrics = metrics
         this.utilityWallet = utilityWallet
         this.usingTenderly = usingTenderly
-        this.balanceStateOverrideAllowed = balanceStateOverrideAllowed
+        this.balanceOverrideAllowed = balanceOverrideAllowed
     }
 
     async getExecutionResult(
@@ -209,7 +209,7 @@ export class UnsafeValidator implements IValidator {
             ) as Promise<ExecutionResult>
         }
 
-        if (this.balanceStateOverrideAllowed) {
+        if (this.balanceOverrideAllowed) {
             const error = await simulateHandleOp(
                 userOperation,
                 this.entryPoint,
