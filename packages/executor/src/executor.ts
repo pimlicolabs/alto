@@ -393,6 +393,8 @@ export class BasicExecutor implements IExecutor {
         entryPoint: Address,
         ops: UserOperation[]
     ): Promise<BundleResult[]> {
+        const wallet = await this.senderManager.getWallet()
+
         const opsWithHashes = ops.map((op) => {
             return {
                 mempoolUserOperation: op,
@@ -403,8 +405,6 @@ export class BasicExecutor implements IExecutor {
                 )
             }
         })
-
-        const wallet = await this.senderManager.getWallet()
 
         const ep = getContract({
             abi: EntryPointAbi,
@@ -610,8 +610,6 @@ async bundleCompressed(entryPoint: Address, compressedOps: CompressedUserOperati
         })
         childLogger.trace({ nonce }, "got nonce")
 
-        let opsToBundle: UserOperationWithHash[] = []
-
         const callContext: CompressedFilterOpsAndEstimateGasParams = {
             publicClient: this.publicClient,
             bundleBulker: this.compressionHandler.bundleBulkerAddress,
@@ -667,7 +665,7 @@ async bundleCompressed(entryPoint: Address, compressedOps: CompressedUserOperati
             })
         }
 
-        opsToBundle = simulatedOps.filter((simulatedOp) => simulatedOp.reason === undefined).map((simulatedOp) => simulatedOp.owh)
+        const opsToBundle: UserOperationWithHash[]  = simulatedOps.filter((simulatedOp) => simulatedOp.reason === undefined).map((simulatedOp) => simulatedOp.owh)
 
         let txHash: HexData32
         try {
@@ -693,12 +691,11 @@ async bundleCompressed(entryPoint: Address, compressedOps: CompressedUserOperati
             sentry.captureException(err)
             childLogger.error({ error: JSON.stringify(err) }, "error submitting bundle transaction")
             this.markWalletProcessed(wallet)
-            return compressedOps.map((compressedOp) => {
-                const inflatedOp = compressedOp.inflatedOp
+            return opsToBundle.map((op) => {
                 return {
                     success: false,
                     error: {
-                        userOpHash: getUserOpHash(inflatedOp, this.entryPoint, this.walletClient.chain.id),
+                        userOpHash: op.userOperationHash,
                         reason: "INTERNAL FAILURE"
                     }
                 }
