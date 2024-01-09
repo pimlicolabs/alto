@@ -1,4 +1,4 @@
-import { BasicExecutor, ExecutorManager, SenderManager } from "../../executor/src"
+import { BasicExecutor, ExecutorManager, SenderManager } from "@alto/executor"
 import {
     MemoryMempool,
     Monitor,

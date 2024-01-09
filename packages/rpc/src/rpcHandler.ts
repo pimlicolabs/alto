@@ -33,6 +33,7 @@ import {
     MempoolUserOperation,
     CompressedUserOperation,
     deriveUserOperation,
+    InflatorAbi,
 } from "@alto/types"
 import {
     Logger,
@@ -42,7 +43,8 @@ import {
     calcPreVerificationGas,
     getGasPrice,
     getNonceKeyAndValue,
-    getUserOperationHash
+    getUserOperationHash,
+    CompressionHandler
 } from "@alto/utils"
 import {
     Chain,
@@ -65,8 +67,6 @@ import {
     estimateVerificationGasLimit
 } from "./gasEstimation"
 import { NonceQueuer } from "./nonceQueuer"
-import { InflatorAbi } from "@alto/types/src/contracts/Inflator"
-import { CompressionHandler } from "./compressionHandler"
 
 export interface IRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>

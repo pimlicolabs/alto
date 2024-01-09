@@ -7,15 +7,17 @@ import {
     UserOperation,
     CompressedUserOperation,
     UserOperationWithHash,
+    BundleBulkerAbi,
+    deriveUserOperation,
 } from "@alto/types"
 import {
     Logger,
     Metrics,
     getGasPrice,
     getUserOperationHash,
-    parseViemError
+    parseViemError,
+    CompressionHandler
 } from "@alto/utils"
-import { CompressionHandler } from "../../rpc/src/compressionHandler" // TODO: fix this
 import { Mutex } from "async-mutex"
 import {
     Account,
@@ -41,7 +43,6 @@ import {
     simulatedOpsToResults
 } from "./utils"
 import * as sentry from "@sentry/node"
-import { BundleBulkerAbi, deriveUserOperation } from "@alto/types/src"
 
 export interface GasEstimateResult {
     preverificationGas: bigint

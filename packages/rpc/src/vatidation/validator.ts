@@ -46,7 +46,7 @@ import {
 import { debug_traceCall } from "./tracer"
 import { tracerResultParser } from "./TracerResultParser"
 import { IValidator } from "@alto/types"
-import { SenderManager } from "../../../executor/src"
+import { SenderManager } from "@alto/executor"
 import * as sentry from "@sentry/node"
 
 // let id = 0

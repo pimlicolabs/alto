@@ -3,8 +3,17 @@ import {
     TransactionInfo,
     BundlingMode,
     MempoolUserOperation,
-    CompressedUserOperation
+    CompressedUserOperation,
+    UserOperation,
+    deriveUserOperation,
+    isCompressedType
 } from "@alto/types"
+import {
+    Logger,
+    Metrics,
+    transactionIncluded,
+    getGasPrice
+} from "@alto/utils"
 import { IReputationManager, Mempool, Monitor } from "@alto/mempool"
 import { IExecutor } from "./executor"
 import {
@@ -16,10 +25,6 @@ import {
     Transport,
     WatchBlocksReturnType
 } from "viem"
-import { Logger, Metrics, transactionIncluded } from "@alto/utils"
-import { getGasPrice } from "@alto/utils"
-import { UserOperation, deriveUserOperation } from "@alto/types/src"
-import { isCompressedType } from "@alto/types"
 
 function getTransactionsFromUserOperationEntries(
     entries: SubmittedUserOperation[]

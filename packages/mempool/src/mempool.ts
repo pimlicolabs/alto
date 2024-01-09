@@ -12,7 +12,9 @@ import {
     IValidator,
     ValidationResult,
     EntryPointAbi,
-    ReferencedCodeHashes
+    ReferencedCodeHashes,
+    MempoolUserOperation,
+    deriveUserOperation
 } from "@alto/types"
 import { HexData32 } from "@alto/types"
 import { Monitor } from "./monitoring"
@@ -33,7 +35,6 @@ import {
 import { MemoryStore } from "./store"
 import { IReputationManager, ReputationStatuses } from "./reputationManager"
 import { Mempool } from "./types"
-import { MempoolUserOperation, deriveUserOperation } from "@alto/types/src"
 
 export class MemoryMempool implements Mempool {
     private monitor: Monitor
