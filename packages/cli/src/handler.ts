@@ -290,7 +290,8 @@ export const bundlerHandler = async (
             logger.child({ module: "rpc" }),
             metrics,
             parsedArgs.utilityPrivateKey,
-            parsedArgs.tenderlyEnabled
+            parsedArgs.tenderlyEnabled,
+            parsedArgs.balanceOverrideEnabled
         )
     }
 
@@ -399,7 +400,10 @@ export const bundlerHandler = async (
         const outstanding = mempool.dumpOutstanding().length
         const submitted = mempool.dumpSubmittedOps().length
         const processing = mempool.dumpProcessing().length
-        logger.info({outstanding, submitted, processing}, "dumping mempool before shutdown")
+        logger.info(
+            { outstanding, submitted, processing },
+            "dumping mempool before shutdown"
+        )
 
         process.exit(0)
     }

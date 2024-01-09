@@ -24,7 +24,7 @@ import {
     ExecuteSimulatorDeployedBytecode
 } from "./ExecuteSimulator"
 
-async function simulateHandleOp(
+export async function simulateHandleOp(
     userOperation: UserOperation,
     entryPoint: Address,
     publicClient: PublicClient,
@@ -58,8 +58,7 @@ async function simulateHandleOp(
                         abi: EntryPointAbi,
                         functionName: "simulateHandleOp",
                         args: [userOperation, targetAddress, targetCallData]
-                    }),
-                    gas: toHex(20_000_000)
+                    })
                 },
                 // @ts-ignore
                 "latest",

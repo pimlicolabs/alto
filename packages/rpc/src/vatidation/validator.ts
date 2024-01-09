@@ -12,7 +12,8 @@ import {
     ReferencedCodeHashes,
     entryPointExecutionErrorSchema,
     CodeHashGetterBytecode,
-    CodeHashGetterAbi
+    CodeHashGetterAbi,
+    ExecutionErrors
 } from "@alto/types"
 import { ValidationResult } from "@alto/types"
 import {
@@ -48,6 +49,7 @@ import { tracerResultParser } from "./TracerResultParser"
 import { IValidator } from "@alto/types"
 import { SenderManager } from "@alto/executor"
 import * as sentry from "@sentry/node"
+import { simulateHandleOp } from "../gasEstimation"
 
 // let id = 0
 
@@ -145,6 +147,7 @@ export class UnsafeValidator implements IValidator {
     metrics: Metrics
     utilityWallet: Account
     usingTenderly: boolean
+    balanceOverrideEnabled: boolean
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
@@ -152,7 +155,8 @@ export class UnsafeValidator implements IValidator {
         logger: Logger,
         metrics: Metrics,
         utilityWallet: Account,
-        usingTenderly = false
+        usingTenderly = false,
+        balanceOverrideEnabled = false
     ) {
         this.publicClient = publicClient
         this.entryPoint = entryPoint
@@ -160,6 +164,7 @@ export class UnsafeValidator implements IValidator {
         this.metrics = metrics
         this.utilityWallet = utilityWallet
         this.usingTenderly = usingTenderly
+        this.balanceOverrideEnabled = balanceOverrideEnabled
     }
 
     async getExecutionResult(
@@ -203,6 +208,27 @@ export class UnsafeValidator implements IValidator {
                 this.usingTenderly
             ) as Promise<ExecutionResult>
         }
+
+        if (this.balanceOverrideEnabled) {
+            const error = await simulateHandleOp(
+                userOperation,
+                this.entryPoint,
+                this.publicClient,
+                false,
+                zeroAddress,
+                "0x"
+            )
+
+            if (error.result === "failed") {
+                throw new RpcError(
+                    `UserOperation reverted during simulation with reason: ${error.data}`,
+                    ExecutionErrors.UserOperationReverted
+                )
+            }
+
+            return error.data
+        }
+
         const errorResult = await entryPointContract.simulate
             .simulateHandleOp(
                 [
