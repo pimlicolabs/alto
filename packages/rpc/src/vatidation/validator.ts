@@ -13,6 +13,7 @@ import {
     entryPointExecutionErrorSchema,
     CodeHashGetterBytecode,
     CodeHashGetterAbi,
+    ExecutionErrors
 } from "@alto/types"
 import { ValidationResult } from "@alto/types"
 import {
@@ -48,6 +49,7 @@ import { tracerResultParser } from "./TracerResultParser"
 import { IValidator } from "@alto/types"
 import { SenderManager } from "@alto/executor"
 import * as sentry from "@sentry/node"
+import { simulateHandleOp } from "../gasEstimation"
 
 // let id = 0
 
@@ -144,8 +146,9 @@ export class UnsafeValidator implements IValidator {
     logger: Logger
     metrics: Metrics
     utilityWallet: Account
-    disableExpirationCheck: boolean
     usingTenderly: boolean
+    disableExpirationCheck: boolean
+    balanceOverrideEnabled: boolean
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
@@ -153,16 +156,18 @@ export class UnsafeValidator implements IValidator {
         logger: Logger,
         metrics: Metrics,
         utilityWallet: Account,
-        disableExpirationCheck : boolean,
-        usingTenderly = false
+        usingTenderly = false,
+        disableExpirationCheck = false,
+        balanceOverrideEnabled = false,
     ) {
         this.publicClient = publicClient
         this.entryPoint = entryPoint
         this.logger = logger
         this.metrics = metrics
         this.utilityWallet = utilityWallet
-        this.disableExpirationCheck = disableExpirationCheck
         this.usingTenderly = usingTenderly
+        this.disableExpirationCheck = disableExpirationCheck
+        this.balanceOverrideEnabled = balanceOverrideEnabled
     }
 
     async getExecutionResult(
@@ -206,6 +211,27 @@ export class UnsafeValidator implements IValidator {
                 this.usingTenderly
             ) as Promise<ExecutionResult>
         }
+
+        if (this.balanceOverrideEnabled) {
+            const error = await simulateHandleOp(
+                userOperation,
+                this.entryPoint,
+                this.publicClient,
+                false,
+                zeroAddress,
+                "0x"
+            )
+
+            if (error.result === "failed") {
+                throw new RpcError(
+                    `UserOperation reverted during simulation with reason: ${error.data}`,
+                    ExecutionErrors.UserOperationReverted
+                )
+            }
+
+            return error.data
+        }
+
         const errorResult = await entryPointContract.simulate
             .simulateHandleOp(
                 [
@@ -350,8 +376,7 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
         logger: Logger,
         metrics: Metrics,
         utilityWallet: Account,
-        disableExpirationCheck: boolean,
-        usingTenderly = false
+        usingTenderly = false,
     ) {
         super(
             publicClient,
@@ -359,8 +384,7 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
             logger,
             metrics,
             utilityWallet,
-            disableExpirationCheck,
-            usingTenderly
+            usingTenderly,
         )
         this.senderManager = senderManager
     }
@@ -389,7 +413,7 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
 
             if (
                 validationResult.returnInfo.validUntil <
-                Date.now() / 1000 + 30 && !this.disableExpirationCheck
+                Date.now() / 1000 + 30
             ) {
                 throw new RpcError(
                     "expires too soon",

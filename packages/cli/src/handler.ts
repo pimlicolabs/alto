@@ -1,10 +1,10 @@
 import { BasicExecutor, ExecutorManager, SenderManager } from "@alto/executor"
 import {
+    IReputationManager,
     MemoryMempool,
     Monitor,
-    ReputationManager,
-    IReputationManager,
-    NullRepuationManager
+    NullRepuationManager,
+    ReputationManager
 } from "@alto/mempool"
 import {
     NonceQueuer,
@@ -13,6 +13,7 @@ import {
     Server,
     UnsafeValidator
 } from "@alto/rpc"
+import { IValidator } from "@alto/types"
 import {
     Logger,
     createMetrics,
@@ -31,7 +32,6 @@ import {
 import * as chains from "viem/chains"
 import { fromZodError } from "zod-validation-error"
 import { IBundlerArgs, IBundlerArgsInput, bundlerArgsSchema } from "./config"
-import { IValidator } from "@alto/types"
 
 const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
     // validate every arg, make typesafe so if i add a new arg i have to validate it
@@ -280,8 +280,7 @@ export const bundlerHandler = async (
             logger.child({ module: "rpc" }),
             metrics,
             parsedArgs.utilityPrivateKey,
-            parsedArgs.disableExpirationCheck,
-            parsedArgs.tenderlyEnabled
+            parsedArgs.tenderlyEnabled,
         )
     } else {
         reputationManager = new NullRepuationManager()
@@ -291,8 +290,9 @@ export const bundlerHandler = async (
             logger.child({ module: "rpc" }),
             metrics,
             parsedArgs.utilityPrivateKey,
+            parsedArgs.tenderlyEnabled,
             parsedArgs.disableExpirationCheck,
-            parsedArgs.tenderlyEnabled
+            parsedArgs.balanceOverrideEnabled
         )
     }
 
@@ -369,6 +369,7 @@ export const bundlerHandler = async (
         parsedArgs.tenderlyEnabled ?? false,
         parsedArgs.minimumGasPricePercent,
         parsedArgs.noEthCallOverrideSupport,
+        parsedArgs.rpcMaxBlockRange,
         logger.child({ module: "rpc" }),
         metrics,
         parsedArgs.environment
@@ -400,7 +401,10 @@ export const bundlerHandler = async (
         const outstanding = mempool.dumpOutstanding().length
         const submitted = mempool.dumpSubmittedOps().length
         const processing = mempool.dumpProcessing().length
-        logger.info({outstanding, submitted, processing}, "dumping mempool before shutdown")
+        logger.info(
+            { outstanding, submitted, processing },
+            "dumping mempool before shutdown"
+        )
 
         process.exit(0)
     }
