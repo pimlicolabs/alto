@@ -119,8 +119,9 @@ if [ -z $tmux ]; then
                       --signerPrivateKeys $signerKey \
                       --utilityPrivateKey $utilityKey \
                       --rpcUrl http://$anvilHost:$anvilPort \
-                      --minBalance 0
-else
+                      --minBalance 0 \
+                      --disableExpirationCheck true \
+
     # check if the tmux session exists and nuke it if it does.
     SESSION="anvil_alto_session"
     if tmux has-session -t $SESSION 2>/dev/null; then
@@ -144,7 +145,8 @@ else
                                                       --entryPoint $entryPoint \
                                                       --signerPrivateKeys $signerKey \
                                                       --utilityPrivateKey $utilityKey \
-                                                      --minBalance 0" C-m
+                                                      --minBalance 0" C-m \
+                                                      --disableExpirationCheck true \
 
     tmux attach-session -t $SESSION
 fi

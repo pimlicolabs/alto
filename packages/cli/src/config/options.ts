@@ -143,6 +143,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description: "Custom gas limit for estimation",
         type: "string"
     },
+    disableExpirationCheck: {
+        description: "Should the node make expiration checks",
+        type: "boolean",
+        require: false,
+        default: "false"
+    },
     bundleMode: {
         description:
             "Set if the bundler should run in auto bundle mode or not.",

@@ -280,6 +280,7 @@ export const bundlerHandler = async (
             logger.child({ module: "rpc" }),
             metrics,
             parsedArgs.utilityPrivateKey,
+            parsedArgs.disableExpirationCheck,
             parsedArgs.tenderlyEnabled
         )
     } else {
@@ -290,6 +291,7 @@ export const bundlerHandler = async (
             logger.child({ module: "rpc" }),
             metrics,
             parsedArgs.utilityPrivateKey,
+            parsedArgs.disableExpirationCheck,
             parsedArgs.tenderlyEnabled
         )
     }

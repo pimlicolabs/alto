@@ -12,7 +12,7 @@ import {
     ReferencedCodeHashes,
     entryPointExecutionErrorSchema,
     CodeHashGetterBytecode,
-    CodeHashGetterAbi
+    CodeHashGetterAbi,
 } from "@alto/types"
 import { ValidationResult } from "@alto/types"
 import {
@@ -144,6 +144,7 @@ export class UnsafeValidator implements IValidator {
     logger: Logger
     metrics: Metrics
     utilityWallet: Account
+    disableExpirationCheck: boolean
     usingTenderly: boolean
 
     constructor(
@@ -152,6 +153,7 @@ export class UnsafeValidator implements IValidator {
         logger: Logger,
         metrics: Metrics,
         utilityWallet: Account,
+        disableExpirationCheck : boolean,
         usingTenderly = false
     ) {
         this.publicClient = publicClient
@@ -159,6 +161,7 @@ export class UnsafeValidator implements IValidator {
         this.logger = logger
         this.metrics = metrics
         this.utilityWallet = utilityWallet
+        this.disableExpirationCheck = disableExpirationCheck
         this.usingTenderly = usingTenderly
     }
 
@@ -318,7 +321,7 @@ export class UnsafeValidator implements IValidator {
 
             if (
                 validationResult.returnInfo.validUntil <
-                Date.now() / 1000 + 30
+                Date.now() / 1000 + 30 && !this.disableExpirationCheck
             ) {
                 throw new RpcError(
                     "expires too soon",
@@ -347,6 +350,7 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
         logger: Logger,
         metrics: Metrics,
         utilityWallet: Account,
+        disableExpirationCheck: boolean,
         usingTenderly = false
     ) {
         super(
@@ -355,6 +359,7 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
             logger,
             metrics,
             utilityWallet,
+            disableExpirationCheck,
             usingTenderly
         )
         this.senderManager = senderManager
@@ -384,7 +389,7 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
 
             if (
                 validationResult.returnInfo.validUntil <
-                Date.now() / 1000 + 30
+                Date.now() / 1000 + 30 && !this.disableExpirationCheck
             ) {
                 throw new RpcError(
                     "expires too soon",
