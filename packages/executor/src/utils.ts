@@ -6,6 +6,7 @@ import {
     TransactionInfo,
     UserOperation,
     UserOperationWithHash,
+    deriveUserOperation,
     failedOpErrorSchema
 } from "@alto/types"
 import { Logger, parseViemError, transactionIncluded } from "@alto/utils"
@@ -167,7 +168,7 @@ export async function filterOpsAndEstimateGas(
 
                     failingOp.reason = failedOpError.args.reason
                     reputationManager.crashedHandleOps(
-                        failingOp.owh.mempoolUserOperation,
+                        deriveUserOperation(failingOp.owh.mempoolUserOperation),
                         failingOp.reason
                     )
                 } else {

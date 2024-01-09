@@ -1,13 +1,11 @@
 import {
     EntryPointAbi,
-    MempoolUserOperation,
     RpcError,
     StakeInfo,
     UserOperation,
     ValidationErrors,
     ValidationResult,
     ValidationResultWithAggregation,
-    deriveUserOperation
 } from "@alto/types"
 import { Logger, getAddressFromInitCodeOrPaymasterAndData } from "@alto/utils"
 import { Address, PublicClient, getAddress, getContract } from "viem"
@@ -25,7 +23,7 @@ export interface IReputationManager {
         userOperation: UserOperation,
         accountDeployed: boolean
     ): void
-    crashedHandleOps(userOperation: MempoolUserOperation, reason: string): void
+    crashedHandleOps(userOperation: UserOperation, reason: string): void
     setReputation(
         args: {
             address: Address
@@ -103,7 +101,7 @@ export class NullRepuationManager implements IReputationManager {
         return
     }
 
-    crashedHandleOps(_: MempoolUserOperation, __: string): void {
+    crashedHandleOps(_: UserOperation, __: string): void {
         return
     }
 
@@ -326,8 +324,7 @@ export class ReputationManager implements IReputationManager {
         entry.opsIncluded = 0n
     }
 
-    crashedHandleOps(userOperation: MempoolUserOperation, reason: string): void {
-        const op = deriveUserOperation(userOperation)
+    crashedHandleOps(op: UserOperation, reason: string): void {
         if (reason.startsWith("AA3")) {
             // paymaster
             const paymaster = getAddressFromInitCodeOrPaymasterAndData(
