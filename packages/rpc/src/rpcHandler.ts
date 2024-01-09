@@ -952,7 +952,15 @@ export class RpcHandler implements IRpcEndpoint {
             publicClient: this.publicClient,
         })
 
-        const inflatedOps = (await inflatorContract.read.inflate([compressedCalldata]))[0]
+        let inflatedOps: readonly UserOperation[] = []
+        try {
+            inflatedOps = (await inflatorContract.read.inflate([compressedCalldata]))[0]
+        } catch (e) {
+            throw new RpcError(
+                `Inflator ${inflatorAddress} failed to inflate calldata ${compressedCalldata}`,
+                ValidationErrors.InvalidFields
+            )
+        }
 
         const hashes: Address[] = []
 

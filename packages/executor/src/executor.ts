@@ -15,7 +15,8 @@ import {
     getGasPrice,
     getUserOperationHash,
     parseViemError,
-    CompressionHandler
+    CompressionHandler,
+    getUserOpHash
 } from "@alto/utils"
 import { Mutex } from "async-mutex"
 import {
@@ -499,22 +500,21 @@ export class BasicExecutor implements IExecutor {
 
         let txHash: HexData32
         try {
+            const gasOptions = this.noEip1559Support
+                ? {
+                    gasPrice: gasPriceParameters.maxFeePerGas,
+                }
+                : {
+                    maxFeePerGas: gasPriceParameters.maxFeePerGas,
+                    maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
+                };
             txHash = await ep.write.handleOps(
                 [opsWithHashToBundle.map((owh) => (owh.mempoolUserOperation as UserOperation)), wallet.address],
-                this.noEip1559Support
-                    ? {
+                    {
                         account: wallet,
                         gas: gasLimit,
-                        gasPrice: gasPriceParameters.maxFeePerGas,
-                        nonce: nonce
-                    }
-                    : {
-                        account: wallet,
-                        gas: gasLimit,
-                        maxFeePerGas: gasPriceParameters.maxFeePerGas,
-                        maxPriorityFeePerGas:
-                            gasPriceParameters.maxPriorityFeePerGas,
-                        nonce: nonce
+                        nonce: nonce,
+                        ...gasOptions
                     }
             )
         } catch (err: unknown) {
@@ -693,7 +693,16 @@ async bundleCompressed(entryPoint: Address, compressedOps: CompressedUserOperati
             sentry.captureException(err)
             childLogger.error({ error: JSON.stringify(err) }, "error submitting bundle transaction")
             this.markWalletProcessed(wallet)
-            return []
+            return compressedOps.map((compressedOp) => {
+                const inflatedOp = compressedOp.inflatedOp
+                return {
+                    success: false,
+                    error: {
+                        userOpHash: getUserOpHash(inflatedOp, this.entryPoint, this.walletClient.chain.id),
+                        reason: "INTERNAL FAILURE"
+                    }
+                }
+            })
         }
 
         const userOperationInfos = opsToBundle.map((owh) => {
