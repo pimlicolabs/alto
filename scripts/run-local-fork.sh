@@ -7,7 +7,6 @@ blockNum=
 tmux=
 signerKey=0x4337000000000000000000000000000000000000000000000000000000000000    # 0x21f386935c3937fA29C0682EF3Db9715dd832330
 utilityKey=0x0000000000000000000000000000000000000000000000000000000000004337   # 0x68A726E5B0282fE2A7020E93aDeaBD68A2aa1dbe
-timestamp=$(date +%s)
 anvilPort=8545
 anvilHost=127.0.0.1
 patchBytecode=()
@@ -26,7 +25,6 @@ Alto Options
 Anvil Options
    -r <rpc-url>             RPC url to fork from
    -b <block-num>           Fork block number
-   -t <timestamp>           Timestamp
    -p <port>
    -h <host>
    -c <address>,<bytecode-file>
@@ -66,7 +64,7 @@ fund_accounts() {
          $anvilHost:$anvilPort > /dev/null
 }
 
-while getopts "e:r:b:p:t:c:h" opt;
+while getopts "e:r:b:h:p:c:" opt;
 do
   case ${opt} in
     e)
@@ -77,9 +75,6 @@ do
         ;;
     b)
         blockNum=$OPTARG
-        ;;
-    t)
-        timestamp=$OPTARG
         ;;
     p)
         anvilPort=$OPTARG
@@ -106,6 +101,8 @@ if [ $isMissingFlag -eq 1 ]; then
   exit 1
 fi
 
+forkTimestamp=$(cast block $blockNum --rpc-url $rpcUrl | grep time | awk '{print $2}' | tr -d '\n')
+
 # build alto intance.
 pnpm build
 
@@ -113,7 +110,7 @@ if [ -z $tmux ]; then
     # launch both instances in same terminal.
     anvil --fork-url $rpcUrl \
           --fork-block-number $blockNum \
-          --timestamp  $timestamp &
+          --timestamp  $forkTimestamp &
 
     fund_accounts
     apply_bytecode_patches
@@ -137,7 +134,7 @@ else
     # setup anvil on pane 0
     tmux send-keys -t ${SESSION}.0 "anvil --fork-url $rpcUrl \
                                           --fork-block-number $blockNum \
-                                          --timestamp $timestamp" C-m
+                                          --timestamp $forkTimestamp" C-m
 
     fund_accounts
     apply_bytecode_patches
