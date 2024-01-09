@@ -64,7 +64,7 @@ fund_accounts() {
          $anvilHost:$anvilPort > /dev/null
 }
 
-while getopts "e:r:b:h:p:c:" opt;
+while getopts "e:r:b:h:p:c:t" opt;
 do
   case ${opt} in
     e)
