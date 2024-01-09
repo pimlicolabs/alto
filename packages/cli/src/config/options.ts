@@ -133,6 +133,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: true,
         default: false
     },
+    balanceStateOverrideAllowed: {
+        description: "True if RPC url supports eth_call balance state overrides",
+        type: "boolean",
+        require: true,
+        default: false
+    },
     useUserOperationGasLimitsForSubmission: {
         description: "Use user operation gas limits during submission",
         type: "boolean",
