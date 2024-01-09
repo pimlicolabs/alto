@@ -137,8 +137,8 @@ export class MemoryMempool implements Mempool {
     }
 
     // biome-ignore lint/nursery/useAwait: keep async to adhere to interface
-    async  checkEntityMultipleRoleViolation(op: UserOperation): Promise<void> {
-        if (!this.safeMode) { return Promise.resolve() }
+    async checkEntityMultipleRoleViolation(op: UserOperation): Promise<void> {
+        if (!this.safeMode) { return }
         const knownEntities = this.getKnownEntities()
 
         if (
@@ -170,8 +170,6 @@ export class MemoryMempool implements Mempool {
                 ValidationErrors.OpcodeValidation
             )
         }
-
-        return Promise.resolve()
     }
 
     getKnownEntities(): {
