@@ -109,7 +109,7 @@ export async function filterOpsAndEstimateGas(
             const gasOptions = onlyPre1559 ? { gasPrice: maxFeePerGas } : { maxFeePerGas, maxPriorityFeePerGas }
 
             if (callContext.type === "default") {
-                const ep = (callContext as DefaultFilterOpsAndEstimateGasParams).ep
+                const ep = callContext.ep
                 const opsToSend = simulatedOps
                             .filter((op) => op.reason === undefined)
                             .map((op) => (op.owh.mempoolUserOperation as UserOperation))
@@ -128,7 +128,7 @@ export async function filterOpsAndEstimateGas(
                     }
                 )
             } else {
-                const { publicClient, bundleBulker, perOpInflatorId } = (callContext as CompressedFilterOpsAndEstimateGasParams)
+                const { publicClient, bundleBulker, perOpInflatorId } = callContext
                 const opsToSend = simulatedOps
                             .filter((op) => op.reason === undefined)
                             .map((op) => (op.owh.mempoolUserOperation as CompressedUserOperation))
