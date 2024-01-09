@@ -84,7 +84,8 @@ export const bundlerArgsSchema = z.object({
     customGasLimitForEstimation: z
         .string()
         .transform((val) => BigInt(val))
-        .optional()
+        .optional(),
+    rpcMaxBlockRange: z.number().int().min(0).optional(),
 })
 
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>
