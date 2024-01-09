@@ -16,7 +16,6 @@ import {
     getUserOperationHash,
     parseViemError,
     CompressionHandler,
-    getUserOpHash
 } from "@alto/utils"
 import { Mutex } from "async-mutex"
 import {
