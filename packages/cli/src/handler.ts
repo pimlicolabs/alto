@@ -319,7 +319,7 @@ export const bundlerHandler = async (
         parsedArgs.bundleBulkerAddress,
         parsedArgs.perOpInflatorAddress
     )
-    await compressionHandler.fetchPerOpInflatorId(client)
+    await compressionHandler.initialize(client)
 
     const executor = new BasicExecutor(
         client,

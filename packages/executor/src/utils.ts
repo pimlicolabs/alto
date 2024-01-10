@@ -23,9 +23,8 @@ import {
     WalletClient,
     concat,
     decodeErrorResult,
-    hexToBytes,
-    numberToBytes,
-    toHex
+    numberToHex,
+    toHex,
 } from "viem"
 import * as sentry from "@sentry/node"
 
@@ -74,13 +73,16 @@ export type CompressedFilterOpsAndEstimateGasParams = {
 }
 
 export function createCompressedCalldata(compressedOps: CompressedUserOperation[], perOpInflatorId: number): Hex {
-    let calldata = new Uint8Array([])
-    for (const op of compressedOps) {
-        const encodedOp = concat([numberToBytes(op.inflatorId), hexToBytes(op.compressedCalldata)])
-        calldata = concat([encodedOp, calldata])
-    }
-    calldata = concat([numberToBytes(perOpInflatorId), calldata])
-    return toHex(calldata)
+    const callData: Hex = compressedOps.reduce((currentCallData, op) => {
+        const nextCallData = concat([
+            numberToHex(op.inflatorId),
+            op.compressedCalldata
+        ]);
+
+        return concat([nextCallData, currentCallData])
+    }, toHex(""));
+
+  return concat([numberToHex(perOpInflatorId), callData])
 }
 
 export async function filterOpsAndEstimateGas(

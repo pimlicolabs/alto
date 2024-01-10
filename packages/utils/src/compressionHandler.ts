@@ -17,7 +17,7 @@ export class CompressionHandler {
         this.perOpInflatorId = 0
     }
 
-    public async fetchPerOpInflatorId(
+    public async initialize(
         publicClient: Client,
     ) {
         const bundleBulker = getContract({

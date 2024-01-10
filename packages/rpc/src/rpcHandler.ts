@@ -935,8 +935,8 @@ export class RpcHandler implements IRpcEndpoint {
 
     async pimlico_sendCompressedUserOperation(
         compressedCalldata: Hex,
+        inflatorAddress: Address,
         entryPoint: Address,
-        inflatorAddress: Address
     ) {
         // check if inflator is registered with our PerOpInflator.
         const inflatorId = await this.compressionHandler.getInflatorRegisteredId(inflatorAddress, this.publicClient)
