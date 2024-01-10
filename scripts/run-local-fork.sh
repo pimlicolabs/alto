@@ -53,7 +53,7 @@ apply_bytecode_patches() {
     done
 }
 fund_accounts() {
-    sleep 1.5s
+    sleep 2
 
     curl -s -H "Content-Type: application/json" \
          -X POST --data "{\"id\": \"4337\", \"jsonrpc\":\"2.0\", \"method\":\"anvil_setBalance\", \"params\": [\"$(cast wallet address $signerKey)\", \"3635C9ADC5DEA00000\"]}" \
@@ -120,7 +120,8 @@ if [ -z $tmux ]; then
                       --utilityPrivateKey $utilityKey \
                       --rpcUrl http://$anvilHost:$anvilPort \
                       --minBalance 0 \
-                      --disableExpirationCheck true
+                      --disableExpirationCheck true \
+                      --customGasLimitForEstimation 100000000
 else
 
     # check if the tmux session exists and nuke it if it does.
