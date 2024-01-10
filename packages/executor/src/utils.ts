@@ -24,7 +24,6 @@ import {
     concat,
     decodeErrorResult,
     numberToHex,
-    toHex,
 } from "viem"
 import * as sentry from "@sentry/node"
 
@@ -73,16 +72,14 @@ export type CompressedFilterOpsAndEstimateGasParams = {
 }
 
 export function createCompressedCalldata(compressedOps: CompressedUserOperation[], perOpInflatorId: number): Hex {
-    const callData: Hex = compressedOps.reduce((currentCallData, op) => {
+    return compressedOps.reduce((currentCallData, op) => {
         const nextCallData = concat([
             numberToHex(op.inflatorId),
             op.compressedCalldata
         ]);
 
-        return concat([nextCallData, currentCallData])
-    }, toHex(""));
-
-  return concat([numberToHex(perOpInflatorId), callData])
+        return concat([currentCallData, nextCallData])
+    }, numberToHex(perOpInflatorId));
 }
 
 export async function filterOpsAndEstimateGas(
