@@ -120,7 +120,8 @@ if [ -z $tmux ]; then
                       --utilityPrivateKey $utilityKey \
                       --rpcUrl http://$anvilHost:$anvilPort \
                       --minBalance 0 \
-                      --disableExpirationCheck true \
+                      --disableExpirationCheck true
+else
 
     # check if the tmux session exists and nuke it if it does.
     SESSION="anvil_alto_session"
