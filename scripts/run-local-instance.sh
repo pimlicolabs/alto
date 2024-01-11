@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+bundleBulker=0x3Fde2701a9a5FC30b1F1916ec465A2F04BC7c05d
 simpleAccountFactory=0x9406Cc6185a346906296840746125a0E44976454
 entryPoint=0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789
 rpcUrl=
@@ -123,6 +124,14 @@ if [[ "$flagsTouched" -eq 0 ]]; then
     echo "[Err] Must be ran in either fork or local mode. Run again with either flag -f or -l." && exit 1
 fi
 
+# kill any existing running anvil instances.
+ANVIL_PID=$(lsof -i :$anvilPort | grep "anvil" | awk '{print $2}')
+echo "anvil $ANVIL_PID"
+
+if [ -n "$ANVIL_PID" ]; then
+    echo $ANVIL_PID| xargs kill
+fi
+
 if [ -n "$localMode" ]; then
     # build alto intance.
     pnpm build
@@ -136,6 +145,8 @@ if [ -n "$localMode" ]; then
         patchBytecode=$entryPoint,$projectRoot/scripts/.entrypoint.patch
         apply_bytecode_patches
         patchBytecode=$simpleAccountFactory,$projectRoot/scripts/.simple-account-factory.patch
+        apply_bytecode_patches
+        patchBytecode=$bundleBulker,$projectRoot/scripts/.bundle-bulker.patch
         apply_bytecode_patches
 
         $projectRoot/alto --entryPoint $entryPoint \

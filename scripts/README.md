@@ -13,12 +13,16 @@ Fork mode runs alto tied to a forked anvil instance. And is specified with the `
 ```
 ./run-local-instance.sh -f -r <rpc-url> -b <fork-block>
 ```
+
 `-r` (flag for rpc url) and `-b` (flag for block number) are required for forked mode.
 
 ##### Running in local mode
 
 Local mode runs alto tied to a standard anvil instance. And is specified with the `-l` flag.
-Local mode will deploy a EntryPoint contract to address `0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789` as well as a simpleAccountFactory to address `0x9406Cc6185a346906296840746125a0E44976454`.
+Local mode will deploy:
+- EntryPoint contract to address `0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789`
+- simpleAccountFactory to address `0x9406Cc6185a346906296840746125a0E44976454`
+- bundleBulker to address `0x3Fde2701a9a5FC30b1F1916ec465A2F04BC7c05d`
 
 ```console
 ./run-local-instance.sh -l
