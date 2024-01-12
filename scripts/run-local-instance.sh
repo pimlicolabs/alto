@@ -124,14 +124,6 @@ if [[ "$flagsTouched" -eq 0 ]]; then
     echo "[Err] Must be ran in either fork or local mode. Run again with either flag -f or -l." && exit 1
 fi
 
-# kill any existing running anvil instances.
-ANVIL_PID=$(lsof -i :$anvilPort | grep "anvil" | awk '{print $2}')
-echo "anvil $ANVIL_PID"
-
-if [ -n "$ANVIL_PID" ]; then
-    echo $ANVIL_PID| xargs kill
-fi
-
 if [ -n "$localMode" ]; then
     # build alto intance.
     pnpm build
