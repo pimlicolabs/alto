@@ -1,13 +1,14 @@
 import { BasicExecutor, ExecutorManager, SenderManager } from "@alto/executor"
 import {
+    type IReputationManager,
     MemoryMempool,
     Monitor,
-    ReputationManager,
-    IReputationManager,
-    NullRepuationManager
+    NullRepuationManager,
+    ReputationManager
 } from "@alto/mempool"
+import type { IValidator } from "@alto/types"
 import {
-    Logger,
+    type Logger,
     createMetrics,
     initDebugLogger,
     initProductionLogger,
@@ -16,17 +17,20 @@ import {
 import { NonceQueuer, RpcHandler, SafeValidator, Server, UnsafeValidator } from "@alto/rpc"
 import { Registry } from "prom-client"
 import {
-    Chain,
-    PublicClient,
-    Transport,
+    type Chain,
+    type PublicClient,
+    type Transport,
     createPublicClient,
-    createWalletClient,
-    http
+    createWalletClient
 } from "viem"
 import * as chains from "viem/chains"
 import { fromZodError } from "zod-validation-error"
-import { IBundlerArgs, IBundlerArgsInput, bundlerArgsSchema } from "./config"
-import { IValidator } from "@alto/types"
+import {
+    type IBundlerArgs,
+    type IBundlerArgsInput,
+    bundlerArgsSchema
+} from "./config"
+import { customTransport } from "./customTransport"
 
 const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
     // validate every arg, make typesafe so if i add a new arg i have to validate it
@@ -216,9 +220,18 @@ export const bundlerHandler = async (
         ]
     }
 
+    let logger: Logger
+    if (parsedArgs.logEnvironment === "development") {
+        logger = initDebugLogger(parsedArgs.logLevel)
+    } else {
+        logger = initProductionLogger(parsedArgs.logLevel)
+    }
+
     const getChainId = async () => {
         const client = createPublicClient({
-            transport: http(args.rpcUrl)
+            transport: customTransport(args.rpcUrl, {
+                logger: logger.child({ module: "publicCLient" })
+            })
         })
         return await client.getChainId()
     }
@@ -226,7 +239,9 @@ export const bundlerHandler = async (
 
     const chain = getChain(chainId)
     const client = createPublicClient({
-        transport: http(args.rpcUrl),
+        transport: customTransport(args.rpcUrl, {
+            logger: logger.child({ module: "publicCLient" })
+        }),
         chain
     })
 
@@ -237,15 +252,11 @@ export const bundlerHandler = async (
     await preFlightChecks(client, parsedArgs)
 
     const walletClient = createWalletClient({
-        transport: http(parsedArgs.executionRpcUrl ?? args.rpcUrl),
+        transport: customTransport(parsedArgs.executionRpcUrl ?? args.rpcUrl, {
+            logger: logger.child({ module: "walletClient" })
+        }),
         chain
     })
-    let logger: Logger
-    if (parsedArgs.logEnvironment === "development") {
-        logger = initDebugLogger(parsedArgs.logLevel)
-    } else {
-        logger = initProductionLogger(parsedArgs.logLevel)
-    }
 
     const senderManager = new SenderManager(
         parsedArgs.signerPrivateKeys,
@@ -285,7 +296,8 @@ export const bundlerHandler = async (
             logger.child({ module: "rpc" }),
             metrics,
             parsedArgs.utilityPrivateKey,
-            parsedArgs.tenderlyEnabled
+            parsedArgs.tenderlyEnabled,
+            parsedArgs.balanceOverrideEnabled
         )
     }
 
@@ -370,6 +382,7 @@ export const bundlerHandler = async (
         parsedArgs.tenderlyEnabled ?? false,
         parsedArgs.minimumGasPricePercent,
         parsedArgs.noEthCallOverrideSupport,
+        parsedArgs.rpcMaxBlockRange,
         logger.child({ module: "rpc" }),
         metrics,
         parsedArgs.environment,
@@ -402,7 +415,10 @@ export const bundlerHandler = async (
         const outstanding = mempool.dumpOutstanding().length
         const submitted = mempool.dumpSubmittedOps().length
         const processing = mempool.dumpProcessing().length
-        logger.info({outstanding, submitted, processing}, "dumping mempool before shutdown")
+        logger.info(
+            { outstanding, submitted, processing },
+            "dumping mempool before shutdown"
+        )
 
         process.exit(0)
     }

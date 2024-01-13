@@ -143,6 +143,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: true,
         default: false
     },
+    balanceOverrideEnabled: {
+        description: "True if RPC url supports eth_call balance state overrides",
+        type: "boolean",
+        require: true,
+        default: false
+    },
     useUserOperationGasLimitsForSubmission: {
         description: "Use user operation gas limits during submission",
         type: "boolean",
@@ -172,6 +178,11 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: 1000
     },
+    rpcMaxBlockRange: {
+        description: "Max block range for rpc calls",
+        type: "number",
+        require: false,
+    }
 }
 
 export const bundlerCommand: CliCommand<IBundlerArgsInput> = {
