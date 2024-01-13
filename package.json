@@ -12,7 +12,7 @@
         "start": "node packages/cli/lib/alto.js run",
         "dev": "node --inspect packages/cli/lib/alto.js run",
         "test": "pnpm -r --workspace-concurrency 1 test --verbose=true",
-        "test:spec": "./test/run-spec-tests.sh",
+        "test:spec": "./test/spec-tests/run-spec-tests.sh",
         "lint": "rome check ./",
         "lint:fix": "rome check ./ --apply",
         "format": "biome format . --write"
