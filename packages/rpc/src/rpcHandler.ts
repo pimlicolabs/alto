@@ -106,7 +106,7 @@ export class RpcHandler implements IRpcEndpoint {
     environment: Environment
     executorManager: ExecutorManager
     reputationManager: IReputationManager
-    compressionHandler: CompressionHandler
+    compressionHandler: CompressionHandler | null
 
     constructor(
         entryPoint: Address,
@@ -125,7 +125,7 @@ export class RpcHandler implements IRpcEndpoint {
         logger: Logger,
         metrics: Metrics,
         environment: Environment,
-        compressionHandler: CompressionHandler
+        compressionHandler: CompressionHandler | null
     ) {
         this.entryPoint = entryPoint
         this.publicClient = publicClient
@@ -476,9 +476,9 @@ export class RpcHandler implements IRpcEndpoint {
             } catch (e) {
                 if (e instanceof TransactionNotFoundError) {
                     return getTransaction(txHash)
-                } else {
-                    throw e
                 }
+
+                throw e
             }
         }
 
@@ -580,9 +580,9 @@ export class RpcHandler implements IRpcEndpoint {
             } catch (e) {
                 if (e instanceof TransactionReceiptNotFoundError) {
                     return getTransactionReceipt(txHash)
-                } else {
-                    throw e
                 }
+
+                throw e
             }
         }
 
@@ -916,6 +916,10 @@ export class RpcHandler implements IRpcEndpoint {
         inflatorAddress: Address,
         entryPoint: Address,
     ) {
+        if (this.compressionHandler === null) {
+            throw new RpcError("Endpoint not supported")
+        }
+
         // check if inflator is registered with our PerOpInflator.
         const inflatorId = await this.compressionHandler.getInflatorRegisteredId(inflatorAddress, this.publicClient)
 

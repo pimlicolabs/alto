@@ -103,7 +103,7 @@ export class BasicExecutor implements IExecutor {
     customGasLimitForEstimation?: bigint
     useUserOperationGasLimitsForSubmission: boolean
     reputationManager: IReputationManager
-    compressionHandler: CompressionHandler
+    compressionHandler: CompressionHandler | null
 
     mutex: Mutex
 
@@ -115,7 +115,7 @@ export class BasicExecutor implements IExecutor {
         entryPoint: Address,
         logger: Logger,
         metrics: Metrics,
-        compressionHandler: CompressionHandler,
+        compressionHandler: CompressionHandler | null,
         simulateTransaction = false,
         noEip1559Support = false,
         customGasLimitForEstimation?: bigint,
@@ -268,7 +268,7 @@ export class BasicExecutor implements IExecutor {
                     transactionInfo.executor.address
                 ]
             })
-        } else {
+        } else if (transactionInfo.transactionType === "compressed" && this.compressionHandler) {
             const compressedOps = opsToBundle.map((opInfo) => (opInfo.mempoolUserOperation as CompressedUserOperation))
             newRequest.calldata = createCompressedCalldata(compressedOps, this.compressionHandler.perOpInflatorId)
         }
@@ -591,7 +591,11 @@ export class BasicExecutor implements IExecutor {
         return userOperationResults
     }
 
-async bundleCompressed(entryPoint: Address, compressedOps: CompressedUserOperation[]): Promise<BundleResult[]> {
+    async bundleCompressed(entryPoint: Address, compressedOps: CompressedUserOperation[]): Promise<BundleResult[]> {
+        if (!this.compressionHandler) {
+            throw new Error("Support for compressed bundles has not initialized")
+        }
+
         const wallet = await this.senderManager.getWallet()
 
         const childLogger = this.logger.child({
