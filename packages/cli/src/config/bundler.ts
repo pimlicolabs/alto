@@ -55,6 +55,7 @@ export const bundlerArgsSchema = z.object({
 
     bundleBulkerAddress: addressSchema,
     perOpInflatorAddress: addressSchema,
+    perOpInflatorId: z.number().int().min(0),
 
     minBalance: z.string().transform((val) => BigInt(val)),
     refillInterval: z.number().int().min(0),

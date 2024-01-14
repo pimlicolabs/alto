@@ -37,6 +37,11 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "string",
         require: false,
     },
+    perOpInflatorId: {
+        description: "Id used to register the perOpInflator in BundleBulker",
+        type: "string",
+        require: false,
+    },
     bundleBulkerAddress: {
         description: "Address of the BundleBulker contract",
         type: "string",

@@ -1,5 +1,5 @@
 import {
-    Address, PerOpInfaltorAbi, BundleBulkerAbi,
+    Address, PerOpInfaltorAbi
 } from "@alto/types"
 import { Client, getContract } from "viem"
 
@@ -11,28 +11,10 @@ export class CompressionHandler {
     constructor(
         bundleBulkerAddress: Address,
         perOpInflatorAddress: Address,
+        perOpInflatorId: number,
     ) {
         this.bundleBulkerAddress = bundleBulkerAddress
         this.perOpInflatorAddress = perOpInflatorAddress
-        this.perOpInflatorId = 0
-    }
-
-    public async initialize(
-        publicClient: Client,
-    ) {
-        const bundleBulker = getContract({
-            address: this.bundleBulkerAddress,
-            abi: BundleBulkerAbi,
-            publicClient,
-        })
-
-        // get our perOpInflator's id for this particular bundleBulker
-        const perOpInflatorId = await bundleBulker.read.inflatorToID([this.perOpInflatorAddress])
-
-        if (perOpInflatorId === 0) {
-            throw new Error(`perOpInflator ${this.perOpInflatorAddress} is not registered with BundleBulker`)
-        }
-
         this.perOpInflatorId = perOpInflatorId
     }
 

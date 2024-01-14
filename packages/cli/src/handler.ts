@@ -327,21 +327,21 @@ export const bundlerHandler = async (
         metrics
     )
 
-    if (parsedArgs.bundleBulkerAddress && !parsedArgs.perOpInflatorAddress) {
-        throw new Error("perOpInflatorAddress has not been set even though bundleBulkerAddress has")
-    }
-    if (!parsedArgs.bundleBulkerAddress && parsedArgs.perOpInflatorAddress) {
-        throw new Error("bundleBulkerAddress has not been set even though perOpInflatorAddress has")
+    const { bundleBulkerAddress, perOpInflatorAddress, perOpInflatorId } = parsedArgs;
+
+    if ([bundleBulkerAddress, perOpInflatorAddress, perOpInflatorId].some(arg => arg) &&
+        [bundleBulkerAddress, perOpInflatorAddress, perOpInflatorId].some(arg => !arg)) {
+      throw new Error("All or none of the variables `bundleBulkerAddress`, `perOpInflatorAddress`, `perOpInflatorId` must be set.");
     }
 
     let compressionHandler = null
 
-    if (parsedArgs.bundleBulkerAddress && parsedArgs.perOpInflatorAddress) {
+    if ([bundleBulkerAddress, perOpInflatorAddress, perOpInflatorId].some(arg => arg)) {
         compressionHandler = new CompressionHandler(
             parsedArgs.bundleBulkerAddress,
-            parsedArgs.perOpInflatorAddress
+            parsedArgs.perOpInflatorAddress,
+            parsedArgs.perOpInflatorId
         )
-        await compressionHandler.initialize(client)
     }
 
     const executor = new BasicExecutor(
