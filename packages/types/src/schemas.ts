@@ -432,7 +432,7 @@ const pimlicoGetUserOperationGasPriceResponseSchema = z.object({
 
 const pimlicoSendCompressedUserOperationResponseSchema = z.object({
     method: z.literal("pimlico_sendCompressedUserOperation"),
-    result: z.array(hexData32Schema)
+    result: hexData32Schema
 })
 
 const bundlerResponseSchema = z.discriminatedUnion("method", [

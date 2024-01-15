@@ -3,9 +3,9 @@ import { pimlicoBundlerActions } from "permissionless/actions/pimlico"
 import { concat, createClient, createPublicClient, encodeFunctionData, getContract, http, parseEther, toHex } from "viem";
 import { foundry } from "viem/chains";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { BUNDLE_BULKER_ADDRESS, ENTRY_POINT_ADDRESS, PER_OP_INFLATOR_ADDRESS, SIMPLE_ACCOUNT_FACTORY_ADDRESS, SIMPLE_INFLATOR_ADDRESS, altoEndpoint, anvilDumpState, anvilEndpoint, anvilLoadState, fundAccount } from "./utils";
+import { BUNDLE_BULKER_ADDRESS, ENTRY_POINT_ADDRESS, PER_OP_INFLATOR_ADDRESS, SIMPLE_ACCOUNT_FACTORY_ADDRESS, SIMPLE_INFLATOR_ADDRESS, altoEndpoint, anvilDumpState, anvilEndpoint, anvilLoadState, createSendCalldata, fundAccount } from "./utils";
 import { setupBasicEnvironment, setupCompressedEnvironment } from "./setup";
-import { bundleBulkerDeployedBytecode, entryPointDeployedBytecode, perOpInflatorDeployedBytecode, simpleAccountFactoryAbi, simpleAccountFactoryDeployedBytecode, simpleInflatorAbi, simpleInflatorDeployedBytecode } from "./data";
+import { bundleBulkerDeployedBytecode, entryPointDeployedBytecode, perOpInflatorDeployedBytecode, simpleAccountDeployedBytecode, simpleAccountFactoryAbi, simpleAccountFactoryDeployedBytecode, simpleInflatorAbi, simpleInflatorDeployedBytecode } from "./data";
 
 // Holds the checkpoint after all contracts have been deployed.
 let anvilCheckpoint: string | null = null
@@ -20,7 +20,7 @@ beforeAll(async () => {
         chain: foundry,
     })
 
-    // ensure that all addresses map to expected bytecode.
+    // ensure that all bytecode is deployed to expected addresses.
     expect(await publicClient.getBytecode({address: ENTRY_POINT_ADDRESS})).toEqual(entryPointDeployedBytecode)
     expect(await publicClient.getBytecode({address: SIMPLE_ACCOUNT_FACTORY_ADDRESS})).toEqual(simpleAccountFactoryDeployedBytecode)
     expect(await publicClient.getBytecode({address: BUNDLE_BULKER_ADDRESS})).toEqual(bundleBulkerDeployedBytecode)
@@ -37,11 +37,7 @@ beforeEach(async () => {
     }
 })
 
-afterEach(() => {
-
-})
-
-test.only("pimlico_sendCompressedUserOperation can submit a compressed userOp", async () => {
+test("pimlico_sendCompressedUserOperation can submit a compressed userOp", async () => {
     // setup vars.
     const bundlerClient = createClient({
         transport: http(altoEndpoint),
@@ -56,6 +52,8 @@ test.only("pimlico_sendCompressedUserOperation can submit a compressed userOp", 
         abi: simpleInflatorAbi,
         publicClient,
     })
+    const targetReceiver = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+    const targetSendAmount = parseEther("0.1337")
 
     const owner = privateKeyToAccount(generatePrivateKey())
 
@@ -80,7 +78,7 @@ test.only("pimlico_sendCompressedUserOperation can submit a compressed userOp", 
         sender: senderAddress,
         nonce: 0n,
         initCode,
-        callData: toHex(""),
+        callData: createSendCalldata(targetReceiver, targetSendAmount),
         maxFeePerGas: gasPrice.fast.maxFeePerGas,
         maxPriorityFeePerGas: gasPrice.fast.maxPriorityFeePerGas,
         callGasLimit: 1000000n,
@@ -101,10 +99,10 @@ test.only("pimlico_sendCompressedUserOperation can submit a compressed userOp", 
     await fundAccount(senderAddress, parseEther("1337"))
 
     // compress the userOperation
-    let compressed = await simpleInflator.read.compress([[userOperation]])
+    let compressed = await simpleInflator.read.compress([userOperation])
     console.log(compressed)
 
-    const res = await fetch(altoEndpoint, {
+    const userOperationHash = (await fetch(altoEndpoint, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -120,9 +118,15 @@ test.only("pimlico_sendCompressedUserOperation can submit a compressed userOp", 
             id: 4337
         })
     })
-    .then(response => response.json())
+    .then(response => response.json())).result
 
-    console.log(res)
+    await bundlerClient.waitForUserOperationReceipt({ hash: userOperationHash })
+
+    // check that smart account was deployed.
+    expect(await publicClient.getBytecode({address: senderAddress})).toEqual(simpleAccountDeployedBytecode)
+
+    // check that the calldata part of the userOperation was executed.
+    expect(await publicClient.getBalance({address: targetReceiver})).toEqual(targetSendAmount)
 })
 
 test("eth_sendUserOperation can deploy a contract", async () => {

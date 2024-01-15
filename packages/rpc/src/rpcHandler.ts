@@ -33,7 +33,7 @@ import {
     MempoolUserOperation,
     CompressedUserOperation,
     deriveUserOperation,
-    InflatorAbi,
+    IOpInflatorAbi,
 } from "@alto/types"
 import {
     Logger,
@@ -930,13 +930,13 @@ export class RpcHandler implements IRpcEndpoint {
         // infalte + start to validate user op.
         const inflatorContract = getContract({
             address: inflatorAddress,
-            abi: InflatorAbi,
+            abi: IOpInflatorAbi,
             publicClient: this.publicClient,
         })
 
-        let inflatedOps: readonly UserOperation[] = []
+        let inflatedOp: UserOperation
         try {
-            inflatedOps = (await inflatorContract.read.inflate([compressedCalldata]))[0]
+            inflatedOp = await inflatorContract.read.inflate([compressedCalldata])
         } catch (e) {
             throw new RpcError(
                 `Inflator ${inflatorAddress} failed to inflate calldata ${compressedCalldata}`,
@@ -944,35 +944,29 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
 
-        const hashes: Address[] = []
+        // check if perUseropIsRegisterd to target BundleBulker
+        const perOpInflatorId = this.compressionHandler.perOpInflatorId
 
-        for (const inflatedOp of inflatedOps) {
-            // check if perUseropIsRegisterd to target BundleBulker
-            const perOpInflatorId = this.compressionHandler.perOpInflatorId
-
-            if (perOpInflatorId === undefined) {
-                throw new RpcError(`PerUserOp ${this.compressionHandler.perOpInflatorAddress} has not been registered with BundelBulker`, ValidationErrors.InvalidFields)
-            }
-
-            const compressedUserOp: CompressedUserOperation = {
-                compressedCalldata,
-                inflatedOp,
-                inflatorAddress,
-                inflatorId,
-            };
-
-            // check userOps inputs.
-            await this.addToMempoolIfValid(compressedUserOp, entryPoint)
-
-            const hash = getUserOperationHash(
-                inflatedOp,
-                entryPoint,
-                this.chainId
-            )
-
-            hashes.push(hash)
+        if (perOpInflatorId === undefined) {
+            throw new RpcError(`PerUserOp ${this.compressionHandler.perOpInflatorAddress} has not been registered with BundelBulker`, ValidationErrors.InvalidFields)
         }
 
-        return hashes
+        const compressedUserOp: CompressedUserOperation = {
+            compressedCalldata,
+            inflatedOp,
+            inflatorAddress,
+            inflatorId,
+        };
+
+        // check userOps inputs.
+        await this.addToMempoolIfValid(compressedUserOp, entryPoint)
+
+        const hash = getUserOperationHash(
+            inflatedOp,
+            entryPoint,
+            this.chainId
+        )
+
+        return hash
     }
 }

@@ -4,6 +4,7 @@ import entryPointJson from "./EntryPoint.json";
 import perOpInflatorJson from "./PerOpInflator.json";
 import simpleAccountFactoryJson from "./SimpleAccountFactory.json";
 import simpleInflatorJson from "./SimpleInflator.json";
+import simpleAccountJson from "./SimpleAccount.json";
 
 export const bundleBulkerAbi = bundleBulkerJson.abi
 export const bundleBulkerCreateBytecode: Hex = bundleBulkerJson.bytecode.object as Hex
@@ -24,3 +25,7 @@ export const perOpInflatorDeployedBytecode: Hex = perOpInflatorJson.deployedByte
 export const simpleAccountFactoryAbi = simpleAccountFactoryJson.abi
 export const simpleAccountFactoryCreateBytecode: Hex = simpleAccountFactoryJson.bytecode.object as Hex
 export const simpleAccountFactoryDeployedBytecode: Hex = simpleAccountFactoryJson.deployedBytecode.object as Hex
+
+export const simpleAccountAbi = simpleAccountJson.abi
+export const simpleAccountCreateBytecode: Hex = simpleAccountJson.bytecode.object as Hex
+export const simpleAccountDeployedBytecode: Hex = simpleAccountJson.deployedBytecode.object as Hex

@@ -23,6 +23,7 @@ import {
     WalletClient,
     concat,
     decodeErrorResult,
+    hexToBytes,
     numberToHex,
 } from "viem"
 import * as sentry from "@sentry/node"
@@ -72,14 +73,18 @@ export type CompressedFilterOpsAndEstimateGasParams = {
 }
 
 export function createCompressedCalldata(compressedOps: CompressedUserOperation[], perOpInflatorId: number): Hex {
+    const bundleBulkerPayload = numberToHex(perOpInflatorId, { size: 4 }) // bytes used in BundleBulker
+    const perOpInflatorPayload = numberToHex(compressedOps.length, { size: 1 }) // bytes used in perOpInflator
+
     return compressedOps.reduce((currentCallData, op) => {
         const nextCallData = concat([
-            numberToHex(op.inflatorId),
+            numberToHex(op.inflatorId, { size: 4 }),
+            numberToHex(hexToBytes(op.compressedCalldata).length,  { size: 2 }),
             op.compressedCalldata
         ]);
 
         return concat([currentCallData, nextCallData])
-    }, numberToHex(perOpInflatorId));
+    }, concat([bundleBulkerPayload, perOpInflatorPayload]));
 }
 
 export async function filterOpsAndEstimateGas(

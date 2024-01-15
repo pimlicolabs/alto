@@ -1,13 +1,13 @@
-import { createWalletClient, http } from "viem"
+import { createWalletClient, encodeFunctionData, http } from "viem"
 import { Address, mnemonicToAccount } from "viem/accounts"
 import { foundry } from "viem/chains"
 
 export const CREATE2_DEPLOYER_ADDRESS = "0x4e59b44847b379578588920ca78fbf26c0b4956c"
-export const BUNDLE_BULKER_ADDRESS = "0x09aeBCF1DF7d4D0FBf26073e79A6B250f458fFB8"
-export const PER_OP_INFLATOR_ADDRESS = "0x79741195EA18e1ed7deD6C224e9037d673cE9484"
 export const ENTRY_POINT_ADDRESS = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789"
 export const SIMPLE_ACCOUNT_FACTORY_ADDRESS = "0x9406Cc6185a346906296840746125a0E44976454"
-export const SIMPLE_INFLATOR_ADDRESS = "0x272701C04d47fEa27207D033BC358B623B32a033"
+export const BUNDLE_BULKER_ADDRESS = "0x09aeBCF1DF7d4D0FBf26073e79A6B250f458fFB8"
+export const PER_OP_INFLATOR_ADDRESS = "0x79741195EA18e1ed7deD6C224e9037d673cE9484"
+export const SIMPLE_INFLATOR_ADDRESS = "0x92d2f9EF7b520D91A34501FBb31E5428AB2fd5Df"
 
 export const anvilEndpoint = process.env.ANVIL_ENDPOINT ?? "http://127.0.0.1:8545"
 export const altoEndpoint = process.env.ALTO_ENDPOINT ?? "http://0.0.0.0:3000"
@@ -55,5 +55,22 @@ export const anvilLoadState = async (checkpoint: string) => {
             params: [checkpoint],
             id: 1
         })
+    })
+}
+
+export const createSendCalldata = (to: Address, value: bigint) => {
+    return encodeFunctionData({
+      abi: [{
+    		inputs: [
+          { name: "dest", type: "address" },
+          { name: "value", type: "uint256" },
+          { name: "func", type: "bytes" },
+    		],
+    		name: "execute",
+    		outputs: [],
+    		stateMutability: "nonpayable",
+    		type: "function",
+    	}],
+      args: [to, value, "0x"]
     })
 }
