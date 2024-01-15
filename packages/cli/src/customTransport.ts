@@ -36,13 +36,6 @@ export function customTransport(
                 async request({ method, params }) {
                     const body = { method, params }
                     const fn = async (body: RpcRequest) => {
-                        logger.info(
-                            {
-                                url: url,
-                                body
-                            },
-                            "Sending request"
-                        )
                         return [
                             await rpc.http(url, {
                                 body,
@@ -54,12 +47,20 @@ export function customTransport(
 
                     const [{ error, result }] = await fn(body)
                     if (error) {
+                        logger.error(
+                            {
+                                error,
+                                body
+                            },
+                            "Received error response"
+                        )
                         throw new RpcRequestError({
                             body,
                             error,
                             url: url
                         })
                     }
+                    logger.info({ body, result }, "Received response")
                     return result
                 },
                 retryCount,
