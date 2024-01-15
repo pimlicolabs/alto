@@ -54,12 +54,20 @@ export function customTransport(
 
                     const [{ error, result }] = await fn(body)
                     if (error) {
+                        logger.error(
+                            {
+                                error,
+                                body
+                            },
+                            "Received error response"
+                        )
                         throw new RpcRequestError({
                             body,
                             error,
                             url: url
                         })
                     }
+                    logger.info({ body, result }, "Received response")
                     return result
                 },
                 retryCount,
