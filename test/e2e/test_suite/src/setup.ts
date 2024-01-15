@@ -1,64 +1,69 @@
 import {
-    Address,
+    concat,
     createWalletClient,
+    encodeAbiParameters,
     getContract,
     http
 } from "viem"
 import {
-    perOpInflatorCreateCall,
-    bundleBulkerCreateCall,
-    entryPointCreateCall,
-    simpleAccountFactoryCreateCall,
+    perOpInflatorCreateBytecode,
+    bundleBulkerCreateBytecode,
+    entryPointCreateBytecode,
+    simpleAccountFactoryCreateBytecode,
     bundleBulkerAbi,
-    perOpInflatorAbi
+    perOpInflatorAbi,
+    simpleInflatorCreateBytecode,
 } from "./data"
-import { BUNDLE_BULKER_ADDRESS, PER_OP_INFLATOR_ADDRESS, anvilAccount, anvilEndpoint } from "./utils"
+import {
+    BUNDLE_BULKER_ADDRESS,
+    CREATE2_DEPLOYER_ADDRESS,
+    SIMPLE_INFLATOR_ADDRESS,
+    PER_OP_INFLATOR_ADDRESS,
+    anvilAccount,
+    anvilEndpoint,
+} from "./utils"
 import { foundry } from "viem/chains"
-import { mnemonicToAccount } from "viem/accounts"
 
-export const setupEnvironment = async () => {
-    // setup variables.
-    const create2Deployer: Address = "0x4e59b44847b379578588920ca78fbf26c0b4956c"
-    const walletClient = createWalletClient({
-        account: anvilAccount,
-        chain: foundry,
-        transport: http(anvilEndpoint)
-    })
+const walletClient = createWalletClient({
+    account: anvilAccount,
+    chain: foundry,
+    transport: http(anvilEndpoint)
+})
 
-    // deploy entrypoint.
-    await walletClient.sendTransaction({
-        account: anvilAccount,
-        to: create2Deployer,
-        data: entryPointCreateCall,
-        chain: foundry,
-    })
-
-    // deploy simple account factory.
-    await walletClient.sendTransaction({
-        account: anvilAccount,
-        to: create2Deployer,
-        data: simpleAccountFactoryCreateCall,
-        chain: foundry,
-    })
-
+export const setupCompressedEnvironment = async () => {
     // deploy bundle bulker.
     await walletClient.sendTransaction({
         account: anvilAccount,
-        to: create2Deployer,
-        data: bundleBulkerCreateCall,
+        to: CREATE2_DEPLOYER_ADDRESS,
+        data: concat([
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            bundleBulkerCreateBytecode
+        ]),
         chain: foundry,
     })
 
     // deploy per op inflator.
     await walletClient.sendTransaction({
         account: anvilAccount,
-        to: create2Deployer,
-        data: perOpInflatorCreateCall(anvilAccount.address),
+        to: CREATE2_DEPLOYER_ADDRESS,
+        data: concat([
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            perOpInflatorCreateBytecode,
+            encodeAbiParameters([{name: 'owner', type: 'address'}], [anvilAccount.address])
+        ]),
         chain: foundry,
     })
 
-    // deploy simple passthrough inflator.
-
+    // deploy simple inflator.
+    await walletClient.sendTransaction({
+        account: anvilAccount,
+        to: CREATE2_DEPLOYER_ADDRESS,
+        data: concat([
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            simpleInflatorCreateBytecode
+        ]),
+        chain: foundry,
+    })
 
     // register our passthrough inflator with perOpInflator.
     const perOpInflator = getContract({
@@ -67,6 +72,7 @@ export const setupEnvironment = async () => {
         walletClient
     })
 
+    await perOpInflator.write.registerOpInflator([1337, SIMPLE_INFLATOR_ADDRESS])
     await perOpInflator.write.setBeneficiary([anvilAccount.address])
 
     // register our perOpInflator with the bundleBulker.
@@ -77,4 +83,28 @@ export const setupEnvironment = async () => {
     })
 
     await bundleBulker.write.registerInflator([4337, PER_OP_INFLATOR_ADDRESS])
+}
+
+export const setupBasicEnvironment = async () => {
+    // deploy entrypoint.
+    await walletClient.sendTransaction({
+        account: anvilAccount,
+        to: CREATE2_DEPLOYER_ADDRESS,
+        data: concat([
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            entryPointCreateBytecode
+        ]),
+        chain: foundry,
+    })
+
+    // deploy simple account factory.
+    await walletClient.sendTransaction({
+        account: anvilAccount,
+        to: CREATE2_DEPLOYER_ADDRESS,
+        data: concat([
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            simpleAccountFactoryCreateBytecode
+        ]),
+        chain: foundry,
+    })
 }

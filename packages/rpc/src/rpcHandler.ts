@@ -948,7 +948,6 @@ export class RpcHandler implements IRpcEndpoint {
 
         for (const inflatedOp of inflatedOps) {
             // check if perUseropIsRegisterd to target BundleBulker
-            //const bundleBulker = this.compressionHandler.bundleBulkerAddress
             const perOpInflatorId = this.compressionHandler.perOpInflatorId
 
             if (perOpInflatorId === undefined) {
@@ -972,7 +971,6 @@ export class RpcHandler implements IRpcEndpoint {
             )
 
             hashes.push(hash)
-
         }
 
         return hashes
