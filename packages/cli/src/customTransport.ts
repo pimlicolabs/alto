@@ -36,13 +36,6 @@ export function customTransport(
                 async request({ method, params }) {
                     const body = { method, params }
                     const fn = async (body: RpcRequest) => {
-                        logger.info(
-                            {
-                                url: url,
-                                body
-                            },
-                            "Sending request"
-                        )
                         return [
                             await rpc.http(url, {
                                 body,
