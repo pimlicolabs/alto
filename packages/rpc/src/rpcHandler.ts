@@ -158,7 +158,9 @@ export class RpcHandler implements IRpcEndpoint {
                 return {
                     method,
                     result: await this.eth_estimateUserOperationGas(
-                        ...request.params
+                        request.params[0],
+                        request.params[1],
+                        request.params[2]
                     )
                 }
             case "eth_sendUserOperation":

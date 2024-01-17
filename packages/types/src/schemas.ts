@@ -136,10 +136,13 @@ export type StateOverrides = z.infer<typeof stateOverridesSchema>
 
 const estimateUserOperationGasRequestSchema = z.object({
     method: z.literal("eth_estimateUserOperationGas"),
-    params: z.tuple([
-        partialUserOperationSchema,
-        addressSchema,
-        stateOverridesSchema.optional()
+    params: z.union([
+        z.tuple([partialUserOperationSchema, addressSchema]),
+        z.tuple([
+            partialUserOperationSchema,
+            addressSchema,
+            stateOverridesSchema
+        ])
     ])
 })
 
