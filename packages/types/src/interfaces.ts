@@ -10,7 +10,6 @@ import type {
 export interface IValidator {
     getExecutionResult(
         userOperation: UserOperation,
-        usingTenderly?: boolean,
         stateOverrides?: StateOverrides
     ): Promise<ExecutionResult>
     getValidationResult(

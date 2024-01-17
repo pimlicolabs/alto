@@ -170,7 +170,6 @@ export class UnsafeValidator implements IValidator {
 
     async getExecutionResult(
         userOperation: UserOperation,
-        usingTenderly?: boolean,
         stateOverrides?: StateOverrides
     ): Promise<ExecutionResult> {
         const entryPointContract = getContract({
@@ -377,7 +376,8 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
         logger: Logger,
         metrics: Metrics,
         utilityWallet: Account,
-        usingTenderly = false
+        usingTenderly = false,
+        balanceOverrideEnabled = false
     ) {
         super(
             publicClient,
@@ -385,7 +385,8 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
             logger,
             metrics,
             utilityWallet,
-            usingTenderly
+            usingTenderly,
+            balanceOverrideEnabled
         )
         this.senderManager = senderManager
     }

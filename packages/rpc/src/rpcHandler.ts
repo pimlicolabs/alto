@@ -327,7 +327,6 @@ export class RpcHandler implements IRpcEndpoint {
 
             const executionResult = await this.validator.getExecutionResult(
                 userOperation,
-                this.usingTenderly,
                 stateOverrides
             )
 

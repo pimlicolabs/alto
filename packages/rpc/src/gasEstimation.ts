@@ -24,6 +24,7 @@ import {
     ExecuteSimulatorDeployedBytecode
 } from "./ExecuteSimulator"
 import type { StateOverrides } from "@alto/types"
+import { deepHexlify } from "@alto/utils"
 
 export async function simulateHandleOp(
     userOperation: UserOperation,
@@ -39,7 +40,9 @@ export async function simulateHandleOp(
               ...stateOverride,
               [userOperation.sender]: {
                   balance: toHex(100000_000000000000000000n),
-                  ...stateOverride?.[userOperation.sender]
+                  ...(stateOverride
+                      ? deepHexlify(stateOverride?.[userOperation.sender])
+                      : [])
               },
               [entryPoint]: {
                   code: ExecuteSimulatorDeployedBytecode
@@ -49,7 +52,9 @@ export async function simulateHandleOp(
               ...stateOverride,
               [userOperation.sender]: {
                   balance: toHex(100000_000000000000000000n),
-                  ...stateOverride?.[userOperation.sender]
+                  ...(stateOverride
+                      ? deepHexlify(stateOverride?.[userOperation.sender])
+                      : [])
               }
           }
 
