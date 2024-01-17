@@ -114,8 +114,12 @@ export class ExecutorManager {
         const compressedOps = mempoolOps.filter((op) => isCompressedType(op)).map((op) => (op as CompressedUserOperation))
 
         const results = []
-        results.push(... await this.executor.bundle(this.entryPointAddress, ops))
-        results.push(... await this.executor.bundleCompressed(this.entryPointAddress, compressedOps))
+        if (ops.length > 0) {
+            results.push(... await this.executor.bundle(this.entryPointAddress, ops))
+        }
+        if (compressedOps.length > 0) {
+            results.push(... await this.executor.bundleCompressed(this.entryPointAddress, compressedOps))
+        }
 
         let txHash
         for (const result of results) {

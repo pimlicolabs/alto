@@ -138,6 +138,13 @@ export class BasicExecutor implements IExecutor {
         this.mutex = new Mutex()
     }
 
+    getCompressionHandler(): CompressionHandler {
+        if (!this.compressionHandler) {
+            throw new Error("Support for compressed bundles has not initialized")
+        }
+        return this.compressionHandler
+    }
+
     cancelOps(_entryPoint: Address, _ops: UserOperation[]): Promise<void> {
         throw new Error("Method not implemented.")
     }
@@ -172,13 +179,6 @@ export class BasicExecutor implements IExecutor {
                 : (newRequest.maxPriorityFeePerGas * 11n) / 10n
         newRequest.account = transactionInfo.executor
 
-        const ep = getContract({
-            abi: EntryPointAbi,
-            address: this.entryPoint,
-            publicClient: this.publicClient,
-            walletClient: this.walletClient
-        })
-
         const opsWithHashes = transactionInfo.userOperationInfos.map((opInfo) => {
             const op = deriveUserOperation(opInfo.mempoolUserOperation)
             return {
@@ -187,10 +187,31 @@ export class BasicExecutor implements IExecutor {
             }
         })
 
-        const callContext: DefaultFilterOpsAndEstimateGasParams = {
-            ep,
-            type: "default"
+        let callContext: DefaultFilterOpsAndEstimateGasParams | CompressedFilterOpsAndEstimateGasParams
+
+        if (transactionInfo.transactionType === "default") {
+            const ep = getContract({
+                abi: EntryPointAbi,
+                address: this.entryPoint,
+                publicClient: this.publicClient,
+                walletClient: this.walletClient
+            })
+
+            callContext = {
+                ep,
+                type: "default"
+            } as DefaultFilterOpsAndEstimateGasParams
+        } else {
+            const compressionHandler = this.getCompressionHandler()
+
+            callContext = {
+                publicClient: this.publicClient,
+                bundleBulker: compressionHandler.bundleBulkerAddress,
+                perOpInflatorId: compressionHandler.perOpInflatorId,
+                type: "compressed"
+            } as CompressedFilterOpsAndEstimateGasParams
         }
+
         const result = await filterOpsAndEstimateGas(
             callContext,
             transactionInfo.executor,
@@ -268,9 +289,9 @@ export class BasicExecutor implements IExecutor {
                     transactionInfo.executor.address
                 ]
             })
-        } else if (transactionInfo.transactionType === "compressed" && this.compressionHandler) {
+        } else if (transactionInfo.transactionType === "compressed") {
             const compressedOps = opsToBundle.map((opInfo) => (opInfo.mempoolUserOperation as CompressedUserOperation))
-            newRequest.calldata = createCompressedCalldata(compressedOps, this.compressionHandler.perOpInflatorId)
+            newRequest.calldata = createCompressedCalldata(compressedOps, this.getCompressionHandler().perOpInflatorId)
         }
 
         try {
@@ -592,10 +613,7 @@ export class BasicExecutor implements IExecutor {
     }
 
     async bundleCompressed(entryPoint: Address, compressedOps: CompressedUserOperation[]): Promise<BundleResult[]> {
-        if (!this.compressionHandler) {
-            throw new Error("Support for compressed bundles has not initialized")
-        }
-
+        const compressionHandler = this.getCompressionHandler()
         const wallet = await this.senderManager.getWallet()
 
         const childLogger = this.logger.child({
@@ -615,8 +633,8 @@ export class BasicExecutor implements IExecutor {
 
         const callContext: CompressedFilterOpsAndEstimateGasParams = {
             publicClient: this.publicClient,
-            bundleBulker: this.compressionHandler.bundleBulkerAddress,
-            perOpInflatorId: this.compressionHandler.perOpInflatorId,
+            bundleBulker: compressionHandler.bundleBulkerAddress,
+            perOpInflatorId: compressionHandler.perOpInflatorId,
             type: "compressed"
         }
 
@@ -684,8 +702,8 @@ export class BasicExecutor implements IExecutor {
             // need to use sendTransction to target BundleBulker's fallback
             txHash = await this.walletClient.sendTransaction({
                 account: wallet,
-                to: this.compressionHandler.bundleBulkerAddress,
-                data: createCompressedCalldata(compressedOps, this.compressionHandler.perOpInflatorId),
+                to: compressionHandler.bundleBulkerAddress,
+                data: createCompressedCalldata(compressedOps, compressionHandler.perOpInflatorId),
                 gas: gasLimit,
                 nonce: nonce,
                 ...gasOptions
@@ -721,8 +739,8 @@ export class BasicExecutor implements IExecutor {
             transactionHash: txHash,
             previousTransactionHashes: [],
             transactionRequest: {
-                address: this.compressionHandler.bundleBulkerAddress,
-                calldata: createCompressedCalldata(compressedOps, this.compressionHandler.perOpInflatorId),
+                address: compressionHandler.bundleBulkerAddress,
+                calldata: createCompressedCalldata(compressedOps, compressionHandler.perOpInflatorId),
                 gas: gasLimit,
                 account: wallet,
                 chain: this.walletClient.chain,
