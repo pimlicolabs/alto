@@ -291,7 +291,8 @@ export const bundlerHandler = async (
             logger.child({ module: "rpc" }),
             metrics,
             parsedArgs.utilityPrivateKey,
-            parsedArgs.tenderlyEnabled
+            parsedArgs.tenderlyEnabled,
+            parsedArgs.balanceOverrideEnabled
         )
     } else {
         reputationManager = new NullRepuationManager()

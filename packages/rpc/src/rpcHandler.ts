@@ -62,6 +62,7 @@ import {
     estimateVerificationGasLimit
 } from "./gasEstimation"
 import { NonceQueuer } from "./nonceQueuer"
+import { StateOverrides } from "@alto/types"
 
 export interface IRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>
@@ -69,7 +70,8 @@ export interface IRpcEndpoint {
     eth_supportedEntryPoints(): Promise<SupportedEntryPointsResponseResult>
     eth_estimateUserOperationGas(
         userOperation: UserOperation,
-        entryPoint: Address
+        entryPoint: Address,
+        stateOverrides?: StateOverrides
     ): Promise<EstimateUserOperationGasResponseResult>
     eth_sendUserOperation(
         userOperation: UserOperation,
@@ -156,7 +158,9 @@ export class RpcHandler implements IRpcEndpoint {
                 return {
                     method,
                     result: await this.eth_estimateUserOperationGas(
-                        ...request.params
+                        request.params[0],
+                        request.params[1],
+                        request.params[2]
                     )
                 }
             case "eth_sendUserOperation":
@@ -261,7 +265,8 @@ export class RpcHandler implements IRpcEndpoint {
 
     async eth_estimateUserOperationGas(
         userOperation: UserOperation,
-        entryPoint: Address
+        entryPoint: Address,
+        stateOverrides?: StateOverrides
     ): Promise<EstimateUserOperationGasResponseResult> {
         // check if entryPoint is supported, if not throw
         if (this.entryPoint !== entryPoint) {
@@ -320,8 +325,10 @@ export class RpcHandler implements IRpcEndpoint {
                 userOperation.callGasLimit = 1_000_000n
             }
 
-            const executionResult =
-                await this.validator.getExecutionResult(userOperation)
+            const executionResult = await this.validator.getExecutionResult(
+                userOperation,
+                stateOverrides
+            )
 
             verificationGasLimit =
                 ((executionResult.preOpGas - userOperation.preVerificationGas) *
@@ -358,7 +365,7 @@ export class RpcHandler implements IRpcEndpoint {
                 this.chainId === chains.baseGoerli.id ||
                 this.chainId === chains.base.id
             ) {
-                callGasLimit = 110n * callGasLimit / 100n
+                callGasLimit = (110n * callGasLimit) / 100n
             }
         } else {
             userOperation.maxFeePerGas = 0n
@@ -371,7 +378,8 @@ export class RpcHandler implements IRpcEndpoint {
                 entryPoint,
                 this.publicClient,
                 this.logger,
-                this.metrics
+                this.metrics,
+                stateOverrides
             )
 
             userOperation.preVerificationGas = preVerificationGas
@@ -386,7 +394,8 @@ export class RpcHandler implements IRpcEndpoint {
                 entryPoint,
                 this.publicClient,
                 this.logger,
-                this.metrics
+                this.metrics,
+                stateOverrides
             )
         }
 

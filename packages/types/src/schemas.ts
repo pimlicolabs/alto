@@ -1,4 +1,4 @@
-import { Hash, Hex, getAddress } from "viem"
+import { type Hash, type Hex, getAddress } from "viem"
 import { z } from "zod"
 
 const hexDataPattern = /^0x[0-9A-Fa-f]*$/
@@ -121,9 +121,29 @@ const supportedEntryPointsRequestSchema = z.object({
     params: z.tuple([])
 })
 
+const stateOverridesSchema = z.record(
+    addressSchema,
+    z.object({
+        balance: hexNumberSchema.optional(),
+        nonce: hexNumberSchema.optional(),
+        code: hexDataSchema.optional(),
+        state: z.unknown().optional(),
+        stateDiff: z.unknown().optional()
+    })
+)
+
+export type StateOverrides = z.infer<typeof stateOverridesSchema>
+
 const estimateUserOperationGasRequestSchema = z.object({
     method: z.literal("eth_estimateUserOperationGas"),
-    params: z.tuple([partialUserOperationSchema, addressSchema])
+    params: z.union([
+        z.tuple([partialUserOperationSchema, addressSchema]),
+        z.tuple([
+            partialUserOperationSchema,
+            addressSchema,
+            stateOverridesSchema
+        ])
+    ])
 })
 
 const sendUserOperationRequestSchema = z.object({

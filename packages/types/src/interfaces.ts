@@ -1,6 +1,6 @@
-import { ReferencedCodeHashes } from "./mempool"
-import { UserOperation } from "./schemas"
-import {
+import type { ReferencedCodeHashes } from "./mempool"
+import type { StateOverrides, UserOperation } from "./schemas"
+import type {
     ExecutionResult,
     StorageMap,
     ValidationResult,
@@ -10,7 +10,7 @@ import {
 export interface IValidator {
     getExecutionResult(
         userOperation: UserOperation,
-        usingTenderly?: boolean
+        stateOverrides?: StateOverrides
     ): Promise<ExecutionResult>
     getValidationResult(
         userOperation: UserOperation,
