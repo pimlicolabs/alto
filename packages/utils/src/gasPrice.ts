@@ -125,7 +125,6 @@ export async function getGasPrice(
 
     if (chainId === chains.lineaTestnet.id) {
         gasPrice *= 2n
-        maxPriorityFeePerGas *= 2n
     }
 
     return {
