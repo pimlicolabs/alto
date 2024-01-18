@@ -383,7 +383,8 @@ export const bundlerHandler = async (
         parsedArgs.rpcMaxBlockRange,
         logger.child({ module: "rpc" }),
         metrics,
-        parsedArgs.environment
+        parsedArgs.environment,
+        parsedArgs.kintoEntryPointVersion
     )
 
     // executor.flushStuckTransactions()

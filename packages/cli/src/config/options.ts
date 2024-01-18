@@ -134,7 +134,8 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         default: false
     },
     balanceOverrideEnabled: {
-        description: "True if RPC url supports eth_call balance state overrides",
+        description:
+            "True if RPC url supports eth_call balance state overrides",
         type: "boolean",
         require: true,
         default: false
@@ -171,7 +172,13 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
     rpcMaxBlockRange: {
         description: "Max block range for rpc calls",
         type: "number",
+        require: false
+    },
+    kintoEntryPointVersion: {
+        description: "Use kinto entry point version",
+        type: "boolean",
         require: false,
+        default: false
     }
 }
 

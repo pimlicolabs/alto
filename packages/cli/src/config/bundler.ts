@@ -4,8 +4,8 @@ import { Account, privateKeyToAccount } from "viem/accounts"
 import { z } from "zod"
 
 export const bundlerArgsSchema = z.object({
-    // allow both a comma separated list of addresses 
-    // (better for cli and env vars) or an array of addresses 
+    // allow both a comma separated list of addresses
+    // (better for cli and env vars) or an array of addresses
     // (better for config files)
     entryPoint: addressSchema,
     signerPrivateKeys: z.union([
@@ -21,7 +21,10 @@ export const bundlerArgsSchema = z.object({
             .transform((val) =>
                 val
                     .split(",")
-                    .map((val) => privateKeyToAccount(val as Hex) satisfies Account)
+                    .map(
+                        (val) =>
+                            privateKeyToAccount(val as Hex) satisfies Account
+                    )
             )
     ]),
     signerPrivateKeysExtra: z
@@ -41,7 +44,10 @@ export const bundlerArgsSchema = z.object({
                     val
                         .split(",")
                         .map(
-                            (val) => privateKeyToAccount(val as Hex) satisfies Account
+                            (val) =>
+                                privateKeyToAccount(
+                                    val as Hex
+                                ) satisfies Account
                         )
                 )
         ])
@@ -87,6 +93,7 @@ export const bundlerArgsSchema = z.object({
         .transform((val) => BigInt(val))
         .optional(),
     rpcMaxBlockRange: z.number().int().min(0).optional(),
+    kintoEntryPointVersion: z.boolean().optional()
 })
 
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>

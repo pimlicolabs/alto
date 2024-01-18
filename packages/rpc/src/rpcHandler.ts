@@ -102,6 +102,7 @@ export class RpcHandler implements IRpcEndpoint {
     environment: Environment
     executorManager: ExecutorManager
     reputationManager: IReputationManager
+    kintoEntryPointVersion: boolean
 
     constructor(
         entryPoint: Address,
@@ -118,7 +119,8 @@ export class RpcHandler implements IRpcEndpoint {
         rpcMaxBlockRange: number | undefined,
         logger: Logger,
         metrics: Metrics,
-        environment: Environment
+        environment: Environment,
+        kintoEntryPointVersion = false
     ) {
         this.entryPoint = entryPoint
         this.publicClient = publicClient
@@ -136,6 +138,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.chainId = publicClient.chain.id
         this.executorManager = executorManager
         this.reputationManager = reputationManager
+        this.kintoEntryPointVersion = kintoEntryPointVersion
     }
 
     async handleMethod(request: BundlerRequest): Promise<BundlerResponse> {
@@ -502,22 +505,34 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
         if (userOperationNonceValue === currentNonceValue) {
-            const validationResult =
-                await this.validator.validateUserOperation(userOperation)
-            await this.reputationManager.checkReputation(
-                userOperation,
-                validationResult
-            )
-            await this.mempool.checkEntityMultipleRoleViolation(userOperation)
-            const success = this.mempool.add(
-                userOperation,
-                validationResult.referencedContracts
-            )
-            if (!success) {
-                throw new RpcError(
-                    "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
-                    ValidationErrors.SimulateValidation
+            if (this.kintoEntryPointVersion) {
+                const success = this.mempool.add(userOperation)
+                if (!success) {
+                    throw new RpcError(
+                        "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
+                        ValidationErrors.SimulateValidation
+                    )
+                }
+            } else {
+                const validationResult =
+                    await this.validator.validateUserOperation(userOperation)
+                await this.reputationManager.checkReputation(
+                    userOperation,
+                    validationResult
                 )
+                await this.mempool.checkEntityMultipleRoleViolation(
+                    userOperation
+                )
+                const success = this.mempool.add(
+                    userOperation,
+                    validationResult?.referencedContracts
+                )
+                if (!success) {
+                    throw new RpcError(
+                        "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
+                        ValidationErrors.SimulateValidation
+                    )
+                }
             }
         } else {
             this.nonceQueuer.add(userOperation)
