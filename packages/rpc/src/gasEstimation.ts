@@ -1,18 +1,18 @@
 import {
     EntryPointAbi,
     ExecutionErrors,
-    ExecutionResult,
+    type ExecutionResult,
     RpcError,
-    UserOperation,
+    type UserOperation,
     ValidationErrors,
     executionResultSchema,
     hexDataSchema
 } from "@alto/types"
-import { Logger, Metrics } from "@alto/utils"
+import type { Logger, Metrics } from "@alto/utils"
 import type { Chain, Hex, RpcRequestErrorType, Transport } from "viem"
 import {
-    Address,
-    PublicClient,
+    type Address,
+    type PublicClient,
     decodeErrorResult,
     encodeFunctionData,
     toHex,
@@ -23,6 +23,8 @@ import {
     ExecuteSimulatorAbi,
     ExecuteSimulatorDeployedBytecode
 } from "./ExecuteSimulator"
+import type { StateOverrides } from "@alto/types"
+import { deepHexlify } from "@alto/utils"
 
 export async function simulateHandleOp(
     userOperation: UserOperation,
@@ -30,26 +32,36 @@ export async function simulateHandleOp(
     publicClient: PublicClient,
     replacedEntryPoint: boolean,
     targetAddress: Address,
-    targetCallData: Hex
+    targetCallData: Hex,
+    stateOverride?: StateOverrides
 ) {
     const finalParam = replacedEntryPoint
         ? {
+              ...stateOverride,
               [userOperation.sender]: {
-                  balance: toHex(100000_000000000000000000n)
+                  balance: toHex(100000_000000000000000000n),
+                  ...(stateOverride
+                      ? deepHexlify(stateOverride?.[userOperation.sender])
+                      : [])
               },
               [entryPoint]: {
                   code: ExecuteSimulatorDeployedBytecode
               }
           }
         : {
+              ...stateOverride,
               [userOperation.sender]: {
-                  balance: toHex(100000_000000000000000000n)
+                  balance: toHex(100000_000000000000000000n),
+                  ...(stateOverride
+                      ? deepHexlify(stateOverride?.[userOperation.sender])
+                      : [])
               }
           }
 
     try {
         await publicClient.request({
             method: "eth_call",
+            // @ts-ignore
             params: [
                 // @ts-ignore
                 {
@@ -88,7 +100,11 @@ export async function simulateHandleOp(
             data: cause.data
         })
 
-        if (decodedError.errorName === "FailedOp") {
+        if (
+            decodedError &&
+            decodedError.errorName === "FailedOp" &&
+            decodedError.args
+        ) {
             return { result: "failed", data: decodedError.args[1] } as const
         }
 
@@ -122,7 +138,8 @@ export async function estimateVerificationGasLimit(
     entryPoint: Address,
     publicClient: PublicClient,
     logger: Logger,
-    metrics: Metrics
+    metrics: Metrics,
+    stateOverrides?: StateOverrides
 ): Promise<bigint> {
     userOperation.callGasLimit = 0n
 
@@ -142,7 +159,8 @@ export async function estimateVerificationGasLimit(
         publicClient,
         false,
         zeroAddress,
-        "0x"
+        "0x",
+        stateOverrides
     )
 
     if (initial.result === "execution") {
@@ -167,7 +185,8 @@ export async function estimateVerificationGasLimit(
             publicClient,
             false,
             zeroAddress,
-            "0x"
+            "0x",
+            stateOverrides
         )
         simulationCounter++
 
@@ -221,7 +240,8 @@ export async function estimateCallGasLimit(
     entryPoint: Address,
     publicClient: PublicClient<Transport, Chain>,
     logger: Logger,
-    metrics: Metrics
+    metrics: Metrics,
+    stateOverrides?: StateOverrides
 ): Promise<bigint> {
     const targetCallData = encodeFunctionData({
         abi: ExecuteSimulatorAbi,
@@ -237,7 +257,8 @@ export async function estimateCallGasLimit(
         publicClient,
         true,
         entryPoint,
-        targetCallData
+        targetCallData,
+        stateOverrides
     )
 
     if (error.result === "failed") {
@@ -306,7 +327,8 @@ export async function estimateCallGasLimit(
             publicClient,
             true,
             entryPoint,
-            targetCallData
+            targetCallData,
+            stateOverrides
         )
 
         if (error.result !== "execution") {

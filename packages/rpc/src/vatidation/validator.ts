@@ -1,38 +1,38 @@
 import {
-    Address,
+    type Address,
     EntryPointAbi,
-    ExecutionResult,
+    type ExecutionResult,
     RpcError,
-    StakeInfo,
-    StorageMap,
-    UserOperation,
+    type StakeInfo,
+    type StorageMap,
+    type UserOperation,
     ValidationErrors,
-    ValidationResultWithAggregation,
+    type ValidationResultWithAggregation,
     entryPointErrorsSchema,
-    ReferencedCodeHashes,
+    type ReferencedCodeHashes,
     entryPointExecutionErrorSchema,
     CodeHashGetterBytecode,
     CodeHashGetterAbi,
     ExecutionErrors
 } from "@alto/types"
-import { ValidationResult } from "@alto/types"
+import type { ValidationResult } from "@alto/types"
 import {
-    Logger,
-    Metrics,
+    type Logger,
+    type Metrics,
     getAddressFromInitCodeOrPaymasterAndData
 } from "@alto/utils"
 import {
-    PublicClient,
+    type PublicClient,
     getContract,
     encodeFunctionData,
     decodeErrorResult,
-    Account,
-    Transport,
-    Chain,
+    type Account,
+    type Transport,
+    type Chain,
     zeroAddress,
-    Hex,
+    type Hex,
     encodeDeployData,
-    ExecutionRevertedError,
+    type ExecutionRevertedError,
     ContractFunctionExecutionError,
     BaseError
 } from "viem"
@@ -40,16 +40,17 @@ import { hexDataSchema } from "@alto/types"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
 import {
-    BundlerTracerResult,
-    ExitInfo,
+    type BundlerTracerResult,
+    type ExitInfo,
     bundlerCollectorTracer
 } from "./BundlerCollectorTracer"
 import { debug_traceCall } from "./tracer"
 import { tracerResultParser } from "./TracerResultParser"
-import { IValidator } from "@alto/types"
-import { SenderManager } from "@alto/executor"
+import type { IValidator } from "@alto/types"
+import type { SenderManager } from "@alto/executor"
 import * as sentry from "@sentry/node"
 import { simulateHandleOp } from "../gasEstimation"
+import type { StateOverrides } from "@alto/types"
 
 // let id = 0
 
@@ -167,7 +168,8 @@ export class UnsafeValidator implements IValidator {
     }
 
     async getExecutionResult(
-        userOperation: UserOperation
+        userOperation: UserOperation,
+        stateOverrides?: StateOverrides
     ): Promise<ExecutionResult> {
         const entryPointContract = getContract({
             address: this.entryPoint,
@@ -215,7 +217,8 @@ export class UnsafeValidator implements IValidator {
                 this.publicClient,
                 false,
                 zeroAddress,
-                "0x"
+                "0x",
+                stateOverrides
             )
 
             if (error.result === "failed") {
@@ -372,7 +375,8 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
         logger: Logger,
         metrics: Metrics,
         utilityWallet: Account,
-        usingTenderly = false
+        usingTenderly = false,
+        balanceOverrideEnabled = false
     ) {
         super(
             publicClient,
@@ -380,7 +384,8 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
             logger,
             metrics,
             utilityWallet,
-            usingTenderly
+            usingTenderly,
+            balanceOverrideEnabled
         )
         this.senderManager = senderManager
     }

@@ -15,7 +15,7 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v1
+      uses: actions/checkout@v4
 
     - name: Start tests
       run: docker-compose -f "test/e2e/docker-compose.yml" up --abort-on-container-exit test_suite
