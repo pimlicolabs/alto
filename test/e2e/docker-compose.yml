@@ -1,0 +1,24 @@
+version: "2.4"
+
+services:
+  anvil:
+    image: ghcr.io/foundry-rs/foundry:nightly-156cb1396b7076c6f9cb56f3719f8c90f7f52064
+    ports: [ "8545:8545" ]
+    entrypoint: [ "anvil", "--host", "0.0.0.0" ]
+
+  alto:
+    build: ../../
+    ports: [ "3000:3000" ]
+    command: --config config.localhost.json --rpcUrl http://anvil:8545
+    depends_on:
+      anvil:
+        condition: service_started
+
+  test_suite:
+    build: test_suite
+    environment:
+      - ALTO_ENDPOINT=http://alto:3000
+      - ANVIL_ENDPOINT=http://anvil:8545
+    depends_on:
+      alto:
+        condition: service_started
