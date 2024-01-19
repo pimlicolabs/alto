@@ -541,6 +541,7 @@ export class BasicExecutor implements IExecutor {
 
         childLogger.info(
             {
+                transactionRequest: transactionInfo.transactionRequest,
                 txHash,
                 opHashes: opsToBundle.map((owh) => owh.userOperationHash)
             },
