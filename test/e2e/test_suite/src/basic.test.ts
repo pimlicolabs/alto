@@ -1,11 +1,34 @@
-import { bundlerActions, getSenderAddress, signUserOperationHashWithECDSA } from "permissionless"
-import { pimlicoBundlerActions } from "permissionless/actions/pimlico"
-import { concat, createClient, createPublicClient, encodeFunctionData, getContract, http, parseEther, toHex } from "viem";
+import { UserOperation, createSmartAccountClient } from "permissionless"
+import { privateKeyToSimpleSmartAccount } from "permissionless/accounts";
+import { Address, createPublicClient, createTestClient, getContract, http, parseEther, parseGwei } from "viem";
 import { foundry } from "viem/chains";
-import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { BUNDLE_BULKER_ADDRESS, ENTRY_POINT_ADDRESS, PER_OP_INFLATOR_ADDRESS, SIMPLE_ACCOUNT_FACTORY_ADDRESS, SIMPLE_INFLATOR_ADDRESS, altoEndpoint, anvilDumpState, anvilEndpoint, anvilLoadState, createSendCalldata, fundAccount } from "./utils";
+import { generatePrivateKey } from "viem/accounts";
+import {
+    BUNDLE_BULKER_ADDRESS,
+    ENTRY_POINT_ADDRESS,
+    PER_OP_INFLATOR_ADDRESS,
+    SIMPLE_ACCOUNT_FACTORY_ADDRESS,
+    SIMPLE_INFLATOR_ADDRESS,
+    altoEndpoint,
+    anvilDumpState,
+    anvilEndpoint,
+    anvilLoadState,
+    fundAccount,
+    setupSimpleSmartAccountClient,
+    compressAndSendOp,
+    setBundlingMode,
+    clearBundlerState,
+    sendBundleNow
+} from "./utils";
 import { setupBasicEnvironment, setupCompressedEnvironment } from "./setup";
-import { bundleBulkerDeployedBytecode, entryPointDeployedBytecode, perOpInflatorDeployedBytecode, simpleAccountDeployedBytecode, simpleAccountFactoryAbi, simpleAccountFactoryDeployedBytecode, simpleInflatorAbi, simpleInflatorDeployedBytecode } from "./data";
+import {
+    bundleBulkerDeployedBytecode,
+    entryPointDeployedBytecode,
+    perOpInflatorDeployedBytecode,
+    simpleAccountFactoryDeployedBytecode,
+    simpleInflatorDeployedBytecode
+} from "./data";
+import { createPimlicoBundlerClient } from "permissionless/clients/pimlico";
 
 // Holds the checkpoint after all contracts have been deployed.
 let anvilCheckpoint: string | null = null
@@ -21,15 +44,18 @@ beforeAll(async () => {
     })
 
     // ensure that all bytecode is deployed to expected addresses.
-    expect(await publicClient.getBytecode({address: ENTRY_POINT_ADDRESS})).toEqual(entryPointDeployedBytecode)
-    expect(await publicClient.getBytecode({address: SIMPLE_ACCOUNT_FACTORY_ADDRESS})).toEqual(simpleAccountFactoryDeployedBytecode)
-    expect(await publicClient.getBytecode({address: BUNDLE_BULKER_ADDRESS})).toEqual(bundleBulkerDeployedBytecode)
-    expect(await publicClient.getBytecode({address: PER_OP_INFLATOR_ADDRESS})).toEqual(perOpInflatorDeployedBytecode)
-    expect(await publicClient.getBytecode({address: SIMPLE_INFLATOR_ADDRESS})).toEqual(simpleInflatorDeployedBytecode)
+    expect(await publicClient.getBytecode({ address: ENTRY_POINT_ADDRESS })).toEqual(entryPointDeployedBytecode)
+    expect(await publicClient.getBytecode({ address: SIMPLE_ACCOUNT_FACTORY_ADDRESS })).toEqual(simpleAccountFactoryDeployedBytecode)
+    expect(await publicClient.getBytecode({ address: BUNDLE_BULKER_ADDRESS })).toEqual(bundleBulkerDeployedBytecode)
+    expect(await publicClient.getBytecode({ address: PER_OP_INFLATOR_ADDRESS })).toEqual(perOpInflatorDeployedBytecode)
+    expect(await publicClient.getBytecode({ address: SIMPLE_INFLATOR_ADDRESS })).toEqual(simpleInflatorDeployedBytecode)
 });
 
 // This function will revert all contracts to the state before the tests were run (called once before all tests).
 beforeEach(async () => {
+    clearBundlerState()
+    setBundlingMode("auto")
+
     if (!anvilCheckpoint) {
         anvilCheckpoint = await anvilDumpState()
     } else {
@@ -37,154 +63,188 @@ beforeEach(async () => {
     }
 })
 
-test("pimlico_sendCompressedUserOperation can submit a compressed userOp", async () => {
-    // setup vars.
-    const bundlerClient = createClient({
+test.only("pimlico_sendCompressedUserOperation can replace mempool transaction", async () => {
+    const pimlicoClient = createPimlicoBundlerClient({
         transport: http(altoEndpoint),
-        chain: foundry,
-    }).extend(bundlerActions).extend(pimlicoBundlerActions)
+    })
     const publicClient = createPublicClient({
         transport: http(anvilEndpoint),
         chain: foundry,
     })
-    const simpleInflator = getContract({
-        address: SIMPLE_INFLATOR_ADDRESS,
-        abi: simpleInflatorAbi,
-        publicClient,
-    })
-    const targetReceiver = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
-    const targetSendAmount = parseEther("0.1337")
-
-    const owner = privateKeyToAccount(generatePrivateKey())
-
-    // generate init code.
-    const initCode = concat([
-        SIMPLE_ACCOUNT_FACTORY_ADDRESS,
-        encodeFunctionData({
-            abi: simpleAccountFactoryAbi,
-            functionName: "createAccount",
-            args: [owner.address, 0n]
-        })
-    ]);
-
-    const senderAddress = await getSenderAddress(publicClient, {
-        initCode,
-        entryPoint: ENTRY_POINT_ADDRESS
+    const anvilClient = createTestClient({
+        chain: foundry,
+        mode: 'anvil',
+        transport: http(anvilEndpoint)
     })
 
-    const gasPrice = await bundlerClient.getUserOperationGasPrice()
+    const target = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+    const amt = parseEther("0.1337")
 
-    const userOperation = {
-        sender: senderAddress,
-        nonce: 0n,
-        initCode,
-        callData: createSendCalldata(targetReceiver, targetSendAmount),
-        maxFeePerGas: gasPrice.fast.maxFeePerGas,
-        maxPriorityFeePerGas: gasPrice.fast.maxPriorityFeePerGas,
-        callGasLimit: 1000000n,
-        verificationGasLimit: 1000000n,
-        preVerificationGas: 1000000n,
-        paymasterAndData: toHex(""),
-        signature: toHex(""),
-    }
+    const smartAccount = await setupSimpleSmartAccountClient(publicClient, pimlicoClient)
+    await anvilClient.setAutomine(false)
 
-    // sign user operation.
-    userOperation.signature = await signUserOperationHashWithECDSA({
-        account: owner,
-        userOperation,
-        chainId: foundry.id,
-        entryPoint: ENTRY_POINT_ADDRESS
+    await anvilClient.mine({ blocks: 1 })
+
+    const op = await smartAccount.prepareUserOperationRequest({
+        userOperation: {
+            callData: await smartAccount.account.encodeCallData({
+                to: target,
+                value: amt,
+                data: "0x",
+            }),
+        }
+    })
+    op.signature = await smartAccount.account.signUserOperation(op)
+
+    const opHash = await compressAndSendOp(op, publicClient, pimlicoClient)
+
+    await new Promise(resolve => setTimeout(resolve, 1000))
+
+    await anvilClient.setNextBlockBaseFeePerGas({
+        baseFeePerGas: parseGwei('150')
     })
 
-    await fundAccount(senderAddress, parseEther("1337"))
+    await anvilClient.mine({ blocks: 1 })
+    await new Promise(resolve => setTimeout(resolve, 1000))
 
-    // compress the userOperation
-    let compressed = await simpleInflator.read.compress([userOperation])
-    console.log(compressed)
+    let opReceipt = await pimlicoClient.getUserOperationReceipt({ hash: opHash })
+    console.log("should fail", opReceipt)
 
-    const userOperationHash = (await fetch(altoEndpoint, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            jsonrpc: '2.0',
-            method: 'pimlico_sendCompressedUserOperation',
-            params: [
-                compressed,
-                SIMPLE_INFLATOR_ADDRESS,
-                ENTRY_POINT_ADDRESS,
-            ],
-            id: 4337
-        })
-    })
-    .then(response => response.json())).result
+    await anvilClient.mine({ blocks: 1 })
 
-    await bundlerClient.waitForUserOperationReceipt({ hash: userOperationHash })
-
-    // check that smart account was deployed.
-    expect(await publicClient.getBytecode({address: senderAddress})).toEqual(simpleAccountDeployedBytecode)
-
-    // check that the calldata part of the userOperation was executed.
-    expect(await publicClient.getBalance({address: targetReceiver})).toEqual(targetSendAmount)
+    opReceipt = await pimlicoClient.getUserOperationReceipt({ hash: opHash })
+    console.log("should pass", opReceipt)
 })
 
-test("eth_sendUserOperation can deploy a contract", async () => {
-    // setup vars.
-    const bundlerClient = createClient({
+test("pimlico_sendCompressedUserOperation can bundle multiple compressed userOps", async () => {
+    const pimlicoClient = createPimlicoBundlerClient({
         transport: http(altoEndpoint),
-        chain: foundry,
-    }).extend(bundlerActions).extend(pimlicoBundlerActions)
+    })
     const publicClient = createPublicClient({
         transport: http(anvilEndpoint),
         chain: foundry,
     })
 
-    const owner = privateKeyToAccount(generatePrivateKey())
+    // sender -> relay -> target
+    const sender = await setupSimpleSmartAccountClient(publicClient, pimlicoClient)
+    const relayer = await setupSimpleSmartAccountClient(publicClient, pimlicoClient)
 
-    // generate init code.
-    const initCode = concat([
-        SIMPLE_ACCOUNT_FACTORY_ADDRESS,
-        encodeFunctionData({
-            abi: simpleAccountFactoryAbi,
-            functionName: "createAccount",
-            args: [owner.address, 0n]
-        })
-    ]);
+    const target = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+    const amt = parseEther("0.1337")
 
-    const senderAddress = await getSenderAddress(publicClient, {
-        initCode,
-        entryPoint: ENTRY_POINT_ADDRESS
+    // create sender op
+    const senderOp = await sender.prepareUserOperationRequest({
+        userOperation: {
+            callData: await sender.account.encodeCallData({
+                to: relayer.account.address,
+                value: amt,
+                data: "0x",
+            }),
+        }
     })
 
-    const gasPrice = await bundlerClient.getUserOperationGasPrice()
+    senderOp.signature = await sender.account.signUserOperation(senderOp)
 
-    const userOperation = {
-        sender: senderAddress,
-        nonce: 0n,
-        initCode,
-        callData: toHex(""),
-        maxFeePerGas: gasPrice.fast.maxFeePerGas,
-        maxPriorityFeePerGas: gasPrice.fast.maxPriorityFeePerGas,
-        callGasLimit: 1000000n,
-        verificationGasLimit: 1000000n,
-        preVerificationGas: 1000000n,
-        paymasterAndData: toHex(""),
-        signature: toHex(""),
-    }
-
-    // sign user operation.
-    userOperation.signature = await signUserOperationHashWithECDSA({
-        account: owner,
-        userOperation,
-        chainId: foundry.id,
-        entryPoint: ENTRY_POINT_ADDRESS
+    // create relayer op
+    const relayerOp = await relayer.prepareUserOperationRequest({
+        userOperation: {
+            callData: await relayer.account.encodeCallData({
+                to: target,
+                value: amt,
+                data: "0x",
+            }),
+        }
     })
 
-    await fundAccount(senderAddress, parseEther("1337"))
+    relayerOp.signature = await relayer.account.signUserOperation(relayerOp)
 
-    await bundlerClient.sendUserOperation({
-        userOperation: userOperation,
-        entryPoint: ENTRY_POINT_ADDRESS
+    setBundlingMode("manual")
+
+    const senderHash = await compressAndSendOp(senderOp, publicClient, pimlicoClient)
+    const relayerHash = await compressAndSendOp(relayerOp, publicClient, pimlicoClient)
+
+    await sendBundleNow()
+
+    console.log("senderHash", senderHash)
+    console.log("relayerHash", relayerHash)
+})
+
+test("pimlico_sendCompressedUserOperation can submit a compressed userOp", async () => {
+    const pimlicoClient = createPimlicoBundlerClient({
+        transport: http(altoEndpoint),
     })
+    const publicClient = createPublicClient({
+        transport: http(anvilEndpoint),
+        chain: foundry,
+    })
+
+    const smartAccountClient = await setupSimpleSmartAccountClient(publicClient, pimlicoClient)
+
+    const targetAddress = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+    const targetAmt = parseEther("0.1337")
+
+    const userOperation = await smartAccountClient.prepareUserOperationRequest({
+        userOperation: {
+            callData: await smartAccountClient.account.encodeCallData({
+                to: targetAddress,
+                value: targetAmt,
+                data: "0x",
+            }),
+        }
+    })
+
+    userOperation.signature = await smartAccountClient.account.signUserOperation(userOperation)
+
+    const opHash = await compressAndSendOp(userOperation, publicClient, pimlicoClient)
+    pimlicoClient.waitForUserOperationReceipt({ hash: opHash })
+
+    expect(await publicClient.getBalance({ address: targetAddress })).toEqual(targetAmt)
+})
+
+test("eth_sendUserOperation can submit a userOperation", async () => {
+    const bundlerClient = createPimlicoBundlerClient({
+        transport: http(altoEndpoint),
+    });
+    const publicClient = createPublicClient({
+        transport: http(anvilEndpoint),
+        chain: foundry,
+    })
+
+    const simpleAccount = await privateKeyToSimpleSmartAccount(publicClient, {
+        privateKey: generatePrivateKey(),
+        factoryAddress: SIMPLE_ACCOUNT_FACTORY_ADDRESS,
+        entryPoint: ENTRY_POINT_ADDRESS,
+    });
+
+    await fundAccount(simpleAccount.address, parseEther("1337"))
+
+    const smartAccountClient = createSmartAccountClient({
+        account: simpleAccount,
+        chain: foundry,
+        transport: http(altoEndpoint),
+        sponsorUserOperation: async (args: {
+            userOperation: UserOperation;
+            entryPoint: Address;
+        }) => {
+            const gasInfo = await bundlerClient.estimateUserOperationGas(args)
+            return Promise.resolve({
+                ...args.userOperation,
+                preVerificationGas: gasInfo.preVerificationGas,
+                verificationGasLimit: gasInfo.verificationGasLimit,
+                callGasLimit: gasInfo.callGasLimit * 5n,
+            });
+        },
+    });
+
+    const targetAddress = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+    const targetAmt = parseEther("0.1337")
+
+    smartAccountClient.prepareUserOperationRequest
+
+    await smartAccountClient.sendTransaction({
+        to: targetAddress,
+        value: targetAmt,
+    })
+
+    expect(await publicClient.getBalance({ address: targetAddress })).toEqual(targetAmt)
 })
