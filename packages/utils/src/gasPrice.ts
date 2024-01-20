@@ -124,7 +124,7 @@ export async function getGasPrice(
     }
 
     if (chainId === chains.lineaTestnet.id) {
-        gasPrice = (gasPrice > parseGwei("10")) ? gasPrice : parseGwei("10");
+        gasPrice = (gasPrice > parseGwei("20")) ? gasPrice : parseGwei("20");
     }
 
     return {
