@@ -328,14 +328,14 @@ export const bundlerHandler = async (
         metrics
     )
 
-    const { bundleBulkerAddress, perOpInflatorAddress, perOpInflatorId } = parsedArgs;
+    const { bundleBulkerAddress, perOpInflatorAddress } = parsedArgs;
 
     let compressionHandler = null
-    if (bundleBulkerAddress !== undefined && perOpInflatorAddress !== undefined && perOpInflatorId !== undefined) {
-        compressionHandler = new CompressionHandler(
-            parsedArgs.bundleBulkerAddress!,
-            parsedArgs.perOpInflatorAddress!,
-            parsedArgs.perOpInflatorId!
+    if (bundleBulkerAddress !== undefined && perOpInflatorAddress !== undefined) {
+        compressionHandler = await CompressionHandler.createAsync(
+            bundleBulkerAddress,
+            perOpInflatorAddress,
+            client
         )
     }
 

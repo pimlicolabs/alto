@@ -1,14 +1,16 @@
 import {
-    Address, PerOpInfaltorAbi
+    Address,
+    BundleBulkerAbi,
+    PerOpInfaltorAbi
 } from "@alto/types"
-import { Client, getContract } from "viem"
+import { Client, PublicClient, getContract } from "viem"
 
 export class CompressionHandler {
     bundleBulkerAddress: Address
     perOpInflatorAddress: Address
     perOpInflatorId: number
 
-    constructor(
+    private constructor(
         bundleBulkerAddress: Address,
         perOpInflatorAddress: Address,
         perOpInflatorId: number,
@@ -16,6 +18,24 @@ export class CompressionHandler {
         this.bundleBulkerAddress = bundleBulkerAddress
         this.perOpInflatorAddress = perOpInflatorAddress
         this.perOpInflatorId = perOpInflatorId
+    }
+
+    public static createAsync = async (bundleBulkerAddress: Address, perOpInflatorAddress: Address, publicClient: PublicClient) => {
+        const compressionHandler = new CompressionHandler(bundleBulkerAddress, perOpInflatorAddress, 0)
+
+        const bundleBulker = getContract({
+            address: bundleBulkerAddress,
+            abi: BundleBulkerAbi,
+            publicClient,
+        })
+
+        compressionHandler.perOpInflatorId = await bundleBulker.read.inflatorToID([perOpInflatorAddress])
+
+        if (compressionHandler.perOpInflatorId === 0) {
+            throw new Error(`PerOpInflator (${perOpInflatorAddress}) is not registered with BundleBulker (${bundleBulkerAddress})`)
+        }
+
+        return compressionHandler
     }
 
     public async getInflatorRegisteredId(inflator: Address, publicClient: Client): Promise<number> {

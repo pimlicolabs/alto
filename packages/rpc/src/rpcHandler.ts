@@ -1,4 +1,4 @@
-import { IExecutor, ExecutorManager  } from "@alto/executor"
+import { IExecutor, ExecutorManager } from "@alto/executor"
 import { IReputationManager, Mempool, Monitor } from "@alto/mempool"
 import {
     Address,
@@ -948,7 +948,7 @@ export class RpcHandler implements IRpcEndpoint {
             inflatedOp = await inflatorContract.read.inflate([compressedCalldata])
         } catch (e) {
             throw new RpcError(
-                `Inflator ${inflatorAddress} failed to inflate calldata ${compressedCalldata}`,
+                `Inflator ${inflatorAddress} failed to inflate calldata ${compressedCalldata}, due to ${e}`,
                 ValidationErrors.InvalidFields
             )
         }
@@ -956,7 +956,7 @@ export class RpcHandler implements IRpcEndpoint {
         // check if perUseropIsRegisterd to target BundleBulker
         const perOpInflatorId = this.compressionHandler.perOpInflatorId
 
-        if (perOpInflatorId === undefined) {
+        if (perOpInflatorId === 0) {
             throw new RpcError(`PerUserOp ${this.compressionHandler.perOpInflatorAddress} has not been registered with BundelBulker`, ValidationErrors.InvalidFields)
         }
 
