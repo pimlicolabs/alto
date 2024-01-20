@@ -173,11 +173,10 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "number",
         require: false,
     },
-    flushStuckTransactionsDuringStartUp: {
+    flushStuckTransactionsDuringStartup: {
         description: "Should the bundler try to flush out all stuck pending transactions on startup",
-        type: "bool",
-        default: false,
-        require: false,
+        type: "boolean",
+        require: true,
     }
 }
 
