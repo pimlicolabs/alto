@@ -172,6 +172,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description: "Max block range for rpc calls",
         type: "number",
         require: false,
+    },
+    flushStuckTransactionsDuringStartUp: {
+        description: "Should the bundler try to flush out all stuck pending transactions on startup",
+        type: "bool",
+        default: false,
+        require: false,
     }
 }
 

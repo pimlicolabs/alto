@@ -386,7 +386,9 @@ export const bundlerHandler = async (
         parsedArgs.environment
     )
 
-    // executor.flushStuckTransactions()
+    if (parsedArgs.flushStuckTransactionsDuringStartUp) {
+        executor.flushStuckTransactions()
+    }
 
     logger.info(
         { module: "executor" },
