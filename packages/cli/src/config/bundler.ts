@@ -53,9 +53,9 @@ export const bundlerArgsSchema = z.object({
     rpcUrl: z.string().url(),
     executionRpcUrl: z.string().url().optional(),
 
-    bundleBulkerAddress: addressSchema,
-    perOpInflatorAddress: addressSchema,
-    perOpInflatorId: z.number().int().min(0),
+    bundleBulkerAddress: addressSchema.optional(),
+    perOpInflatorAddress: addressSchema.optional(),
+    perOpInflatorId: z.number().int().min(0).optional(),
 
     minBalance: z.string().transform((val) => BigInt(val)),
     refillInterval: z.number().int().min(0),
