@@ -386,7 +386,7 @@ export const bundlerHandler = async (
         parsedArgs.environment
     )
 
-    if (parsedArgs.flushStuckTransactionsDuringStartUp) {
+    if (parsedArgs.flushStuckTransactionsDuringStartup) {
         executor.flushStuckTransactions()
     }
 
