@@ -1,34 +1,34 @@
 import { BasicExecutor, ExecutorManager, SenderManager } from "@alto/executor"
 import {
-    type IReputationManager,
     MemoryMempool,
     Monitor,
     NullRepuationManager,
-    ReputationManager
+    ReputationManager,
+    type IReputationManager
 } from "@alto/mempool"
+import { NonceQueuer, RpcHandler, SafeValidator, Server, UnsafeValidator } from "@alto/rpc"
 import type { IValidator } from "@alto/types"
 import {
-    type Logger,
+    CompressionHandler,
     createMetrics,
     initDebugLogger,
     initProductionLogger,
-    CompressionHandler,
+    type Logger,
 } from "@alto/utils"
-import { NonceQueuer, RpcHandler, SafeValidator, Server, UnsafeValidator } from "@alto/rpc"
 import { Registry } from "prom-client"
 import {
+    createPublicClient,
+    createWalletClient,
     type Chain,
     type PublicClient,
-    type Transport,
-    createPublicClient,
-    createWalletClient
+    type Transport
 } from "viem"
 import * as chains from "viem/chains"
 import { fromZodError } from "zod-validation-error"
 import {
+    bundlerArgsSchema,
     type IBundlerArgs,
-    type IBundlerArgsInput,
-    bundlerArgsSchema
+    type IBundlerArgsInput
 } from "./config"
 import { customTransport } from "./customTransport"
 
@@ -330,14 +330,8 @@ export const bundlerHandler = async (
 
     const { bundleBulkerAddress, perOpInflatorAddress, perOpInflatorId } = parsedArgs;
 
-    if ([bundleBulkerAddress, perOpInflatorAddress, perOpInflatorId].some(arg => arg) &&
-        [bundleBulkerAddress, perOpInflatorAddress, perOpInflatorId].some(arg => !arg)) {
-      throw new Error("All or none of the variables `bundleBulkerAddress`, `perOpInflatorAddress`, `perOpInflatorId` must be set.");
-    }
-
     let compressionHandler = null
-
-    if ([bundleBulkerAddress, perOpInflatorAddress, perOpInflatorId].some(arg => arg)) {
+    if (bundleBulkerAddress && perOpInflatorAddress && perOpInflatorId) {
         compressionHandler = new CompressionHandler(
             parsedArgs.bundleBulkerAddress,
             parsedArgs.perOpInflatorAddress,
