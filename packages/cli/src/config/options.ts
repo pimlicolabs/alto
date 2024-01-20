@@ -145,6 +145,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: true,
         default: false
     },
+    flushStuckTransactionsDuringStartup: {
+        description: "Should the bundler try to flush out all stuck pending transactions on startup",
+        type: "boolean",
+        require: true,
+        default: false
+    },
     customGasLimitForEstimation: {
         description: "Custom gas limit for estimation",
         type: "string"
@@ -173,11 +179,6 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "number",
         require: false,
     },
-    flushStuckTransactionsDuringStartup: {
-        description: "Should the bundler try to flush out all stuck pending transactions on startup",
-        type: "boolean",
-        require: true,
-    }
 }
 
 export const bundlerCommand: CliCommand<IBundlerArgsInput> = {
