@@ -13,3 +13,9 @@
 [submodule "contracts/lib/bulk"]
 	path = contracts/lib/bulk
 	url = https://github.com/daimo-eth/bulk
+[submodule "test/e2e/contracts/lib/bulk"]
+	path = test/e2e/contracts/lib/bulk
+	url = https://github.com/daimo-eth/bulk
+[submodule "test/e2e/contracts/lib/solady"]
+	path = test/e2e/contracts/lib/solady
+	url = https://github.com/vectorized/solady
