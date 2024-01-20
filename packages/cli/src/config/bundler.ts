@@ -74,6 +74,7 @@ export const bundlerArgsSchema = z.object({
     bundleMode: z.enum(["auto", "manual"]),
     bundlerFrequency: z.number().int().min(0),
 
+    flushStuckTransactionsDuringStartup: z.boolean(),
     safeMode: z.boolean(),
 
     tenderlyEnabled: z.boolean().optional(),

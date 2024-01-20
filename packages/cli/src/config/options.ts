@@ -145,6 +145,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: true,
         default: false
     },
+    flushStuckTransactionsDuringStartup: {
+        description: "Should the bundler try to flush out all stuck pending transactions on startup",
+        type: "boolean",
+        require: true,
+        default: false
+    },
     customGasLimitForEstimation: {
         description: "Custom gas limit for estimation",
         type: "string"
@@ -172,7 +178,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description: "Max block range for rpc calls",
         type: "number",
         require: false,
-    }
+    },
 }
 
 export const bundlerCommand: CliCommand<IBundlerArgsInput> = {
