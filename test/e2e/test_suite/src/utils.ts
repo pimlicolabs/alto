@@ -1,8 +1,8 @@
 import { UserOperation, createSmartAccountClient } from "permissionless"
 import { privateKeyToSimpleSmartAccount } from "permissionless/accounts"
 import { PimlicoBundlerClient } from "permissionless/clients/pimlico"
-import { PublicClient, createWalletClient, encodeFunctionData, getContract, http, parseEther } from "viem"
-import { Address, generatePrivateKey, mnemonicToAccount } from "viem/accounts"
+import { PublicClient, TestClient, createWalletClient, encodeFunctionData, getContract, http, parseEther, parseGwei } from "viem"
+import { Address, generatePrivateKey, mnemonicToAccount, privateKeyToAddress } from "viem/accounts"
 import { foundry } from "viem/chains"
 import { simpleInflatorAbi } from "./data"
 
@@ -92,7 +92,11 @@ export const compressAndSendOp = async (userOperation: UserOperation, publicClie
     return userOperationHash
 }
 
-export const setupSimpleSmartAccountClient = async (publicClient: PublicClient, bundlerClient: PimlicoBundlerClient) => {
+export const newRandomAddress = (): Address => {
+    return privateKeyToAddress(generatePrivateKey())
+}
+
+export const setupSimpleSmartAccountClient = async (bundlerClient: PimlicoBundlerClient, publicClient: PublicClient) => {
     const simpleAccount = await privateKeyToSimpleSmartAccount(publicClient, {
         privateKey: generatePrivateKey(),
         factoryAddress: SIMPLE_ACCOUNT_FACTORY_ADDRESS,
@@ -120,6 +124,27 @@ export const setupSimpleSmartAccountClient = async (publicClient: PublicClient, 
     });
 }
 
+export const resetAnvil = async (anvilClient: TestClient) => {
+    await anvilClient.setAutomine(true)
+    await anvilClient.setBlockGasLimit({ gasLimit: 30_000_000n })
+    await anvilClient.setNextBlockBaseFeePerGas({ baseFeePerGas: parseGwei("15") })
+
+    // clear mempool
+    const mempoolContent = await anvilClient.getTxpoolContent()
+
+    for (const [_addr, pendingTxs] of Object.entries(mempoolContent.pending)) {
+        for (const [_nonce, pendingTxInfo] of Object.entries(pendingTxs)) {
+            await anvilClient.dropTransaction({ hash: pendingTxInfo.hash })
+        }
+    }
+
+    for (const [_addr, queuedTxs] of Object.entries(mempoolContent.queued)) {
+        for (const [_nonce, queuedTxInfo] of Object.entries(queuedTxs)) {
+            await anvilClient.dropTransaction({ hash: queuedTxInfo.hash })
+        }
+    }
+}
+
 export const fundAccount = async (to: Address, value: bigint) => {
     const wallet = createWalletClient({
         account: anvilAccount,
@@ -129,38 +154,5 @@ export const fundAccount = async (to: Address, value: bigint) => {
     await wallet.sendTransaction({
         to,
         value,
-    })
-}
-
-// creates a checkpoint and returns the hexstring for that checkpoint.
-export const anvilDumpState = async (): Promise<string> => {
-    return await fetch(anvilEndpoint, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            jsonrpc: '2.0',
-            method: 'anvil_dumpState',
-            params: [],
-            id: 1
-        })
-    })
-        .then(response => response.json())
-}
-
-// loads a checkpoint from the hexstring.
-export const anvilLoadState = async (checkpoint: string) => {
-    return await fetch(anvilEndpoint, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            jsonrpc: '2.0',
-            method: 'anvil_loadState',
-            params: [checkpoint],
-            id: 1
-        })
     })
 }

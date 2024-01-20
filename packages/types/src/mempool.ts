@@ -26,8 +26,8 @@ export type TransactionInfo = {
     previousTransactionHashes: HexData32[]
     transactionRequest: {
         account: Account,
-        address: Address,
-        calldata: Hex,
+        to: Address,
+        data: Hex,
         gas: bigint,
         chain: Chain,
         maxFeePerGas: bigint,
