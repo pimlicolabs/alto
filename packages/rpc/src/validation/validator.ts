@@ -1,37 +1,38 @@
 import {
-    Address,
+    type Address,
     EntryPointAbi,
-    ExecutionResult,
+    type ExecutionResult,
     RpcError,
-    StakeInfo,
-    StorageMap,
-    UserOperation,
+    type StakeInfo,
+    type StorageMap,
+    type UserOperation,
     ValidationErrors,
-    ValidationResultWithAggregation,
+    type ValidationResultWithAggregation,
     entryPointErrorsSchema,
-    ReferencedCodeHashes,
+    type ReferencedCodeHashes,
     entryPointExecutionErrorSchema,
     CodeHashGetterBytecode,
-    CodeHashGetterAbi
+    CodeHashGetterAbi,
+    ExecutionErrors
 } from "@alto/types"
-import { ValidationResult } from "@alto/types"
+import type { ValidationResult } from "@alto/types"
 import {
-    Logger,
-    Metrics,
+    type Logger,
+    type Metrics,
     getAddressFromInitCodeOrPaymasterAndData
 } from "@alto/utils"
 import {
-    PublicClient,
+    type PublicClient,
     getContract,
     encodeFunctionData,
     decodeErrorResult,
-    Account,
-    Transport,
-    Chain,
+    type Account,
+    type Transport,
+    type Chain,
     zeroAddress,
-    Hex,
+    type Hex,
     encodeDeployData,
-    ExecutionRevertedError,
+    type ExecutionRevertedError,
     ContractFunctionExecutionError,
     BaseError
 } from "viem"
@@ -39,15 +40,17 @@ import { hexDataSchema } from "@alto/types"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
 import {
-    BundlerTracerResult,
-    ExitInfo,
+    type BundlerTracerResult,
+    type ExitInfo,
     bundlerCollectorTracer
 } from "./BundlerCollectorTracer"
 import { debug_traceCall } from "./tracer"
 import { tracerResultParser } from "./TracerResultParser"
-import { IValidator } from "@alto/types"
-import { SenderManager } from "@alto/executor"
+import type { IValidator } from "@alto/types"
+import type { SenderManager } from "@alto/executor"
 import * as sentry from "@sentry/node"
+import { simulateHandleOp } from "../gasEstimation"
+import type { StateOverrides } from "@alto/types"
 
 // let id = 0
 
@@ -97,8 +100,7 @@ async function getSimulationResult(
                     (err) => err instanceof ContractFunctionExecutionError
                 )
                 throw new RpcError(
-                    `UserOperation reverted during simulation with reason: ${
-                        (revertError?.cause as any)?.reason
+                    `UserOperation reverted during simulation with reason: ${(revertError?.cause as any)?.reason
                     }`,
                     ValidationErrors.SimulateValidation
                 )
@@ -145,6 +147,7 @@ export class UnsafeValidator implements IValidator {
     metrics: Metrics
     utilityWallet: Account
     usingTenderly: boolean
+    balanceOverrideEnabled: boolean
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
@@ -152,7 +155,8 @@ export class UnsafeValidator implements IValidator {
         logger: Logger,
         metrics: Metrics,
         utilityWallet: Account,
-        usingTenderly = false
+        usingTenderly = false,
+        balanceOverrideEnabled = false
     ) {
         this.publicClient = publicClient
         this.entryPoint = entryPoint
@@ -160,10 +164,12 @@ export class UnsafeValidator implements IValidator {
         this.metrics = metrics
         this.utilityWallet = utilityWallet
         this.usingTenderly = usingTenderly
+        this.balanceOverrideEnabled = balanceOverrideEnabled
     }
 
     async getExecutionResult(
-        userOperation: UserOperation
+        userOperation: UserOperation,
+        stateOverrides?: StateOverrides
     ): Promise<ExecutionResult> {
         const entryPointContract = getContract({
             address: this.entryPoint,
@@ -203,6 +209,28 @@ export class UnsafeValidator implements IValidator {
                 this.usingTenderly
             ) as Promise<ExecutionResult>
         }
+
+        if (this.balanceOverrideEnabled) {
+            const error = await simulateHandleOp(
+                userOperation,
+                this.entryPoint,
+                this.publicClient,
+                false,
+                zeroAddress,
+                "0x",
+                stateOverrides
+            )
+
+            if (error.result === "failed") {
+                throw new RpcError(
+                    `UserOperation reverted during simulation with reason: ${error.data}`,
+                    ExecutionErrors.UserOperationReverted
+                )
+            }
+
+            return error.data
+        }
+
         const errorResult = await entryPointContract.simulate
             .simulateHandleOp(
                 [
@@ -347,7 +375,8 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
         logger: Logger,
         metrics: Metrics,
         utilityWallet: Account,
-        usingTenderly = false
+        usingTenderly = false,
+        balanceOverrideEnabled = false
     ) {
         super(
             publicClient,
@@ -355,7 +384,8 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
             logger,
             metrics,
             utilityWallet,
-            usingTenderly
+            usingTenderly,
+            balanceOverrideEnabled
         )
         this.senderManager = senderManager
     }
@@ -581,9 +611,9 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
             return addr == null
                 ? undefined
                 : {
-                      ...info,
-                      addr
-                  }
+                    ...info,
+                    addr
+                }
         }
 
         function fillEntityAggregator(
@@ -594,12 +624,12 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
             return addr == null
                 ? undefined
                 : {
-                      aggregator: data,
-                      stakeInfo: {
-                          ...info,
-                          addr
-                      }
-                  }
+                    aggregator: data,
+                    stakeInfo: {
+                        ...info,
+                        addr
+                    }
+                }
         }
 
         return {

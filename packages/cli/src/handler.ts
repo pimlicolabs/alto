@@ -2,36 +2,35 @@ import { BasicExecutor, ExecutorManager, SenderManager } from "@alto/executor"
 import {
     MemoryMempool,
     Monitor,
+    NullRepuationManager,
     ReputationManager,
-    IReputationManager,
-    NullRepuationManager
+    type IReputationManager
 } from "@alto/mempool"
+import { NonceQueuer, RpcHandler, SafeValidator, Server, UnsafeValidator } from "@alto/rpc"
+import type { IValidator } from "@alto/types"
 import {
-    NonceQueuer,
-    RpcHandler,
-    SafeValidator,
-    Server,
-    UnsafeValidator
-} from "@alto/rpc"
-import {
-    Logger,
+    CompressionHandler,
     createMetrics,
     initDebugLogger,
-    initProductionLogger
+    initProductionLogger,
+    type Logger,
 } from "@alto/utils"
 import { Registry } from "prom-client"
 import {
-    Chain,
-    PublicClient,
-    Transport,
     createPublicClient,
     createWalletClient,
-    http
+    type Chain,
+    type PublicClient,
+    type Transport
 } from "viem"
 import * as chains from "viem/chains"
 import { fromZodError } from "zod-validation-error"
-import { IBundlerArgs, IBundlerArgsInput, bundlerArgsSchema } from "./config"
-import { IValidator } from "@alto/types"
+import {
+    bundlerArgsSchema,
+    type IBundlerArgs,
+    type IBundlerArgsInput
+} from "./config"
+import { customTransport } from "./customTransport"
 
 const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
     // validate every arg, make typesafe so if i add a new arg i have to validate it
@@ -138,25 +137,6 @@ const customChains: Chain[] = [
         testnet: false
     },
     {
-        id: 3163830386846714,
-        name: "Parallel testnet",
-        network: "parallel-l3-testnet",
-        nativeCurrency: {
-            name: "testnetETH",
-            symbol: "testnetETH",
-            decimals: 18
-        },
-        rpcUrls: {
-            default: {
-                http: []
-            },
-            public: {
-                http: []
-            }
-        },
-        testnet: true
-    },
-    {
         id: 22222,
         name: "Nautilus",
         network: "nautilus",
@@ -192,6 +172,25 @@ const customChains: Chain[] = [
             }
         },
         testnet: false
+    },
+    {
+        id: 7887,
+        name: "Kinto Mainnet",
+        network: "kinto-mainnet",
+        nativeCurrency: {
+            name: "ETH",
+            symbol: "ETH",
+            decimals: 18
+        },
+        rpcUrls: {
+            default: {
+                http: ["https://kinto-mainnet.calderachain.xyz/http"]
+            },
+            public: {
+                http: ["https://kinto-mainnet.calderachain.xyz/http"]
+            }
+        },
+        testnet: false
     }
 ]
 
@@ -221,9 +220,18 @@ export const bundlerHandler = async (
         ]
     }
 
+    let logger: Logger
+    if (parsedArgs.logEnvironment === "development") {
+        logger = initDebugLogger(parsedArgs.logLevel)
+    } else {
+        logger = initProductionLogger(parsedArgs.logLevel)
+    }
+
     const getChainId = async () => {
         const client = createPublicClient({
-            transport: http(args.rpcUrl)
+            transport: customTransport(args.rpcUrl, {
+                logger: logger.child({ module: "publicCLient" })
+            })
         })
         return await client.getChainId()
     }
@@ -231,7 +239,9 @@ export const bundlerHandler = async (
 
     const chain = getChain(chainId)
     const client = createPublicClient({
-        transport: http(args.rpcUrl),
+        transport: customTransport(args.rpcUrl, {
+            logger: logger.child({ module: "publicCLient" })
+        }),
         chain
     })
 
@@ -242,15 +252,11 @@ export const bundlerHandler = async (
     await preFlightChecks(client, parsedArgs)
 
     const walletClient = createWalletClient({
-        transport: http(parsedArgs.executionRpcUrl ?? args.rpcUrl),
+        transport: customTransport(parsedArgs.executionRpcUrl ?? args.rpcUrl, {
+            logger: logger.child({ module: "walletClient" })
+        }),
         chain
     })
-    let logger: Logger
-    if (parsedArgs.logEnvironment === "development") {
-        logger = initDebugLogger(parsedArgs.logLevel)
-    } else {
-        logger = initProductionLogger(parsedArgs.logLevel)
-    }
 
     const senderManager = new SenderManager(
         parsedArgs.signerPrivateKeys,
@@ -280,7 +286,8 @@ export const bundlerHandler = async (
             logger.child({ module: "rpc" }),
             metrics,
             parsedArgs.utilityPrivateKey,
-            parsedArgs.tenderlyEnabled
+            parsedArgs.tenderlyEnabled,
+            parsedArgs.balanceOverrideEnabled
         )
     } else {
         reputationManager = new NullRepuationManager()
@@ -290,7 +297,8 @@ export const bundlerHandler = async (
             logger.child({ module: "rpc" }),
             metrics,
             parsedArgs.utilityPrivateKey,
-            parsedArgs.tenderlyEnabled
+            parsedArgs.tenderlyEnabled,
+            parsedArgs.balanceOverrideEnabled
         )
     }
 
@@ -320,6 +328,17 @@ export const bundlerHandler = async (
         metrics
     )
 
+    const { bundleBulkerAddress, perOpInflatorAddress } = parsedArgs;
+
+    let compressionHandler = null
+    if (bundleBulkerAddress !== undefined && perOpInflatorAddress !== undefined) {
+        compressionHandler = await CompressionHandler.createAsync(
+            bundleBulkerAddress,
+            perOpInflatorAddress,
+            client
+        )
+    }
+
     const executor = new BasicExecutor(
         client,
         walletClient,
@@ -328,6 +347,7 @@ export const bundlerHandler = async (
         parsedArgs.entryPoint,
         logger.child({ module: "executor" }),
         metrics,
+        compressionHandler,
         !parsedArgs.tenderlyEnabled,
         parsedArgs.noEip1559Support,
         parsedArgs.customGasLimitForEstimation,
@@ -360,6 +380,7 @@ export const bundlerHandler = async (
         client,
         validator,
         mempool,
+        executor,
         monitor,
         nonceQueuer,
         executorManager,
@@ -367,12 +388,16 @@ export const bundlerHandler = async (
         parsedArgs.tenderlyEnabled ?? false,
         parsedArgs.minimumGasPricePercent,
         parsedArgs.noEthCallOverrideSupport,
+        parsedArgs.rpcMaxBlockRange,
         logger.child({ module: "rpc" }),
         metrics,
-        parsedArgs.environment
+        parsedArgs.environment,
+        compressionHandler
     )
 
-    // executor.flushStuckTransactions()
+    if (parsedArgs.flushStuckTransactionsDuringStartup) {
+        executor.flushStuckTransactions()
+    }
 
     logger.info(
         { module: "executor" },
@@ -397,7 +422,11 @@ export const bundlerHandler = async (
 
         const outstanding = mempool.dumpOutstanding().length
         const submitted = mempool.dumpSubmittedOps().length
-        logger.info({outstanding, submitted}, "dumping mempool before shutdown")
+        const processing = mempool.dumpProcessing().length
+        logger.info(
+            { outstanding, submitted, processing },
+            "dumping mempool before shutdown"
+        )
 
         process.exit(0)
     }

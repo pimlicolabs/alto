@@ -21,13 +21,13 @@
         "lint:fix": "eslint src/**/*.ts --fix"
     },
     "dependencies": {
+        "@alto/executor": "*",
+        "@alto/mempool": "*",
         "@alto/types": "*",
         "@alto/utils": "*",
-        "@alto/mempool": "*",
-        "@alto/executor": "*",
         "@types/node": "^18.16.3",
         "abitype": "^0.8.0",
-        "fastify": "^4.16.0",
+        "fastify": "^4.25.2",
         "fastify-cors": "3.0.3",
         "pino-http": "^8.3.3",
         "prom-client": "^14.2.0",

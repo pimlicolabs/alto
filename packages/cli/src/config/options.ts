@@ -32,6 +32,16 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "string",
         require: true
     },
+    perOpInflatorAddress: {
+        description: "Address of the PerOpInflator contract",
+        type: "string",
+        require: false,
+    },
+    bundleBulkerAddress: {
+        description: "Address of the BundleBulker contract",
+        type: "string",
+        require: false,
+    },
     refillInterval: {
         description: "Interval to refill the signer balance (in ms)",
         type: "number",
@@ -133,8 +143,20 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: true,
         default: false
     },
+    balanceOverrideEnabled: {
+        description: "True if RPC url supports eth_call balance state overrides",
+        type: "boolean",
+        require: true,
+        default: false
+    },
     useUserOperationGasLimitsForSubmission: {
         description: "Use user operation gas limits during submission",
+        type: "boolean",
+        require: true,
+        default: false
+    },
+    flushStuckTransactionsDuringStartup: {
+        description: "Should the bundler try to flush out all stuck pending transactions on startup",
         type: "boolean",
         require: true,
         default: false
@@ -161,7 +183,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "number",
         require: false,
         default: 1000
-    }
+    },
+    rpcMaxBlockRange: {
+        description: "Max block range for rpc calls",
+        type: "number",
+        require: false,
+    },
 }
 
 export const bundlerCommand: CliCommand<IBundlerArgsInput> = {

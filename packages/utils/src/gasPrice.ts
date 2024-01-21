@@ -50,7 +50,10 @@ export async function getPolygonGasPriceParameters(
 
         return parsedData.fast
     } catch (e) {
-        logger.error({ error: e }, "failed to get gas price from gas station, using default")
+        logger.error(
+            { error: e },
+            "failed to get gas price from gas station, using default"
+        )
         return null
     }
 }
@@ -81,12 +84,16 @@ const getBumpAmount = (chainId: number) => {
     return 100n
 }
 
-const bumpTheGasPrice = (chainId: number, gasPriceParameters: GasPriceParameters): GasPriceParameters => {
+const bumpTheGasPrice = (
+    chainId: number,
+    gasPriceParameters: GasPriceParameters
+): GasPriceParameters => {
     const bumpAmount = getBumpAmount(chainId)
 
     return {
         maxFeePerGas: (gasPriceParameters.maxFeePerGas * bumpAmount) / 100n,
-        maxPriorityFeePerGas: (gasPriceParameters.maxPriorityFeePerGas * bumpAmount) / 100n
+        maxPriorityFeePerGas:
+            (gasPriceParameters.maxPriorityFeePerGas * bumpAmount) / 100n
     }
 }
 
@@ -101,7 +108,10 @@ const estimateMaxPriorityFeePerGas = async (publicClient: PublicClient) => {
     }
 }
 
-const getFallBackMaxPriorityFeePerGas = async (publicClient: PublicClient, gasPrice: bigint) => {
+const getFallBackMaxPriorityFeePerGas = async (
+    publicClient: PublicClient,
+    gasPrice: bigint
+) => {
     const feeHistory = await publicClient.getFeeHistory({
         blockCount: 10,
         rewardPercentiles: [20],
@@ -112,11 +122,12 @@ const getFallBackMaxPriorityFeePerGas = async (publicClient: PublicClient, gasPr
         return gasPrice
     }
 
-    const feeAverage = feeHistory.reward.reduce((acc, cur) => cur[0] + acc, 0n) / 10n
+    const feeAverage =
+        feeHistory.reward.reduce((acc, cur) => cur[0] + acc, 0n) / 10n
     return feeAverage < gasPrice ? feeAverage : gasPrice
 }
 
-const getGasPriceFromRpc = async (publicClient: PublicClient) => {
+const getGasPriceFromRpc = (publicClient: PublicClient) => {
     try {
         return publicClient.getGasPrice()
     } catch {
@@ -130,19 +141,26 @@ export async function getGasPrice(
     logger: Logger
 ): Promise<GasPriceParameters> {
     if (chainId === ChainId.Polygon || chainId === ChainId.Mumbai) {
-        const polygonEstimate = await getPolygonGasPriceParameters(chainId, logger)
+        const polygonEstimate = await getPolygonGasPriceParameters(
+            chainId,
+            logger
+        )
         if (polygonEstimate) {
             return polygonEstimate
         }
     }
 
-    let [gasPrice, maxPriorityFeePerGas]: [bigint | null, bigint | null] = await Promise.all([
-        getGasPriceFromRpc(publicClient),
-        estimateMaxPriorityFeePerGas(publicClient)
-    ])
+    let [gasPrice, maxPriorityFeePerGas]: [bigint | null, bigint | null] =
+        await Promise.all([
+            getGasPriceFromRpc(publicClient),
+            estimateMaxPriorityFeePerGas(publicClient)
+        ])
 
     if (maxPriorityFeePerGas === null) {
-        maxPriorityFeePerGas = await getFallBackMaxPriorityFeePerGas(publicClient, gasPrice ?? 0n)
+        maxPriorityFeePerGas = await getFallBackMaxPriorityFeePerGas(
+            publicClient,
+            gasPrice ?? 0n
+        )
     }
 
     if (gasPrice === null) {
@@ -154,10 +172,14 @@ export async function getGasPrice(
 
     const defaultGasFee = getDefaultGasFee(chainId)
 
-    maxPriorityFeePerGas = maxPriorityFeePerGas > gasPrice ? gasPrice : maxPriorityFeePerGas
+    maxPriorityFeePerGas =
+        maxPriorityFeePerGas > gasPrice ? gasPrice : maxPriorityFeePerGas
 
     return bumpTheGasPrice(chainId, {
         maxFeePerGas: gasPrice,
-        maxPriorityFeePerGas: maxPriorityFeePerGas > defaultGasFee ? maxPriorityFeePerGas : defaultGasFee
+        maxPriorityFeePerGas:
+            maxPriorityFeePerGas > defaultGasFee
+                ? maxPriorityFeePerGas
+                : defaultGasFee
     })
 }
