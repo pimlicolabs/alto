@@ -16,7 +16,6 @@ import {
     newRandomAddress,
     resetAnvil
 } from "./utils";
-import { setupBasicEnvironment, setupCompressedEnvironment } from "./setup";
 import {
     bundleBulkerDeployedBytecode,
     entryPointDeployedBytecode,
@@ -46,9 +45,6 @@ const anvilClient = createTestClient({
 
 // This function will deploy all contracts (called once before all tests).
 beforeAll(async () => {
-    await setupBasicEnvironment()
-    await setupCompressedEnvironment()
-
     const publicClient = createPublicClient({
         transport: http(anvilEndpoint),
         chain: foundry,

@@ -6,16 +6,26 @@ services:
     ports: [ "8545:8545" ]
     entrypoint: [ "anvil", "--host", "0.0.0.0" ]
 
+  anvil_setup:
+    build:
+      context: ./testSuite
+      dockerfile: ./anvilSetup/Dockerfile
+    environment:
+      - ANVIL_ENDPOINT=http://anvil:8545
+    depends_on:
+      anvil:
+        condition: service_started
+
   alto:
     build: ../../
     ports: [ "3000:3000" ]
     command: --config config.localhost.json --rpcUrl http://anvil:8545 --noEthCallOverrideSupport --environment development
     depends_on:
-      anvil:
-        condition: service_started
+      anvil_setup:
+        condition: service_completed_successfully
 
   test_suite:
-    build: test_suite
+    build: testSuite
     environment:
       - ALTO_ENDPOINT=http://alto:3000
       - ANVIL_ENDPOINT=http://anvil:8545

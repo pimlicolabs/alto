@@ -13,7 +13,7 @@ import {
     bundleBulkerAbi,
     perOpInflatorAbi,
     simpleInflatorCreateBytecode,
-} from "./data"
+} from "../src/data"
 import {
     BUNDLE_BULKER_ADDRESS,
     CREATE2_DEPLOYER_ADDRESS,
@@ -21,7 +21,7 @@ import {
     PER_OP_INFLATOR_ADDRESS,
     anvilAccount,
     anvilEndpoint,
-} from "./utils"
+} from "../src/utils"
 import { foundry } from "viem/chains"
 
 const walletClient = createWalletClient({
@@ -30,7 +30,7 @@ const walletClient = createWalletClient({
     transport: http(anvilEndpoint)
 })
 
-export const setupCompressedEnvironment = async () => {
+const setupCompressedEnvironment = async () => {
     // deploy bundle bulker.
     await walletClient.sendTransaction({
         account: anvilAccount,
@@ -49,7 +49,7 @@ export const setupCompressedEnvironment = async () => {
         data: concat([
             "0x0000000000000000000000000000000000000000000000000000000000000000",
             perOpInflatorCreateBytecode,
-            encodeAbiParameters([{name: 'owner', type: 'address'}], [anvilAccount.address])
+            encodeAbiParameters([{ name: 'owner', type: 'address' }], [anvilAccount.address])
         ]),
         chain: foundry,
     })
@@ -85,7 +85,7 @@ export const setupCompressedEnvironment = async () => {
     await bundleBulker.write.registerInflator([4337, PER_OP_INFLATOR_ADDRESS])
 }
 
-export const setupBasicEnvironment = async () => {
+const setupBasicEnvironment = async () => {
     // deploy entrypoint.
     await walletClient.sendTransaction({
         account: anvilAccount,
@@ -108,3 +108,9 @@ export const setupBasicEnvironment = async () => {
         chain: foundry,
     })
 }
+
+
+(async () => {
+    await setupBasicEnvironment()
+    await setupCompressedEnvironment()
+})()

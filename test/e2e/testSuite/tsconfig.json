@@ -14,6 +14,6 @@
         "declaration": false,
         "outDir": "dist/lib"
     },
-    "include": ["src"],
+    "include": ["src/**/*.ts", "anvilSetup/**/*.ts"],
     "exclude": ["node_modules", "**/*.spec.ts"]
 }
