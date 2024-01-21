@@ -4,8 +4,8 @@ import { Account, privateKeyToAccount } from "viem/accounts"
 import { z } from "zod"
 
 export const bundlerArgsSchema = z.object({
-    // allow both a comma separated list of addresses 
-    // (better for cli and env vars) or an array of addresses 
+    // allow both a comma separated list of addresses
+    // (better for cli and env vars) or an array of addresses
     // (better for config files)
     entryPoint: addressSchema,
     signerPrivateKeys: z.union([
@@ -52,6 +52,9 @@ export const bundlerArgsSchema = z.object({
     maxSigners: z.number().int().min(0).optional(),
     rpcUrl: z.string().url(),
     executionRpcUrl: z.string().url().optional(),
+
+    bundleBulkerAddress: addressSchema.optional(),
+    perOpInflatorAddress: addressSchema.optional(),
 
     minBalance: z.string().transform((val) => BigInt(val)),
     refillInterval: z.number().int().min(0),

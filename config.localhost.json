@@ -9,5 +9,7 @@
     "port": 3000,
     "signerPrivateKeys": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
     "utilityPrivateKey": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
-    "entryPoint": "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789"
+    "entryPoint": "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789",
+    "bundleBulkerAddress": "0x09aeBCF1DF7d4D0FBf26073e79A6B250f458fFB8",
+    "perOpInflatorAddress": "0x79741195EA18e1ed7deD6C224e9037d673cE9484"
 }

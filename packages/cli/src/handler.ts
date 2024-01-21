@@ -1,39 +1,34 @@
 import { BasicExecutor, ExecutorManager, SenderManager } from "@alto/executor"
 import {
-    type IReputationManager,
     MemoryMempool,
     Monitor,
     NullRepuationManager,
-    ReputationManager
+    ReputationManager,
+    type IReputationManager
 } from "@alto/mempool"
-import {
-    NonceQueuer,
-    RpcHandler,
-    SafeValidator,
-    Server,
-    UnsafeValidator
-} from "@alto/rpc"
+import { NonceQueuer, RpcHandler, SafeValidator, Server, UnsafeValidator } from "@alto/rpc"
 import type { IValidator } from "@alto/types"
 import {
-    type Logger,
+    CompressionHandler,
     createMetrics,
     initDebugLogger,
-    initProductionLogger
+    initProductionLogger,
+    type Logger,
 } from "@alto/utils"
 import { Registry } from "prom-client"
 import {
+    createPublicClient,
+    createWalletClient,
     type Chain,
     type PublicClient,
-    type Transport,
-    createPublicClient,
-    createWalletClient
+    type Transport
 } from "viem"
 import * as chains from "viem/chains"
 import { fromZodError } from "zod-validation-error"
 import {
+    bundlerArgsSchema,
     type IBundlerArgs,
-    type IBundlerArgsInput,
-    bundlerArgsSchema
+    type IBundlerArgsInput
 } from "./config"
 import { customTransport } from "./customTransport"
 
@@ -333,6 +328,17 @@ export const bundlerHandler = async (
         metrics
     )
 
+    const { bundleBulkerAddress, perOpInflatorAddress } = parsedArgs;
+
+    let compressionHandler = null
+    if (bundleBulkerAddress !== undefined && perOpInflatorAddress !== undefined) {
+        compressionHandler = await CompressionHandler.createAsync(
+            bundleBulkerAddress,
+            perOpInflatorAddress,
+            client
+        )
+    }
+
     const executor = new BasicExecutor(
         client,
         walletClient,
@@ -341,6 +347,7 @@ export const bundlerHandler = async (
         parsedArgs.entryPoint,
         logger.child({ module: "executor" }),
         metrics,
+        compressionHandler,
         !parsedArgs.tenderlyEnabled,
         parsedArgs.noEip1559Support,
         parsedArgs.customGasLimitForEstimation,
@@ -373,6 +380,7 @@ export const bundlerHandler = async (
         client,
         validator,
         mempool,
+        executor,
         monitor,
         nonceQueuer,
         executorManager,
@@ -383,7 +391,8 @@ export const bundlerHandler = async (
         parsedArgs.rpcMaxBlockRange,
         logger.child({ module: "rpc" }),
         metrics,
-        parsedArgs.environment
+        parsedArgs.environment,
+        compressionHandler
     )
 
     if (parsedArgs.flushStuckTransactionsDuringStartup) {
