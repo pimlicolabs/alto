@@ -100,7 +100,8 @@ async function getSimulationResult(
                     (err) => err instanceof ContractFunctionExecutionError
                 )
                 throw new RpcError(
-                    `UserOperation reverted during simulation with reason: ${(revertError?.cause as any)?.reason
+                    `UserOperation reverted during simulation with reason: ${
+                        (revertError?.cause as any)?.reason
                     }`,
                     ValidationErrors.SimulateValidation
                 )
@@ -344,15 +345,15 @@ export class UnsafeValidator implements IValidator {
                 )
             }
 
-            // if (
-            //     validationResult.returnInfo.validUntil <
-            //     Date.now() / 1000 + 30
-            // ) {
-            //     throw new RpcError(
-            //         "expires too soon",
-            //         ValidationErrors.ExpiresShortly
-            //     )
-            // }
+            if (
+                validationResult.returnInfo.validUntil <
+                Date.now() / 1000 + 30
+            ) {
+                throw new RpcError(
+                    "expires too soon",
+                    ValidationErrors.ExpiresShortly
+                )
+            }
 
             this.metrics.userOperationsValidationSuccess.inc()
 
@@ -412,15 +413,15 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
                 )
             }
 
-            // if (
-            //     validationResult.returnInfo.validUntil <
-            //     Date.now() / 1000 + 30
-            // ) {
-            //     throw new RpcError(
-            //         "expires too soon",
-            //         ValidationErrors.ExpiresShortly
-            //     )
-            // }
+            if (
+                validationResult.returnInfo.validUntil <
+                Date.now() / 1000 + 30
+            ) {
+                throw new RpcError(
+                    "expires too soon",
+                    ValidationErrors.ExpiresShortly
+                )
+            }
 
             this.metrics.userOperationsValidationSuccess.inc()
 
@@ -611,9 +612,9 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
             return addr == null
                 ? undefined
                 : {
-                    ...info,
-                    addr
-                }
+                      ...info,
+                      addr
+                  }
         }
 
         function fillEntityAggregator(
@@ -624,12 +625,12 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
             return addr == null
                 ? undefined
                 : {
-                    aggregator: data,
-                    stakeInfo: {
-                        ...info,
-                        addr
-                    }
-                }
+                      aggregator: data,
+                      stakeInfo: {
+                          ...info,
+                          addr
+                      }
+                  }
         }
 
         return {
