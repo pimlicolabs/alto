@@ -96,7 +96,7 @@ const bumpTheGasPrice = (
             (gasPriceParameters.maxPriorityFeePerGas * bumpAmount) / 100n
     }
 
-    if (chainId === chains.celo.id) {
+    if (chainId === chains.celo.id || chainId === chains.celoAlfajores.id) {
         const maxFee =
             result.maxFeePerGas > result.maxPriorityFeePerGas
                 ? result.maxFeePerGas
