@@ -6,14 +6,20 @@ import {
     ReputationManager,
     type IReputationManager
 } from "@alto/mempool"
-import { NonceQueuer, RpcHandler, SafeValidator, Server, UnsafeValidator } from "@alto/rpc"
+import {
+    NonceQueuer,
+    RpcHandler,
+    SafeValidator,
+    Server,
+    UnsafeValidator
+} from "@alto/rpc"
 import type { IValidator } from "@alto/types"
 import {
     CompressionHandler,
     createMetrics,
     initDebugLogger,
     initProductionLogger,
-    type Logger,
+    type Logger
 } from "@alto/utils"
 import { Registry } from "prom-client"
 import {
@@ -328,10 +334,13 @@ export const bundlerHandler = async (
         metrics
     )
 
-    const { bundleBulkerAddress, perOpInflatorAddress } = parsedArgs;
+    const { bundleBulkerAddress, perOpInflatorAddress } = parsedArgs
 
     let compressionHandler = null
-    if (bundleBulkerAddress !== undefined && perOpInflatorAddress !== undefined) {
+    if (
+        bundleBulkerAddress !== undefined &&
+        perOpInflatorAddress !== undefined
+    ) {
         compressionHandler = await CompressionHandler.createAsync(
             bundleBulkerAddress,
             perOpInflatorAddress,
