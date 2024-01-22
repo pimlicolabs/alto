@@ -138,9 +138,7 @@ export class MemoryMempool implements Mempool {
 
     // biome-ignore lint/nursery/useAwait: keep async to adhere to interface
     async checkEntityMultipleRoleViolation(op: UserOperation): Promise<void> {
-        if (!this.safeMode) {
-            return
-        }
+        if (!this.safeMode) { return }
         const knownEntities = this.getKnownEntities()
 
         if (
@@ -211,10 +209,7 @@ export class MemoryMempool implements Mempool {
         return entities
     }
 
-    add(
-        mempoolUserOperation: MempoolUserOperation,
-        referencedContracts?: ReferencedCodeHashes
-    ) {
+    add(mempoolUserOperation: MempoolUserOperation, referencedContracts?: ReferencedCodeHashes) {
         const op = deriveUserOperation(mempoolUserOperation)
 
         const outstandingOps = [...this.store.dumpOutstanding()]
@@ -225,19 +220,25 @@ export class MemoryMempool implements Mempool {
         ]
 
         if (
-            processedOrSubmittedOps.find((uo) => {
-                const userOp = deriveUserOperation(uo.mempoolUserOperation)
-                return userOp.sender === op.sender && userOp.nonce === op.nonce
-            })
+            processedOrSubmittedOps.find(
+                (uo) => {
+                    const userOp = deriveUserOperation(uo.mempoolUserOperation)
+                    userOp.sender === op.sender &&
+                    userOp.nonce === op.nonce
+                }
+            )
         ) {
             return false
         }
 
         this.reputationManager.updateUserOperationSeenStatus(op)
-        const oldUserOp = outstandingOps.find((uo) => {
-            const userOp = deriveUserOperation(uo.mempoolUserOperation)
-            return userOp.sender === op.sender && userOp.nonce === op.nonce
-        })
+        const oldUserOp = outstandingOps.find(
+            (uo) => {
+                const userOp = deriveUserOperation(uo.mempoolUserOperation)
+                userOp.sender === op.sender &&
+                userOp.nonce === op.nonce
+            }
+        )
         if (oldUserOp) {
             const oldOp = deriveUserOperation(oldUserOp.mempoolUserOperation)
             const oldMaxPriorityFeePerGas = oldOp.maxPriorityFeePerGas
@@ -319,7 +320,9 @@ export class MemoryMempool implements Mempool {
         const paymaster = getAddressFromInitCodeOrPaymasterAndData(
             op.paymasterAndData
         )
-        const factory = getAddressFromInitCodeOrPaymasterAndData(op.initCode)
+        const factory = getAddressFromInitCodeOrPaymasterAndData(
+            op.initCode
+        )
         const paymasterStatus = this.reputationManager.getStatus(paymaster)
         const factoryStatus = this.reputationManager.getStatus(factory)
 
@@ -429,7 +432,10 @@ export class MemoryMempool implements Mempool {
         for (const storageAddress of Object.keys(validationResult.storageMap)) {
             const address = getAddress(storageAddress)
 
-            if (address !== op.sender && knownEntities.sender.has(address)) {
+            if (
+                address !== op.sender &&
+                knownEntities.sender.has(address)
+            ) {
                 this.logger.trace(
                     {
                         storageAddress,
@@ -545,7 +551,9 @@ export class MemoryMempool implements Mempool {
                 continue
             }
 
-            this.reputationManager.decreaseUserOperationCount(op)
+            this.reputationManager.decreaseUserOperationCount(
+                op
+            )
             this.store.removeOutstanding(opInfo.userOperationHash)
             this.store.addProcessing(opInfo)
             result.push(opInfo.mempoolUserOperation)
@@ -566,9 +574,7 @@ export class MemoryMempool implements Mempool {
             .dumpSubmitted()
             .find((op) => op.userOperation.userOperationHash === opHash)
         if (submitted) {
-            return deriveUserOperation(
-                submitted.userOperation.mempoolUserOperation
-            )
+            return deriveUserOperation(submitted.userOperation.mempoolUserOperation)
         }
 
         return null
