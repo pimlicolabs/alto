@@ -3,6 +3,11 @@ import { CliCommand, CliCommandOptions } from "../util"
 import { IBundlerArgsInput } from "./bundler"
 
 export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
+    networkName: {
+        description: "Name of the network (used for metrics)",
+        type: "string",
+        require: true
+    },
     entryPoint: {
         description: "EntryPoint contract addresses split by commas",
         type: "string",
