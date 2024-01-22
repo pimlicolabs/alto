@@ -90,11 +90,24 @@ const bumpTheGasPrice = (
 ): GasPriceParameters => {
     const bumpAmount = getBumpAmount(chainId)
 
-    return {
+    const result = {
         maxFeePerGas: (gasPriceParameters.maxFeePerGas * bumpAmount) / 100n,
         maxPriorityFeePerGas:
             (gasPriceParameters.maxPriorityFeePerGas * bumpAmount) / 100n
     }
+
+    if (chainId === chains.celo.id) {
+        const maxFee =
+            result.maxFeePerGas > result.maxPriorityFeePerGas
+                ? result.maxFeePerGas
+                : result.maxPriorityFeePerGas
+        return {
+            maxFeePerGas: maxFee,
+            maxPriorityFeePerGas: maxFee
+        }
+    }
+
+    return result
 }
 
 const estimateMaxPriorityFeePerGas = async (publicClient: PublicClient) => {
