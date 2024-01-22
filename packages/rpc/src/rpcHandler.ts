@@ -25,8 +25,7 @@ import {
     PimlicoGetUserOperationStatusResponseResult,
     RpcError,
     SendUserOperationResponseResult,
-    SupportedEntryPointsResponseResult,
-    UserOperation,
+    SupportedEntryPointsResponseResult, UserOperation,
     logSchema,
     receiptSchema,
     ValidationErrors,
@@ -34,7 +33,7 @@ import {
     MempoolUserOperation,
     CompressedUserOperation,
     deriveUserOperation,
-    IOpInflatorAbi
+    IOpInflatorAbi,
 } from "@alto/types"
 import {
     Logger,
@@ -267,9 +266,7 @@ export class RpcHandler implements IRpcEndpoint {
             case "pimlico_sendCompressedUserOperation":
                 return {
                     method,
-                    result: await this.pimlico_sendCompressedUserOperation(
-                        ...request.params
-                    )
+                    result: await this.pimlico_sendCompressedUserOperation(...request.params)
                 }
         }
     }
@@ -309,8 +306,7 @@ export class RpcHandler implements IRpcEndpoint {
             this.chainId === chains.base.id ||
             this.chainId === chains.baseGoerli.id ||
             this.chainId === chains.opBNB.id ||
-            this.chainId === chains.opBNBTestnet.id ||
-            this.chainId === 957 // Lyra chain
+            this.chainId === chains.opBNBTestnet.id
         ) {
             preVerificationGas = await calcOptimismPreVerificationGas(
                 this.publicClient,
@@ -367,10 +363,10 @@ export class RpcHandler implements IRpcEndpoint {
                     .baseFeePerGas
                 gasPrice =
                     userOperation.maxFeePerGas <
-                    (blockBaseFee ?? 0n) + userOperation.maxPriorityFeePerGas
+                        (blockBaseFee ?? 0n) + userOperation.maxPriorityFeePerGas
                         ? userOperation.maxFeePerGas
                         : userOperation.maxPriorityFeePerGas +
-                          (blockBaseFee ?? 0n)
+                        (blockBaseFee ?? 0n)
             }
             const calculatedCallGasLimit =
                 executionResult.paid / gasPrice -
@@ -705,9 +701,7 @@ export class RpcHandler implements IRpcEndpoint {
         }
         return this.mempool
             .dumpOutstanding()
-            .map((userOpInfo) =>
-                deriveUserOperation(userOpInfo.mempoolUserOperation)
-            )
+            .map((userOpInfo) => deriveUserOperation(userOpInfo.mempoolUserOperation))
     }
 
     async debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
@@ -929,38 +923,29 @@ export class RpcHandler implements IRpcEndpoint {
     async pimlico_sendCompressedUserOperation(
         compressedCalldata: Hex,
         inflatorAddress: Address,
-        entryPoint: Address
+        entryPoint: Address,
     ) {
         if (this.compressionHandler === null) {
             throw new RpcError("Endpoint not supported")
         }
 
         // check if inflator is registered with our PerOpInflator.
-        const inflatorId =
-            await this.compressionHandler.getInflatorRegisteredId(
-                inflatorAddress,
-                this.publicClient
-            )
+        const inflatorId = await this.compressionHandler.getInflatorRegisteredId(inflatorAddress, this.publicClient)
 
         if (inflatorId === 0) {
-            throw new RpcError(
-                `Inflator ${inflatorAddress} is not registered`,
-                ValidationErrors.InvalidFields
-            )
+            throw new RpcError(`Inflator ${inflatorAddress} is not registered`, ValidationErrors.InvalidFields)
         }
 
         // infalte + start to validate user op.
         const inflatorContract = getContract({
             address: inflatorAddress,
             abi: IOpInflatorAbi,
-            publicClient: this.publicClient
+            publicClient: this.publicClient,
         })
 
         let inflatedOp: UserOperation
         try {
-            inflatedOp = await inflatorContract.read.inflate([
-                compressedCalldata
-            ])
+            inflatedOp = await inflatorContract.read.inflate([compressedCalldata])
         } catch (e) {
             throw new RpcError(
                 `Inflator ${inflatorAddress} failed to inflate calldata ${compressedCalldata}, due to ${e}`,
@@ -972,23 +957,24 @@ export class RpcHandler implements IRpcEndpoint {
         const perOpInflatorId = this.compressionHandler.perOpInflatorId
 
         if (perOpInflatorId === 0) {
-            throw new RpcError(
-                `PerUserOp ${this.compressionHandler.perOpInflatorAddress} has not been registered with BundelBulker`,
-                ValidationErrors.InvalidFields
-            )
+            throw new RpcError(`PerUserOp ${this.compressionHandler.perOpInflatorAddress} has not been registered with BundelBulker`, ValidationErrors.InvalidFields)
         }
 
         const compressedUserOp: CompressedUserOperation = {
             compressedCalldata,
             inflatedOp,
             inflatorAddress,
-            inflatorId
-        }
+            inflatorId,
+        };
 
         // check userOps inputs.
         await this.addToMempoolIfValid(compressedUserOp, entryPoint)
 
-        const hash = getUserOperationHash(inflatedOp, entryPoint, this.chainId)
+        const hash = getUserOperationHash(
+            inflatedOp,
+            entryPoint,
+            this.chainId
+        )
 
         return hash
     }
