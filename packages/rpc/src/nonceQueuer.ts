@@ -1,18 +1,23 @@
 import {
     EntryPointAbi,
-    MempoolUserOperation,
+    type MempoolUserOperation,
     deriveUserOperation
 } from "@alto/types"
-import { Logger, getNonceKeyAndValue, getUserOperationHash } from "@alto/utils"
 import {
-    Address,
-    Chain,
-    Hash,
-    PublicClient,
-    Transport,
+    type Logger,
+    getNonceKeyAndValue,
+    getUserOperationHash
+} from "@alto/utils"
+import {
+    type Address,
+    type Chain,
+    type Hash,
+    type MulticallReturnType,
+    type PublicClient,
+    type Transport,
     getContract
 } from "viem"
-import { Mempool } from "@alto/mempool"
+import type { Mempool } from "@alto/mempool"
 
 type QueuedUserOperation = {
     userOperationHash: Hash
@@ -120,18 +125,7 @@ export class NonceQueuer {
     ) {
         const queuedUserOperations = this.queuedUserOperations.slice()
 
-        let results: (
-            | {
-                  error: Error
-                  result?: undefined
-                  status: "failure"
-              }
-            | {
-                  error?: undefined
-                  result: bigint
-                  status: "success"
-              }
-        )[]
+        let results: MulticallReturnType
 
         try {
             results = await publicClient.multicall({
