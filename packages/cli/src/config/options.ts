@@ -106,10 +106,45 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         default: 1000
     },
     logLevel: {
-        description: "Log level",
+        description: "Default log level",
         type: "string",
         require: true,
         default: "debug"
+    },
+    publicClientLogLevel: {
+        description: "Log level for the publicClient module",
+        type: "string",
+        require: false,
+    },
+    walletClientLogLevel: {
+        description: "Log level for the walletClient module",
+        type: "string",
+        require: false,
+    },
+    rpcLogLevel: {
+        description: "Log level for the rpc module",
+        type: "string",
+        require: false,
+    },
+    mempoolLogLevel: {
+        description: "Log level for the mempool module",
+        type: "string",
+        require: false,
+    },
+    executorLogLevel: {
+        description: "Log level for the executor module",
+        type: "string",
+        require: false,
+    },
+    reputationManagerLogLevel: {
+        description: "Log level for the executor module",
+        type: "string",
+        require: false,
+    },
+    nonceQueuerLogLevel: {
+        description: "Log level for the executor module",
+        type: "string",
+        require: false,
     },
     environment: {
         description: "Environment",
