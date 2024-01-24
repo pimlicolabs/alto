@@ -77,11 +77,12 @@ export const bundlerHandler = async (
     } else {
         logger = initProductionLogger(parsedArgs.logLevel)
     }
+    const rootLogger = logger.child({ module: "root" }, { level: parsedArgs.logLevel })
 
     const getChainId = async () => {
         const client = createPublicClient({
             transport: customTransport(args.rpcUrl, {
-                logger: logger.child({ module: "publicClient" })
+                logger: logger.child({ module: "public_client" }, { level: parsedArgs.publicClientLogLevel || parsedArgs.logLevel })
             })
         })
         return await client.getChainId()
@@ -105,7 +106,7 @@ export const bundlerHandler = async (
 
     const client = createPublicClient({
         transport: customTransport(args.rpcUrl, {
-            logger: logger.child({ module: "publicClient" })
+            logger: logger.child({ module: "public_client" }, { level: parsedArgs.publicClientLogLevel || parsedArgs.logLevel })
         }),
         chain
     })
@@ -118,7 +119,7 @@ export const bundlerHandler = async (
 
     const walletClient = createWalletClient({
         transport: customTransport(parsedArgs.executionRpcUrl ?? args.rpcUrl, {
-            logger: logger.child({ module: "walletClient" })
+            logger: logger.child({ module: "wallet_client" }, { level: parsedArgs.walletClientLogLevel || parsedArgs.logLevel })
         }),
         chain
     })
@@ -126,7 +127,7 @@ export const bundlerHandler = async (
     const senderManager = new SenderManager(
         parsedArgs.signerPrivateKeys,
         parsedArgs.utilityPrivateKey,
-        logger.child({ module: "executor" }),
+        logger.child({ module: "executor" }, { level: parsedArgs.executorLogLevel || parsedArgs.logLevel }),
         metrics,
         parsedArgs.noEip1559Support,
         parsedArgs.maxSigners
@@ -141,14 +142,14 @@ export const bundlerHandler = async (
             parsedArgs.entryPoint,
             BigInt(parsedArgs.minStake),
             BigInt(parsedArgs.minUnstakeDelay),
-            logger.child({ module: "reputation_manager" })
+            logger.child({ module: "reputation_manager" }, { level: parsedArgs.reputationManagerLogLevel || parsedArgs.logLevel })
         )
 
         validator = new SafeValidator(
             client,
             senderManager,
             parsedArgs.entryPoint,
-            logger.child({ module: "rpc" }),
+            logger.child({ module: "rpc" }, { level: parsedArgs.rpcLogLevel || parsedArgs.logLevel }),
             metrics,
             parsedArgs.utilityPrivateKey,
             parsedArgs.tenderlyEnabled,
@@ -159,7 +160,7 @@ export const bundlerHandler = async (
         validator = new UnsafeValidator(
             client,
             parsedArgs.entryPoint,
-            logger.child({ module: "rpc" }),
+            logger.child({ module: "rpc" }, { level: parsedArgs.rpcLogLevel || parsedArgs.logLevel }),
             metrics,
             parsedArgs.utilityPrivateKey,
             parsedArgs.tenderlyEnabled,
@@ -189,7 +190,7 @@ export const bundlerHandler = async (
         client,
         parsedArgs.entryPoint,
         parsedArgs.safeMode,
-        logger.child({ module: "mempool" }),
+        logger.child({ module: "mempool" }, { level: parsedArgs.mempoolLogLevel || parsedArgs.logLevel }),
         metrics
     )
 
@@ -213,7 +214,7 @@ export const bundlerHandler = async (
         senderManager,
         reputationManager,
         parsedArgs.entryPoint,
-        logger.child({ module: "executor" }),
+        logger.child({ module: "executor" }, { level: parsedArgs.executorLogLevel || parsedArgs.logLevel }),
         metrics,
         compressionHandler,
         !parsedArgs.tenderlyEnabled,
@@ -230,7 +231,7 @@ export const bundlerHandler = async (
         client,
         parsedArgs.entryPoint,
         parsedArgs.pollingInterval,
-        logger.child({ module: "executor" }),
+        logger.child({ module: "executor" }, { level: parsedArgs.executorLogLevel || parsedArgs.logLevel }),
         metrics,
         parsedArgs.bundleMode,
         parsedArgs.bundlerFrequency
@@ -240,7 +241,7 @@ export const bundlerHandler = async (
         mempool,
         client,
         parsedArgs.entryPoint,
-        logger.child({ module: "nonce_queuer" })
+        logger.child({ module: "nonce_queuer" }, { level: parsedArgs.nonceQueuerLogLevel || parsedArgs.logLevel }),
     )
 
     const rpcEndpoint = new RpcHandler(
@@ -257,7 +258,7 @@ export const bundlerHandler = async (
         parsedArgs.minimumGasPricePercent,
         parsedArgs.noEthCallOverrideSupport,
         parsedArgs.rpcMaxBlockRange,
-        logger.child({ module: "rpc" }),
+        logger.child({ module: "rpc" }, { level: parsedArgs.rpcLogLevel || parsedArgs.logLevel }),
         metrics,
         parsedArgs.environment,
         compressionHandler,
@@ -268,8 +269,7 @@ export const bundlerHandler = async (
         executor.flushStuckTransactions()
     }
 
-    logger.info(
-        { module: "executor" },
+    rootLogger.info(
         `Initialized ${senderManager.wallets.length} executor wallets`
     )
 
@@ -277,22 +277,22 @@ export const bundlerHandler = async (
         rpcEndpoint,
         parsedArgs.port,
         parsedArgs.requestTimeout,
-        logger.child({ module: "rpc" }),
+        logger.child({ module: "rpc" }, { level: parsedArgs.rpcLogLevel || parsedArgs.logLevel }),
         registry,
         metrics
     )
     await server.start()
 
     const gracefulShutdown = async (signal: string) => {
-        logger.info(`${signal} received, shutting down`)
+        rootLogger.info(`${signal} received, shutting down`)
 
         await server.stop()
-        logger.info("server stopped")
+        rootLogger.info("server stopped")
 
         const outstanding = mempool.dumpOutstanding().length
         const submitted = mempool.dumpSubmittedOps().length
         const processing = mempool.dumpProcessing().length
-        logger.info(
+        rootLogger.info(
             { outstanding, submitted, processing },
             "dumping mempool before shutdown"
         )

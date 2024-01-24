@@ -3,6 +3,8 @@ import { Hex } from "viem"
 import { Account, privateKeyToAccount } from "viem/accounts"
 import { z } from "zod"
 
+const logLevel = z.enum(["trace", "debug", "info", "warn", "error", "fatal"])
+
 export const bundlerArgsSchema = z.object({
     // allow both a comma separated list of addresses
     // (better for cli and env vars) or an array of addresses
@@ -78,7 +80,14 @@ export const bundlerArgsSchema = z.object({
 
     environment: z.enum(["production", "staging", "development"]),
 
-    logLevel: z.enum(["trace", "debug", "info", "warn", "error", "fatal"]),
+    logLevel: logLevel,
+    publicClientLogLevel: logLevel.optional(),
+    walletClientLogLevel: logLevel.optional(),
+    rpcLogLevel: logLevel.optional(),
+    mempoolLogLevel: logLevel.optional(),
+    executorLogLevel: logLevel.optional(),
+    reputationManagerLogLevel: logLevel.optional(),
+    nonceQueuerLogLevel: logLevel.optional(),
     logEnvironment: z.enum(["production", "development"]),
 
     bundleMode: z.enum(["auto", "manual"]),
