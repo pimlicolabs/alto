@@ -93,15 +93,15 @@ export const bundlerHandler = async (
         name: args.networkName,
         network: args.networkName,
         nativeCurrency: {
-            name: 'ETH',
-            symbol: 'ETH',
-            decimals: 18,
+            name: "ETH",
+            symbol: "ETH",
+            decimals: 18
         },
         rpcUrls: {
             default: { http: [args.rpcUrl] },
-            public: { http: [args.rpcUrl] },
-        },
-    };
+            public: { http: [args.rpcUrl] }
+        }
+    }
 
     const client = createPublicClient({
         transport: customTransport(args.rpcUrl, {
@@ -260,7 +260,8 @@ export const bundlerHandler = async (
         logger.child({ module: "rpc" }),
         metrics,
         parsedArgs.environment,
-        compressionHandler
+        compressionHandler,
+        parsedArgs.dangerousSkipUserOperationValidation
     )
 
     if (parsedArgs.flushStuckTransactionsDuringStartup) {

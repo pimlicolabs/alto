@@ -22,7 +22,10 @@ export const bundlerArgsSchema = z.object({
             .transform((val) =>
                 val
                     .split(",")
-                    .map((val) => privateKeyToAccount(val as Hex) satisfies Account)
+                    .map(
+                        (val) =>
+                            privateKeyToAccount(val as Hex) satisfies Account
+                    )
             )
     ]),
     signerPrivateKeysExtra: z
@@ -42,7 +45,10 @@ export const bundlerArgsSchema = z.object({
                     val
                         .split(",")
                         .map(
-                            (val) => privateKeyToAccount(val as Hex) satisfies Account
+                            (val) =>
+                                privateKeyToAccount(
+                                    val as Hex
+                                ) satisfies Account
                         )
                 )
         ])
@@ -92,6 +98,7 @@ export const bundlerArgsSchema = z.object({
         .transform((val) => BigInt(val))
         .optional(),
     rpcMaxBlockRange: z.number().int().min(0).optional(),
+    dangerousSkipUserOperationValidation: z.boolean().optional()
 })
 
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>
