@@ -81,7 +81,7 @@ export const bundlerHandler = async (
     const getChainId = async () => {
         const client = createPublicClient({
             transport: customTransport(args.rpcUrl, {
-                logger: logger.child({ module: "publicCLient" })
+                logger: logger.child({ module: "publicClient" })
             })
         })
         return await client.getChainId()
@@ -105,7 +105,7 @@ export const bundlerHandler = async (
 
     const client = createPublicClient({
         transport: customTransport(args.rpcUrl, {
-            logger: logger.child({ module: "publicCLient" })
+            logger: logger.child({ module: "publicClient" })
         }),
         chain
     })
