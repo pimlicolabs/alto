@@ -1,6 +1,17 @@
-import { EntryPointAbi, MempoolUserOperation, deriveUserOperation } from "@alto/types"
+import {
+    EntryPointAbi,
+    MempoolUserOperation,
+    deriveUserOperation
+} from "@alto/types"
 import { Logger, getNonceKeyAndValue, getUserOperationHash } from "@alto/utils"
-import { Address, Chain, Hash, PublicClient, Transport } from "viem"
+import {
+    Address,
+    Chain,
+    Hash,
+    PublicClient,
+    Transport,
+    getContract
+} from "viem"
 import { Mempool } from "@alto/mempool"
 
 type QueuedUserOperation = {
@@ -109,18 +120,65 @@ export class NonceQueuer {
     ) {
         const queuedUserOperations = this.queuedUserOperations.slice()
 
-        const results = await publicClient.multicall({
-            contracts: queuedUserOperations.map((qop) => {
-                const userOp = deriveUserOperation(qop.mempoolUserOperation)
-                return {
-                    address: entryPoint,
-                    abi: EntryPointAbi,
-                    functionName: "getNonce",
-                    args: [userOp.sender, qop.nonceKey]
-                }
-            }),
-            blockTag: "latest"
-        })
+        let results: (
+            | {
+                  error: Error
+                  result?: undefined
+                  status: "failure"
+              }
+            | {
+                  error?: undefined
+                  result: bigint
+                  status: "success"
+              }
+        )[]
+
+        try {
+            results = await publicClient.multicall({
+                contracts: queuedUserOperations.map((qop) => {
+                    const userOp = deriveUserOperation(qop.mempoolUserOperation)
+                    return {
+                        address: entryPoint,
+                        abi: EntryPointAbi,
+                        functionName: "getNonce",
+                        args: [userOp.sender, qop.nonceKey]
+                    }
+                }),
+                blockTag: "latest"
+            })
+        } catch (error) {
+            this.logger.error(
+                { error: JSON.stringify(error) },
+                "error fetching with multiCall"
+            )
+
+            const entryPointContract = getContract({
+                abi: EntryPointAbi,
+                address: entryPoint,
+                publicClient: publicClient
+            })
+
+            results = await Promise.all(
+                queuedUserOperations.map(async (qop) => {
+                    const userOp = deriveUserOperation(qop.mempoolUserOperation)
+                    try {
+                        const nonce = await entryPointContract.read.getNonce(
+                            [userOp.sender, qop.nonceKey],
+                            { blockTag: "latest" }
+                        )
+                        return {
+                            result: nonce,
+                            status: "success"
+                        }
+                    } catch (e) {
+                        return {
+                            error: e as Error,
+                            status: "failure"
+                        }
+                    }
+                })
+            )
+        }
 
         if (results.length !== queuedUserOperations.length) {
             this.logger.error("error fetching nonces")
