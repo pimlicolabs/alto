@@ -110,7 +110,7 @@ export class RpcHandler implements IRpcEndpoint {
     executorManager: ExecutorManager
     reputationManager: IReputationManager
     compressionHandler: CompressionHandler | null
-    kintoEntryPointVersion: boolean
+    dangerousSkipUserOperationValidation: boolean
 
     constructor(
         entryPoint: Address,
@@ -130,7 +130,7 @@ export class RpcHandler implements IRpcEndpoint {
         metrics: Metrics,
         environment: Environment,
         compressionHandler: CompressionHandler | null,
-        kintoEntryPointVersion = false
+        dangerousSkipUserOperationValidation = false
     ) {
         this.entryPoint = entryPoint
         this.publicClient = publicClient
@@ -150,7 +150,8 @@ export class RpcHandler implements IRpcEndpoint {
         this.executorManager = executorManager
         this.reputationManager = reputationManager
         this.compressionHandler = compressionHandler
-        this.kintoEntryPointVersion = kintoEntryPointVersion
+        this.dangerousSkipUserOperationValidation =
+            dangerousSkipUserOperationValidation
     }
 
     async handleMethod(request: BundlerRequest): Promise<BundlerResponse> {
@@ -907,7 +908,7 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
         if (userOperationNonceValue === currentNonceValue) {
-            if (this.kintoEntryPointVersion) {
+            if (this.dangerousSkipUserOperationValidation) {
                 const success = this.mempool.add(userOperation)
                 if (!success) {
                     throw new RpcError(
@@ -922,7 +923,9 @@ export class RpcHandler implements IRpcEndpoint {
                     userOperation,
                     validationResult
                 )
-                await this.mempool.checkEntityMultipleRoleViolation(userOperation)
+                await this.mempool.checkEntityMultipleRoleViolation(
+                    userOperation
+                )
                 const success = this.mempool.add(
                     op,
                     validationResult.referencedContracts
