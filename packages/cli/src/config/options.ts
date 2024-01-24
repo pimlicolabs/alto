@@ -3,6 +3,11 @@ import { CliCommand, CliCommandOptions } from "../util"
 import { IBundlerArgsInput } from "./bundler"
 
 export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
+    networkName: {
+        description: "Name of the network (used for metrics)",
+        type: "string",
+        require: true
+    },
     entryPoint: {
         description: "EntryPoint contract addresses split by commas",
         type: "string",
@@ -31,6 +36,16 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description: "Minimum balance required for the signer",
         type: "string",
         require: true
+    },
+    perOpInflatorAddress: {
+        description: "Address of the PerOpInflator contract",
+        type: "string",
+        require: false,
+    },
+    bundleBulkerAddress: {
+        description: "Address of the BundleBulker contract",
+        type: "string",
+        require: false,
     },
     refillInterval: {
         description: "Interval to refill the signer balance (in ms)",
@@ -146,6 +161,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: true,
         default: false
     },
+    flushStuckTransactionsDuringStartup: {
+        description: "Should the bundler try to flush out all stuck pending transactions on startup",
+        type: "boolean",
+        require: true,
+        default: false
+    },
     customGasLimitForEstimation: {
         description: "Custom gas limit for estimation",
         type: "string"
@@ -179,7 +200,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "boolean",
         require: false,
         default: false
-    }
+    },
 }
 
 export const bundlerCommand: CliCommand<IBundlerArgsInput> = {
@@ -190,7 +211,7 @@ export const bundlerCommand: CliCommand<IBundlerArgsInput> = {
     examples: [
         {
             command:
-                "run --entryPoint 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789,0x0576a174D229E3cFA37253523E645A78A0C91B57 --beneficiary 0xa78fCd480107fBFAF84bDE5285A668396891d3E5 --signerPrivateKey 1060ac9646dffa5dc19c188e148c627c50a0e8250a2f195ec3c493ffae3ed019",
+                "run --entryPoint 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789,0x0576a174D229E3cFA37253523E645A78A0C91B57 --signerPrivateKeys 1060ac9646dffa5dc19c188e148c627c50a0e8250a2f195ec3c493ffae3ed019",
             description: "Starts a bundler"
         }
     ]

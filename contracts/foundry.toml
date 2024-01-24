@@ -6,8 +6,13 @@ libs = ["lib"]
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
 
 remappings = [
-    'forge-std/=lib/forge-std/src',
+    'forge-std/=lib/forge-std/src/',
     'ds-test/=lib/forge-std/lib/ds-test/src/',
     'account-abstraction/=lib/account-abstraction/contracts/',
     '@openzeppelin/=lib/openzeppelin-contracts/',
+    '@openzeppelin/contracts/=lib/bulk/lib/openzeppelin-contracts/contracts/',
+    'bulk/=lib/bulk/',
+    'erc4626-tests/=lib/bulk/lib/p256-verifier/lib/openzeppelin-contracts/lib/erc4626-tests/',
+    'openzeppelin-contracts/=lib/bulk/lib/openzeppelin-contracts/',
+    'p256-verifier/=lib/bulk/lib/p256-verifier/',
 ]

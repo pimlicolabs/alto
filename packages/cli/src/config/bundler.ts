@@ -8,6 +8,7 @@ export const bundlerArgsSchema = z.object({
     // (better for cli and env vars) or an array of addresses
     // (better for config files)
     entryPoint: addressSchema,
+    networkName: z.string(),
     signerPrivateKeys: z.union([
         z
             .array(hexData32Schema)
@@ -59,6 +60,9 @@ export const bundlerArgsSchema = z.object({
     rpcUrl: z.string().url(),
     executionRpcUrl: z.string().url().optional(),
 
+    bundleBulkerAddress: addressSchema.optional(),
+    perOpInflatorAddress: addressSchema.optional(),
+
     minBalance: z.string().transform((val) => BigInt(val)),
     refillInterval: z.number().int().min(0),
     requestTimeout: z.number().int().min(0).optional(),
@@ -80,6 +84,7 @@ export const bundlerArgsSchema = z.object({
     bundleMode: z.enum(["auto", "manual"]),
     bundlerFrequency: z.number().int().min(0),
 
+    flushStuckTransactionsDuringStartup: z.boolean(),
     safeMode: z.boolean(),
 
     tenderlyEnabled: z.boolean().optional(),

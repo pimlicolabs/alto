@@ -1,14 +1,18 @@
 import { IReputationManager } from "@alto/mempool"
 import {
     BundleResult,
+    CompressedUserOperation,
     EntryPointAbi,
     TransactionInfo,
+    UserOperation,
     UserOperationWithHash,
+    deriveUserOperation,
     failedOpErrorSchema
 } from "@alto/types"
 import { Logger, parseViemError, transactionIncluded } from "@alto/utils"
 import {
     Account,
+    Address,
     Chain,
     ContractFunctionRevertedError,
     EstimateGasExecutionError,
@@ -17,13 +21,16 @@ import {
     PublicClient,
     Transport,
     WalletClient,
-    decodeErrorResult
+    concat,
+    decodeErrorResult,
+    hexToBytes,
+    numberToHex,
 } from "viem"
 import * as sentry from "@sentry/node"
 
 export function simulatedOpsToResults(
     simulatedOps: {
-        op: UserOperationWithHash
+        owh: UserOperationWithHash
         reason: string | undefined
     }[],
     transactionInfo: TransactionInfo
@@ -34,28 +41,54 @@ export function simulatedOpsToResults(
                 success: true,
                 value: {
                     userOperation: {
-                        userOperation: sop.op.userOperation,
-                        userOperationHash: sop.op.userOperationHash,
+                        mempoolUserOperation: sop.owh.mempoolUserOperation,
+                        userOperationHash: sop.owh.userOperationHash,
                         lastReplaced: Date.now(),
                         firstSubmitted: Date.now()
                     },
                     transactionInfo
                 }
             }
-        } else {
-            return {
-                success: false,
-                error: {
-                    userOpHash: sop.op.userOperationHash,
-                    reason: sop.reason as string
-                }
+        }
+        return {
+            success: false,
+            error: {
+                userOpHash: sop.owh.userOperationHash,
+                reason: sop.reason as string
             }
         }
     })
 }
 
-export async function filterOpsAndEstimateGas(
+export type DefaultFilterOpsAndEstimateGasParams = {
     ep: GetContractReturnType<typeof EntryPointAbi, PublicClient, WalletClient>,
+    type: "default"
+}
+
+export type CompressedFilterOpsAndEstimateGasParams = {
+    publicClient: PublicClient,
+    bundleBulker: Address,
+    perOpInflatorId: number,
+    type: "compressed"
+}
+
+export function createCompressedCalldata(compressedOps: CompressedUserOperation[], perOpInflatorId: number): Hex {
+    const bundleBulkerPayload = numberToHex(perOpInflatorId, { size: 4 }) // bytes used in BundleBulker
+    const perOpInflatorPayload = numberToHex(compressedOps.length, { size: 1 }) // bytes used in perOpInflator
+
+    return compressedOps.reduce((currentCallData, op) => {
+        const nextCallData = concat([
+            numberToHex(op.inflatorId, { size: 4 }),
+            numberToHex(hexToBytes(op.compressedCalldata).length,  { size: 2 }),
+            op.compressedCalldata
+        ]);
+
+        return concat([currentCallData, nextCallData])
+    }, concat([bundleBulkerPayload, perOpInflatorPayload]));
+}
+
+export async function filterOpsAndEstimateGas(
+    callContext: DefaultFilterOpsAndEstimateGasParams | CompressedFilterOpsAndEstimateGasParams,
     wallet: Account,
     ops: UserOperationWithHash[],
     nonce: number,
@@ -68,40 +101,53 @@ export async function filterOpsAndEstimateGas(
     logger: Logger
 ) {
     const simulatedOps: {
-        op: UserOperationWithHash
+        owh: UserOperationWithHash
         reason: string | undefined
-    }[] = ops.map((op) => {
-        return { op, reason: undefined }
+    }[] = ops.map((owh) => {
+        return { owh, reason: undefined }
     })
 
     let gasLimit: bigint
 
     while (simulatedOps.filter((op) => op.reason === undefined).length > 0) {
         try {
-            gasLimit = await ep.estimateGas.handleOps(
-                [
-                    simulatedOps
-                        .filter((op) => op.reason === undefined)
-                        .map((op) => op.op.userOperation),
-                    wallet.address
-                ],
-                onlyPre1559
-                    ? {
-                          account: wallet,
-                          gasPrice: maxFeePerGas,
-                          gas: customGasLimitForEstimation,
-                          nonce: nonce,
-                          blockTag
-                      }
-                    : {
-                          account: wallet,
-                          maxFeePerGas: maxFeePerGas,
-                          maxPriorityFeePerGas: maxPriorityFeePerGas,
-                          gas: customGasLimitForEstimation,
-                          nonce: nonce,
-                          blockTag
-                      }
-            )
+            const gasOptions = onlyPre1559 ? { gasPrice: maxFeePerGas } : { maxFeePerGas, maxPriorityFeePerGas }
+
+            if (callContext.type === "default") {
+                const ep = callContext.ep
+                const opsToSend = simulatedOps
+                            .filter((op) => op.reason === undefined)
+                            .map((op) => (op.owh.mempoolUserOperation as UserOperation))
+
+                gasLimit = await ep.estimateGas.handleOps(
+                    [
+                        opsToSend,
+                        wallet.address
+                    ],
+                    {
+                        account: wallet,
+                        gas: customGasLimitForEstimation,
+                        nonce: nonce,
+                        blockTag,
+                        ...gasOptions
+                    }
+                )
+            } else {
+                const { publicClient, bundleBulker, perOpInflatorId } = callContext
+                const opsToSend = simulatedOps
+                            .filter((op) => op.reason === undefined)
+                            .map((op) => (op.owh.mempoolUserOperation as CompressedUserOperation))
+
+                gasLimit = await publicClient.estimateGas({
+                    to: bundleBulker,
+                    account: wallet,
+                    data: createCompressedCalldata(opsToSend, perOpInflatorId),
+                    gas: customGasLimitForEstimation,
+                    nonce: nonce,
+                    blockTag,
+                    ...gasOptions
+                })
+            }
 
             return { simulatedOps, gasLimit }
         } catch (err: unknown) {
@@ -115,7 +161,7 @@ export async function filterOpsAndEstimateGas(
                             failedOpError,
                             userOpHashes: simulatedOps
                                 .filter((op) => op.reason === undefined)
-                                .map((op) => op.op.userOperationHash)
+                                .map((op) => op.owh.userOperationHash)
                         },
                         "user op in batch invalid"
                     )
@@ -126,7 +172,7 @@ export async function filterOpsAndEstimateGas(
 
                     failingOp.reason = failedOpError.args.reason
                     reputationManager.crashedHandleOps(
-                        failingOp.op.userOperation,
+                        deriveUserOperation(failingOp.owh.mempoolUserOperation),
                         failingOp.reason
                     )
                 } else {
@@ -152,7 +198,7 @@ export async function filterOpsAndEstimateGas(
                             args: errorResult.args,
                             userOpHashes: simulatedOps
                                 .filter((op) => op.reason === undefined)
-                                .map((op) => op.op.userOperationHash)
+                                .map((op) => op.owh.userOperationHash)
                         },
                         "user op in batch invalid"
                     )

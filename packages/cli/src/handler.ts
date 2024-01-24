@@ -1,10 +1,10 @@
 import { BasicExecutor, ExecutorManager, SenderManager } from "@alto/executor"
 import {
-    type IReputationManager,
     MemoryMempool,
     Monitor,
     NullRepuationManager,
-    ReputationManager
+    ReputationManager,
+    type IReputationManager
 } from "@alto/mempool"
 import {
     NonceQueuer,
@@ -15,25 +15,25 @@ import {
 } from "@alto/rpc"
 import type { IValidator } from "@alto/types"
 import {
-    type Logger,
+    CompressionHandler,
     createMetrics,
     initDebugLogger,
-    initProductionLogger
+    initProductionLogger,
+    type Logger
 } from "@alto/utils"
 import { Registry } from "prom-client"
 import {
+    createPublicClient,
+    createWalletClient,
     type Chain,
     type PublicClient,
-    type Transport,
-    createPublicClient,
-    createWalletClient
+    type Transport
 } from "viem"
-import * as chains from "viem/chains"
 import { fromZodError } from "zod-validation-error"
 import {
+    bundlerArgsSchema,
     type IBundlerArgs,
-    type IBundlerArgsInput,
-    bundlerArgsSchema
+    type IBundlerArgsInput
 } from "./config"
 import { customTransport } from "./customTransport"
 
@@ -58,160 +58,6 @@ const preFlightChecks = async (
     if (entryPointCode === "0x") {
         throw new Error(`entry point ${args.entryPoint} does not exist`)
     }
-}
-
-const customChains: Chain[] = [
-    {
-        id: 36865,
-        name: "Custom Testnet",
-        network: "custom-testnet",
-        nativeCurrency: {
-            name: "Ether",
-            symbol: "ETH",
-            decimals: 18
-        },
-        rpcUrls: {
-            default: {
-                http: ["http://127.0.0.1:8545"]
-            },
-            public: {
-                http: ["http://127.0.0.1:8545"]
-            }
-        },
-        testnet: true
-    },
-    {
-        id: 335,
-        name: "DFK Subnet Testnet",
-        network: "dfk-test-chain",
-        nativeCurrency: {
-            name: "JEWEL",
-            symbol: "JEWEL",
-            decimals: 18
-        },
-        rpcUrls: {
-            default: {
-                http: [
-                    "https://subnets.avax.network/defi-kingdoms/dfk-chain-testnet/rpc"
-                ]
-            },
-            public: {
-                http: [
-                    "https://subnets.avax.network/defi-kingdoms/dfk-chain-testnet/rpc"
-                ]
-            }
-        },
-        testnet: true
-    },
-    {
-        id: 59144,
-        name: "Linea Mainnet",
-        network: "linea",
-        nativeCurrency: {
-            name: "ETH",
-            symbol: "ETH",
-            decimals: 18
-        },
-        rpcUrls: {
-            default: {
-                http: []
-            },
-            public: {
-                http: []
-            }
-        },
-        testnet: false
-    },
-    {
-        id: 47279324479,
-        name: "Xai Goerli Orbit",
-        network: "xai-goerli-orbit",
-        nativeCurrency: {
-            name: "ETH",
-            symbol: "ETH",
-            decimals: 18
-        },
-        rpcUrls: {
-            default: {
-                http: []
-            },
-            public: {
-                http: []
-            }
-        },
-        testnet: false
-    },
-    {
-        id: 22222,
-        name: "Nautilus",
-        network: "nautilus",
-        nativeCurrency: {
-            name: "ZBC",
-            symbol: "ZBC",
-            decimals: 18
-        },
-        rpcUrls: {
-            default: {
-                http: []
-            },
-            public: {
-                http: []
-            }
-        }
-    },
-    {
-        id: 957,
-        name: "Lyra",
-        network: "lyra",
-        nativeCurrency: {
-            name: "ETH",
-            symbol: "ETH",
-            decimals: 18
-        },
-        rpcUrls: {
-            default: {
-                http: ["https://rpc.lyra.finance"]
-            },
-            public: {
-                http: ["https://rpc.lyra.finance"]
-            }
-        },
-        testnet: false
-    },
-    {
-        id: 7887,
-        name: "Kinto Mainnet",
-        network: "kinto-mainnet",
-        nativeCurrency: {
-            name: "ETH",
-            symbol: "ETH",
-            decimals: 18
-        },
-        rpcUrls: {
-            default: {
-                http: ["https://kinto-mainnet.calderachain.xyz/http"]
-            },
-            public: {
-                http: ["https://kinto-mainnet.calderachain.xyz/http"]
-            }
-        },
-        testnet: false
-    }
-]
-
-function getChain(chainId: number): Chain {
-    const customChain = customChains.find((chain) => chain.id === chainId)
-    if (customChain) {
-        return customChain
-    }
-
-    for (const chain of Object.values(chains)) {
-        if (chain.id === chainId) {
-            return chain as Chain
-        }
-    }
-
-    throw new Error(`Chain with id ${chainId} not found`)
 }
 
 export const bundlerHandler = async (
@@ -242,7 +88,21 @@ export const bundlerHandler = async (
     }
     const chainId = await getChainId()
 
-    const chain = getChain(chainId)
+    const chain: Chain = {
+        id: chainId,
+        name: args.networkName,
+        network: args.networkName,
+        nativeCurrency: {
+            name: 'ETH',
+            symbol: 'ETH',
+            decimals: 18,
+        },
+        rpcUrls: {
+            default: { http: [args.rpcUrl] },
+            public: { http: [args.rpcUrl] },
+        },
+    };
+
     const client = createPublicClient({
         transport: customTransport(args.rpcUrl, {
             logger: logger.child({ module: "publicCLient" })
@@ -333,6 +193,20 @@ export const bundlerHandler = async (
         metrics
     )
 
+    const { bundleBulkerAddress, perOpInflatorAddress } = parsedArgs
+
+    let compressionHandler = null
+    if (
+        bundleBulkerAddress !== undefined &&
+        perOpInflatorAddress !== undefined
+    ) {
+        compressionHandler = await CompressionHandler.createAsync(
+            bundleBulkerAddress,
+            perOpInflatorAddress,
+            client
+        )
+    }
+
     const executor = new BasicExecutor(
         client,
         walletClient,
@@ -341,6 +215,7 @@ export const bundlerHandler = async (
         parsedArgs.entryPoint,
         logger.child({ module: "executor" }),
         metrics,
+        compressionHandler,
         !parsedArgs.tenderlyEnabled,
         parsedArgs.noEip1559Support,
         parsedArgs.customGasLimitForEstimation,
@@ -373,6 +248,7 @@ export const bundlerHandler = async (
         client,
         validator,
         mempool,
+        executor,
         monitor,
         nonceQueuer,
         executorManager,
@@ -384,10 +260,13 @@ export const bundlerHandler = async (
         logger.child({ module: "rpc" }),
         metrics,
         parsedArgs.environment,
+        compressionHandler,
         parsedArgs.kintoEntryPointVersion
     )
 
-    // executor.flushStuckTransactions()
+    if (parsedArgs.flushStuckTransactionsDuringStartup) {
+        executor.flushStuckTransactions()
+    }
 
     logger.info(
         { module: "executor" },

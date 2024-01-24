@@ -1,5 +1,6 @@
 import { type Hash, type Hex, getAddress } from "viem"
 import { z } from "zod"
+import { MempoolUserOperation } from "./mempool"
 
 const hexDataPattern = /^0x[0-9A-Fa-f]*$/
 const addressPattern = /^0x[0-9,a-f,A-F]{40}$/
@@ -81,13 +82,20 @@ export type UserOperation = {
     signature: HexData
 }
 
+export type CompressedUserOperation = {
+    compressedCalldata: Hex
+    inflatedOp: UserOperation
+    inflatorAddress: Address
+    inflatorId: number
+}
+
 export type UserOperationRequest = {
     userOperation: UserOperation
     entryPoint: Address
 }
 
 export type UserOperationWithHash = {
-    userOperation: UserOperation
+    mempoolUserOperation: MempoolUserOperation
     userOperationHash: HexData32
 }
 
@@ -230,6 +238,11 @@ const pimlicoGetUserOperationGasPriceRequestSchema = z.object({
     params: z.tuple([])
 })
 
+const pimlicoSendCompressedUserOperationRequestSchema = z.object({
+    method: z.literal("pimlico_sendCompressedUserOperation"),
+    params: z.tuple([hexDataSchema, addressSchema, addressSchema])
+})
+
 const bundlerRequestSchema = z.discriminatedUnion("method", [
     chainIdRequestSchema,
     supportedEntryPointsRequestSchema,
@@ -246,7 +259,8 @@ const bundlerRequestSchema = z.discriminatedUnion("method", [
     bundlerDumpReputationsRequestSchema,
     pimlicoGetStakeStatusRequestSchema,
     pimlicoGetUserOperationStatusRequestSchema,
-    pimlicoGetUserOperationGasPriceRequestSchema
+    pimlicoGetUserOperationGasPriceRequestSchema,
+    pimlicoSendCompressedUserOperationRequestSchema
 ])
 
 const chainIdResponseSchema = z.object({
@@ -436,6 +450,11 @@ const pimlicoGetUserOperationGasPriceResponseSchema = z.object({
     result: gasPriceSchema
 })
 
+const pimlicoSendCompressedUserOperationResponseSchema = z.object({
+    method: z.literal("pimlico_sendCompressedUserOperation"),
+    result: hexData32Schema
+})
+
 const bundlerResponseSchema = z.discriminatedUnion("method", [
     chainIdResponseSchema,
     supportedEntryPointsResponseSchema,
@@ -452,7 +471,8 @@ const bundlerResponseSchema = z.discriminatedUnion("method", [
     bundlerSetReputationsResponseSchema,
     bundlerDumpReputationsResponseSchema,
     pimlicoGetUserOperationStatusResponseSchema,
-    pimlicoGetUserOperationGasPriceResponseSchema
+    pimlicoGetUserOperationGasPriceResponseSchema,
+    pimlicoSendCompressedUserOperationResponseSchema
 ])
 
 export type BundlingMode = z.infer<
@@ -662,12 +682,6 @@ export type JSONRPCRequest = z.infer<typeof jsonRpcSchema>
 export type JSONRPCResponse = z.infer<typeof jsonRpcResultSchema>
 
 export {
-    chainIdRequestSchema,
-    supportedEntryPointsRequestSchema,
-    estimateUserOperationGasRequestSchema,
-    sendUserOperationRequestSchema,
-    getUserOperationByHashRequestSchema,
-    getUserOperationReceiptRequestSchema,
     bundlerClearStateRequestSchema,
     bundlerClearMempoolRequestSchema,
     bundlerDumpMempoolRequestSchema,
@@ -685,12 +699,6 @@ export {
 }
 
 export {
-    chainIdResponseSchema,
-    supportedEntryPointsResponseSchema,
-    estimateUserOperationGasResponseSchema,
-    sendUserOperationResponseSchema,
-    getUserOperationByHashResponseSchema,
-    getUserOperationReceiptResponseSchema,
     bundlerClearStateResponseSchema,
     bundlerClearMempoolResponseSchema,
     bundlerDumpMempoolResponseSchema,
