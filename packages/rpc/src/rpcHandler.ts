@@ -947,16 +947,33 @@ export class RpcHandler implements IRpcEndpoint {
         inflatorAddress: Address,
         entryPoint: Address
     ) {
+        var { inflatedOp, inflatorId } = await this.validateAndInflateCompressedUserOperation(inflatorAddress, compressedCalldata)
+
+        const compressedUserOp: CompressedUserOperation = {
+            compressedCalldata,
+            inflatedOp,
+            inflatorAddress,
+            inflatorId
+        }
+
+        // check userOps inputs.
+        await this.addToMempoolIfValid(compressedUserOp, entryPoint)
+
+        const hash = getUserOperationHash(inflatedOp, entryPoint, this.chainId)
+
+        return hash
+    }
+
+    private async validateAndInflateCompressedUserOperation(inflatorAddress: Address, compressedCalldata: Hex): Promise<{ inflatedOp: UserOperation; inflatorId: number }> {
+        // check if inflator is registered with our PerOpInflator.
         if (this.compressionHandler === null) {
             throw new RpcError("Endpoint not supported")
         }
 
-        // check if inflator is registered with our PerOpInflator.
-        const inflatorId =
-            await this.compressionHandler.getInflatorRegisteredId(
-                inflatorAddress,
-                this.publicClient
-            )
+        const inflatorId = await this.compressionHandler.getInflatorRegisteredId(
+            inflatorAddress,
+            this.publicClient
+        )
 
         if (inflatorId === 0) {
             throw new RpcError(
@@ -993,19 +1010,6 @@ export class RpcHandler implements IRpcEndpoint {
                 ValidationErrors.InvalidFields
             )
         }
-
-        const compressedUserOp: CompressedUserOperation = {
-            compressedCalldata,
-            inflatedOp,
-            inflatorAddress,
-            inflatorId
-        }
-
-        // check userOps inputs.
-        await this.addToMempoolIfValid(compressedUserOp, entryPoint)
-
-        const hash = getUserOperationHash(inflatedOp, entryPoint, this.chainId)
-
-        return hash
+        return { inflatedOp, inflatorId }
     }
 }
