@@ -9,8 +9,8 @@ blockNum=
 tmux=
 forkMode=
 localMode=
-signerKey=0x4337000000000000000000000000000000000000000000000000000000000000    # 0x21f386935c3937fA29C0682EF3Db9715dd832330
-utilityKey=0x0000000000000000000000000000000000000000000000000000000000004337   # 0x68A726E5B0282fE2A7020E93aDeaBD68A2aa1dbe
+signerKey=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80  # anvil default acc 0
+utilityKey=0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d # anvil default acc 1
 anvilPort=8545
 anvilHost=127.0.0.1
 patchBytecode=()
@@ -21,7 +21,7 @@ projectRoot=`pwd | sed 's%\(.*/alto\)/.*%\1%'`
 usage(){
 >&2 cat << EOF
 Usage: $0 [OPTIONS]
-Utility to spawn a local alto instances linked to an anvil node.
+Utility to spawn a local alto instance linked to an anvil node.
 *Must* be ran with either -l or -f flags.
 
 Alto Options
@@ -51,9 +51,6 @@ apply_bytecode_patches() {
             exit 1
         fi
 
-        echo "contractAddr: $bytecodeFile"
-        echo "bytecodefile: $bytecodeFile"
-
         patchedBytecode=$(cat $bytecodeFile | tr -d '\n')
 
         curl -H "Content-Type: application/json" \
@@ -62,16 +59,23 @@ apply_bytecode_patches() {
 
     done
 }
-fund_accounts() {
+deploy_contracts() {
     sleep 2
 
-    curl -s -H "Content-Type: application/json" \
-         -X POST --data "{\"id\": \"4337\", \"jsonrpc\":\"2.0\", \"method\":\"anvil_setBalance\", \"params\": [\"$(cast wallet address $signerKey)\", \"3635C9ADC5DEA00000\"]}" \
-         $anvilHost:$anvilPort > /dev/null
+    entryPointCall=0x0000000000000000000000000000000000000000000000000000000000000000$(cat $projectRoot/scripts/.entrypoint.bytecode | tr -d '\n')
+    cast send 0x4e59b44847b379578588920ca78fbf26c0b4956c $entryPointCall \
+        --private-key $utilityKey \
+        --rpc-url http://$anvilHost:$anvilPort
 
-    curl -s -H "Content-Type: application/json" \
-         -X POST --data "{\"id\": \"4337\", \"jsonrpc\":\"2.0\", \"method\":\"anvil_setBalance\", \"params\": [\"$(cast wallet address $utilityKey)\", \"3635C9ADC5DEA00000\"]}" \
-         $anvilHost:$anvilPort > /dev/null
+    simpleAccountFactoryCall=0x0000000000000000000000000000000000000000000000000000000000000000$(cat $projectRoot/scripts/.simple-account-factory.bytecode | tr -d '\n')
+    cast send 0x4e59b44847b379578588920ca78fbf26c0b4956c $simpleAccountFactoryCall \
+        --private-key $utilityKey \
+        --rpc-url http://$anvilHost:$anvilPort
+
+    bundleBulkerCall=0x7cf7a0f0060e1519d0ee3e12e0ee57890f69d7aa693404299a3a779e90cd7921$(cat $projectRoot/scripts/.bundle-bulker.bytecode | tr -d '\n')
+    cast send 0x4e59b44847b379578588920ca78fbf26c0b4956c $bundleBulkerCall \
+        --private-key $utilityKey \
+        --rpc-url http://$anvilHost:$anvilPort
 }
 
 while getopts "e:r:b:h:p:c:tfl" opt;
@@ -133,12 +137,7 @@ if [ -n "$localMode" ]; then
         # launch both instances in same terminal.
         anvil &
 
-        fund_accounts
-        patchBytecode=$entryPoint,$projectRoot/scripts/.entrypoint.patch
-        apply_bytecode_patches
-        patchBytecode=$simpleAccountFactory,$projectRoot/scripts/.simple-account-factory.patch
-        apply_bytecode_patches
-        patchBytecode=$bundleBulker,$projectRoot/scripts/.bundle-bulker.patch
+        deploy_contracts
         apply_bytecode_patches
 
         $projectRoot/alto --entryPoint $entryPoint \
@@ -162,7 +161,7 @@ if [ -n "$localMode" ]; then
         # setup anvil on pane 0
         tmux send-keys -t ${SESSION}.0 "anvil" C-m
 
-        fund_accounts
+        deploy_contracts
         apply_bytecode_patches
 
         # setup alto on pane 1
@@ -189,7 +188,6 @@ if [ -n $forkMode ]; then
               --fork-block-number $blockNum \
               --timestamp  $forkTimestamp &
 
-        fund_accounts
         apply_bytecode_patches
 
         $projectRoot/alto --entryPoint $entryPoint \

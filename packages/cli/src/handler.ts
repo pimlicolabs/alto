@@ -298,8 +298,8 @@ export const bundlerHandler = async (
             metrics,
             parsedArgs.utilityPrivateKey,
             parsedArgs.tenderlyEnabled,
+            parsedArgs.balanceOverrideEnabled,
             parsedArgs.disableExpirationCheck,
-            parsedArgs.balanceOverrideEnabled
         )
     }
 

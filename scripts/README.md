@@ -6,7 +6,7 @@ Simple bash script to deploy and run a local alto + anvil instance in forked mod
 
 The environment must be run in either **forked** or **local** mode.
 
-##### Running in forked mode
+#### Running in forked mode
 
 Fork mode runs alto tied to a forked anvil instance. And is specified with the `-f` flag.
 
@@ -14,15 +14,15 @@ Fork mode runs alto tied to a forked anvil instance. And is specified with the `
 ./run-local-instance.sh -f -r <rpc-url> -b <fork-block>
 ```
 
-`-r` (flag for rpc url) and `-b` (flag for block number) are required for forked mode.
+both flags `-r` (rpc url) and `-b` (block number) are required for forked mode.
 
-##### Running in local mode
+#### Running in local mode
 
 Local mode runs alto tied to a standard anvil instance. And is specified with the `-l` flag.
-Local mode will deploy:
-- EntryPoint contract to address `0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789`
-- simpleAccountFactory to address `0x9406Cc6185a346906296840746125a0E44976454`
-- bundleBulker to address `0x3Fde2701a9a5FC30b1F1916ec465A2F04BC7c05d`
+Local mode will deploy the following contracts:
+- [EntryPoint](https://github.com/eth-infinitism/account-abstraction/blob/develop/contracts/core/EntryPoint.sol) to address `0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789`
+- [SimpleAccountFactory](https://github.com/eth-infinitism/account-abstraction/blob/develop/contracts/samples/SimpleAccount.sol) to address `0x9406Cc6185a346906296840746125a0E44976454`
+- [BundleBulker](https://github.com/daimo-eth/bulk/blob/master/src/BundleBulker.sol) to address `0x000000000091A1F34f51CE866bEd8983dB51a97E`
 
 ```console
 ./run-local-instance.sh -l

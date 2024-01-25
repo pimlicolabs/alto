@@ -147,8 +147,8 @@ export class UnsafeValidator implements IValidator {
     metrics: Metrics
     utilityWallet: Account
     usingTenderly: boolean
-    disableExpirationCheck: boolean
     balanceOverrideEnabled: boolean
+    disableExpirationCheck: boolean
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
@@ -157,8 +157,8 @@ export class UnsafeValidator implements IValidator {
         metrics: Metrics,
         utilityWallet: Account,
         usingTenderly = false,
-        disableExpirationCheck = false,
         balanceOverrideEnabled = false,
+        disableExpirationCheck = false,
     ) {
         this.publicClient = publicClient
         this.entryPoint = entryPoint
@@ -166,8 +166,8 @@ export class UnsafeValidator implements IValidator {
         this.metrics = metrics
         this.utilityWallet = utilityWallet
         this.usingTenderly = usingTenderly
-        this.disableExpirationCheck = disableExpirationCheck
         this.balanceOverrideEnabled = balanceOverrideEnabled
+        this.disableExpirationCheck = disableExpirationCheck
     }
 
     async getExecutionResult(
