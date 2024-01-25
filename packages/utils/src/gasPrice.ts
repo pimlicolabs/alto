@@ -123,6 +123,10 @@ export async function getGasPrice(
         maxPriorityFeePerGas = gasPrice
     }
 
+    if (chainId === chains.lineaTestnet.id) {
+        gasPrice = (gasPrice > parseGwei("20")) ? gasPrice : parseGwei("20");
+    }
+
     return {
         maxFeePerGas: gasPrice,
         maxPriorityFeePerGas

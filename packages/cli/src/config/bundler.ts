@@ -53,6 +53,9 @@ export const bundlerArgsSchema = z.object({
     rpcUrl: z.string().url(),
     executionRpcUrl: z.string().url().optional(),
 
+    bundleBulkerAddress: addressSchema.optional(),
+    perOpInflatorAddress: addressSchema.optional(),
+
     minBalance: z.string().transform((val) => BigInt(val)),
     refillInterval: z.number().int().min(0),
     requestTimeout: z.number().int().min(0).optional(),
@@ -74,6 +77,7 @@ export const bundlerArgsSchema = z.object({
     bundleMode: z.enum(["auto", "manual"]),
     bundlerFrequency: z.number().int().min(0),
 
+    flushStuckTransactionsDuringStartup: z.boolean(),
     safeMode: z.boolean(),
     disableExpirationCheck: z.boolean(),
 
