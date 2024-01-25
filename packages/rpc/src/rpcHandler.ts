@@ -452,7 +452,7 @@ export class RpcHandler implements IRpcEndpoint {
             this.metrics.userOperationsReceived
                 .labels({
                     status,
-                    type: "default"
+                    type: "regular"
                 })
                 .inc()
         }
