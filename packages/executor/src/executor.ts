@@ -434,7 +434,7 @@ export class BasicExecutor implements IExecutor {
         })
 
         let childLogger = this.logger.child({
-            userOperations: opsWithHashes.map((oh) => oh.mempoolUserOperation),
+            userOperations: opsWithHashes.map((oh) => oh.userOperationHash),
             entryPoint
         })
         childLogger.debug("bundling user operation")
