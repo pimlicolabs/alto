@@ -506,15 +506,12 @@ export class BasicExecutor implements IExecutor {
             .map((op) => op.owh)
 
         childLogger = this.logger.child({
-            userOperations: opsWithHashToBundle.map((owh) => owh.mempoolUserOperation),
+            userOperations: opsWithHashToBundle.map((owh) => owh.userOperationHash),
             entryPoint
         })
 
         childLogger.trace(
-            {
-                gasLimit,
-                opsToBundle: opsWithHashToBundle.map((owh) => owh.userOperationHash)
-            },
+            { gasLimit },
             "got gas limit"
         )
 
