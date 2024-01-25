@@ -371,10 +371,10 @@ export class RpcHandler implements IRpcEndpoint {
                     .baseFeePerGas
                 gasPrice =
                     userOperation.maxFeePerGas <
-                    (blockBaseFee ?? 0n) + userOperation.maxPriorityFeePerGas
+                        (blockBaseFee ?? 0n) + userOperation.maxPriorityFeePerGas
                         ? userOperation.maxFeePerGas
                         : userOperation.maxPriorityFeePerGas +
-                          (blockBaseFee ?? 0n)
+                        (blockBaseFee ?? 0n)
             }
             const calculatedCallGasLimit =
                 executionResult.paid / gasPrice -
@@ -435,14 +435,27 @@ export class RpcHandler implements IRpcEndpoint {
         userOperation: UserOperation,
         entryPoint: Address
     ): Promise<SendUserOperationResponseResult> {
-        await this.addToMempoolIfValid(userOperation, entryPoint)
+        let status;
+        try {
+            status = await this.addToMempoolIfValid(userOperation, entryPoint)
 
-        const hash = getUserOperationHash(
-            userOperation,
-            entryPoint,
-            this.chainId
-        )
-        return hash
+            const hash = getUserOperationHash(
+                userOperation,
+                entryPoint,
+                this.chainId
+            )
+            return hash
+        } catch (error) {
+            status = "rejected"
+            throw error;
+        } finally {
+            this.metrics.userOperationsReceived
+                .labels({
+                    status,
+                    type: "regular"
+                })
+                .inc()
+        }
     }
 
     async eth_getUserOperationByHash(
@@ -815,7 +828,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     // check if we want to bundle userOperation. If yes, add to mempool
-    async addToMempoolIfValid(op: MempoolUserOperation, entryPoint: Address) {
+    async addToMempoolIfValid(op: MempoolUserOperation, entryPoint: Address): Promise<'added' | 'queued'> {
         const userOperation = deriveUserOperation(op)
         if (this.entryPoint !== entryPoint) {
             throw new RpcError(
@@ -864,7 +877,6 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         this.logger.trace({ userOperation, entryPoint }, "beginning validation")
-        this.metrics.userOperationsReceived.inc()
 
         if (
             userOperation.preVerificationGas === 0n ||
@@ -936,10 +948,12 @@ export class RpcHandler implements IRpcEndpoint {
                         ValidationErrors.SimulateValidation
                     )
                 }
+                return 'added'
             }
-        } else {
-            this.nonceQueuer.add(userOperation)
         }
+
+        this.nonceQueuer.add(userOperation)
+        return 'queued'
     }
 
     async pimlico_sendCompressedUserOperation(
@@ -947,16 +961,46 @@ export class RpcHandler implements IRpcEndpoint {
         inflatorAddress: Address,
         entryPoint: Address
     ) {
+        let status;
+        try {
+            var { inflatedOp, inflatorId } = await this.validateAndInflateCompressedUserOperation(inflatorAddress, compressedCalldata)
+
+            const compressedUserOp: CompressedUserOperation = {
+                compressedCalldata,
+                inflatedOp,
+                inflatorAddress,
+                inflatorId
+            }
+
+            // check userOps inputs.
+            status = await this.addToMempoolIfValid(compressedUserOp, entryPoint)
+
+            const hash = getUserOperationHash(inflatedOp, entryPoint, this.chainId)
+
+            return hash
+        } catch (error) {
+            status = "rejected"
+            throw error;
+        } finally {
+            this.metrics.userOperationsReceived
+                .labels({
+                    status,
+                    type: "compressed"
+                })
+                .inc()
+        }
+    }
+
+    private async validateAndInflateCompressedUserOperation(inflatorAddress: Address, compressedCalldata: Hex): Promise<{ inflatedOp: UserOperation; inflatorId: number }> {
+        // check if inflator is registered with our PerOpInflator.
         if (this.compressionHandler === null) {
             throw new RpcError("Endpoint not supported")
         }
 
-        // check if inflator is registered with our PerOpInflator.
-        const inflatorId =
-            await this.compressionHandler.getInflatorRegisteredId(
-                inflatorAddress,
-                this.publicClient
-            )
+        const inflatorId = await this.compressionHandler.getInflatorRegisteredId(
+            inflatorAddress,
+            this.publicClient
+        )
 
         if (inflatorId === 0) {
             throw new RpcError(
@@ -993,19 +1037,6 @@ export class RpcHandler implements IRpcEndpoint {
                 ValidationErrors.InvalidFields
             )
         }
-
-        const compressedUserOp: CompressedUserOperation = {
-            compressedCalldata,
-            inflatedOp,
-            inflatorAddress,
-            inflatorId
-        }
-
-        // check userOps inputs.
-        await this.addToMempoolIfValid(compressedUserOp, entryPoint)
-
-        const hash = getUserOperationHash(inflatedOp, entryPoint, this.chainId)
-
-        return hash
+        return { inflatedOp, inflatorId }
     }
 }
