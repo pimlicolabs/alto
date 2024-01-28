@@ -553,8 +553,6 @@ export class BasicExecutor implements IExecutor {
         }
 
         const userOperationInfos = opsWithHashToBundle.map((op) => {
-            this.metrics.userOperationsSubmitted.inc()
-
             return {
                 mempoolUserOperation: op.mempoolUserOperation,
                 userOperationHash: op.userOperationHash,
@@ -604,8 +602,6 @@ export class BasicExecutor implements IExecutor {
             },
             "submitted bundle transaction"
         )
-
-        this.metrics.bundlesSubmitted.inc()
 
         return userOperationResults
     }
@@ -724,8 +720,6 @@ export class BasicExecutor implements IExecutor {
         }
 
         const userOperationInfos = opsToBundle.map((owh) => {
-            this.metrics.userOperationsSubmitted.inc()
-
             return {
                 mempoolUserOperation: owh.mempoolUserOperation,
                 userOperationHash: owh.userOperationHash,
@@ -761,8 +755,6 @@ export class BasicExecutor implements IExecutor {
             { txHash, opHashes: opsToBundle.map((owh) => owh.userOperationHash) },
             "submitted bundle transaction"
         )
-
-        this.metrics.bundlesSubmitted.inc()
 
         return userOperationResults
     }
