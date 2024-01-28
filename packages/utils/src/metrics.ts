@@ -75,7 +75,7 @@ export function createMetrics(registry: Registry, register = true) {
     const userOperationsSubmitted = new Counter({
         name: "alto_user_operations_submitted_count",
         help: "Number of user operations bundles submitted on-chain",
-        labelNames: [] as const,
+        labelNames: ["status"] as const,
         registers
     })
 
