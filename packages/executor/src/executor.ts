@@ -434,7 +434,7 @@ export class BasicExecutor implements IExecutor {
         })
 
         let childLogger = this.logger.child({
-            userOperations: opsWithHashes.map((oh) => oh.mempoolUserOperation),
+            userOperations: opsWithHashes.map((oh) => oh.userOperationHash),
             entryPoint
         })
         childLogger.debug("bundling user operation")
@@ -506,15 +506,12 @@ export class BasicExecutor implements IExecutor {
             .map((op) => op.owh)
 
         childLogger = this.logger.child({
-            userOperations: opsWithHashToBundle.map((owh) => owh.mempoolUserOperation),
+            userOperations: opsWithHashToBundle.map((owh) => owh.userOperationHash),
             entryPoint
         })
 
         childLogger.trace(
-            {
-                gasLimit,
-                opsToBundle: opsWithHashToBundle.map((owh) => owh.userOperationHash)
-            },
+            { gasLimit },
             "got gas limit"
         )
 
@@ -556,8 +553,6 @@ export class BasicExecutor implements IExecutor {
         }
 
         const userOperationInfos = opsWithHashToBundle.map((op) => {
-            this.metrics.userOperationsSubmitted.inc()
-
             return {
                 mempoolUserOperation: op.mempoolUserOperation,
                 userOperationHash: op.userOperationHash,
@@ -607,8 +602,6 @@ export class BasicExecutor implements IExecutor {
             },
             "submitted bundle transaction"
         )
-
-        this.metrics.bundlesSubmitted.inc()
 
         return userOperationResults
     }
@@ -727,8 +720,6 @@ export class BasicExecutor implements IExecutor {
         }
 
         const userOperationInfos = opsToBundle.map((owh) => {
-            this.metrics.userOperationsSubmitted.inc()
-
             return {
                 mempoolUserOperation: owh.mempoolUserOperation,
                 userOperationHash: owh.userOperationHash,
@@ -764,8 +755,6 @@ export class BasicExecutor implements IExecutor {
             { txHash, opHashes: opsToBundle.map((owh) => owh.userOperationHash) },
             "submitted bundle transaction"
         )
-
-        this.metrics.bundlesSubmitted.inc()
 
         return userOperationResults
     }

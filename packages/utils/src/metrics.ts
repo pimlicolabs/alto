@@ -73,23 +73,23 @@ export function createMetrics(registry: Registry, register = true) {
     })
 
     const userOperationsSubmitted = new Counter({
-        name: "alto_user_operations_submitted_count",
+        name: "alto_user_operations_submitted_total",
         help: "Number of user operations bundles submitted on-chain",
-        labelNames: [] as const,
+        labelNames: ["status"] as const,
         registers
     })
 
     const bundlesIncluded = new Counter({
-        name: "alto_bundles_included_count",
+        name: "alto_bundles_included_total",
         help: "Number of user operations bundles included on-chain",
         labelNames: [] as const,
         registers
     })
 
     const bundlesSubmitted = new Counter({
-        name: "alto_bundles_submitted_count",
+        name: "alto_bundles_submitted_total",
         help: "Number of user operations bundles submitted on-chain",
-        labelNames: [] as const,
+        labelNames: ["status"] as const,
         registers
     })
 
@@ -101,14 +101,14 @@ export function createMetrics(registry: Registry, register = true) {
     })
 
     const userOperationsValidationSuccess = new Counter({
-        name: "alto_user_operations_validation_success_count",
+        name: "alto_user_operations_validation_success_total",
         help: "Number of user operations successfully validated",
         labelNames: [] as const,
         registers
     })
 
     const userOperationsValidationFailure = new Counter({
-        name: "alto_user_operations_validation_failure_count",
+        name: "alto_user_operations_validation_failure_total",
         help: "Number of user operations failed to validate",
         labelNames: [] as const,
         registers
