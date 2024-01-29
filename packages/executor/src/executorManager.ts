@@ -280,9 +280,9 @@ export class ExecutorManager {
             return
         }
 
+        this.metrics.userOperationsOnChain.labels({ status: status.transactionStatuses.status }).inc(opInfos.length)
         if (status.transactionStatuses.status === "included") {
             opInfos.map((info) => {
-                this.metrics.userOperationsIncluded.inc()
                 this.metrics.userOperationInclusionDuration.observe(
                     (Date.now() - info.firstSubmitted) / 1000
                 )
