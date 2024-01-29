@@ -141,6 +141,13 @@ export function createMetrics(registry: Registry, register = true) {
         buckets: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     })
 
+    const replacedTransactions = new Counter({
+        name: "alto_replaced_transactions_total",
+        help: "Number of replaced transactions",
+        labelNames: ["reason", "status"] as const,
+        registers
+    })
+
     return {
         httpRequests,
         httpRequestsDuration,
@@ -156,6 +163,7 @@ export function createMetrics(registry: Registry, register = true) {
         userOperationsValidationFailure,
         userOperationInclusionDuration,
         verificationGasLimitEstimationTime,
-        verificationGasLimitEstimationCount
+        verificationGasLimitEstimationCount,
+        replacedTransactions,
     }
 }

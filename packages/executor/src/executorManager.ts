@@ -17,7 +17,7 @@ import {
     getGasPrice
 } from "@alto/utils"
 import { IReputationManager, Mempool, Monitor } from "@alto/mempool"
-import { IExecutor } from "./executor"
+import { IExecutor, ReplaceTransactionResult } from "./executor"
 import {
     Address,
     Block,
@@ -411,7 +411,12 @@ export class ExecutorManager {
         txInfo: TransactionInfo,
         reason: string
     ): Promise<void> {
-        const replaceResult = await this.executor.replaceTransaction(txInfo)
+        let replaceResult: ReplaceTransactionResult | undefined = undefined
+        try {
+            replaceResult = await this.executor.replaceTransaction(txInfo)
+        } finally {
+            this.metrics.replacedTransactions.labels({ reason, status: replaceResult?.status || "failed" }).inc()
+        }
         if (replaceResult.status === "failed") {
             txInfo.userOperationInfos.map((opInfo) => {
                 this.mempool.removeSubmitted(opInfo.userOperationHash)
