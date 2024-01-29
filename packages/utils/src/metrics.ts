@@ -65,10 +65,10 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
-    const userOperationsIncluded = new Counter({
-        name: "alto_user_operations_included_count",
-        help: "Number of user operations bundles included on-chain",
-        labelNames: [] as const,
+    const userOperationsOnChain = new Counter({
+        name: "alto_user_operations_on_chain_total",
+        help: "Number of user operations on-chain by status",
+        labelNames: ["status"] as const,
         registers
     })
 
@@ -141,13 +141,20 @@ export function createMetrics(registry: Registry, register = true) {
         buckets: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     })
 
+    const replacedTransactions = new Counter({
+        name: "alto_replaced_transactions_total",
+        help: "Number of replaced transactions",
+        labelNames: ["reason", "status"] as const,
+        registers
+    })
+
     return {
         httpRequests,
         httpRequestsDuration,
         userOperationsInMempool,
         walletsAvailable,
         walletsTotal,
-        userOperationsIncluded,
+        userOperationsOnChain,
         userOperationsSubmitted,
         bundlesIncluded,
         bundlesSubmitted,
@@ -156,6 +163,7 @@ export function createMetrics(registry: Registry, register = true) {
         userOperationsValidationFailure,
         userOperationInclusionDuration,
         verificationGasLimitEstimationTime,
-        verificationGasLimitEstimationCount
+        verificationGasLimitEstimationCount,
+        replacedTransactions,
     }
 }
