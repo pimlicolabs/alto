@@ -54,70 +54,70 @@ export function createMetrics(registry: Registry, register = true) {
     const walletsAvailable = new Gauge({
         name: "alto_executor_wallets_available_count",
         help: "Number of available executor wallets used to bundle",
-        labelNames: ["network", "chainId"] as const,
+        labelNames: [] as const,
         registers
     })
 
     const walletsTotal = new Gauge({
         name: "alto_executor_wallets_total_count",
         help: "Number of total executor wallets used to bundle",
-        labelNames: ["network", "chainId"] as const,
+        labelNames: [] as const,
         registers
     })
 
-    const userOperationsIncluded = new Counter({
-        name: "alto_user_operations_included_count",
-        help: "Number of user operations bundles included on-chain",
-        labelNames: ["network", "chainId"] as const,
+    const userOperationsOnChain = new Counter({
+        name: "alto_user_operations_on_chain_total",
+        help: "Number of user operations on-chain by status",
+        labelNames: ["status"] as const,
         registers
     })
 
     const userOperationsSubmitted = new Counter({
-        name: "alto_user_operations_submitted_count",
+        name: "alto_user_operations_submitted_total",
         help: "Number of user operations bundles submitted on-chain",
-        labelNames: ["network", "chainId"] as const,
+        labelNames: ["status"] as const,
         registers
     })
 
     const bundlesIncluded = new Counter({
-        name: "alto_bundles_included_count",
+        name: "alto_bundles_included_total",
         help: "Number of user operations bundles included on-chain",
-        labelNames: ["network", "chainId"] as const,
+        labelNames: [] as const,
         registers
     })
 
     const bundlesSubmitted = new Counter({
-        name: "alto_bundles_submitted_count",
+        name: "alto_bundles_submitted_total",
         help: "Number of user operations bundles submitted on-chain",
-        labelNames: ["network", "chainId"] as const,
+        labelNames: ["status"] as const,
         registers
     })
 
     const userOperationsReceived = new Counter({
-        name: "alto_user_operations_received_count",
+        name: "alto_user_operations_received_total",
         help: "Number of user operations received",
-        labelNames: ["network", "chainId"] as const,
+        labelNames: ["status", "type"] as const,
         registers
     })
 
     const userOperationsValidationSuccess = new Counter({
-        name: "alto_user_operations_validation_success_count",
+        name: "alto_user_operations_validation_success_total",
         help: "Number of user operations successfully validated",
-        labelNames: ["network", "chainId"] as const,
+        labelNames: [] as const,
         registers
     })
 
     const userOperationsValidationFailure = new Counter({
-        name: "alto_user_operations_validation_failure_count",
+        name: "alto_user_operations_validation_failure_total",
         help: "Number of user operations failed to validate",
-        labelNames: ["network", "chainId"] as const,
+        labelNames: [] as const,
         registers
     })
 
     const userOperationInclusionDuration = new Histogram({
         name: "alto_user_operation_inclusion_duration_seconds",
         help: "Duration of user operation inclusion from first submission to inclusion on-chain",
-        labelNames: ["network", "chainId"] as const,
+        labelNames: [] as const,
         registers,
         buckets: [
             0.5, 1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 25, 30, 40, 50, 60, 120,
@@ -128,7 +128,7 @@ export function createMetrics(registry: Registry, register = true) {
     const verificationGasLimitEstimationTime = new Histogram({
         name: "alto_verification_gas_limit_estimation_time_seconds",
         help: "Total duration of verification gas limit estimation",
-        labelNames: ["network", "chainId"] as const,
+        labelNames: [] as const,
         registers,
         buckets: [0.1, 0.2, 0.3, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5]
     })
@@ -136,9 +136,16 @@ export function createMetrics(registry: Registry, register = true) {
     const verificationGasLimitEstimationCount = new Histogram({
         name: "alto_verification_gas_limit_estimation_count",
         help: "Number of verification gas limit estimation calls",
-        labelNames: ["network", "chainId"] as const,
+        labelNames: [] as const,
         registers,
         buckets: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    })
+
+    const replacedTransactions = new Counter({
+        name: "alto_replaced_transactions_total",
+        help: "Number of replaced transactions",
+        labelNames: ["reason", "status"] as const,
+        registers
     })
 
     return {
@@ -147,7 +154,7 @@ export function createMetrics(registry: Registry, register = true) {
         userOperationsInMempool,
         walletsAvailable,
         walletsTotal,
-        userOperationsIncluded,
+        userOperationsOnChain,
         userOperationsSubmitted,
         bundlesIncluded,
         bundlesSubmitted,
@@ -156,6 +163,7 @@ export function createMetrics(registry: Registry, register = true) {
         userOperationsValidationFailure,
         userOperationInclusionDuration,
         verificationGasLimitEstimationTime,
-        verificationGasLimitEstimationCount
+        verificationGasLimitEstimationCount,
+        replacedTransactions,
     }
 }

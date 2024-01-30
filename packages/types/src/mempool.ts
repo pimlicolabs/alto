@@ -1,6 +1,6 @@
 import { Account } from "viem/accounts"
-import { HexData32, UserOperation } from "."
-import { Abi, Chain, WriteContractParameters } from "viem"
+import { HexData32, UserOperation, CompressedUserOperation } from "."
+import { Address, Chain, Hex } from "viem"
 
 export interface ReferencedCodeHashes {
     // addresses accessed during this user operation
@@ -10,20 +10,29 @@ export interface ReferencedCodeHashes {
     hash: string
 }
 
+export const deriveUserOperation = (op: MempoolUserOperation): UserOperation => {
+    return isCompressedType(op) ? (op as CompressedUserOperation).inflatedOp : (op as UserOperation)
+}
+
+export const isCompressedType = (op: MempoolUserOperation): boolean => {
+    return "compressedCalldata" in op
+}
+
+export type MempoolUserOperation = UserOperation | CompressedUserOperation
+
 export type TransactionInfo = {
+    transactionType: "default" | "compressed"
     transactionHash: HexData32
     previousTransactionHashes: HexData32[]
-    transactionRequest: WriteContractParameters<
-        Abi | readonly unknown[],
-        string,
-        Chain,
-        Account,
-        Chain
-    > & {
+    transactionRequest: {
+        account: Account,
+        to: Address,
+        data: Hex,
+        gas: bigint,
+        chain: Chain,
+        maxFeePerGas: bigint,
+        maxPriorityFeePerGas: bigint,
         nonce: number
-        maxFeePerGas: bigint
-        maxPriorityFeePerGas: bigint
-        account: Account
     }
     executor: Account
     userOperationInfos: UserOperationInfo[]
@@ -33,7 +42,7 @@ export type TransactionInfo = {
 }
 
 export type UserOperationInfo = {
-    userOperation: UserOperation
+    mempoolUserOperation: MempoolUserOperation
     userOperationHash: HexData32
     lastReplaced: number
     firstSubmitted: number

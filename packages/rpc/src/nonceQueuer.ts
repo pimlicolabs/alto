@@ -1,11 +1,27 @@
-import { EntryPointAbi, UserOperation } from "@alto/types"
-import { Logger, getNonceKeyAndValue, getUserOperationHash } from "@alto/utils"
-import { Address, Chain, Hash, PublicClient, Transport } from "viem"
-import { Mempool, Monitor } from "@alto/mempool"
+import {
+    EntryPointAbi,
+    type MempoolUserOperation,
+    deriveUserOperation
+} from "@alto/types"
+import {
+    type Logger,
+    getNonceKeyAndValue,
+    getUserOperationHash
+} from "@alto/utils"
+import {
+    type Address,
+    type Chain,
+    type Hash,
+    type MulticallReturnType,
+    type PublicClient,
+    type Transport,
+    getContract
+} from "viem"
+import type { Mempool, Monitor } from "@alto/mempool"
 
 type QueuedUserOperation = {
     userOperationHash: Hash
-    userOperation: UserOperation
+    mempoolUserOperation: MempoolUserOperation
     nonceKey: bigint
     nonceValue: bigint
     addedAt: number
@@ -68,7 +84,7 @@ export class NonceQueuer {
         })
 
         availableOps.map((op) => {
-            this.resubmitUserOperation(op.userOperation)
+            this.resubmitUserOperation(op.mempoolUserOperation)
         })
 
         this.logger.info(
@@ -77,32 +93,34 @@ export class NonceQueuer {
         )
     }
 
-    add(userOperation: UserOperation) {
-        const userOperationHash = getUserOperationHash(
-            userOperation,
+    add(mempoolUserOperation: MempoolUserOperation) {
+        const op = deriveUserOperation(mempoolUserOperation)
+        const opHash = getUserOperationHash(
+            deriveUserOperation(mempoolUserOperation),
             this.entryPoint,
             this.publicClient.chain.id
         )
-        const [nonceKey, nonceValue] = getNonceKeyAndValue(userOperation.nonce)
+        const [nonceKey, nonceValue] = getNonceKeyAndValue(op.nonce)
         this.queuedUserOperations.push({
-            userOperationHash,
-            userOperation: userOperation,
+            mempoolUserOperation: mempoolUserOperation,
             nonceKey: nonceKey,
             nonceValue: nonceValue,
-            addedAt: Date.now()
+            addedAt: Date.now(),
+            userOperationHash: opHash,
         })
-        this.monitor.setUserOperationStatus(userOperationHash, {
+        this.monitor.setUserOperationStatus(opHash, {
             status: "queued",
             transactionHash: null
         })
     }
 
-    private resubmitUserOperation(userOperation: UserOperation) {
+    resubmitUserOperation(mempoolUserOperation: MempoolUserOperation) {
+        const userOperation = mempoolUserOperation
         this.logger.info(
             { userOperation: userOperation },
             "submitting user operation from nonce queue"
         )
-        const result = this.mempool.add(userOperation)
+        const result = this.mempool.add(mempoolUserOperation)
         if (result) {
             this.logger.info(
                 { userOperation: userOperation, result: result },
@@ -119,17 +137,54 @@ export class NonceQueuer {
     ) {
         const queuedUserOperations = this.queuedUserOperations.slice()
 
-        const results = await publicClient.multicall({
-            contracts: queuedUserOperations.map((qop) => {
-                return {
-                    address: entryPoint,
-                    abi: EntryPointAbi,
-                    functionName: "getNonce",
-                    args: [qop.userOperation.sender, qop.nonceKey]
-                }
-            }),
-            blockTag: "latest"
-        })
+        let results: MulticallReturnType
+
+        try {
+            results = await publicClient.multicall({
+                contracts: queuedUserOperations.map((qop) => {
+                    const userOp = deriveUserOperation(qop.mempoolUserOperation)
+                    return {
+                        address: entryPoint,
+                        abi: EntryPointAbi,
+                        functionName: "getNonce",
+                        args: [userOp.sender, qop.nonceKey]
+                    }
+                }),
+                blockTag: "latest"
+            })
+        } catch (error) {
+            this.logger.error(
+                { error: JSON.stringify(error) },
+                "error fetching with multiCall"
+            )
+
+            const entryPointContract = getContract({
+                abi: EntryPointAbi,
+                address: entryPoint,
+                publicClient: publicClient
+            })
+
+            results = await Promise.all(
+                queuedUserOperations.map(async (qop) => {
+                    const userOp = deriveUserOperation(qop.mempoolUserOperation)
+                    try {
+                        const nonce = await entryPointContract.read.getNonce(
+                            [userOp.sender, qop.nonceKey],
+                            { blockTag: "latest" }
+                        )
+                        return {
+                            result: nonce,
+                            status: "success"
+                        }
+                    } catch (e) {
+                        return {
+                            error: e as Error,
+                            status: "failure"
+                        }
+                    }
+                })
+            )
+        }
 
         if (results.length !== queuedUserOperations.length) {
             this.logger.error("error fetching nonces")

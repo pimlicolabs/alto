@@ -1,11 +1,23 @@
 import {
-    UserOperation,
     SubmittedUserOperation,
     TransactionInfo,
-    BundlingMode
+    BundlingMode,
+    MempoolUserOperation,
+    CompressedUserOperation,
+    UserOperation,
+    deriveUserOperation,
+    isCompressedType,
+    HexData32,
+    BundleResult
 } from "@alto/types"
+import {
+    Logger,
+    Metrics,
+    transactionIncluded,
+    getGasPrice
+} from "@alto/utils"
 import { IReputationManager, Mempool, Monitor } from "@alto/mempool"
-import { IExecutor } from "./executor"
+import { IExecutor, ReplaceTransactionResult } from "./executor"
 import {
     Address,
     Block,
@@ -15,8 +27,6 @@ import {
     Transport,
     WatchBlocksReturnType
 } from "viem"
-import { Logger, Metrics, transactionIncluded } from "@alto/utils"
-import { getGasPrice } from "@alto/utils"
 
 function getTransactionsFromUserOperationEntries(
     entries: SubmittedUserOperation[]
@@ -101,9 +111,36 @@ export class ExecutorManager {
         return txHash
     }
 
-    async sendToExecutor(ops: UserOperation[]) {
-        const results = await this.executor.bundle(this.entryPointAddress, ops)
-        let txHash
+    async sendToExecutor(mempoolOps: MempoolUserOperation[]) {
+        const ops = mempoolOps.filter((op) => !isCompressedType(op)).map((op) => (op as UserOperation))
+        const compressedOps = mempoolOps.filter((op) => isCompressedType(op)).map((op) => (op as CompressedUserOperation))
+
+        const bundles: BundleResult[][] = []
+        if (ops.length > 0) {
+            bundles.push(await this.executor.bundle(this.entryPointAddress, ops))
+        }
+        if (compressedOps.length > 0) {
+            bundles.push(await this.executor.bundleCompressed(this.entryPointAddress, compressedOps))
+        }
+
+        bundles.forEach((bundle) => {
+            const isBundleSuccess = bundle.every((result) => result.success)
+            if (isBundleSuccess) {
+                this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
+            } else {
+                this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
+            }
+        })
+
+        const results = bundles.flat()
+
+        const filteredOutOps = mempoolOps.length - results.length
+        if (filteredOutOps > 0) {
+            this.logger.debug({ filteredOutOps }, "user operations filtered out")
+            this.metrics.userOperationsSubmitted.labels({ status: "filtered" }).inc(filteredOutOps)
+        }
+
+        let txHash: HexData32 | undefined = undefined
         for (const result of results) {
             if (result.success === true) {
                 const res = result.value
@@ -122,6 +159,7 @@ export class ExecutorManager {
                 )
                 txHash = res.transactionInfo.transactionHash
                 this.startWatchingBlocks(this.handleBlock.bind(this))
+                this.metrics.userOperationsSubmitted.labels({ status: "success" }).inc()
             } else {
                 this.mempool.removeProcessing(result.error.userOpHash)
                 this.monitor.setUserOperationStatus(result.error.userOpHash, {
@@ -135,14 +173,14 @@ export class ExecutorManager {
                     },
                     "user operation rejected"
                 )
+                this.metrics.userOperationsSubmitted.labels({ status: "failed" }).inc()
             }
         }
         return txHash
     }
 
     async bundle() {
-        const opsToBundle: UserOperation[][] = []
-        // rome-ignore lint/nursery/noConstantCondition: <explanation>
+        const opsToBundle: MempoolUserOperation[][] = []
         while (true) {
             const ops = await this.mempool.process(5_000_000n, 1)
             if (ops?.length > 0) {
@@ -242,14 +280,14 @@ export class ExecutorManager {
             return
         }
 
+        this.metrics.userOperationsOnChain.labels({ status: status.transactionStatuses.status }).inc(opInfos.length)
         if (status.transactionStatuses.status === "included") {
             opInfos.map((info) => {
-                this.metrics.userOperationsIncluded.inc()
                 this.metrics.userOperationInclusionDuration.observe(
                     (Date.now() - info.firstSubmitted) / 1000
                 )
                 this.reputationManager.updateUserOperationIncludedStatus(
-                    info.userOperation,
+                    deriveUserOperation(info.mempoolUserOperation),
                     status.transactionStatuses[info.userOperationHash]
                         .accountDeployed
                 )
@@ -341,9 +379,9 @@ export class ExecutorManager {
             transactionInfos.map(async (txInfo) => {
                 if (
                     txInfo.transactionRequest.maxFeePerGas >=
-                        gasPriceParameters.maxFeePerGas &&
+                    gasPriceParameters.maxFeePerGas &&
                     txInfo.transactionRequest.maxPriorityFeePerGas >=
-                        gasPriceParameters.maxPriorityFeePerGas
+                    gasPriceParameters.maxPriorityFeePerGas
                 ) {
                     return
                 }
@@ -373,7 +411,12 @@ export class ExecutorManager {
         txInfo: TransactionInfo,
         reason: string
     ): Promise<void> {
-        const replaceResult = await this.executor.replaceTransaction(txInfo)
+        let replaceResult: ReplaceTransactionResult | undefined = undefined
+        try {
+            replaceResult = await this.executor.replaceTransaction(txInfo)
+        } finally {
+            this.metrics.replacedTransactions.labels({ reason, status: replaceResult?.status || "failed" }).inc()
+        }
         if (replaceResult.status === "failed") {
             txInfo.userOperationInfos.map((opInfo) => {
                 this.mempool.removeSubmitted(opInfo.userOperationHash)
@@ -385,7 +428,8 @@ export class ExecutorManager {
             )
 
             return
-        } else if (replaceResult.status === "potentially_already_included") {
+        }
+        if (replaceResult.status === "potentially_already_included") {
             this.logger.info(
                 { oldTxHash: txInfo.transactionHash, reason },
                 "transaction potentially already included"

@@ -5,7 +5,7 @@ import {
     UserOperation,
     ValidationErrors,
     ValidationResult,
-    ValidationResultWithAggregation
+    ValidationResultWithAggregation,
 } from "@alto/types"
 import { Logger, getAddressFromInitCodeOrPaymasterAndData } from "@alto/utils"
 import { Address, PublicClient, getAddress, getContract } from "viem"
@@ -324,23 +324,23 @@ export class ReputationManager implements IReputationManager {
         entry.opsIncluded = 0n
     }
 
-    crashedHandleOps(userOperation: UserOperation, reason: string): void {
+    crashedHandleOps(op: UserOperation, reason: string): void {
         if (reason.startsWith("AA3")) {
             // paymaster
-            let paymaster = getAddressFromInitCodeOrPaymasterAndData(
-                userOperation.paymasterAndData
+            const paymaster = getAddressFromInitCodeOrPaymasterAndData(
+                op.paymasterAndData
             ) as Address | undefined
             if (paymaster) {
                 this.updateCrashedHandleOps(paymaster)
             }
         } else if (reason.startsWith("AA2")) {
             // sender
-            const sender = userOperation.sender
+            const sender = op.sender
             this.updateCrashedHandleOps(sender)
         } else if (reason.startsWith("AA1")) {
             // init code
-            let factory = getAddressFromInitCodeOrPaymasterAndData(
-                userOperation.initCode
+            const factory = getAddressFromInitCodeOrPaymasterAndData(
+                op.initCode
             ) as Address | undefined
             if (factory) {
                 this.updateCrashedHandleOps(factory)

@@ -12,7 +12,9 @@ import {
     IValidator,
     ValidationResult,
     EntryPointAbi,
-    ReferencedCodeHashes
+    ReferencedCodeHashes,
+    MempoolUserOperation,
+    deriveUserOperation
 } from "@alto/types"
 import { HexData32 } from "@alto/types"
 import { Monitor } from "./monitoring"
@@ -32,88 +34,7 @@ import {
 } from "@alto/utils"
 import { MemoryStore } from "./store"
 import { IReputationManager, ReputationStatuses } from "./reputationManager"
-
-export interface Mempool {
-    add(op: UserOperation, referencedContracts?: ReferencedCodeHashes): boolean
-    checkEntityMultipleRoleViolation(_op: UserOperation): Promise<void>
-
-    /**
-     * Takes an array of user operations from the mempool, also marking them as submitted.
-     *
-     * @param gasLimit The maximum gas limit of user operations to take.
-     * @param minOps The minimum number of user operations to take.
-     * @returns An array of user operations to submit.
-     */
-    process(gasLimit: bigint, minOps?: number): Promise<UserOperation[]>
-
-    replaceSubmitted(
-        userOperation: UserOperationInfo,
-        transactionInfo: TransactionInfo
-    ): void
-
-    markSubmitted(userOpHash: HexData32, transactionInfo: TransactionInfo): void
-
-    /**
-     * Removes a user operation from the mempool.
-     *
-     * @param userOpHash The hash of the user operation to remove.
-     */
-    removeSubmitted(userOpHash: HexData32): void
-    removeProcessing(userOpHash: HexData32): void
-
-    /**
-     * Gets all user operation from the mempool.
-     *
-     * @returns An array of user operations.
-     */
-    dumpSubmittedOps(): SubmittedUserOperation[]
-
-    dumpOutstanding(): UserOperationInfo[]
-
-    dumpProcessing(): UserOperationInfo[]
-
-    clear(): void
-}
-
-export class NullMempool implements Mempool {
-    clear(): void {
-        throw new Error("Method not implemented.")
-    }
-    dumpOutstanding(): UserOperationInfo[] {
-        throw new Error("Method not implemented.")
-    }
-    removeProcessing(_: `0x${string}`): void {
-        throw new Error("Method not implemented.")
-    }
-    replaceSubmitted(_: UserOperationInfo, __: TransactionInfo): void {
-        throw new Error("Method not implemented.")
-    }
-    markSubmitted(_: `0x${string}`, __: TransactionInfo): void {
-        throw new Error("Method not implemented.")
-    }
-    dumpSubmittedOps(): SubmittedUserOperation[] {
-        throw new Error("Method not implemented.")
-    }
-    dumpProcessing(): UserOperationInfo[] {
-        throw new Error("Method not implemented.")
-    }
-    removeSubmitted(_: `0x${string}`): void {
-        throw new Error("Method not implemented.")
-    }
-    add(
-        _op: UserOperation,
-        _referencedContracts?: ReferencedCodeHashes
-    ): boolean {
-        return false
-    }
-    async checkEntityMultipleRoleViolation(_op: UserOperation): Promise<void> {
-        return
-    }
-
-    async process(_: bigint, __?: number): Promise<UserOperation[]> {
-        return []
-    }
-}
+import { Mempool } from "./types"
 
 export class MemoryMempool implements Mempool {
     private monitor: Monitor
@@ -215,8 +136,11 @@ export class MemoryMempool implements Mempool {
         this.store.removeProcessing(userOpHash)
     }
 
+    // biome-ignore lint/nursery/useAwait: keep async to adhere to interface
     async checkEntityMultipleRoleViolation(op: UserOperation): Promise<void> {
-        if (!this.safeMode) return
+        if (!this.safeMode) {
+            return
+        }
         const knownEntities = this.getKnownEntities()
 
         if (
@@ -267,16 +191,17 @@ export class MemoryMempool implements Mempool {
             facotries: new Set()
         }
 
-        for (const op of allOps) {
-            entities.sender.add(op.userOperation.sender)
+        for (const mempoolOp of allOps) {
+            const op = deriveUserOperation(mempoolOp.mempoolUserOperation)
+            entities.sender.add(op.sender)
             const paymaster = getAddressFromInitCodeOrPaymasterAndData(
-                op.userOperation.paymasterAndData
+                op.paymasterAndData
             )
             if (paymaster) {
                 entities.paymasters.add(paymaster)
             }
             const factory = getAddressFromInitCodeOrPaymasterAndData(
-                op.userOperation.initCode
+                op.initCode
             )
             if (factory) {
                 entities.facotries.add(factory)
@@ -286,7 +211,12 @@ export class MemoryMempool implements Mempool {
         return entities
     }
 
-    add(op: UserOperation, referencedContracts?: ReferencedCodeHashes) {
+    add(
+        mempoolUserOperation: MempoolUserOperation,
+        referencedContracts?: ReferencedCodeHashes
+    ) {
+        const op = deriveUserOperation(mempoolUserOperation)
+
         const outstandingOps = [...this.store.dumpOutstanding()]
 
         const processedOrSubmittedOps = [
@@ -295,26 +225,24 @@ export class MemoryMempool implements Mempool {
         ]
 
         if (
-            processedOrSubmittedOps.find(
-                (uo) =>
-                    uo.userOperation.sender === op.sender &&
-                    uo.userOperation.nonce === op.nonce
-            )
+            processedOrSubmittedOps.find((uo) => {
+                const userOp = deriveUserOperation(uo.mempoolUserOperation)
+                return userOp.sender === op.sender && userOp.nonce === op.nonce
+            })
         ) {
             return false
         }
 
         this.reputationManager.updateUserOperationSeenStatus(op)
-        const oldUserOp = outstandingOps.find(
-            (uo) =>
-                uo.userOperation.sender === op.sender &&
-                uo.userOperation.nonce === op.nonce
-        )
+        const oldUserOp = outstandingOps.find((uo) => {
+            const userOp = deriveUserOperation(uo.mempoolUserOperation)
+            return userOp.sender === op.sender && userOp.nonce === op.nonce
+        })
         if (oldUserOp) {
-            const oldMaxPriorityFeePerGas =
-                oldUserOp.userOperation.maxPriorityFeePerGas
+            const oldOp = deriveUserOperation(oldUserOp.mempoolUserOperation)
+            const oldMaxPriorityFeePerGas = oldOp.maxPriorityFeePerGas
             const newMaxPriorityFeePerGas = op.maxPriorityFeePerGas
-            const oldMaxFeePerGas = oldUserOp.userOperation.maxFeePerGas
+            const oldMaxFeePerGas = oldOp.maxFeePerGas
             const newMaxFeePerGas = op.maxFeePerGas
 
             const incrementMaxPriorityFeePerGas =
@@ -340,7 +268,7 @@ export class MemoryMempool implements Mempool {
         )
 
         this.store.addOutstanding({
-            userOperation: op,
+            mempoolUserOperation,
             userOperationHash: hash,
             firstSubmitted: oldUserOp ? oldUserOp.firstSubmitted : Date.now(),
             lastReplaced: Date.now(),
@@ -377,6 +305,7 @@ export class MemoryMempool implements Mempool {
         senders: Set<string>
         storageMap: StorageMap
     }> {
+        const op = deriveUserOperation(opInfo.mempoolUserOperation)
         if (!this.safeMode) {
             return {
                 skip: false,
@@ -388,11 +317,9 @@ export class MemoryMempool implements Mempool {
             }
         }
         const paymaster = getAddressFromInitCodeOrPaymasterAndData(
-            opInfo.userOperation.paymasterAndData
+            op.paymasterAndData
         )
-        const factory = getAddressFromInitCodeOrPaymasterAndData(
-            opInfo.userOperation.initCode
-        )
+        const factory = getAddressFromInitCodeOrPaymasterAndData(op.initCode)
         const paymasterStatus = this.reputationManager.getStatus(paymaster)
         const factoryStatus = this.reputationManager.getStatus(factory)
 
@@ -455,10 +382,10 @@ export class MemoryMempool implements Mempool {
             }
         }
 
-        if (senders.has(opInfo.userOperation.sender)) {
+        if (senders.has(op.sender)) {
             this.logger.trace(
                 {
-                    sender: opInfo.userOperation.sender,
+                    sender: op.sender,
                     opHash: opInfo.userOperationHash
                 },
                 "Sender skipped because already included in bundle"
@@ -477,7 +404,7 @@ export class MemoryMempool implements Mempool {
 
         try {
             validationResult = await this.validator.validateUserOperation(
-                opInfo.userOperation,
+                op,
                 opInfo.referencedContracts
             )
         } catch (e) {
@@ -502,10 +429,7 @@ export class MemoryMempool implements Mempool {
         for (const storageAddress of Object.keys(validationResult.storageMap)) {
             const address = getAddress(storageAddress)
 
-            if (
-                address !== opInfo.userOperation.sender &&
-                knownEntities.sender.has(address)
-            ) {
+            if (address !== op.sender && knownEntities.sender.has(address)) {
                 this.logger.trace(
                     {
                         storageAddress,
@@ -563,7 +487,7 @@ export class MemoryMempool implements Mempool {
             stakedEntityCount[factory] = (stakedEntityCount[factory] ?? 0) + 1
         }
 
-        senders.add(opInfo.userOperation.sender)
+        senders.add(op.sender)
 
         return {
             skip: false,
@@ -578,11 +502,11 @@ export class MemoryMempool implements Mempool {
     async process(
         maxGasLimit: bigint,
         minOps?: number
-    ): Promise<UserOperation[]> {
+    ): Promise<MempoolUserOperation[]> {
         const outstandingUserOperations = this.store.dumpOutstanding().slice()
         let opsTaken = 0
         let gasUsed = 0n
-        const result: UserOperation[] = []
+        const result: MempoolUserOperation[] = []
 
         // paymaster deposit should be enough for all UserOps in the bundle.
         let paymasterDeposit: { [paymaster: string]: bigint } = {}
@@ -595,10 +519,11 @@ export class MemoryMempool implements Mempool {
         let storageMap: StorageMap = {}
 
         for (const opInfo of outstandingUserOperations) {
+            const op = deriveUserOperation(opInfo.mempoolUserOperation)
             gasUsed +=
-                opInfo.userOperation.callGasLimit +
-                opInfo.userOperation.verificationGasLimit * 3n +
-                opInfo.userOperation.preVerificationGas
+                op.callGasLimit +
+                op.verificationGasLimit * 3n +
+                op.preVerificationGas
             if (gasUsed > maxGasLimit && opsTaken >= (minOps || 0)) {
                 break
             }
@@ -620,12 +545,10 @@ export class MemoryMempool implements Mempool {
                 continue
             }
 
-            this.reputationManager.decreaseUserOperationCount(
-                opInfo.userOperation
-            )
+            this.reputationManager.decreaseUserOperationCount(op)
             this.store.removeOutstanding(opInfo.userOperationHash)
             this.store.addProcessing(opInfo)
-            result.push(opInfo.userOperation)
+            result.push(opInfo.mempoolUserOperation)
             opsTaken++
         }
         return result
@@ -636,14 +559,16 @@ export class MemoryMempool implements Mempool {
             .dumpOutstanding()
             .find((op) => op.userOperationHash === opHash)
         if (outstanding) {
-            return outstanding.userOperation
+            return deriveUserOperation(outstanding.mempoolUserOperation)
         }
 
         const submitted = this.store
             .dumpSubmitted()
             .find((op) => op.userOperation.userOperationHash === opHash)
         if (submitted) {
-            return submitted.userOperation.userOperation
+            return deriveUserOperation(
+                submitted.userOperation.mempoolUserOperation
+            )
         }
 
         return null

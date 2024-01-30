@@ -3,6 +3,11 @@ import { CliCommand, CliCommandOptions } from "../util"
 import { IBundlerArgsInput } from "./bundler"
 
 export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
+    networkName: {
+        description: "Name of the network (used for metrics)",
+        type: "string",
+        require: true
+    },
     entryPoint: {
         description: "EntryPoint contract addresses split by commas",
         type: "string",
@@ -31,6 +36,16 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description: "Minimum balance required for the signer",
         type: "string",
         require: true
+    },
+    perOpInflatorAddress: {
+        description: "Address of the PerOpInflator contract",
+        type: "string",
+        require: false
+    },
+    bundleBulkerAddress: {
+        description: "Address of the BundleBulker contract",
+        type: "string",
+        require: false
     },
     refillInterval: {
         description: "Interval to refill the signer balance (in ms)",
@@ -91,10 +106,45 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         default: 1000
     },
     logLevel: {
-        description: "Log level",
+        description: "Default log level",
         type: "string",
         require: true,
         default: "debug"
+    },
+    publicClientLogLevel: {
+        description: "Log level for the publicClient module",
+        type: "string",
+        require: false,
+    },
+    walletClientLogLevel: {
+        description: "Log level for the walletClient module",
+        type: "string",
+        require: false,
+    },
+    rpcLogLevel: {
+        description: "Log level for the rpc module",
+        type: "string",
+        require: false,
+    },
+    mempoolLogLevel: {
+        description: "Log level for the mempool module",
+        type: "string",
+        require: false,
+    },
+    executorLogLevel: {
+        description: "Log level for the executor module",
+        type: "string",
+        require: false,
+    },
+    reputationManagerLogLevel: {
+        description: "Log level for the executor module",
+        type: "string",
+        require: false,
+    },
+    nonceQueuerLogLevel: {
+        description: "Log level for the executor module",
+        type: "string",
+        require: false,
     },
     environment: {
         description: "Environment",
@@ -133,8 +183,22 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: true,
         default: false
     },
+    balanceOverrideEnabled: {
+        description:
+            "True if RPC url supports eth_call balance state overrides",
+        type: "boolean",
+        require: true,
+        default: false
+    },
     useUserOperationGasLimitsForSubmission: {
         description: "Use user operation gas limits during submission",
+        type: "boolean",
+        require: true,
+        default: false
+    },
+    flushStuckTransactionsDuringStartup: {
+        description:
+            "Should the bundler try to flush out all stuck pending transactions on startup",
         type: "boolean",
         require: true,
         default: false
@@ -161,6 +225,17 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "number",
         require: false,
         default: 1000
+    },
+    rpcMaxBlockRange: {
+        description: "Max block range for rpc calls",
+        type: "number",
+        require: false
+    },
+    dangerousSkipUserOperationValidation: {
+        description: "Skip user operation validation, use with caution",
+        type: "boolean",
+        require: false,
+        default: false
     }
 }
 
@@ -172,7 +247,7 @@ export const bundlerCommand: CliCommand<IBundlerArgsInput> = {
     examples: [
         {
             command:
-                "run --entryPoint 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789,0x0576a174D229E3cFA37253523E645A78A0C91B57 --beneficiary 0xa78fCd480107fBFAF84bDE5285A668396891d3E5 --signerPrivateKey 1060ac9646dffa5dc19c188e148c627c50a0e8250a2f195ec3c493ffae3ed019",
+                "run --entryPoint 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789,0x0576a174D229E3cFA37253523E645A78A0C91B57 --signerPrivateKeys 1060ac9646dffa5dc19c188e148c627c50a0e8250a2f195ec3c493ffae3ed019",
             description: "Starts a bundler"
         }
     ]
