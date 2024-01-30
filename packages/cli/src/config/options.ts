@@ -211,7 +211,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description: "Should the node make expiration checks",
         type: "boolean",
         require: false,
-        default: "false"
+        default: false
     },
     bundleMode: {
         description:
