@@ -40,7 +40,7 @@ jobs:
           images: ${{ steps.base_image_name.outputs.image_name }}
           tags: |
             type=raw,value={{branch}}-{{sha}}-{{date 'X'}}
-            type=semver,prefix=v
+            type=semver,pattern=v{{version}}
 
       - name: Build and push image
         uses: docker/build-push-action@v5
