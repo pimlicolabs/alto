@@ -21,7 +21,7 @@ projectRoot=`pwd | sed 's%\(.*/alto\)/.*%\1%'`
 usage(){
 >&2 cat << EOF
 Usage: $0 [OPTIONS]
-Utility to spawn a local alto instance linked to an anvil node.
+Utility to quickly spawn a local alto instance linked to an anvil node.
 *Must* be ran with either -l or -f flags.
 
 Alto Options
@@ -60,8 +60,6 @@ apply_bytecode_patches() {
     done
 }
 deploy_contracts() {
-    sleep 2
-
     entryPointCall=0x0000000000000000000000000000000000000000000000000000000000000000$(cat $projectRoot/scripts/.entrypoint.bytecode | tr -d '\n')
     cast send 0x4e59b44847b379578588920ca78fbf26c0b4956c $entryPointCall \
         --private-key $utilityKey \
@@ -112,31 +110,31 @@ do
 done
 
 # check for required flags.
-flagsTouched=0
-
-if [ -n "$localMode" ]; then
-    [ -n "$rpcUrl" ] && echo "[NOTE] Flag -r cannot be used in local mode" && exit 1
-    [ -n "$blockNum" ] && echo "[NOTE] Flag -b (block num) cannot be used in local mode" && exit 1
-    flagsTouched=1
-elif [ -n "$forkMode" ]; then
-    [ -z "$rpcUrl" ] && echo "[NOTE] Flag -r (rpc url) Missing, required in forking mode" && exit 1
-    [ -z "$blockNum" ] && echo "[NOTE] Flag -b (block num) Missing, required in forking mode" && exit 1
-    flagsTouched=1
+if [ -n "$localMode" ] && [ -n "$forkMode" ]; then
+    echo "[Err] Must be ran in either fork or local mode. Run again with either flag -f or -l." && exit 1
 fi
 
-if [[ "$flagsTouched" -eq 0 ]]; then
+if [ -z "$localMode" ] && [ -z "$forkMode" ]; then
     echo "[Err] Must be ran in either fork or local mode. Run again with either flag -f or -l." && exit 1
 fi
 
 if [ -n "$localMode" ]; then
+    [ -n "$rpcUrl" ] && echo "[NOTE] Flag -r cannot be used in local mode" && exit 1
+    [ -n "$blockNum" ] && echo "[NOTE] Flag -b cannot be used in local mode" && exit 1
+elif [ -n "$forkMode" ]; then
+    [ -z "$rpcUrl" ] && echo "[NOTE] Flag -r is missing, required in forking mode" && exit 1
+    [ -z "$blockNum" ] && echo "[NOTE] Flag -b is missing, required in forking mode" && exit 1
+fi
+
+if [ -n "$localMode" ] && [ -z "$forkMode" ]; then
     # build alto intance.
     pnpm build
 
     if [ -z "$tmux" ]; then
-
         # launch both instances in same terminal.
         anvil &
 
+        sleep 2
         deploy_contracts
         apply_bytecode_patches
 
@@ -145,10 +143,11 @@ if [ -n "$localMode" ]; then
                           --utilityPrivateKey $utilityKey \
                           --rpcUrl http://$anvilHost:$anvilPort \
                           --minBalance 0 \
+                          --networkName local \
                           --disableExpirationCheck true
-    else
 
-        # check if the tmux session exists and nuke it if it does.
+    else
+        # launch both instances in a tmux split.
         SESSION="anvil_alto_session"
         if tmux has-session -t $SESSION 2>/dev/null; then
             tmux kill-session -t $SESSION
@@ -161,6 +160,7 @@ if [ -n "$localMode" ]; then
         # setup anvil on pane 0
         tmux send-keys -t ${SESSION}.0 "anvil" C-m
 
+        sleep 2
         deploy_contracts
         apply_bytecode_patches
 
@@ -170,13 +170,14 @@ if [ -n "$localMode" ]; then
                                                           --signerPrivateKeys $signerKey \
                                                           --utilityPrivateKey $utilityKey \
                                                           --minBalance 0 \
+                                                          --networkName local \
                                                           --disableExpirationCheck true" C-m
 
         tmux attach-session -t $SESSION
     fi
 fi
 
-if [ -n $forkMode ]; then
+if [ -n $forkMode ] && [ -z "$localMode" ]; then
     forkTimestamp=$(cast block $blockNum --rpc-url $rpcUrl | grep time | awk '{print $2}' | tr -d '\n')
 
     # build alto intance.
@@ -188,6 +189,7 @@ if [ -n $forkMode ]; then
               --fork-block-number $blockNum \
               --timestamp  $forkTimestamp &
 
+        sleep 2
         apply_bytecode_patches
 
         $projectRoot/alto --entryPoint $entryPoint \
@@ -195,11 +197,10 @@ if [ -n $forkMode ]; then
                           --utilityPrivateKey $utilityKey \
                           --rpcUrl http://$anvilHost:$anvilPort \
                           --minBalance 0 \
-                          --disableExpirationCheck true \
-                          --customGasLimitForEstimation 100000000
+                          --networkName local \
+                          --disableExpirationCheck true
     else
-
-        # check if the tmux session exists and nuke it if it does.
+        # launch both instances in a tmux split.
         SESSION="anvil_alto_session"
         if tmux has-session -t $SESSION 2>/dev/null; then
             tmux kill-session -t $SESSION
@@ -214,7 +215,7 @@ if [ -n $forkMode ]; then
                                               --fork-block-number $blockNum \
                                               --timestamp $forkTimestamp" C-m
 
-        fund_accounts
+        sleep 2
         apply_bytecode_patches
 
         # setup alto on pane 1
@@ -223,6 +224,7 @@ if [ -n $forkMode ]; then
                                                           --signerPrivateKeys $signerKey \
                                                           --utilityPrivateKey $utilityKey \
                                                           --minBalance 0 \
+                                                          --networkName local \
                                                           --disableExpirationCheck true" C-m
 
         tmux attach-session -t $SESSION
