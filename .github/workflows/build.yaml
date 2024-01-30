@@ -39,7 +39,7 @@ jobs:
         with:
           images: ${{ steps.base_image_name.outputs.image_name }}
           tags: |
-            type=raw,value={{branch}}-{{sha}}-{{date 'X'}}
+            type=raw,value={{branch}}-{{sha}}-{{date 'X'}},enable=${{ startsWith(github.ref, 'refs/heads/') }}
             type=semver,pattern=v{{version}}
 
       - name: Build and push image
