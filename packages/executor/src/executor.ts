@@ -1,22 +1,24 @@
+import { IReputationManager } from "@alto/mempool"
 import {
     Address,
     BundleResult,
+    CompressedUserOperation,
     EntryPointAbi,
     HexData32,
     TransactionInfo,
     UserOperation,
-    CompressedUserOperation,
     UserOperationWithHash,
     deriveUserOperation,
 } from "@alto/types"
 import {
+    CompressionHandler,
     Logger,
     Metrics,
     getGasPrice,
     getUserOperationHash,
     parseViemError,
-    CompressionHandler,
 } from "@alto/utils"
+import * as sentry from "@sentry/node"
 import { Mutex } from "async-mutex"
 import {
     Account,
@@ -32,16 +34,14 @@ import {
     getContract,
 } from "viem"
 import { SenderManager } from "./senderManager"
-import { IReputationManager } from "@alto/mempool"
 import {
     CompressedFilterOpsAndEstimateGasParams,
-    createCompressedCalldata,
     DefaultFilterOpsAndEstimateGasParams,
+    createCompressedCalldata,
     filterOpsAndEstimateGas,
     flushStuckTransaction,
     simulatedOpsToResults
 } from "./utils"
-import * as sentry from "@sentry/node"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -168,15 +168,15 @@ export class BasicExecutor implements IExecutor {
 
         newRequest.maxFeePerGas =
             gasPriceParameters.maxFeePerGas >
-                (newRequest.maxFeePerGas * 11n) / 10n
+                (newRequest.maxFeePerGas * 11n + 9n) / 10n
                 ? gasPriceParameters.maxFeePerGas
-                : (newRequest.maxFeePerGas * 11n) / 10n
+                : (newRequest.maxFeePerGas * 11n +9n) / 10n
 
         newRequest.maxPriorityFeePerGas =
             gasPriceParameters.maxPriorityFeePerGas >
-                (newRequest.maxPriorityFeePerGas * 11n) / 10n
+                (newRequest.maxPriorityFeePerGas * 11n +9n) / 10n
                 ? gasPriceParameters.maxPriorityFeePerGas
-                : (newRequest.maxPriorityFeePerGas * 11n) / 10n
+                : (newRequest.maxPriorityFeePerGas * 11n + 9n) / 10n
         newRequest.account = transactionInfo.executor
 
         const opsWithHashes = transactionInfo.userOperationInfos.map((opInfo) => {
@@ -434,7 +434,7 @@ export class BasicExecutor implements IExecutor {
         })
 
         let childLogger = this.logger.child({
-            userOperations: opsWithHashes.map((oh) => oh.mempoolUserOperation),
+            userOperations: opsWithHashes.map((oh) => oh.userOperationHash),
             entryPoint
         })
         childLogger.debug("bundling user operation")
@@ -506,15 +506,12 @@ export class BasicExecutor implements IExecutor {
             .map((op) => op.owh)
 
         childLogger = this.logger.child({
-            userOperations: opsWithHashToBundle.map((owh) => owh.mempoolUserOperation),
+            userOperations: opsWithHashToBundle.map((owh) => owh.userOperationHash),
             entryPoint
         })
 
         childLogger.trace(
-            {
-                gasLimit,
-                opsToBundle: opsWithHashToBundle.map((owh) => owh.userOperationHash)
-            },
+            { gasLimit },
             "got gas limit"
         )
 
@@ -556,8 +553,6 @@ export class BasicExecutor implements IExecutor {
         }
 
         const userOperationInfos = opsWithHashToBundle.map((op) => {
-            this.metrics.userOperationsSubmitted.inc()
-
             return {
                 mempoolUserOperation: op.mempoolUserOperation,
                 userOperationHash: op.userOperationHash,
@@ -607,8 +602,6 @@ export class BasicExecutor implements IExecutor {
             },
             "submitted bundle transaction"
         )
-
-        this.metrics.bundlesSubmitted.inc()
 
         return userOperationResults
     }
@@ -727,8 +720,6 @@ export class BasicExecutor implements IExecutor {
         }
 
         const userOperationInfos = opsToBundle.map((owh) => {
-            this.metrics.userOperationsSubmitted.inc()
-
             return {
                 mempoolUserOperation: owh.mempoolUserOperation,
                 userOperationHash: owh.userOperationHash,
@@ -764,8 +755,6 @@ export class BasicExecutor implements IExecutor {
             { txHash, opHashes: opsToBundle.map((owh) => owh.userOperationHash) },
             "submitted bundle transaction"
         )
-
-        this.metrics.bundlesSubmitted.inc()
 
         return userOperationResults
     }

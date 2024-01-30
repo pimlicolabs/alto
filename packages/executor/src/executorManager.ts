@@ -6,7 +6,9 @@ import {
     CompressedUserOperation,
     UserOperation,
     deriveUserOperation,
-    isCompressedType
+    isCompressedType,
+    HexData32,
+    BundleResult
 } from "@alto/types"
 import {
     Logger,
@@ -15,7 +17,7 @@ import {
     getGasPrice
 } from "@alto/utils"
 import { IReputationManager, Mempool, Monitor } from "@alto/mempool"
-import { IExecutor } from "./executor"
+import { IExecutor, ReplaceTransactionResult } from "./executor"
 import {
     Address,
     Block,
@@ -113,15 +115,32 @@ export class ExecutorManager {
         const ops = mempoolOps.filter((op) => !isCompressedType(op)).map((op) => (op as UserOperation))
         const compressedOps = mempoolOps.filter((op) => isCompressedType(op)).map((op) => (op as CompressedUserOperation))
 
-        const results = []
+        const bundles: BundleResult[][] = []
         if (ops.length > 0) {
-            results.push(... await this.executor.bundle(this.entryPointAddress, ops))
+            bundles.push(await this.executor.bundle(this.entryPointAddress, ops))
         }
         if (compressedOps.length > 0) {
-            results.push(... await this.executor.bundleCompressed(this.entryPointAddress, compressedOps))
+            bundles.push(await this.executor.bundleCompressed(this.entryPointAddress, compressedOps))
         }
 
-        let txHash
+        bundles.forEach((bundle) => {
+            const isBundleSuccess = bundle.every((result) => result.success)
+            if (isBundleSuccess) {
+                this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
+            } else {
+                this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
+            }
+        })
+
+        const results = bundles.flat()
+
+        const filteredOutOps = mempoolOps.length - results.length
+        if (filteredOutOps > 0) {
+            this.logger.debug({ filteredOutOps }, "user operations filtered out")
+            this.metrics.userOperationsSubmitted.labels({ status: "filtered" }).inc(filteredOutOps)
+        }
+
+        let txHash: HexData32 | undefined = undefined
         for (const result of results) {
             if (result.success === true) {
                 const res = result.value
@@ -140,6 +159,7 @@ export class ExecutorManager {
                 )
                 txHash = res.transactionInfo.transactionHash
                 this.startWatchingBlocks(this.handleBlock.bind(this))
+                this.metrics.userOperationsSubmitted.labels({ status: "success" }).inc()
             } else {
                 this.mempool.removeProcessing(result.error.userOpHash)
                 this.monitor.setUserOperationStatus(result.error.userOpHash, {
@@ -153,6 +173,7 @@ export class ExecutorManager {
                     },
                     "user operation rejected"
                 )
+                this.metrics.userOperationsSubmitted.labels({ status: "failed" }).inc()
             }
         }
         return txHash
@@ -259,9 +280,9 @@ export class ExecutorManager {
             return
         }
 
+        this.metrics.userOperationsOnChain.labels({ status: status.transactionStatuses.status }).inc(opInfos.length)
         if (status.transactionStatuses.status === "included") {
             opInfos.map((info) => {
-                this.metrics.userOperationsIncluded.inc()
                 this.metrics.userOperationInclusionDuration.observe(
                     (Date.now() - info.firstSubmitted) / 1000
                 )
@@ -358,9 +379,9 @@ export class ExecutorManager {
             transactionInfos.map(async (txInfo) => {
                 if (
                     txInfo.transactionRequest.maxFeePerGas >=
-                        gasPriceParameters.maxFeePerGas &&
+                    gasPriceParameters.maxFeePerGas &&
                     txInfo.transactionRequest.maxPriorityFeePerGas >=
-                        gasPriceParameters.maxPriorityFeePerGas
+                    gasPriceParameters.maxPriorityFeePerGas
                 ) {
                     return
                 }
@@ -390,7 +411,12 @@ export class ExecutorManager {
         txInfo: TransactionInfo,
         reason: string
     ): Promise<void> {
-        const replaceResult = await this.executor.replaceTransaction(txInfo)
+        let replaceResult: ReplaceTransactionResult | undefined = undefined
+        try {
+            replaceResult = await this.executor.replaceTransaction(txInfo)
+        } finally {
+            this.metrics.replacedTransactions.labels({ reason, status: replaceResult?.status || "failed" }).inc()
+        }
         if (replaceResult.status === "failed") {
             txInfo.userOperationInfos.map((opInfo) => {
                 this.mempool.removeSubmitted(opInfo.userOperationHash)

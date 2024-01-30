@@ -47,7 +47,7 @@ export function customTransport(
 
                     const [{ error, result }] = await fn(body)
                     if (error) {
-                        logger.trace(
+                        logger.error(
                             {
                                 error,
                                 body
@@ -60,7 +60,7 @@ export function customTransport(
                             url: url
                         })
                     }
-                    logger.trace({ body, result }, "Received response")
+                    logger.info({ body, result }, "Received response")
                     return result
                 },
                 retryCount,

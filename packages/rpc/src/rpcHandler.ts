@@ -25,7 +25,8 @@ import {
     PimlicoGetUserOperationStatusResponseResult,
     RpcError,
     SendUserOperationResponseResult,
-    SupportedEntryPointsResponseResult, UserOperation,
+    SupportedEntryPointsResponseResult,
+    UserOperation,
     logSchema,
     receiptSchema,
     ValidationErrors,
@@ -33,7 +34,7 @@ import {
     MempoolUserOperation,
     CompressedUserOperation,
     deriveUserOperation,
-    IOpInflatorAbi,
+    IOpInflatorAbi
 } from "@alto/types"
 import {
     Logger,
@@ -109,6 +110,7 @@ export class RpcHandler implements IRpcEndpoint {
     executorManager: ExecutorManager
     reputationManager: IReputationManager
     compressionHandler: CompressionHandler | null
+    dangerousSkipUserOperationValidation: boolean
 
     constructor(
         entryPoint: Address,
@@ -127,7 +129,8 @@ export class RpcHandler implements IRpcEndpoint {
         logger: Logger,
         metrics: Metrics,
         environment: Environment,
-        compressionHandler: CompressionHandler | null
+        compressionHandler: CompressionHandler | null,
+        dangerousSkipUserOperationValidation = false
     ) {
         this.entryPoint = entryPoint
         this.publicClient = publicClient
@@ -147,6 +150,8 @@ export class RpcHandler implements IRpcEndpoint {
         this.executorManager = executorManager
         this.reputationManager = reputationManager
         this.compressionHandler = compressionHandler
+        this.dangerousSkipUserOperationValidation =
+            dangerousSkipUserOperationValidation
     }
 
     async handleMethod(request: BundlerRequest): Promise<BundlerResponse> {
@@ -266,7 +271,9 @@ export class RpcHandler implements IRpcEndpoint {
             case "pimlico_sendCompressedUserOperation":
                 return {
                     method,
-                    result: await this.pimlico_sendCompressedUserOperation(...request.params)
+                    result: await this.pimlico_sendCompressedUserOperation(
+                        ...request.params
+                    )
                 }
         }
     }
@@ -306,7 +313,8 @@ export class RpcHandler implements IRpcEndpoint {
             this.chainId === chains.base.id ||
             this.chainId === chains.baseGoerli.id ||
             this.chainId === chains.opBNB.id ||
-            this.chainId === chains.opBNBTestnet.id
+            this.chainId === chains.opBNBTestnet.id ||
+            this.chainId === 957 // Lyra chain
         ) {
             preVerificationGas = await calcOptimismPreVerificationGas(
                 this.publicClient,
@@ -427,14 +435,27 @@ export class RpcHandler implements IRpcEndpoint {
         userOperation: UserOperation,
         entryPoint: Address
     ): Promise<SendUserOperationResponseResult> {
-        await this.addToMempoolIfValid(userOperation, entryPoint)
+        let status;
+        try {
+            status = await this.addToMempoolIfValid(userOperation, entryPoint)
 
-        const hash = getUserOperationHash(
-            userOperation,
-            entryPoint,
-            this.chainId
-        )
-        return hash
+            const hash = getUserOperationHash(
+                userOperation,
+                entryPoint,
+                this.chainId
+            )
+            return hash
+        } catch (error) {
+            status = "rejected"
+            throw error;
+        } finally {
+            this.metrics.userOperationsReceived
+                .labels({
+                    status,
+                    type: "regular"
+                })
+                .inc()
+        }
     }
 
     async eth_getUserOperationByHash(
@@ -701,7 +722,9 @@ export class RpcHandler implements IRpcEndpoint {
         }
         return this.mempool
             .dumpOutstanding()
-            .map((userOpInfo) => deriveUserOperation(userOpInfo.mempoolUserOperation))
+            .map((userOpInfo) =>
+                deriveUserOperation(userOpInfo.mempoolUserOperation)
+            )
     }
 
     async debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
@@ -805,7 +828,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     // check if we want to bundle userOperation. If yes, add to mempool
-    async addToMempoolIfValid(op: MempoolUserOperation, entryPoint: Address) {
+    async addToMempoolIfValid(op: MempoolUserOperation, entryPoint: Address): Promise<'added' | 'queued'> {
         const userOperation = deriveUserOperation(op)
         if (this.entryPoint !== entryPoint) {
             throw new RpcError(
@@ -854,7 +877,6 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         this.logger.trace({ userOperation, entryPoint }, "beginning validation")
-        this.metrics.userOperationsReceived.inc()
 
         if (
             userOperation.preVerificationGas === 0n ||
@@ -898,54 +920,107 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
         if (userOperationNonceValue === currentNonceValue) {
-            const validationResult =
-                await this.validator.validateUserOperation(userOperation)
-            await this.reputationManager.checkReputation(
-                userOperation,
-                validationResult
-            )
-            await this.mempool.checkEntityMultipleRoleViolation(userOperation)
-            const success = this.mempool.add(
-                op,
-                validationResult.referencedContracts
-            )
-            if (!success) {
-                throw new RpcError(
-                    "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
-                    ValidationErrors.SimulateValidation
+            if (this.dangerousSkipUserOperationValidation) {
+                const success = this.mempool.add(userOperation)
+                if (!success) {
+                    throw new RpcError(
+                        "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
+                        ValidationErrors.SimulateValidation
+                    )
+                }
+            } else {
+                const validationResult =
+                    await this.validator.validateUserOperation(userOperation)
+                await this.reputationManager.checkReputation(
+                    userOperation,
+                    validationResult
                 )
+                await this.mempool.checkEntityMultipleRoleViolation(
+                    userOperation
+                )
+                const success = this.mempool.add(
+                    op,
+                    validationResult.referencedContracts
+                )
+                if (!success) {
+                    throw new RpcError(
+                        "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
+                        ValidationErrors.SimulateValidation
+                    )
+                }
+                return 'added'
             }
-        } else {
-            this.nonceQueuer.add(userOperation)
         }
+
+        this.nonceQueuer.add(userOperation)
+        return 'queued'
     }
 
     async pimlico_sendCompressedUserOperation(
         compressedCalldata: Hex,
         inflatorAddress: Address,
-        entryPoint: Address,
+        entryPoint: Address
     ) {
+        let status;
+        try {
+            var { inflatedOp, inflatorId } = await this.validateAndInflateCompressedUserOperation(inflatorAddress, compressedCalldata)
+
+            const compressedUserOp: CompressedUserOperation = {
+                compressedCalldata,
+                inflatedOp,
+                inflatorAddress,
+                inflatorId
+            }
+
+            // check userOps inputs.
+            status = await this.addToMempoolIfValid(compressedUserOp, entryPoint)
+
+            const hash = getUserOperationHash(inflatedOp, entryPoint, this.chainId)
+
+            return hash
+        } catch (error) {
+            status = "rejected"
+            throw error;
+        } finally {
+            this.metrics.userOperationsReceived
+                .labels({
+                    status,
+                    type: "compressed"
+                })
+                .inc()
+        }
+    }
+
+    private async validateAndInflateCompressedUserOperation(inflatorAddress: Address, compressedCalldata: Hex): Promise<{ inflatedOp: UserOperation; inflatorId: number }> {
+        // check if inflator is registered with our PerOpInflator.
         if (this.compressionHandler === null) {
             throw new RpcError("Endpoint not supported")
         }
 
-        // check if inflator is registered with our PerOpInflator.
-        const inflatorId = await this.compressionHandler.getInflatorRegisteredId(inflatorAddress, this.publicClient)
+        const inflatorId = await this.compressionHandler.getInflatorRegisteredId(
+            inflatorAddress,
+            this.publicClient
+        )
 
         if (inflatorId === 0) {
-            throw new RpcError(`Inflator ${inflatorAddress} is not registered`, ValidationErrors.InvalidFields)
+            throw new RpcError(
+                `Inflator ${inflatorAddress} is not registered`,
+                ValidationErrors.InvalidFields
+            )
         }
 
         // infalte + start to validate user op.
         const inflatorContract = getContract({
             address: inflatorAddress,
             abi: IOpInflatorAbi,
-            publicClient: this.publicClient,
+            publicClient: this.publicClient
         })
 
         let inflatedOp: UserOperation
         try {
-            inflatedOp = await inflatorContract.read.inflate([compressedCalldata])
+            inflatedOp = await inflatorContract.read.inflate([
+                compressedCalldata
+            ])
         } catch (e) {
             throw new RpcError(
                 `Inflator ${inflatorAddress} failed to inflate calldata ${compressedCalldata}, due to ${e}`,
@@ -957,25 +1032,11 @@ export class RpcHandler implements IRpcEndpoint {
         const perOpInflatorId = this.compressionHandler.perOpInflatorId
 
         if (perOpInflatorId === 0) {
-            throw new RpcError(`PerUserOp ${this.compressionHandler.perOpInflatorAddress} has not been registered with BundelBulker`, ValidationErrors.InvalidFields)
+            throw new RpcError(
+                `PerUserOp ${this.compressionHandler.perOpInflatorAddress} has not been registered with BundelBulker`,
+                ValidationErrors.InvalidFields
+            )
         }
-
-        const compressedUserOp: CompressedUserOperation = {
-            compressedCalldata,
-            inflatedOp,
-            inflatorAddress,
-            inflatorId,
-        };
-
-        // check userOps inputs.
-        await this.addToMempoolIfValid(compressedUserOp, entryPoint)
-
-        const hash = getUserOperationHash(
-            inflatedOp,
-            entryPoint,
-            this.chainId
-        )
-
-        return hash
+        return { inflatedOp, inflatorId }
     }
 }

@@ -1,4 +1,4 @@
 export * from "./rpcHandler"
 export * from "./server"
-export * from "./vatidation"
+export * from "./validation"
 export * from "./nonceQueuer"

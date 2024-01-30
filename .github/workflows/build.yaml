@@ -11,6 +11,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+
+      - name: Get full image name
+        id: base_image_name
+        env:
+          BASE_IMAGE_NAME: ${{ github.repository }}
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            echo "image_name=ghcr.io/${BASE_IMAGE_NAME}" >> $GITHUB_OUTPUT
+          else
+            echo "image_name=ghcr.io/${BASE_IMAGE_NAME}/tmp" >> $GITHUB_OUTPUT
+          fi
+
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -25,9 +37,10 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}/tmp
+          images: ${{ steps.base_image_name.outputs.image_name }}
           tags: |
-            type=raw,value={{branch}}-{{sha}}-{{date 'X'}}
+            type=raw,value={{branch}}-{{sha}}-{{date 'X'}},enable=${{ startsWith(github.ref, 'refs/heads/') }}
+            type=semver,pattern=v{{version}}
 
       - name: Build and push image
         uses: docker/build-push-action@v5
