@@ -95,18 +95,18 @@ export class NonceQueuer {
 
     add(mempoolUserOperation: MempoolUserOperation) {
         const op = deriveUserOperation(mempoolUserOperation)
+        const [nonceKey, nonceValue] = getNonceKeyAndValue(op.nonce)
         const opHash = getUserOperationHash(
             deriveUserOperation(mempoolUserOperation),
             this.entryPoint,
             this.publicClient.chain.id
         )
-        const [nonceKey, nonceValue] = getNonceKeyAndValue(op.nonce)
         this.queuedUserOperations.push({
+            userOperationHash: opHash,
             mempoolUserOperation: mempoolUserOperation,
             nonceKey: nonceKey,
             nonceValue: nonceValue,
-            addedAt: Date.now(),
-            userOperationHash: opHash,
+            addedAt: Date.now()
         })
         this.monitor.setUserOperationStatus(opHash, {
             status: "queued",

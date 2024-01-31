@@ -19,7 +19,13 @@ services:
   alto:
     build: ../../
     ports: [ "3000:3000" ]
-    command: --config config.localhost.json --rpcUrl http://anvil:8545 --noEthCallOverrideSupport --environment development
+    command: --config config.localhost.json --noEthCallOverrideSupport
+    environment:
+      - ALTO_RPC_URL=http://anvil:8545
+      - ALTO_ENVIRONMENT=development
+      - ALTO_PUBLIC_CLIENT_LOG_LEVEL=warn
+      - ALTO_WALLET_CLIENT_LOG_LEVEL=warn
+      - ALTO_LOG_LEVEL=info
     depends_on:
       anvil_setup:
         condition: service_completed_successfully

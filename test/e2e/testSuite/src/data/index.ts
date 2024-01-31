@@ -5,6 +5,7 @@ import perOpInflatorJson from "./PerOpInflator.json";
 import simpleAccountFactoryJson from "./SimpleAccountFactory.json";
 import simpleInflatorJson from "./SimpleInflator.json";
 import simpleAccountJson from "./SimpleAccount.json";
+import multicall3Json from "./Multicall3.json";
 
 export const bundleBulkerAbi = bundleBulkerJson.abi
 export const bundleBulkerCreateBytecode: Hex = bundleBulkerJson.bytecode.object as Hex
@@ -29,3 +30,7 @@ export const simpleAccountFactoryDeployedBytecode: Hex = simpleAccountFactoryJso
 export const simpleAccountAbi = simpleAccountJson.abi
 export const simpleAccountCreateBytecode: Hex = simpleAccountJson.bytecode.object as Hex
 export const simpleAccountDeployedBytecode: Hex = simpleAccountJson.deployedBytecode.object as Hex
+
+export const multicall3Abi = multicall3Json.abi
+export const multicall3CreateBytecode: Hex = multicall3Json.bytecode.object as Hex
+export const multicall3DeployedBytecode: Hex = multicall3Json.deployedBytecode.object as Hex
