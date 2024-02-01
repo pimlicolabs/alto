@@ -14,20 +14,19 @@ import {
     clearBundlerState,
     sendBundleNow,
     newRandomAddress,
-    resetAnvil
+    resetAnvil,
+    MULTICALL3_ADDRESS
 } from "./utils";
 import {
     bundleBulkerDeployedBytecode,
     entryPointDeployedBytecode,
+    multicall3DeployedBytecode,
     perOpInflatorDeployedBytecode,
     simpleAccountDeployedBytecode,
     simpleAccountFactoryDeployedBytecode,
     simpleInflatorDeployedBytecode
 } from "./data";
 import { createPimlicoBundlerClient } from "permissionless/clients/pimlico";
-
-// Holds the checkpoint after all contracts have been deployed.
-let anvilCheckpoint: Hex | null = null
 
 const pimlicoClient = createPimlicoBundlerClient({
     transport: http(altoEndpoint),
@@ -42,20 +41,15 @@ const anvilClient = createTestClient({
     transport: http(anvilEndpoint)
 })
 
-
 // This function will deploy all contracts (called once before all tests).
 beforeAll(async () => {
-    const publicClient = createPublicClient({
-        transport: http(anvilEndpoint),
-        chain: foundry,
-    })
-
     // ensure that all bytecode is deployed to expected addresses.
     expect(await publicClient.getBytecode({ address: ENTRY_POINT_ADDRESS })).toEqual(entryPointDeployedBytecode)
     expect(await publicClient.getBytecode({ address: SIMPLE_ACCOUNT_FACTORY_ADDRESS })).toEqual(simpleAccountFactoryDeployedBytecode)
     expect(await publicClient.getBytecode({ address: BUNDLE_BULKER_ADDRESS })).toEqual(bundleBulkerDeployedBytecode)
     expect(await publicClient.getBytecode({ address: PER_OP_INFLATOR_ADDRESS })).toEqual(perOpInflatorDeployedBytecode)
     expect(await publicClient.getBytecode({ address: SIMPLE_INFLATOR_ADDRESS })).toEqual(simpleInflatorDeployedBytecode)
+    expect(await publicClient.getBytecode({ address: MULTICALL3_ADDRESS })).toEqual(multicall3DeployedBytecode)
 });
 
 // This function will revert all contracts to the state before the tests were run (called once before all tests).
@@ -63,12 +57,6 @@ beforeEach(async () => {
     clearBundlerState()
     setBundlingMode("auto")
     resetAnvil(anvilClient)
-
-    if (!anvilCheckpoint) {
-        anvilCheckpoint = await anvilClient.dumpState()
-    } else {
-        await anvilClient.loadState({ state: anvilCheckpoint })
-    }
 })
 
 test("eth_sendUserOperation can submit a userOperation", async () => {
@@ -76,8 +64,6 @@ test("eth_sendUserOperation can submit a userOperation", async () => {
 
     const target = newRandomAddress()
     const amt = parseEther("0.1337")
-
-    smartAccount.prepareUserOperationRequest
 
     await smartAccount.sendTransaction({
         to: target,
@@ -106,13 +92,13 @@ test("pimlico_sendCompressedUserOperation can submit a compressed userOp", async
 
     op.signature = await smartAccount.account.signUserOperation(op)
 
-    const opHash = await compressAndSendOp(op, publicClient, pimlicoClient)
+    const opHash = await compressAndSendOp(op, publicClient)
     await pimlicoClient.waitForUserOperationReceipt({ hash: opHash })
 
     expect(await publicClient.getBalance({ address: target })).toEqual(amt)
 })
 
-test("pimlico_sendCompressedUserOperation can replace mempool transaction", async () => {
+test("pimlico_sendCompressedUserOperation can replace a mempool transaction", async () => {
     const target = newRandomAddress()
     const amt = parseEther("0.1337")
 
@@ -132,7 +118,7 @@ test("pimlico_sendCompressedUserOperation can replace mempool transaction", asyn
     })
     op.signature = await smartAccount.account.signUserOperation(op)
 
-    const opHash = await compressAndSendOp(op, publicClient, pimlicoClient)
+    const opHash = await compressAndSendOp(op, publicClient)
     await new Promise(resolve => setTimeout(resolve, 1500))
 
     await anvilClient.setNextBlockBaseFeePerGas({
@@ -152,6 +138,74 @@ test("pimlico_sendCompressedUserOperation can replace mempool transaction", asyn
 
     expect(await publicClient.getBalance({ address: target })).toEqual(amt)
     expect(await publicClient.getBytecode({ address: smartAccount.account.address })).toEqual(simpleAccountDeployedBytecode)
+})
+
+test("pimlico_getUserOperationStatus returns correct values", async () => {
+    const smartAccount = await setupSimpleSmartAccountClient(pimlicoClient, publicClient)
+
+    // send a random tx to force a contract deployment
+    await smartAccount.sendTransaction({to: newRandomAddress() })
+
+    const nonce = await smartAccount.account.getNonce()
+
+    // add a op to the nonce queue
+    let op = await smartAccount.prepareUserOperationRequest({
+        userOperation: {
+            nonce: nonce + 1n,
+            callData: await smartAccount.account.encodeCallData({
+                to: newRandomAddress(),
+                value: parseEther("0.1337"),
+                data: "0x",
+            }),
+        }
+    })
+    op.signature = await smartAccount.account.signUserOperation(op)
+
+    // check queued op
+    const hashHigherNonce = await pimlicoClient.sendUserOperation({userOperation: op, entryPoint: ENTRY_POINT_ADDRESS})
+    const queued = await pimlicoClient.getUserOperationStatus({hash: hashHigherNonce})
+    expect(queued.status).toEqual("queued")
+
+    // check submitted op
+    op = await smartAccount.prepareUserOperationRequest({
+        userOperation: {
+            nonce,
+            callData: await smartAccount.account.encodeCallData({
+                to: newRandomAddress(),
+                value: parseEther("0.1337"),
+                data: "0x",
+            }),
+        }
+    })
+    op.signature = await smartAccount.account.signUserOperation(op)
+
+    anvilClient.setAutomine(false)
+
+    const hashLowerNonce = await pimlicoClient.sendUserOperation({userOperation: op, entryPoint: ENTRY_POINT_ADDRESS})
+    await new Promise(resolve => setTimeout(resolve, 1500))
+
+    // lower nonce should get mined here
+    await anvilClient.mine({ blocks: 1 })
+    await new Promise(resolve => setTimeout(resolve, 1500))
+
+    // lower nonce op should be included
+    const included = await pimlicoClient.getUserOperationStatus({ hash: hashLowerNonce })
+    expect(included.status).toEqual("included")
+
+    // higher nonce op should be submitted
+    await new Promise(resolve => setTimeout(resolve, 1500))
+    const submitted = await pimlicoClient.getUserOperationStatus({ hash: hashHigherNonce })
+    expect(submitted.status).toEqual("submitted")
+
+    // higher nonce op should now be included
+    await anvilClient.mine({ blocks: 1 })
+    await new Promise(resolve => setTimeout(resolve, 1500))
+    const queuedIncluded = await pimlicoClient.getUserOperationStatus({ hash: hashHigherNonce })
+    expect(queuedIncluded.status).toEqual("included")
+
+    // non-existant op shouldn't be found
+    const nonExistant = await pimlicoClient.getUserOperationStatus({hash: "0x0000000000000000000000000000000000000000000000000000000000000000"})
+    expect(nonExistant.status).toEqual("not_found")
 })
 
 test("pimlico_sendCompressedUserOperation can bundle multiple compressed userOps", async () => {
@@ -189,8 +243,8 @@ test("pimlico_sendCompressedUserOperation can bundle multiple compressed userOps
 
     setBundlingMode("manual")
 
-    const senderHash = await compressAndSendOp(senderOp, publicClient, pimlicoClient)
-    const relayerHash = await compressAndSendOp(relayerOp, publicClient, pimlicoClient)
+    const senderHash = await compressAndSendOp(senderOp, publicClient)
+    const relayerHash = await compressAndSendOp(relayerOp, publicClient)
 
     expect(await pimlicoClient.getUserOperationReceipt({ hash: senderHash })).toBeNull()
     expect(await pimlicoClient.getUserOperationReceipt({ hash: relayerHash })).toBeNull()

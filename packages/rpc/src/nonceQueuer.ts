@@ -17,7 +17,7 @@ import {
     type Transport,
     getContract
 } from "viem"
-import type { Mempool } from "@alto/mempool"
+import type { Mempool, Monitor } from "@alto/mempool"
 
 type QueuedUserOperation = {
     userOperationHash: Hash
@@ -34,17 +34,20 @@ export class NonceQueuer {
     publicClient: PublicClient<Transport, Chain>
     entryPoint: Address
     logger: Logger
+    monitor: Monitor
 
     constructor(
         mempool: Mempool,
         publicClient: PublicClient<Transport, Chain>,
         entryPoint: Address,
-        logger: Logger
+        logger: Logger,
+        monitor: Monitor
     ) {
         this.mempool = mempool
         this.publicClient = publicClient
         this.entryPoint = entryPoint
         this.logger = logger
+        this.monitor = monitor;
 
         setInterval(() => {
             this.process()
@@ -54,7 +57,11 @@ export class NonceQueuer {
     async process() {
         // remove queued ops that have been in the queue for more than 15 minutes
         this.queuedUserOperations = this.queuedUserOperations.filter((qop) => {
-            return qop.addedAt > Date.now() - 1000 * 60 * 15
+            const isStale = qop.addedAt <= Date.now() - 1000 * 60 * 15;
+            if (isStale) {
+                this.monitor.setUserOperationStatus(qop.userOperationHash, { status: "not_found", transactionHash: null });
+            }
+            return !isStale;
         })
 
         if (this.queuedUserOperations.length === 0) {
@@ -87,18 +94,23 @@ export class NonceQueuer {
     }
 
     add(mempoolUserOperation: MempoolUserOperation) {
-        const userOp = deriveUserOperation(mempoolUserOperation)
-        const [nonceKey, nonceValue] = getNonceKeyAndValue(userOp.nonce)
+        const op = deriveUserOperation(mempoolUserOperation)
+        const [nonceKey, nonceValue] = getNonceKeyAndValue(op.nonce)
+        const opHash = getUserOperationHash(
+            deriveUserOperation(mempoolUserOperation),
+            this.entryPoint,
+            this.publicClient.chain.id
+        )
         this.queuedUserOperations.push({
-            userOperationHash: getUserOperationHash(
-                deriveUserOperation(mempoolUserOperation),
-                this.entryPoint,
-                this.publicClient.chain.id
-            ),
+            userOperationHash: opHash,
             mempoolUserOperation: mempoolUserOperation,
             nonceKey: nonceKey,
             nonceValue: nonceValue,
             addedAt: Date.now()
+        })
+        this.monitor.setUserOperationStatus(opHash, {
+            status: "queued",
+            transactionHash: null
         })
     }
 

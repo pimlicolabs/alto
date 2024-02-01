@@ -101,7 +101,12 @@ export const bundlerHandler = async (
         rpcUrls: {
             default: { http: [args.rpcUrl] },
             public: { http: [args.rpcUrl] }
-        }
+        },
+        contracts: {
+            multicall3: {
+                address: "0xcA11bde05977b3631167028862bE2a173976CA11",
+            },
+        },
     }
 
     const client = createPublicClient({
@@ -242,6 +247,7 @@ export const bundlerHandler = async (
         client,
         parsedArgs.entryPoint,
         logger.child({ module: "nonce_queuer" }, { level: parsedArgs.nonceQueuerLogLevel || parsedArgs.logLevel }),
+        monitor
     )
 
     const rpcEndpoint = new RpcHandler(
