@@ -913,13 +913,13 @@ export class RpcHandler implements IRpcEndpoint {
         if (userOperationNonceValue < currentNonceValue) {
             throw new RpcError(
                 "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
-                ValidationErrors.SimulateValidation
+                ValidationErrors.InvalidFields
             )
         }
         if (userOperationNonceValue > currentNonceValue + 10n) {
             throw new RpcError(
                 "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
-                ValidationErrors.SimulateValidation
+                ValidationErrors.InvalidFields
             )
         }
         if (userOperationNonceValue === currentNonceValue) {
@@ -928,7 +928,7 @@ export class RpcHandler implements IRpcEndpoint {
                 if (!success) {
                     throw new RpcError(
                         "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
-                        ValidationErrors.SimulateValidation
+                        ValidationErrors.InvalidFields
                     )
                 }
             } else {
