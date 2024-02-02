@@ -345,6 +345,13 @@ export class UnsafeValidator implements IValidator {
                 )
             }
 
+            if (validationResult.returnInfo.validAfter > Date.now() / 1000) {
+                throw new RpcError(
+                    "User operation is not valid yet",
+                    ValidationErrors.ExpiresShortly
+                )
+            }
+
             if (
                 validationResult.returnInfo.validUntil <
                 Date.now() / 1000 + 30
@@ -410,6 +417,13 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
                 throw new RpcError(
                     "Invalid UserOp signature or paymaster signature",
                     ValidationErrors.InvalidSignature
+                )
+            }
+
+            if (validationResult.returnInfo.validAfter > Date.now() / 1000) {
+                throw new RpcError(
+                    "User operation is not valid yet",
+                    ValidationErrors.ExpiresShortly
                 )
             }
 
