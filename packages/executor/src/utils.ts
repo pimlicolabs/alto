@@ -16,6 +16,7 @@ import {
     Chain,
     ContractFunctionRevertedError,
     EstimateGasExecutionError,
+    FeeCapTooLowError,
     GetContractReturnType,
     Hex,
     PublicClient,
@@ -38,7 +39,7 @@ export function simulatedOpsToResults(
     return simulatedOps.map((sop) => {
         if (sop.reason === undefined) {
             return {
-                success: true,
+                status: "success",
                 value: {
                     userOperation: {
                         mempoolUserOperation: sop.owh.mempoolUserOperation,
@@ -51,7 +52,7 @@ export function simulatedOpsToResults(
             }
         }
         return {
-            success: false,
+            status: "failure",
             error: {
                 userOpHash: sop.owh.userOperationHash,
                 reason: sop.reason as string
@@ -79,7 +80,7 @@ export function createCompressedCalldata(compressedOps: CompressedUserOperation[
     return compressedOps.reduce((currentCallData, op) => {
         const nextCallData = concat([
             numberToHex(op.inflatorId, { size: 4 }),
-            numberToHex(hexToBytes(op.compressedCalldata).length,  { size: 2 }),
+            numberToHex(hexToBytes(op.compressedCalldata).length, { size: 2 }),
             op.compressedCalldata
         ]);
 
@@ -219,12 +220,26 @@ export async function filterOpsAndEstimateGas(
                     )[Number(errorResult.args[0])]
 
                     failingOp.reason = errorResult.args[1]
-                } catch (e: unknown) {
+                } catch (_e: unknown) {
                     logger.error(
                         { error: JSON.stringify(err) },
                         "failed to parse error result"
                     )
                     return { simulatedOps: [], gasLimit: 0n }
+                }
+            } else if (e instanceof EstimateGasExecutionError) {
+                if (e.cause instanceof FeeCapTooLowError) {
+                    logger.error(
+                        { error: e.shortMessage },
+                        "error estimating gas due to max fee < basefee"
+                    )
+                    return {
+                        simulatedOps: simulatedOps.map(op => ({
+                            ...op,
+                            reason: FeeCapTooLowError.name,
+                        })),
+                        gasLimit: 0n
+                    };
                 }
             } else {
                 sentry.captureException(err)

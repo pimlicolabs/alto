@@ -170,11 +170,11 @@ export class BasicExecutor implements IExecutor {
             gasPriceParameters.maxFeePerGas >
                 (newRequest.maxFeePerGas * 11n + 9n) / 10n
                 ? gasPriceParameters.maxFeePerGas
-                : (newRequest.maxFeePerGas * 11n +9n) / 10n
+                : (newRequest.maxFeePerGas * 11n + 9n) / 10n
 
         newRequest.maxPriorityFeePerGas =
             gasPriceParameters.maxPriorityFeePerGas >
-                (newRequest.maxPriorityFeePerGas * 11n +9n) / 10n
+                (newRequest.maxPriorityFeePerGas * 11n + 9n) / 10n
                 ? gasPriceParameters.maxPriorityFeePerGas
                 : (newRequest.maxPriorityFeePerGas * 11n + 9n) / 10n
         newRequest.account = transactionInfo.executor
@@ -396,6 +396,7 @@ export class BasicExecutor implements IExecutor {
                 this.senderManager.utilityAccount
             ])
         )
+        // biome-ignore lint/nursery/useAwait: <explanation>
         const promises = wallets.map(async (wallet) => {
             return flushStuckTransaction(
                 this.publicClient,
@@ -471,6 +472,19 @@ export class BasicExecutor implements IExecutor {
             childLogger
         )
 
+        if (simulatedOps.every((sop) => sop.reason === FeeCapTooLowError.name)) {
+            return opsWithHashes.map((owh) => {
+                return {
+                    status: "resubmit",
+                    info: {
+                        userOpHash: owh.userOperationHash,
+                        userOperation: owh.mempoolUserOperation,
+                        reason: FeeCapTooLowError.name
+                    }
+                }
+            })
+        }
+
         if (simulatedOps.length === 0) {
             childLogger.error(
                 "gas limit simulation encountered unexpected failure"
@@ -478,7 +492,7 @@ export class BasicExecutor implements IExecutor {
             this.markWalletProcessed(wallet)
             return opsWithHashes.map((owh) => {
                 return {
-                    success: false,
+                    status: "failure",
                     error: {
                         userOpHash: owh.userOperationHash,
                         reason: "INTERNAL FAILURE"
@@ -492,7 +506,7 @@ export class BasicExecutor implements IExecutor {
             this.markWalletProcessed(wallet)
             return simulatedOps.map((op) => {
                 return {
-                    success: false,
+                    status: "failure",
                     error: {
                         userOpHash: op.owh.userOperationHash,
                         reason: op.reason as string
@@ -543,7 +557,7 @@ export class BasicExecutor implements IExecutor {
             this.markWalletProcessed(wallet)
             return opsWithHashes.map((owh) => {
                 return {
-                    success: false,
+                    status: "failure",
                     error: {
                         userOpHash: owh.userOperationHash,
                         reason: "INTERNAL FAILURE"
@@ -651,6 +665,19 @@ export class BasicExecutor implements IExecutor {
             childLogger
         )
 
+        if (simulatedOps.every((sop) => sop.reason === FeeCapTooLowError.name)) {
+            return compressedOps.map((compressedOp) => {
+                return {
+                    status: "resubmit",
+                    info: {
+                        userOpHash: getUserOperationHash(compressedOp.inflatedOp, entryPoint, this.walletClient.chain.id),
+                        userOperation: compressedOp,
+                        reason: FeeCapTooLowError.name
+                    }
+                }
+            })
+        }
+
         gasLimit += 10_000n
 
         if (simulatedOps.length === 0) {
@@ -658,7 +685,7 @@ export class BasicExecutor implements IExecutor {
             this.markWalletProcessed(wallet)
             return compressedOps.map((compressedOp) => {
                 return {
-                    success: false,
+                    status: "failure",
                     error: {
                         userOpHash: getUserOperationHash(compressedOp.inflatedOp, entryPoint, this.walletClient.chain.id),
                         reason: "INTERNAL FAILURE"
@@ -673,7 +700,7 @@ export class BasicExecutor implements IExecutor {
             this.markWalletProcessed(wallet)
             return simulatedOps.map((simulatedOp) => {
                 return {
-                    success: false,
+                    status: "failure",
                     error: {
                         userOpHash: simulatedOp.owh.userOperationHash,
                         reason: simulatedOp.reason as string
@@ -710,7 +737,7 @@ export class BasicExecutor implements IExecutor {
             this.markWalletProcessed(wallet)
             return opsToBundle.map((op) => {
                 return {
-                    success: false,
+                    status: "failure",
                     error: {
                         userOpHash: op.userOperationHash,
                         reason: "INTERNAL FAILURE"
