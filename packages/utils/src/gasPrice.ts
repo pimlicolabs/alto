@@ -1,5 +1,5 @@
 import { GasPriceParameters } from "@alto/types"
-import { Chain, PublicClient, parseGwei } from "viem"
+import { Chain, PublicClient } from "viem"
 import * as chains from "viem/chains"
 import { maxBigInt, minBigInt } from "./bigInt"
 
@@ -29,29 +29,6 @@ const getBumpAmount = (chainId: number) => {
     return 100n
 }
 
-const bumpTheGasPrice = (
-    chainId: number,
-    gasPriceParameters: GasPriceParameters
-): GasPriceParameters => {
-    const bumpAmount = getBumpAmount(chainId)
-
-    const result = {
-        maxFeePerGas: (gasPriceParameters.maxFeePerGas * bumpAmount) / 100n,
-        maxPriorityFeePerGas:
-            (gasPriceParameters.maxPriorityFeePerGas * bumpAmount) / 100n
-    }
-
-    if (chainId === chains.celo.id || chainId === chains.celoAlfajores.id) {
-        const maxFee = maxBigInt(result.maxFeePerGas, result.maxPriorityFeePerGas)
-        return {
-            maxFeePerGas: maxFee,
-            maxPriorityFeePerGas: maxFee
-        }
-    }
-
-    return result
-}
-
 const getFallBackMaxPriorityFeePerGas = async (
     publicClient: PublicClient,
     gasPrice: bigint
@@ -70,26 +47,27 @@ const getFallBackMaxPriorityFeePerGas = async (
     return minBigInt(feeAverage, gasPrice)
 }
 
-/// formula taken from: https://eips.ethereum.org/EIPS/eip-1559
+/// Formula taken from: https://eips.ethereum.org/EIPS/eip-1559
 const getNextBaseFee = async (publicClient: PublicClient) => {
     const block = await publicClient.getBlock({
         blockTag: "latest"
     })
-    const currentBaseFeePerGas = block.baseFeePerGas || parseGwei("30")
+    const currentBaseFeePerGas = block.baseFeePerGas || await publicClient.getGasPrice()
     const currentGasUsed = block.gasUsed
     const gasTarget = block.gasLimit / 2n
-
-    const gasUsedDelta = currentGasUsed - gasTarget
-    const baseFeePerGasDelta = currentBaseFeePerGas * gasUsedDelta / gasTarget / 8n
 
     if (currentGasUsed === gasTarget) {
         return currentBaseFeePerGas
     }
 
     if (currentGasUsed > gasTarget) {
+        const gasUsedDelta = currentGasUsed - gasTarget
+        const baseFeePerGasDelta = maxBigInt(currentBaseFeePerGas * gasUsedDelta / gasTarget / 8n, 1n)
         return currentBaseFeePerGas + baseFeePerGasDelta
     }
 
+    const gasUsedDelta = currentGasUsed - gasTarget
+    const baseFeePerGasDelta = currentBaseFeePerGas * gasUsedDelta / gasTarget / 8n
     return currentBaseFeePerGas - baseFeePerGasDelta
 }
 
@@ -105,10 +83,10 @@ export async function getGasPrice(
             gasPrice = await publicClient.getGasPrice()
         }
 
-        return bumpTheGasPrice(chain.id, {
+        return {
             maxFeePerGas: gasPrice,
             maxPriorityFeePerGas: gasPrice,
-        })
+        }
     }
 
     let { maxFeePerGas, maxPriorityFeePerGas } = await publicClient.estimateFeesPerGas({ chain })
@@ -124,8 +102,17 @@ export async function getGasPrice(
         maxFeePerGas = await getNextBaseFee(publicClient) + maxPriorityFeePerGas
     }
 
-    return bumpTheGasPrice(chain.id, {
+    const maxPriorityFeeBumpAmount = getBumpAmount(chain.id)
+    maxPriorityFeePerGas = (maxPriorityFeePerGas * maxPriorityFeeBumpAmount) / 100n
+
+    if (chain === chains.celo || chain === chains.celoAlfajores) {
+        const maxfee = maxBigInt(maxFeePerGas, maxPriorityFeePerGas)
+        maxPriorityFeePerGas = maxfee
+        maxFeePerGas = maxfee
+    }
+
+    return {
         maxFeePerGas,
         maxPriorityFeePerGas,
-    })
+    }
 }
