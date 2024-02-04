@@ -39,8 +39,6 @@ import {
 import {
     Logger,
     Metrics,
-    calcArbitrumPreVerificationGas,
-    calcOptimismPreVerificationGas,
     calcPreVerificationGas,
     getGasPrice,
     getNonceKeyAndValue,
@@ -69,6 +67,8 @@ import {
 } from "./gasEstimation"
 import { NonceQueuer } from "./nonceQueuer"
 import { StateOverrides } from "@alto/types"
+import { ApiVersion } from "@alto/types/src"
+import { calcVerificationGasAndCallGasLimit } from "@alto/utils"
 
 export interface IRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>
@@ -101,6 +101,7 @@ export class RpcHandler implements IRpcEndpoint {
     nonceQueuer: NonceQueuer
     usingTenderly: boolean
     minimumGasPricePercent: number
+    apiVersion: ApiVersion
     noEthCallOverrideSupport: boolean
     rpcMaxBlockRange: number | undefined
     logger: Logger
@@ -124,6 +125,7 @@ export class RpcHandler implements IRpcEndpoint {
         reputationManager: IReputationManager,
         usingTenderly: boolean,
         minimumGasPricePercent: number,
+        apiVersion: ApiVersion,
         noEthCallOverrideSupport: boolean,
         rpcMaxBlockRange: number | undefined,
         logger: Logger,
@@ -141,6 +143,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.nonceQueuer = nonceQueuer
         this.usingTenderly = usingTenderly
         this.minimumGasPricePercent = minimumGasPricePercent
+        this.apiVersion = apiVersion
         this.noEthCallOverrideSupport = noEthCallOverrideSupport
         this.rpcMaxBlockRange = rpcMaxBlockRange
         this.logger = logger
@@ -303,34 +306,13 @@ export class RpcHandler implements IRpcEndpoint {
                 "user operation max fee per gas must be larger than 0 during gas estimation"
             )
         }
-        let preVerificationGas = calcPreVerificationGas(userOperation)
-
-        if (this.chainId === 59140 || this.chainId === 59142) {
-            preVerificationGas *= 2n
-        } else if (
-            this.chainId === chains.optimism.id ||
-            this.chainId === chains.optimismGoerli.id ||
-            this.chainId === chains.base.id ||
-            this.chainId === chains.baseGoerli.id ||
-            this.chainId === chains.opBNB.id ||
-            this.chainId === chains.opBNBTestnet.id ||
-            this.chainId === 957 // Lyra chain
-        ) {
-            preVerificationGas = await calcOptimismPreVerificationGas(
-                this.publicClient,
-                userOperation,
-                entryPoint,
-                preVerificationGas,
-                this.logger
-            )
-        } else if (this.chainId === chains.arbitrum.id) {
-            preVerificationGas = await calcArbitrumPreVerificationGas(
-                this.publicClient,
-                userOperation,
-                entryPoint,
-                preVerificationGas
-            )
-        }
+        const preVerificationGas = await calcPreVerificationGas(
+            this.publicClient,
+            userOperation,
+            entryPoint,
+            this.chainId,
+            this.logger
+        )
 
         let verificationGasLimit: bigint
         let callGasLimit: bigint
@@ -353,44 +335,13 @@ export class RpcHandler implements IRpcEndpoint {
                 userOperation,
                 stateOverrides
             )
-
-            verificationGasLimit =
-                ((executionResult.preOpGas - userOperation.preVerificationGas) *
-                    3n) /
-                2n
-
-            let gasPrice: bigint
-
-            if (
-                userOperation.maxPriorityFeePerGas ===
-                userOperation.maxFeePerGas
-            ) {
-                gasPrice = userOperation.maxFeePerGas
-            } else {
-                const blockBaseFee = (await this.publicClient.getBlock())
-                    .baseFeePerGas
-                gasPrice =
-                    userOperation.maxFeePerGas <
-                    (blockBaseFee ?? 0n) + userOperation.maxPriorityFeePerGas
-                        ? userOperation.maxFeePerGas
-                        : userOperation.maxPriorityFeePerGas +
-                          (blockBaseFee ?? 0n)
-            }
-            const calculatedCallGasLimit =
-                executionResult.paid / gasPrice -
-                executionResult.preOpGas +
-                21000n +
-                50000n
-
-            callGasLimit =
-                calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n
-
-            if (
-                this.chainId === chains.baseGoerli.id ||
-                this.chainId === chains.base.id
-            ) {
-                callGasLimit = (110n * callGasLimit) / 100n
-            }
+            ;[verificationGasLimit, callGasLimit] =
+                await calcVerificationGasAndCallGasLimit(
+                    this.publicClient,
+                    userOperation,
+                    executionResult,
+                    this.chainId
+                )
         } else {
             userOperation.maxFeePerGas = 0n
             userOperation.maxPriorityFeePerGas = 0n
@@ -435,7 +386,7 @@ export class RpcHandler implements IRpcEndpoint {
         userOperation: UserOperation,
         entryPoint: Address
     ): Promise<SendUserOperationResponseResult> {
-        let status
+        let status: "added" | "queued" | "rejected" = "rejected"
         try {
             status = await this.addToMempoolIfValid(userOperation, entryPoint)
 

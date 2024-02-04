@@ -114,37 +114,37 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
     publicClientLogLevel: {
         description: "Log level for the publicClient module",
         type: "string",
-        require: false,
+        require: false
     },
     walletClientLogLevel: {
         description: "Log level for the walletClient module",
         type: "string",
-        require: false,
+        require: false
     },
     rpcLogLevel: {
         description: "Log level for the rpc module",
         type: "string",
-        require: false,
+        require: false
     },
     mempoolLogLevel: {
         description: "Log level for the mempool module",
         type: "string",
-        require: false,
+        require: false
     },
     executorLogLevel: {
         description: "Log level for the executor module",
         type: "string",
-        require: false,
+        require: false
     },
     reputationManagerLogLevel: {
         description: "Log level for the executor module",
         type: "string",
-        require: false,
+        require: false
     },
     nonceQueuerLogLevel: {
         description: "Log level for the executor module",
         type: "string",
-        require: false,
+        require: false
     },
     environment: {
         description: "Environment",
@@ -170,6 +170,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "number",
         require: true,
         default: 0
+    },
+    apiVersion: {
+        description: "API version of the bundler",
+        type: "string",
+        require: false,
+        default: "v1"
     },
     noEip1559Support: {
         description: "Rpc url does not support EIP1559",
