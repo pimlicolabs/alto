@@ -161,9 +161,9 @@ export class BasicExecutor implements IExecutor {
         const newRequest = { ...transactionInfo.transactionRequest }
 
         const gasPriceParameters = await getGasPrice(
-            this.walletClient.chain.id,
+            this.walletClient.chain,
             this.publicClient,
-            this.logger
+            this.noEip1559Support
         )
 
         newRequest.maxFeePerGas =
@@ -385,9 +385,9 @@ export class BasicExecutor implements IExecutor {
 
     async flushStuckTransactions(): Promise<void> {
         const gasPrice = await getGasPrice(
-            this.walletClient.chain.id,
+            this.walletClient.chain,
             this.publicClient,
-            this.logger
+            this.noEip1559Support
         )
 
         const wallets = Array.from(
@@ -441,9 +441,9 @@ export class BasicExecutor implements IExecutor {
         childLogger.debug("bundling user operation")
 
         const gasPriceParameters = await getGasPrice(
-            this.walletClient.chain.id,
+            this.walletClient.chain,
             this.publicClient,
-            this.logger
+            this.noEip1559Support
         )
         childLogger.debug({ gasPriceParameters }, "got gas price")
 
@@ -630,7 +630,7 @@ export class BasicExecutor implements IExecutor {
         })
         childLogger.debug("bundling compressed user operation")
 
-        const gasPriceParameters = await getGasPrice(this.walletClient.chain.id, this.publicClient, this.logger)
+        const gasPriceParameters = await getGasPrice(this.walletClient.chain, this.publicClient, this.noEip1559Support)
         childLogger.debug({ gasPriceParameters }, "got gas price")
 
         const nonce = await this.publicClient.getTransactionCount({

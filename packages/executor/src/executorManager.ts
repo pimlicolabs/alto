@@ -375,9 +375,9 @@ export class ExecutorManager {
 
         // for all still not included check if needs to be replaced (based on gas price)
         const gasPriceParameters = await getGasPrice(
-            this.publicClient.chain.id,
+            this.publicClient.chain,
             this.publicClient,
-            this.logger
+            false
         )
         this.logger.trace(
             { gasPriceParameters },

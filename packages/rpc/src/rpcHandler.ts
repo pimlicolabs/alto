@@ -321,7 +321,6 @@ export class RpcHandler implements IRpcEndpoint {
                 userOperation,
                 entryPoint,
                 preVerificationGas,
-                this.logger
             )
         } else if (this.chainId === chains.arbitrum.id) {
             preVerificationGas = await calcArbitrumPreVerificationGas(
@@ -371,10 +370,10 @@ export class RpcHandler implements IRpcEndpoint {
                     .baseFeePerGas
                 gasPrice =
                     userOperation.maxFeePerGas <
-                    (blockBaseFee ?? 0n) + userOperation.maxPriorityFeePerGas
+                        (blockBaseFee ?? 0n) + userOperation.maxPriorityFeePerGas
                         ? userOperation.maxFeePerGas
                         : userOperation.maxPriorityFeePerGas +
-                          (blockBaseFee ?? 0n)
+                        (blockBaseFee ?? 0n)
             }
             const calculatedCallGasLimit =
                 executionResult.paid / gasPrice -
@@ -804,9 +803,9 @@ export class RpcHandler implements IRpcEndpoint {
 
     async pimlico_getUserOperationGasPrice(): Promise<PimlicoGetUserOperationGasPriceResponseResult> {
         const gasPrice = await getGasPrice(
-            this.chainId,
+            this.publicClient.chain,
             this.publicClient,
-            this.logger
+            false
         )
         return {
             slow: {
@@ -855,9 +854,9 @@ export class RpcHandler implements IRpcEndpoint {
 
         if (this.minimumGasPricePercent !== 0) {
             const gasPrice = await getGasPrice(
-                this.chainId,
+                this.publicClient.chain,
                 this.publicClient,
-                this.logger
+                false
             )
             const minMaxFeePerGas =
                 (gasPrice.maxFeePerGas * BigInt(this.minimumGasPricePercent)) /

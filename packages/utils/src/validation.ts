@@ -1,7 +1,7 @@
 import { Address, EntryPointAbi, RpcError, UserOperation } from "@alto/types"
-import { EstimateGasExecutionError } from "viem"
 import {
     Chain,
+    EstimateGasExecutionError,
     ContractFunctionExecutionError,
     ContractFunctionRevertedError,
     FeeCapTooLowError,
@@ -19,7 +19,7 @@ import {
     toBytes,
     toHex
 } from "viem"
-import { getGasPrice, Logger } from "."
+import { getGasPrice } from "."
 
 export interface GasOverheads {
     /**
@@ -175,9 +175,9 @@ export function calcPreVerificationGas(
         .reduce((sum, x) => sum + x)
     const ret = Math.round(
         callDataCost +
-            ov.fixed / ov.bundleSize +
-            ov.perUserOp +
-            ov.perUserOpWord * lengthInWord
+        ov.fixed / ov.bundleSize +
+        ov.perUserOp +
+        ov.perUserOpWord * lengthInWord
     )
     return BigInt(ret)
 }
@@ -211,7 +211,6 @@ export async function calcOptimismPreVerificationGas(
     op: UserOperation,
     entryPoint: Address,
     staticFee: bigint,
-    logger: Logger
 ) {
     const randomDataUserOp: UserOperation = {
         ...op
@@ -256,9 +255,9 @@ export async function calcOptimismPreVerificationGas(
     ])
 
     const gasPrice = await getGasPrice(
-        publicClient.chain.id,
+        publicClient.chain,
         publicClient,
-        logger
+        true,
     )
 
     const l2MaxFee = gasPrice.maxFeePerGas
@@ -378,7 +377,8 @@ export function parseViemError(err: unknown) {
         }
         if (e instanceof ContractFunctionRevertedError) {
             return e
-        } else if (e instanceof EstimateGasExecutionError) {
+        }
+        if (e instanceof EstimateGasExecutionError) {
             return e
         }
         return

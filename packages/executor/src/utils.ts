@@ -117,8 +117,8 @@ export async function filterOpsAndEstimateGas(
             if (callContext.type === "default") {
                 const ep = callContext.ep
                 const opsToSend = simulatedOps
-                            .filter((op) => op.reason === undefined)
-                            .map((op) => (op.owh.mempoolUserOperation as UserOperation))
+                    .filter((op) => op.reason === undefined)
+                    .map((op) => (op.owh.mempoolUserOperation as UserOperation))
 
                 gasLimit = await ep.estimateGas.handleOps(
                     [
@@ -136,8 +136,8 @@ export async function filterOpsAndEstimateGas(
             } else {
                 const { publicClient, bundleBulker, perOpInflatorId } = callContext
                 const opsToSend = simulatedOps
-                            .filter((op) => op.reason === undefined)
-                            .map((op) => (op.owh.mempoolUserOperation as CompressedUserOperation))
+                    .filter((op) => op.reason === undefined)
+                    .map((op) => (op.owh.mempoolUserOperation as CompressedUserOperation))
 
                 gasLimit = await publicClient.estimateGas({
                     to: bundleBulker,
