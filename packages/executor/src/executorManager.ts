@@ -54,6 +54,7 @@ export class ExecutorManager {
     private currentlyHandlingBlock = false
     private timer?: NodeJS.Timer
     private bundlerFrequency: number
+    private noEip1559Support: boolean
 
     constructor(
         executor: IExecutor,
@@ -66,7 +67,8 @@ export class ExecutorManager {
         logger: Logger,
         metrics: Metrics,
         bundleMode: BundlingMode,
-        bundlerFrequency: number
+        bundlerFrequency: number,
+        noEip1559Support: boolean
     ) {
         this.reputationManager = reputationManager
         this.executor = executor
@@ -78,6 +80,7 @@ export class ExecutorManager {
         this.logger = logger
         this.metrics = metrics
         this.bundlerFrequency = bundlerFrequency
+        this.noEip1559Support = noEip1559Support
 
         if (bundleMode === "auto") {
             this.timer = setInterval(async () => {
@@ -377,7 +380,7 @@ export class ExecutorManager {
         const gasPriceParameters = await getGasPrice(
             this.publicClient.chain,
             this.publicClient,
-            false
+            this.noEip1559Support
         )
         this.logger.trace(
             { gasPriceParameters },

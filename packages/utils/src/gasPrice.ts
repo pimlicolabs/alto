@@ -76,6 +76,8 @@ export async function getGasPrice(
     publicClient: PublicClient,
     noEip1559Support: boolean
 ): Promise<GasPriceParameters> {
+    let maxFeePerGas: bigint | undefined
+    let maxPriorityFeePerGas: bigint | undefined
     if (noEip1559Support) {
         let { gasPrice } = await publicClient.estimateFeesPerGas({ chain, type: "legacy" })
 
@@ -83,13 +85,13 @@ export async function getGasPrice(
             gasPrice = await publicClient.getGasPrice()
         }
 
-        return {
-            maxFeePerGas: gasPrice,
-            maxPriorityFeePerGas: gasPrice,
-        }
+        maxFeePerGas = gasPrice
+    } else {
+        const fees = await publicClient.estimateFeesPerGas({ chain })
+        maxFeePerGas = fees.maxFeePerGas
+        maxPriorityFeePerGas = fees.maxPriorityFeePerGas
     }
 
-    let { maxFeePerGas, maxPriorityFeePerGas } = await publicClient.estimateFeesPerGas({ chain })
 
     if (maxPriorityFeePerGas === undefined) {
         maxPriorityFeePerGas = await getFallBackMaxPriorityFeePerGas(

@@ -110,6 +110,7 @@ export class RpcHandler implements IRpcEndpoint {
     executorManager: ExecutorManager
     reputationManager: IReputationManager
     compressionHandler: CompressionHandler | null
+    noEip1559Support: boolean
     dangerousSkipUserOperationValidation: boolean
 
     constructor(
@@ -130,6 +131,7 @@ export class RpcHandler implements IRpcEndpoint {
         metrics: Metrics,
         environment: Environment,
         compressionHandler: CompressionHandler | null,
+        noEip1559Support: boolean,
         dangerousSkipUserOperationValidation = false
     ) {
         this.entryPoint = entryPoint
@@ -150,8 +152,8 @@ export class RpcHandler implements IRpcEndpoint {
         this.executorManager = executorManager
         this.reputationManager = reputationManager
         this.compressionHandler = compressionHandler
-        this.dangerousSkipUserOperationValidation =
-            dangerousSkipUserOperationValidation
+        this.noEip1559Support = noEip1559Support
+        this.dangerousSkipUserOperationValidation = dangerousSkipUserOperationValidation
     }
 
     async handleMethod(request: BundlerRequest): Promise<BundlerResponse> {
@@ -805,7 +807,7 @@ export class RpcHandler implements IRpcEndpoint {
         const gasPrice = await getGasPrice(
             this.publicClient.chain,
             this.publicClient,
-            false
+            this.noEip1559Support
         )
         return {
             slow: {
@@ -856,7 +858,7 @@ export class RpcHandler implements IRpcEndpoint {
             const gasPrice = await getGasPrice(
                 this.publicClient.chain,
                 this.publicClient,
-                false
+                this.noEip1559Support
             )
             const minMaxFeePerGas =
                 (gasPrice.maxFeePerGas * BigInt(this.minimumGasPricePercent)) /
@@ -965,7 +967,7 @@ export class RpcHandler implements IRpcEndpoint {
     ) {
         let status
         try {
-            var { inflatedOp, inflatorId } =
+            const { inflatedOp, inflatorId } =
                 await this.validateAndInflateCompressedUserOperation(
                     inflatorAddress,
                     compressedCalldata
