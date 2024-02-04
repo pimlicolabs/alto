@@ -16,6 +16,7 @@ import {
     Metrics,
     getGasPrice,
     getUserOperationHash,
+    maxBigInt,
     parseViemError,
 } from "@alto/utils"
 import * as sentry from "@sentry/node"
@@ -167,17 +168,9 @@ export class BasicExecutor implements IExecutor {
             this.logger
         )
 
-        newRequest.maxFeePerGas =
-            gasPriceParameters.maxFeePerGas >
-                (newRequest.maxFeePerGas * 11n + 9n) / 10n
-                ? gasPriceParameters.maxFeePerGas
-                : (newRequest.maxFeePerGas * 11n + 9n) / 10n
+        newRequest.maxFeePerGas = maxBigInt(gasPriceParameters.maxFeePerGas, (newRequest.maxFeePerGas * 11n + 9n) / 10n)
 
-        newRequest.maxPriorityFeePerGas =
-            gasPriceParameters.maxPriorityFeePerGas >
-                (newRequest.maxPriorityFeePerGas * 11n + 9n) / 10n
-                ? gasPriceParameters.maxPriorityFeePerGas
-                : (newRequest.maxPriorityFeePerGas * 11n + 9n) / 10n
+        newRequest.maxPriorityFeePerGas = maxBigInt(gasPriceParameters.maxPriorityFeePerGas, (newRequest.maxPriorityFeePerGas * 11n + 9n) / 10n)
         newRequest.account = transactionInfo.executor
 
         const opsWithHashes = transactionInfo.userOperationInfos.map((opInfo) => {
