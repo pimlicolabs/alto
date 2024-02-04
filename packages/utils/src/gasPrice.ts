@@ -39,7 +39,7 @@ const getFallBackMaxPriorityFeePerGas = async (
         blockTag: "latest"
     })
 
-    if (feeHistory.reward === undefined) {
+    if (feeHistory.reward === undefined || feeHistory.reward === null) {
         return gasPrice
     }
 
@@ -85,13 +85,15 @@ export async function getGasPrice(
             gasPrice = await publicClient.getGasPrice()
         }
 
-        maxFeePerGas = gasPrice
-    } else {
-        const fees = await publicClient.estimateFeesPerGas({ chain })
-        maxFeePerGas = fees.maxFeePerGas
-        maxPriorityFeePerGas = fees.maxPriorityFeePerGas
+        return {
+            maxFeePerGas: gasPrice,
+            maxPriorityFeePerGas: gasPrice
+        }
     }
 
+    const fees = await publicClient.estimateFeesPerGas({ chain })
+    maxFeePerGas = fees.maxFeePerGas
+    maxPriorityFeePerGas = fees.maxPriorityFeePerGas
 
     if (maxPriorityFeePerGas === undefined) {
         maxPriorityFeePerGas = await getFallBackMaxPriorityFeePerGas(
@@ -104,9 +106,9 @@ export async function getGasPrice(
         maxFeePerGas = await getNextBaseFee(publicClient) + maxPriorityFeePerGas
     }
 
-    const maxPriorityFeeBumpAmount = getBumpAmount(chain.id)
-    maxPriorityFeePerGas = (maxPriorityFeePerGas * maxPriorityFeeBumpAmount) / 100n
-    maxFeePerGas = maxBigInt(maxPriorityFeePerGas, maxFeePerGas)
+    const bumpAmount = getBumpAmount(chain.id)
+    maxPriorityFeePerGas = (maxPriorityFeePerGas * bumpAmount) / 100n
+    maxFeePerGas = (maxFeePerGas * bumpAmount) / 100n
 
     if (chain.id === chains.celo.id || chain.id === chains.celoAlfajores.id) {
         const maxfee = maxBigInt(maxFeePerGas, maxPriorityFeePerGas)
@@ -115,7 +117,7 @@ export async function getGasPrice(
     }
 
     return {
-        maxFeePerGas,
+        maxFeePerGas: maxBigInt(maxFeePerGas, maxPriorityFeePerGas),
         maxPriorityFeePerGas,
     }
 }
