@@ -19,7 +19,7 @@ import {
     toBytes,
     toHex
 } from "viem"
-import { getGasPrice } from "."
+import { getGasPrice, Logger } from "."
 
 export interface GasOverheads {
     /**
@@ -211,6 +211,7 @@ export async function calcOptimismPreVerificationGas(
     op: UserOperation,
     entryPoint: Address,
     staticFee: bigint,
+    logger: Logger,
 ) {
     const randomDataUserOp: UserOperation = {
         ...op
@@ -258,6 +259,7 @@ export async function calcOptimismPreVerificationGas(
         publicClient.chain,
         publicClient,
         true,
+        logger
     )
 
     const l2MaxFee = gasPrice.maxFeePerGas

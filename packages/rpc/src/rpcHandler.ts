@@ -323,6 +323,7 @@ export class RpcHandler implements IRpcEndpoint {
                 userOperation,
                 entryPoint,
                 preVerificationGas,
+                this.logger,
             )
         } else if (this.chainId === chains.arbitrum.id) {
             preVerificationGas = await calcArbitrumPreVerificationGas(
@@ -807,7 +808,8 @@ export class RpcHandler implements IRpcEndpoint {
         const gasPrice = await getGasPrice(
             this.publicClient.chain,
             this.publicClient,
-            this.noEip1559Support
+            this.noEip1559Support,
+            this.logger,
         )
         return {
             slow: {
@@ -858,7 +860,8 @@ export class RpcHandler implements IRpcEndpoint {
             const gasPrice = await getGasPrice(
                 this.publicClient.chain,
                 this.publicClient,
-                this.noEip1559Support
+                this.noEip1559Support,
+                this.logger
             )
             const minMaxFeePerGas =
                 (gasPrice.maxFeePerGas * BigInt(this.minimumGasPricePercent)) /

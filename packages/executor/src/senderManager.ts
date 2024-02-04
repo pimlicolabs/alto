@@ -140,7 +140,8 @@ export class SenderManager {
             const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPrice(
                 walletClient.chain,
                 publicClient,
-                this.noEip1559Support
+                this.noEip1559Support,
+                this.logger
             )
 
             if (

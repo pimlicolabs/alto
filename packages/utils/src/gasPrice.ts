@@ -2,6 +2,7 @@ import { GasPriceParameters } from "@alto/types"
 import { Chain, PublicClient } from "viem"
 import * as chains from "viem/chains"
 import { maxBigInt, minBigInt } from "./bigInt"
+import { Logger } from "."
 
 const getBumpAmount = (chainId: number) => {
     if (chainId === chains.celo.id) {
@@ -74,7 +75,8 @@ const getNextBaseFee = async (publicClient: PublicClient) => {
 export async function getGasPrice(
     chain: Chain,
     publicClient: PublicClient,
-    noEip1559Support: boolean
+    noEip1559Support: boolean,
+    logger: Logger
 ): Promise<GasPriceParameters> {
     let maxFeePerGas: bigint | undefined
     let maxPriorityFeePerGas: bigint | undefined
@@ -82,6 +84,7 @@ export async function getGasPrice(
         let { gasPrice } = await publicClient.estimateFeesPerGas({ chain, type: "legacy" })
 
         if (gasPrice === undefined) {
+            logger.info("failed to get legacy gasPrice, using fallback value")
             gasPrice = await publicClient.getGasPrice()
         }
 
@@ -96,6 +99,7 @@ export async function getGasPrice(
     maxPriorityFeePerGas = fees.maxPriorityFeePerGas
 
     if (maxPriorityFeePerGas === undefined) {
+        logger.info("failed to get maxPriorityFeePerGas, using fallback value")
         maxPriorityFeePerGas = await getFallBackMaxPriorityFeePerGas(
             publicClient,
             maxFeePerGas ?? 0n
@@ -103,6 +107,7 @@ export async function getGasPrice(
     }
 
     if (maxFeePerGas === undefined) {
+        logger.info("failed to get maxFeePerGas, using fallback value")
         maxFeePerGas = await getNextBaseFee(publicClient) + maxPriorityFeePerGas
     }
 

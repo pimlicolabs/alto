@@ -163,7 +163,8 @@ export class BasicExecutor implements IExecutor {
         const gasPriceParameters = await getGasPrice(
             this.walletClient.chain,
             this.publicClient,
-            this.noEip1559Support
+            this.noEip1559Support,
+            this.logger
         )
 
         newRequest.maxFeePerGas =
@@ -387,7 +388,8 @@ export class BasicExecutor implements IExecutor {
         const gasPrice = await getGasPrice(
             this.walletClient.chain,
             this.publicClient,
-            this.noEip1559Support
+            this.noEip1559Support,
+            this.logger
         )
 
         const wallets = Array.from(
@@ -443,7 +445,8 @@ export class BasicExecutor implements IExecutor {
         const gasPriceParameters = await getGasPrice(
             this.walletClient.chain,
             this.publicClient,
-            this.noEip1559Support
+            this.noEip1559Support,
+            this.logger
         )
         childLogger.debug({ gasPriceParameters }, "got gas price")
 
@@ -630,7 +633,7 @@ export class BasicExecutor implements IExecutor {
         })
         childLogger.debug("bundling compressed user operation")
 
-        const gasPriceParameters = await getGasPrice(this.walletClient.chain, this.publicClient, this.noEip1559Support)
+        const gasPriceParameters = await getGasPrice(this.walletClient.chain, this.publicClient, this.noEip1559Support, this.logger)
         childLogger.debug({ gasPriceParameters }, "got gas price")
 
         const nonce = await this.publicClient.getTransactionCount({

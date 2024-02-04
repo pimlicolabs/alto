@@ -380,7 +380,8 @@ export class ExecutorManager {
         const gasPriceParameters = await getGasPrice(
             this.publicClient.chain,
             this.publicClient,
-            this.noEip1559Support
+            this.noEip1559Support,
+            this.logger,
         )
         this.logger.trace(
             { gasPriceParameters },
