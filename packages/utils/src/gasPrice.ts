@@ -115,6 +115,10 @@ export async function getGasPrice(
     maxPriorityFeePerGas = (maxPriorityFeePerGas * bumpAmount) / 100n
     maxFeePerGas = (maxFeePerGas * bumpAmount) / 100n
 
+    if (maxPriorityFeePerGas === 0n) {
+        maxPriorityFeePerGas = maxFeePerGas / 200n
+    }
+
     if (chain.id === chains.celo.id || chain.id === chains.celoAlfajores.id) {
         const maxfee = maxBigInt(maxFeePerGas, maxPriorityFeePerGas)
         maxPriorityFeePerGas = maxfee
