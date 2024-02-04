@@ -105,7 +105,7 @@ export async function getGasPrice(
     const maxPriorityFeeBumpAmount = getBumpAmount(chain.id)
     maxPriorityFeePerGas = (maxPriorityFeePerGas * maxPriorityFeeBumpAmount) / 100n
 
-    if (chain === chains.celo || chain === chains.celoAlfajores) {
+    if (chain.id === chains.celo.id || chain.id === chains.celoAlfajores.id) {
         const maxfee = maxBigInt(maxFeePerGas, maxPriorityFeePerGas)
         maxPriorityFeePerGas = maxfee
         maxFeePerGas = maxfee
