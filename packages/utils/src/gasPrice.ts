@@ -59,6 +59,10 @@ export async function getPolygonGasPriceParameters(
 }
 
 const getBumpAmount = (chainId: number) => {
+    if (chainId === chains.sepolia.id) {
+        return 120n
+    }
+
     if (chainId === chains.celo.id) {
         return 150n
     }
