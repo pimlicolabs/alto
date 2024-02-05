@@ -229,7 +229,7 @@ export async function filterOpsAndEstimateGas(
                 }
             } else if (e instanceof EstimateGasExecutionError) {
                 if (e.cause instanceof FeeCapTooLowError) {
-                    logger.error(
+                    logger.info(
                         { error: e.shortMessage },
                         "error estimating gas due to max fee < basefee"
                     )
