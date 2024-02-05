@@ -180,12 +180,12 @@ export async function getGasPrice(
             gasPrice = gasInfo.gasPrice
         } catch (e) {
             sentry.captureException(e)
-            logger.error("failed to get legacy gasPrice, using fallback value", { error: e })
+            logger.error("failed to fetch legacy gasPrices from estimateFeesPerGas", { error: e })
             gasPrice = undefined
         }
 
         if (gasPrice === undefined) {
-            logger.info("failed to get legacy gasPrice, using fallback value")
+            logger.error("failed to get legacy gasPrice, using fallback value")
             gasPrice = await publicClient.getGasPrice()
         }
 
@@ -203,7 +203,7 @@ export async function getGasPrice(
         maxPriorityFeePerGas = fees.maxPriorityFeePerGas
     } catch (e) {
         sentry.captureException(e)
-        logger.error("failed to get eip1559 gasPrices, using fallback value", { error: e })
+        logger.error("failed to fetch eip-1559 gasPrices from estimateFeesPerGas", { error: e })
         maxFeePerGas = undefined
         maxPriorityFeePerGas = undefined
     }
