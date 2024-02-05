@@ -1,59 +1,62 @@
-import { IExecutor, ExecutorManager } from "@alto/executor"
-import { IReputationManager, Mempool, Monitor } from "@alto/mempool"
+import type { ExecutorManager, IExecutor } from "@alto/executor"
+import type { IReputationManager, Mempool, Monitor } from "@alto/mempool"
 import {
-    Address,
-    BundlerClearMempoolResponseResult,
-    BundlerClearStateResponseResult,
-    BundlerDumpMempoolResponseResult,
-    BundlerDumpReputationsResponseResult,
-    BundlerGetStakeStatusResponseResult,
-    BundlerRequest,
-    BundlerResponse,
-    BundlerSendBundleNowResponseResult,
-    BundlerSetBundlingModeResponseResult,
-    BundlerSetReputationsRequestParams,
-    BundlingMode,
-    ChainIdResponseResult,
+    type Address,
+    type BundlerClearMempoolResponseResult,
+    type BundlerClearStateResponseResult,
+    type BundlerDumpMempoolResponseResult,
+    type BundlerDumpReputationsResponseResult,
+    type BundlerGetStakeStatusResponseResult,
+    type BundlerRequest,
+    type BundlerResponse,
+    type BundlerSendBundleNowResponseResult,
+    type BundlerSetBundlingModeResponseResult,
+    type BundlerSetReputationsRequestParams,
+    type BundlingMode,
+    type ChainIdResponseResult,
+    type CompressedUserOperation,
     EntryPointAbi,
-    Environment,
-    EstimateUserOperationGasResponseResult,
-    GetUserOperationByHashResponseResult,
-    GetUserOperationReceiptResponseResult,
-    HexData32,
-    IValidator,
-    PimlicoGetUserOperationGasPriceResponseResult,
-    PimlicoGetUserOperationStatusResponseResult,
+    type Environment,
+    type EstimateUserOperationGasResponseResult,
+    type GetUserOperationByHashResponseResult,
+    type GetUserOperationReceiptResponseResult,
+    type HexData32,
+    IOpInflatorAbi,
+    type IValidator,
+    type MempoolUserOperation,
+    type PimlicoGetUserOperationGasPriceResponseResult,
+    type PimlicoGetUserOperationStatusResponseResult,
     RpcError,
-    SendUserOperationResponseResult,
-    SupportedEntryPointsResponseResult,
-    UserOperation,
-    logSchema,
-    receiptSchema,
+    type SendUserOperationResponseResult,
+    type SupportedEntryPointsResponseResult,
+    type UserOperation,
     ValidationErrors,
     bundlerGetStakeStatusResponseSchema,
-    MempoolUserOperation,
-    CompressedUserOperation,
     deriveUserOperation,
-    IOpInflatorAbi
+    logSchema,
+    receiptSchema
 } from "@alto/types"
+import type { StateOverrides } from "@alto/types"
+import type { ApiVersion } from "@alto/types/src"
 import {
-    Logger,
-    Metrics,
+    type CompressionHandler,
+    type Logger,
+    type Metrics,
     calcPreVerificationGas,
     getGasPrice,
     getNonceKeyAndValue,
-    getUserOperationHash,
-    CompressionHandler
+    getUserOperationHash
 } from "@alto/utils"
+import { calcVerificationGasAndCallGasLimit } from "@alto/utils"
 import {
-    Chain,
-    Hex,
-    PublicClient,
-    Transaction,
+    type Chain,
+    type Hex,
+    type PublicClient,
+    type Transaction,
     TransactionNotFoundError,
-    TransactionReceipt,
+    type TransactionReceipt,
     TransactionReceiptNotFoundError,
-    Transport,
+    type Transport,
     decodeFunctionData,
     getAbiItem,
     getContract
@@ -65,15 +68,12 @@ import {
     estimateCallGasLimit,
     estimateVerificationGasLimit
 } from "./gasEstimation"
-import { NonceQueuer } from "./nonceQueuer"
-import { StateOverrides } from "@alto/types"
-import { ApiVersion } from "@alto/types/src"
-import { calcVerificationGasAndCallGasLimit } from "@alto/utils"
+import type { NonceQueuer } from "./nonceQueuer"
 
 export interface IRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>
-    eth_chainId(): Promise<ChainIdResponseResult>
-    eth_supportedEntryPoints(): Promise<SupportedEntryPointsResponseResult>
+    eth_chainId(): ChainIdResponseResult
+    eth_supportedEntryPoints(): SupportedEntryPointsResponseResult
     eth_estimateUserOperationGas(
         userOperation: UserOperation,
         entryPoint: Address,
@@ -167,14 +167,12 @@ export class RpcHandler implements IRpcEndpoint {
             case "eth_chainId":
                 return {
                     method,
-                    result: await this.eth_chainId(...request.params)
+                    result: this.eth_chainId(...request.params)
                 }
             case "eth_supportedEntryPoints":
                 return {
                     method,
-                    result: await this.eth_supportedEntryPoints(
-                        ...request.params
-                    )
+                    result: this.eth_supportedEntryPoints(...request.params)
                 }
             case "eth_estimateUserOperationGas":
                 return {
@@ -207,16 +205,12 @@ export class RpcHandler implements IRpcEndpoint {
             case "debug_bundler_clearMempool":
                 return {
                     method,
-                    result: await this.debug_bundler_clearMempool(
-                        ...request.params
-                    )
+                    result: this.debug_bundler_clearMempool(...request.params)
                 }
             case "debug_bundler_clearState":
                 return {
                     method,
-                    result: await this.debug_bundler_clearState(
-                        ...request.params
-                    )
+                    result: this.debug_bundler_clearState(...request.params)
                 }
             case "debug_bundler_dumpMempool":
                 return {
@@ -235,23 +229,19 @@ export class RpcHandler implements IRpcEndpoint {
             case "debug_bundler_setBundlingMode":
                 return {
                     method,
-                    result: await this.debug_bundler_setBundlingMode(
+                    result: this.debug_bundler_setBundlingMode(
                         ...request.params
                     )
                 }
             case "debug_bundler_setReputation":
                 return {
                     method,
-                    result: await this.debug_bundler_setReputation(
-                        request.params
-                    )
+                    result: this.debug_bundler_setReputation(request.params)
                 }
             case "debug_bundler_dumpReputation":
                 return {
                     method,
-                    result: await this.debug_bundler_dumpReputation(
-                        ...request.params
-                    )
+                    result: this.debug_bundler_dumpReputation(...request.params)
                 }
             case "debug_bundler_getStakeStatus":
                 return {
@@ -263,7 +253,7 @@ export class RpcHandler implements IRpcEndpoint {
             case "pimlico_getUserOperationStatus":
                 return {
                     method,
-                    result: await this.pimlico_getUserOperationStatus(
+                    result: this.pimlico_getUserOperationStatus(
                         ...request.params
                     )
                 }
@@ -284,11 +274,11 @@ export class RpcHandler implements IRpcEndpoint {
         }
     }
 
-    async eth_chainId(): Promise<ChainIdResponseResult> {
+    eth_chainId(): ChainIdResponseResult {
         return BigInt(this.chainId)
     }
 
-    async eth_supportedEntryPoints(): Promise<SupportedEntryPointsResponseResult> {
+    eth_supportedEntryPoints(): SupportedEntryPointsResponseResult {
         return [this.entryPoint]
     }
 
@@ -596,11 +586,9 @@ export class RpcHandler implements IRpcEndpoint {
                 if (log.topics[1] === userOperationEvent.topics[1]) {
                     // it's our userOpHash. save as end of logs array
                     endIndex = index
-                } else {
+                } else if (endIndex === -1) {
                     // it's a different hash. remember it as beginning index, but only if we didn't find our end index yet.
-                    if (endIndex === -1) {
-                        startIndex = index
-                    }
+                    startIndex = index
                 }
             }
         })
@@ -639,7 +627,7 @@ export class RpcHandler implements IRpcEndpoint {
         return userOperationReceipt
     }
 
-    async debug_bundler_clearState(): Promise<BundlerClearStateResponseResult> {
+    debug_bundler_clearState(): BundlerClearStateResponseResult {
         if (this.environment !== "development") {
             throw new RpcError(
                 "debug_bundler_clearState is only available in development environment"
@@ -650,7 +638,7 @@ export class RpcHandler implements IRpcEndpoint {
         return "ok"
     }
 
-    async debug_bundler_clearMempool(): Promise<BundlerClearMempoolResponseResult> {
+    debug_bundler_clearMempool(): BundlerClearMempoolResponseResult {
         if (this.environment !== "development") {
             throw new RpcError(
                 "debug_bundler_clearMempool is only available in development environment"
@@ -681,7 +669,7 @@ export class RpcHandler implements IRpcEndpoint {
             )
     }
 
-    async debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
+    debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
         if (this.environment !== "development") {
             throw new RpcError(
                 "debug_bundler_sendBundleNow is only available in development environment"
@@ -690,9 +678,9 @@ export class RpcHandler implements IRpcEndpoint {
         return this.executorManager.bundleNow()
     }
 
-    async debug_bundler_setBundlingMode(
+    debug_bundler_setBundlingMode(
         bundlingMode: BundlingMode
-    ): Promise<BundlerSetBundlingModeResponseResult> {
+    ): BundlerSetBundlingModeResponseResult {
         if (this.environment !== "development") {
             throw new RpcError(
                 "debug_bundler_setBundlingMode is only available in development environment"
@@ -702,9 +690,9 @@ export class RpcHandler implements IRpcEndpoint {
         return "ok"
     }
 
-    async debug_bundler_dumpReputation(
+    debug_bundler_dumpReputation(
         entryPoint: Address
-    ): Promise<BundlerDumpReputationsResponseResult> {
+    ): BundlerDumpReputationsResponseResult {
         if (this.environment !== "development") {
             throw new RpcError(
                 "debug_bundler_setRe is only available in development environment"
@@ -738,9 +726,9 @@ export class RpcHandler implements IRpcEndpoint {
         }).result
     }
 
-    async debug_bundler_setReputation(
+    debug_bundler_setReputation(
         args: BundlerSetReputationsRequestParams
-    ): Promise<BundlerSetBundlingModeResponseResult> {
+    ): BundlerSetBundlingModeResponseResult {
         if (this.environment !== "development") {
             throw new RpcError(
                 "debug_bundler_setReputation is only available in development environment"
@@ -750,9 +738,9 @@ export class RpcHandler implements IRpcEndpoint {
         return "ok"
     }
 
-    async pimlico_getUserOperationStatus(
+    pimlico_getUserOperationStatus(
         userOperationHash: HexData32
-    ): Promise<PimlicoGetUserOperationStatusResponseResult> {
+    ): PimlicoGetUserOperationStatusResponseResult {
         return this.monitor.getUserOperationStatus(userOperationHash)
     }
 
@@ -920,7 +908,7 @@ export class RpcHandler implements IRpcEndpoint {
         inflatorAddress: Address,
         entryPoint: Address
     ) {
-        let status
+        let status: "added" | "queued" | "rejected" = "rejected"
         try {
             const { inflatedOp, inflatorId } =
                 await this.validateAndInflateCompressedUserOperation(

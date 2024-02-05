@@ -1,7 +1,12 @@
+import type { SenderManager } from "@alto/executor"
 import {
     type Address,
+    CodeHashGetterAbi,
+    CodeHashGetterBytecode,
     EntryPointAbi,
+    ExecutionErrors,
     type ExecutionResult,
+    type ReferencedCodeHashes,
     RpcError,
     type StakeInfo,
     type StorageMap,
@@ -9,48 +14,43 @@ import {
     ValidationErrors,
     type ValidationResultWithAggregation,
     entryPointErrorsSchema,
-    type ReferencedCodeHashes,
-    entryPointExecutionErrorSchema,
-    CodeHashGetterBytecode,
-    CodeHashGetterAbi,
-    ExecutionErrors
+    entryPointExecutionErrorSchema
 } from "@alto/types"
 import type { ValidationResult } from "@alto/types"
+import { hexDataSchema } from "@alto/types"
+import type { IValidator } from "@alto/types"
+import type { StateOverrides } from "@alto/types"
 import {
     type Logger,
     type Metrics,
     getAddressFromInitCodeOrPaymasterAndData
 } from "@alto/utils"
+import * as sentry from "@sentry/node"
 import {
-    type PublicClient,
-    getContract,
-    encodeFunctionData,
-    decodeErrorResult,
     type Account,
-    type Transport,
+    BaseError,
     type Chain,
-    zeroAddress,
-    type Hex,
-    encodeDeployData,
-    type ExecutionRevertedError,
     ContractFunctionExecutionError,
-    BaseError
+    type ExecutionRevertedError,
+    type Hex,
+    type PublicClient,
+    type Transport,
+    decodeErrorResult,
+    encodeDeployData,
+    encodeFunctionData,
+    getContract,
+    zeroAddress
 } from "viem"
-import { hexDataSchema } from "@alto/types"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
+import { simulateHandleOp } from "../gasEstimation"
 import {
     type BundlerTracerResult,
     type ExitInfo,
     bundlerCollectorTracer
 } from "./BundlerCollectorTracer"
-import { debug_traceCall } from "./tracer"
 import { tracerResultParser } from "./TracerResultParser"
-import type { IValidator } from "@alto/types"
-import type { SenderManager } from "@alto/executor"
-import * as sentry from "@sentry/node"
-import { simulateHandleOp } from "../gasEstimation"
-import type { StateOverrides } from "@alto/types"
+import { debug_traceCall } from "./tracer"
 
 // let id = 0
 
@@ -94,7 +94,7 @@ async function getSimulationResult(
             logger.error(JSON.stringify(errorResult))
             err.message = `User Operation simulation returned unexpected invalid response: ${err.message}`
             throw err
-        } catch {
+        } catch (e) {
             if (errorResult instanceof BaseError) {
                 const revertError = errorResult.walk(
                     (err) => err instanceof ContractFunctionExecutionError
@@ -106,7 +106,7 @@ async function getSimulationResult(
                     ValidationErrors.SimulateValidation
                 )
             }
-            sentry.captureException(errorResult)
+            sentry.captureException({ errorResult, error: JSON.stringify(e) })
             throw new Error(
                 `User Operation simulation returned unexpected invalid response: ${errorResult}`
             )

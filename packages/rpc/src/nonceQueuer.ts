@@ -1,3 +1,4 @@
+import type { Mempool } from "@alto/mempool"
 import {
     EntryPointAbi,
     type MempoolUserOperation,
@@ -17,7 +18,6 @@ import {
     type Transport,
     getContract
 } from "viem"
-import type { Mempool } from "@alto/mempool"
 
 type QueuedUserOperation = {
     userOperationHash: Hash

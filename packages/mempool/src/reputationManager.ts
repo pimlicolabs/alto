@@ -5,7 +5,7 @@ import {
     UserOperation,
     ValidationErrors,
     ValidationResult,
-    ValidationResultWithAggregation,
+    ValidationResultWithAggregation
 } from "@alto/types"
 import { Logger, getAddressFromInitCodeOrPaymasterAndData } from "@alto/utils"
 import { Address, PublicClient, getAddress, getContract } from "viem"
@@ -368,7 +368,7 @@ export class ReputationManager implements IReputationManager {
         const sender = userOperation.sender
         this.updateIncludedStatus(sender)
 
-        let paymaster = getAddressFromInitCodeOrPaymasterAndData(
+        const paymaster = getAddressFromInitCodeOrPaymasterAndData(
             userOperation.paymasterAndData
         ) as Address | undefined
         if (paymaster) {
@@ -376,7 +376,7 @@ export class ReputationManager implements IReputationManager {
         }
 
         if (accountDeployed) {
-            let factory = getAddressFromInitCodeOrPaymasterAndData(
+            const factory = getAddressFromInitCodeOrPaymasterAndData(
                 userOperation.initCode
             ) as Address | undefined
             if (factory) {
@@ -389,14 +389,14 @@ export class ReputationManager implements IReputationManager {
         const sender = userOperation.sender
         this.increaseSeen(sender)
 
-        let paymaster = getAddressFromInitCodeOrPaymasterAndData(
+        const paymaster = getAddressFromInitCodeOrPaymasterAndData(
             userOperation.paymasterAndData
         ) as Address | undefined
         if (paymaster) {
             this.increaseSeen(paymaster)
         }
 
-        let factory = getAddressFromInitCodeOrPaymasterAndData(
+        const factory = getAddressFromInitCodeOrPaymasterAndData(
             userOperation.initCode
         ) as Address | undefined
 
@@ -414,7 +414,7 @@ export class ReputationManager implements IReputationManager {
         const sender = userOperation.sender
         this.entityCount[sender] = (this.entityCount[sender] ?? 0n) + 1n
 
-        let paymaster = getAddressFromInitCodeOrPaymasterAndData(
+        const paymaster = getAddressFromInitCodeOrPaymasterAndData(
             userOperation.paymasterAndData
         )
         if (paymaster) {
@@ -422,7 +422,7 @@ export class ReputationManager implements IReputationManager {
                 (this.entityCount[paymaster] ?? 0n) + 1n
         }
 
-        let factory = getAddressFromInitCodeOrPaymasterAndData(
+        const factory = getAddressFromInitCodeOrPaymasterAndData(
             userOperation.initCode
         )
         if (factory) {
@@ -437,7 +437,7 @@ export class ReputationManager implements IReputationManager {
         this.entityCount[sender] =
             this.entityCount[sender] < 0n ? 0n : this.entityCount[sender]
 
-        let paymaster = getAddressFromInitCodeOrPaymasterAndData(
+        const paymaster = getAddressFromInitCodeOrPaymasterAndData(
             userOperation.paymasterAndData
         )
         if (paymaster) {
@@ -450,7 +450,7 @@ export class ReputationManager implements IReputationManager {
                     : this.entityCount[paymaster]
         }
 
-        let factory = getAddressFromInitCodeOrPaymasterAndData(
+        const factory = getAddressFromInitCodeOrPaymasterAndData(
             userOperation.initCode
         )
         if (factory) {

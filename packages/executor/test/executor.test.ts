@@ -1,8 +1,24 @@
 import type { ChildProcess } from "child_process"
-import { concat, encodeFunctionData, parseEther, getContract, getAbiItem, RpcTransaction, TestClient } from "viem"
+import {
+    RpcTransaction,
+    TestClient,
+    concat,
+    encodeFunctionData,
+    getAbiItem,
+    getContract,
+    parseEther
+} from "viem"
 
-import { privateKeyToAccount, Account, generatePrivateKey } from "viem/accounts"
-import { foundry } from "viem/chains"
+import {
+    Address,
+    EntryPointAbi,
+    EntryPoint_bytecode,
+    SubmissionStatus
+} from "@alto/types"
+import {
+    SimpleAccountFactoryAbi,
+    SimpleAccountFactoryBytecode
+} from "@alto/types/src/contracts/SimpleAccountFactory"
 import {
     Clients,
     createClients,
@@ -16,16 +32,18 @@ import {
     parseSenderAddressError
 } from "@alto/utils"
 import { expect } from "earl"
-import { Address, EntryPoint_bytecode, EntryPointAbi, SubmissionStatus } from "@alto/types"
-import { SimpleAccountFactoryAbi, SimpleAccountFactoryBytecode } from "@alto/types/src/contracts/SimpleAccountFactory"
-import { BasicExecutor } from "../src"
-import { TEST_OP, createOp, generateAccounts, getSender } from "./utils"
-import { SenderManager } from "../src"
 import { Registry } from "prom-client"
+import { Account, generatePrivateKey, privateKeyToAccount } from "viem/accounts"
+import { foundry } from "viem/chains"
+import { BasicExecutor } from "../src"
+import { SenderManager } from "../src"
+import { TEST_OP, createOp, generateAccounts, getSender } from "./utils"
 
 const MINE_WAIT_TIME = 300
 
-const getPendingTransactions = async (testClient: TestClient): Promise<RpcTransaction[]> => {
+const getPendingTransactions = async (
+    testClient: TestClient
+): Promise<RpcTransaction[]> => {
     const pendingTxs = (await testClient.getTxpoolContent()).pending
     return Object.values(pendingTxs).flatMap((txs) => Object.values(txs))
 }
@@ -44,13 +62,21 @@ describe("executor", () => {
     beforeEach(async () => {
         // destructure the return value
         anvilProcess = await launchAnvil()
-        const privateKey = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-        const privateKey2 = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+        const privateKey =
+            "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+        const privateKey2 =
+            "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
 
         signer = privateKeyToAccount(privateKey)
         signer2 = privateKeyToAccount(privateKey2)
         clients = await createClients(signer)
-        entryPoint = await deployContract(clients, signer.address, EntryPointAbi, [], EntryPoint_bytecode)
+        entryPoint = await deployContract(
+            clients,
+            signer.address,
+            EntryPointAbi,
+            [],
+            EntryPoint_bytecode
+        )
 
         const logger = initDebugLogger("silent")
 
@@ -58,7 +84,12 @@ describe("executor", () => {
 
         const metrics = createMetrics(new Registry(), false)
 
-        const senderManager = new SenderManager(accounts, accounts[0], logger, metrics)
+        const senderManager = new SenderManager(
+            accounts,
+            accounts[0],
+            logger,
+            metrics
+        )
 
         simpleAccountFactory = await deployContract(
             clients,
@@ -89,7 +120,12 @@ describe("executor", () => {
     it("should be able to send transaction", async function () {
         this.timeout(10000)
 
-        const op = await createOp(entryPoint, simpleAccountFactory, signer, clients)
+        const op = await createOp(
+            entryPoint,
+            simpleAccountFactory,
+            signer,
+            clients
+        )
 
         const opHash = getUserOpHash(op, entryPoint, foundry.id)
 
@@ -114,7 +150,10 @@ describe("executor", () => {
             fromBlock: 0n,
             toBlock: "latest",
             address: entryPoint,
-            event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" }),
+            event: getAbiItem({
+                abi: EntryPointAbi,
+                name: "UserOperationEvent"
+            }),
             args: {
                 userOpHash: opHash
             }
@@ -151,7 +190,12 @@ describe("executor", () => {
     it("should be able to resubmit transaction", async function () {
         this.timeout(10000)
 
-        const op = await createOp(entryPoint, simpleAccountFactory, signer, clients)
+        const op = await createOp(
+            entryPoint,
+            simpleAccountFactory,
+            signer,
+            clients
+        )
 
         const opHash = getUserOpHash(op, entryPoint, foundry.id)
 
@@ -168,16 +212,22 @@ describe("executor", () => {
 
         const pendingTxs = await getPendingTransactions(clients.test)
         expect(pendingTxs).toHaveLength(1)
-        expect(pendingTxs[0].hash).toEqual(result[0].transactionInfo.transactionHash)
+        expect(pendingTxs[0].hash).toEqual(
+            result[0].transactionInfo.transactionHash
+        )
 
-        const newTxInfo = await executor.replaceTransaction(result[0].transactionInfo)
+        const newTxInfo = await executor.replaceTransaction(
+            result[0].transactionInfo
+        )
         expect(newTxInfo).not.toBeNullish()
 
         const pendingTxs2 = await getPendingTransactions(clients.test)
         expect(pendingTxs2).toHaveLength(1)
 
         expect(pendingTxs2[0].hash).toEqual(newTxInfo!.transactionHash)
-        expect(pendingTxs2[0].hash).not.toEqual(result[0].transactionInfo.transactionHash)
+        expect(pendingTxs2[0].hash).not.toEqual(
+            result[0].transactionInfo.transactionHash
+        )
 
         await clients.test.mine({ blocks: 1 })
 
@@ -186,7 +236,10 @@ describe("executor", () => {
             fromBlock: 0n,
             toBlock: "latest",
             address: entryPoint,
-            event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" }),
+            event: getAbiItem({
+                abi: EntryPointAbi,
+                name: "UserOperationEvent"
+            }),
             args: {
                 userOpHash: opHash
             }
@@ -287,7 +340,10 @@ describe("executor", () => {
 
         const opHash = getUserOpHash(op, entryPoint, foundry.id)
 
-        const signature = await clients.wallet.signMessage({ account: signer, message: { raw: opHash } })
+        const signature = await clients.wallet.signMessage({
+            account: signer,
+            message: { raw: opHash }
+        })
         op.signature = signature
 
         expect(await clients.test.getAutomine()).toEqual(false)
@@ -315,24 +371,44 @@ describe("executor", () => {
             fromBlock: 0n,
             toBlock: "latest",
             address: entryPoint,
-            event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" }),
+            event: getAbiItem({
+                abi: EntryPointAbi,
+                name: "UserOperationEvent"
+            }),
             args: {
                 userOpHash: opHash
             }
         })
         expect(logsAgain.length).toEqual(1)
-        const successfulTx = await clients.public.getTransaction({ hash: logsAgain[0].transactionHash })
-        expect(successfulTx.from.toLowerCase()).toEqual(signer2.address.toLowerCase())
+        const successfulTx = await clients.public.getTransaction({
+            hash: logsAgain[0].transactionHash
+        })
+        expect(successfulTx.from.toLowerCase()).toEqual(
+            signer2.address.toLowerCase()
+        )
     })
 
     it("should be able to handle multiple ops from different senders", async function () {
         this.timeout(10000)
 
-        const op1 = await createOp(entryPoint, simpleAccountFactory, signer, clients)
-        const op2 = await createOp(entryPoint, simpleAccountFactory, signer2, clients)
+        const op1 = await createOp(
+            entryPoint,
+            simpleAccountFactory,
+            signer,
+            clients
+        )
+        const op2 = await createOp(
+            entryPoint,
+            simpleAccountFactory,
+            signer2,
+            clients
+        )
 
         expect(await clients.test.getAutomine()).toEqual(false)
-        await Promise.all([executor.bundle(entryPoint, [op1]), executor.bundle(entryPoint, [op2])])
+        await Promise.all([
+            executor.bundle(entryPoint, [op1]),
+            executor.bundle(entryPoint, [op2])
+        ])
 
         const pendingTxs = await getPendingTransactions(clients.test)
         expect(pendingTxs).toHaveLength(2)
@@ -344,7 +420,10 @@ describe("executor", () => {
             fromBlock: 0n,
             toBlock: "latest",
             address: entryPoint,
-            event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
+            event: getAbiItem({
+                abi: EntryPointAbi,
+                name: "UserOperationEvent"
+            })
         })
 
         const pendingTxsAfter = await getPendingTransactions(clients.test)
@@ -360,11 +439,24 @@ describe("executor", () => {
     it("should be able to handle multiple ops from different senders after gas price increase", async function () {
         this.timeout(10000)
 
-        const op1 = await createOp(entryPoint, simpleAccountFactory, signer, clients)
-        const op2 = await createOp(entryPoint, simpleAccountFactory, signer2, clients)
+        const op1 = await createOp(
+            entryPoint,
+            simpleAccountFactory,
+            signer,
+            clients
+        )
+        const op2 = await createOp(
+            entryPoint,
+            simpleAccountFactory,
+            signer2,
+            clients
+        )
 
         expect(await clients.test.getAutomine()).toEqual(false)
-        await Promise.all([executor.bundle(entryPoint, [op1]), executor.bundle(entryPoint, [op2])])
+        await Promise.all([
+            executor.bundle(entryPoint, [op1]),
+            executor.bundle(entryPoint, [op2])
+        ])
 
         const pendingTxs = await getPendingTransactions(clients.test)
         expect(pendingTxs).toHaveLength(2)
@@ -383,7 +475,10 @@ describe("executor", () => {
             fromBlock: 0n,
             toBlock: "latest",
             address: entryPoint,
-            event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
+            event: getAbiItem({
+                abi: EntryPointAbi,
+                name: "UserOperationEvent"
+            })
         })
 
         const pendingTxsAfterFirst = await getPendingTransactions(clients.test)
@@ -398,7 +493,10 @@ describe("executor", () => {
             fromBlock: 0n,
             toBlock: "latest",
             address: entryPoint,
-            event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
+            event: getAbiItem({
+                abi: EntryPointAbi,
+                name: "UserOperationEvent"
+            })
         })
 
         const pendingTxsAfterSecond = await getPendingTransactions(clients.test)
@@ -426,20 +524,32 @@ describe("executor", () => {
 
         const ops = await Promise.all(
             signers.map(async (signer) => {
-                return await createOp(entryPoint, simpleAccountFactory, signer, clients)
+                return await createOp(
+                    entryPoint,
+                    simpleAccountFactory,
+                    signer,
+                    clients
+                )
             })
         )
         // mempool: []
         // waiting: []
 
-        await Promise.all(ops.map(async (op) => executor.bundle(entryPoint, [op])))
+        await Promise.all(
+            ops.map(async (op) => executor.bundle(entryPoint, [op]))
+        )
         // mempool: [op1tx, op2tx, op3tx, op4tx, op5tx, op6tx, op7tx, op8tx, op9tx, op10tx]
         // waiting: []
 
         expect(executor.senderManager.availableWallets).toHaveLength(0)
         expect(await getPendingTransactions(clients.test)).toHaveLength(10)
 
-        const extraOp = await createOp(entryPoint, simpleAccountFactory, signer2, clients)
+        const extraOp = await createOp(
+            entryPoint,
+            simpleAccountFactory,
+            signer2,
+            clients
+        )
         // mempool: [op1tx, op2tx, op3tx, op4tx, op5tx, op6tx, op7tx, op8tx, op9tx, op10tx]
         // waiting: [extraOp]
 
@@ -456,11 +566,14 @@ describe("executor", () => {
         })
 
         // frontrun the first op
-        const frontrunTx = await entryPointContract.write.handleOps([[ops[0]], signer2.address], {
-            account: signer2,
-            chain: clients.wallet.chain,
-            maxFeePerGas: block.baseFeePerGas! * 100n
-        })
+        const frontrunTx = await entryPointContract.write.handleOps(
+            [[ops[0]], signer2.address],
+            {
+                account: signer2,
+                chain: clients.wallet.chain,
+                maxFeePerGas: block.baseFeePerGas! * 100n
+            }
+        )
 
         await clients.test.mine({ blocks: 1 })
         await new Promise((resolve) => setTimeout(resolve, MINE_WAIT_TIME))
@@ -472,7 +585,10 @@ describe("executor", () => {
             fromBlock: 0n,
             toBlock: "latest",
             address: entryPoint,
-            event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
+            event: getAbiItem({
+                abi: EntryPointAbi,
+                name: "UserOperationEvent"
+            })
         })
 
         const pendingTxsAfterFirst = await getPendingTransactions(clients.test)
@@ -492,7 +608,10 @@ describe("executor", () => {
             fromBlock: 0n,
             toBlock: "latest",
             address: entryPoint,
-            event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" })
+            event: getAbiItem({
+                abi: EntryPointAbi,
+                name: "UserOperationEvent"
+            })
         })
 
         const pendingTxsAfterSecond = await getPendingTransactions(clients.test)
@@ -523,7 +642,12 @@ describe("executor", () => {
     it("should reject op if it is already being bundled", async function () {
         this.timeout(10000)
 
-        const op = await createOp(entryPoint, simpleAccountFactory, signer, clients)
+        const op = await createOp(
+            entryPoint,
+            simpleAccountFactory,
+            signer,
+            clients
+        )
 
         await executor.bundle(entryPoint, [op])
 
@@ -541,7 +665,10 @@ describe("executor", () => {
             fromBlock: 0n,
             toBlock: "latest",
             address: entryPoint,
-            event: getAbiItem({ abi: EntryPointAbi, name: "UserOperationEvent" }),
+            event: getAbiItem({
+                abi: EntryPointAbi,
+                name: "UserOperationEvent"
+            }),
             args: {
                 userOpHash: getUserOpHash(op, entryPoint, foundry.id)
             }

@@ -8,7 +8,9 @@ import {
     executionResultSchema,
     hexDataSchema
 } from "@alto/types"
+import type { StateOverrides } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
+import { deepHexlify } from "@alto/utils"
 import type { Chain, Hex, RpcRequestErrorType, Transport } from "viem"
 import {
     type Address,
@@ -23,8 +25,6 @@ import {
     ExecuteSimulatorAbi,
     ExecuteSimulatorDeployedBytecode
 } from "./ExecuteSimulator"
-import type { StateOverrides } from "@alto/types"
-import { deepHexlify } from "@alto/utils"
 
 export async function simulateHandleOp(
     userOperation: UserOperation,

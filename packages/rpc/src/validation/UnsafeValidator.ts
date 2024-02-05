@@ -1,40 +1,40 @@
 import {
     type Address,
     EntryPointAbi,
+    ExecutionErrors,
     type ExecutionResult,
+    type ReferencedCodeHashes,
     RpcError,
     type StorageMap,
     type UserOperation,
     ValidationErrors,
     type ValidationResultWithAggregation,
     entryPointErrorsSchema,
-    type ReferencedCodeHashes,
-    entryPointExecutionErrorSchema,
-    ExecutionErrors
+    entryPointExecutionErrorSchema
 } from "@alto/types"
 import type { ValidationResult } from "@alto/types"
-import { calcPreVerificationGas, type Logger, type Metrics } from "@alto/utils"
-import {
-    type PublicClient,
-    getContract,
-    encodeFunctionData,
-    decodeErrorResult,
-    type Account,
-    type Transport,
-    type Chain,
-    zeroAddress,
-    ContractFunctionExecutionError,
-    BaseError
-} from "viem"
 import { hexDataSchema } from "@alto/types"
-import { z } from "zod"
-import { fromZodError } from "zod-validation-error"
 import type { IValidator } from "@alto/types"
-import * as sentry from "@sentry/node"
-import { simulateHandleOp } from "../gasEstimation"
 import type { StateOverrides } from "@alto/types"
 import type { ApiVersion } from "@alto/types/src"
+import { type Logger, type Metrics, calcPreVerificationGas } from "@alto/utils"
 import { calcVerificationGasAndCallGasLimit } from "@alto/utils"
+import * as sentry from "@sentry/node"
+import {
+    type Account,
+    BaseError,
+    type Chain,
+    ContractFunctionExecutionError,
+    type PublicClient,
+    type Transport,
+    decodeErrorResult,
+    encodeFunctionData,
+    getContract,
+    zeroAddress
+} from "viem"
+import { z } from "zod"
+import { fromZodError } from "zod-validation-error"
+import { simulateHandleOp } from "../gasEstimation"
 
 // let id = 0
 

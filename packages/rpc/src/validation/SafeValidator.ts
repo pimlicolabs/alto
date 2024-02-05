@@ -1,47 +1,47 @@
+import type { SenderManager } from "@alto/executor"
 import {
     type Address,
+    CodeHashGetterAbi,
+    CodeHashGetterBytecode,
     EntryPointAbi,
+    type ReferencedCodeHashes,
     RpcError,
     type StakeInfo,
     type StorageMap,
     type UserOperation,
     ValidationErrors,
-    type ValidationResultWithAggregation,
-    type ReferencedCodeHashes,
-    CodeHashGetterBytecode,
-    CodeHashGetterAbi
+    type ValidationResultWithAggregation
 } from "@alto/types"
 import type { ValidationResult } from "@alto/types"
+import type { IValidator } from "@alto/types"
+import type { ApiVersion } from "@alto/types/src"
 import {
     type Logger,
     type Metrics,
-    getAddressFromInitCodeOrPaymasterAndData,
     calcPreVerificationGas,
-    calcVerificationGasAndCallGasLimit
+    calcVerificationGasAndCallGasLimit,
+    getAddressFromInitCodeOrPaymasterAndData
 } from "@alto/utils"
 import {
-    type PublicClient,
-    encodeFunctionData,
-    decodeErrorResult,
     type Account,
-    type Transport,
     type Chain,
-    zeroAddress,
+    type ExecutionRevertedError,
     type Hex,
+    type PublicClient,
+    type Transport,
+    decodeErrorResult,
     encodeDeployData,
-    type ExecutionRevertedError
+    encodeFunctionData,
+    zeroAddress
 } from "viem"
 import {
     type BundlerTracerResult,
     type ExitInfo,
     bundlerCollectorTracer
 } from "./BundlerCollectorTracer"
-import { debug_traceCall } from "./tracer"
 import { tracerResultParser } from "./TracerResultParser"
-import type { IValidator } from "@alto/types"
-import type { SenderManager } from "@alto/executor"
 import { UnsafeValidator } from "./UnsafeValidator"
-import type { ApiVersion } from "@alto/types/src"
+import { debug_traceCall } from "./tracer"
 
 export class SafeValidator extends UnsafeValidator implements IValidator {
     private senderManager: SenderManager

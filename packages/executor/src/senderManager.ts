@@ -1,18 +1,18 @@
-import { Address, HexData, HexData32, CallEngineAbi } from "@alto/types"
+import { Address, CallEngineAbi, HexData, HexData32 } from "@alto/types"
 import { Logger, Metrics } from "@alto/utils"
 import { Semaphore } from "async-mutex"
 
+import { getGasPrice } from "@alto/utils"
 import {
     Account,
-    PublicClient,
-    formatEther,
-    WalletClient,
     Chain,
-    Transport,
+    PublicClient,
     TransactionReceipt,
+    Transport,
+    WalletClient,
+    formatEther,
     getContract
 } from "viem"
-import { getGasPrice } from "@alto/utils"
 
 const waitForTransactionReceipt = async (
     publicClient: PublicClient,
@@ -78,7 +78,8 @@ export class SenderManager {
                     "wallet has insufficient balance"
                 )
                 throw new Error(
-                    `wallet ${wallet.address
+                    `wallet ${
+                        wallet.address
                     } has insufficient balance ${formatEther(
                         balance
                     )} < ${formatEther(minBalance)}`
@@ -129,7 +130,8 @@ export class SenderManager {
                 "utility wallet has insufficient balance to refill wallets"
             )
             throw new Error(
-                `utility wallet ${this.utilityAccount.address
+                `utility wallet ${
+                    this.utilityAccount.address
                 } has insufficient balance ${formatEther(
                     utilityWalletBalance
                 )} < ${formatEther(totalBalanceMissing)}`

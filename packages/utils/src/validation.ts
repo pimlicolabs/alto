@@ -1,16 +1,21 @@
-import { Address, EntryPointAbi, RpcError, UserOperation } from "@alto/types"
 import {
-    Chain,
-    EstimateGasExecutionError,
+    type Address,
+    EntryPointAbi,
+    RpcError,
+    type UserOperation
+} from "@alto/types"
+import {
+    type Chain,
     ContractFunctionExecutionError,
     ContractFunctionRevertedError,
+    EstimateGasExecutionError,
     FeeCapTooLowError,
     InsufficientFundsError,
     IntrinsicGasTooLowError,
     NonceTooLowError,
-    PublicClient,
+    type PublicClient,
     TransactionExecutionError,
-    Transport,
+    type Transport,
     concat,
     encodeAbiParameters,
     getContract,
@@ -19,8 +24,8 @@ import {
     toBytes,
     toHex
 } from "viem"
-import { getGasPrice, Logger } from "."
 import * as chains from "viem/chains"
+import { type Logger, getGasPrice } from "."
 
 export interface GasOverheads {
     /**
@@ -260,9 +265,9 @@ export function calcDefaultPreVerificationGas(
         .reduce((sum, x) => sum + x)
     const ret = Math.round(
         callDataCost +
-        ov.fixed / ov.bundleSize +
-        ov.perUserOp +
-        ov.perUserOpWord * lengthInWord
+            ov.fixed / ov.bundleSize +
+            ov.perUserOp +
+            ov.perUserOpWord * lengthInWord
     )
     return BigInt(ret)
 }
@@ -296,7 +301,7 @@ export async function calcOptimismPreVerificationGas(
     op: UserOperation,
     entryPoint: Address,
     staticFee: bigint,
-    logger: Logger,
+    logger: Logger
 ) {
     const randomDataUserOp: UserOperation = {
         ...op
