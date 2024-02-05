@@ -61,19 +61,25 @@ export type SubmittedUserOperation = {
     transactionInfo: TransactionInfo
 }
 
-type Result<T, E> = Success<T> | Failure<E>
+type Result<T, E, R> = Success<T> | Failure<E> | Resubmit<R>
 
 interface Success<T> {
-    success: true
+    status: "success"
     value: T
 }
 
 interface Failure<E> {
-    success: false
+    status: "failure"
     error: E
+}
+
+interface Resubmit<R> {
+    status: "resubmit"
+    info: R
 }
 
 export type BundleResult = Result<
     { userOperation: UserOperationInfo; transactionInfo: TransactionInfo },
-    { reason: string; userOpHash: HexData32 }
+    { reason: string; userOpHash: HexData32 },
+    { reason: string; userOpHash: HexData32, userOperation: MempoolUserOperation }
 >

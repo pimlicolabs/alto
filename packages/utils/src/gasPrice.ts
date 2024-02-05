@@ -1,6 +1,8 @@
 import { GasPriceParameters, gasStationResult } from "@alto/types"
-import { PublicClient, hexToBigInt, parseGwei } from "viem"
+import { Chain, PublicClient, parseGwei } from "viem"
+import * as sentry from "@sentry/node"
 import * as chains from "viem/chains"
+import { maxBigInt, minBigInt } from "./bigInt"
 import { Logger } from "."
 
 enum ChainId {
@@ -59,6 +61,10 @@ export async function getPolygonGasPriceParameters(
 }
 
 const getBumpAmount = (chainId: number) => {
+    if (chainId === chains.sepolia.id) {
+        return 120n
+    }
+
     if (chainId === chains.celo.id) {
         return 150n
     }
@@ -75,7 +81,7 @@ const getBumpAmount = (chainId: number) => {
         chainId === chains.base.id ||
         chainId === chains.dfk.id ||
         chainId === chains.celoAlfajores.id ||
-        chainId === chains.celo.id ||
+        chainId === chains.celoCannoli.id ||
         chainId === chains.avalanche.id
     ) {
         return 111n
@@ -84,23 +90,23 @@ const getBumpAmount = (chainId: number) => {
     return 100n
 }
 
+
 const bumpTheGasPrice = (
     chainId: number,
     gasPriceParameters: GasPriceParameters
 ): GasPriceParameters => {
     const bumpAmount = getBumpAmount(chainId)
 
+    const maxPriorityFeePerGas = maxBigInt(gasPriceParameters.maxPriorityFeePerGas, getDefaultGasFee(chainId))
+    const maxFeePerGas = maxBigInt(gasPriceParameters.maxFeePerGas, maxPriorityFeePerGas)
+
     const result = {
-        maxFeePerGas: (gasPriceParameters.maxFeePerGas * bumpAmount) / 100n,
-        maxPriorityFeePerGas:
-            (gasPriceParameters.maxPriorityFeePerGas * bumpAmount) / 100n
+        maxFeePerGas: (maxFeePerGas * bumpAmount) / 100n,
+        maxPriorityFeePerGas: (maxPriorityFeePerGas * bumpAmount) / 100n
     }
 
-    if (chainId === chains.celo.id || chainId === chains.celoAlfajores.id) {
-        const maxFee =
-            result.maxFeePerGas > result.maxPriorityFeePerGas
-                ? result.maxFeePerGas
-                : result.maxPriorityFeePerGas
+    if (chainId === chains.celo.id || chainId === chains.celoAlfajores.id || chainId === chains.celoCannoli.id) {
+        const maxFee = maxBigInt(result.maxFeePerGas, result.maxPriorityFeePerGas)
         return {
             maxFeePerGas: maxFee,
             maxPriorityFeePerGas: maxFee
@@ -110,89 +116,139 @@ const bumpTheGasPrice = (
     return result
 }
 
-const estimateMaxPriorityFeePerGas = async (publicClient: PublicClient) => {
-    try {
-        const maxPriorityFeePerGasHex = await publicClient.request({
-            method: "eth_maxPriorityFeePerGas"
-        })
-        return hexToBigInt(maxPriorityFeePerGasHex)
-    } catch {
-        return null
-    }
-}
-
 const getFallBackMaxPriorityFeePerGas = async (
     publicClient: PublicClient,
     gasPrice: bigint
-) => {
+): Promise<bigint> => {
     const feeHistory = await publicClient.getFeeHistory({
         blockCount: 10,
         rewardPercentiles: [20],
         blockTag: "latest"
     })
 
-    if (feeHistory.reward === undefined) {
+    if (feeHistory.reward === undefined || feeHistory.reward === null) {
         return gasPrice
     }
 
-    const feeAverage =
-        feeHistory.reward.reduce((acc, cur) => cur[0] + acc, 0n) / 10n
-    return feeAverage < gasPrice ? feeAverage : gasPrice
+    const feeAverage = feeHistory.reward.reduce((acc, cur) => cur[0] + acc, 0n) / 10n
+    return minBigInt(feeAverage, gasPrice)
 }
 
-const getGasPriceFromRpc = (publicClient: PublicClient) => {
-    try {
-        return publicClient.getGasPrice()
-    } catch {
-        return null
+/// Formula taken from: https://eips.ethereum.org/EIPS/eip-1559
+const getNextBaseFee = async (publicClient: PublicClient) => {
+    const block = await publicClient.getBlock({
+        blockTag: "latest"
+    })
+    const currentBaseFeePerGas = block.baseFeePerGas || await publicClient.getGasPrice()
+    const currentGasUsed = block.gasUsed
+    const gasTarget = block.gasLimit / 2n
+
+    if (currentGasUsed === gasTarget) {
+        return currentBaseFeePerGas
     }
+
+    if (currentGasUsed > gasTarget) {
+        const gasUsedDelta = currentGasUsed - gasTarget
+        const baseFeePerGasDelta = maxBigInt(currentBaseFeePerGas * gasUsedDelta / gasTarget / 8n, 1n)
+        return currentBaseFeePerGas + baseFeePerGasDelta
+    }
+
+    const gasUsedDelta = currentGasUsed - gasTarget
+    const baseFeePerGasDelta = currentBaseFeePerGas * gasUsedDelta / gasTarget / 8n
+    return currentBaseFeePerGas - baseFeePerGasDelta
 }
 
 export async function getGasPrice(
-    chainId: number,
+    chain: Chain,
     publicClient: PublicClient,
+    noEip1559Support: boolean,
     logger: Logger
 ): Promise<GasPriceParameters> {
-    if (chainId === ChainId.Polygon || chainId === ChainId.Mumbai) {
+    if (chain.id === chains.polygon.id || chain.id === chains.polygonMumbai.id) {
         const polygonEstimate = await getPolygonGasPriceParameters(
-            chainId,
+            chain.id,
             logger
         )
         if (polygonEstimate) {
-            return polygonEstimate
+            return bumpTheGasPrice(chain.id, {
+                maxFeePerGas: polygonEstimate.maxFeePerGas,
+                maxPriorityFeePerGas: polygonEstimate.maxPriorityFeePerGas,
+            })
         }
     }
 
-    let [gasPrice, maxPriorityFeePerGas]: [bigint | null, bigint | null] =
-        await Promise.all([
-            getGasPriceFromRpc(publicClient),
-            estimateMaxPriorityFeePerGas(publicClient)
-        ])
+    if (noEip1559Support) {
+        let gasPrice: bigint | undefined
+        try {
+            const gasInfo = await publicClient.estimateFeesPerGas({ chain, type: "legacy" })
+            gasPrice = gasInfo.gasPrice
+        } catch (e) {
+            sentry.captureException(e)
+            logger.error("failed to fetch legacy gasPrices from estimateFeesPerGas", { error: e })
+            gasPrice = undefined
+        }
 
-    if (maxPriorityFeePerGas === null) {
-        maxPriorityFeePerGas = await getFallBackMaxPriorityFeePerGas(
-            publicClient,
-            gasPrice ?? 0n
-        )
-    }
+        if (gasPrice === undefined) {
+            logger.warn("gasPrice is undefined, using fallback value")
+            try {
+                gasPrice = await publicClient.getGasPrice()
+            } catch (e) {
+                logger.error("failed to get fallback gasPrice")
+                sentry.captureException(e)
+                throw e
+            }
+        }
 
-    if (gasPrice === null) {
-        const block = await publicClient.getBlock({
-            blockTag: "latest"
+        return bumpTheGasPrice(chain.id, {
+            maxFeePerGas: gasPrice,
+            maxPriorityFeePerGas: gasPrice
         })
-        gasPrice = maxPriorityFeePerGas + (block.baseFeePerGas ?? 0n)
     }
 
-    const defaultGasFee = getDefaultGasFee(chainId)
+    let maxFeePerGas: bigint | undefined
+    let maxPriorityFeePerGas: bigint | undefined
+    try {
+        const fees = await publicClient.estimateFeesPerGas({ chain })
+        maxFeePerGas = fees.maxFeePerGas
+        maxPriorityFeePerGas = fees.maxPriorityFeePerGas
+    } catch (e) {
+        sentry.captureException(e)
+        logger.error("failed to fetch eip-1559 gasPrices from estimateFeesPerGas", { error: e })
+        maxFeePerGas = undefined
+        maxPriorityFeePerGas = undefined
+    }
 
-    maxPriorityFeePerGas =
-        maxPriorityFeePerGas > gasPrice ? gasPrice : maxPriorityFeePerGas
+    if (maxPriorityFeePerGas === undefined) {
+        logger.warn("maxPriorityFeePerGas is undefined, using fallback value")
+        try {
+            maxPriorityFeePerGas = await getFallBackMaxPriorityFeePerGas(
+                publicClient,
+                maxFeePerGas ?? 0n
+            )
+        } catch (e) {
+            logger.error("failed to get fallback maxPriorityFeePerGas")
+            sentry.captureException(e)
+            throw e
+        }
+    }
 
-    return bumpTheGasPrice(chainId, {
-        maxFeePerGas: gasPrice,
-        maxPriorityFeePerGas:
-            maxPriorityFeePerGas > defaultGasFee
-                ? maxPriorityFeePerGas
-                : defaultGasFee
+    if (maxFeePerGas === undefined) {
+        logger.warn("maxFeePerGas is undefined, using fallback value")
+        try {
+            maxFeePerGas = await getNextBaseFee(publicClient) + maxPriorityFeePerGas
+        } catch (e) {
+            logger.error("failed to get fallback maxFeePerGas")
+            sentry.captureException(e)
+            throw e
+        }
+    }
+
+    if (maxPriorityFeePerGas === 0n) {
+        maxPriorityFeePerGas = maxFeePerGas / 200n
+    }
+
+    return bumpTheGasPrice(chain.id, {
+        maxFeePerGas,
+        maxPriorityFeePerGas,
     })
 }

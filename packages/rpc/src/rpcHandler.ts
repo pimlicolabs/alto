@@ -111,6 +111,7 @@ export class RpcHandler implements IRpcEndpoint {
     executorManager: ExecutorManager
     reputationManager: IReputationManager
     compressionHandler: CompressionHandler | null
+    noEip1559Support: boolean
     dangerousSkipUserOperationValidation: boolean
 
     constructor(
@@ -132,6 +133,7 @@ export class RpcHandler implements IRpcEndpoint {
         metrics: Metrics,
         environment: Environment,
         compressionHandler: CompressionHandler | null,
+        noEip1559Support: boolean,
         dangerousSkipUserOperationValidation = false
     ) {
         this.entryPoint = entryPoint
@@ -153,6 +155,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.executorManager = executorManager
         this.reputationManager = reputationManager
         this.compressionHandler = compressionHandler
+        this.noEip1559Support = noEip1559Support
         this.dangerousSkipUserOperationValidation =
             dangerousSkipUserOperationValidation
     }
@@ -755,8 +758,9 @@ export class RpcHandler implements IRpcEndpoint {
 
     async pimlico_getUserOperationGasPrice(): Promise<PimlicoGetUserOperationGasPriceResponseResult> {
         const gasPrice = await getGasPrice(
-            this.chainId,
+            this.publicClient.chain,
             this.publicClient,
+            this.noEip1559Support,
             this.logger
         )
         return {
@@ -806,8 +810,9 @@ export class RpcHandler implements IRpcEndpoint {
 
         if (this.minimumGasPricePercent !== 0) {
             const gasPrice = await getGasPrice(
-                this.chainId,
+                this.publicClient.chain,
                 this.publicClient,
+                this.noEip1559Support,
                 this.logger
             )
             const minMaxFeePerGas =
@@ -864,13 +869,13 @@ export class RpcHandler implements IRpcEndpoint {
         if (userOperationNonceValue < currentNonceValue) {
             throw new RpcError(
                 "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
-                ValidationErrors.SimulateValidation
+                ValidationErrors.InvalidFields
             )
         }
         if (userOperationNonceValue > currentNonceValue + 10n) {
             throw new RpcError(
                 "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
-                ValidationErrors.SimulateValidation
+                ValidationErrors.InvalidFields
             )
         }
         if (userOperationNonceValue === currentNonceValue) {
@@ -879,7 +884,7 @@ export class RpcHandler implements IRpcEndpoint {
                 if (!success) {
                     throw new RpcError(
                         "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
-                        ValidationErrors.SimulateValidation
+                        ValidationErrors.InvalidFields
                     )
                 }
             } else {
@@ -917,7 +922,7 @@ export class RpcHandler implements IRpcEndpoint {
     ) {
         let status
         try {
-            var { inflatedOp, inflatorId } =
+            const { inflatedOp, inflatorId } =
                 await this.validateAndInflateCompressedUserOperation(
                     inflatorAddress,
                     compressedCalldata

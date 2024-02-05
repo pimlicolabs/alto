@@ -78,8 +78,7 @@ export class SenderManager {
                     "wallet has insufficient balance"
                 )
                 throw new Error(
-                    `wallet ${
-                        wallet.address
+                    `wallet ${wallet.address
                     } has insufficient balance ${formatEther(
                         balance
                     )} < ${formatEther(minBalance)}`
@@ -130,8 +129,7 @@ export class SenderManager {
                 "utility wallet has insufficient balance to refill wallets"
             )
             throw new Error(
-                `utility wallet ${
-                    this.utilityAccount.address
+                `utility wallet ${this.utilityAccount.address
                 } has insufficient balance ${formatEther(
                     utilityWalletBalance
                 )} < ${formatEther(totalBalanceMissing)}`
@@ -140,8 +138,9 @@ export class SenderManager {
 
         if (Object.keys(balancesMissing).length > 0) {
             const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPrice(
-                walletClient.chain.id,
+                walletClient.chain,
                 publicClient,
+                this.noEip1559Support,
                 this.logger
             )
 
