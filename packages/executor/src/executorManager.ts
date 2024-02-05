@@ -54,6 +54,7 @@ export class ExecutorManager {
     private currentlyHandlingBlock = false
     private timer?: NodeJS.Timer
     private bundlerFrequency: number
+    private noEip1559Support: boolean
 
     constructor(
         executor: IExecutor,
@@ -66,7 +67,8 @@ export class ExecutorManager {
         logger: Logger,
         metrics: Metrics,
         bundleMode: BundlingMode,
-        bundlerFrequency: number
+        bundlerFrequency: number,
+        noEip1559Support: boolean
     ) {
         this.reputationManager = reputationManager
         this.executor = executor
@@ -78,6 +80,7 @@ export class ExecutorManager {
         this.logger = logger
         this.metrics = metrics
         this.bundlerFrequency = bundlerFrequency
+        this.noEip1559Support = noEip1559Support
 
         if (bundleMode === "auto") {
             this.timer = setInterval(async () => {
@@ -123,14 +126,14 @@ export class ExecutorManager {
             bundles.push(await this.executor.bundleCompressed(this.entryPointAddress, compressedOps))
         }
 
-        bundles.forEach((bundle) => {
-            const isBundleSuccess = bundle.every((result) => result.success)
+        for (const bundle of bundles) {
+            const isBundleSuccess = bundle.every((result) => result.status === "success")
             if (isBundleSuccess) {
                 this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
             } else {
                 this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
             }
-        })
+        }
 
         const results = bundles.flat()
 
@@ -142,7 +145,7 @@ export class ExecutorManager {
 
         let txHash: HexData32 | undefined = undefined
         for (const result of results) {
-            if (result.success === true) {
+            if (result.status === "success") {
                 const res = result.value
 
                 this.mempool.markSubmitted(
@@ -160,7 +163,8 @@ export class ExecutorManager {
                 txHash = res.transactionInfo.transactionHash
                 this.startWatchingBlocks(this.handleBlock.bind(this))
                 this.metrics.userOperationsSubmitted.labels({ status: "success" }).inc()
-            } else {
+            }
+            if (result.status === "failure") {
                 this.mempool.removeProcessing(result.error.userOpHash)
                 this.monitor.setUserOperationStatus(result.error.userOpHash, {
                     status: "rejected",
@@ -174,6 +178,18 @@ export class ExecutorManager {
                     "user operation rejected"
                 )
                 this.metrics.userOperationsSubmitted.labels({ status: "failed" }).inc()
+            }
+            if (result.status === "resubmit") {
+                this.logger.info(
+                    {
+                        userOpHash: result.info.userOpHash,
+                        reason: result.info.reason
+                    },
+                    "resubmitting user operation"
+                )
+                this.mempool.removeProcessing(result.info.userOpHash)
+                this.mempool.add(result.info.userOperation)
+                this.metrics.userOperationsSubmitted.labels({ status: "resubmitted" }).inc()
             }
         }
         return txHash
@@ -362,9 +378,10 @@ export class ExecutorManager {
 
         // for all still not included check if needs to be replaced (based on gas price)
         const gasPriceParameters = await getGasPrice(
-            this.publicClient.chain.id,
+            this.publicClient.chain,
             this.publicClient,
-            this.logger
+            this.noEip1559Support,
+            this.logger,
         )
         this.logger.trace(
             { gasPriceParameters },

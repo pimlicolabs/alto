@@ -234,7 +234,8 @@ export const bundlerHandler = async (
         logger.child({ module: "executor" }, { level: parsedArgs.executorLogLevel || parsedArgs.logLevel }),
         metrics,
         parsedArgs.bundleMode,
-        parsedArgs.bundlerFrequency
+        parsedArgs.bundlerFrequency,
+        parsedArgs.noEip1559Support
     )
 
     const nonceQueuer = new NonceQueuer(
@@ -262,6 +263,7 @@ export const bundlerHandler = async (
         metrics,
         parsedArgs.environment,
         compressionHandler,
+        parsedArgs.noEip1559Support,
         parsedArgs.dangerousSkipUserOperationValidation
     )
 

@@ -110,6 +110,7 @@ export class RpcHandler implements IRpcEndpoint {
     executorManager: ExecutorManager
     reputationManager: IReputationManager
     compressionHandler: CompressionHandler | null
+    noEip1559Support: boolean
     dangerousSkipUserOperationValidation: boolean
 
     constructor(
@@ -130,6 +131,7 @@ export class RpcHandler implements IRpcEndpoint {
         metrics: Metrics,
         environment: Environment,
         compressionHandler: CompressionHandler | null,
+        noEip1559Support: boolean,
         dangerousSkipUserOperationValidation = false
     ) {
         this.entryPoint = entryPoint
@@ -150,8 +152,8 @@ export class RpcHandler implements IRpcEndpoint {
         this.executorManager = executorManager
         this.reputationManager = reputationManager
         this.compressionHandler = compressionHandler
-        this.dangerousSkipUserOperationValidation =
-            dangerousSkipUserOperationValidation
+        this.noEip1559Support = noEip1559Support
+        this.dangerousSkipUserOperationValidation = dangerousSkipUserOperationValidation
     }
 
     async handleMethod(request: BundlerRequest): Promise<BundlerResponse> {
@@ -321,7 +323,7 @@ export class RpcHandler implements IRpcEndpoint {
                 userOperation,
                 entryPoint,
                 preVerificationGas,
-                this.logger
+                this.logger,
             )
         } else if (this.chainId === chains.arbitrum.id) {
             preVerificationGas = await calcArbitrumPreVerificationGas(
@@ -371,10 +373,10 @@ export class RpcHandler implements IRpcEndpoint {
                     .baseFeePerGas
                 gasPrice =
                     userOperation.maxFeePerGas <
-                    (blockBaseFee ?? 0n) + userOperation.maxPriorityFeePerGas
+                        (blockBaseFee ?? 0n) + userOperation.maxPriorityFeePerGas
                         ? userOperation.maxFeePerGas
                         : userOperation.maxPriorityFeePerGas +
-                          (blockBaseFee ?? 0n)
+                        (blockBaseFee ?? 0n)
             }
             const calculatedCallGasLimit =
                 executionResult.paid / gasPrice -
@@ -804,9 +806,10 @@ export class RpcHandler implements IRpcEndpoint {
 
     async pimlico_getUserOperationGasPrice(): Promise<PimlicoGetUserOperationGasPriceResponseResult> {
         const gasPrice = await getGasPrice(
-            this.chainId,
+            this.publicClient.chain,
             this.publicClient,
-            this.logger
+            this.noEip1559Support,
+            this.logger,
         )
         return {
             slow: {
@@ -855,8 +858,9 @@ export class RpcHandler implements IRpcEndpoint {
 
         if (this.minimumGasPricePercent !== 0) {
             const gasPrice = await getGasPrice(
-                this.chainId,
+                this.publicClient.chain,
                 this.publicClient,
+                this.noEip1559Support,
                 this.logger
             )
             const minMaxFeePerGas =
@@ -966,7 +970,7 @@ export class RpcHandler implements IRpcEndpoint {
     ) {
         let status
         try {
-            var { inflatedOp, inflatorId } =
+            const { inflatedOp, inflatorId } =
                 await this.validateAndInflateCompressedUserOperation(
                     inflatorAddress,
                     compressedCalldata
