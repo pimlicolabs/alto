@@ -1,8 +1,56 @@
-import { GasPriceParameters } from "@alto/types"
-import { Chain, PublicClient } from "viem"
+import { GasPriceParameters, gasStationResult } from "@alto/types"
+import { Chain, PublicClient, parseGwei } from "viem"
 import * as chains from "viem/chains"
 import { maxBigInt, minBigInt } from "./bigInt"
 import { Logger } from "."
+
+
+function getGasStationUrl(chainId: chains.polygon.id | chains.polygonMumbai.id): string {
+    switch (chainId) {
+        case chains.polygon.id:
+            return "https://gasstation.polygon.technology/v2"
+        case chains.polygonMumbai.id:
+            return "https://gasstation-testnet.polygon.technology/v2"
+    }
+}
+
+const MIN_POLYGON_GAS_PRICE = parseGwei("31")
+const MIN_MUMBAI_GAS_PRICE = parseGwei("1")
+
+/**
+ * @internal
+ */
+function getDefaultGasFee(chainId: chains.polygon.id | chains.polygonMumbai.id): bigint {
+    switch (chainId) {
+        case chains.polygon.id:
+            return MIN_POLYGON_GAS_PRICE
+        case chains.polygonMumbai.id:
+            return MIN_MUMBAI_GAS_PRICE
+        default: {
+            return 0n
+        }
+    }
+}
+
+export async function getPolygonGasPriceParameters(
+    chainId: chains.polygon.id | chains.polygonMumbai.id,
+    logger: Logger
+): Promise<GasPriceParameters | null> {
+    const gasStationUrl = getGasStationUrl(chainId)
+    try {
+        const data = await (await fetch(gasStationUrl)).json()
+        // take the standard speed here, SDK options will define the extra tip
+        const parsedData = gasStationResult.parse(data)
+
+        return parsedData.fast
+    } catch (e) {
+        logger.error(
+            { error: e },
+            "failed to get gas price from gas station, using default"
+        )
+        return null
+    }
+}
 
 const getBumpAmount = (chainId: number) => {
     if (chainId === chains.celo.id) {
@@ -78,6 +126,19 @@ export async function getGasPrice(
     noEip1559Support: boolean,
     logger: Logger
 ): Promise<GasPriceParameters> {
+    if (chain.id === chains.polygon.id || chain.id === chains.polygonMumbai.id) {
+        const polygonEstimate = await getPolygonGasPriceParameters(
+            chain.id,
+            logger
+        )
+        if (polygonEstimate) {
+            return {
+                maxFeePerGas: polygonEstimate.maxFeePerGas,
+                maxPriorityFeePerGas: maxBigInt(polygonEstimate.maxPriorityFeePerGas, getDefaultGasFee(chain.id))
+            }
+        }
+    }
+
     let maxFeePerGas: bigint | undefined
     let maxPriorityFeePerGas: bigint | undefined
     if (noEip1559Support) {
