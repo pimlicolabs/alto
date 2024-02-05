@@ -168,7 +168,7 @@ export async function getGasPrice(
         if (polygonEstimate) {
             return bumpTheGasPrice(chain.id, {
                 maxFeePerGas: polygonEstimate.maxFeePerGas,
-                maxPriorityFeePerGas: maxBigInt(polygonEstimate.maxPriorityFeePerGas, getDefaultGasFee(chain.id))
+                maxPriorityFeePerGas: polygonEstimate.maxPriorityFeePerGas,
             })
         }
     }
@@ -185,8 +185,14 @@ export async function getGasPrice(
         }
 
         if (gasPrice === undefined) {
-            logger.error("failed to get legacy gasPrice, using fallback value")
-            gasPrice = await publicClient.getGasPrice()
+            logger.warn("gasPrice is undefined, using fallback value")
+            try {
+                gasPrice = await publicClient.getGasPrice()
+            } catch (e) {
+                logger.error("failed to get fallback gasPrice")
+                sentry.captureException(e)
+                throw e
+            }
         }
 
         return bumpTheGasPrice(chain.id, {
@@ -209,16 +215,28 @@ export async function getGasPrice(
     }
 
     if (maxPriorityFeePerGas === undefined) {
-        logger.error("failed to get maxPriorityFeePerGas, using fallback value")
-        maxPriorityFeePerGas = await getFallBackMaxPriorityFeePerGas(
-            publicClient,
-            maxFeePerGas ?? 0n
-        )
+        logger.warn("maxPriorityFeePerGas is undefined, using fallback value")
+        try {
+            maxPriorityFeePerGas = await getFallBackMaxPriorityFeePerGas(
+                publicClient,
+                maxFeePerGas ?? 0n
+            )
+        } catch (e) {
+            logger.error("failed to get fallback maxPriorityFeePerGas")
+            sentry.captureException(e)
+            throw e
+        }
     }
 
     if (maxFeePerGas === undefined) {
-        logger.error("failed to get maxFeePerGas, using fallback value")
-        maxFeePerGas = await getNextBaseFee(publicClient) + maxPriorityFeePerGas
+        logger.warn("maxFeePerGas is undefined, using fallback value")
+        try {
+            maxFeePerGas = await getNextBaseFee(publicClient) + maxPriorityFeePerGas
+        } catch (e) {
+            logger.error("failed to get fallback maxFeePerGas")
+            sentry.captureException(e)
+            throw e
+        }
     }
 
     if (maxPriorityFeePerGas === 0n) {
