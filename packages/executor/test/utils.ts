@@ -1,8 +1,17 @@
-import { Address, EntryPointAbi, HexData, UserOperation } from "@alto/types"
-import { SimpleAccountFactoryAbi } from "@alto/types/src/contracts/SimpleAccountFactory"
-import { Clients, getUserOpHash, parseSenderAddressError } from "@alto/utils"
 import {
-    Account,
+    type Address,
+    EntryPointAbi,
+    type HexData,
+    type UserOperation
+} from "@alto/types"
+import { SimpleAccountFactoryAbi } from "@alto/types/src/contracts/SimpleAccountFactory"
+import {
+    type Clients,
+    getUserOpHash,
+    parseSenderAddressError
+} from "@alto/utils"
+import {
+    type Account,
     concat,
     encodeFunctionData,
     getContract,

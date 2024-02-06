@@ -1,18 +1,23 @@
-import { IReputationManager, Mempool, Monitor } from "@alto/mempool"
+import type { IReputationManager, Mempool, Monitor } from "@alto/mempool"
 import {
-    BundleResult,
-    BundlingMode,
-    CompressedUserOperation,
-    HexData32,
-    MempoolUserOperation,
-    SubmittedUserOperation,
-    TransactionInfo,
-    UserOperation,
+    type BundleResult,
+    type BundlingMode,
+    type CompressedUserOperation,
+    type HexData32,
+    type MempoolUserOperation,
+    type SubmittedUserOperation,
+    type TransactionInfo,
+    type UserOperation,
     deriveUserOperation,
     isCompressedType
 } from "@alto/types"
-import { Logger, Metrics, getGasPrice, transactionIncluded } from "@alto/utils"
 import {
+    type Logger,
+    type Metrics,
+    getGasPrice,
+    transactionIncluded
+} from "@alto/utils"
+import type {
     Address,
     Block,
     Chain,
@@ -21,7 +26,7 @@ import {
     Transport,
     WatchBlocksReturnType
 } from "viem"
-import { IExecutor, ReplaceTransactionResult } from "./executor"
+import type { IExecutor, ReplaceTransactionResult } from "./executor"
 
 function getTransactionsFromUserOperationEntries(
     entries: SubmittedUserOperation[]

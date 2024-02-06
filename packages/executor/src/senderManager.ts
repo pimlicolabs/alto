@@ -1,15 +1,20 @@
-import { Address, CallEngineAbi, HexData, HexData32 } from "@alto/types"
-import { Logger, Metrics } from "@alto/utils"
+import {
+    type Address,
+    CallEngineAbi,
+    type HexData,
+    type HexData32
+} from "@alto/types"
+import type { Logger, Metrics } from "@alto/utils"
 import { Semaphore } from "async-mutex"
 import type { ApiVersion } from "@alto/types/src"
 import { getGasPrice } from "@alto/utils"
 import {
-    Account,
-    Chain,
-    PublicClient,
-    TransactionReceipt,
-    Transport,
-    WalletClient,
+    type Account,
+    type Chain,
+    type PublicClient,
+    type TransactionReceipt,
+    type Transport,
+    type WalletClient,
     formatEther,
     getContract
 } from "viem"

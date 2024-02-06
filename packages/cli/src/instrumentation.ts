@@ -1,4 +1,4 @@
-import { Attributes, Context, SpanKind } from "@opentelemetry/api"
+import { type Attributes, type Context, SpanKind } from "@opentelemetry/api"
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto"
 import { FastifyInstrumentation } from "@opentelemetry/instrumentation-fastify"
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http"
@@ -6,7 +6,7 @@ import { PinoInstrumentation } from "@opentelemetry/instrumentation-pino"
 import { NodeSDK } from "@opentelemetry/sdk-node"
 import {
     ParentBasedSampler,
-    Sampler,
+    type Sampler,
     SamplingDecision
 } from "@opentelemetry/sdk-trace-base"
 import { SemanticAttributes } from "@opentelemetry/semantic-conventions"

@@ -1,28 +1,28 @@
-import { IReputationManager } from "@alto/mempool"
+import type { IReputationManager } from "@alto/mempool"
 import {
-    BundleResult,
-    CompressedUserOperation,
+    type BundleResult,
+    type CompressedUserOperation,
     EntryPointAbi,
-    TransactionInfo,
-    UserOperation,
-    UserOperationWithHash,
+    type TransactionInfo,
+    type UserOperation,
+    type UserOperationWithHash,
     deriveUserOperation,
     failedOpErrorSchema
 } from "@alto/types"
-import { Logger, parseViemError, transactionIncluded } from "@alto/utils"
+import { type Logger, parseViemError, transactionIncluded } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
-    Account,
-    Address,
-    Chain,
+    type Account,
+    type Address,
+    type Chain,
     ContractFunctionRevertedError,
     EstimateGasExecutionError,
     FeeCapTooLowError,
-    GetContractReturnType,
-    Hex,
-    PublicClient,
-    Transport,
-    WalletClient,
+    type GetContractReturnType,
+    type Hex,
+    type PublicClient,
+    type Transport,
+    type WalletClient,
     concat,
     decodeErrorResult,
     hexToBytes,
@@ -83,7 +83,9 @@ export function createCompressedCalldata(
     return compressedOps.reduce((currentCallData, op) => {
         const nextCallData = concat([
             numberToHex(op.inflatorId, { size: 4 }),
-            numberToHex(hexToBytes(op.compressedCalldata).length, { size: 2 }),
+            numberToHex(hexToBytes(op.compressedCalldata).length, {
+                size: 2
+            }),
             op.compressedCalldata
         ])
 

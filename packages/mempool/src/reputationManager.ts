@@ -1,14 +1,17 @@
 import {
     EntryPointAbi,
     RpcError,
-    StakeInfo,
-    UserOperation,
+    type StakeInfo,
+    type UserOperation,
     ValidationErrors,
-    ValidationResult,
-    ValidationResultWithAggregation
+    type ValidationResult,
+    type ValidationResultWithAggregation
 } from "@alto/types"
-import { Logger, getAddressFromInitCodeOrPaymasterAndData } from "@alto/utils"
-import { Address, PublicClient, getAddress, getContract } from "viem"
+import {
+    type Logger,
+    getAddressFromInitCodeOrPaymasterAndData
+} from "@alto/utils"
+import { type Address, type PublicClient, getAddress, getContract } from "viem"
 
 export interface IReputationManager {
     checkReputation(

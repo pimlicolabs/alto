@@ -1,19 +1,19 @@
-import { IReputationManager } from "@alto/mempool"
+import type { IReputationManager } from "@alto/mempool"
 import {
-    Address,
-    BundleResult,
-    CompressedUserOperation,
+    type Address,
+    type BundleResult,
+    type CompressedUserOperation,
     EntryPointAbi,
-    HexData32,
-    TransactionInfo,
-    UserOperation,
-    UserOperationWithHash,
+    type HexData32,
+    type TransactionInfo,
+    type UserOperation,
+    type UserOperationWithHash,
     deriveUserOperation
 } from "@alto/types"
 import {
-    CompressionHandler,
-    Logger,
-    Metrics,
+    type CompressionHandler,
+    type Logger,
+    type Metrics,
     getGasPrice,
     getUserOperationHash,
     maxBigInt,
@@ -22,22 +22,22 @@ import {
 import * as sentry from "@sentry/node"
 import { Mutex } from "async-mutex"
 import {
-    Account,
-    Chain,
+    type Account,
+    type Chain,
     FeeCapTooLowError,
     InsufficientFundsError,
     IntrinsicGasTooLowError,
     NonceTooLowError,
-    PublicClient,
-    Transport,
-    WalletClient,
+    type PublicClient,
+    type Transport,
+    type WalletClient,
     encodeFunctionData,
     getContract
 } from "viem"
-import { SenderManager } from "./senderManager"
+import type { SenderManager } from "./senderManager"
 import {
-    CompressedFilterOpsAndEstimateGasParams,
-    DefaultFilterOpsAndEstimateGasParams,
+    type CompressedFilterOpsAndEstimateGasParams,
+    type DefaultFilterOpsAndEstimateGasParams,
     createCompressedCalldata,
     filterOpsAndEstimateGas,
     flushStuckTransaction,
