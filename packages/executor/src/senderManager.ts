@@ -4,10 +4,10 @@ import {
     type HexData,
     type HexData32
 } from "@alto/types"
-import type { Logger, Metrics } from "@alto/utils"
-import { Semaphore } from "async-mutex"
 import type { ApiVersion } from "@alto/types/src"
+import type { Logger, Metrics } from "@alto/utils"
 import { getGasPrice } from "@alto/utils"
+import { Semaphore } from "async-mutex"
 import {
     type Account,
     type Chain,

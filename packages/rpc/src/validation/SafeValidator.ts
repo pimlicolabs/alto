@@ -18,8 +18,8 @@ import type { ApiVersion } from "@alto/types/src"
 import {
     type Logger,
     type Metrics,
-    getAddressFromInitCodeOrPaymasterAndData,
-    calcVerificationGasAndCallGasLimit
+    calcVerificationGasAndCallGasLimit,
+    getAddressFromInitCodeOrPaymasterAndData
 } from "@alto/utils"
 import {
     type Account,
