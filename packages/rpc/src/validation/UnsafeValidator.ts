@@ -375,6 +375,13 @@ export class UnsafeValidator implements IValidator {
                     verificationGasLimit * mul +
                     preVerificationGas
 
+                if (preVerificationGas > userOperation.preVerificationGas) {
+                    throw new RpcError(
+                        `preVerificationGas is not enough, required: ${preVerificationGas}, got: ${userOperation.preVerificationGas}`,
+                        ValidationErrors.SimulateValidation
+                    )
+                }
+
                 if (requiredPreFund > prefund) {
                     throw new RpcError(
                         `prefund is not enough, required: ${requiredPreFund}, got: ${prefund}`,
