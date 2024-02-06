@@ -117,14 +117,6 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
             if (this.apiVersion !== "v1") {
                 const prefund = validationResult.returnInfo.prefund
 
-                const preVerificationGas = await calcPreVerificationGas(
-                    this.publicClient,
-                    userOperation,
-                    this.entryPoint,
-                    this.chainId,
-                    this.logger
-                )
-
                 const [verificationGasLimit, callGasLimit] =
                     await calcVerificationGasAndCallGasLimit(
                         this.publicClient,
@@ -141,14 +133,7 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
                 const requiredPreFund =
                     callGasLimit +
                     verificationGasLimit * mul +
-                    preVerificationGas
-
-                if (preVerificationGas > userOperation.preVerificationGas) {
-                    throw new RpcError(
-                        `preVerificationGas is not enough, required: ${preVerificationGas}, got: ${userOperation.preVerificationGas}`,
-                        ValidationErrors.SimulateValidation
-                    )
-                }
+                    userOperation.preVerificationGas
 
                 if (requiredPreFund > prefund) {
                     throw new RpcError(

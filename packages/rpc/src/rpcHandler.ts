@@ -899,6 +899,8 @@ export class RpcHandler implements IRpcEndpoint {
                     )
                 }
             } else {
+                await this.validator.validatePreVerificationGas(userOperation)
+
                 const validationResult =
                     await this.validator.validateUserOperation(userOperation)
                 await this.reputationManager.checkReputation(

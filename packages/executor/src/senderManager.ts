@@ -13,7 +13,6 @@ import {
     TransactionReceipt,
     getContract
 } from "viem"
-import { getGasPrice } from "@alto/utils"
 
 const waitForTransactionReceipt = async (
     publicClient: PublicClient,

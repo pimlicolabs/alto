@@ -21,6 +21,7 @@ export interface IValidator {
             referencedContracts?: ReferencedCodeHashes
         }
     >
+    validatePreVerificationGas(userOperation: UserOperation): Promise<void>
     validateUserOperation(
         userOperation: UserOperation,
         referencedContracts?: ReferencedCodeHashes

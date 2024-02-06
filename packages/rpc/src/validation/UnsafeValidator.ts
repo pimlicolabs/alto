@@ -314,6 +314,25 @@ export class UnsafeValidator implements IValidator {
         }
     }
 
+    async validatePreVerificationGas(userOperation: UserOperation) {
+        if (this.apiVersion !== "v1") {
+            const preVerificationGas = await calcPreVerificationGas(
+                this.publicClient,
+                userOperation,
+                this.entryPoint,
+                this.chainId,
+                this.logger
+            )
+
+            if (preVerificationGas > userOperation.preVerificationGas) {
+                throw new RpcError(
+                    `preVerificationGas is not enough, required: ${preVerificationGas}, got: ${userOperation.preVerificationGas}`,
+                    ValidationErrors.SimulateValidation
+                )
+            }
+        }
+    }
+
     async validateUserOperation(
         userOperation: UserOperation,
         _referencedContracts?: ReferencedCodeHashes
@@ -359,14 +378,6 @@ export class UnsafeValidator implements IValidator {
             if (this.apiVersion !== "v1") {
                 const prefund = validationResult.returnInfo.prefund
 
-                const preVerificationGas = await calcPreVerificationGas(
-                    this.publicClient,
-                    userOperation,
-                    this.entryPoint,
-                    this.chainId,
-                    this.logger
-                )
-
                 const [verificationGasLimit, callGasLimit] =
                     await calcVerificationGasAndCallGasLimit(
                         this.publicClient,
@@ -383,14 +394,7 @@ export class UnsafeValidator implements IValidator {
                 const requiredPreFund =
                     callGasLimit +
                     verificationGasLimit * mul +
-                    preVerificationGas
-
-                if (preVerificationGas > userOperation.preVerificationGas) {
-                    throw new RpcError(
-                        `preVerificationGas is not enough, required: ${preVerificationGas}, got: ${userOperation.preVerificationGas}`,
-                        ValidationErrors.SimulateValidation
-                    )
-                }
+                    userOperation.preVerificationGas
 
                 if (requiredPreFund > prefund) {
                     throw new RpcError(
