@@ -1,9 +1,9 @@
-import {
+import type {
     HexData32,
     SubmittedUserOperation,
     UserOperationInfo
 } from "@alto/types"
-import { Logger, Metrics } from "@alto/utils"
+import type { Logger, Metrics } from "@alto/utils"
 
 export class MemoryStore {
     // private monitoredTransactions: Map<HexData32, TransactionInfo> = new Map() // tx hash to info

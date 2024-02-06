@@ -1,24 +1,23 @@
+import type { IReputationManager, Mempool, Monitor } from "@alto/mempool"
 import {
-    SubmittedUserOperation,
-    TransactionInfo,
-    BundlingMode,
-    MempoolUserOperation,
-    CompressedUserOperation,
-    UserOperation,
+    type BundleResult,
+    type BundlingMode,
+    type CompressedUserOperation,
+    type HexData32,
+    type MempoolUserOperation,
+    type SubmittedUserOperation,
+    type TransactionInfo,
+    type UserOperation,
     deriveUserOperation,
-    isCompressedType,
-    HexData32,
-    BundleResult
+    isCompressedType
 } from "@alto/types"
 import {
-    Logger,
-    Metrics,
-    transactionIncluded,
-    getGasPrice
+    type Logger,
+    type Metrics,
+    getGasPrice,
+    transactionIncluded
 } from "@alto/utils"
-import { IReputationManager, Mempool, Monitor } from "@alto/mempool"
-import { IExecutor, ReplaceTransactionResult } from "./executor"
-import {
+import type {
     Address,
     Block,
     Chain,
@@ -27,6 +26,7 @@ import {
     Transport,
     WatchBlocksReturnType
 } from "viem"
+import type { IExecutor, ReplaceTransactionResult } from "./executor"
 
 function getTransactionsFromUserOperationEntries(
     entries: SubmittedUserOperation[]
@@ -115,21 +115,36 @@ export class ExecutorManager {
     }
 
     async sendToExecutor(mempoolOps: MempoolUserOperation[]) {
-        const ops = mempoolOps.filter((op) => !isCompressedType(op)).map((op) => (op as UserOperation))
-        const compressedOps = mempoolOps.filter((op) => isCompressedType(op)).map((op) => (op as CompressedUserOperation))
+        const ops = mempoolOps
+            .filter((op) => !isCompressedType(op))
+            .map((op) => op as UserOperation)
+        const compressedOps = mempoolOps
+            .filter((op) => isCompressedType(op))
+            .map((op) => op as CompressedUserOperation)
 
         const bundles: BundleResult[][] = []
         if (ops.length > 0) {
-            bundles.push(await this.executor.bundle(this.entryPointAddress, ops))
+            bundles.push(
+                await this.executor.bundle(this.entryPointAddress, ops)
+            )
         }
         if (compressedOps.length > 0) {
-            bundles.push(await this.executor.bundleCompressed(this.entryPointAddress, compressedOps))
+            bundles.push(
+                await this.executor.bundleCompressed(
+                    this.entryPointAddress,
+                    compressedOps
+                )
+            )
         }
 
         for (const bundle of bundles) {
-            const isBundleSuccess = bundle.every((result) => result.status === "success")
+            const isBundleSuccess = bundle.every(
+                (result) => result.status === "success"
+            )
             if (isBundleSuccess) {
-                this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
+                this.metrics.bundlesSubmitted
+                    .labels({ status: "success" })
+                    .inc()
             } else {
                 this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
             }
@@ -139,8 +154,13 @@ export class ExecutorManager {
 
         const filteredOutOps = mempoolOps.length - results.length
         if (filteredOutOps > 0) {
-            this.logger.debug({ filteredOutOps }, "user operations filtered out")
-            this.metrics.userOperationsSubmitted.labels({ status: "filtered" }).inc(filteredOutOps)
+            this.logger.debug(
+                { filteredOutOps },
+                "user operations filtered out"
+            )
+            this.metrics.userOperationsSubmitted
+                .labels({ status: "filtered" })
+                .inc(filteredOutOps)
         }
 
         let txHash: HexData32 | undefined = undefined
@@ -162,7 +182,9 @@ export class ExecutorManager {
                 )
                 txHash = res.transactionInfo.transactionHash
                 this.startWatchingBlocks(this.handleBlock.bind(this))
-                this.metrics.userOperationsSubmitted.labels({ status: "success" }).inc()
+                this.metrics.userOperationsSubmitted
+                    .labels({ status: "success" })
+                    .inc()
             }
             if (result.status === "failure") {
                 this.mempool.removeProcessing(result.error.userOpHash)
@@ -177,7 +199,9 @@ export class ExecutorManager {
                     },
                     "user operation rejected"
                 )
-                this.metrics.userOperationsSubmitted.labels({ status: "failed" }).inc()
+                this.metrics.userOperationsSubmitted
+                    .labels({ status: "failed" })
+                    .inc()
             }
             if (result.status === "resubmit") {
                 this.logger.info(
@@ -189,7 +213,9 @@ export class ExecutorManager {
                 )
                 this.mempool.removeProcessing(result.info.userOpHash)
                 this.mempool.add(result.info.userOperation)
-                this.metrics.userOperationsSubmitted.labels({ status: "resubmitted" }).inc()
+                this.metrics.userOperationsSubmitted
+                    .labels({ status: "resubmitted" })
+                    .inc()
             }
         }
         return txHash
@@ -296,7 +322,9 @@ export class ExecutorManager {
             return
         }
 
-        this.metrics.userOperationsOnChain.labels({ status: status.transactionStatuses.status }).inc(opInfos.length)
+        this.metrics.userOperationsOnChain
+            .labels({ status: status.transactionStatuses.status })
+            .inc(opInfos.length)
         if (status.transactionStatuses.status === "included") {
             opInfos.map((info) => {
                 this.metrics.userOperationInclusionDuration.observe(
@@ -381,7 +409,7 @@ export class ExecutorManager {
             this.publicClient.chain,
             this.publicClient,
             this.noEip1559Support,
-            this.logger,
+            this.logger
         )
         this.logger.trace(
             { gasPriceParameters },
@@ -396,9 +424,9 @@ export class ExecutorManager {
             transactionInfos.map(async (txInfo) => {
                 if (
                     txInfo.transactionRequest.maxFeePerGas >=
-                    gasPriceParameters.maxFeePerGas &&
+                        gasPriceParameters.maxFeePerGas &&
                     txInfo.transactionRequest.maxPriorityFeePerGas >=
-                    gasPriceParameters.maxPriorityFeePerGas
+                        gasPriceParameters.maxPriorityFeePerGas
                 ) {
                     return
                 }
@@ -432,7 +460,9 @@ export class ExecutorManager {
         try {
             replaceResult = await this.executor.replaceTransaction(txInfo)
         } finally {
-            this.metrics.replacedTransactions.labels({ reason, status: replaceResult?.status || "failed" }).inc()
+            this.metrics.replacedTransactions
+                .labels({ reason, status: replaceResult?.status || "failed" })
+                .inc()
         }
         if (replaceResult.status === "failed") {
             txInfo.userOperationInfos.map((opInfo) => {

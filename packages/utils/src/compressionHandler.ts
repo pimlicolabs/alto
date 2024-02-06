@@ -1,9 +1,5 @@
-import {
-    Address,
-    BundleBulkerAbi,
-    PerOpInfaltorAbi
-} from "@alto/types"
-import { Client, PublicClient, getContract } from "viem"
+import { type Address, BundleBulkerAbi, PerOpInfaltorAbi } from "@alto/types"
+import { type Client, type PublicClient, getContract } from "viem"
 
 export class CompressionHandler {
     bundleBulkerAddress: Address
@@ -13,36 +9,50 @@ export class CompressionHandler {
     private constructor(
         bundleBulkerAddress: Address,
         perOpInflatorAddress: Address,
-        perOpInflatorId: number,
+        perOpInflatorId: number
     ) {
         this.bundleBulkerAddress = bundleBulkerAddress
         this.perOpInflatorAddress = perOpInflatorAddress
         this.perOpInflatorId = perOpInflatorId
     }
 
-    public static createAsync = async (bundleBulkerAddress: Address, perOpInflatorAddress: Address, publicClient: PublicClient) => {
-        const compressionHandler = new CompressionHandler(bundleBulkerAddress, perOpInflatorAddress, 0)
+    public static createAsync = async (
+        bundleBulkerAddress: Address,
+        perOpInflatorAddress: Address,
+        publicClient: PublicClient
+    ) => {
+        const compressionHandler = new CompressionHandler(
+            bundleBulkerAddress,
+            perOpInflatorAddress,
+            0
+        )
 
         const bundleBulker = getContract({
             address: bundleBulkerAddress,
             abi: BundleBulkerAbi,
-            publicClient,
+            publicClient
         })
 
-        compressionHandler.perOpInflatorId = await bundleBulker.read.inflatorToID([perOpInflatorAddress])
+        compressionHandler.perOpInflatorId =
+            await bundleBulker.read.inflatorToID([perOpInflatorAddress])
 
         if (compressionHandler.perOpInflatorId === 0) {
-            throw new Error(`PerOpInflator (${perOpInflatorAddress}) is not registered with BundleBulker (${bundleBulkerAddress})`)
+            throw new Error(
+                `PerOpInflator (${perOpInflatorAddress}) is not registered with BundleBulker (${bundleBulkerAddress})`
+            )
         }
 
         return compressionHandler
     }
 
-    public async getInflatorRegisteredId(inflator: Address, publicClient: Client): Promise<number> {
+    public async getInflatorRegisteredId(
+        inflator: Address,
+        publicClient: Client
+    ): Promise<number> {
         const perOpInflator = getContract({
             address: this.perOpInflatorAddress,
             abi: PerOpInfaltorAbi,
-            publicClient,
+            publicClient
         })
 
         return await perOpInflator.read.inflatorToID([inflator])

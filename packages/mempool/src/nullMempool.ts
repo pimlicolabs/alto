@@ -1,4 +1,4 @@
-import {
+import type {
     MempoolUserOperation,
     ReferencedCodeHashes,
     SubmittedUserOperation,
@@ -6,7 +6,7 @@ import {
     UserOperation,
     UserOperationInfo
 } from "@alto/types"
-import { Mempool } from "./types"
+import type { Mempool } from "./types"
 
 export class NullMempool implements Mempool {
     clear(): void {

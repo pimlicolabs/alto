@@ -1,6 +1,6 @@
+import { HexData32, UserOperationStatus } from "@alto/types"
 import { expect } from "earl"
 import { Monitor } from "../src/monitoring" // Update the import path according to your project structure
-import { HexData32, UserOperationStatus } from "@alto/types"
 
 describe("Monitor", () => {
     const timeout = 500

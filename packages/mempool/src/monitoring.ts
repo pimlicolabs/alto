@@ -1,4 +1,4 @@
-import { HexData32, UserOperationStatus } from "@alto/types"
+import type { HexData32, UserOperationStatus } from "@alto/types"
 
 export class Monitor {
     private userOperationToStatus: Record<HexData32, UserOperationStatus>

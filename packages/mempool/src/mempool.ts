@@ -2,39 +2,42 @@
 // import { PublicClient, getContract } from "viem"
 // import { EntryPointAbi } from "../types/EntryPoint"
 import {
-    RpcError,
-    StorageMap,
-    SubmittedUserOperation,
-    TransactionInfo,
-    UserOperation,
-    UserOperationInfo,
-    ValidationErrors,
-    IValidator,
-    ValidationResult,
     EntryPointAbi,
-    ReferencedCodeHashes,
-    MempoolUserOperation,
+    type IValidator,
+    type MempoolUserOperation,
+    type ReferencedCodeHashes,
+    RpcError,
+    type StorageMap,
+    type SubmittedUserOperation,
+    type TransactionInfo,
+    type UserOperation,
+    type UserOperationInfo,
+    ValidationErrors,
+    type ValidationResult,
     deriveUserOperation
 } from "@alto/types"
-import { HexData32 } from "@alto/types"
-import { Monitor } from "./monitoring"
+import type { HexData32 } from "@alto/types"
 import {
-    Address,
-    Chain,
-    PublicClient,
-    Transport,
-    getAddress,
-    getContract
-} from "viem"
-import {
-    Logger,
-    Metrics,
+    type Logger,
+    type Metrics,
     getAddressFromInitCodeOrPaymasterAndData,
     getUserOperationHash
 } from "@alto/utils"
+import {
+    type Address,
+    type Chain,
+    type PublicClient,
+    type Transport,
+    getAddress,
+    getContract
+} from "viem"
+import type { Monitor } from "./monitoring"
+import {
+    type IReputationManager,
+    ReputationStatuses
+} from "./reputationManager"
 import { MemoryStore } from "./store"
-import { IReputationManager, ReputationStatuses } from "./reputationManager"
-import { Mempool } from "./types"
+import type { Mempool } from "./types"
 
 export class MemoryMempool implements Mempool {
     private monitor: Monitor
