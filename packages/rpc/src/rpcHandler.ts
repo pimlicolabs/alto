@@ -153,7 +153,8 @@ export class RpcHandler implements IRpcEndpoint {
         this.reputationManager = reputationManager
         this.compressionHandler = compressionHandler
         this.noEip1559Support = noEip1559Support
-        this.dangerousSkipUserOperationValidation = dangerousSkipUserOperationValidation
+        this.dangerousSkipUserOperationValidation =
+            dangerousSkipUserOperationValidation
     }
 
     async handleMethod(request: BundlerRequest): Promise<BundlerResponse> {
@@ -323,7 +324,7 @@ export class RpcHandler implements IRpcEndpoint {
                 userOperation,
                 entryPoint,
                 preVerificationGas,
-                this.logger,
+                this.logger
             )
         } else if (this.chainId === chains.arbitrum.id) {
             preVerificationGas = await calcArbitrumPreVerificationGas(
@@ -342,8 +343,12 @@ export class RpcHandler implements IRpcEndpoint {
             userOperation.verificationGasLimit = 10_000_000n
             userOperation.callGasLimit = 10_000_000n
 
+            if (this.chainId === chains.base.id) {
+                userOperation.verificationGasLimit = 2_500_000n
+                userOperation.callGasLimit = 2_500_000n
+            }
+
             if (
-                this.chainId === 8453 ||
                 this.chainId === chains.celoAlfajores.id ||
                 this.chainId === chains.celo.id
             ) {
@@ -373,10 +378,10 @@ export class RpcHandler implements IRpcEndpoint {
                     .baseFeePerGas
                 gasPrice =
                     userOperation.maxFeePerGas <
-                        (blockBaseFee ?? 0n) + userOperation.maxPriorityFeePerGas
+                    (blockBaseFee ?? 0n) + userOperation.maxPriorityFeePerGas
                         ? userOperation.maxFeePerGas
                         : userOperation.maxPriorityFeePerGas +
-                        (blockBaseFee ?? 0n)
+                          (blockBaseFee ?? 0n)
             }
             const calculatedCallGasLimit =
                 executionResult.paid / gasPrice -
@@ -809,7 +814,7 @@ export class RpcHandler implements IRpcEndpoint {
             this.publicClient.chain,
             this.publicClient,
             this.noEip1559Support,
-            this.logger,
+            this.logger
         )
         return {
             slow: {
