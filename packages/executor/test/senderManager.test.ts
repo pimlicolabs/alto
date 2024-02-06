@@ -47,7 +47,7 @@ describe("senderManager", () => {
         expect(wallet).toEqual(account)
         expect(senderManager.availableWallets.length).toEqual(initialLength - 1)
 
-        await senderManager.pushWallet(wallet)
+        senderManager.pushWallet(wallet)
         expect(senderManager.availableWallets.length).toEqual(initialLength)
         expect(senderManager.availableWallets[senderManager.availableWallets.length - 1]).toEqual(wallet)
     })
@@ -63,7 +63,7 @@ describe("senderManager", () => {
         const result = await Promise.race([promise, fn(100, "timeout")])
         expect(result).toEqual("timeout")
 
-        await senderManager.pushWallet(wallets[0])
+        senderManager.pushWallet(wallets[0])
         const promiseResult = await promise
         expect(promiseResult).toEqual(wallets[0])
     })

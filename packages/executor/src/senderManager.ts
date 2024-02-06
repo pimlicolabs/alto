@@ -1,7 +1,8 @@
 import { Address, HexData, HexData32, CallEngineAbi } from "@alto/types"
 import { Logger, Metrics } from "@alto/utils"
 import { Semaphore } from "async-mutex"
-
+import type { ApiVersion } from "@alto/types/src"
+import { getGasPrice } from "@alto/utils"
 import {
     Account,
     PublicClient,
@@ -12,7 +13,6 @@ import {
     TransactionReceipt,
     getContract
 } from "viem"
-import { getGasPrice } from "@alto/utils"
 
 const waitForTransactionReceipt = async (
     publicClient: PublicClient,
@@ -33,6 +33,7 @@ export class SenderManager {
     private metrics: Metrics
     private noEip1559Support: boolean
     private semaphore: Semaphore
+    private apiVersion: ApiVersion
 
     constructor(
         wallets: Account[],
@@ -40,6 +41,7 @@ export class SenderManager {
         logger: Logger,
         metrics: Metrics,
         noEip1559Support: boolean,
+        apiVersion: ApiVersion,
         maxSigners?: number
     ) {
         if (maxSigners !== undefined && wallets.length > maxSigners) {
@@ -57,6 +59,7 @@ export class SenderManager {
         metrics.walletsAvailable.set(this.availableWallets.length)
         metrics.walletsTotal.set(this.wallets.length)
         this.semaphore = new Semaphore(this.availableWallets.length)
+        this.apiVersion = apiVersion
     }
 
     async validateWallets(
@@ -78,7 +81,8 @@ export class SenderManager {
                     "wallet has insufficient balance"
                 )
                 throw new Error(
-                    `wallet ${wallet.address
+                    `wallet ${
+                        wallet.address
                     } has insufficient balance ${formatEther(
                         balance
                     )} < ${formatEther(minBalance)}`
@@ -129,7 +133,8 @@ export class SenderManager {
                 "utility wallet has insufficient balance to refill wallets"
             )
             throw new Error(
-                `utility wallet ${this.utilityAccount.address
+                `utility wallet ${
+                    this.utilityAccount.address
                 } has insufficient balance ${formatEther(
                     utilityWalletBalance
                 )} < ${formatEther(totalBalanceMissing)}`
@@ -230,7 +235,10 @@ export class SenderManager {
         )
         await this.semaphore.waitForUnlock()
         await this.semaphore.acquire()
-        const wallet = this.availableWallets.shift()
+        const wallet =
+            this.apiVersion === "v1"
+                ? this.availableWallets.shift()
+                : this.availableWallets.pop()
 
         // should never happen because of semaphore
         if (!wallet) {
@@ -249,9 +257,11 @@ export class SenderManager {
         return wallet
     }
 
-    async pushWallet(wallet: Account): Promise<void> {
+    pushWallet(wallet: Account): void {
         // push to the end of the queue
-        this.availableWallets.push(wallet)
+        this.apiVersion === "v1"
+            ? this.availableWallets.push(wallet)
+            : this.availableWallets.unshift(wallet)
         this.semaphore.release()
         this.logger.trace(
             { executor: wallet.address },

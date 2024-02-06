@@ -8,7 +8,7 @@ import {
     TransactionInfo,
     UserOperation,
     UserOperationWithHash,
-    deriveUserOperation,
+    deriveUserOperation
 } from "@alto/types"
 import {
     CompressionHandler,
@@ -17,7 +17,7 @@ import {
     getGasPrice,
     getUserOperationHash,
     maxBigInt,
-    parseViemError,
+    parseViemError
 } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import { Mutex } from "async-mutex"
@@ -32,7 +32,7 @@ import {
     Transport,
     WalletClient,
     encodeFunctionData,
-    getContract,
+    getContract
 } from "viem"
 import { SenderManager } from "./senderManager"
 import {
@@ -52,20 +52,25 @@ export interface GasEstimateResult {
 
 export type ReplaceTransactionResult =
     | {
-        status: "replaced"
-        transactionInfo: TransactionInfo
-    }
+          status: "replaced"
+          transactionInfo: TransactionInfo
+      }
     | {
-        status: "potentially_already_included"
-    }
+          status: "potentially_already_included"
+      }
     | {
-        status: "failed"
-    }
+          status: "failed"
+      }
 
 export interface IExecutor {
     bundle(entryPoint: Address, ops: UserOperation[]): Promise<BundleResult[]>
-    bundleCompressed(entryPoint: Address, compressedOps: CompressedUserOperation[]): Promise<BundleResult[]>
-    replaceTransaction(transactionInfo: TransactionInfo): Promise<ReplaceTransactionResult>
+    bundleCompressed(
+        entryPoint: Address,
+        compressedOps: CompressedUserOperation[]
+    ): Promise<BundleResult[]>
+    replaceTransaction(
+        transactionInfo: TransactionInfo
+    ): Promise<ReplaceTransactionResult>
     cancelOps(entryPoint: Address, ops: UserOperation[]): Promise<void>
     markWalletProcessed(executor: Account): Promise<void>
     flushStuckTransactions(): Promise<void>
@@ -78,16 +83,21 @@ export class NullExecutor implements IExecutor {
     ): Promise<BundleResult[]> {
         return []
     }
-    async bundleCompressed(entryPoint: Address, compressedOps: CompressedUserOperation[]): Promise<BundleResult[]> {
+    async bundleCompressed(
+        entryPoint: Address,
+        compressedOps: CompressedUserOperation[]
+    ): Promise<BundleResult[]> {
         return []
     }
-    async replaceTransaction(transactionInfo: TransactionInfo): Promise<ReplaceTransactionResult> {
+    async replaceTransaction(
+        transactionInfo: TransactionInfo
+    ): Promise<ReplaceTransactionResult> {
         return { status: "failed" }
     }
-    async replaceOps(opHahes: HexData32[]): Promise<void> { }
-    async cancelOps(entryPoint: Address, ops: UserOperation[]): Promise<void> { }
-    async markWalletProcessed(executor: Account): Promise<void> { }
-    async flushStuckTransactions(): Promise<void> { }
+    async replaceOps(opHahes: HexData32[]): Promise<void> {}
+    async cancelOps(entryPoint: Address, ops: UserOperation[]): Promise<void> {}
+    async markWalletProcessed(executor: Account): Promise<void> {}
+    async flushStuckTransactions(): Promise<void> {}
 }
 
 export class BasicExecutor implements IExecutor {
@@ -120,7 +130,7 @@ export class BasicExecutor implements IExecutor {
         simulateTransaction = false,
         noEip1559Support = false,
         customGasLimitForEstimation?: bigint,
-        useUserOperationGasLimitsForSubmission = false,
+        useUserOperationGasLimitsForSubmission = false
     ) {
         this.publicClient = publicClient
         this.walletClient = walletClient
@@ -141,7 +151,9 @@ export class BasicExecutor implements IExecutor {
 
     getCompressionHandler(): CompressionHandler {
         if (!this.compressionHandler) {
-            throw new Error("Support for compressed bundles has not initialized")
+            throw new Error(
+                "Support for compressed bundles has not initialized"
+            )
         }
         return this.compressionHandler
     }
@@ -152,7 +164,7 @@ export class BasicExecutor implements IExecutor {
 
     async markWalletProcessed(executor: Account) {
         if (!this.senderManager.availableWallets.includes(executor)) {
-            await this.senderManager.pushWallet(executor)
+            this.senderManager.pushWallet(executor)
         }
     }
 
@@ -168,20 +180,34 @@ export class BasicExecutor implements IExecutor {
             this.logger
         )
 
-        newRequest.maxFeePerGas = maxBigInt(gasPriceParameters.maxFeePerGas, (newRequest.maxFeePerGas * 11n + 9n) / 10n)
+        newRequest.maxFeePerGas = maxBigInt(
+            gasPriceParameters.maxFeePerGas,
+            (newRequest.maxFeePerGas * 11n + 9n) / 10n
+        )
 
-        newRequest.maxPriorityFeePerGas = maxBigInt(gasPriceParameters.maxPriorityFeePerGas, (newRequest.maxPriorityFeePerGas * 11n + 9n) / 10n)
+        newRequest.maxPriorityFeePerGas = maxBigInt(
+            gasPriceParameters.maxPriorityFeePerGas,
+            (newRequest.maxPriorityFeePerGas * 11n + 9n) / 10n
+        )
         newRequest.account = transactionInfo.executor
 
-        const opsWithHashes = transactionInfo.userOperationInfos.map((opInfo) => {
-            const op = deriveUserOperation(opInfo.mempoolUserOperation)
-            return {
-                mempoolUserOperation: opInfo.mempoolUserOperation,
-                userOperationHash: getUserOperationHash(op, this.entryPoint, this.walletClient.chain.id)
+        const opsWithHashes = transactionInfo.userOperationInfos.map(
+            (opInfo) => {
+                const op = deriveUserOperation(opInfo.mempoolUserOperation)
+                return {
+                    mempoolUserOperation: opInfo.mempoolUserOperation,
+                    userOperationHash: getUserOperationHash(
+                        op,
+                        this.entryPoint,
+                        this.walletClient.chain.id
+                    )
+                }
             }
-        })
+        )
 
-        let callContext: DefaultFilterOpsAndEstimateGasParams | CompressedFilterOpsAndEstimateGasParams
+        let callContext:
+            | DefaultFilterOpsAndEstimateGasParams
+            | CompressedFilterOpsAndEstimateGasParams
 
         if (transactionInfo.transactionType === "default") {
             const ep = getContract({
@@ -255,7 +281,8 @@ export class BasicExecutor implements IExecutor {
             .filter((op) => op.reason === undefined)
             .map((op) => {
                 const opInfo = transactionInfo.userOperationInfos.find(
-                    (info) => info.userOperationHash === op.owh.userOperationHash
+                    (info) =>
+                        info.userOperationHash === op.owh.userOperationHash
                 )
                 if (!opInfo) {
                     throw new Error("opInfo not found")
@@ -265,12 +292,16 @@ export class BasicExecutor implements IExecutor {
 
         newRequest.gas = this.useUserOperationGasLimitsForSubmission
             ? opsToBundle.reduce((acc, opInfo) => {
-                const userOperation = deriveUserOperation(opInfo.mempoolUserOperation)
-                return acc +
-                    userOperation.preVerificationGas +
-                    3n * userOperation.verificationGasLimit +
-                    userOperation.callGasLimit
-            }, 0n)
+                  const userOperation = deriveUserOperation(
+                      opInfo.mempoolUserOperation
+                  )
+                  return (
+                      acc +
+                      userOperation.preVerificationGas +
+                      3n * userOperation.verificationGasLimit +
+                      userOperation.callGasLimit
+                  )
+              }, 0n)
             : result.gasLimit
 
         // update calldata to include only ops that pass simulation
@@ -279,13 +310,21 @@ export class BasicExecutor implements IExecutor {
                 abi: EntryPointAbi,
                 functionName: "handleOps",
                 args: [
-                    opsToBundle.map((opInfo) => (opInfo.mempoolUserOperation as UserOperation)),
+                    opsToBundle.map(
+                        (opInfo) => opInfo.mempoolUserOperation as UserOperation
+                    ),
                     transactionInfo.executor.address
                 ]
             })
         } else if (transactionInfo.transactionType === "compressed") {
-            const compressedOps = opsToBundle.map((opInfo) => (opInfo.mempoolUserOperation as CompressedUserOperation))
-            newRequest.data = createCompressedCalldata(compressedOps, this.getCompressionHandler().perOpInflatorId)
+            const compressedOps = opsToBundle.map(
+                (opInfo) =>
+                    opInfo.mempoolUserOperation as CompressedUserOperation
+            )
+            newRequest.data = createCompressedCalldata(
+                compressedOps,
+                this.getCompressionHandler().perOpInflatorId
+            )
         }
 
         try {
@@ -297,7 +336,9 @@ export class BasicExecutor implements IExecutor {
                         chain: undefined
                     },
                     executor: newRequest.account.address,
-                    opsToBundle: opsToBundle.map((opInfo) => opInfo.userOperationHash)
+                    opsToBundle: opsToBundle.map(
+                        (opInfo) => opInfo.userOperationHash
+                    )
                 },
                 "replacing transaction"
             )
@@ -305,13 +346,13 @@ export class BasicExecutor implements IExecutor {
             const txHash = await this.walletClient.sendTransaction(
                 this.noEip1559Support
                     ? {
-                        ...newRequest,
-                        gasPrice: newRequest.maxFeePerGas,
-                        maxFeePerGas: undefined,
-                        maxPriorityFeePerGas: undefined,
-                        type: "legacy",
-                        accessList: undefined
-                    }
+                          ...newRequest,
+                          gasPrice: newRequest.maxFeePerGas,
+                          maxFeePerGas: undefined,
+                          maxPriorityFeePerGas: undefined,
+                          type: "legacy",
+                          accessList: undefined
+                      }
                     : newRequest
             )
 
@@ -468,7 +509,9 @@ export class BasicExecutor implements IExecutor {
             childLogger
         )
 
-        if (simulatedOps.every((sop) => sop.reason === FeeCapTooLowError.name)) {
+        if (
+            simulatedOps.every((sop) => sop.reason === FeeCapTooLowError.name)
+        ) {
             this.markWalletProcessed(wallet)
             return opsWithHashes.map((owh) => {
                 return {
@@ -517,27 +560,32 @@ export class BasicExecutor implements IExecutor {
             .map((op) => op.owh)
 
         childLogger = this.logger.child({
-            userOperations: opsWithHashToBundle.map((owh) => owh.userOperationHash),
+            userOperations: opsWithHashToBundle.map(
+                (owh) => owh.userOperationHash
+            ),
             entryPoint
         })
 
-        childLogger.trace(
-            { gasLimit },
-            "got gas limit"
-        )
+        childLogger.trace({ gasLimit }, "got gas limit")
 
         let txHash: HexData32
         try {
             const gasOptions = this.noEip1559Support
                 ? {
-                    gasPrice: gasPriceParameters.maxFeePerGas,
-                }
+                      gasPrice: gasPriceParameters.maxFeePerGas
+                  }
                 : {
-                    maxFeePerGas: gasPriceParameters.maxFeePerGas,
-                    maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
-                };
+                      maxFeePerGas: gasPriceParameters.maxFeePerGas,
+                      maxPriorityFeePerGas:
+                          gasPriceParameters.maxPriorityFeePerGas
+                  }
             txHash = await ep.write.handleOps(
-                [opsWithHashToBundle.map((owh) => (owh.mempoolUserOperation as UserOperation)), wallet.address],
+                [
+                    opsWithHashToBundle.map(
+                        (owh) => owh.mempoolUserOperation as UserOperation
+                    ),
+                    wallet.address
+                ],
                 {
                     account: wallet,
                     gas: gasLimit,
@@ -583,9 +631,11 @@ export class BasicExecutor implements IExecutor {
                     abi: ep.abi,
                     functionName: "handleOps",
                     args: [
-                        opsWithHashToBundle.map((owh) => (owh.mempoolUserOperation as UserOperation)),
+                        opsWithHashToBundle.map(
+                            (owh) => owh.mempoolUserOperation as UserOperation
+                        ),
                         wallet.address
-                    ],
+                    ]
                 }),
                 gas: gasLimit,
                 chain: this.walletClient.chain,
@@ -607,9 +657,14 @@ export class BasicExecutor implements IExecutor {
 
         childLogger.info(
             {
-                transactionRequest: { ...transactionInfo.transactionRequest, abi: undefined },
+                transactionRequest: {
+                    ...transactionInfo.transactionRequest,
+                    abi: undefined
+                },
                 txHash,
-                opHashes: opsWithHashToBundle.map((owh) => owh.userOperationHash)
+                opHashes: opsWithHashToBundle.map(
+                    (owh) => owh.userOperationHash
+                )
             },
             "submitted bundle transaction"
         )
@@ -617,7 +672,10 @@ export class BasicExecutor implements IExecutor {
         return userOperationResults
     }
 
-    async bundleCompressed(entryPoint: Address, compressedOps: CompressedUserOperation[]): Promise<BundleResult[]> {
+    async bundleCompressed(
+        entryPoint: Address,
+        compressedOps: CompressedUserOperation[]
+    ): Promise<BundleResult[]> {
         const compressionHandler = this.getCompressionHandler()
         const wallet = await this.senderManager.getWallet()
 
@@ -627,7 +685,12 @@ export class BasicExecutor implements IExecutor {
         })
         childLogger.debug("bundling compressed user operation")
 
-        const gasPriceParameters = await getGasPrice(this.walletClient.chain, this.publicClient, this.noEip1559Support, this.logger)
+        const gasPriceParameters = await getGasPrice(
+            this.walletClient.chain,
+            this.publicClient,
+            this.noEip1559Support,
+            this.logger
+        )
         childLogger.debug({ gasPriceParameters }, "got gas price")
 
         const nonce = await this.publicClient.getTransactionCount({
@@ -649,7 +712,11 @@ export class BasicExecutor implements IExecutor {
             compressedOps.map((compressedOp) => {
                 return {
                     mempoolUserOperation: compressedOp,
-                    userOperationHash: getUserOperationHash(compressedOp.inflatedOp, entryPoint, this.walletClient.chain.id)
+                    userOperationHash: getUserOperationHash(
+                        compressedOp.inflatedOp,
+                        entryPoint,
+                        this.walletClient.chain.id
+                    )
                 }
             }),
             nonce,
@@ -662,13 +729,19 @@ export class BasicExecutor implements IExecutor {
             childLogger
         )
 
-        if (simulatedOps.every((sop) => sop.reason === FeeCapTooLowError.name)) {
+        if (
+            simulatedOps.every((sop) => sop.reason === FeeCapTooLowError.name)
+        ) {
             this.markWalletProcessed(wallet)
             return compressedOps.map((compressedOp) => {
                 return {
                     status: "resubmit",
                     info: {
-                        userOpHash: getUserOperationHash(compressedOp.inflatedOp, entryPoint, this.walletClient.chain.id),
+                        userOpHash: getUserOperationHash(
+                            compressedOp.inflatedOp,
+                            entryPoint,
+                            this.walletClient.chain.id
+                        ),
                         userOperation: compressedOp,
                         reason: FeeCapTooLowError.name
                     }
@@ -685,7 +758,11 @@ export class BasicExecutor implements IExecutor {
                 return {
                     status: "failure",
                     error: {
-                        userOpHash: getUserOperationHash(compressedOp.inflatedOp, entryPoint, this.walletClient.chain.id),
+                        userOpHash: getUserOperationHash(
+                            compressedOp.inflatedOp,
+                            entryPoint,
+                            this.walletClient.chain.id
+                        ),
                         reason: "INTERNAL FAILURE"
                     }
                 }
@@ -693,7 +770,9 @@ export class BasicExecutor implements IExecutor {
         }
 
         // if not all succeeded, return error
-        if (simulatedOps.some((simulatedOp) => simulatedOp.reason !== undefined)) {
+        if (
+            simulatedOps.some((simulatedOp) => simulatedOp.reason !== undefined)
+        ) {
             childLogger.warn("some ops failed simulation")
             this.markWalletProcessed(wallet)
             return simulatedOps.map((simulatedOp) => {
@@ -707,31 +786,40 @@ export class BasicExecutor implements IExecutor {
             })
         }
 
-        const opsToBundle: UserOperationWithHash[] = simulatedOps.filter((simulatedOp) => simulatedOp.reason === undefined).map((simulatedOp) => simulatedOp.owh)
+        const opsToBundle: UserOperationWithHash[] = simulatedOps
+            .filter((simulatedOp) => simulatedOp.reason === undefined)
+            .map((simulatedOp) => simulatedOp.owh)
 
         let txHash: HexData32
         try {
             const gasOptions = this.noEip1559Support
                 ? {
-                    gasPrice: gasPriceParameters.maxFeePerGas,
-                }
+                      gasPrice: gasPriceParameters.maxFeePerGas
+                  }
                 : {
-                    maxFeePerGas: gasPriceParameters.maxFeePerGas,
-                    maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
-                };
+                      maxFeePerGas: gasPriceParameters.maxFeePerGas,
+                      maxPriorityFeePerGas:
+                          gasPriceParameters.maxPriorityFeePerGas
+                  }
 
             // need to use sendTransction to target BundleBulker's fallback
             txHash = await this.walletClient.sendTransaction({
                 account: wallet,
                 to: compressionHandler.bundleBulkerAddress,
-                data: createCompressedCalldata(compressedOps, compressionHandler.perOpInflatorId),
+                data: createCompressedCalldata(
+                    compressedOps,
+                    compressionHandler.perOpInflatorId
+                ),
                 gas: gasLimit,
                 nonce: nonce,
                 ...gasOptions
             })
         } catch (err: unknown) {
             sentry.captureException(err)
-            childLogger.error({ error: JSON.stringify(err) }, "error submitting bundle transaction")
+            childLogger.error(
+                { error: JSON.stringify(err) },
+                "error submitting bundle transaction"
+            )
             this.markWalletProcessed(wallet)
             return opsToBundle.map((op) => {
                 return {
@@ -759,7 +847,10 @@ export class BasicExecutor implements IExecutor {
             previousTransactionHashes: [],
             transactionRequest: {
                 to: compressionHandler.bundleBulkerAddress,
-                data: createCompressedCalldata(compressedOps, compressionHandler.perOpInflatorId),
+                data: createCompressedCalldata(
+                    compressedOps,
+                    compressionHandler.perOpInflatorId
+                ),
                 gas: gasLimit,
                 account: wallet,
                 chain: this.walletClient.chain,
@@ -774,10 +865,16 @@ export class BasicExecutor implements IExecutor {
             timesPotentiallyIncluded: 0
         }
 
-        const userOperationResults: BundleResult[] = simulatedOpsToResults(simulatedOps, transactionInfo)
+        const userOperationResults: BundleResult[] = simulatedOpsToResults(
+            simulatedOps,
+            transactionInfo
+        )
 
         childLogger.info(
-            { txHash, opHashes: opsToBundle.map((owh) => owh.userOperationHash) },
+            {
+                txHash,
+                opHashes: opsToBundle.map((owh) => owh.userOperationHash)
+            },
             "submitted bundle transaction"
         )
 

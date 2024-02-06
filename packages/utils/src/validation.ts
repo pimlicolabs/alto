@@ -20,6 +20,7 @@ import {
     toHex
 } from "viem"
 import { getGasPrice, Logger } from "."
+import * as chains from "viem/chains"
 
 export interface GasOverheads {
     /**
@@ -150,6 +151,91 @@ export function packUserOp(op: UserOperation): `0x${string}` {
     )
 }
 
+export async function calcPreVerificationGas(
+    publicClient: PublicClient<Transport, Chain>,
+    userOperation: UserOperation,
+    entryPoint: Address,
+    chainId: number,
+    logger: Logger,
+    overheads?: GasOverheads
+): Promise<bigint> {
+    let preVerificationGas = calcDefaultPreVerificationGas(
+        userOperation,
+        overheads
+    )
+
+    if (chainId === 59140 || chainId === 59142) {
+        preVerificationGas *= 2n
+    } else if (
+        chainId === chains.optimism.id ||
+        chainId === chains.optimismGoerli.id ||
+        chainId === chains.base.id ||
+        chainId === chains.baseGoerli.id ||
+        chainId === chains.opBNB.id ||
+        chainId === chains.opBNBTestnet.id ||
+        chainId === chains.baseSepolia.id ||
+        chainId === 957 // Lyra chain
+    ) {
+        preVerificationGas = await calcOptimismPreVerificationGas(
+            publicClient,
+            userOperation,
+            entryPoint,
+            preVerificationGas,
+            logger
+        )
+    } else if (chainId === chains.arbitrum.id) {
+        preVerificationGas = await calcArbitrumPreVerificationGas(
+            publicClient,
+            userOperation,
+            entryPoint,
+            preVerificationGas
+        )
+    }
+
+    return preVerificationGas
+}
+
+export async function calcVerificationGasAndCallGasLimit(
+    publicClient: PublicClient<Transport, Chain>,
+    userOperation: UserOperation,
+    executionResult: {
+        preOpGas: bigint
+        paid: bigint
+    },
+    chainId: number
+) {
+    const verificationGasLimit =
+        ((executionResult.preOpGas - userOperation.preVerificationGas) * 3n) /
+        2n
+
+    let gasPrice: bigint
+
+    if (userOperation.maxPriorityFeePerGas === userOperation.maxFeePerGas) {
+        gasPrice = userOperation.maxFeePerGas
+    } else {
+        const blockBaseFee = (await publicClient.getBlock()).baseFeePerGas
+        gasPrice =
+            userOperation.maxFeePerGas <
+            (blockBaseFee ?? 0n) + userOperation.maxPriorityFeePerGas
+                ? userOperation.maxFeePerGas
+                : userOperation.maxPriorityFeePerGas + (blockBaseFee ?? 0n)
+    }
+    const calculatedCallGasLimit =
+        executionResult.paid / gasPrice -
+        executionResult.preOpGas +
+        21000n +
+        50000n
+
+    let callGasLimit =
+        calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n
+
+    if (chainId === chains.baseGoerli.id || chainId === chains.base.id) {
+        callGasLimit = (110n * callGasLimit) / 100n
+    }
+
+    return [verificationGasLimit, callGasLimit]
+}
+
 /**
  * calculate the preVerificationGas of the given UserOperation
  * preVerificationGas (by definition) is the cost overhead that can't be calculated on-chain.
@@ -157,7 +243,7 @@ export function packUserOp(op: UserOperation): `0x${string}` {
  * @param userOp filled userOp to calculate. The only possible missing fields can be the signature and preVerificationGas itself
  * @param overheads gas overheads to use, to override the default values
  */
-export function calcPreVerificationGas(
+export function calcDefaultPreVerificationGas(
     userOperation: UserOperation,
     overheads?: Partial<GasOverheads>
 ): bigint {
@@ -175,9 +261,9 @@ export function calcPreVerificationGas(
         .reduce((sum, x) => sum + x)
     const ret = Math.round(
         callDataCost +
-        ov.fixed / ov.bundleSize +
-        ov.perUserOp +
-        ov.perUserOpWord * lengthInWord
+            ov.fixed / ov.bundleSize +
+            ov.perUserOp +
+            ov.perUserOpWord * lengthInWord
     )
     return BigInt(ret)
 }
@@ -211,7 +297,7 @@ export async function calcOptimismPreVerificationGas(
     op: UserOperation,
     entryPoint: Address,
     staticFee: bigint,
-    logger: Logger,
+    logger: Logger
 ) {
     const randomDataUserOp: UserOperation = {
         ...op
