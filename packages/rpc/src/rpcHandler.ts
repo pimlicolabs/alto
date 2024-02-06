@@ -366,6 +366,13 @@ export class RpcHandler implements IRpcEndpoint {
                 stateOverrides
             )
         }
+        if (this.apiVersion === "v2") {
+            return {
+                preVerificationGas,
+                verificationGasLimit,
+                callGasLimit
+            }
+        }
 
         return {
             preVerificationGas,
