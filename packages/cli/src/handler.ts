@@ -155,6 +155,7 @@ export const bundlerHandler = async (
         ),
         metrics,
         parsedArgs.noEip1559Support,
+        parsedArgs.apiVersion,
         parsedArgs.maxSigners
     )
 
