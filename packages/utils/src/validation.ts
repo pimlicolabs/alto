@@ -1,11 +1,10 @@
 import {
-    type Address,
     EntryPointAbi,
     RpcError,
+    type Address,
     type UserOperation
 } from "@alto/types"
 import {
-    type Chain,
     ContractFunctionExecutionError,
     ContractFunctionRevertedError,
     EstimateGasExecutionError,
@@ -13,19 +12,20 @@ import {
     InsufficientFundsError,
     IntrinsicGasTooLowError,
     NonceTooLowError,
-    type PublicClient,
     TransactionExecutionError,
-    type Transport,
     concat,
     encodeAbiParameters,
     getContract,
     getFunctionSelector,
     serializeTransaction,
     toBytes,
-    toHex
+    toHex,
+    type Chain,
+    type PublicClient,
+    type Transport
 } from "viem"
 import * as chains from "viem/chains"
-import { type Logger, getGasPrice } from "."
+import { getGasPrice, type Logger } from "."
 
 export interface GasOverheads {
     /**
@@ -173,12 +173,13 @@ export async function calcPreVerificationGas(
         preVerificationGas *= 2n
     } else if (
         chainId === chains.optimism.id ||
+        chainId === chains.optimismSepolia.id ||
         chainId === chains.optimismGoerli.id ||
         chainId === chains.base.id ||
         chainId === chains.baseGoerli.id ||
+        chainId === chains.baseSepolia.id ||
         chainId === chains.opBNB.id ||
         chainId === chains.opBNBTestnet.id ||
-        chainId === chains.baseSepolia.id ||
         chainId === 957 // Lyra chain
     ) {
         preVerificationGas = await calcOptimismPreVerificationGas(
@@ -234,7 +235,9 @@ export async function calcVerificationGasAndCallGasLimit(
     let callGasLimit =
         calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n
 
-    if (chainId === chains.baseGoerli.id || chainId === chains.base.id) {
+    if (chainId === chains.baseGoerli.id || 
+        chainId === chains.baseSepolia.id ||
+        chainId === chains.base.id) {
         callGasLimit = (110n * callGasLimit) / 100n
     }
 
