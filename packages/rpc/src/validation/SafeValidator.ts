@@ -92,10 +92,22 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
                 )
             }
 
-            if (
-                validationResult.returnInfo.validUntil <
-                Date.now() / 1000 + 30
-            ) {
+            const now = Date.now() / 1000
+
+            this.logger.debug({
+                validAfter: validationResult.returnInfo.validAfter,
+                validUntil: validationResult.returnInfo.validUntil,
+                now: now
+            })
+
+            if (validationResult.returnInfo.validAfter > now - 5) {
+                throw new RpcError(
+                    "User operation is not valid yet",
+                    ValidationErrors.ExpiresShortly
+                )
+            }
+
+            if (validationResult.returnInfo.validUntil < now + 30) {
                 throw new RpcError(
                     "expires too soon",
                     ValidationErrors.ExpiresShortly

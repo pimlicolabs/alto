@@ -512,6 +512,7 @@ export class BasicExecutor implements IExecutor {
         if (
             simulatedOps.every((sop) => sop.reason === FeeCapTooLowError.name)
         ) {
+            this.markWalletProcessed(wallet)
             return opsWithHashes.map((owh) => {
                 return {
                     status: "resubmit",
@@ -731,6 +732,7 @@ export class BasicExecutor implements IExecutor {
         if (
             simulatedOps.every((sop) => sop.reason === FeeCapTooLowError.name)
         ) {
+            this.markWalletProcessed(wallet)
             return compressedOps.map((compressedOp) => {
                 return {
                     status: "resubmit",
