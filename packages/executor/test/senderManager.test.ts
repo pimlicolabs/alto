@@ -1,11 +1,17 @@
 import { ChildProcess } from "child_process"
-import { Clients, createClients, createMetrics, initDebugLogger, launchAnvil } from "@alto/utils"
-import { generateAccounts } from "./utils"
-import { Account, generatePrivateKey, privateKeyToAccount } from "viem/accounts"
-import { parseEther } from "viem"
-import { SenderManager } from "../src"
+import {
+    Clients,
+    createClients,
+    createMetrics,
+    initDebugLogger,
+    launchAnvil
+} from "@alto/utils"
 import { expect } from "earl"
 import { Registry } from "prom-client"
+import { parseEther } from "viem"
+import { Account, generatePrivateKey, privateKeyToAccount } from "viem/accounts"
+import { SenderManager } from "../src"
+import { generateAccounts } from "./utils"
 
 const fn = async (time: number, label: string) => {
     await new Promise((res) => setTimeout(res, time))
@@ -25,7 +31,12 @@ describe("senderManager", () => {
         accounts = await generateAccounts(clients)
         const logger = initDebugLogger("silent")
         const metrics = createMetrics(new Registry(), false)
-        senderManager = new SenderManager(accounts, accounts[0], logger, metrics)
+        senderManager = new SenderManager(
+            accounts,
+            accounts[0],
+            logger,
+            metrics
+        )
     })
 
     afterEach(function () {
@@ -49,14 +60,22 @@ describe("senderManager", () => {
 
         senderManager.pushWallet(wallet)
         expect(senderManager.availableWallets.length).toEqual(initialLength)
-        expect(senderManager.availableWallets[senderManager.availableWallets.length - 1]).toEqual(wallet)
+        expect(
+            senderManager.availableWallets[
+                senderManager.availableWallets.length - 1
+            ]
+        ).toEqual(wallet)
     })
 
     it("should correctly wait when all wallets are taken", async function () {
         const initialLength = senderManager.availableWallets.length
-        const wallets = await Promise.all(accounts.map((_) => senderManager.getWallet()))
+        const wallets = await Promise.all(
+            accounts.map((_) => senderManager.getWallet())
+        )
         expect(initialLength - wallets.length).toEqual(0)
-        expect(senderManager.availableWallets.length).toEqual(initialLength - wallets.length)
+        expect(senderManager.availableWallets.length).toEqual(
+            initialLength - wallets.length
+        )
 
         const promise = senderManager.getWallet()
         // either resolve the promise (which should not happen) or it should keep waiting, in which case reject it and make the test succeed
@@ -71,7 +90,10 @@ describe("senderManager", () => {
     it("should validate and refill wallets", async function () {
         this.timeout(10000)
         const utilityAccount = privateKeyToAccount(generatePrivateKey())
-        clients.test.setBalance({ address: utilityAccount.address, value: parseEther("100000000") })
+        clients.test.setBalance({
+            address: utilityAccount.address,
+            value: parseEther("100000000")
+        })
         senderManager.utilityAccount = utilityAccount
 
         if (clients.wallet.chain === undefined) {
@@ -80,21 +102,35 @@ describe("senderManager", () => {
 
         const initialBalances = await Promise.all(
             senderManager.availableWallets.map(async (wallet) => {
-                return await clients.public.getBalance({ address: wallet.address })
+                return await clients.public.getBalance({
+                    address: wallet.address
+                })
             })
         )
 
-        expect(initialBalances).toEqual(Array(senderManager.availableWallets.length).fill(parseEther("100")))
+        expect(initialBalances).toEqual(
+            Array(senderManager.availableWallets.length).fill(parseEther("100"))
+        )
 
         // @ts-ignore
-        await senderManager.validateAndRefillWallets(clients.public, clients.wallet, parseEther("1000"))
+        await senderManager.validateAndRefillWallets(
+            clients.public,
+            clients.wallet,
+            parseEther("1000")
+        )
 
         const balances = await Promise.all(
             senderManager.availableWallets.map(async (wallet) => {
-                return await clients.public.getBalance({ address: wallet.address })
+                return await clients.public.getBalance({
+                    address: wallet.address
+                })
             })
         )
 
-        expect(balances).toEqual(Array(senderManager.availableWallets.length).fill(parseEther("1200")))
+        expect(balances).toEqual(
+            Array(senderManager.availableWallets.length).fill(
+                parseEther("1200")
+            )
+        )
     })
 })

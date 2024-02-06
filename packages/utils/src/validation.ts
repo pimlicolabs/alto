@@ -1,16 +1,21 @@
-import { Address, EntryPointAbi, RpcError, UserOperation } from "@alto/types"
 import {
-    Chain,
-    EstimateGasExecutionError,
+    type Address,
+    EntryPointAbi,
+    RpcError,
+    type UserOperation
+} from "@alto/types"
+import {
+    type Chain,
     ContractFunctionExecutionError,
     ContractFunctionRevertedError,
+    EstimateGasExecutionError,
     FeeCapTooLowError,
     InsufficientFundsError,
     IntrinsicGasTooLowError,
     NonceTooLowError,
-    PublicClient,
+    type PublicClient,
     TransactionExecutionError,
-    Transport,
+    type Transport,
     concat,
     encodeAbiParameters,
     getContract,
@@ -19,8 +24,8 @@ import {
     toBytes,
     toHex
 } from "viem"
-import { getGasPrice, Logger } from "."
 import * as chains from "viem/chains"
+import { type Logger, getGasPrice } from "."
 
 export interface GasOverheads {
     /**

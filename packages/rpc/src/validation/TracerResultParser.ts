@@ -1,9 +1,21 @@
+import {
+    EntryPointAbi,
+    PaymasterAbi,
+    RpcError,
+    SenderCreatorAbi,
+    type StakeInfo,
+    type StorageMap,
+    type UserOperation,
+    ValidationErrors,
+    type ValidationResult
+} from "@alto/types"
+import type { Abi, AbiFunction } from "abitype"
 // This file contains references to validation rules, in the format [xxx-###]
 // where xxx is OP/STO/COD/EP/SREP/EREP/UREP/ALT, and ### is a number
 // the validation rules are defined in erc-aa-validation.md
 import {
-    Address,
-    Hex,
+    type Address,
+    type Hex,
     decodeErrorResult,
     decodeFunctionResult,
     getFunctionSelector,
@@ -11,19 +23,7 @@ import {
     keccak256,
     pad
 } from "viem"
-import { Abi, AbiFunction } from "abitype"
-import { BundlerTracerResult } from "./BundlerCollectorTracer"
-import {
-    EntryPointAbi,
-    PaymasterAbi,
-    RpcError,
-    SenderCreatorAbi,
-    StakeInfo,
-    StorageMap,
-    UserOperation,
-    ValidationErrors,
-    ValidationResult
-} from "@alto/types"
+import type { BundlerTracerResult } from "./BundlerCollectorTracer"
 
 interface CallEntry {
     to: string
@@ -732,7 +732,7 @@ export function tracerResultParser(
             )
         }
 
-        let illegalEntryPointCodeAccess
+        let illegalEntryPointCodeAccess: string | undefined = undefined
         for (const addr of Object.keys(currentNumLevel.extCodeAccessInfo)) {
             if (addr === entryPointAddress) {
                 illegalEntryPointCodeAccess =

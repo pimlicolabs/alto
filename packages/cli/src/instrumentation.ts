@@ -1,21 +1,33 @@
-import { NodeSDK } from "@opentelemetry/sdk-node"
+import { Attributes, Context, SpanKind } from "@opentelemetry/api"
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto"
-import { Sampler, SamplingDecision, ParentBasedSampler } from "@opentelemetry/sdk-trace-base"
-import { Context, Attributes, SpanKind } from "@opentelemetry/api"
+import { FastifyInstrumentation } from "@opentelemetry/instrumentation-fastify"
+import { HttpInstrumentation } from "@opentelemetry/instrumentation-http"
+import { PinoInstrumentation } from "@opentelemetry/instrumentation-pino"
+import { NodeSDK } from "@opentelemetry/sdk-node"
+import {
+    ParentBasedSampler,
+    Sampler,
+    SamplingDecision
+} from "@opentelemetry/sdk-trace-base"
 import { SemanticAttributes } from "@opentelemetry/semantic-conventions"
 import { FetchInstrumentation } from "opentelemetry-instrumentation-fetch-node"
-import { HttpInstrumentation } from "@opentelemetry/instrumentation-http"
-import { FastifyInstrumentation } from "@opentelemetry/instrumentation-fastify"
-import { PinoInstrumentation } from "@opentelemetry/instrumentation-pino"
 
 class CustomSampler implements Sampler {
-    shouldSample(context: Context, traceId: string, spanName: string, spanKind: SpanKind, attributes: Attributes) {
+    shouldSample(
+        context: Context,
+        traceId: string,
+        spanName: string,
+        spanKind: SpanKind,
+        attributes: Attributes
+    ) {
         const ignoredRoutes = ["/metrics", "/health"]
 
         const httpTarget = attributes[SemanticAttributes.HTTP_TARGET]
 
         if (
-            spanKind === SpanKind.SERVER && httpTarget && ignoredRoutes.includes(httpTarget.toString())
+            spanKind === SpanKind.SERVER &&
+            httpTarget &&
+            ignoredRoutes.includes(httpTarget.toString())
         ) {
             return { decision: SamplingDecision.NOT_RECORD }
         }
@@ -35,9 +47,9 @@ const sdk = new NodeSDK({
         }),
         new FetchInstrumentation({}),
         new FastifyInstrumentation(),
-        new PinoInstrumentation(),
+        new PinoInstrumentation()
     ],
-    sampler: new ParentBasedSampler({root: new CustomSampler()})
+    sampler: new ParentBasedSampler({ root: new CustomSampler() })
 })
 
 sdk.start()
