@@ -353,7 +353,7 @@ export class UnsafeValidator implements IValidator {
                 now
             })
 
-            if (validationResult.returnInfo.validAfter > now) {
+            if (validationResult.returnInfo.validAfter > now - 5) {
                 throw new RpcError(
                     "User operation is not valid yet",
                     ValidationErrors.ExpiresShortly
@@ -433,7 +433,7 @@ export class SafeValidator extends UnsafeValidator implements IValidator {
                 now: now
             })
 
-            if (validationResult.returnInfo.validAfter > now) {
+            if (validationResult.returnInfo.validAfter > now - 5) {
                 throw new RpcError(
                     "User operation is not valid yet",
                     ValidationErrors.ExpiresShortly
