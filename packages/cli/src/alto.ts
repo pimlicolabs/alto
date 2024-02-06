@@ -1,9 +1,9 @@
-import * as sentry from "@sentry/node"
+import { bundlerCommand, bundlerOptions } from "./config/options"
+import { registerCommandToYargs } from "./util"
 import dotenv from "dotenv"
 import yargs from "yargs"
 import { hideBin } from "yargs/helpers"
-import { bundlerCommand, bundlerOptions } from "./config/options"
-import { registerCommandToYargs } from "./util"
+import * as sentry from "@sentry/node"
 
 // Load environment variables from .env file
 dotenv.config()

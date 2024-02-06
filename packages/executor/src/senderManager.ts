@@ -1,18 +1,19 @@
-import { Address, CallEngineAbi, HexData, HexData32 } from "@alto/types"
+import { Address, HexData, HexData32, CallEngineAbi } from "@alto/types"
 import { Logger, Metrics } from "@alto/utils"
 import { Semaphore } from "async-mutex"
 import type { ApiVersion } from "@alto/types/src"
 import { getGasPrice } from "@alto/utils"
 import {
     Account,
-    Chain,
     PublicClient,
-    TransactionReceipt,
-    Transport,
-    WalletClient,
     formatEther,
+    WalletClient,
+    Chain,
+    Transport,
+    TransactionReceipt,
     getContract
 } from "viem"
+import { getGasPrice } from "@alto/utils"
 
 const waitForTransactionReceipt = async (
     publicClient: PublicClient,

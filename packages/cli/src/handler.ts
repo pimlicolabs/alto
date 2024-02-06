@@ -1,10 +1,10 @@
 import { BasicExecutor, ExecutorManager, SenderManager } from "@alto/executor"
 import {
-    type IReputationManager,
     MemoryMempool,
     Monitor,
     NullRepuationManager,
-    ReputationManager
+    ReputationManager,
+    type IReputationManager
 } from "@alto/mempool"
 import {
     NonceQueuer,
@@ -16,24 +16,24 @@ import {
 import type { IValidator } from "@alto/types"
 import {
     CompressionHandler,
-    type Logger,
     createMetrics,
     initDebugLogger,
-    initProductionLogger
+    initProductionLogger,
+    type Logger
 } from "@alto/utils"
 import { Registry } from "prom-client"
 import {
+    createPublicClient,
+    createWalletClient,
     type Chain,
     type PublicClient,
-    type Transport,
-    createPublicClient,
-    createWalletClient
+    type Transport
 } from "viem"
 import { fromZodError } from "zod-validation-error"
 import {
+    bundlerArgsSchema,
     type IBundlerArgs,
-    type IBundlerArgsInput,
-    bundlerArgsSchema
+    type IBundlerArgsInput
 } from "./config"
 import { customTransport } from "./customTransport"
 

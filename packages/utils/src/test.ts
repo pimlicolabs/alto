@@ -1,25 +1,25 @@
-import { type ChildProcess, exec } from "child_process"
-import type { HexData, HexData32, UserOperation } from "@alto/types"
+import { HexData, HexData32, UserOperation } from "@alto/types"
 import { entryPointExecutionErrorSchema } from "@alto/types"
-import * as sentry from "@sentry/node"
-import { type Abi, parseAbiParameters } from "abitype"
+import { Abi, parseAbiParameters } from "abitype"
+import { exec, type ChildProcess } from "child_process"
 import {
-    http,
-    type Account,
-    type Address,
-    type PublicClient,
-    type TestClient,
-    type Transport,
-    type WalletClient,
+    Account,
+    Address,
+    PublicClient,
+    TestClient,
+    Transport,
+    WalletClient,
     createPublicClient,
     createTestClient,
     createWalletClient,
     encodeAbiParameters,
+    http,
     keccak256
 } from "viem"
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
-import { type Chain, foundry } from "viem/chains"
+import { Chain, foundry } from "viem/chains"
 import { fromZodError } from "zod-validation-error"
+import * as sentry from "@sentry/node"
 
 export type Clients = {
     public: PublicClient<Transport, Chain>
@@ -36,6 +36,7 @@ export const launchAnvil = async (): Promise<ChildProcess> => {
     })
 
     // keep calling getNetwork every 2ms until it doesn't throw
+    // rome-ignore lint/nursery/noConstantCondition: <explanation>
     while (true) {
         try {
             await client.getChainId()

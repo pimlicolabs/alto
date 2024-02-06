@@ -34,7 +34,7 @@
         "enabled": true,
         "formatWithErrors": true,
         "lineWidth": 80,
-        "indentWidth": 4,
+        "indentSize": 4,
         "indentStyle": "space"
     },
     "javascript": {

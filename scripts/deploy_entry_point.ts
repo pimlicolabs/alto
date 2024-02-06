@@ -1,14 +1,14 @@
 import { EntryPointAbi, EntryPoint_bytecode } from "@alto/types"
 import {
-    http,
     createPublicClient,
     createTestClient,
-    createWalletClient
+    createWalletClient,
+    http
 } from "viem"
 import { foundry } from "viem/chains"
 
 // deploy entryPoint locally
-const deployLocalEntryPoint = async (): Promise<string> => {
+const deployLocalEntryPoint = async function (): Promise<string> {
     const publicClient = createPublicClient({
         chain: foundry,
         transport: http("http://127.0.0.1:8545")

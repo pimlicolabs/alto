@@ -1,13 +1,13 @@
-import * as sentry from "@sentry/node"
 import {
-    type Account,
-    type Chain,
-    type PublicClient,
-    type TransactionRequest,
-    type Transport,
-    type WalletClient,
+    Account,
+    Chain,
+    PublicClient,
+    TransactionRequest,
+    Transport,
+    WalletClient,
     formatTransactionRequest
 } from "viem"
+import * as sentry from "@sentry/node"
 // from:https://geth.ethereum.org/docs/rpc/ns-debug#javascript-based-tracing
 //
 
@@ -46,19 +46,20 @@ export async function debug_traceCall(
                 //         .join("\n")
                 // )
                 throw e
+            } else {
+                sentry.captureException(e)
             }
-            sentry.captureException(e)
         })
     // console.log("ret=", ret)
     return ret
 }
 
 // a hack for network that doesn't have traceCall: mine the transaction, and use debug_traceTransaction
-export function execAndTrace(
+export async function execAndTrace(
     _walletClient: WalletClient<Transport, Chain, Account>,
     _tx: TransactionRequest,
     _options: TraceOptions
-): TraceResult {
+): Promise<TraceResult> {
     //const hash = await walletClient.sendTransaction(tx)
     throw new Error("not implemented")
     //return await debug_traceTransaction(walletClient, hash, options)

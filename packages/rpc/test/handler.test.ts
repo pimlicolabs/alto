@@ -1,18 +1,7 @@
 import { type ChildProcess } from "child_process"
-import { RpcHandlerConfig } from "@alto/config"
-import { NullExecutor } from "@alto/executor/src"
-import { Monitor, NullMempool } from "@alto/mempool"
-import {
-    Address,
-    EntryPointAbi,
-    EntryPoint_bytecode,
-    UserOperation,
-    hexNumberSchema
-} from "@alto/types"
-import {
-    SimpleAccountFactoryAbi,
-    SimpleAccountFactoryBytecode
-} from "@alto/types/src/contracts/SimpleAccountFactory"
+import { getContract, concat, parseEther, encodeFunctionData } from "viem"
+import { privateKeyToAccount, Account } from "viem/accounts"
+import { foundry } from "viem/chains"
 import {
     Clients,
     createClients,
@@ -23,14 +12,25 @@ import {
     launchAnvil,
     parseSenderAddressError
 } from "@alto/utils"
-import { UnsafeValidator } from "@alto/validator"
 import { expect } from "earl"
-import { Registry } from "prom-client"
-import { concat, encodeFunctionData, getContract, parseEther } from "viem"
-import { Account, privateKeyToAccount } from "viem/accounts"
-import { foundry } from "viem/chains"
-import { z } from "zod"
 import { RpcHandler } from ".."
+import { RpcHandlerConfig } from "@alto/config"
+import {
+    Address,
+    EntryPoint_bytecode,
+    EntryPointAbi,
+    hexNumberSchema,
+    UserOperation
+} from "@alto/types"
+import { z } from "zod"
+import { UnsafeValidator } from "@alto/validator"
+import {
+    SimpleAccountFactoryAbi,
+    SimpleAccountFactoryBytecode
+} from "@alto/types/src/contracts/SimpleAccountFactory"
+import { NullExecutor } from "@alto/executor/src"
+import { Registry } from "prom-client"
+import { Monitor, NullMempool } from "@alto/mempool"
 
 describe("handler", () => {
     let clients: Clients

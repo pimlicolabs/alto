@@ -1,15 +1,9 @@
 import { Address, EntryPointAbi, HexData, UserOperation } from "@alto/types"
 import { SimpleAccountFactoryAbi } from "@alto/types/src/contracts/SimpleAccountFactory"
 import { Clients, getUserOpHash, parseSenderAddressError } from "@alto/utils"
-import {
-    Account,
-    concat,
-    encodeFunctionData,
-    getContract,
-    parseEther
-} from "viem"
-import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
+import { getContract, parseEther, concat, encodeFunctionData, Account, toBytes } from "viem"
 import { foundry } from "viem/chains"
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 
 export const TEST_OP: UserOperation = {
     sender: "0x0000000000000000000000000000000000000000",
@@ -25,11 +19,7 @@ export const TEST_OP: UserOperation = {
     signature: "0x"
 }
 
-export async function getSender(
-    entryPoint: Address,
-    initCode: HexData,
-    clients: Clients
-): Promise<Address> {
+export async function getSender(entryPoint: Address, initCode: HexData, clients: Clients): Promise<Address> {
     const entryPointContract = getContract({
         address: entryPoint,
         abi: EntryPointAbi,
@@ -77,10 +67,7 @@ export async function createOp(
 
     const opHash = getUserOpHash(op, entryPoint, foundry.id)
 
-    const signature = await clients.wallet.signMessage({
-        account: signer,
-        message: { raw: opHash }
-    })
+    const signature = await clients.wallet.signMessage({ account: signer, message: { raw: opHash } })
     op.signature = signature
 
     return op
@@ -90,10 +77,7 @@ export const generateAccounts = async (clients: Clients) => {
     const accountsPromises = [...Array(10)].map(async (_) => {
         const privateKey = generatePrivateKey()
         const account = privateKeyToAccount(privateKey)
-        await clients.test.setBalance({
-            address: account.address,
-            value: parseEther("100")
-        })
+        await clients.test.setBalance({ address: account.address, value: parseEther("100") })
         return account
     })
 

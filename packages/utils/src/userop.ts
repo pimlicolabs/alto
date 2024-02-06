@@ -108,18 +108,18 @@ export const transactionIncluded = async (
                         log
                     ) => {
                         if (log) {
-                            result[log.userOperationHash] = {
-                                userOperationHash: log.userOperationHash,
-                                accountDeployed:
-                                    log.accountDeployed ||
-                                    result[log.userOperationHash]
-                                        ?.accountDeployed,
-                                success:
-                                    log.success ||
-                                    result[log.userOperationHash]?.success
+                            return {
+                                [log.userOperationHash]: {
+                                    accountDeployed:
+                                        log.accountDeployed ||
+                                        result[log.userOperationHash]
+                                            ?.accountDeployed,
+                                    success:
+                                        log.success ||
+                                        result[log.userOperationHash]?.success
+                                },
+                                ...result
                             }
-
-                            return result
                         }
                         return result
                     },
@@ -136,13 +136,15 @@ export const transactionIncluded = async (
                     status: "included",
                     ...r
                 }
+            } else {
+                return {
+                    status: "reverted"
+                }
             }
+        } else {
             return {
-                status: "reverted"
+                status: "failed"
             }
-        }
-        return {
-            status: "failed"
         }
     } catch (_e) {
         return {

@@ -1,6 +1,6 @@
 import { type Hash, type Hex, getAddress } from "viem"
 import { z } from "zod"
-import type { MempoolUserOperation } from "./mempool"
+import { MempoolUserOperation } from "./mempool"
 
 const hexDataPattern = /^0x[0-9A-Fa-f]*$/
 const addressPattern = /^0x[0-9,a-f,A-F]{40}$/

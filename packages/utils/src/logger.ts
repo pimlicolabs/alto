@@ -1,4 +1,4 @@
-import logger, { type Logger, type SerializerFn } from "pino"
+import logger, { Logger, SerializerFn } from "pino"
 import { toHex } from "viem"
 
 // customFormatter.ts

@@ -7,8 +7,8 @@
 // where xxx is OP/STO/COD/EP/SREP/EREP/UREP/ALT, and ### is a number
 // the validation rules are defined in erc-aa-validation.md
 
-import type { Address, Hex } from "viem"
-import type {
+import { Hex, Address } from "viem"
+import {
     LogCallFrame,
     LogContext,
     LogDb,

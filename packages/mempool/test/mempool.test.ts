@@ -1,11 +1,5 @@
-import { ChildProcess } from "child_process"
-import {
-    BasicExecutor,
-    IExecutor,
-    NullExecutor,
-    SenderManager
-} from "@alto/executor"
-import { createOp, generateAccounts } from "@alto/executor/test/utils"
+import { MockObject, expect, mockFn, mockObject } from "earl"
+import { Monitor } from "../src/monitoring" // Update the import path according to your project structure
 import {
     Address,
     EntryPointAbi,
@@ -26,13 +20,19 @@ import {
     initDebugLogger,
     launchAnvil
 } from "@alto/utils"
-import { MockObject, expect, mockFn, mockObject } from "earl"
-import { Registry } from "prom-client"
+import { ChildProcess } from "child_process"
 import { Account } from "viem"
+import {
+    BasicExecutor,
+    IExecutor,
+    NullExecutor,
+    SenderManager
+} from "@alto/executor"
 import { privateKeyToAccount } from "viem/accounts"
-import { foundry } from "viem/chains"
+import { createOp, generateAccounts } from "@alto/executor/test/utils"
+import { Registry } from "prom-client"
 import { MemoryMempool } from "../src"
-import { Monitor } from "../src/monitoring" // Update the import path according to your project structure
+import { foundry } from "viem/chains"
 
 describe("mempool", () => {
     let clients: Clients

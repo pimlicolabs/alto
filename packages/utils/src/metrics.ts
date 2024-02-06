@@ -2,7 +2,7 @@ import {
     Counter,
     Gauge,
     Histogram,
-    type Registry,
+    Registry,
     collectDefaultMetrics
 } from "prom-client"
 
@@ -164,6 +164,6 @@ export function createMetrics(registry: Registry, register = true) {
         userOperationInclusionDuration,
         verificationGasLimitEstimationTime,
         verificationGasLimitEstimationCount,
-        replacedTransactions
+        replacedTransactions,
     }
 }
