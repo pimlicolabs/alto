@@ -173,6 +173,7 @@ export async function calcPreVerificationGas(
         chainId === chains.baseGoerli.id ||
         chainId === chains.opBNB.id ||
         chainId === chains.opBNBTestnet.id ||
+        chainId === chains.baseSepolia.id ||
         chainId === 957 // Lyra chain
     ) {
         preVerificationGas = await calcOptimismPreVerificationGas(
@@ -260,9 +261,9 @@ export function calcDefaultPreVerificationGas(
         .reduce((sum, x) => sum + x)
     const ret = Math.round(
         callDataCost +
-        ov.fixed / ov.bundleSize +
-        ov.perUserOp +
-        ov.perUserOpWord * lengthInWord
+            ov.fixed / ov.bundleSize +
+            ov.perUserOp +
+            ov.perUserOpWord * lengthInWord
     )
     return BigInt(ret)
 }
@@ -296,7 +297,7 @@ export async function calcOptimismPreVerificationGas(
     op: UserOperation,
     entryPoint: Address,
     staticFee: bigint,
-    logger: Logger,
+    logger: Logger
 ) {
     const randomDataUserOp: UserOperation = {
         ...op

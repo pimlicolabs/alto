@@ -16,7 +16,6 @@ import {
     type Logger,
     type Metrics,
     getAddressFromInitCodeOrPaymasterAndData,
-    calcPreVerificationGas,
     calcVerificationGasAndCallGasLimit
 } from "@alto/utils"
 import {
