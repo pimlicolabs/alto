@@ -205,7 +205,8 @@ export const bundlerHandler = async (
             parsedArgs.utilityPrivateKey,
             parsedArgs.apiVersion,
             parsedArgs.tenderlyEnabled,
-            parsedArgs.balanceOverrideEnabled
+            parsedArgs.balanceOverrideEnabled,
+            parsedArgs.disableExpirationCheck,
         )
     }
 

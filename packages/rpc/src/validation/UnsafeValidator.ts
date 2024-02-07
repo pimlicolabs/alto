@@ -84,8 +84,7 @@ async function getSimulationResult(
                     (err) => err instanceof ContractFunctionExecutionError
                 )
                 throw new RpcError(
-                    `UserOperation reverted during simulation with reason: ${
-                        (revertError?.cause as any)?.reason
+                    `UserOperation reverted during simulation with reason: ${(revertError?.cause as any)?.reason
                     }`,
                     ValidationErrors.SimulateValidation
                 )
@@ -133,6 +132,7 @@ export class UnsafeValidator implements IValidator {
     utilityWallet: Account
     usingTenderly: boolean
     balanceOverrideEnabled: boolean
+    disableExpirationCheck: boolean
     apiVersion: ApiVersion
     chainId: number
 
@@ -144,7 +144,8 @@ export class UnsafeValidator implements IValidator {
         utilityWallet: Account,
         apiVersion: ApiVersion,
         usingTenderly = false,
-        balanceOverrideEnabled = false
+        balanceOverrideEnabled = false,
+        disableExpirationCheck = false,
     ) {
         this.publicClient = publicClient
         this.entryPoint = entryPoint
@@ -153,6 +154,7 @@ export class UnsafeValidator implements IValidator {
         this.utilityWallet = utilityWallet
         this.usingTenderly = usingTenderly
         this.balanceOverrideEnabled = balanceOverrideEnabled
+        this.disableExpirationCheck = disableExpirationCheck
         this.apiVersion = apiVersion
         this.chainId = publicClient.chain.id
     }
@@ -361,14 +363,14 @@ export class UnsafeValidator implements IValidator {
                 now
             })
 
-            if (validationResult.returnInfo.validAfter > now - 5) {
+            if (validationResult.returnInfo.validAfter > now - 5 && !this.disableExpirationCheck) {
                 throw new RpcError(
                     "User operation is not valid yet",
                     ValidationErrors.ExpiresShortly
                 )
             }
 
-            if (validationResult.returnInfo.validUntil < now + 30) {
+            if (validationResult.returnInfo.validUntil < now + 30 && !this.disableExpirationCheck) {
                 throw new RpcError(
                     "expires too soon",
                     ValidationErrors.ExpiresShortly

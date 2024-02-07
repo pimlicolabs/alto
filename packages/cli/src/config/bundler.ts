@@ -95,6 +95,7 @@ export const bundlerArgsSchema = z.object({
 
     flushStuckTransactionsDuringStartup: z.boolean(),
     safeMode: z.boolean(),
+    disableExpirationCheck: z.boolean(),
 
     tenderlyEnabled: z.boolean().optional(),
     minimumGasPricePercent: z.number().int().min(0),
