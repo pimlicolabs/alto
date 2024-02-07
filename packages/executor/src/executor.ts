@@ -495,7 +495,7 @@ export class BasicExecutor implements IExecutor {
             type: "default"
         }
 
-        const { gasLimit, simulatedOps } = await filterOpsAndEstimateGas(
+        const { gasLimit, simulatedOps, resubmitAllOps } = await filterOpsAndEstimateGas(
             callContext,
             wallet,
             opsWithHashes,
@@ -509,9 +509,7 @@ export class BasicExecutor implements IExecutor {
             childLogger
         )
 
-        if (
-            simulatedOps.every((sop) => sop.reason === FeeCapTooLowError.name)
-        ) {
+        if (resubmitAllOps) {
             this.markWalletProcessed(wallet)
             return opsWithHashes.map((owh) => {
                 return {
@@ -706,7 +704,7 @@ export class BasicExecutor implements IExecutor {
             type: "compressed"
         }
 
-        let { gasLimit, simulatedOps } = await filterOpsAndEstimateGas(
+        let { gasLimit, simulatedOps, resubmitAllOps } = await filterOpsAndEstimateGas(
             callContext,
             wallet,
             compressedOps.map((compressedOp) => {
@@ -729,9 +727,9 @@ export class BasicExecutor implements IExecutor {
             childLogger
         )
 
-        if (
-            simulatedOps.every((sop) => sop.reason === FeeCapTooLowError.name)
-        ) {
+        gasLimit += 10_000n
+
+        if (resubmitAllOps) {
             this.markWalletProcessed(wallet)
             return compressedOps.map((compressedOp) => {
                 return {
@@ -748,8 +746,6 @@ export class BasicExecutor implements IExecutor {
                 }
             })
         }
-
-        gasLimit += 10_000n
 
         if (simulatedOps.length === 0) {
             childLogger.warn("no ops to bundle")
