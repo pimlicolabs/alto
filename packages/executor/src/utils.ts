@@ -161,7 +161,7 @@ export async function filterOpsAndEstimateGas(
                 })
             }
 
-            return { simulatedOps, gasLimit }
+            return { simulatedOps, gasLimit, resubmitAllOps: false }
         } catch (err: unknown) {
             const e = parseViemError(err)
             if (e instanceof ContractFunctionRevertedError) {
@@ -195,7 +195,7 @@ export async function filterOpsAndEstimateGas(
                         },
                         "failed to parse failedOpError"
                     )
-                    return { simulatedOps: [], gasLimit: 0n }
+                    return { simulatedOps: [], gasLimit: 0n, resubmitAllOps: false }
                 }
             } else if (e instanceof EstimateGasExecutionError) {
                 try {
@@ -223,7 +223,7 @@ export async function filterOpsAndEstimateGas(
                             },
                             "unexpected error result"
                         )
-                        return { simulatedOps: [], gasLimit: 0n }
+                        return { simulatedOps: [], gasLimit: 0n, resubmitAllOps: false }
                     }
 
                     const failingOp = simulatedOps.filter(
@@ -236,7 +236,7 @@ export async function filterOpsAndEstimateGas(
                         { error: JSON.stringify(err) },
                         "failed to parse error result"
                     )
-                    return { simulatedOps: [], gasLimit: 0n }
+                    return { simulatedOps: [], gasLimit: 0n, resubmitAllOps: false }
                 }
             } else if (e instanceof EstimateGasExecutionError) {
                 if (e.cause instanceof FeeCapTooLowError) {
@@ -245,11 +245,9 @@ export async function filterOpsAndEstimateGas(
                         "error estimating gas due to max fee < basefee"
                     )
                     return {
-                        simulatedOps: simulatedOps.map((op) => ({
-                            ...op,
-                            reason: FeeCapTooLowError.name
-                        })),
-                        gasLimit: 0n
+                        simulatedOps: simulatedOps,
+                        gasLimit: 0n,
+                        resubmitAllOps: true
                     }
                 }
             } else {
@@ -258,11 +256,11 @@ export async function filterOpsAndEstimateGas(
                     { error: JSON.stringify(err) },
                     "error estimating gas"
                 )
-                return { simulatedOps: [], gasLimit: 0n }
+                return { simulatedOps: [], gasLimit: 0n, resubmitAllOps: false }
             }
         }
     }
-    return { simulatedOps, gasLimit: 0n }
+    return { simulatedOps, gasLimit: 0n, resubmitAllOps: false }
 }
 
 export async function flushStuckTransaction(
