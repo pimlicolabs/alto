@@ -1,18 +1,23 @@
-import { Address, HexData, HexData32, CallEngineAbi } from "@alto/types"
-import { Logger, Metrics } from "@alto/utils"
-import { Semaphore } from "async-mutex"
-
 import {
-    Account,
-    PublicClient,
+    type Address,
+    CallEngineAbi,
+    type HexData,
+    type HexData32
+} from "@alto/types"
+import type { ApiVersion } from "@alto/types/src"
+import type { Logger, Metrics } from "@alto/utils"
+import { getGasPrice } from "@alto/utils"
+import { Semaphore } from "async-mutex"
+import {
+    type Account,
+    type Chain,
+    type PublicClient,
+    type TransactionReceipt,
+    type Transport,
+    type WalletClient,
     formatEther,
-    WalletClient,
-    Chain,
-    Transport,
-    TransactionReceipt,
     getContract
 } from "viem"
-import { getGasPrice } from "@alto/utils"
 
 const waitForTransactionReceipt = async (
     publicClient: PublicClient,
@@ -33,6 +38,7 @@ export class SenderManager {
     private metrics: Metrics
     private noEip1559Support: boolean
     private semaphore: Semaphore
+    private apiVersion: ApiVersion
 
     constructor(
         wallets: Account[],
@@ -40,6 +46,7 @@ export class SenderManager {
         logger: Logger,
         metrics: Metrics,
         noEip1559Support: boolean,
+        apiVersion: ApiVersion,
         maxSigners?: number
     ) {
         if (maxSigners !== undefined && wallets.length > maxSigners) {
@@ -57,6 +64,7 @@ export class SenderManager {
         metrics.walletsAvailable.set(this.availableWallets.length)
         metrics.walletsTotal.set(this.wallets.length)
         this.semaphore = new Semaphore(this.availableWallets.length)
+        this.apiVersion = apiVersion
     }
 
     async validateWallets(
@@ -140,8 +148,9 @@ export class SenderManager {
 
         if (Object.keys(balancesMissing).length > 0) {
             const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPrice(
-                walletClient.chain.id,
+                walletClient.chain,
                 publicClient,
+                this.noEip1559Support,
                 this.logger
             )
 
@@ -231,7 +240,10 @@ export class SenderManager {
         )
         await this.semaphore.waitForUnlock()
         await this.semaphore.acquire()
-        const wallet = this.availableWallets.shift()
+        const wallet =
+            this.apiVersion === "v1"
+                ? this.availableWallets.shift()
+                : this.availableWallets.pop()
 
         // should never happen because of semaphore
         if (!wallet) {
@@ -250,9 +262,11 @@ export class SenderManager {
         return wallet
     }
 
-    async pushWallet(wallet: Account): Promise<void> {
+    pushWallet(wallet: Account): void {
         // push to the end of the queue
-        this.availableWallets.push(wallet)
+        this.apiVersion === "v1"
+            ? this.availableWallets.push(wallet)
+            : this.availableWallets.unshift(wallet)
         this.semaphore.release()
         this.logger.trace(
             { executor: wallet.address },

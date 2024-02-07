@@ -1,6 +1,6 @@
-import { Account } from "viem/accounts"
-import { HexData32, UserOperation, CompressedUserOperation } from "."
-import { Address, Chain, Hex } from "viem"
+import type { Address, Chain, Hex } from "viem"
+import type { Account } from "viem/accounts"
+import type { CompressedUserOperation, HexData32, UserOperation } from "."
 
 export interface ReferencedCodeHashes {
     // addresses accessed during this user operation
@@ -10,8 +10,12 @@ export interface ReferencedCodeHashes {
     hash: string
 }
 
-export const deriveUserOperation = (op: MempoolUserOperation): UserOperation => {
-    return isCompressedType(op) ? (op as CompressedUserOperation).inflatedOp : (op as UserOperation)
+export const deriveUserOperation = (
+    op: MempoolUserOperation
+): UserOperation => {
+    return isCompressedType(op)
+        ? (op as CompressedUserOperation).inflatedOp
+        : (op as UserOperation)
 }
 
 export const isCompressedType = (op: MempoolUserOperation): boolean => {
@@ -25,13 +29,13 @@ export type TransactionInfo = {
     transactionHash: HexData32
     previousTransactionHashes: HexData32[]
     transactionRequest: {
-        account: Account,
-        to: Address,
-        data: Hex,
-        gas: bigint,
-        chain: Chain,
-        maxFeePerGas: bigint,
-        maxPriorityFeePerGas: bigint,
+        account: Account
+        to: Address
+        data: Hex
+        gas: bigint
+        chain: Chain
+        maxFeePerGas: bigint
+        maxPriorityFeePerGas: bigint
         nonce: number
     }
     executor: Account
@@ -61,19 +65,29 @@ export type SubmittedUserOperation = {
     transactionInfo: TransactionInfo
 }
 
-type Result<T, E> = Success<T> | Failure<E>
+type Result<T, E, R> = Success<T> | Failure<E> | Resubmit<R>
 
 interface Success<T> {
-    success: true
+    status: "success"
     value: T
 }
 
 interface Failure<E> {
-    success: false
+    status: "failure"
     error: E
+}
+
+interface Resubmit<R> {
+    status: "resubmit"
+    info: R
 }
 
 export type BundleResult = Result<
     { userOperation: UserOperationInfo; transactionInfo: TransactionInfo },
-    { reason: string; userOpHash: HexData32 }
+    { reason: string; userOpHash: HexData32 },
+    {
+        reason: string
+        userOpHash: HexData32
+        userOperation: MempoolUserOperation
+    }
 >

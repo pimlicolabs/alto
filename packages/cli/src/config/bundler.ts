@@ -99,6 +99,7 @@ export const bundlerArgsSchema = z.object({
 
     tenderlyEnabled: z.boolean().optional(),
     minimumGasPricePercent: z.number().int().min(0),
+    apiVersion: z.enum(["v1", "v2"]),
     noEip1559Support: z.boolean(),
     noEthCallOverrideSupport: z.boolean(),
     balanceOverrideEnabled: z.boolean(),

@@ -1,32 +1,33 @@
-import { IReputationManager } from "@alto/mempool"
+import type { IReputationManager } from "@alto/mempool"
 import {
-    BundleResult,
-    CompressedUserOperation,
+    type BundleResult,
+    type CompressedUserOperation,
     EntryPointAbi,
-    TransactionInfo,
-    UserOperation,
-    UserOperationWithHash,
+    type TransactionInfo,
+    type UserOperation,
+    type UserOperationWithHash,
     deriveUserOperation,
     failedOpErrorSchema
 } from "@alto/types"
-import { Logger, parseViemError, transactionIncluded } from "@alto/utils"
+import { type Logger, parseViemError, transactionIncluded } from "@alto/utils"
+import * as sentry from "@sentry/node"
 import {
-    Account,
-    Address,
-    Chain,
+    type Account,
+    type Address,
+    type Chain,
     ContractFunctionRevertedError,
     EstimateGasExecutionError,
-    GetContractReturnType,
-    Hex,
-    PublicClient,
-    Transport,
-    WalletClient,
+    FeeCapTooLowError,
+    type GetContractReturnType,
+    type Hex,
+    type PublicClient,
+    type Transport,
+    type WalletClient,
     concat,
     decodeErrorResult,
     hexToBytes,
-    numberToHex,
+    numberToHex
 } from "viem"
-import * as sentry from "@sentry/node"
 
 export function simulatedOpsToResults(
     simulatedOps: {
@@ -38,7 +39,7 @@ export function simulatedOpsToResults(
     return simulatedOps.map((sop) => {
         if (sop.reason === undefined) {
             return {
-                success: true,
+                status: "success",
                 value: {
                     userOperation: {
                         mempoolUserOperation: sop.owh.mempoolUserOperation,
@@ -51,7 +52,7 @@ export function simulatedOpsToResults(
             }
         }
         return {
-            success: false,
+            status: "failure",
             error: {
                 userOpHash: sop.owh.userOperationHash,
                 reason: sop.reason as string
@@ -61,34 +62,41 @@ export function simulatedOpsToResults(
 }
 
 export type DefaultFilterOpsAndEstimateGasParams = {
-    ep: GetContractReturnType<typeof EntryPointAbi, PublicClient, WalletClient>,
+    ep: GetContractReturnType<typeof EntryPointAbi, PublicClient, WalletClient>
     type: "default"
 }
 
 export type CompressedFilterOpsAndEstimateGasParams = {
-    publicClient: PublicClient,
-    bundleBulker: Address,
-    perOpInflatorId: number,
+    publicClient: PublicClient
+    bundleBulker: Address
+    perOpInflatorId: number
     type: "compressed"
 }
 
-export function createCompressedCalldata(compressedOps: CompressedUserOperation[], perOpInflatorId: number): Hex {
+export function createCompressedCalldata(
+    compressedOps: CompressedUserOperation[],
+    perOpInflatorId: number
+): Hex {
     const bundleBulkerPayload = numberToHex(perOpInflatorId, { size: 4 }) // bytes used in BundleBulker
     const perOpInflatorPayload = numberToHex(compressedOps.length, { size: 1 }) // bytes used in perOpInflator
 
     return compressedOps.reduce((currentCallData, op) => {
         const nextCallData = concat([
             numberToHex(op.inflatorId, { size: 4 }),
-            numberToHex(hexToBytes(op.compressedCalldata).length,  { size: 2 }),
+            numberToHex(hexToBytes(op.compressedCalldata).length, {
+                size: 2
+            }),
             op.compressedCalldata
-        ]);
+        ])
 
         return concat([currentCallData, nextCallData])
-    }, concat([bundleBulkerPayload, perOpInflatorPayload]));
+    }, concat([bundleBulkerPayload, perOpInflatorPayload]))
 }
 
 export async function filterOpsAndEstimateGas(
-    callContext: DefaultFilterOpsAndEstimateGasParams | CompressedFilterOpsAndEstimateGasParams,
+    callContext:
+        | DefaultFilterOpsAndEstimateGasParams
+        | CompressedFilterOpsAndEstimateGasParams,
     wallet: Account,
     ops: UserOperationWithHash[],
     nonce: number,
@@ -111,19 +119,18 @@ export async function filterOpsAndEstimateGas(
 
     while (simulatedOps.filter((op) => op.reason === undefined).length > 0) {
         try {
-            const gasOptions = onlyPre1559 ? { gasPrice: maxFeePerGas } : { maxFeePerGas, maxPriorityFeePerGas }
+            const gasOptions = onlyPre1559
+                ? { gasPrice: maxFeePerGas }
+                : { maxFeePerGas, maxPriorityFeePerGas }
 
             if (callContext.type === "default") {
                 const ep = callContext.ep
                 const opsToSend = simulatedOps
-                            .filter((op) => op.reason === undefined)
-                            .map((op) => (op.owh.mempoolUserOperation as UserOperation))
+                    .filter((op) => op.reason === undefined)
+                    .map((op) => op.owh.mempoolUserOperation as UserOperation)
 
                 gasLimit = await ep.estimateGas.handleOps(
-                    [
-                        opsToSend,
-                        wallet.address
-                    ],
+                    [opsToSend, wallet.address],
                     {
                         account: wallet,
                         gas: customGasLimitForEstimation,
@@ -133,10 +140,15 @@ export async function filterOpsAndEstimateGas(
                     }
                 )
             } else {
-                const { publicClient, bundleBulker, perOpInflatorId } = callContext
+                const { publicClient, bundleBulker, perOpInflatorId } =
+                    callContext
                 const opsToSend = simulatedOps
-                            .filter((op) => op.reason === undefined)
-                            .map((op) => (op.owh.mempoolUserOperation as CompressedUserOperation))
+                    .filter((op) => op.reason === undefined)
+                    .map(
+                        (op) =>
+                            op.owh
+                                .mempoolUserOperation as CompressedUserOperation
+                    )
 
                 gasLimit = await publicClient.estimateGas({
                     to: bundleBulker,
@@ -219,12 +231,26 @@ export async function filterOpsAndEstimateGas(
                     )[Number(errorResult.args[0])]
 
                     failingOp.reason = errorResult.args[1]
-                } catch (e: unknown) {
+                } catch (_e: unknown) {
                     logger.error(
                         { error: JSON.stringify(err) },
                         "failed to parse error result"
                     )
                     return { simulatedOps: [], gasLimit: 0n }
+                }
+            } else if (e instanceof EstimateGasExecutionError) {
+                if (e.cause instanceof FeeCapTooLowError) {
+                    logger.info(
+                        { error: e.shortMessage },
+                        "error estimating gas due to max fee < basefee"
+                    )
+                    return {
+                        simulatedOps: simulatedOps.map((op) => ({
+                            ...op,
+                            reason: FeeCapTooLowError.name
+                        })),
+                        gasLimit: 0n
+                    }
                 }
             } else {
                 sentry.captureException(err)

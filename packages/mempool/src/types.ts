@@ -1,7 +1,18 @@
-import { HexData32, MempoolUserOperation, ReferencedCodeHashes, SubmittedUserOperation, TransactionInfo, UserOperation, UserOperationInfo } from "@alto/types"
+import type {
+    HexData32,
+    MempoolUserOperation,
+    ReferencedCodeHashes,
+    SubmittedUserOperation,
+    TransactionInfo,
+    UserOperation,
+    UserOperationInfo
+} from "@alto/types"
 
 export interface Mempool {
-    add(op: MempoolUserOperation, referencedContracts?: ReferencedCodeHashes): boolean
+    add(
+        op: MempoolUserOperation,
+        referencedContracts?: ReferencedCodeHashes
+    ): boolean
     checkEntityMultipleRoleViolation(_op: UserOperation): Promise<void>
 
     /**
@@ -41,4 +52,3 @@ export interface Mempool {
 
     clear(): void
 }
-

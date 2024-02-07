@@ -1,8 +1,8 @@
 import { decodeErrorResult } from "viem"
-import { HexData, addressSchema } from "./schemas"
 import { z } from "zod"
-import { EntryPointAbi } from "./contracts/EntryPoint"
 import { RpcError } from "."
+import { EntryPointAbi } from "./contracts/EntryPoint"
+import { type HexData, addressSchema } from "./schemas"
 
 export type StakeInfo = {
     addr?: string

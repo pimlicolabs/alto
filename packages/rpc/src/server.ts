@@ -1,16 +1,21 @@
-import { IRpcEndpoint } from "./rpcHandler"
 import {
-    JSONRPCResponse,
+    type JSONRPCResponse,
     bundlerRequestSchema,
     jsonRpcSchema
 } from "@alto/types"
 import { RpcError, ValidationErrors } from "@alto/types"
-import { Logger, Metrics } from "@alto/utils"
-import Fastify, { FastifyInstance, FastifyReply, FastifyRequest, FastifyBaseLogger } from "fastify"
+import type { Logger, Metrics } from "@alto/utils"
+import * as sentry from "@sentry/node"
+import Fastify, {
+    type FastifyBaseLogger,
+    type FastifyInstance,
+    type FastifyReply,
+    type FastifyRequest
+} from "fastify"
+import type { Registry } from "prom-client"
 import { toHex } from "viem"
 import { fromZodError } from "zod-validation-error"
-import { Registry } from "prom-client"
-import * as sentry from "@sentry/node"
+import type { IRpcEndpoint } from "./rpcHandler"
 
 // jsonBigIntOverride.ts
 const originalJsonStringify = JSON.stringify
@@ -32,7 +37,7 @@ JSON.stringify = function (
 
     const wrapperReplacer = (key: string, value: any): any => {
         if (typeof replacer === "function") {
-            // rome-ignore lint: no other way to do this
+            // biome-ignore lint: no other way to do this
             value = replacer(key, value)
         } else if (Array.isArray(replacer)) {
             if (!replacer.includes(key)) {
@@ -84,7 +89,7 @@ export class Server {
         this.fastify.decorateRequest("rpcMethod", null)
         this.fastify.decorateReply("rpcStatus", null)
 
-        this.fastify.addHook("onResponse", async (request, reply) => {
+        this.fastify.addHook("onResponse", (request, reply) => {
             const ignoredRoutes = ["/health", "/metrics"]
             if (ignoredRoutes.includes(request.routeOptions.url)) {
                 return
@@ -118,7 +123,7 @@ export class Server {
         this.metrics = metrics
     }
 
-    public async start(): Promise<void> {
+    public start(): void {
         this.fastify.listen({ port: this.port, host: "0.0.0.0" })
     }
 
@@ -138,7 +143,7 @@ export class Server {
         reply: FastifyReply
     ): Promise<void> {
         reply.rpcStatus = "failed" // default to failed
-        let requestId
+        let requestId: number | null = null
         try {
             const contentTypeHeader = request.headers["content-type"]
             if (contentTypeHeader !== "application/json") {
@@ -244,7 +249,7 @@ export class Server {
     }
 
     public async serveMetrics(
-        request: FastifyRequest,
+        _request: FastifyRequest,
         reply: FastifyReply
     ): Promise<void> {
         reply.headers({ "Content-Type": this.registry.contentType })

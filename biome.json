@@ -1,4 +1,5 @@
 {
+    "$schema": "https://biomejs.dev/schemas/1.0.0/schema.json",
     "files": {
         "ignore": [
             "node_modules",
@@ -33,7 +34,7 @@
         "enabled": true,
         "formatWithErrors": true,
         "lineWidth": 80,
-        "indentSize": 4,
+        "indentWidth": 4,
         "indentStyle": "space"
     },
     "javascript": {
