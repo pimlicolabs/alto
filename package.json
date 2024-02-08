@@ -6,10 +6,10 @@
     "author": "Pimlico",
     "license": "GPL-3.0-or-later",
     "scripts": {
-        "clean": "rm -rf ./packages/*/lib ./packages/*/*.tsbuildinfo",
-        "clean-modules": "rm -rf ./packages/*/node_modules node_modules",
+        "clean": "rm -rf ./src/lib ./src/*.tsbuildinfo",
+        "clean-modules": "rm -rf ./src/node_modules node_modules",
         "build": "pnpm -r run build",
-        "start": "node packages/entrypoint-0.6/lib/cli/alto.js run",
+        "start": "node src/lib/cli/alto.js run",
         "dev": "pnpm -r run dev",
         "test": "pnpm -r --workspace-concurrency 1 test --verbose=true",
         "test:spec": "./test/spec-tests/run-spec-tests.sh",
@@ -33,5 +33,5 @@
     "engines": {
         "node": ">=18.0.0"
     },
-    "workspaces": ["packages/*", "test/e2e/*"]
+    "workspaces": ["src/", "test/e2e/*"]
 }

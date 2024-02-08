@@ -12,9 +12,10 @@
             "tsconfig.*.json",
             "generated.ts",
             "pnpm-lock.yaml",
-            "**/**/lib",
+            "src/lib",
             ".nyc_output",
-            "spec-tests"
+            "spec-tests",
+            "test"
         ]
     },
     "organizeImports": {

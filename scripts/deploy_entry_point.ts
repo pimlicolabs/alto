@@ -1,4 +1,4 @@
-import { EntryPointAbi, EntryPoint_bytecode } from "@alto/types"
+import { EntryPointAbi, EntryPoint_bytecode } from "@entrypoint-0.6/types"
 import {
     http,
     createPublicClient,
@@ -55,6 +55,7 @@ const deployLocalEntryPoint = async (): Promise<string> => {
     return entryPointAddress
 }
 
+// biome-ignore lint/style/noDefaultExport: <explanation>
 export default deployLocalEntryPoint
 
 deployLocalEntryPoint().catch((e) => {

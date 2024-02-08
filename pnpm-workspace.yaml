@@ -1,6 +1,5 @@
 packages:
-  # all packages in direct subdirs of packages/
-  - 'packages/*'
+  - 'src'
   # all packages in subdirs of components/
   - 'components/**'
   # exclude packages that are inside test directories
