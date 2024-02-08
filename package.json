@@ -10,7 +10,7 @@
         "clean-modules": "rm -rf ./packages/*/node_modules node_modules",
         "build": "pnpm -r run build",
         "start": "node packages/cli/lib/alto.js run",
-        "dev": "node --inspect packages/cli/lib/alto.js run",
+        "dev": "node --inspect packages/entrypoint-0.6/lib/cli/alto.js run",
         "test": "pnpm -r --workspace-concurrency 1 test --verbose=true",
         "test:spec": "./test/spec-tests/run-spec-tests.sh",
         "lint": "biome check .",
