@@ -4,8 +4,8 @@ Dockerfile
 docker-compose.yml
 
 # Tests
-packages/**/test
-packages/**/lib
+src/**/test
+src/**/lib
 
 # Other / artifacts
 **/.nyc_output

@@ -1,4 +1,4 @@
-import { Hex } from "viem"
+import type { Hex } from "viem"
 import bundleBulkerJson from "./BundleBulker.json"
 import entryPointJson from "./EntryPoint.json"
 import perOpInflatorJson from "./PerOpInflator.json"

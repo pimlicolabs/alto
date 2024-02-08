@@ -1,17 +1,17 @@
-import { UserOperation, createSmartAccountClient } from "permissionless"
+import { type UserOperation, createSmartAccountClient } from "permissionless"
 import { privateKeyToSimpleSmartAccount } from "permissionless/accounts"
-import { PimlicoBundlerClient } from "permissionless/clients/pimlico"
+import type { PimlicoBundlerClient } from "permissionless/clients/pimlico"
 import {
     http,
-    PublicClient,
-    TestClient,
+    type PublicClient,
+    type TestClient,
     createWalletClient,
     getContract,
     parseEther,
     parseGwei
 } from "viem"
 import {
-    Address,
+    type Address,
     generatePrivateKey,
     mnemonicToAccount,
     privateKeyToAddress
