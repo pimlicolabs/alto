@@ -1,3 +1,3 @@
-export * from "./config/options"
+export * from "./config"
 export * from "./alto"
 export * from "./util"
