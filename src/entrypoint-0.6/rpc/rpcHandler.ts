@@ -43,9 +43,9 @@ import {
 } from "@entrypoint-0.6/types"
 import type { StateOverrides } from "@entrypoint-0.6/types"
 import type { ApiVersion } from "@entrypoint-0.6/types"
+import type { Logger } from "@alto/utils"
 import {
     type CompressionHandler,
-    type Logger,
     calcPreVerificationGas,
     getGasPrice,
     getNonceKeyAndValue,

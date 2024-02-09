@@ -5,7 +5,7 @@ import {
     jsonRpcSchema
 } from "@entrypoint-0.6/types"
 import { RpcError, ValidationErrors } from "@entrypoint-0.6/types"
-import type { Logger } from "@entrypoint-0.6/utils"
+import type { Logger } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import Fastify, {
     type FastifyBaseLogger,

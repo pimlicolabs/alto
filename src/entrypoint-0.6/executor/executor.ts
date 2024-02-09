@@ -1,4 +1,4 @@
-import type { Metrics } from "@alto/utils"
+import type { Metrics, Logger } from "@alto/utils"
 import type { InterfaceReputationManager } from "@entrypoint-0.6/mempool"
 import {
     type Address,
@@ -13,7 +13,6 @@ import {
 } from "@entrypoint-0.6/types"
 import {
     type CompressionHandler,
-    type Logger,
     getGasPrice,
     getUserOperationHash,
     maxBigInt,
@@ -34,7 +33,7 @@ import {
     encodeFunctionData,
     getContract
 } from "viem"
-import type { SenderManager } from "./senderManager"
+import type { SenderManager } from "@alto/executor"
 import {
     type CompressedFilterOpsAndEstimateGasParams,
     type DefaultFilterOpsAndEstimateGasParams,

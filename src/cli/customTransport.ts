@@ -1,4 +1,4 @@
-import type { Logger } from "@entrypoint-0.6/utils"
+import type { Logger } from "@alto/utils"
 import {
     type HttpTransport,
     type HttpTransportConfig,

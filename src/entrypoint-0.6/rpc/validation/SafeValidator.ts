@@ -1,5 +1,5 @@
 import type { Metrics } from "@alto/utils"
-import type { SenderManager } from "@entrypoint-0.6/executor"
+import type { SenderManager } from "@alto/executor"
 import {
     type Address,
     CodeHashGetterAbi,
@@ -16,8 +16,8 @@ import {
 import type { ValidationResult } from "@entrypoint-0.6/types"
 import type { InterfaceValidator } from "@entrypoint-0.6/types"
 import type { ApiVersion } from "@entrypoint-0.6/types"
+import type { Logger } from "@alto/utils"
 import {
-    type Logger,
     calcVerificationGasAndCallGasLimit,
     getAddressFromInitCodeOrPaymasterAndData
 } from "@entrypoint-0.6/utils"

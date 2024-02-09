@@ -25,7 +25,8 @@ import {
     toHex
 } from "viem"
 import * as chains from "viem/chains"
-import { type Logger, getGasPrice } from "."
+import type { Logger } from "@alto/utils"
+import { getGasPrice } from "."
 
 export interface GasOverheads {
     /**

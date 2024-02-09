@@ -18,8 +18,8 @@ import {
     deriveUserOperation
 } from "@entrypoint-0.6/types"
 import type { HexData32 } from "@entrypoint-0.6/types"
+import type { Logger } from "@alto/utils"
 import {
-    type Logger,
     getAddressFromInitCodeOrPaymasterAndData,
     getUserOperationHash
 } from "@entrypoint-0.6/utils"

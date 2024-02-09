@@ -11,3 +11,4 @@ test/build
 .DS_Store
 
 .nx/cache
+.vscode/

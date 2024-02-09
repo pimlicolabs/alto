@@ -5,7 +5,7 @@ import {
 import * as sentry from "@sentry/node"
 import { type Chain, type PublicClient, parseGwei } from "viem"
 import * as chains from "viem/chains"
-import type { Logger } from "."
+import type { Logger } from "@alto/utils"
 import { maxBigInt, minBigInt } from "./bigInt"
 
 enum ChainId {

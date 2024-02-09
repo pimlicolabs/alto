@@ -1,29 +1,9 @@
 import {
+    type Logger,
     createMetrics,
     initDebugLogger,
     initProductionLogger
 } from "@alto/utils"
-import {
-    BasicExecutor,
-    ExecutorManager,
-    SenderManager
-} from "@entrypoint-0.6/executor"
-import {
-    type InterfaceReputationManager,
-    MemoryMempool,
-    Monitor,
-    NullRepuationManager,
-    ReputationManager
-} from "@entrypoint-0.6/mempool"
-import {
-    NonceQueuer,
-    RpcHandler,
-    SafeValidator,
-    Server,
-    UnsafeValidator
-} from "@entrypoint-0.6/rpc"
-import type { InterfaceValidator } from "@entrypoint-0.6/types"
-import { CompressionHandler, type Logger } from "@entrypoint-0.6/utils"
 import { Registry } from "prom-client"
 import {
     type Chain,
@@ -39,9 +19,22 @@ import {
     bundlerArgsSchema
 } from "./config"
 import { customTransport } from "./customTransport"
+import {
+    getCompressionHandler,
+    getExecutor,
+    getExecutorManager,
+    getMempool,
+    getMonitor,
+    getNonceQueuer,
+    getReputationManager,
+    getRpcHandler,
+    getSenderManager,
+    getServer,
+    getValidator
+} from "./helper"
 
 const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
-    // validate every arg, make typesafe so if i add a new arg i have to validate it
+    // validate every arg, make type safe so if i add a new arg i have to validate it
     const parsing = bundlerArgsSchema.safeParse(args)
     if (!parsing.success) {
         const error = fromZodError(parsing.error)
@@ -63,7 +56,6 @@ const preFlightChecks = async (
     }
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: <explanation>
 export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
     const parsedArgs = parseArgs(args)
     if (parsedArgs.signerPrivateKeysExtra !== undefined) {
@@ -148,69 +140,20 @@ export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
         chain
     })
 
-    const senderManager = new SenderManager(
-        parsedArgs.signerPrivateKeys,
-        parsedArgs.utilityPrivateKey,
-        logger.child(
-            { module: "executor" },
-            { level: parsedArgs.executorLogLevel || parsedArgs.logLevel }
-        ),
-        metrics,
-        parsedArgs.noEip1559Support,
-        parsedArgs.apiVersion,
-        parsedArgs.maxSigners
-    )
+    const senderManager = getSenderManager({ parsedArgs, logger, metrics })
 
-    let validator: InterfaceValidator
-    let reputationManager: InterfaceReputationManager
-
-    if (parsedArgs.safeMode) {
-        reputationManager = new ReputationManager(
-            client,
-            parsedArgs.entryPoint,
-            BigInt(parsedArgs.minStake),
-            BigInt(parsedArgs.minUnstakeDelay),
-            logger.child(
-                { module: "reputation_manager" },
-                {
-                    level:
-                        parsedArgs.reputationManagerLogLevel ||
-                        parsedArgs.logLevel
-                }
-            )
-        )
-
-        validator = new SafeValidator(
-            client,
-            senderManager,
-            parsedArgs.entryPoint,
-            logger.child(
-                { module: "rpc" },
-                { level: parsedArgs.rpcLogLevel || parsedArgs.logLevel }
-            ),
-            metrics,
-            parsedArgs.utilityPrivateKey,
-            parsedArgs.apiVersion,
-            parsedArgs.tenderlyEnabled,
-            parsedArgs.balanceOverrideEnabled
-        )
-    } else {
-        reputationManager = new NullRepuationManager()
-        validator = new UnsafeValidator(
-            client,
-            parsedArgs.entryPoint,
-            logger.child(
-                { module: "rpc" },
-                { level: parsedArgs.rpcLogLevel || parsedArgs.logLevel }
-            ),
-            metrics,
-            parsedArgs.utilityPrivateKey,
-            parsedArgs.apiVersion,
-            parsedArgs.tenderlyEnabled,
-            parsedArgs.balanceOverrideEnabled,
-            parsedArgs.disableExpirationCheck
-        )
-    }
+    const validator = getValidator({
+        client,
+        logger,
+        parsedArgs,
+        senderManager,
+        metrics
+    })
+    const reputationManager = getReputationManager({
+        client,
+        parsedArgs,
+        logger
+    })
 
     await senderManager.validateAndRefillWallets(
         client,
@@ -226,83 +169,47 @@ export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
         )
     }, parsedArgs.refillInterval)
 
-    const monitor = new Monitor()
-    const mempool = new MemoryMempool(
+    const monitor = getMonitor()
+    const mempool = getMempool({
         monitor,
         reputationManager,
         validator,
         client,
-        parsedArgs.entryPoint,
-        parsedArgs.safeMode,
-        logger.child(
-            { module: "mempool" },
-            { level: parsedArgs.mempoolLogLevel || parsedArgs.logLevel }
-        ),
+        parsedArgs,
+        logger,
         metrics
-    )
+    })
 
-    const { bundleBulkerAddress, perOpInflatorAddress } = parsedArgs
+    const compressionHandler = await getCompressionHandler({
+        client,
+        parsedArgs
+    })
 
-    let compressionHandler = null
-    if (
-        bundleBulkerAddress !== undefined &&
-        perOpInflatorAddress !== undefined
-    ) {
-        compressionHandler = await CompressionHandler.createAsync(
-            bundleBulkerAddress,
-            perOpInflatorAddress,
-            client
-        )
-    }
-
-    const executor = new BasicExecutor(
+    const executor = getExecutor({
         client,
         walletClient,
         senderManager,
         reputationManager,
-        parsedArgs.entryPoint,
-        logger.child(
-            { module: "executor" },
-            { level: parsedArgs.executorLogLevel || parsedArgs.logLevel }
-        ),
+        parsedArgs,
+        logger,
         metrics,
-        compressionHandler,
-        !parsedArgs.tenderlyEnabled,
-        parsedArgs.noEip1559Support,
-        parsedArgs.customGasLimitForEstimation,
-        parsedArgs.useUserOperationGasLimitsForSubmission
-    )
+        compressionHandler
+    })
 
-    const executorManager = new ExecutorManager(
+    const executorManager = getExecutorManager({
         executor,
         mempool,
         monitor,
         reputationManager,
         client,
-        parsedArgs.entryPoint,
-        parsedArgs.pollingInterval,
-        logger.child(
-            { module: "executor" },
-            { level: parsedArgs.executorLogLevel || parsedArgs.logLevel }
-        ),
-        metrics,
-        parsedArgs.bundleMode,
-        parsedArgs.bundlerFrequency,
-        parsedArgs.noEip1559Support
-    )
+        parsedArgs,
+        logger,
+        metrics
+    })
 
-    const nonceQueuer = new NonceQueuer(
-        mempool,
-        client,
-        parsedArgs.entryPoint,
-        logger.child(
-            { module: "nonce_queuer" },
-            { level: parsedArgs.nonceQueuerLogLevel || parsedArgs.logLevel }
-        )
-    )
+    const nonceQueuer = getNonceQueuer({ mempool, client, parsedArgs, logger })
 
-    const rpcEndpoint = new RpcHandler(
-        parsedArgs.entryPoint,
+    const rpcEndpoint = getRpcHandler({
         client,
         validator,
         mempool,
@@ -311,21 +218,11 @@ export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
         nonceQueuer,
         executorManager,
         reputationManager,
-        parsedArgs.tenderlyEnabled ?? false,
-        parsedArgs.minimumGasPricePercent,
-        parsedArgs.apiVersion,
-        parsedArgs.noEthCallOverrideSupport,
-        parsedArgs.rpcMaxBlockRange,
-        logger.child(
-            { module: "rpc" },
-            { level: parsedArgs.rpcLogLevel || parsedArgs.logLevel }
-        ),
+        parsedArgs,
+        logger,
         metrics,
-        parsedArgs.environment,
-        compressionHandler,
-        parsedArgs.noEip1559Support,
-        parsedArgs.dangerousSkipUserOperationValidation
-    )
+        compressionHandler
+    })
 
     if (parsedArgs.flushStuckTransactionsDuringStartup) {
         executor.flushStuckTransactions()
@@ -335,18 +232,15 @@ export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
         `Initialized ${senderManager.wallets.length} executor wallets`
     )
 
-    const server = new Server(
+    const server = getServer({
         rpcEndpoint,
-        parsedArgs.port,
-        parsedArgs.requestTimeout,
-        logger.child(
-            { module: "rpc" },
-            { level: parsedArgs.rpcLogLevel || parsedArgs.logLevel }
-        ),
+        parsedArgs,
+        logger,
         registry,
         metrics
-    )
-    await server.start()
+    })
+
+    server.start()
 
     const gracefulShutdown = async (signal: string) => {
         rootLogger.info(`${signal} received, shutting down`)
