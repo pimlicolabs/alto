@@ -101,7 +101,7 @@ export class SenderManager {
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: <explanation>
     async validateAndRefillWallets(
         publicClient: PublicClient,
-        walletClient: WalletClient<Transport, Chain, undefined>,
+        walletClient: WalletClient<Transport, Chain>,
         minBalance: bigint
     ): Promise<void> {
         const utilityWalletBalance = await publicClient.getBalance({

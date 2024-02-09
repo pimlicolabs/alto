@@ -19,19 +19,9 @@ import {
     bundlerArgsSchema
 } from "./config"
 import { customTransport } from "./customTransport"
-import {
-    getCompressionHandler,
-    getExecutor,
-    getExecutorManager,
-    getMempool,
-    getMonitor,
-    getNonceQueuer,
-    getReputationManager,
-    getRpcHandler,
-    getSenderManager,
-    getServer,
-    getValidator
-} from "./helper"
+import { setupEntryPointPointSix } from "@entrypoint-0.6/cli"
+import { SenderManager } from "@alto/executor"
+import { setupEntryPointPointSeven } from "@entrypoint-0.7/cli"
 
 const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
     // validate every arg, make type safe so if i add a new arg i have to validate it
@@ -140,125 +130,41 @@ export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
         chain
     })
 
-    const senderManager = getSenderManager({ parsedArgs, logger, metrics })
-
-    const validator = getValidator({
-        client,
-        logger,
-        parsedArgs,
-        senderManager,
-        metrics
-    })
-    const reputationManager = getReputationManager({
-        client,
-        parsedArgs,
-        logger
-    })
-
-    await senderManager.validateAndRefillWallets(
-        client,
-        walletClient,
-        parsedArgs.minBalance
+    const senderManager = new SenderManager(
+        parsedArgs.signerPrivateKeys,
+        parsedArgs.utilityPrivateKey,
+        logger.child(
+            { module: "executor" },
+            { level: parsedArgs.executorLogLevel || parsedArgs.logLevel }
+        ),
+        metrics,
+        parsedArgs.noEip1559Support,
+        parsedArgs.apiVersion,
+        parsedArgs.maxSigners
     )
 
-    setInterval(async () => {
-        await senderManager.validateAndRefillWallets(
+    if (parsedArgs.entryPointVersion === "0.6") {
+        await setupEntryPointPointSix({
             client,
             walletClient,
-            parsedArgs.minBalance
-        )
-    }, parsedArgs.refillInterval)
-
-    const monitor = getMonitor()
-    const mempool = getMempool({
-        monitor,
-        reputationManager,
-        validator,
-        client,
-        parsedArgs,
-        logger,
-        metrics
-    })
-
-    const compressionHandler = await getCompressionHandler({
-        client,
-        parsedArgs
-    })
-
-    const executor = getExecutor({
-        client,
-        walletClient,
-        senderManager,
-        reputationManager,
-        parsedArgs,
-        logger,
-        metrics,
-        compressionHandler
-    })
-
-    const executorManager = getExecutorManager({
-        executor,
-        mempool,
-        monitor,
-        reputationManager,
-        client,
-        parsedArgs,
-        logger,
-        metrics
-    })
-
-    const nonceQueuer = getNonceQueuer({ mempool, client, parsedArgs, logger })
-
-    const rpcEndpoint = getRpcHandler({
-        client,
-        validator,
-        mempool,
-        executor,
-        monitor,
-        nonceQueuer,
-        executorManager,
-        reputationManager,
-        parsedArgs,
-        logger,
-        metrics,
-        compressionHandler
-    })
-
-    if (parsedArgs.flushStuckTransactionsDuringStartup) {
-        executor.flushStuckTransactions()
+            parsedArgs,
+            logger,
+            rootLogger,
+            registry,
+            metrics,
+            senderManager
+        })
     }
-
-    rootLogger.info(
-        `Initialized ${senderManager.wallets.length} executor wallets`
-    )
-
-    const server = getServer({
-        rpcEndpoint,
-        parsedArgs,
-        logger,
-        registry,
-        metrics
-    })
-
-    server.start()
-
-    const gracefulShutdown = async (signal: string) => {
-        rootLogger.info(`${signal} received, shutting down`)
-
-        await server.stop()
-        rootLogger.info("server stopped")
-
-        const outstanding = mempool.dumpOutstanding().length
-        const submitted = mempool.dumpSubmittedOps().length
-        const processing = mempool.dumpProcessing().length
-        rootLogger.info(
-            { outstanding, submitted, processing },
-            "dumping mempool before shutdown"
-        )
-
-        process.exit(0)
+    if (parsedArgs.entryPointVersion === "0.7") {
+        await setupEntryPointPointSeven({
+            client,
+            walletClient,
+            parsedArgs,
+            logger,
+            rootLogger,
+            registry,
+            metrics,
+            senderManager
+        })
     }
-
-    process.on("SIGINT", gracefulShutdown)
-    process.on("SIGTERM", gracefulShutdown)
 }

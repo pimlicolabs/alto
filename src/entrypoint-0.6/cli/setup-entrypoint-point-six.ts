@@ -1,7 +1,6 @@
 import type { Logger } from "@alto/utils"
-import type { IBundlerArgs } from "./config"
+import type { IBundlerArgs } from "../../cli/config"
 import type { Metrics } from "@alto/utils"
-import { SenderManager } from "@alto/executor"
 import {
     NullReputationManager,
     ReputationManager,
@@ -26,31 +25,9 @@ import {
     type IExecutor
 } from "@entrypoint-0.6/executor"
 import type { Registry } from "prom-client"
+import type { SenderManager } from "@alto/executor"
 
-export const getSenderManager = ({
-    parsedArgs,
-    logger,
-    metrics
-}: {
-    parsedArgs: IBundlerArgs
-    logger: Logger
-    metrics: Metrics
-}): SenderManager => {
-    return new SenderManager(
-        parsedArgs.signerPrivateKeys,
-        parsedArgs.utilityPrivateKey,
-        logger.child(
-            { module: "executor" },
-            { level: parsedArgs.executorLogLevel || parsedArgs.logLevel }
-        ),
-        metrics,
-        parsedArgs.noEip1559Support,
-        parsedArgs.apiVersion,
-        parsedArgs.maxSigners
-    )
-}
-
-export const getReputationManager = ({
+const getReputationManager = ({
     client,
     parsedArgs,
     logger
@@ -78,7 +55,7 @@ export const getReputationManager = ({
     return new NullReputationManager()
 }
 
-export const getValidator = ({
+const getValidator = ({
     client,
     parsedArgs,
     logger,
@@ -123,11 +100,11 @@ export const getValidator = ({
     )
 }
 
-export const getMonitor = (): Monitor => {
+const getMonitor = (): Monitor => {
     return new Monitor()
 }
 
-export const getMempool = ({
+const getMempool = ({
     monitor,
     reputationManager,
     validator,
@@ -159,7 +136,7 @@ export const getMempool = ({
     )
 }
 
-export const getCompressionHandler = async ({
+const getCompressionHandler = async ({
     client,
     parsedArgs
 }: {
@@ -180,7 +157,7 @@ export const getCompressionHandler = async ({
     return compressionHandler
 }
 
-export const getExecutor = ({
+const getExecutor = ({
     client,
     walletClient,
     senderManager,
@@ -218,7 +195,7 @@ export const getExecutor = ({
     )
 }
 
-export const getExecutorManager = ({
+const getExecutorManager = ({
     executor,
     mempool,
     monitor,
@@ -256,7 +233,7 @@ export const getExecutorManager = ({
     )
 }
 
-export const getNonceQueuer = ({
+const getNonceQueuer = ({
     mempool,
     client,
     parsedArgs,
@@ -278,7 +255,7 @@ export const getNonceQueuer = ({
     )
 }
 
-export const getRpcHandler = ({
+const getRpcHandler = ({
     client,
     validator,
     mempool,
@@ -332,7 +309,7 @@ export const getRpcHandler = ({
     )
 }
 
-export const getServer = ({
+const getServer = ({
     rpcEndpoint,
     parsedArgs,
     logger,
@@ -356,4 +333,144 @@ export const getServer = ({
         registry,
         metrics
     )
+}
+
+export const setupEntryPointPointSix = async ({
+    client,
+    walletClient,
+    parsedArgs,
+    logger,
+    rootLogger,
+    registry,
+    metrics,
+    senderManager
+}: {
+    client: PublicClient<Transport, Chain>
+    walletClient: WalletClient<Transport, Chain>
+    parsedArgs: IBundlerArgs
+    logger: Logger
+    rootLogger: Logger
+    registry: Registry
+    metrics: Metrics
+    senderManager: SenderManager
+}) => {
+    const validator = getValidator({
+        client,
+        logger,
+        parsedArgs,
+        senderManager,
+        metrics
+    })
+    const reputationManager = getReputationManager({
+        client,
+        parsedArgs,
+        logger
+    })
+
+    await senderManager.validateAndRefillWallets(
+        client,
+        walletClient,
+        parsedArgs.minBalance
+    )
+
+    setInterval(async () => {
+        await senderManager.validateAndRefillWallets(
+            client,
+            walletClient,
+            parsedArgs.minBalance
+        )
+    }, parsedArgs.refillInterval)
+
+    const monitor = getMonitor()
+    const mempool = getMempool({
+        monitor,
+        reputationManager,
+        validator,
+        client,
+        parsedArgs,
+        logger,
+        metrics
+    })
+
+    const compressionHandler = await getCompressionHandler({
+        client,
+        parsedArgs
+    })
+
+    const executor = getExecutor({
+        client,
+        walletClient,
+        senderManager,
+        reputationManager,
+        parsedArgs,
+        logger,
+        metrics,
+        compressionHandler
+    })
+
+    const executorManager = getExecutorManager({
+        executor,
+        mempool,
+        monitor,
+        reputationManager,
+        client,
+        parsedArgs,
+        logger,
+        metrics
+    })
+
+    const nonceQueuer = getNonceQueuer({ mempool, client, parsedArgs, logger })
+
+    const rpcEndpoint = getRpcHandler({
+        client,
+        validator,
+        mempool,
+        executor,
+        monitor,
+        nonceQueuer,
+        executorManager,
+        reputationManager,
+        parsedArgs,
+        logger,
+        metrics,
+        compressionHandler
+    })
+
+    if (parsedArgs.flushStuckTransactionsDuringStartup) {
+        executor.flushStuckTransactions()
+    }
+
+    rootLogger.info(
+        `Initialized ${senderManager.wallets.length} executor wallets`
+    )
+
+    const server = getServer({
+        rpcEndpoint,
+        parsedArgs,
+        logger,
+        registry,
+        metrics
+    })
+
+    server.start()
+
+    const gracefulShutdown = async (signal: string) => {
+        rootLogger.info(`${signal} received, shutting down`)
+
+        await server.stop()
+        rootLogger.info("server stopped")
+
+        const outstanding = mempool.dumpOutstanding().length
+        const submitted = mempool.dumpSubmittedOps().length
+        const processing = mempool.dumpProcessing().length
+        rootLogger.info(
+            { outstanding, submitted, processing },
+            "dumping mempool before shutdown"
+        )
+
+        process.exit(0)
+    }
+
+    process.on("SIGINT", gracefulShutdown)
+    process.on("SIGTERM", gracefulShutdown)
 }
