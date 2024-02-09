@@ -34,14 +34,17 @@ import {
     RpcError,
     type SendUserOperationResponseResult,
     type SupportedEntryPointsResponseResult,
-    type UserOperation,
     ValidationErrors,
     bundlerGetStakeStatusResponseSchema,
     deriveUserOperation,
     logSchema,
     receiptSchema
 } from "@entrypoint-0.7/types"
-import type { StateOverrides } from "@entrypoint-0.7/types"
+import type {
+    PackedUserOperation,
+    StateOverrides,
+    UnPackedUserOperation
+} from "@entrypoint-0.7/types"
 import type { ApiVersion } from "@entrypoint-0.7/types"
 import type { Logger } from "@alto/utils"
 import {
@@ -79,12 +82,12 @@ export interface IRpcEndpoint {
     eth_chainId(): ChainIdResponseResult
     eth_supportedEntryPoints(): SupportedEntryPointsResponseResult
     eth_estimateUserOperationGas(
-        userOperation: UserOperation,
+        userOperation: UnPackedUserOperation,
         entryPoint: Address,
         stateOverrides?: StateOverrides
     ): Promise<EstimateUserOperationGasResponseResult>
     eth_sendUserOperation(
-        userOperation: UserOperation,
+        userOperation: UnPackedUserOperation,
         entryPoint: Address
     ): Promise<SendUserOperationResponseResult>
     eth_getUserOperationByHash(
@@ -287,7 +290,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async eth_estimateUserOperationGas(
-        userOperation: UserOperation,
+        userOperation: UnPackedUserOperation,
         entryPoint: Address,
         stateOverrides?: StateOverrides
     ): Promise<EstimateUserOperationGasResponseResult> {
@@ -391,7 +394,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async eth_sendUserOperation(
-        userOperation: UserOperation,
+        userOperation: UnPackedUserOperation,
         entryPoint: Address
     ): Promise<SendUserOperationResponseResult> {
         let status: "added" | "queued" | "rejected" = "rejected"
@@ -472,7 +475,7 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         const tx = await getTransaction(txHash)
-        let op: UserOperation | undefined = undefined
+        let op: PackedUserOperation | undefined = undefined
         try {
             const decoded = decodeFunctionData({
                 abi: EntryPointAbi,
@@ -483,7 +486,7 @@ export class RpcHandler implements IRpcEndpoint {
             }
             const ops = decoded.args[0]
             op = ops.find(
-                (op: UserOperation) =>
+                (op: PackedUserOperation) =>
                     op.sender === userOperationEvent.args.sender &&
                     op.nonce === userOperationEvent.args.nonce
             )
@@ -971,7 +974,7 @@ export class RpcHandler implements IRpcEndpoint {
     private async validateAndInflateCompressedUserOperation(
         inflatorAddress: Address,
         compressedCalldata: Hex
-    ): Promise<{ inflatedOp: UserOperation; inflatorId: number }> {
+    ): Promise<{ inflatedOp: PackedUserOperation; inflatorId: number }> {
         // check if inflator is registered with our PerOpInflator.
         if (this.compressionHandler === null) {
             throw new RpcError("Endpoint not supported")
@@ -997,7 +1000,7 @@ export class RpcHandler implements IRpcEndpoint {
             publicClient: this.publicClient
         })
 
-        let inflatedOp: UserOperation
+        let inflatedOp: PackedUserOperation
         try {
             inflatedOp = await inflatorContract.read.inflate([
                 compressedCalldata

@@ -1,7 +1,7 @@
 import {
     EntryPointAbi,
-    type HexData32,
-    type UserOperation
+    type PackedUserOperation,
+    type HexData32
 } from "@entrypoint-0.7/types"
 import * as sentry from "@sentry/node"
 import {
@@ -157,7 +157,7 @@ export const transactionIncluded = async (
 }
 
 export const getUserOperationHash = (
-    userOperation: UserOperation,
+    userOperation: PackedUserOperation,
     entryPointAddress: Address,
     chainId: number
 ) => {
@@ -181,24 +181,16 @@ export const getUserOperationHash = (
                     type: "bytes32"
                 },
                 {
-                    name: "callGasLimit",
-                    type: "uint256"
-                },
-                {
-                    name: "verificationGasLimit",
-                    type: "uint256"
+                    name: "accountGasLimits",
+                    type: "bytes32"
                 },
                 {
                     name: "preVerificationGas",
                     type: "uint256"
                 },
                 {
-                    name: "maxFeePerGas",
-                    type: "uint256"
-                },
-                {
-                    name: "maxPriorityFeePerGas",
-                    type: "uint256"
+                    name: "gasFees",
+                    type: "bytes32"
                 },
                 {
                     name: "paymasterAndDataHash",
@@ -210,11 +202,9 @@ export const getUserOperationHash = (
                 userOperation.nonce,
                 keccak256(userOperation.initCode),
                 keccak256(userOperation.callData),
-                userOperation.callGasLimit,
-                userOperation.verificationGasLimit,
+                userOperation.accountGasLimits,
                 userOperation.preVerificationGas,
-                userOperation.maxFeePerGas,
-                userOperation.maxPriorityFeePerGas,
+                userOperation.gasFees,
                 keccak256(userOperation.paymasterAndData)
             ]
         )

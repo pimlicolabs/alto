@@ -1,4 +1,4 @@
-import { type Hash, type Hex, getAddress } from "viem"
+import { type Hash, type Hex, getAddress, toHex, slice, pad } from "viem"
 import { z } from "zod"
 import type { MempoolUserOperation } from "./mempool"
 
@@ -30,67 +30,76 @@ export type HexNumber = z.infer<typeof hexNumberSchema>
 export type HexData = z.infer<typeof hexDataSchema>
 export type HexData32 = z.infer<typeof hexData32Schema>
 
-const userOperationSchema = z
+const unPackedUserOperationSchema = z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
-        initCode: hexDataSchema,
+        factory: addressSchema,
+        factoryData: hexDataSchema,
         callData: hexDataSchema,
         callGasLimit: hexNumberSchema,
         verificationGasLimit: hexNumberSchema,
         preVerificationGas: hexNumberSchema,
-        maxPriorityFeePerGas: hexNumberSchema,
         maxFeePerGas: hexNumberSchema,
-        paymasterAndData: hexDataSchema,
+        maxPriorityFeePerGas: hexNumberSchema,
+        paymaster: addressSchema.optional(),
+        paymasterVerificationGasLimit: hexNumberSchema.optional(),
+        paymasterPostOpGasLimit: hexNumberSchema.optional(),
+        paymasterData: hexDataSchema.optional(),
         signature: hexDataSchema
     })
     .strict()
-    .transform((val) => {
-        return val
-    })
+    .transform((val) => val)
 
-const partialUserOperationSchema = z
+const partialUnPackedUserOperationSchema = z
+    .object({
+        sender: addressSchema,
+        nonce: hexNumberSchema,
+        factory: addressSchema,
+        factoryData: hexDataSchema,
+        callData: hexDataSchema,
+        callGasLimit: hexNumberSchema.default(1n),
+        verificationGasLimit: hexNumberSchema.default(1n),
+        preVerificationGas: hexNumberSchema.default(1n),
+        maxFeePerGas: hexNumberSchema.default(1n),
+        maxPriorityFeePerGas: hexNumberSchema.default(1n),
+        paymaster: addressSchema.optional(),
+        paymasterVerificationGasLimit: hexNumberSchema.optional(),
+        paymasterPostOpGasLimit: hexNumberSchema.optional(),
+        paymasterData: hexDataSchema.optional(),
+        signature: hexDataSchema
+    })
+    .strict()
+    .transform((val) => val)
+
+const packerUserOperationSchema = z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
         initCode: hexDataSchema,
         callData: hexDataSchema,
-        callGasLimit: hexNumberSchema.default(1n),
-        verificationGasLimit: hexNumberSchema.default(1n),
-        preVerificationGas: hexNumberSchema.default(1n),
-        maxPriorityFeePerGas: hexNumberSchema.default(1n),
-        maxFeePerGas: hexNumberSchema.default(1n),
+        accountGasLimits: hexData32Schema,
+        preVerificationGas: hexNumberSchema,
+        gasLimits: hexData32Schema,
         paymasterAndData: hexDataSchema,
         signature: hexDataSchema
     })
     .strict()
-    .transform((val) => {
-        return val
-    })
+    .transform((val) => val)
 
-export type UserOperation = {
-    sender: Address
-    nonce: bigint
-    initCode: HexData
-    callData: HexData
-    callGasLimit: bigint
-    verificationGasLimit: bigint
-    preVerificationGas: bigint
-    maxFeePerGas: bigint
-    maxPriorityFeePerGas: bigint
-    paymasterAndData: HexData
-    signature: HexData
-}
+export type PackedUserOperation = z.infer<typeof packerUserOperationSchema>
+
+export type UnPackedUserOperation = z.infer<typeof unPackedUserOperationSchema>
 
 export type CompressedUserOperation = {
     compressedCalldata: Hex
-    inflatedOp: UserOperation
+    inflatedOp: PackedUserOperation
     inflatorAddress: Address
     inflatorId: number
 }
 
 export type UserOperationRequest = {
-    userOperation: UserOperation
+    userOperation: PackedUserOperation
     entryPoint: Address
 }
 
@@ -145,9 +154,9 @@ export type StateOverrides = z.infer<typeof stateOverridesSchema>
 const estimateUserOperationGasRequestSchema = z.object({
     method: z.literal("eth_estimateUserOperationGas"),
     params: z.union([
-        z.tuple([partialUserOperationSchema, addressSchema]),
+        z.tuple([partialUnPackedUserOperationSchema, addressSchema]),
         z.tuple([
-            partialUserOperationSchema,
+            partialUnPackedUserOperationSchema,
             addressSchema,
             stateOverridesSchema
         ])
@@ -156,7 +165,7 @@ const estimateUserOperationGasRequestSchema = z.object({
 
 const sendUserOperationRequestSchema = z.object({
     method: z.literal("eth_sendUserOperation"),
-    params: z.tuple([userOperationSchema, addressSchema])
+    params: z.tuple([unPackedUserOperationSchema, addressSchema])
 })
 
 const getUserOperationByHashRequestSchema = z.object({
@@ -292,7 +301,7 @@ const getUserOperationByHashResponseSchema = z.object({
     method: z.literal("eth_getUserOperationByHash"),
     result: z
         .object({
-            userOperation: userOperationSchema,
+            userOperation: unPackedUserOperationSchema,
             entryPoint: addressSchema,
             blockNumber: hexNumberSchema,
             blockHash: hexData32Schema,
@@ -359,7 +368,7 @@ const bundlerClearMempoolResponseSchema = z.object({
 
 const bundlerDumpMempoolResponseSchema = z.object({
     method: z.literal("debug_bundler_dumpMempool"),
-    result: z.array(userOperationSchema)
+    result: z.array(unPackedUserOperationSchema)
 })
 
 const bundlerGetStakeStatusResponseSchema = z.object({
@@ -697,7 +706,7 @@ export {
     bundlerRequestSchema,
     jsonRpcSchema,
     jsonRpcResultSchema,
-    userOperationSchema
+    unPackedUserOperationSchema
 }
 
 export {
