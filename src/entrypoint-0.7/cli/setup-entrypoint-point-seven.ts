@@ -1,5 +1,5 @@
 import type { Logger } from "@alto/utils"
-import type { IBundlerArgs } from "../../cli/config"
+import type { IBundlerArgs } from "@alto/cli"
 import type { Metrics } from "@alto/utils"
 import {
     NullReputationManager,

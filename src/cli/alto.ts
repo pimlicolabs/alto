@@ -6,7 +6,11 @@ import { bundlerCommand, bundlerOptions } from "./config"
 import { registerCommandToYargs } from "./util"
 
 // Load environment variables from .env file
-dotenv.config()
+if (process.env.DOTENV_CONFIG_PATH) {
+    dotenv.config({ path: process.env.DOTENV_CONFIG_PATH })
+} else {
+    dotenv.config()
+}
 
 if (process.env.SENTRY_DSN) {
     sentry.init({
