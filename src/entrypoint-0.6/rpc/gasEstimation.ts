@@ -11,7 +11,10 @@ import {
 } from "@entrypoint-0.6/types"
 import type { StateOverrides } from "@entrypoint-0.6/types"
 import type { Logger } from "@entrypoint-0.6/utils"
-import { deepHexlify } from "@entrypoint-0.6/utils"
+import {
+    deepHexlify,
+    getAddressFromInitCodeOrPaymasterAndData
+} from "@entrypoint-0.6/utils"
 import type { Chain, Hex, RpcRequestErrorType, Transport } from "viem"
 import {
     type Address,
@@ -34,30 +37,47 @@ export async function simulateHandleOp(
     replacedEntryPoint: boolean,
     targetAddress: Address,
     targetCallData: Hex,
-    stateOverride?: StateOverrides
+    stateOverride?: StateOverrides,
+    erc20Paymaster = false,
+    memorySlot: Hex = "0x"
 ) {
-    const finalParam = replacedEntryPoint
-        ? {
-              ...stateOverride,
-              [userOperation.sender]: {
-                  balance: toHex(100000_000000000000000000n),
-                  ...(stateOverride
-                      ? deepHexlify(stateOverride?.[userOperation.sender])
-                      : [])
-              },
-              [entryPoint]: {
-                  code: ExecuteSimulatorDeployedBytecode
-              }
-          }
-        : {
-              ...stateOverride,
-              [userOperation.sender]: {
-                  balance: toHex(100000_000000000000000000n),
-                  ...(stateOverride
-                      ? deepHexlify(stateOverride?.[userOperation.sender])
-                      : [])
-              }
-          }
+    const paymaster = getAddressFromInitCodeOrPaymasterAndData(
+        userOperation.paymasterAndData
+    )
+
+    const finalParam = {
+        ...stateOverride
+    }
+
+    if (replacedEntryPoint) {
+        finalParam[userOperation.sender] = {
+            balance: toHex(100000_000000000000000000n),
+            ...(stateOverride
+                ? deepHexlify(stateOverride?.[userOperation.sender])
+                : [])
+        }
+        finalParam[entryPoint] = {
+            code: ExecuteSimulatorDeployedBytecode
+        }
+    }
+
+    if (!replacedEntryPoint) {
+        finalParam[userOperation.sender] = {
+            balance: toHex(100000_000000000000000000n),
+            ...(stateOverride
+                ? deepHexlify(stateOverride?.[userOperation.sender])
+                : [])
+        }
+    }
+
+    if (erc20Paymaster && paymaster) {
+        finalParam[paymaster] = {
+            stateDiff: {
+                [memorySlot]:
+                    "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            }
+        }
+    }
 
     try {
         await publicClient.request({
@@ -140,7 +160,8 @@ export async function estimateVerificationGasLimit(
     publicClient: PublicClient,
     logger: Logger,
     metrics: Metrics,
-    stateOverrides?: StateOverrides
+    stateOverrides?: StateOverrides,
+    erc20Paymaster = false
 ): Promise<bigint> {
     userOperation.callGasLimit = 0n
 
@@ -161,7 +182,8 @@ export async function estimateVerificationGasLimit(
         false,
         zeroAddress,
         "0x",
-        stateOverrides
+        stateOverrides,
+        erc20Paymaster
     )
 
     if (initial.result === "execution") {
@@ -187,7 +209,8 @@ export async function estimateVerificationGasLimit(
             false,
             zeroAddress,
             "0x",
-            stateOverrides
+            stateOverrides,
+            erc20Paymaster
         )
         simulationCounter++
 
@@ -241,8 +264,9 @@ export async function estimateCallGasLimit(
     entryPoint: Address,
     publicClient: PublicClient<Transport, Chain>,
     logger: Logger,
-    metrics: Metrics,
-    stateOverrides?: StateOverrides
+    _metrics: Metrics,
+    stateOverrides?: StateOverrides,
+    erc20Paymaster = false
 ): Promise<bigint> {
     const targetCallData = encodeFunctionData({
         abi: ExecuteSimulatorAbi,
@@ -259,7 +283,8 @@ export async function estimateCallGasLimit(
         true,
         entryPoint,
         targetCallData,
-        stateOverrides
+        stateOverrides,
+        erc20Paymaster
     )
 
     if (error.result === "failed") {
@@ -329,7 +354,8 @@ export async function estimateCallGasLimit(
             true,
             entryPoint,
             targetCallData,
-            stateOverrides
+            stateOverrides,
+            erc20Paymaster
         )
 
         if (error.result !== "execution") {

@@ -49,7 +49,8 @@ import {
     calcPreVerificationGas,
     getGasPrice,
     getNonceKeyAndValue,
-    getUserOperationHash
+    getUserOperationHash,
+    getAddressFromInitCodeOrPaymasterAndData
 } from "@entrypoint-0.6/utils"
 import { calcVerificationGasAndCallGasLimit } from "@entrypoint-0.6/utils"
 import {
@@ -117,6 +118,7 @@ export class RpcHandler implements IRpcEndpoint {
     compressionHandler: CompressionHandler | null
     noEip1559Support: boolean
     dangerousSkipUserOperationValidation: boolean
+    erc20PaymastersInfo: { address: Address; slot: bigint }[]
 
     constructor(
         entryPoint: Address,
@@ -138,7 +140,8 @@ export class RpcHandler implements IRpcEndpoint {
         environment: Environment,
         compressionHandler: CompressionHandler | null,
         noEip1559Support: boolean,
-        dangerousSkipUserOperationValidation = false
+        dangerousSkipUserOperationValidation = false,
+        erc20PaymastersInfo: { address: Address; slot: bigint }[] = []
     ) {
         this.entryPoint = entryPoint
         this.publicClient = publicClient
@@ -162,6 +165,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.noEip1559Support = noEip1559Support
         this.dangerousSkipUserOperationValidation =
             dangerousSkipUserOperationValidation
+        this.erc20PaymastersInfo = erc20PaymastersInfo
     }
 
     async handleMethod(request: BundlerRequest): Promise<BundlerResponse> {
@@ -349,13 +353,28 @@ export class RpcHandler implements IRpcEndpoint {
 
             const time = Date.now()
 
+            const paymaster = getAddressFromInitCodeOrPaymasterAndData(
+                userOperation.paymasterAndData
+            )
+
+            const erc20Paymaster =
+                paymaster &&
+                Boolean(
+                    this.erc20PaymastersInfo.find(
+                        (erc20Paymaster) =>
+                            erc20Paymaster.address.toLowerCase() ===
+                            paymaster.toLowerCase()
+                    )
+                )
+
             verificationGasLimit = await estimateVerificationGasLimit(
                 userOperation,
                 entryPoint,
                 this.publicClient,
                 this.logger,
                 this.metrics,
-                stateOverrides
+                stateOverrides,
+                erc20Paymaster
             )
 
             userOperation.preVerificationGas = preVerificationGas
@@ -371,7 +390,8 @@ export class RpcHandler implements IRpcEndpoint {
                 this.publicClient,
                 this.logger,
                 this.metrics,
-                stateOverrides
+                stateOverrides,
+                erc20Paymaster
             )
         }
         if (this.apiVersion === "v2") {

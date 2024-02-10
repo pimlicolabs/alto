@@ -1,6 +1,7 @@
 import { addressSchema, hexData32Schema } from "@entrypoint-0.6/types"
 import type { Hex } from "viem"
 import { type Account, privateKeyToAccount } from "viem/accounts"
+import { number } from "yargs"
 import { z } from "zod"
 
 const logLevel = z.enum(["trace", "debug", "info", "warn", "error", "fatal"])
@@ -109,7 +110,9 @@ export const bundlerArgsSchema = z.object({
         .transform((val) => BigInt(val))
         .optional(),
     rpcMaxBlockRange: z.number().int().min(0).optional(),
-    dangerousSkipUserOperationValidation: z.boolean().optional()
+    dangerousSkipUserOperationValidation: z.boolean().optional(),
+    erc20Paymasters: z.array(addressSchema).optional(),
+    erc20PaymasterSlots: z.array(z.number().int().min(0)).optional()
 })
 
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>

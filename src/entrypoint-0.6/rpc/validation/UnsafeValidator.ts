@@ -18,7 +18,11 @@ import { hexDataSchema } from "@entrypoint-0.6/types"
 import type { InterfaceValidator } from "@entrypoint-0.6/types"
 import type { StateOverrides } from "@entrypoint-0.6/types"
 import type { ApiVersion } from "@entrypoint-0.6/types"
-import { type Logger, calcPreVerificationGas } from "@entrypoint-0.6/utils"
+import {
+    type Logger,
+    calcPreVerificationGas,
+    getAddressFromInitCodeOrPaymasterAndData
+} from "@entrypoint-0.6/utils"
 import { calcVerificationGasAndCallGasLimit } from "@entrypoint-0.6/utils"
 import * as sentry from "@sentry/node"
 import {
@@ -31,7 +35,10 @@ import {
     decodeErrorResult,
     encodeFunctionData,
     getContract,
-    zeroAddress
+    zeroAddress,
+    keccak256,
+    encodeAbiParameters,
+    type Hex
 } from "viem"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
@@ -139,6 +146,7 @@ export class UnsafeValidator implements InterfaceValidator {
     disableExpirationCheck: boolean
     apiVersion: ApiVersion
     chainId: number
+    erc20PaymastersInfo: { address: Address; slot: bigint }[]
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
@@ -149,7 +157,8 @@ export class UnsafeValidator implements InterfaceValidator {
         apiVersion: ApiVersion,
         usingTenderly = false,
         balanceOverrideEnabled = false,
-        disableExpirationCheck = false
+        disableExpirationCheck = false,
+        erc20PaymastersInfo: { address: Address; slot: bigint }[] = []
     ) {
         this.publicClient = publicClient
         this.entryPoint = entryPoint
@@ -161,6 +170,7 @@ export class UnsafeValidator implements InterfaceValidator {
         this.disableExpirationCheck = disableExpirationCheck
         this.apiVersion = apiVersion
         this.chainId = publicClient.chain.id
+        this.erc20PaymastersInfo = erc20PaymastersInfo
     }
 
     async getExecutionResult(
@@ -207,6 +217,36 @@ export class UnsafeValidator implements InterfaceValidator {
         }
 
         if (this.balanceOverrideEnabled) {
+            const paymaster = getAddressFromInitCodeOrPaymasterAndData(
+                userOperation.paymasterAndData
+            )
+
+            const erc20Paymaster =
+                paymaster &&
+                this.erc20PaymastersInfo.find(
+                    (erc20Paymaster) =>
+                        erc20Paymaster.address.toLowerCase() ===
+                        paymaster.toLowerCase()
+                )
+
+            let smartAccountBalanceSlot: Hex = "0x"
+
+            if (erc20Paymaster) {
+                smartAccountBalanceSlot = keccak256(
+                    encodeAbiParameters(
+                        [
+                            {
+                                type: "address"
+                            },
+                            {
+                                type: "uint256"
+                            }
+                        ],
+                        [userOperation.sender, BigInt(erc20Paymaster.slot)]
+                    )
+                )
+            }
+
             const error = await simulateHandleOp(
                 userOperation,
                 this.entryPoint,
@@ -214,7 +254,9 @@ export class UnsafeValidator implements InterfaceValidator {
                 false,
                 zeroAddress,
                 "0x",
-                stateOverrides
+                stateOverrides,
+                Boolean(erc20Paymaster),
+                smartAccountBalanceSlot
             )
 
             if (error.result === "failed") {
