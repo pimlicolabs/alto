@@ -1,11 +1,10 @@
 import {
-    type Address,
     EntryPointAbi,
     RpcError,
+    type Address,
     type UserOperation
 } from "@entrypoint-0.6/types"
 import {
-    type Chain,
     ContractFunctionExecutionError,
     ContractFunctionRevertedError,
     EstimateGasExecutionError,
@@ -13,19 +12,20 @@ import {
     InsufficientFundsError,
     IntrinsicGasTooLowError,
     NonceTooLowError,
-    type PublicClient,
     TransactionExecutionError,
-    type Transport,
     concat,
     encodeAbiParameters,
     getContract,
     getFunctionSelector,
     serializeTransaction,
     toBytes,
-    toHex
+    toHex,
+    type Chain,
+    type PublicClient,
+    type Transport
 } from "viem"
 import * as chains from "viem/chains"
-import { type Logger, getGasPrice } from "."
+import { getGasPrice, type Logger } from "."
 
 export interface GasOverheads {
     /**
@@ -189,7 +189,10 @@ export async function calcPreVerificationGas(
             preVerificationGas,
             logger
         )
-    } else if (chainId === chains.arbitrum.id) {
+    } else if (
+        chainId === chains.arbitrum.id || 
+        chainId === chains.arbitrumSepolia.id
+    ) {
         preVerificationGas = await calcArbitrumPreVerificationGas(
             publicClient,
             userOperation,
