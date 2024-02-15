@@ -30,8 +30,7 @@ import {
     type PublicClient,
     type Transport,
     createPublicClient,
-    createWalletClient,
-    type Address
+    createWalletClient
 } from "viem"
 import { fromZodError } from "zod-validation-error"
 import {

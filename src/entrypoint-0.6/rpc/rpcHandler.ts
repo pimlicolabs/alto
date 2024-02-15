@@ -64,7 +64,9 @@ import {
     type Transport,
     decodeFunctionData,
     getAbiItem,
-    getContract
+    getContract,
+    keccak256,
+    encodeAbiParameters
 } from "viem"
 import * as chains from "viem/chains"
 import { z } from "zod"
@@ -301,7 +303,7 @@ export class RpcHandler implements IRpcEndpoint {
     async eth_estimateUserOperationGas(
         userOperation: UserOperation,
         entryPoint: Address,
-        stateOverrides?: StateOverrides
+        stateOverrides: StateOverrides = {}
     ): Promise<EstimateUserOperationGasResponseResult> {
         // check if entryPoint is supported, if not throw
         if (this.entryPoint !== entryPoint) {
@@ -325,6 +327,39 @@ export class RpcHandler implements IRpcEndpoint {
 
         let verificationGasLimit: bigint
         let callGasLimit: bigint
+
+        const paymaster = getAddressFromInitCodeOrPaymasterAndData(
+            userOperation.paymasterAndData
+        )
+
+        const erc20Paymaster =
+            paymaster &&
+            this.erc20PaymasterStateOverride.find(
+                (erc20Paymaster) =>
+                    erc20Paymaster.address.toLowerCase() ===
+                    paymaster.toLowerCase()
+            )
+
+        if (erc20Paymaster) {
+            const smartAccountErc20BalanceSlot = keccak256(
+                encodeAbiParameters(
+                    [
+                        {
+                            type: "address"
+                        },
+                        {
+                            type: "uint256"
+                        }
+                    ],
+                    [userOperation.sender, BigInt(erc20Paymaster.slotNumber)]
+                )
+            )
+            stateOverrides[paymaster] = {
+                stateDiff: {
+                    [smartAccountErc20BalanceSlot]: erc20Paymaster.value
+                }
+            }
+        }
 
         if (this.noEthCallOverrideSupport) {
             userOperation.preVerificationGas = 1_000_000n
@@ -361,28 +396,13 @@ export class RpcHandler implements IRpcEndpoint {
 
             const time = Date.now()
 
-            const paymaster = getAddressFromInitCodeOrPaymasterAndData(
-                userOperation.paymasterAndData
-            )
-
-            const erc20Paymaster =
-                paymaster &&
-                Boolean(
-                    this.erc20PaymasterStateOverride.find(
-                        (erc20Paymaster) =>
-                            erc20Paymaster.address.toLowerCase() ===
-                            paymaster.toLowerCase()
-                    )
-                )
-
             verificationGasLimit = await estimateVerificationGasLimit(
                 userOperation,
                 entryPoint,
                 this.publicClient,
                 this.logger,
                 this.metrics,
-                stateOverrides,
-                erc20Paymaster
+                stateOverrides
             )
 
             userOperation.preVerificationGas = preVerificationGas
@@ -398,8 +418,7 @@ export class RpcHandler implements IRpcEndpoint {
                 this.publicClient,
                 this.logger,
                 this.metrics,
-                stateOverrides,
-                erc20Paymaster
+                stateOverrides
             )
         }
         if (this.apiVersion === "v2") {

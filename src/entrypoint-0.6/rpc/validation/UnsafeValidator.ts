@@ -18,11 +18,7 @@ import { hexDataSchema } from "@entrypoint-0.6/types"
 import type { InterfaceValidator } from "@entrypoint-0.6/types"
 import type { StateOverrides } from "@entrypoint-0.6/types"
 import type { ApiVersion } from "@entrypoint-0.6/types"
-import {
-    type Logger,
-    calcPreVerificationGas,
-    getAddressFromInitCodeOrPaymasterAndData
-} from "@entrypoint-0.6/utils"
+import { type Logger, calcPreVerificationGas } from "@entrypoint-0.6/utils"
 import { calcVerificationGasAndCallGasLimit } from "@entrypoint-0.6/utils"
 import * as sentry from "@sentry/node"
 import {
@@ -36,8 +32,6 @@ import {
     encodeFunctionData,
     getContract,
     zeroAddress,
-    keccak256,
-    encodeAbiParameters,
     type Hex
 } from "viem"
 import { z } from "zod"
@@ -225,42 +219,6 @@ export class UnsafeValidator implements InterfaceValidator {
         }
 
         if (this.balanceOverrideEnabled) {
-            const paymaster = getAddressFromInitCodeOrPaymasterAndData(
-                userOperation.paymasterAndData
-            )
-
-            const erc20Paymaster =
-                paymaster &&
-                this.erc20PaymasterStateOverride.find(
-                    (erc20Paymaster) =>
-                        erc20Paymaster.address.toLowerCase() ===
-                        paymaster.toLowerCase()
-                )
-
-            if (erc20Paymaster) {
-                const smartAccountErc20BalanceSlot = keccak256(
-                    encodeAbiParameters(
-                        [
-                            {
-                                type: "address"
-                            },
-                            {
-                                type: "uint256"
-                            }
-                        ],
-                        [
-                            userOperation.sender,
-                            BigInt(erc20Paymaster.slotNumber)
-                        ]
-                    )
-                )
-                stateOverrides[paymaster] = {
-                    stateDiff: {
-                        [smartAccountErc20BalanceSlot]: erc20Paymaster.value
-                    }
-                }
-            }
-
             const error = await simulateHandleOp(
                 userOperation,
                 this.entryPoint,

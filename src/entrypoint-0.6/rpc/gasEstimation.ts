@@ -11,10 +11,7 @@ import {
 } from "@entrypoint-0.6/types"
 import type { StateOverrides } from "@entrypoint-0.6/types"
 import type { Logger } from "@entrypoint-0.6/utils"
-import {
-    deepHexlify,
-    getAddressFromInitCodeOrPaymasterAndData
-} from "@entrypoint-0.6/utils"
+import { deepHexlify } from "@entrypoint-0.6/utils"
 import type { Chain, Hex, RpcRequestErrorType, Transport } from "viem"
 import {
     type Address,
@@ -136,8 +133,7 @@ export async function estimateVerificationGasLimit(
     publicClient: PublicClient,
     logger: Logger,
     metrics: Metrics,
-    stateOverrides?: StateOverrides,
-    erc20Paymaster = false
+    stateOverrides?: StateOverrides
 ): Promise<bigint> {
     userOperation.callGasLimit = 0n
 
@@ -158,8 +154,7 @@ export async function estimateVerificationGasLimit(
         false,
         zeroAddress,
         "0x",
-        stateOverrides,
-        erc20Paymaster
+        stateOverrides
     )
 
     if (initial.result === "execution") {
@@ -185,8 +180,7 @@ export async function estimateVerificationGasLimit(
             false,
             zeroAddress,
             "0x",
-            stateOverrides,
-            erc20Paymaster
+            stateOverrides
         )
         simulationCounter++
 
@@ -259,8 +253,7 @@ export async function estimateCallGasLimit(
         true,
         entryPoint,
         targetCallData,
-        stateOverrides,
-        erc20Paymaster
+        stateOverrides
     )
 
     if (error.result === "failed") {
@@ -330,8 +323,7 @@ export async function estimateCallGasLimit(
             true,
             entryPoint,
             targetCallData,
-            stateOverrides,
-            erc20Paymaster
+            stateOverrides
         )
 
         if (error.result !== "execution") {
