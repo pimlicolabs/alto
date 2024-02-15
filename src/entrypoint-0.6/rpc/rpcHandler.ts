@@ -118,7 +118,11 @@ export class RpcHandler implements IRpcEndpoint {
     compressionHandler: CompressionHandler | null
     noEip1559Support: boolean
     dangerousSkipUserOperationValidation: boolean
-    erc20PaymastersInfo: { address: Address; slot: bigint }[]
+    erc20PaymasterStateOverride: {
+        address: Address
+        slotNumber: bigint
+        value: Hex
+    }[]
 
     constructor(
         entryPoint: Address,
@@ -141,7 +145,11 @@ export class RpcHandler implements IRpcEndpoint {
         compressionHandler: CompressionHandler | null,
         noEip1559Support: boolean,
         dangerousSkipUserOperationValidation = false,
-        erc20PaymastersInfo: { address: Address; slot: bigint }[] = []
+        erc20PaymasterStateOverride: {
+            address: Address
+            slotNumber: bigint
+            value: Hex
+        }[] = []
     ) {
         this.entryPoint = entryPoint
         this.publicClient = publicClient
@@ -165,7 +173,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.noEip1559Support = noEip1559Support
         this.dangerousSkipUserOperationValidation =
             dangerousSkipUserOperationValidation
-        this.erc20PaymastersInfo = erc20PaymastersInfo
+        this.erc20PaymasterStateOverride = erc20PaymasterStateOverride
     }
 
     async handleMethod(request: BundlerRequest): Promise<BundlerResponse> {
@@ -360,7 +368,7 @@ export class RpcHandler implements IRpcEndpoint {
             const erc20Paymaster =
                 paymaster &&
                 Boolean(
-                    this.erc20PaymastersInfo.find(
+                    this.erc20PaymasterStateOverride.find(
                         (erc20Paymaster) =>
                             erc20Paymaster.address.toLowerCase() ===
                             paymaster.toLowerCase()

@@ -165,29 +165,6 @@ export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
     let validator: InterfaceValidator
     let reputationManager: InterfaceReputationManager
 
-    if (
-        parsedArgs.erc20PaymasterSlots?.length !==
-        parsedArgs.erc20Paymasters?.length
-    ) {
-        throw new Error(
-            "erc20PaymasterSlots and erc20Paymasters must have the same length"
-        )
-    }
-
-    const erc20Paymasters = parsedArgs.erc20Paymasters || []
-
-    const erc20PaymastersInfo: { address: Address; slot: bigint }[] = []
-
-    for (const [index, erc20Paymaster] of erc20Paymasters.entries()) {
-        if (!parsedArgs.erc20PaymasterSlots?.[index]) {
-            throw new Error("erc20PaymasterSlots must be defined")
-        }
-        erc20PaymastersInfo.push({
-            address: erc20Paymaster,
-            slot: BigInt(parsedArgs.erc20PaymasterSlots?.[index])
-        })
-    }
-
     if (parsedArgs.safeMode) {
         reputationManager = new ReputationManager(
             client,
@@ -233,7 +210,7 @@ export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
             parsedArgs.tenderlyEnabled,
             parsedArgs.balanceOverrideEnabled,
             parsedArgs.disableExpirationCheck,
-            erc20PaymastersInfo
+            parsedArgs.erc20PaymasterStateOverride
         )
     }
 
@@ -350,7 +327,7 @@ export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
         compressionHandler,
         parsedArgs.noEip1559Support,
         parsedArgs.dangerousSkipUserOperationValidation,
-        erc20PaymastersInfo
+        parsedArgs.erc20PaymasterStateOverride
     )
 
     if (parsedArgs.flushStuckTransactionsDuringStartup) {

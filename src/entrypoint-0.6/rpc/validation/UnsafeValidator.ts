@@ -146,7 +146,11 @@ export class UnsafeValidator implements InterfaceValidator {
     disableExpirationCheck: boolean
     apiVersion: ApiVersion
     chainId: number
-    erc20PaymastersInfo: { address: Address; slot: bigint }[]
+    erc20PaymasterStateOverride: {
+        address: Address
+        slotNumber: bigint
+        value: Hex
+    }[]
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
@@ -158,7 +162,11 @@ export class UnsafeValidator implements InterfaceValidator {
         usingTenderly = false,
         balanceOverrideEnabled = false,
         disableExpirationCheck = false,
-        erc20PaymastersInfo: { address: Address; slot: bigint }[] = []
+        erc20PaymasterStateOverride: {
+            address: Address
+            slotNumber: bigint
+            value: Hex
+        }[] = []
     ) {
         this.publicClient = publicClient
         this.entryPoint = entryPoint
@@ -170,12 +178,12 @@ export class UnsafeValidator implements InterfaceValidator {
         this.disableExpirationCheck = disableExpirationCheck
         this.apiVersion = apiVersion
         this.chainId = publicClient.chain.id
-        this.erc20PaymastersInfo = erc20PaymastersInfo
+        this.erc20PaymasterStateOverride = erc20PaymasterStateOverride
     }
 
     async getExecutionResult(
         userOperation: UserOperation,
-        stateOverrides?: StateOverrides
+        stateOverrides: StateOverrides = {}
     ): Promise<ExecutionResult> {
         const entryPointContract = getContract({
             address: this.entryPoint,
@@ -223,16 +231,14 @@ export class UnsafeValidator implements InterfaceValidator {
 
             const erc20Paymaster =
                 paymaster &&
-                this.erc20PaymastersInfo.find(
+                this.erc20PaymasterStateOverride.find(
                     (erc20Paymaster) =>
                         erc20Paymaster.address.toLowerCase() ===
                         paymaster.toLowerCase()
                 )
 
-            let smartAccountBalanceSlot: Hex = "0x"
-
             if (erc20Paymaster) {
-                smartAccountBalanceSlot = keccak256(
+                const smartAccountErc20BalanceSlot = keccak256(
                     encodeAbiParameters(
                         [
                             {
@@ -242,9 +248,17 @@ export class UnsafeValidator implements InterfaceValidator {
                                 type: "uint256"
                             }
                         ],
-                        [userOperation.sender, BigInt(erc20Paymaster.slot)]
+                        [
+                            userOperation.sender,
+                            BigInt(erc20Paymaster.slotNumber)
+                        ]
                     )
                 )
+                stateOverrides[paymaster] = {
+                    stateDiff: {
+                        [smartAccountErc20BalanceSlot]: erc20Paymaster.value
+                    }
+                }
             }
 
             const error = await simulateHandleOp(
@@ -254,9 +268,9 @@ export class UnsafeValidator implements InterfaceValidator {
                 false,
                 zeroAddress,
                 "0x",
-                stateOverrides,
-                Boolean(erc20Paymaster),
-                smartAccountBalanceSlot
+                {
+                    ...stateOverrides
+                }
             )
 
             if (error.result === "failed") {

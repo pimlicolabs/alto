@@ -37,45 +37,21 @@ export async function simulateHandleOp(
     replacedEntryPoint: boolean,
     targetAddress: Address,
     targetCallData: Hex,
-    stateOverride?: StateOverrides,
-    erc20Paymaster = false,
-    memorySlot: Hex = "0x"
+    stateOverride?: StateOverrides
 ) {
-    const paymaster = getAddressFromInitCodeOrPaymasterAndData(
-        userOperation.paymasterAndData
-    )
-
-    const finalParam = {
-        ...stateOverride
+    const finalParam: StateOverrides = {
+        ...stateOverride,
+        [userOperation.sender]: {
+            balance: toHex(100000_000000000000000000n),
+            ...(stateOverride
+                ? deepHexlify(stateOverride?.[userOperation.sender])
+                : [])
+        }
     }
 
     if (replacedEntryPoint) {
-        finalParam[userOperation.sender] = {
-            balance: toHex(100000_000000000000000000n),
-            ...(stateOverride
-                ? deepHexlify(stateOverride?.[userOperation.sender])
-                : [])
-        }
         finalParam[entryPoint] = {
             code: ExecuteSimulatorDeployedBytecode
-        }
-    }
-
-    if (!replacedEntryPoint) {
-        finalParam[userOperation.sender] = {
-            balance: toHex(100000_000000000000000000n),
-            ...(stateOverride
-                ? deepHexlify(stateOverride?.[userOperation.sender])
-                : [])
-        }
-    }
-
-    if (erc20Paymaster && paymaster) {
-        finalParam[paymaster] = {
-            stateDiff: {
-                [memorySlot]:
-                    "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-            }
         }
     }
 

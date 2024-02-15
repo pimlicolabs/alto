@@ -1,5 +1,5 @@
 import { addressSchema, hexData32Schema } from "@entrypoint-0.6/types"
-import type { Hex } from "viem"
+import type { Address, Hex } from "viem"
 import { type Account, privateKeyToAccount } from "viem/accounts"
 import { z } from "zod"
 
@@ -110,8 +110,21 @@ export const bundlerArgsSchema = z.object({
         .optional(),
     rpcMaxBlockRange: z.number().int().min(0).optional(),
     dangerousSkipUserOperationValidation: z.boolean().optional(),
-    erc20Paymasters: z.array(addressSchema).optional(),
-    erc20PaymasterSlots: z.array(z.number().int().min(0)).optional()
+    erc20PaymasterStateOverride: z
+        .array(z.string())
+        .transform((addressSlotNumberValueArray) =>
+            addressSlotNumberValueArray.map((addressSlotNumberValue) => {
+                const [address, slotNumber, value]: [Address, string, Hex] =
+                    addressSlotNumberValue.split(":") as [Address, string, Hex]
+
+                return {
+                    address,
+                    slotNumber: BigInt(slotNumber),
+                    value: value
+                }
+            })
+        )
+        .optional()
 })
 
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>

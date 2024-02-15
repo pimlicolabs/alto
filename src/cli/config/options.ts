@@ -249,13 +249,9 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: false
     },
-    erc20Paymasters: {
-        description: "ERC20 paymasters",
-        type: "string",
-        require: false
-    },
-    erc20PaymasterSlots: {
-        description: "ERC20 paymaster slots",
+    erc20PaymasterStateOverride: {
+        description:
+            "ERC20 paymasters slot overrides in the format erc20PaymasterAddress:slotNumber:value",
         type: "string",
         require: false
     }
