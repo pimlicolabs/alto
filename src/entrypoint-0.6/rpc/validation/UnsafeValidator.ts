@@ -140,11 +140,6 @@ export class UnsafeValidator implements InterfaceValidator {
     disableExpirationCheck: boolean
     apiVersion: ApiVersion
     chainId: number
-    erc20PaymasterStateOverride: {
-        address: Address
-        slotNumber: bigint
-        value: Hex
-    }[]
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
@@ -155,12 +150,7 @@ export class UnsafeValidator implements InterfaceValidator {
         apiVersion: ApiVersion,
         usingTenderly = false,
         balanceOverrideEnabled = false,
-        disableExpirationCheck = false,
-        erc20PaymasterStateOverride: {
-            address: Address
-            slotNumber: bigint
-            value: Hex
-        }[] = []
+        disableExpirationCheck = false
     ) {
         this.publicClient = publicClient
         this.entryPoint = entryPoint
@@ -172,7 +162,6 @@ export class UnsafeValidator implements InterfaceValidator {
         this.disableExpirationCheck = disableExpirationCheck
         this.apiVersion = apiVersion
         this.chainId = publicClient.chain.id
-        this.erc20PaymasterStateOverride = erc20PaymasterStateOverride
     }
 
     async getExecutionResult(

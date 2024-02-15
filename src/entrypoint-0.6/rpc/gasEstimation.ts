@@ -235,8 +235,7 @@ export async function estimateCallGasLimit(
     publicClient: PublicClient<Transport, Chain>,
     logger: Logger,
     _metrics: Metrics,
-    stateOverrides?: StateOverrides,
-    erc20Paymaster = false
+    stateOverrides?: StateOverrides
 ): Promise<bigint> {
     const targetCallData = encodeFunctionData({
         abi: ExecuteSimulatorAbi,

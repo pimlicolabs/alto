@@ -66,7 +66,8 @@ import {
     getAbiItem,
     getContract,
     keccak256,
-    encodeAbiParameters
+    encodeAbiParameters,
+    toHex
 } from "viem"
 import * as chains from "viem/chains"
 import { z } from "zod"
@@ -354,7 +355,28 @@ export class RpcHandler implements IRpcEndpoint {
                     [userOperation.sender, BigInt(erc20Paymaster.slotNumber)]
                 )
             )
-            stateOverrides[paymaster] = {
+
+            const erc20Token = await this.publicClient.readContract({
+                address: paymaster,
+                abi: [
+                    {
+                        inputs: [],
+                        name: "token",
+                        outputs: [
+                            {
+                                internalType: "contract IERC20",
+                                name: "",
+                                type: "address"
+                            }
+                        ],
+                        stateMutability: "view",
+                        type: "function"
+                    }
+                ],
+                functionName: "token"
+            })
+
+            stateOverrides[erc20Token] = {
                 stateDiff: {
                     [smartAccountErc20BalanceSlot]: erc20Paymaster.value
                 }

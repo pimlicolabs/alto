@@ -111,18 +111,24 @@ export const bundlerArgsSchema = z.object({
     rpcMaxBlockRange: z.number().int().min(0).optional(),
     dangerousSkipUserOperationValidation: z.boolean().optional(),
     erc20PaymasterStateOverride: z
-        .array(z.string())
-        .transform((addressSlotNumberValueArray) =>
-            addressSlotNumberValueArray.map((addressSlotNumberValue) => {
-                const [address, slotNumber, value]: [Address, string, Hex] =
-                    addressSlotNumberValue.split(":") as [Address, string, Hex]
+        .string()
+        .transform((addressSlotNumberValueString) =>
+            addressSlotNumberValueString
+                .split(",")
+                .map((addressSlotNumberValue) => {
+                    const [address, slotNumber, value]: [Address, string, Hex] =
+                        addressSlotNumberValue.split(":") as [
+                            Address,
+                            string,
+                            Hex
+                        ]
 
-                return {
-                    address,
-                    slotNumber: BigInt(slotNumber),
-                    value: value
-                }
-            })
+                    return {
+                        address,
+                        slotNumber: BigInt(slotNumber),
+                        value: value
+                    }
+                })
         )
         .optional()
 })
