@@ -287,7 +287,8 @@ export async function flushStuckTransaction(
     walletClient: WalletClient<Transport, Chain, Account | undefined>,
     wallet: Account,
     gasPrice: bigint,
-    logger: Logger
+    logger: Logger,
+    entryPoint: Address
 ) {
     const latestNonce = await publicClient.getTransactionCount({
         address: wallet.address,
@@ -338,7 +339,7 @@ export async function flushStuckTransaction(
                 "flushed stuck transaction"
             )
 
-            await transactionIncluded(txHash, publicClient)
+            await transactionIncluded(txHash, publicClient, entryPoint)
         } catch (e) {
             sentry.captureException(e)
             logger.warn({ error: e }, "error flushing stuck transaction")

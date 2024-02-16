@@ -439,7 +439,8 @@ export class BasicExecutor implements IExecutor {
                 this.walletClient,
                 wallet,
                 gasPrice.maxFeePerGas * 5n,
-                this.logger
+                this.logger,
+                this.entryPoint
             )
         })
 

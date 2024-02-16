@@ -6,7 +6,7 @@ import * as sentry from "@sentry/node"
 import { parseGwei, type Chain, type PublicClient } from "viem"
 import * as chains from "viem/chains"
 import type { Logger } from "."
-import { maxBigInt, minBigInt } from "./bigInt"
+import { maxBigInt, minBigInt } from "./helpers"
 
 enum ChainId {
     Goerli = 5,
@@ -182,7 +182,7 @@ export async function getGasPrice(
     chain: Chain,
     publicClient: PublicClient,
     noEip1559Support: boolean,
-    logger: Logger,
+    logger: Logger
 ): Promise<GasPriceParameters> {
     let maxFeeFloor: bigint | undefined
     let maxPriorityFeeFloor: bigint | undefined
@@ -213,7 +213,7 @@ export async function innerGetGasPrice(
     chain: Chain,
     publicClient: PublicClient,
     noEip1559Support: boolean,
-    logger: Logger,
+    logger: Logger
 ): Promise<GasPriceParameters> {
     if (
         chain.id === chains.polygon.id ||

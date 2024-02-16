@@ -299,7 +299,8 @@ export class ExecutorManager {
                     hash: hash,
                     transactionStatuses: await transactionIncluded(
                         hash,
-                        this.publicClient
+                        this.publicClient,
+                        this.entryPointAddress
                     )
                 }
             })
@@ -369,7 +370,7 @@ export class ExecutorManager {
                         userOpHash: info.userOperationHash,
                         transactionHash: status.hash
                     },
-                    "user op failed"
+                    "user op rejected"
                 )
             })
 

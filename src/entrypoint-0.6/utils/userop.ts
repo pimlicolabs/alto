@@ -14,6 +14,7 @@ import {
     keccak256,
     toHex
 } from "viem"
+import { areAddressesEqual } from "./helpers"
 
 // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
 export function deepHexlify(obj: any): any {
@@ -58,7 +59,8 @@ export function getAddressFromInitCodeOrPaymasterAndData(
 
 export const transactionIncluded = async (
     txHash: HexData32,
-    publicClient: PublicClient
+    publicClient: PublicClient,
+    entryPoint: Address
 ): Promise<{
     status: "included" | "reverted" | "failed" | "not_found"
     [userOperationHash: HexData32]: {
@@ -72,7 +74,7 @@ export const transactionIncluded = async (
             // find if any logs are UserOperationEvent or AccountDeployed
             const r = rcp.logs
                 .map((l) => {
-                    if (l.address === rcp.to) {
+                    if (areAddressesEqual(l.address, entryPoint)) {
                         try {
                             const log = decodeEventLog({
                                 abi: EntryPointAbi,
