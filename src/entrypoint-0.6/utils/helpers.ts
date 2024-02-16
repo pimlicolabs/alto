@@ -10,7 +10,7 @@ export const maxBigInt = (a: bigint, b: bigint) => {
     return a > b ? a : b
 }
 
-/// Convert both addresses to checksum to ensure proper equality checks
+/// Ensure proper equality by converting both addresses into their checksum type
 export const areAddressesEqual = (a: Address, b: Address) => {
     return getAddress(a) === getAddress(b)
 }
