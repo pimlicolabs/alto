@@ -438,7 +438,8 @@ export class BasicExecutor implements IExecutor {
                 this.walletClient,
                 wallet,
                 gasPrice.maxFeePerGas * 5n,
-                this.logger
+                this.logger,
+                this.entryPoint
             )
         })
 
@@ -494,7 +495,7 @@ export class BasicExecutor implements IExecutor {
             type: "default"
         }
 
-        const { gasLimit, simulatedOps, resubmitAllOps } =
+        let { gasLimit, simulatedOps, resubmitAllOps } =
             await filterOpsAndEstimateGas(
                 callContext,
                 wallet,
@@ -508,6 +509,8 @@ export class BasicExecutor implements IExecutor {
                 this.reputationManager,
                 childLogger
             )
+
+        gasLimit += 10_000n
 
         if (resubmitAllOps) {
             this.markWalletProcessed(wallet)

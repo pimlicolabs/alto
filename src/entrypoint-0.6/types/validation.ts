@@ -197,7 +197,7 @@ export const vmExecutionError = z.object({
         cause: z.object({
             data: z.string().transform((val) => {
                 const errorHexData = val.split("Reverted ")[1] as HexData
-                if (errorHexData === "0x") {
+                if (errorHexData === "0x" || errorHexData === undefined) {
                     throw new RpcError(
                         `User operation reverted on-chain with unknown error (some chains don't return revert reason) ${val}`
                     )

@@ -187,6 +187,7 @@ if [ -n $forkMode ] && [ -z "$localMode" ]; then
         # launch both instances in same terminal.
         anvil --fork-url $rpcUrl \
               --fork-block-number $blockNum \
+              --port $anvilPort \
               --timestamp  $forkTimestamp &
 
         sleep 2
@@ -194,8 +195,13 @@ if [ -n $forkMode ] && [ -z "$localMode" ]; then
 
         $projectRoot/alto --entryPoint $entryPoint \
                           --signerPrivateKeys $signerKey \
+                          --bundleBulkerAddress 0x000000000091a1f34f51ce866bed8983db51a97e \
+                          --perOpInflatorAddress 0x0000000000DD00D61091435B84D1371A1000de9a \
                           --utilityPrivateKey $utilityKey \
                           --rpcUrl http://$anvilHost:$anvilPort \
+                          --noEthCallOverrideSupport true \
+                          --noEip1559Support true \
+                          --useUserOperationGasLimitForSubmission true \
                           --minBalance 0 \
                           --networkName local \
                           --disableExpirationCheck true
@@ -213,6 +219,7 @@ if [ -n $forkMode ] && [ -z "$localMode" ]; then
         # setup anvil on pane 0
         tmux send-keys -t ${SESSION}.0 "anvil --fork-url $rpcUrl \
                                               --fork-block-number $blockNum \
+                                              --port $anvilPort \
                                               --timestamp $forkTimestamp" C-m
 
         sleep 2
@@ -222,6 +229,8 @@ if [ -n $forkMode ] && [ -z "$localMode" ]; then
         tmux send-keys -t ${SESSION}.1 "$projectRoot/alto --rpcUrl http://$anvilHost:$anvilPort \
                                                           --entryPoint $entryPoint \
                                                           --signerPrivateKeys $signerKey \
+                                                          --bundleBulkerAddress 0x000000000091a1f34f51ce866bed8983db51a97e \
+                                                          --perOpInflatorAddress 0x0000000000DD00D61091435B84D1371A1000de9a \
                                                           --utilityPrivateKey $utilityKey \
                                                           --minBalance 0 \
                                                           --networkName local \

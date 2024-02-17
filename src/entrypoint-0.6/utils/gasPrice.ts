@@ -1,12 +1,12 @@
 import {
-    type GasPriceParameters,
-    gasStationResult
+    gasStationResult,
+    type GasPriceParameters
 } from "@entrypoint-0.6/types"
 import * as sentry from "@sentry/node"
-import { type Chain, type PublicClient, parseGwei } from "viem"
+import { parseGwei, type Chain, type PublicClient } from "viem"
 import * as chains from "viem/chains"
 import type { Logger } from "@alto/utils"
-import { maxBigInt, minBigInt } from "./bigInt"
+import { maxBigInt, minBigInt } from "./helpers"
 
 enum ChainId {
     Goerli = 5,
@@ -179,6 +179,37 @@ const getNextBaseFee = async (publicClient: PublicClient) => {
 }
 
 export async function getGasPrice(
+    chain: Chain,
+    publicClient: PublicClient,
+    noEip1559Support: boolean,
+    logger: Logger
+): Promise<GasPriceParameters> {
+    let maxFeeFloor: bigint | undefined
+    let maxPriorityFeeFloor: bigint | undefined
+
+    if (chain.id === chains.dfk.id) {
+        maxFeeFloor = 5_000_000_000n
+        maxPriorityFeeFloor = 5_000_000_000n
+    }
+
+    const gasPrice = await innerGetGasPrice(
+        chain,
+        publicClient,
+        noEip1559Support,
+        logger
+    )
+
+    return {
+        maxFeePerGas: maxFeeFloor
+            ? maxBigInt(gasPrice.maxFeePerGas, maxFeeFloor)
+            : gasPrice.maxFeePerGas,
+        maxPriorityFeePerGas: maxPriorityFeeFloor
+            ? maxBigInt(gasPrice.maxPriorityFeePerGas, maxPriorityFeeFloor)
+            : gasPrice.maxPriorityFeePerGas
+    }
+}
+
+export async function innerGetGasPrice(
     chain: Chain,
     publicClient: PublicClient,
     noEip1559Support: boolean,
