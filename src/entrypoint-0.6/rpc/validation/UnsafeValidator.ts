@@ -1,37 +1,33 @@
 import type { Metrics } from "@alto/utils"
+import type { ApiVersion, InterfaceValidator, StateOverrides, ValidationResult } from "@entrypoint-0.6/types"
 import {
-    type Address,
     EntryPointAbi,
     ExecutionErrors,
+    RpcError,
+    ValidationErrors,
+    entryPointErrorsSchema,
+    entryPointExecutionErrorSchema,
+    hexDataSchema,
+    type Address,
     type ExecutionResult,
     type ReferencedCodeHashes,
-    RpcError,
     type StorageMap,
     type UserOperation,
-    ValidationErrors,
-    type ValidationResultWithAggregation,
-    entryPointErrorsSchema,
-    entryPointExecutionErrorSchema
+    type ValidationResultWithAggregation
 } from "@entrypoint-0.6/types"
-import type { ValidationResult } from "@entrypoint-0.6/types"
-import { hexDataSchema } from "@entrypoint-0.6/types"
-import type { InterfaceValidator } from "@entrypoint-0.6/types"
-import type { StateOverrides } from "@entrypoint-0.6/types"
-import type { ApiVersion } from "@entrypoint-0.6/types"
-import { type Logger, calcPreVerificationGas } from "@entrypoint-0.6/utils"
-import { calcVerificationGasAndCallGasLimit } from "@entrypoint-0.6/utils"
+import { calcPreVerificationGas, calcVerificationGasAndCallGasLimit, getGasPrice, type Logger } from "@entrypoint-0.6/utils"
 import * as sentry from "@sentry/node"
 import {
-    type Account,
     BaseError,
-    type Chain,
     ContractFunctionExecutionError,
-    type PublicClient,
-    type Transport,
     decodeErrorResult,
     encodeFunctionData,
     getContract,
-    zeroAddress
+    zeroAddress,
+    type Account,
+    type Chain,
+    type PublicClient,
+    type Transport
 } from "viem"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
@@ -137,6 +133,7 @@ export class UnsafeValidator implements InterfaceValidator {
     usingTenderly: boolean
     balanceOverrideEnabled: boolean
     disableExpirationCheck: boolean
+    noEip1559Support: boolean
     apiVersion: ApiVersion
     chainId: number
 
@@ -147,9 +144,11 @@ export class UnsafeValidator implements InterfaceValidator {
         metrics: Metrics,
         utilityWallet: Account,
         apiVersion: ApiVersion,
+        noEip1559Support: boolean,
         usingTenderly = false,
         balanceOverrideEnabled = false,
-        disableExpirationCheck = false
+        disableExpirationCheck = false,
+        
     ) {
         this.publicClient = publicClient
         this.entryPoint = entryPoint
@@ -159,6 +158,7 @@ export class UnsafeValidator implements InterfaceValidator {
         this.usingTenderly = usingTenderly
         this.balanceOverrideEnabled = balanceOverrideEnabled
         this.disableExpirationCheck = disableExpirationCheck
+        this.noEip1559Support = noEip1559Support
         this.apiVersion = apiVersion
         this.chainId = publicClient.chain.id
     }
@@ -227,6 +227,15 @@ export class UnsafeValidator implements InterfaceValidator {
             return error.data
         }
 
+        const gasPrices = await getGasPrice(this.publicClient.chain, this.publicClient, this.noEip1559Support, this.logger)
+
+        const gasPriceOption = this.noEip1559Support ? {
+            gasPrice: gasPrices.maxFeePerGas
+        } : {
+            maxFeePerGas: gasPrices.maxFeePerGas,
+            maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas
+        }
+
         const errorResult = await entryPointContract.simulate
             .simulateHandleOp(
                 [
@@ -235,7 +244,8 @@ export class UnsafeValidator implements InterfaceValidator {
                     "0x"
                 ],
                 {
-                    account: this.utilityWallet
+                    account: this.utilityWallet,
+                    ...gasPriceOption
                 }
             )
             .catch((e) => {
@@ -245,12 +255,14 @@ export class UnsafeValidator implements InterfaceValidator {
                 throw e
             })
 
-        return getSimulationResult(
+        const simulationResult = getSimulationResult(
             errorResult,
             this.logger,
             "execution",
             this.usingTenderly
         ) as Promise<ExecutionResult>
+        
+        return simulationResult
     }
 
     async getValidationResult(
