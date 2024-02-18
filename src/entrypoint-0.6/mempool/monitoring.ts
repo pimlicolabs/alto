@@ -2,7 +2,7 @@ import type { HexData32, UserOperationStatus } from "@entrypoint-0.6/types"
 
 export class Monitor {
     private userOperationToStatus: Record<HexData32, UserOperationStatus>
-    private userOperationTimeouts: Record<HexData32, Timer>
+    private userOperationTimeouts: Record<HexData32, NodeJS.Timer>
     private timeout: number
 
     constructor(timeout: number = 60 * 60 * 1000) {
