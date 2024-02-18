@@ -15,7 +15,7 @@ import {
     type UserOperation,
     type ValidationResultWithAggregation
 } from "@entrypoint-0.6/types"
-import { calcPreVerificationGas, calcVerificationGasAndCallGasLimit, getGasPrice, type Logger } from "@entrypoint-0.6/utils"
+import { calcPreVerificationGas, calcVerificationGasAndCallGasLimit, type Logger } from "@entrypoint-0.6/utils"
 import * as sentry from "@sentry/node"
 import {
     BaseError,
@@ -227,13 +227,19 @@ export class UnsafeValidator implements InterfaceValidator {
             return error.data
         }
 
-        const gasPrices = await getGasPrice(this.publicClient.chain, this.publicClient, this.noEip1559Support, this.logger)
+        // const gasPrices = await getGasPrice(this.publicClient.chain, this.publicClient, this.noEip1559Support, this.logger)
+
+        // const gasPriceOption = this.noEip1559Support ? {
+        //     gasPrice: userOperation.maxFeePerGas
+        // } : {
+        //     maxFeePerGas: userOperation.maxFeePerGas,
+        //     maxPriorityFeePerGas: userOperation.maxFeePerGas
+        // }
 
         const gasPriceOption = this.noEip1559Support ? {
-            gasPrice: gasPrices.maxFeePerGas
+            gasPrice: await this.publicClient.getGasPrice()
         } : {
-            maxFeePerGas: gasPrices.maxFeePerGas,
-            maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas
+            maxFeePerGas: (await this.publicClient.getBlock()).baseFeePerGas!
         }
 
         const errorResult = await entryPointContract.simulate
@@ -261,7 +267,7 @@ export class UnsafeValidator implements InterfaceValidator {
             "execution",
             this.usingTenderly
         ) as Promise<ExecutionResult>
-        
+
         return simulationResult
     }
 
