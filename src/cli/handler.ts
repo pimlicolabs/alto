@@ -9,11 +9,11 @@ import {
     SenderManager
 } from "@entrypoint-0.6/executor"
 import {
-    type InterfaceReputationManager,
     MemoryMempool,
     Monitor,
     NullRepuationManager,
-    ReputationManager
+    ReputationManager,
+    type InterfaceReputationManager
 } from "@entrypoint-0.6/mempool"
 import {
     NonceQueuer,
@@ -26,17 +26,17 @@ import type { InterfaceValidator } from "@entrypoint-0.6/types"
 import { CompressionHandler, type Logger } from "@entrypoint-0.6/utils"
 import { Registry } from "prom-client"
 import {
+    createPublicClient,
+    createWalletClient,
     type Chain,
     type PublicClient,
-    type Transport,
-    createPublicClient,
-    createWalletClient
+    type Transport
 } from "viem"
 import { fromZodError } from "zod-validation-error"
 import {
+    bundlerArgsSchema,
     type IBundlerArgs,
-    type IBundlerArgsInput,
-    bundlerArgsSchema
+    type IBundlerArgsInput
 } from "./config"
 import { customTransport } from "./customTransport"
 
@@ -206,6 +206,7 @@ export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
             metrics,
             parsedArgs.utilityPrivateKey,
             parsedArgs.apiVersion,
+            parsedArgs.noEip1559Support,
             parsedArgs.tenderlyEnabled,
             parsedArgs.balanceOverrideEnabled,
             parsedArgs.disableExpirationCheck
