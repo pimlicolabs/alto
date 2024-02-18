@@ -34,7 +34,7 @@ Local mode will deploy the following contracts:
 ### Cli Flags + Options
 
 ```console
-Usage: ./run-local-fork.sh [OPTIONS]
+Usage: ./run-local-instance.sh [OPTIONS]
 Utility to spawn a local alto instances linked to an anvil node.
 *Must* be ran with either -l or -f flags.
 
