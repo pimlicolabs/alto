@@ -13,14 +13,17 @@ For a full explanation of Alto, please visit our [docs page](https://docs.pimlic
 Run an instance of Alto with the following commands:
 ```bash
 pnpm build
-./alto
+./alto --entryPoint <address> --signerPrivateKeys <private-key> --utilityPrivateKey <private-key> --minBalance <number> --rpcUrl <rpc-endpoint> --networkName <name>
 ```
+> To find all flag options, run `./alto help`.
 
 Run the test suite with the following commands:
 ```bash
 pnpm build
 pnpm test # note: foundry must be installed on the machine for this to work
 ```
+
+A helper script to run a local Alto instance connected to a local anvil node can be found at [scripts/run-local-instance.sh](scripts/README.md)
 
 ## Prerequisites
 
