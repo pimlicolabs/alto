@@ -240,7 +240,7 @@ export class UnsafeValidator implements InterfaceValidator {
         const gasPriceOption = this.noEip1559Support ? {
             gasPrice: await this.publicClient.getGasPrice()
         } : {
-            maxFeePerGas: (await this.publicClient.getBlock()).baseFeePerGas!
+            maxFeePerGas: (await this.publicClient.getBlock()).baseFeePerGas! * 110n / 100n,
         }
 
         const errorResult = await entryPointContract.simulate
