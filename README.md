@@ -15,7 +15,11 @@ Run an instance of Alto with the following commands:
 pnpm build
 ./alto --entryPoint <address> --signerPrivateKeys <private-key> --utilityPrivateKey <private-key> --minBalance <number> --rpcUrl <rpc-endpoint> --networkName <name>
 ```
-> To find all flag options, run `./alto help`.
+
+To find a list of all options, run: 
+```bash
+./alto help
+```
 
 Run the test suite with the following commands:
 ```bash
@@ -23,7 +27,7 @@ pnpm build
 pnpm test # note: foundry must be installed on the machine for this to work
 ```
 
-A helper script to run a local Alto instance connected to a local anvil node can be found at [scripts/run-local-instance.sh](scripts/README.md)
+> a helper script for running Alto locally with an Anvil node can be found at [scripts/run-local-instance.sh](scripts/README.md)
 
 ## Prerequisites
 
