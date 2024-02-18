@@ -5,6 +5,8 @@ import type {
     Monitor
 } from "@entrypoint-0.6/mempool"
 import {
+    deriveUserOperation,
+    isCompressedType,
     type BundleResult,
     type BundlingMode,
     type CompressedUserOperation,
@@ -12,14 +14,12 @@ import {
     type MempoolUserOperation,
     type SubmittedUserOperation,
     type TransactionInfo,
-    type UserOperation,
-    deriveUserOperation,
-    isCompressedType
+    type UserOperation
 } from "@entrypoint-0.6/types"
 import {
-    type Logger,
     getGasPrice,
-    transactionIncluded
+    transactionIncluded,
+    type Logger
 } from "@entrypoint-0.6/utils"
 import type {
     Address,
@@ -56,7 +56,7 @@ export class ExecutorManager {
     private reputationManager: InterfaceReputationManager
     private unWatch: WatchBlocksReturnType | undefined
     private currentlyHandlingBlock = false
-    private timer?: NodeJS.Timer
+    private timer?: Timer
     private bundlerFrequency: number
     private noEip1559Support: boolean
 

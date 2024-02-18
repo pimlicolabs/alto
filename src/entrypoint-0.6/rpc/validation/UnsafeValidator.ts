@@ -148,7 +148,7 @@ export class UnsafeValidator implements InterfaceValidator {
         usingTenderly = false,
         balanceOverrideEnabled = false,
         disableExpirationCheck = false,
-        
+
     ) {
         this.publicClient = publicClient
         this.entryPoint = entryPoint
@@ -214,7 +214,8 @@ export class UnsafeValidator implements InterfaceValidator {
                 false,
                 zeroAddress,
                 "0x",
-                stateOverrides
+                stateOverrides,
+                this.utilityWallet.address
             )
 
             if (error.result === "failed") {
@@ -246,7 +247,7 @@ export class UnsafeValidator implements InterfaceValidator {
             .simulateHandleOp(
                 [
                     userOperation,
-                    "0x0000000000000000000000000000000000000000",
+                    zeroAddress,
                     "0x"
                 ],
                 {

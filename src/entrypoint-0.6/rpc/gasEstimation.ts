@@ -1,25 +1,25 @@
 import type { Metrics } from "@alto/utils"
+import type { StateOverrides } from "@entrypoint-0.6/types"
 import {
     EntryPointAbi,
     ExecutionErrors,
-    type ExecutionResult,
     RpcError,
-    type UserOperation,
     ValidationErrors,
     executionResultSchema,
-    hexDataSchema
+    hexDataSchema,
+    type ExecutionResult,
+    type UserOperation
 } from "@entrypoint-0.6/types"
-import type { StateOverrides } from "@entrypoint-0.6/types"
 import type { Logger } from "@entrypoint-0.6/utils"
 import { deepHexlify } from "@entrypoint-0.6/utils"
 import type { Chain, Hex, RpcRequestErrorType, Transport } from "viem"
 import {
-    type Address,
-    type PublicClient,
     decodeErrorResult,
     encodeFunctionData,
     toHex,
-    zeroAddress
+    zeroAddress,
+    type Address,
+    type PublicClient
 } from "viem"
 import { z } from "zod"
 import {
@@ -34,7 +34,9 @@ export async function simulateHandleOp(
     replacedEntryPoint: boolean,
     targetAddress: Address,
     targetCallData: Hex,
-    stateOverride?: StateOverrides
+    stateOverride?: StateOverrides,
+    from?: Address,
+    noEip1559Support?: boolean
 ) {
     const finalParam = replacedEntryPoint
         ? {
@@ -47,7 +49,10 @@ export async function simulateHandleOp(
               },
               [entryPoint]: {
                   code: ExecuteSimulatorDeployedBytecode
-              }
+              },
+              ...(from ? {[from]: {
+                  balance: toHex(100000_000000000000000000n),
+              }} : [])
           }
         : {
               ...stateOverride,
@@ -56,8 +61,17 @@ export async function simulateHandleOp(
                   ...(stateOverride
                       ? deepHexlify(stateOverride?.[userOperation.sender])
                       : [])
-              }
+              },
+              ...(from ? {[from]: {
+                  balance: toHex(100000_000000000000000000n),
+              }} : [])
           }
+
+    const gasPriceOption = noEip1559Support ? {
+        gasPrice: await publicClient.getGasPrice()
+    } : {
+         maxFeePerGas: (await publicClient.getBlock()).baseFeePerGas!
+    }
 
     try {
         await publicClient.request({
@@ -66,12 +80,14 @@ export async function simulateHandleOp(
             params: [
                 // @ts-ignore
                 {
+                    ...(from ? { from } : {}),
                     to: entryPoint,
                     data: encodeFunctionData({
                         abi: EntryPointAbi,
                         functionName: "simulateHandleOp",
                         args: [userOperation, targetAddress, targetCallData]
-                    })
+                    }),
+                    ...gasPriceOption
                 },
                 // @ts-ignore
                 "latest",
