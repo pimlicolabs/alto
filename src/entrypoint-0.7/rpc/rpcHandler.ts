@@ -71,10 +71,6 @@ import {
 import * as chains from "viem/chains"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
-import {
-    estimateCallGasLimit,
-    estimateVerificationGasLimit
-} from "./gasEstimation"
 import type { NonceQueuer } from "./nonceQueuer"
 
 export interface IRpcEndpoint {
@@ -314,69 +310,35 @@ export class RpcHandler implements IRpcEndpoint {
             this.logger
         )
 
-        let verificationGasLimit: bigint
-        let callGasLimit: bigint
+        userOperation.preVerificationGas = 1_000_000n
+        userOperation.verificationGasLimit = 10_000_000n
+        userOperation.callGasLimit = 10_000_000n
 
-        if (this.noEthCallOverrideSupport) {
-            userOperation.preVerificationGas = 1_000_000n
-            userOperation.verificationGasLimit = 10_000_000n
-            userOperation.callGasLimit = 10_000_000n
-
-            if (this.chainId === chains.base.id) {
-                userOperation.verificationGasLimit = 2_500_000n
-                userOperation.callGasLimit = 2_500_000n
-            }
-
-            if (
-                this.chainId === chains.celoAlfajores.id ||
-                this.chainId === chains.celo.id
-            ) {
-                userOperation.verificationGasLimit = 1_000_000n
-                userOperation.callGasLimit = 1_000_000n
-            }
-
-            const executionResult = await this.validator.getExecutionResult(
-                userOperation,
-                stateOverrides
-            )
-            ;[verificationGasLimit, callGasLimit] =
-                await calcVerificationGasAndCallGasLimit(
-                    this.publicClient,
-                    userOperation,
-                    executionResult,
-                    this.chainId
-                )
-        } else {
-            userOperation.maxFeePerGas = 0n
-            userOperation.maxPriorityFeePerGas = 0n
-
-            const time = Date.now()
-
-            verificationGasLimit = await estimateVerificationGasLimit(
-                userOperation,
-                entryPoint,
-                this.publicClient,
-                this.logger,
-                this.metrics,
-                stateOverrides
-            )
-
-            userOperation.preVerificationGas = preVerificationGas
-            userOperation.verificationGasLimit = verificationGasLimit
-
-            this.metrics.verificationGasLimitEstimationTime.observe(
-                (Date.now() - time) / 1000
-            )
-
-            callGasLimit = await estimateCallGasLimit(
-                userOperation,
-                entryPoint,
-                this.publicClient,
-                this.logger,
-                this.metrics,
-                stateOverrides
-            )
+        if (this.chainId === chains.base.id) {
+            userOperation.verificationGasLimit = 2_500_000n
+            userOperation.callGasLimit = 2_500_000n
         }
+
+        if (
+            this.chainId === chains.celoAlfajores.id ||
+            this.chainId === chains.celo.id
+        ) {
+            userOperation.verificationGasLimit = 1_000_000n
+            userOperation.callGasLimit = 1_000_000n
+        }
+
+        const executionResult = await this.validator.getExecutionResult(
+            userOperation,
+            stateOverrides
+        )
+        const [verificationGasLimit, callGasLimit] =
+            await calcVerificationGasAndCallGasLimit(
+                this.publicClient,
+                userOperation,
+                executionResult,
+                this.chainId
+            )
+
         if (this.apiVersion === "v2") {
             return {
                 preVerificationGas,

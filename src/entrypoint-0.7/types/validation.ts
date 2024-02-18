@@ -68,8 +68,8 @@ export const executionResultSchema = z
     .tuple([
         z.bigint(),
         z.bigint(),
-        z.number(),
-        z.number(),
+        z.bigint(),
+        z.bigint(),
         z.boolean(),
         z.string().regex(hexPattern)
     ])
@@ -77,8 +77,8 @@ export const executionResultSchema = z
         return {
             preOpGas: val[0],
             paid: val[1],
-            validAfter: val[2],
-            validUntil: val[3],
+            validationData: val[2],
+            paymasterValidationData: val[3],
             targetSuccess: val[4],
             targetResult: val[5] as HexData
         }

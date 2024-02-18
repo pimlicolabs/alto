@@ -2,7 +2,8 @@ import {
     type Address,
     EntryPointAbi,
     RpcError,
-    type UserOperation
+    type UnPackedUserOperation,
+    type PackedUserOperation
 } from "@entrypoint-0.7/types"
 import {
     type Chain,
@@ -26,7 +27,14 @@ import {
 } from "viem"
 import * as chains from "viem/chains"
 import type { Logger } from "@alto/utils"
-import { getGasPrice } from "."
+import {
+    getAccountGasLimits,
+    getGasLimits,
+    getInitCode,
+    getPaymasterAndData,
+    toPackedUserOperation
+} from "./userop"
+import { getGasPrice } from "./gasPrice"
 
 export interface GasOverheads {
     /**
@@ -82,7 +90,19 @@ export const DefaultGasOverheads: GasOverheads = {
  * @param op
  *  "false" to pack entire UserOp, for calculating the calldata cost of putting it on-chain.
  */
-export function packUserOp(op: UserOperation): `0x${string}` {
+export function packUserOp(op: UnPackedUserOperation): `0x${string}` {
+    const packedUserOperation: PackedUserOperation = {
+        sender: op.sender,
+        nonce: op.nonce,
+        initCode: getInitCode(op),
+        callData: op.callData,
+        accountGasLimits: getAccountGasLimits(op),
+        preVerificationGas: op.preVerificationGas,
+        gasFees: getGasLimits(op),
+        paymasterAndData: getPaymasterAndData(op),
+        signature: op.signature
+    }
+
     return encodeAbiParameters(
         [
             {
@@ -107,13 +127,8 @@ export function packUserOp(op: UserOperation): `0x${string}` {
             },
             {
                 internalType: "uint256",
-                name: "callGasLimit",
-                type: "uint256"
-            },
-            {
-                internalType: "uint256",
-                name: "verificationGasLimit",
-                type: "uint256"
+                name: "accountGasLimits",
+                type: "bytes32"
             },
             {
                 internalType: "uint256",
@@ -122,13 +137,8 @@ export function packUserOp(op: UserOperation): `0x${string}` {
             },
             {
                 internalType: "uint256",
-                name: "maxFeePerGas",
-                type: "uint256"
-            },
-            {
-                internalType: "uint256",
-                name: "maxPriorityFeePerGas",
-                type: "uint256"
+                name: "gasFees",
+                type: "bytes32"
             },
             {
                 internalType: "bytes",
@@ -142,24 +152,22 @@ export function packUserOp(op: UserOperation): `0x${string}` {
             }
         ],
         [
-            op.sender,
-            op.nonce,
-            op.initCode,
-            op.callData,
-            op.callGasLimit,
-            op.verificationGasLimit,
-            op.preVerificationGas,
-            op.maxFeePerGas,
-            op.maxPriorityFeePerGas,
-            op.paymasterAndData,
-            op.signature
+            packedUserOperation.sender,
+            packedUserOperation.nonce,
+            packedUserOperation.initCode,
+            packedUserOperation.callData,
+            packedUserOperation.accountGasLimits,
+            packedUserOperation.preVerificationGas,
+            packedUserOperation.gasFees,
+            packedUserOperation.paymasterAndData,
+            packedUserOperation.signature
         ]
     )
 }
 
 export async function calcPreVerificationGas(
     publicClient: PublicClient<Transport, Chain>,
-    userOperation: UserOperation,
+    userOperation: UnPackedUserOperation,
     entryPoint: Address,
     chainId: number,
     logger: Logger,
@@ -204,7 +212,7 @@ export async function calcPreVerificationGas(
 
 export async function calcVerificationGasAndCallGasLimit(
     publicClient: PublicClient<Transport, Chain>,
-    userOperation: UserOperation,
+    userOperation: UnPackedUserOperation,
     executionResult: {
         preOpGas: bigint
         paid: bigint
@@ -255,7 +263,7 @@ export async function calcVerificationGasAndCallGasLimit(
  * @param overheads gas overheads to use, to override the default values
  */
 export function calcDefaultPreVerificationGas(
-    userOperation: UserOperation,
+    userOperation: UnPackedUserOperation,
     overheads?: Partial<GasOverheads>
 ): bigint {
     const ov = { ...DefaultGasOverheads, ...(overheads ?? {}) }
@@ -305,17 +313,15 @@ const getL1FeeAbi = [
 
 export async function calcOptimismPreVerificationGas(
     publicClient: PublicClient<Transport, Chain>,
-    op: UserOperation,
+    op: UnPackedUserOperation,
     entryPoint: Address,
     staticFee: bigint,
     logger: Logger
 ) {
-    const randomDataUserOp: UserOperation = {
-        ...op
-    }
+    const randomDataUserOp: PackedUserOperation = toPackedUserOperation(op)
 
-    const selector = getFunctionSelector(EntryPointAbi[27])
-    const paramData = encodeAbiParameters(EntryPointAbi[27].inputs, [
+    const selector = getFunctionSelector(EntryPointAbi[28])
+    const paramData = encodeAbiParameters(EntryPointAbi[28].inputs, [
         [randomDataUserOp],
         entryPoint
     ])
@@ -412,13 +418,15 @@ const getArbitrumL1FeeAbi = [
 
 export async function calcArbitrumPreVerificationGas(
     publicClient: PublicClient<Transport, Chain | undefined>,
-    op: UserOperation,
+    op: UnPackedUserOperation,
     entryPoint: Address,
     staticFee: bigint
 ) {
-    const selector = getFunctionSelector(EntryPointAbi[27])
-    const paramData = encodeAbiParameters(EntryPointAbi[27].inputs, [
-        [op],
+    const randomDataUserOp: PackedUserOperation = toPackedUserOperation(op)
+
+    const selector = getFunctionSelector(EntryPointAbi[28])
+    const paramData = encodeAbiParameters(EntryPointAbi[28].inputs, [
+        [randomDataUserOp],
         entryPoint
     ])
     const data = concat([selector, paramData])

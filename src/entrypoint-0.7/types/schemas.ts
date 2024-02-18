@@ -34,8 +34,8 @@ const unPackedUserOperationSchema = z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
-        factory: addressSchema,
-        factoryData: hexDataSchema,
+        factory: addressSchema.optional(),
+        factoryData: hexDataSchema.optional(),
         callData: hexDataSchema,
         callGasLimit: hexNumberSchema,
         verificationGasLimit: hexNumberSchema,
@@ -55,8 +55,8 @@ const partialUnPackedUserOperationSchema = z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
-        factory: addressSchema,
-        factoryData: hexDataSchema,
+        factory: addressSchema.optional(),
+        factoryData: hexDataSchema.optional(),
         callData: hexDataSchema,
         callGasLimit: hexNumberSchema.default(1n),
         verificationGasLimit: hexNumberSchema.default(1n),
@@ -80,7 +80,7 @@ const packerUserOperationSchema = z
         callData: hexDataSchema,
         accountGasLimits: hexData32Schema,
         preVerificationGas: hexNumberSchema,
-        gasLimits: hexData32Schema,
+        gasFees: hexData32Schema,
         paymasterAndData: hexDataSchema,
         signature: hexDataSchema
     })

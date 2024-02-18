@@ -1,7 +1,8 @@
 import {
     EntryPointAbi,
     type PackedUserOperation,
-    type HexData32
+    type HexData32,
+    type UnPackedUserOperation
 } from "@entrypoint-0.7/types"
 import * as sentry from "@sentry/node"
 import {
@@ -12,8 +13,75 @@ import {
     encodeAbiParameters,
     getAddress,
     keccak256,
-    toHex
+    toHex,
+    concat,
+    pad
 } from "viem"
+
+export function getInitCode(unpackedUserOperation: UnPackedUserOperation) {
+    return unpackedUserOperation.factory && unpackedUserOperation.factoryData
+        ? concat([
+              unpackedUserOperation.factory,
+              unpackedUserOperation.factoryData
+          ])
+        : "0x"
+}
+
+export function getAccountGasLimits(
+    unpackedUserOperation: UnPackedUserOperation
+) {
+    return concat([
+        pad(toHex(unpackedUserOperation.verificationGasLimit), {
+            size: 16
+        }),
+        pad(toHex(unpackedUserOperation.callGasLimit), { size: 16 })
+    ])
+}
+
+export function getGasLimits(unpackedUserOperation: UnPackedUserOperation) {
+    return concat([
+        pad(toHex(unpackedUserOperation.maxPriorityFeePerGas), {
+            size: 16
+        }),
+        pad(toHex(unpackedUserOperation.maxFeePerGas), { size: 16 })
+    ])
+}
+
+export function getPaymasterAndData(
+    unpackedUserOperation: UnPackedUserOperation
+) {
+    return unpackedUserOperation.paymaster &&
+        unpackedUserOperation.paymasterVerificationGasLimit &&
+        unpackedUserOperation.paymasterPostOpGasLimit &&
+        unpackedUserOperation.paymasterData
+        ? concat([
+              unpackedUserOperation.paymaster,
+              pad(toHex(unpackedUserOperation.paymasterVerificationGasLimit), {
+                  size: 16
+              }),
+              pad(toHex(unpackedUserOperation.paymasterPostOpGasLimit), {
+                  size: 16
+              }),
+              unpackedUserOperation.paymasterData
+          ])
+        : "0x"
+}
+
+export function toPackedUserOperation(
+    unpackedUserOperation: UnPackedUserOperation
+): PackedUserOperation {
+    return {
+        sender: unpackedUserOperation.sender,
+        nonce: unpackedUserOperation.nonce,
+        initCode: getInitCode(unpackedUserOperation),
+        callData: unpackedUserOperation.callData,
+        accountGasLimits: getAccountGasLimits(unpackedUserOperation),
+        preVerificationGas: unpackedUserOperation.preVerificationGas,
+        gasFees: getGasLimits(unpackedUserOperation),
+        paymasterAndData: getPaymasterAndData(unpackedUserOperation),
+        signature: unpackedUserOperation.signature
+    }
+}
 
 // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
 export function deepHexlify(obj: any): any {

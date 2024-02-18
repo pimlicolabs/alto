@@ -7,13 +7,15 @@ import {
     type ReferencedCodeHashes,
     RpcError,
     type StorageMap,
-    type UserOperation,
     ValidationErrors,
     type ValidationResultWithAggregation,
     entryPointErrorsSchema,
     entryPointExecutionErrorSchema
 } from "@entrypoint-0.7/types"
-import type { ValidationResult } from "@entrypoint-0.7/types"
+import type {
+    UnPackedUserOperation,
+    ValidationResult
+} from "@entrypoint-0.7/types"
 import { hexDataSchema } from "@entrypoint-0.7/types"
 import type { InterfaceValidator } from "@entrypoint-0.7/types"
 import type { StateOverrides } from "@entrypoint-0.7/types"
@@ -31,8 +33,7 @@ import {
     type Transport,
     decodeErrorResult,
     encodeFunctionData,
-    getContract,
-    zeroAddress
+    getContract
 } from "viem"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
@@ -165,97 +166,31 @@ export class UnsafeValidator implements InterfaceValidator {
     }
 
     async getExecutionResult(
-        userOperation: UserOperation,
+        userOperation: UnPackedUserOperation,
         stateOverrides?: StateOverrides
     ): Promise<ExecutionResult> {
-        const entryPointContract = getContract({
-            address: this.entryPoint,
-            abi: EntryPointAbi,
-            publicClient: this.publicClient
-        })
+        const error = await simulateHandleOp(
+            userOperation,
+            this.entryPoint,
+            this.publicClient,
+            false,
+            userOperation.sender,
+            userOperation.callData,
+            stateOverrides
+        )
 
-        if (this.usingTenderly) {
-            const tenderlyResult = await simulateTenderlyCall(
-                this.publicClient,
-                [
-                    {
-                        to: this.entryPoint,
-                        data: encodeFunctionData({
-                            abi: entryPointContract.abi,
-                            functionName: "simulateHandleOp",
-                            args: [
-                                userOperation,
-                                "0x0000000000000000000000000000000000000000",
-                                "0x"
-                            ]
-                        })
-                    },
-                    "latest"
-                ]
+        if (error.result === "failed") {
+            throw new RpcError(
+                `UserOperation reverted during simulation with reason: ${error.data}`,
+                ExecutionErrors.UserOperationReverted
             )
-
-            const errorResult = decodeErrorResult({
-                abi: entryPointContract.abi,
-                data: tenderlyResult
-            })
-
-            return getSimulationResult(
-                errorResult,
-                this.logger,
-                "execution",
-                this.usingTenderly
-            ) as Promise<ExecutionResult>
         }
 
-        if (this.balanceOverrideEnabled) {
-            const error = await simulateHandleOp(
-                userOperation,
-                this.entryPoint,
-                this.publicClient,
-                false,
-                zeroAddress,
-                "0x",
-                stateOverrides
-            )
-
-            if (error.result === "failed") {
-                throw new RpcError(
-                    `UserOperation reverted during simulation with reason: ${error.data}`,
-                    ExecutionErrors.UserOperationReverted
-                )
-            }
-
-            return error.data
-        }
-
-        const errorResult = await entryPointContract.simulate
-            .simulateHandleOp(
-                [
-                    userOperation,
-                    "0x0000000000000000000000000000000000000000",
-                    "0x"
-                ],
-                {
-                    account: this.utilityWallet
-                }
-            )
-            .catch((e) => {
-                if (e instanceof Error) {
-                    return e
-                }
-                throw e
-            })
-
-        return getSimulationResult(
-            errorResult,
-            this.logger,
-            "execution",
-            this.usingTenderly
-        ) as Promise<ExecutionResult>
+        return error.data
     }
 
     async getValidationResult(
-        userOperation: UserOperation,
+        userOperation: UnPackedUserOperation,
         _codeHashes?: ReferencedCodeHashes
     ): Promise<
         (ValidationResult | ValidationResultWithAggregation) & {
@@ -321,7 +256,7 @@ export class UnsafeValidator implements InterfaceValidator {
         }
     }
 
-    async validatePreVerificationGas(userOperation: UserOperation) {
+    async validatePreVerificationGas(userOperation: UnPackedUserOperation) {
         if (this.apiVersion !== "v1") {
             const preVerificationGas = await calcPreVerificationGas(
                 this.publicClient,
@@ -341,7 +276,7 @@ export class UnsafeValidator implements InterfaceValidator {
     }
 
     async validateUserOperation(
-        userOperation: UserOperation,
+        userOperation: UnPackedUserOperation,
         _referencedContracts?: ReferencedCodeHashes
     ): Promise<
         (ValidationResult | ValidationResultWithAggregation) & {
