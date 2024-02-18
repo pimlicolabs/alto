@@ -56,7 +56,7 @@ export class ExecutorManager {
     private reputationManager: InterfaceReputationManager
     private unWatch: WatchBlocksReturnType | undefined
     private currentlyHandlingBlock = false
-    private timer?: Timer
+    private timer?: NodeJS.Timer
     private bundlerFrequency: number
     private noEip1559Support: boolean
 
