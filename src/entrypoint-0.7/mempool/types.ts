@@ -4,7 +4,7 @@ import type {
     ReferencedCodeHashes,
     SubmittedUserOperation,
     TransactionInfo,
-    UserOperation,
+    UnPackedUserOperation,
     UserOperationInfo
 } from "@entrypoint-0.7/types"
 
@@ -13,7 +13,7 @@ export interface Mempool {
         op: MempoolUserOperation,
         referencedContracts?: ReferencedCodeHashes
     ): boolean
-    checkEntityMultipleRoleViolation(_op: UserOperation): Promise<void>
+    checkEntityMultipleRoleViolation(_op: UnPackedUserOperation): Promise<void>
 
     /**
      * Takes an array of user operations from the mempool, also marking them as submitted.

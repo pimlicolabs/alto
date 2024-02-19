@@ -16,7 +16,7 @@ import Fastify, {
 import type { Registry } from "prom-client"
 import { toHex } from "viem"
 import { fromZodError } from "zod-validation-error"
-import type { IRpcEndpoint } from "./rpcHandler"
+import type { InterfaceRpcEndpoint } from "./rpcHandler"
 
 // jsonBigIntOverride.ts
 const originalJsonStringify = JSON.stringify
@@ -64,13 +64,13 @@ declare module "fastify" {
 
 export class Server {
     private fastify: FastifyInstance
-    private rpcEndpoint: IRpcEndpoint
+    private rpcEndpoint: InterfaceRpcEndpoint
     private port: number
     private registry: Registry
     private metrics: Metrics
 
     constructor(
-        rpcEndpoint: IRpcEndpoint,
+        rpcEndpoint: InterfaceRpcEndpoint,
         port: number,
         requestTimeout: number | undefined,
         logger: Logger,

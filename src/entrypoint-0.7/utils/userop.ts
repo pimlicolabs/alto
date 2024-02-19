@@ -15,7 +15,8 @@ import {
     keccak256,
     toHex,
     concat,
-    pad
+    pad,
+    slice
 } from "viem"
 
 export function getInitCode(unpackedUserOperation: UnPackedUserOperation) {
@@ -25,6 +26,19 @@ export function getInitCode(unpackedUserOperation: UnPackedUserOperation) {
               unpackedUserOperation.factoryData
           ])
         : "0x"
+}
+
+export function unPackInitCode(initCode: Hex) {
+    if (initCode === "0x") {
+        return {
+            factory: undefined,
+            factoryData: undefined
+        }
+    }
+    return {
+        factory: getAddress(slice(initCode, 0, 20)),
+        factoryData: slice(initCode, 20)
+    }
 }
 
 export function getAccountGasLimits(
@@ -38,6 +52,13 @@ export function getAccountGasLimits(
     ])
 }
 
+export function unpackAccountGasLimits(accountGasLimits: Hex) {
+    return {
+        verificationGasLimit: BigInt(slice(accountGasLimits, 0, 16)),
+        callGasLimit: BigInt(slice(accountGasLimits, 16))
+    }
+}
+
 export function getGasLimits(unpackedUserOperation: UnPackedUserOperation) {
     return concat([
         pad(toHex(unpackedUserOperation.maxPriorityFeePerGas), {
@@ -45,6 +66,13 @@ export function getGasLimits(unpackedUserOperation: UnPackedUserOperation) {
         }),
         pad(toHex(unpackedUserOperation.maxFeePerGas), { size: 16 })
     ])
+}
+
+export function unpackGasLimits(gasLimits: Hex) {
+    return {
+        maxPriorityFeePerGas: BigInt(slice(gasLimits, 0, 16)),
+        maxFeePerGas: BigInt(slice(gasLimits, 16))
+    }
 }
 
 export function getPaymasterAndData(
@@ -67,6 +95,23 @@ export function getPaymasterAndData(
         : "0x"
 }
 
+export function unpackPaymasterAndData(paymasterAndData: Hex) {
+    if (paymasterAndData === "0x") {
+        return {
+            paymaster: undefined,
+            paymasterVerificationGasLimit: undefined,
+            paymasterPostOpGasLimit: undefined,
+            paymasterData: undefined
+        }
+    }
+    return {
+        paymaster: getAddress(slice(paymasterAndData, 0, 20)),
+        paymasterVerificationGasLimit: BigInt(slice(paymasterAndData, 20, 36)),
+        paymasterPostOpGasLimit: BigInt(slice(paymasterAndData, 36, 52)),
+        paymasterData: slice(paymasterAndData, 52)
+    }
+}
+
 export function toPackedUserOperation(
     unpackedUserOperation: UnPackedUserOperation
 ): PackedUserOperation {
@@ -80,6 +125,47 @@ export function toPackedUserOperation(
         gasFees: getGasLimits(unpackedUserOperation),
         paymasterAndData: getPaymasterAndData(unpackedUserOperation),
         signature: unpackedUserOperation.signature
+    }
+}
+
+export function toUnPackedUserOperation(
+    packedUserOperation: PackedUserOperation
+): UnPackedUserOperation {
+    const { factory, factoryData } = unPackInitCode(
+        packedUserOperation.initCode
+    )
+
+    const { callGasLimit, verificationGasLimit } = unpackAccountGasLimits(
+        packedUserOperation.accountGasLimits
+    )
+
+    const { maxFeePerGas, maxPriorityFeePerGas } = unpackGasLimits(
+        packedUserOperation.gasFees
+    )
+
+    const {
+        paymaster,
+        paymasterVerificationGasLimit,
+        paymasterPostOpGasLimit,
+        paymasterData
+    } = unpackPaymasterAndData(packedUserOperation.paymasterAndData)
+
+    return {
+        sender: packedUserOperation.sender,
+        nonce: packedUserOperation.nonce,
+        factory: factory,
+        factoryData: factoryData,
+        callData: packedUserOperation.callData,
+        callGasLimit: callGasLimit,
+        verificationGasLimit: verificationGasLimit,
+        preVerificationGas: packedUserOperation.preVerificationGas,
+        maxFeePerGas: maxFeePerGas,
+        maxPriorityFeePerGas: maxPriorityFeePerGas,
+        paymaster: paymaster,
+        paymasterVerificationGasLimit: paymasterVerificationGasLimit,
+        paymasterPostOpGasLimit: paymasterPostOpGasLimit,
+        paymasterData: paymasterData,
+        signature: packedUserOperation.signature
     }
 }
 

@@ -2,10 +2,10 @@ import {
     EntryPointAbi,
     RpcError,
     type StakeInfo,
-    type UserOperation,
     ValidationErrors,
     type ValidationResult,
-    type ValidationResultWithAggregation
+    type ValidationResultWithAggregation,
+    type UnPackedUserOperation
 } from "@entrypoint-0.7/types"
 import type { Logger } from "@alto/utils"
 import { getAddressFromInitCodeOrPaymasterAndData } from "@entrypoint-0.7/utils"
@@ -13,18 +13,18 @@ import { type Address, type PublicClient, getAddress, getContract } from "viem"
 
 export interface InterfaceReputationManager {
     checkReputation(
-        userOperation: UserOperation,
+        userOperation: UnPackedUserOperation,
         validationResult: ValidationResult | ValidationResultWithAggregation
     ): Promise<void>
-    updateUserOperationSeenStatus(userOperation: UserOperation): void
-    increaseUserOperationCount(userOperation: UserOperation): void
-    decreaseUserOperationCount(userOperation: UserOperation): void
+    updateUserOperationSeenStatus(userOperation: UnPackedUserOperation): void
+    increaseUserOperationCount(userOperation: UnPackedUserOperation): void
+    decreaseUserOperationCount(userOperation: UnPackedUserOperation): void
     getStatus(address?: Address): ReputationStatus
     updateUserOperationIncludedStatus(
-        userOperation: UserOperation,
+        userOperation: UnPackedUserOperation,
         accountDeployed: boolean
     ): void
-    crashedHandleOps(userOperation: UserOperation, reason: string): void
+    crashedHandleOps(userOperation: UnPackedUserOperation, reason: string): void
     setReputation(
         args: {
             address: Address
@@ -42,21 +42,21 @@ export interface InterfaceReputationManager {
 }
 
 export enum EntityType {
-    ACCOUNT = "Account",
-    PAYMASTER = "Paymaster",
-    FACTORY = "Factory",
-    AGGREGATOR = "Aggregator"
+    Account = "Account",
+    Paymaster = "Paymaster",
+    Factory = "Factory",
+    Aggregator = "Aggregator"
 }
 
 export type ReputationStatus = 0n | 1n | 2n
 export const ReputationStatuses: {
-    OK: ReputationStatus
-    THROTTLED: ReputationStatus
-    BANNED: ReputationStatus
+    ok: ReputationStatus
+    throttled: ReputationStatus
+    banned: ReputationStatus
 } = {
-    OK: 0n,
-    THROTTLED: 1n,
-    BANNED: 2n
+    ok: 0n,
+    throttled: 1n,
+    banned: 2n
 }
 
 export interface ReputationEntry {
@@ -79,30 +79,33 @@ export const BundlerReputationParams: ReputationParams = {
 }
 
 export class NullReputationManager implements InterfaceReputationManager {
-    async checkReputation(
-        userOperation: UserOperation,
-        validationResult: ValidationResult | ValidationResultWithAggregation
+    checkReputation(
+        _userOperation: UnPackedUserOperation,
+        _validationResult: ValidationResult | ValidationResultWithAggregation
     ): Promise<void> {
+        return Promise.resolve()
+    }
+
+    increaseUserOperationCount(_: UnPackedUserOperation): void {
         return
     }
 
-    increaseUserOperationCount(_: UserOperation): void {
+    decreaseUserOperationCount(_: UnPackedUserOperation): void {
         return
     }
 
-    decreaseUserOperationCount(_: UserOperation): void {
+    updateUserOperationSeenStatus(_: UnPackedUserOperation): void {
         return
     }
 
-    updateUserOperationSeenStatus(_: UserOperation): void {
+    updateUserOperationIncludedStatus(
+        _: UnPackedUserOperation,
+        __: boolean
+    ): void {
         return
     }
 
-    updateUserOperationIncludedStatus(_: UserOperation, __: boolean): void {
-        return
-    }
-
-    crashedHandleOps(_: UserOperation, __: string): void {
+    crashedHandleOps(_: UnPackedUserOperation, __: string): void {
         return
     }
 
@@ -258,40 +261,42 @@ export class ReputationManager implements InterfaceReputationManager {
         }
     }
 
-    async checkReputation(
-        userOperation: UserOperation,
+    checkReputation(
+        userOperation: UnPackedUserOperation,
         validationResult: ValidationResult | ValidationResultWithAggregation
     ): Promise<void> {
         this.increaseUserOperationCount(userOperation)
 
         this.checkReputationStatus(
-            EntityType.ACCOUNT,
+            EntityType.Account,
             validationResult.senderInfo,
             this.maxMempoolUserOperationsPerSender
         )
 
         if (validationResult.paymasterInfo) {
             this.checkReputationStatus(
-                EntityType.PAYMASTER,
+                EntityType.Paymaster,
                 validationResult.paymasterInfo
             )
         }
 
         if (validationResult.factoryInfo) {
             this.checkReputationStatus(
-                EntityType.FACTORY,
+                EntityType.Factory,
                 validationResult.factoryInfo
             )
         }
 
-        const aggregaorValidationResult =
+        const aggregatorValidationResult =
             validationResult as ValidationResultWithAggregation
-        if (aggregaorValidationResult.aggregatorInfo) {
+        if (aggregatorValidationResult.aggregatorInfo) {
             this.checkReputationStatus(
-                EntityType.AGGREGATOR,
-                aggregaorValidationResult.aggregatorInfo.stakeInfo
+                EntityType.Aggregator,
+                aggregatorValidationResult.aggregatorInfo.stakeInfo
             )
         }
+
+        return Promise.resolve()
     }
 
     getEntityCount(address: Address): bigint {
@@ -325,14 +330,11 @@ export class ReputationManager implements InterfaceReputationManager {
         entry.opsIncluded = 0n
     }
 
-    crashedHandleOps(op: UserOperation, reason: string): void {
+    crashedHandleOps(op: UnPackedUserOperation, reason: string): void {
         if (reason.startsWith("AA3")) {
             // paymaster
-            const paymaster = getAddressFromInitCodeOrPaymasterAndData(
-                op.paymasterAndData
-            ) as Address | undefined
-            if (paymaster) {
-                this.updateCrashedHandleOps(paymaster)
+            if (op.paymaster) {
+                this.updateCrashedHandleOps(op.paymaster)
             }
         } else if (reason.startsWith("AA2")) {
             // sender
@@ -340,11 +342,8 @@ export class ReputationManager implements InterfaceReputationManager {
             this.updateCrashedHandleOps(sender)
         } else if (reason.startsWith("AA1")) {
             // init code
-            const factory = getAddressFromInitCodeOrPaymasterAndData(
-                op.initCode
-            ) as Address | undefined
-            if (factory) {
-                this.updateCrashedHandleOps(factory)
+            if (op.factory) {
+                this.updateCrashedHandleOps(op.factory)
             }
         }
     }
@@ -363,84 +362,59 @@ export class ReputationManager implements InterfaceReputationManager {
     }
 
     updateUserOperationIncludedStatus(
-        userOperation: UserOperation,
+        userOperation: UnPackedUserOperation,
         accountDeployed: boolean
     ): void {
         const sender = userOperation.sender
         this.updateIncludedStatus(sender)
 
-        const paymaster = getAddressFromInitCodeOrPaymasterAndData(
-            userOperation.paymasterAndData
-        ) as Address | undefined
-        if (paymaster) {
-            this.updateIncludedStatus(paymaster)
+        if (userOperation.paymaster) {
+            this.updateIncludedStatus(userOperation.paymaster)
         }
 
         if (accountDeployed) {
-            const factory = getAddressFromInitCodeOrPaymasterAndData(
-                userOperation.initCode
-            ) as Address | undefined
-            if (factory) {
-                this.updateIncludedStatus(factory)
+            if (userOperation.factory) {
+                this.updateIncludedStatus(userOperation.factory)
             }
         }
     }
 
-    updateUserOperationSeenStatus(userOperation: UserOperation): void {
+    updateUserOperationSeenStatus(userOperation: UnPackedUserOperation): void {
         const sender = userOperation.sender
         this.increaseSeen(sender)
 
-        const paymaster = getAddressFromInitCodeOrPaymasterAndData(
-            userOperation.paymasterAndData
-        ) as Address | undefined
-        if (paymaster) {
-            this.increaseSeen(paymaster)
+        if (userOperation.paymaster) {
+            this.increaseSeen(userOperation.paymaster)
         }
 
-        const factory = getAddressFromInitCodeOrPaymasterAndData(
-            userOperation.initCode
-        ) as Address | undefined
-
-        this.logger.debug(
-            { userOperation, factory },
-            "updateUserOperationSeenStatus"
-        )
-
-        if (factory) {
-            this.increaseSeen(factory)
+        if (userOperation.factory) {
+            this.increaseSeen(userOperation.factory)
         }
     }
 
-    increaseUserOperationCount(userOperation: UserOperation) {
+    increaseUserOperationCount(userOperation: UnPackedUserOperation) {
         const sender = userOperation.sender
         this.entityCount[sender] = (this.entityCount[sender] ?? 0n) + 1n
 
-        const paymaster = getAddressFromInitCodeOrPaymasterAndData(
-            userOperation.paymasterAndData
-        )
-        if (paymaster) {
-            this.entityCount[paymaster] =
-                (this.entityCount[paymaster] ?? 0n) + 1n
+        if (userOperation.paymaster) {
+            this.entityCount[userOperation.paymaster] =
+                (this.entityCount[userOperation.paymaster] ?? 0n) + 1n
         }
 
-        const factory = getAddressFromInitCodeOrPaymasterAndData(
-            userOperation.initCode
-        )
-        if (factory) {
-            this.entityCount[factory] = (this.entityCount[factory] ?? 0n) + 1n
+        if (userOperation.factory) {
+            this.entityCount[userOperation.factory] =
+                (this.entityCount[userOperation.factory] ?? 0n) + 1n
         }
     }
 
-    decreaseUserOperationCount(userOperation: UserOperation) {
+    decreaseUserOperationCount(userOperation: UnPackedUserOperation) {
         const sender = userOperation.sender
         this.entityCount[sender] = (this.entityCount[sender] ?? 0n) - 1n
 
         this.entityCount[sender] =
             this.entityCount[sender] < 0n ? 0n : this.entityCount[sender]
 
-        const paymaster = getAddressFromInitCodeOrPaymasterAndData(
-            userOperation.paymasterAndData
-        )
+        const paymaster = userOperation.paymaster
         if (paymaster) {
             this.entityCount[paymaster] =
                 (this.entityCount[paymaster] ?? 0n) - 1n
@@ -451,9 +425,7 @@ export class ReputationManager implements InterfaceReputationManager {
                     : this.entityCount[paymaster]
         }
 
-        const factory = getAddressFromInitCodeOrPaymasterAndData(
-            userOperation.initCode
-        )
+        const factory = userOperation.factory
         if (factory) {
             this.entityCount[factory] = (this.entityCount[factory] ?? 0n) - 1n
 
@@ -463,7 +435,7 @@ export class ReputationManager implements InterfaceReputationManager {
     }
 
     checkReputationStatus(
-        entyType: EntityType,
+        entityType: EntityType,
         stakeInfo: StakeInfo,
         maxMempoolUserOperationsPerSenderOverride?: bigint
     ) {
@@ -473,28 +445,28 @@ export class ReputationManager implements InterfaceReputationManager {
                 stakeInfo.addr as Address
             )
 
-        this.checkBanned(entyType, stakeInfo)
+        this.checkBanned(entityType, stakeInfo)
 
         const entityCount = this.getEntityCount(stakeInfo.addr as Address)
 
         if (entityCount > this.throttledEntityMinMempoolCount) {
-            this.checkThrottled(entyType, stakeInfo)
+            this.checkThrottled(entityType, stakeInfo)
         }
         if (entityCount > maxTxMempoolAllowedEntity) {
-            this.checkStake(entyType, stakeInfo)
+            this.checkStake(entityType, stakeInfo)
         }
     }
 
     getStatus(address?: Address): ReputationStatus {
         if (!address || this.whitelist.has(address)) {
-            return ReputationStatuses.OK
+            return ReputationStatuses.ok
         }
         if (this.blackList.has(address)) {
-            return ReputationStatuses.BANNED
+            return ReputationStatuses.banned
         }
         const entry = this.entries[address]
         if (!entry) {
-            return ReputationStatuses.OK
+            return ReputationStatuses.ok
         }
         const minExpectedIncluded =
             entry.opsSeen / this.bundlerReputationParams.minInclusionDenominator
@@ -517,23 +489,25 @@ export class ReputationManager implements InterfaceReputationManager {
             minExpectedIncluded <=
             entry.opsIncluded + this.bundlerReputationParams.throttlingSlack
         ) {
-            entry.status = ReputationStatuses.OK
-            return ReputationStatuses.OK
-        } else if (
+            entry.status = ReputationStatuses.ok
+            return ReputationStatuses.ok
+        }
+
+        if (
             minExpectedIncluded <=
             entry.opsIncluded + this.bundlerReputationParams.banSlack
         ) {
-            entry.status = ReputationStatuses.THROTTLED
-            return ReputationStatuses.THROTTLED
-        } else {
-            entry.status = ReputationStatuses.BANNED
-            return ReputationStatuses.BANNED
+            entry.status = ReputationStatuses.throttled
+            return ReputationStatuses.throttled
         }
+
+        entry.status = ReputationStatuses.banned
+        return ReputationStatuses.banned
     }
 
     checkBanned(entityType: EntityType, stakeInfo: StakeInfo) {
         const status = this.getStatus(stakeInfo.addr as Address)
-        if (status === ReputationStatuses.BANNED) {
+        if (status === ReputationStatuses.banned) {
             throw new RpcError(
                 `${entityType} ${stakeInfo.addr} is banned from using the pimlico`,
                 ValidationErrors.Reputation
@@ -543,7 +517,7 @@ export class ReputationManager implements InterfaceReputationManager {
 
     checkThrottled(entityType: EntityType, stakeInfo: StakeInfo) {
         const status = this.getStatus(stakeInfo.addr as Address)
-        if (status === ReputationStatuses.THROTTLED) {
+        if (status === ReputationStatuses.throttled) {
             throw new RpcError(
                 `${entityType} ${stakeInfo.addr} is throttled by the pimlico`,
                 ValidationErrors.Reputation

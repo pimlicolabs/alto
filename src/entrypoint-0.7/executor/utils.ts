@@ -4,13 +4,17 @@ import {
     type CompressedUserOperation,
     EntryPointAbi,
     type TransactionInfo,
-    type UserOperation,
     type UserOperationWithHash,
     deriveUserOperation,
-    failedOpErrorSchema
+    failedOpErrorSchema,
+    type UnPackedUserOperation
 } from "@entrypoint-0.7/types"
 import type { Logger } from "@alto/utils"
-import { parseViemError, transactionIncluded } from "@entrypoint-0.7/utils"
+import {
+    parseViemError,
+    toPackedUserOperation,
+    transactionIncluded
+} from "@entrypoint-0.7/utils"
 import * as sentry from "@sentry/node"
 import {
     type Account,
@@ -131,7 +135,11 @@ export async function filterOpsAndEstimateGas(
                 const ep = callContext.ep
                 const opsToSend = simulatedOps
                     .filter((op) => op.reason === undefined)
-                    .map((op) => op.owh.mempoolUserOperation as UserOperation)
+                    .map((op) =>
+                        toPackedUserOperation(
+                            op.owh.mempoolUserOperation as UnPackedUserOperation
+                        )
+                    )
 
                 gasLimit = await ep.estimateGas.handleOps(
                     [opsToSend, wallet.address],

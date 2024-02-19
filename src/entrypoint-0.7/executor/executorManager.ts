@@ -12,9 +12,9 @@ import {
     type MempoolUserOperation,
     type SubmittedUserOperation,
     type TransactionInfo,
-    type UserOperation,
     deriveUserOperation,
-    isCompressedType
+    isCompressedType,
+    type UnPackedUserOperation
 } from "@entrypoint-0.7/types"
 import { getGasPrice, transactionIncluded } from "@entrypoint-0.7/utils"
 import type {
@@ -26,7 +26,7 @@ import type {
     Transport,
     WatchBlocksReturnType
 } from "viem"
-import type { IExecutor, ReplaceTransactionResult } from "./executor"
+import type { InterfaceExecutor, ReplaceTransactionResult } from "./executor"
 
 function getTransactionsFromUserOperationEntries(
     entries: SubmittedUserOperation[]
@@ -41,7 +41,7 @@ function getTransactionsFromUserOperationEntries(
 }
 
 export class ExecutorManager {
-    private executor: IExecutor
+    private executor: InterfaceExecutor
     private mempool: Mempool
     private monitor: Monitor
     private publicClient: PublicClient<Transport, Chain>
@@ -57,7 +57,7 @@ export class ExecutorManager {
     private noEip1559Support: boolean
 
     constructor(
-        executor: IExecutor,
+        executor: InterfaceExecutor,
         mempool: Mempool,
         monitor: Monitor,
         reputationManager: InterfaceReputationManager,
@@ -117,7 +117,7 @@ export class ExecutorManager {
     async sendToExecutor(mempoolOps: MempoolUserOperation[]) {
         const ops = mempoolOps
             .filter((op) => !isCompressedType(op))
-            .map((op) => op as UserOperation)
+            .map((op) => op as UnPackedUserOperation)
         const compressedOps = mempoolOps
             .filter((op) => isCompressedType(op))
             .map((op) => op as CompressedUserOperation)

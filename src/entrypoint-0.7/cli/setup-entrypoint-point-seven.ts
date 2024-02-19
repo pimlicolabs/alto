@@ -22,7 +22,7 @@ import { CompressionHandler } from "@entrypoint-0.7/utils"
 import {
     BasicExecutor,
     ExecutorManager,
-    type IExecutor
+    type InterfaceExecutor
 } from "@entrypoint-0.7/executor"
 import type { Registry } from "prom-client"
 import type { SenderManager } from "@alto/executor"
@@ -175,7 +175,7 @@ const getExecutor = ({
     logger: Logger
     metrics: Metrics
     compressionHandler: CompressionHandler | null
-}): IExecutor => {
+}): InterfaceExecutor => {
     return new BasicExecutor(
         client,
         walletClient,
@@ -205,7 +205,7 @@ const getExecutorManager = ({
     logger,
     metrics
 }: {
-    executor: IExecutor
+    executor: InterfaceExecutor
     mempool: Mempool
     monitor: Monitor
     reputationManager: InterfaceReputationManager
@@ -272,7 +272,7 @@ const getRpcHandler = ({
     client: PublicClient<Transport, Chain>
     validator: InterfaceValidator
     mempool: Mempool
-    executor: IExecutor
+    executor: InterfaceExecutor
     monitor: Monitor
     nonceQueuer: NonceQueuer
     executorManager: ExecutorManager

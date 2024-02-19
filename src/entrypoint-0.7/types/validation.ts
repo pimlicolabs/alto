@@ -102,9 +102,8 @@ export const validationResultSchema = z
         z.object({
             preOpGas: z.bigint(),
             prefund: z.bigint(),
-            sigFailed: z.boolean(),
-            validAfter: z.number(),
-            validUntil: z.number(),
+            accountValidationData: z.bigint(),
+            paymasterValidationData: z.bigint(),
             paymasterContext: z
                 .string()
                 .regex(hexPattern)
@@ -137,9 +136,8 @@ export const validationResultWithAggregationSchema = z
         z.object({
             preOpGas: z.bigint(),
             prefund: z.bigint(),
-            sigFailed: z.boolean(),
-            validAfter: z.number(),
-            validUntil: z.number(),
+            accountValidationData: z.bigint(),
+            paymasterValidationData: z.bigint(),
             paymasterContext: z
                 .string()
                 .regex(hexPattern)

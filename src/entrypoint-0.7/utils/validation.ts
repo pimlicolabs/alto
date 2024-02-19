@@ -23,17 +23,12 @@ import {
     getFunctionSelector,
     serializeTransaction,
     toBytes,
-    toHex
+    toHex,
+    bytesToHex
 } from "viem"
 import * as chains from "viem/chains"
 import type { Logger } from "@alto/utils"
-import {
-    getAccountGasLimits,
-    getGasLimits,
-    getInitCode,
-    getPaymasterAndData,
-    toPackedUserOperation
-} from "./userop"
+import { toPackedUserOperation } from "./userop"
 import { getGasPrice } from "./gasPrice"
 
 export interface GasOverheads {
@@ -91,17 +86,7 @@ export const DefaultGasOverheads: GasOverheads = {
  *  "false" to pack entire UserOp, for calculating the calldata cost of putting it on-chain.
  */
 export function packUserOp(op: UnPackedUserOperation): `0x${string}` {
-    const packedUserOperation: PackedUserOperation = {
-        sender: op.sender,
-        nonce: op.nonce,
-        initCode: getInitCode(op),
-        callData: op.callData,
-        accountGasLimits: getAccountGasLimits(op),
-        preVerificationGas: op.preVerificationGas,
-        gasFees: getGasLimits(op),
-        paymasterAndData: getPaymasterAndData(op),
-        signature: op.signature
-    }
+    const packedUserOperation: PackedUserOperation = toPackedUserOperation(op)
 
     return encodeAbiParameters(
         [
@@ -153,14 +138,24 @@ export function packUserOp(op: UnPackedUserOperation): `0x${string}` {
         ],
         [
             packedUserOperation.sender,
-            packedUserOperation.nonce,
+            BigInt(
+                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            ), // need non zero bytes to get better estimations for preVerificationGas
             packedUserOperation.initCode,
             packedUserOperation.callData,
-            packedUserOperation.accountGasLimits,
-            packedUserOperation.preVerificationGas,
-            packedUserOperation.gasFees,
-            packedUserOperation.paymasterAndData,
-            packedUserOperation.signature
+            bytesToHex(new Uint8Array(32).fill(255)), // need non zero bytes to get better estimations for preVerificationGas
+            BigInt(
+                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            ), // need non zero bytes to get better estimations for preVerificationGas
+            bytesToHex(new Uint8Array(32).fill(255)), // need non zero bytes to get better estimations for preVerificationGas
+            bytesToHex(
+                new Uint8Array(
+                    packedUserOperation.paymasterAndData.length
+                ).fill(255)
+            ),
+            bytesToHex(
+                new Uint8Array(packedUserOperation.signature.length).fill(255)
+            )
         ]
     )
 }
@@ -268,12 +263,16 @@ export function calcDefaultPreVerificationGas(
 ): bigint {
     const ov = { ...DefaultGasOverheads, ...(overheads ?? {}) }
 
-    const p = userOperation
-    p.preVerificationGas ?? 21000n // dummy value, just for calldata cost
-    p.signature =
-        p.signature === "0x" ? toHex(Buffer.alloc(ov.sigSize, 1)) : p.signature // dummy signature
+    userOperation.preVerificationGas ?? 21000n // dummy value, just for calldata cost
+    userOperation.signature =
+        userOperation.signature === "0x"
+            ? toHex(Buffer.alloc(ov.sigSize, 1))
+            : userOperation.signature // dummy signature
 
-    const packed = toBytes(packUserOp(p))
+    const packedUserOperation = packUserOp(userOperation)
+
+    const packed = toBytes(packedUserOperation)
+
     const lengthInWord = (packed.length + 31) / 32
     const callDataCost = packed
         .map((x) => (x === 0 ? ov.zeroByte : ov.nonZeroByte))
@@ -284,6 +283,7 @@ export function calcDefaultPreVerificationGas(
             ov.perUserOp +
             ov.perUserOpWord * lengthInWord
     )
+
     return BigInt(ret)
 }
 

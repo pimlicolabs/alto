@@ -1,7 +1,7 @@
 import { ChildProcess } from "child_process"
 import {
     BasicExecutor,
-    IExecutor,
+    InterfaceExecutor,
     NullExecutor,
     SenderManager
 } from "@entrypoint-0.7/executor"
@@ -43,7 +43,7 @@ describe("mempool", () => {
     let signer: Account
     let signer2: Account
 
-    let executor: MockObject<IExecutor>
+    let executor: MockObject<InterfaceExecutor>
     let mempool: MemoryMempool
 
     beforeEach(async () => {
@@ -97,7 +97,7 @@ describe("mempool", () => {
         //     true
         // )
 
-        executor = mockObject<IExecutor>({
+        executor = mockObject<InterfaceExecutor>({
             bundle: mockFn()
         })
 

@@ -1,5 +1,8 @@
 import type { Metrics } from "@alto/utils"
-import type { ExecutorManager, IExecutor } from "@entrypoint-0.7/executor"
+import type {
+    ExecutorManager,
+    InterfaceExecutor
+} from "@entrypoint-0.7/executor"
 import type {
     InterfaceReputationManager,
     Mempool,
@@ -52,7 +55,9 @@ import {
     calcPreVerificationGas,
     getGasPrice,
     getNonceKeyAndValue,
-    getUserOperationHash
+    getUserOperationHash,
+    toPackedUserOperation,
+    toUnPackedUserOperation
 } from "@entrypoint-0.7/utils"
 import { calcVerificationGasAndCallGasLimit } from "@entrypoint-0.7/utils"
 import {
@@ -73,33 +78,39 @@ import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
 import type { NonceQueuer } from "./nonceQueuer"
 
-export interface IRpcEndpoint {
+export interface InterfaceRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>
+    // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     eth_chainId(): ChainIdResponseResult
+    // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     eth_supportedEntryPoints(): SupportedEntryPointsResponseResult
+    // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     eth_estimateUserOperationGas(
         userOperation: UnPackedUserOperation,
         entryPoint: Address,
         stateOverrides?: StateOverrides
     ): Promise<EstimateUserOperationGasResponseResult>
+    // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     eth_sendUserOperation(
         userOperation: UnPackedUserOperation,
         entryPoint: Address
     ): Promise<SendUserOperationResponseResult>
+    // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     eth_getUserOperationByHash(
         userOperationHash: HexData32
     ): Promise<GetUserOperationByHashResponseResult>
+    // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     eth_getUserOperationReceipt(
         userOperationHash: HexData32
     ): Promise<GetUserOperationReceiptResponseResult>
 }
 
-export class RpcHandler implements IRpcEndpoint {
+export class RpcHandler implements InterfaceRpcEndpoint {
     entryPoint: Address
     publicClient: PublicClient<Transport, Chain>
     validator: InterfaceValidator
     mempool: Mempool
-    executor: IExecutor
+    executor: InterfaceExecutor
     monitor: Monitor
     nonceQueuer: NonceQueuer
     usingTenderly: boolean
@@ -122,7 +133,7 @@ export class RpcHandler implements IRpcEndpoint {
         publicClient: PublicClient<Transport, Chain>,
         validator: InterfaceValidator,
         mempool: Mempool,
-        executor: IExecutor,
+        executor: InterfaceExecutor,
         monitor: Monitor,
         nonceQueuer: NonceQueuer,
         executorManager: ExecutorManager,
@@ -277,14 +288,17 @@ export class RpcHandler implements IRpcEndpoint {
         }
     }
 
+    // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     eth_chainId(): ChainIdResponseResult {
         return BigInt(this.chainId)
     }
 
+    // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     eth_supportedEntryPoints(): SupportedEntryPointsResponseResult {
         return [this.entryPoint]
     }
 
+    // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     async eth_estimateUserOperationGas(
         userOperation: UnPackedUserOperation,
         entryPoint: Address,
@@ -355,6 +369,7 @@ export class RpcHandler implements IRpcEndpoint {
         }
     }
 
+    // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     async eth_sendUserOperation(
         userOperation: UnPackedUserOperation,
         entryPoint: Address
@@ -364,7 +379,7 @@ export class RpcHandler implements IRpcEndpoint {
             status = await this.addToMempoolIfValid(userOperation, entryPoint)
 
             const hash = getUserOperationHash(
-                userOperation,
+                toPackedUserOperation(userOperation),
                 entryPoint,
                 this.chainId
             )
@@ -382,6 +397,7 @@ export class RpcHandler implements IRpcEndpoint {
         }
     }
 
+    // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     async eth_getUserOperationByHash(
         userOperationHash: HexData32
     ): Promise<GetUserOperationByHashResponseResult> {
@@ -461,7 +477,7 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         const result: GetUserOperationByHashResponseResult = {
-            userOperation: op,
+            userOperation: toUnPackedUserOperation(op),
             entryPoint: this.entryPoint,
             transactionHash: txHash,
             blockHash: tx.blockHash ?? "0x",
@@ -471,6 +487,7 @@ export class RpcHandler implements IRpcEndpoint {
         return result
     }
 
+    // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     async eth_getUserOperationReceipt(
         userOperationHash: HexData32
     ): Promise<GetUserOperationReceiptResponseResult> {
@@ -609,6 +626,7 @@ export class RpcHandler implements IRpcEndpoint {
         return userOperationReceipt
     }
 
+    // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     debug_bundler_clearState(): BundlerClearStateResponseResult {
         if (this.environment !== "development") {
             throw new RpcError(
@@ -620,6 +638,7 @@ export class RpcHandler implements IRpcEndpoint {
         return "ok"
     }
 
+    // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     debug_bundler_clearMempool(): BundlerClearMempoolResponseResult {
         if (this.environment !== "development") {
             throw new RpcError(
@@ -631,6 +650,7 @@ export class RpcHandler implements IRpcEndpoint {
         return "ok"
     }
 
+    // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     async debug_bundler_dumpMempool(
         entryPoint: Address
     ): Promise<BundlerDumpMempoolResponseResult> {
@@ -651,6 +671,7 @@ export class RpcHandler implements IRpcEndpoint {
             )
     }
 
+    // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
         if (this.environment !== "development") {
             throw new RpcError(
@@ -660,6 +681,7 @@ export class RpcHandler implements IRpcEndpoint {
         return this.executorManager.bundleNow()
     }
 
+    // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     debug_bundler_setBundlingMode(
         bundlingMode: BundlingMode
     ): BundlerSetBundlingModeResponseResult {
@@ -672,6 +694,7 @@ export class RpcHandler implements IRpcEndpoint {
         return "ok"
     }
 
+    // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     debug_bundler_dumpReputation(
         entryPoint: Address
     ): BundlerDumpReputationsResponseResult {
@@ -688,6 +711,7 @@ export class RpcHandler implements IRpcEndpoint {
         return this.reputationManager.dumpReputations()
     }
 
+    // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     async debug_bundler_getStakeStatus(
         address: Address,
         entryPoint: Address
@@ -708,6 +732,7 @@ export class RpcHandler implements IRpcEndpoint {
         }).result
     }
 
+    // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     debug_bundler_setReputation(
         args: BundlerSetReputationsRequestParams
     ): BundlerSetBundlingModeResponseResult {
@@ -720,12 +745,14 @@ export class RpcHandler implements IRpcEndpoint {
         return "ok"
     }
 
+    // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     pimlico_getUserOperationStatus(
         userOperationHash: HexData32
     ): PimlicoGetUserOperationStatusResponseResult {
         return this.monitor.getUserOperationStatus(userOperationHash)
     }
 
+    // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     async pimlico_getUserOperationGasPrice(): Promise<PimlicoGetUserOperationGasPriceResponseResult> {
         const gasPrice = await getGasPrice(
             this.publicClient.chain,
@@ -887,6 +914,7 @@ export class RpcHandler implements IRpcEndpoint {
         return "queued"
     }
 
+    // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     async pimlico_sendCompressedUserOperation(
         compressedCalldata: Hex,
         inflatorAddress: Address,
@@ -914,7 +942,7 @@ export class RpcHandler implements IRpcEndpoint {
             )
 
             const hash = getUserOperationHash(
-                inflatedOp,
+                toPackedUserOperation(inflatedOp),
                 entryPoint,
                 this.chainId
             )
@@ -936,7 +964,7 @@ export class RpcHandler implements IRpcEndpoint {
     private async validateAndInflateCompressedUserOperation(
         inflatorAddress: Address,
         compressedCalldata: Hex
-    ): Promise<{ inflatedOp: PackedUserOperation; inflatorId: number }> {
+    ): Promise<{ inflatedOp: UnPackedUserOperation; inflatorId: number }> {
         // check if inflator is registered with our PerOpInflator.
         if (this.compressionHandler === null) {
             throw new RpcError("Endpoint not supported")
@@ -983,6 +1011,6 @@ export class RpcHandler implements IRpcEndpoint {
                 ValidationErrors.InvalidFields
             )
         }
-        return { inflatedOp, inflatorId }
+        return { inflatedOp: toUnPackedUserOperation(inflatedOp), inflatorId }
     }
 }

@@ -93,7 +93,7 @@ export type UnPackedUserOperation = z.infer<typeof unPackedUserOperationSchema>
 
 export type CompressedUserOperation = {
     compressedCalldata: Hex
-    inflatedOp: PackedUserOperation
+    inflatedOp: UnPackedUserOperation
     inflatorAddress: Address
     inflatorId: number
 }

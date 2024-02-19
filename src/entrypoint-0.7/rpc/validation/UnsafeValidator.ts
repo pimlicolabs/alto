@@ -1,134 +1,26 @@
 import type { Metrics } from "@alto/utils"
 import {
     type Address,
-    EntryPointAbi,
     ExecutionErrors,
     type ExecutionResult,
     type ReferencedCodeHashes,
     RpcError,
     type StorageMap,
     ValidationErrors,
-    type ValidationResultWithAggregation,
-    entryPointErrorsSchema,
-    entryPointExecutionErrorSchema
+    type ValidationResultWithAggregation
 } from "@entrypoint-0.7/types"
 import type {
     UnPackedUserOperation,
     ValidationResult
 } from "@entrypoint-0.7/types"
-import { hexDataSchema } from "@entrypoint-0.7/types"
 import type { InterfaceValidator } from "@entrypoint-0.7/types"
 import type { StateOverrides } from "@entrypoint-0.7/types"
 import type { ApiVersion } from "@entrypoint-0.7/types"
 import type { Logger } from "@alto/utils"
 import { calcPreVerificationGas } from "@entrypoint-0.7/utils"
 import { calcVerificationGasAndCallGasLimit } from "@entrypoint-0.7/utils"
-import * as sentry from "@sentry/node"
-import {
-    type Account,
-    BaseError,
-    type Chain,
-    ContractFunctionExecutionError,
-    type PublicClient,
-    type Transport,
-    decodeErrorResult,
-    encodeFunctionData,
-    getContract
-} from "viem"
-import { z } from "zod"
-import { fromZodError } from "zod-validation-error"
-import { simulateHandleOp } from "../gasEstimation"
-
-// let id = 0
-
-// biome-ignore lint/suspicious/noExplicitAny: it's a generic type
-async function simulateTenderlyCall(publicClient: PublicClient, params: any) {
-    const response = await publicClient.transport
-        .request({ method: "eth_call", params })
-        .catch((e) => {
-            return e
-        })
-
-    const parsedObject = z
-        .object({
-            cause: z.object({
-                data: hexDataSchema
-            })
-        })
-        .parse(response)
-
-    return parsedObject.cause.data
-}
-
-async function getSimulationResult(
-    errorResult: unknown,
-    logger: Logger,
-    simulationType: "validation" | "execution",
-    usingTenderly = false
-): Promise<
-    ValidationResult | ValidationResultWithAggregation | ExecutionResult
-> {
-    const entryPointErrorSchemaParsing = usingTenderly
-        ? entryPointErrorsSchema.safeParse(errorResult)
-        : entryPointExecutionErrorSchema.safeParse(errorResult)
-
-    if (!entryPointErrorSchemaParsing.success) {
-        try {
-            const err = fromZodError(entryPointErrorSchemaParsing.error)
-            logger.error(
-                { error: err.message },
-                "unexpected error during valiation"
-            )
-            logger.error(JSON.stringify(errorResult))
-            err.message = `User Operation simulation returned unexpected invalid response: ${err.message}`
-            throw err
-        } catch {
-            if (errorResult instanceof BaseError) {
-                const revertError = errorResult.walk(
-                    (err) => err instanceof ContractFunctionExecutionError
-                )
-                throw new RpcError(
-                    `UserOperation reverted during simulation with reason: ${
-                        // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
-                        (revertError?.cause as any)?.reason
-                    }`,
-                    ValidationErrors.SimulateValidation
-                )
-            }
-            sentry.captureException(errorResult)
-            throw new Error(
-                `User Operation simulation returned unexpected invalid response: ${errorResult}`
-            )
-        }
-    }
-
-    const errorData = entryPointErrorSchemaParsing.data
-
-    if (errorData.errorName === "FailedOp") {
-        const reason = errorData.args.reason
-        throw new RpcError(
-            `UserOperation reverted during simulation with reason: ${reason}`,
-            ValidationErrors.SimulateValidation
-        )
-    }
-
-    if (simulationType === "validation") {
-        if (
-            errorData.errorName !== "ValidationResult" &&
-            errorData.errorName !== "ValidationResultWithAggregation"
-        ) {
-            throw new Error(
-                "Unexpected error - errorName is not ValidationResult or ValidationResultWithAggregation"
-            )
-        }
-    } else if (errorData.errorName !== "ExecutionResult") {
-        throw new Error("Unexpected error - errorName is not ExecutionResult")
-    }
-
-    const simulationResult = errorData.args
-
-    return simulationResult
-}
+import type { Account, Chain, PublicClient, Transport } from "viem"
+import { simulateHandleOp, simulateValidation } from "../EntryPointSimulations"
 
 export class UnsafeValidator implements InterfaceValidator {
     publicClient: PublicClient<Transport, Chain>
@@ -198,80 +90,41 @@ export class UnsafeValidator implements InterfaceValidator {
             referencedContracts?: ReferencedCodeHashes
         }
     > {
-        const entryPointContract = getContract({
-            address: this.entryPoint,
-            abi: EntryPointAbi,
-            publicClient: this.publicClient
-        })
+        const simulateValidationResult = await simulateValidation(
+            userOperation,
+            this.entryPoint,
+            this.publicClient
+        )
 
-        if (this.usingTenderly) {
-            const tenderlyResult = await simulateTenderlyCall(
-                this.publicClient,
-                [
-                    {
-                        to: this.entryPoint,
-                        data: encodeFunctionData({
-                            abi: entryPointContract.abi,
-                            functionName: "simulateValidation",
-                            args: [userOperation]
-                        })
-                    },
-                    "latest"
-                ]
+        if (simulateValidationResult.status === "failed") {
+            throw new RpcError(
+                `UserOperation reverted with reason: ${
+                    simulateValidationResult.data as string
+                }`,
+                ExecutionErrors.UserOperationReverted
             )
-
-            const errorResult = decodeErrorResult({
-                abi: entryPointContract.abi,
-                data: tenderlyResult
-            })
-
-            return {
-                ...((await getSimulationResult(
-                    errorResult,
-                    this.logger,
-                    "validation",
-                    this.usingTenderly
-                )) as ValidationResult | ValidationResultWithAggregation),
-                storageMap: {}
-            }
         }
 
-        const errorResult = await entryPointContract.simulate
-            .simulateValidation([userOperation])
-            .catch((e) => {
-                if (e instanceof Error) {
-                    return e
-                }
-                throw e
-            })
-
         return {
-            ...((await getSimulationResult(
-                errorResult,
-                this.logger,
-                "validation",
-                this.usingTenderly
-            )) as ValidationResult | ValidationResultWithAggregation),
+            ...(simulateValidationResult.data as ValidationResult),
             storageMap: {}
         }
     }
 
     async validatePreVerificationGas(userOperation: UnPackedUserOperation) {
-        if (this.apiVersion !== "v1") {
-            const preVerificationGas = await calcPreVerificationGas(
-                this.publicClient,
-                userOperation,
-                this.entryPoint,
-                this.chainId,
-                this.logger
-            )
+        const preVerificationGas = await calcPreVerificationGas(
+            this.publicClient,
+            userOperation,
+            this.entryPoint,
+            this.chainId,
+            this.logger
+        )
 
-            if (preVerificationGas > userOperation.preVerificationGas) {
-                throw new RpcError(
-                    `preVerificationGas is not enough, required: ${preVerificationGas}, got: ${userOperation.preVerificationGas}`,
-                    ValidationErrors.SimulateValidation
-                )
-            }
+        if (preVerificationGas > userOperation.preVerificationGas) {
+            throw new RpcError(
+                `preVerificationGas is not enough, required: ${preVerificationGas}, got: ${userOperation.preVerificationGas}`,
+                ValidationErrors.SimulateValidation
+            )
         }
     }
 
@@ -288,70 +141,45 @@ export class UnsafeValidator implements InterfaceValidator {
             const validationResult =
                 await this.getValidationResult(userOperation)
 
-            if (validationResult.returnInfo.sigFailed) {
+            if (validationResult.returnInfo.accountValidationData) {
                 throw new RpcError(
-                    "Invalid UserOp signature or  paymaster signature",
+                    "User operation validation failed",
                     ValidationErrors.InvalidSignature
                 )
             }
 
-            const now = Date.now() / 1000
-
-            this.logger.debug({
-                validAfter: validationResult.returnInfo.validAfter,
-                validUntil: validationResult.returnInfo.validUntil,
-                now
-            })
-
-            if (
-                validationResult.returnInfo.validAfter > now - 5 &&
-                !this.disableExpirationCheck
-            ) {
+            if (validationResult.returnInfo.paymasterValidationData) {
                 throw new RpcError(
-                    "User operation is not valid yet",
-                    ValidationErrors.ExpiresShortly
+                    "Paymaster validation failed",
+                    ValidationErrors.InvalidSignature
                 )
             }
 
-            if (
-                validationResult.returnInfo.validUntil < now + 30 &&
-                !this.disableExpirationCheck
-            ) {
-                throw new RpcError(
-                    "expires too soon",
-                    ValidationErrors.ExpiresShortly
+            const prefund = validationResult.returnInfo.prefund
+
+            const [verificationGasLimit, callGasLimit] =
+                await calcVerificationGasAndCallGasLimit(
+                    this.publicClient,
+                    userOperation,
+                    {
+                        preOpGas: validationResult.returnInfo.preOpGas,
+                        paid: validationResult.returnInfo.prefund
+                    },
+                    this.chainId
                 )
-            }
 
-            if (this.apiVersion !== "v1") {
-                const prefund = validationResult.returnInfo.prefund
+            const mul = userOperation.paymaster ? 3n : 1n
 
-                const [verificationGasLimit, callGasLimit] =
-                    await calcVerificationGasAndCallGasLimit(
-                        this.publicClient,
-                        userOperation,
-                        {
-                            preOpGas: validationResult.returnInfo.preOpGas,
-                            paid: validationResult.returnInfo.prefund
-                        },
-                        this.chainId
-                    )
+            const requiredPreFund =
+                callGasLimit +
+                verificationGasLimit * mul +
+                userOperation.preVerificationGas
 
-                const mul = userOperation.paymasterAndData === "0x" ? 3n : 1n
-
-                const requiredPreFund =
-                    callGasLimit +
-                    verificationGasLimit * mul +
-                    userOperation.preVerificationGas
-
-                if (requiredPreFund > prefund) {
-                    throw new RpcError(
-                        `prefund is not enough, required: ${requiredPreFund}, got: ${prefund}`,
-                        ValidationErrors.SimulateValidation
-                    )
-                }
-
-                // TODO prefund should be greater than it costs us to add it to mempool
+            if (requiredPreFund > prefund) {
+                throw new RpcError(
+                    `prefund is not enough, required: ${requiredPreFund}, got: ${prefund}`,
+                    ValidationErrors.SimulateValidation
+                )
             }
 
             this.metrics.userOperationsValidationSuccess.inc()

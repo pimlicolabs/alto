@@ -1,5 +1,5 @@
 import type { ReferencedCodeHashes } from "./mempool"
-import type { StateOverrides, UserOperation } from "./schemas"
+import type { StateOverrides, UnPackedUserOperation } from "./schemas"
 import type {
     ExecutionResult,
     StorageMap,
@@ -9,11 +9,11 @@ import type {
 
 export interface InterfaceValidator {
     getExecutionResult(
-        userOperation: UserOperation,
+        userOperation: UnPackedUserOperation,
         stateOverrides?: StateOverrides
     ): Promise<ExecutionResult>
     getValidationResult(
-        userOperation: UserOperation,
+        userOperation: UnPackedUserOperation,
         _codeHashes?: ReferencedCodeHashes
     ): Promise<
         (ValidationResult | ValidationResultWithAggregation) & {
@@ -21,9 +21,11 @@ export interface InterfaceValidator {
             referencedContracts?: ReferencedCodeHashes
         }
     >
-    validatePreVerificationGas(userOperation: UserOperation): Promise<void>
+    validatePreVerificationGas(
+        userOperation: UnPackedUserOperation
+    ): Promise<void>
     validateUserOperation(
-        userOperation: UserOperation,
+        userOperation: UnPackedUserOperation,
         referencedContracts?: ReferencedCodeHashes
     ): Promise<
         (ValidationResult | ValidationResultWithAggregation) & {

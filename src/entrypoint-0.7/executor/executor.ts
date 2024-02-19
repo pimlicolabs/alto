@@ -7,16 +7,17 @@ import {
     EntryPointAbi,
     type HexData32,
     type TransactionInfo,
-    type UserOperation,
     type UserOperationWithHash,
-    deriveUserOperation
+    deriveUserOperation,
+    type UnPackedUserOperation
 } from "@entrypoint-0.7/types"
 import {
     type CompressionHandler,
     getGasPrice,
     getUserOperationHash,
     maxBigInt,
-    parseViemError
+    parseViemError,
+    toPackedUserOperation
 } from "@entrypoint-0.7/utils"
 import * as sentry from "@sentry/node"
 import { Mutex } from "async-mutex"
@@ -61,8 +62,11 @@ export type ReplaceTransactionResult =
           status: "failed"
       }
 
-export interface IExecutor {
-    bundle(entryPoint: Address, ops: UserOperation[]): Promise<BundleResult[]>
+export interface InterfaceExecutor {
+    bundle(
+        entryPoint: Address,
+        ops: UnPackedUserOperation[]
+    ): Promise<BundleResult[]>
     bundleCompressed(
         entryPoint: Address,
         compressedOps: CompressedUserOperation[]
@@ -70,36 +74,47 @@ export interface IExecutor {
     replaceTransaction(
         transactionInfo: TransactionInfo
     ): Promise<ReplaceTransactionResult>
-    cancelOps(entryPoint: Address, ops: UserOperation[]): Promise<void>
+    cancelOps(entryPoint: Address, ops: UnPackedUserOperation[]): Promise<void>
     markWalletProcessed(executor: Account): Promise<void>
     flushStuckTransactions(): Promise<void>
 }
 
-export class NullExecutor implements IExecutor {
-    async bundle(
-        entryPoint: Address,
-        ops: UserOperation[]
+export class NullExecutor implements InterfaceExecutor {
+    bundle(
+        _entryPoint: Address,
+        _ops: UnPackedUserOperation[]
     ): Promise<BundleResult[]> {
-        return []
+        return Promise.resolve([])
     }
-    async bundleCompressed(
-        entryPoint: Address,
-        compressedOps: CompressedUserOperation[]
+    bundleCompressed(
+        _entryPoint: Address,
+        _compressedOps: CompressedUserOperation[]
     ): Promise<BundleResult[]> {
-        return []
+        return Promise.resolve([])
     }
-    async replaceTransaction(
-        transactionInfo: TransactionInfo
+    replaceTransaction(
+        _transactionInfo: TransactionInfo
     ): Promise<ReplaceTransactionResult> {
-        return { status: "failed" }
+        return Promise.resolve({ status: "failed" })
     }
-    async replaceOps(opHahes: HexData32[]): Promise<void> {}
-    async cancelOps(entryPoint: Address, ops: UserOperation[]): Promise<void> {}
-    async markWalletProcessed(executor: Account): Promise<void> {}
-    async flushStuckTransactions(): Promise<void> {}
+    replaceOps(_opHashes: HexData32[]): Promise<void> {
+        return Promise.resolve()
+    }
+    cancelOps(
+        _entryPoint: Address,
+        _ops: UnPackedUserOperation[]
+    ): Promise<void> {
+        return Promise.resolve()
+    }
+    markWalletProcessed(_executor: Account): Promise<void> {
+        return Promise.resolve()
+    }
+    flushStuckTransactions(): Promise<void> {
+        return Promise.resolve()
+    }
 }
 
-export class BasicExecutor implements IExecutor {
+export class BasicExecutor implements InterfaceExecutor {
     // private unWatch: WatchBlocksReturnType | undefined
 
     publicClient: PublicClient
@@ -157,14 +172,19 @@ export class BasicExecutor implements IExecutor {
         return this.compressionHandler
     }
 
-    cancelOps(_entryPoint: Address, _ops: UserOperation[]): Promise<void> {
+    cancelOps(
+        _entryPoint: Address,
+        _ops: UnPackedUserOperation[]
+    ): Promise<void> {
         throw new Error("Method not implemented.")
     }
 
-    async markWalletProcessed(executor: Account) {
-        if (!this.senderManager.availableWallets.includes(executor)) {
-            this.senderManager.pushWallet(executor)
-        }
+    markWalletProcessed(executor: Account) {
+        return new Promise<void>(() => {
+            if (!this.senderManager.availableWallets.includes(executor)) {
+                this.senderManager.pushWallet(executor)
+            }
+        })
     }
 
     async replaceTransaction(
@@ -196,7 +216,7 @@ export class BasicExecutor implements IExecutor {
                 return {
                     mempoolUserOperation: opInfo.mempoolUserOperation,
                     userOperationHash: getUserOperationHash(
-                        op,
+                        toPackedUserOperation(op),
                         this.entryPoint,
                         this.walletClient.chain.id
                     )
@@ -309,8 +329,10 @@ export class BasicExecutor implements IExecutor {
                 abi: EntryPointAbi,
                 functionName: "handleOps",
                 args: [
-                    opsToBundle.map(
-                        (opInfo) => opInfo.mempoolUserOperation as UserOperation
+                    opsToBundle.map((opInfo) =>
+                        toPackedUserOperation(
+                            opInfo.mempoolUserOperation as UnPackedUserOperation
+                        )
                     ),
                     transactionInfo.executor.address
                 ]
@@ -447,7 +469,7 @@ export class BasicExecutor implements IExecutor {
 
     async bundle(
         entryPoint: Address,
-        ops: UserOperation[]
+        ops: UnPackedUserOperation[]
     ): Promise<BundleResult[]> {
         const wallet = await this.senderManager.getWallet()
 
@@ -455,7 +477,7 @@ export class BasicExecutor implements IExecutor {
             return {
                 mempoolUserOperation: op,
                 userOperationHash: getUserOperationHash(
-                    op,
+                    toPackedUserOperation(op),
                     entryPoint,
                     this.walletClient.chain.id
                 )
@@ -579,8 +601,10 @@ export class BasicExecutor implements IExecutor {
                   }
             txHash = await ep.write.handleOps(
                 [
-                    opsWithHashToBundle.map(
-                        (owh) => owh.mempoolUserOperation as UserOperation
+                    opsWithHashToBundle.map((owh) =>
+                        toPackedUserOperation(
+                            owh.mempoolUserOperation as UnPackedUserOperation
+                        )
                     ),
                     wallet.address
                 ],
@@ -629,8 +653,10 @@ export class BasicExecutor implements IExecutor {
                     abi: ep.abi,
                     functionName: "handleOps",
                     args: [
-                        opsWithHashToBundle.map(
-                            (owh) => owh.mempoolUserOperation as UserOperation
+                        opsWithHashToBundle.map((owh) =>
+                            toPackedUserOperation(
+                                owh.mempoolUserOperation as UnPackedUserOperation
+                            )
                         ),
                         wallet.address
                     ]
@@ -712,7 +738,7 @@ export class BasicExecutor implements IExecutor {
                     return {
                         mempoolUserOperation: compressedOp,
                         userOperationHash: getUserOperationHash(
-                            compressedOp.inflatedOp,
+                            toPackedUserOperation(compressedOp.inflatedOp),
                             entryPoint,
                             this.walletClient.chain.id
                         )
@@ -737,7 +763,7 @@ export class BasicExecutor implements IExecutor {
                     status: "resubmit",
                     info: {
                         userOpHash: getUserOperationHash(
-                            compressedOp.inflatedOp,
+                            toPackedUserOperation(compressedOp.inflatedOp),
                             entryPoint,
                             this.walletClient.chain.id
                         ),
@@ -756,7 +782,7 @@ export class BasicExecutor implements IExecutor {
                     status: "failure",
                     error: {
                         userOpHash: getUserOperationHash(
-                            compressedOp.inflatedOp,
+                            toPackedUserOperation(compressedOp.inflatedOp),
                             entryPoint,
                             this.walletClient.chain.id
                         ),
