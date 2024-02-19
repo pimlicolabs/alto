@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "account-abstraction/core/EntryPoint.sol";
+import "@account-abstraction/core/EntryPoint.sol";
 
 contract ExecuteSimulator is EntryPoint {
     error CallExecuteResult(bool success, bytes data, uint256 gasUsed);
