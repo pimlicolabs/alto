@@ -231,20 +231,10 @@ export async function calcVerificationGasAndCallGasLimit(
     }
     const calculatedCallGasLimit =
         executionResult.paid / gasPrice -
-        executionResult.preOpGas +
-        21000n +
-        50000n
+        executionResult.preOpGas + 21000n
 
     let callGasLimit =
         calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n
-
-    if (
-        chainId === chains.baseGoerli.id ||
-        chainId === chains.baseSepolia.id ||
-        chainId === chains.base.id
-    ) {
-        callGasLimit = (110n * callGasLimit) / 100n
-    }
 
     return [verificationGasLimit, callGasLimit]
 }

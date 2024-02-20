@@ -48,7 +48,6 @@ import {
     getGasPrice,
     getNonceKeyAndValue,
     getUserOperationHash,
-    maxBigInt,
     type CompressionHandler,
     type Logger
 } from "@entrypoint-0.6/utils"
@@ -343,14 +342,6 @@ export class RpcHandler implements IRpcEndpoint {
                     executionResult,
                     this.chainId
                 )
-
-            if (this.chainId === chains.base.id || this.chainId === chains.baseSepolia.id) {
-                callGasLimit += 10_000n
-            }
-
-            if (this.chainId === chains.base.id || this.chainId === chains.optimism.id) {
-                callGasLimit = maxBigInt(callGasLimit, 120_000n)
-            }
         } else {
             userOperation.maxFeePerGas = 0n
             userOperation.maxPriorityFeePerGas = 0n
