@@ -68,9 +68,9 @@ export async function simulateHandleOp(
           }
 
     const gasPriceOption = noEip1559Support ? {
-        gasPrice: await publicClient.getGasPrice()
+        gasPrice: toHex(await publicClient.getGasPrice())
     } : {
-         maxFeePerGas: (await publicClient.getBlock()).baseFeePerGas! * 110n / 100n,
+         maxFeePerGas: toHex((await publicClient.getBlock()).baseFeePerGas! * 110n / 100n),
     }
 
     try {
