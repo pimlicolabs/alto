@@ -10,13 +10,20 @@ Alto is a Typescript implementation of the [ERC-4337 bundler specification](http
 
 For a full explanation of Alto, please visit our [docs page](https://docs.pimlico.io/reference/bundler)
 
-Run an instance of Alto with the following commands:
+#### Run an instance of Alto with the following commands:
 ```bash
+pnpm install
 pnpm build
-./alto
+./alto --entryPoint "0x5ff1...2789" --signerPrivateKeys "..." --utilityPrivateKey "..." --minBalance "0" --rpcUrl "http://localhost:8545" --networkName "local"
+```
+To find a list of all options, run: 
+```bash
+./alto help
 ```
 
-Run the test suite with the following commands:
+A helper script for running Alto locally with an Anvil node can be found at [scripts/run-local-instance.sh](scripts/README.md)
+
+#### Run the test suite with the following commands:
 ```bash
 pnpm build
 pnpm test # note: foundry must be installed on the machine for this to work
