@@ -5,9 +5,9 @@ import {
     SenderCreatorAbi,
     type StakeInfo,
     type StorageMap,
-    type UserOperation,
     ValidationErrors,
-    type ValidationResult
+    type ValidationResult,
+    type UnPackedUserOperation
 } from "@entrypoint-0.7/types"
 import type { Abi, AbiFunction } from "abitype"
 // This file contains references to validation rules, in the format [xxx-###]
@@ -243,14 +243,9 @@ const callsFromEntryPointMethodSigs: { [key: string]: string } = {
                         type: "bytes"
                     },
                     {
-                        internalType: "uint256",
-                        name: "callGasLimit",
-                        type: "uint256"
-                    },
-                    {
-                        internalType: "uint256",
-                        name: "verificationGasLimit",
-                        type: "uint256"
+                        internalType: "bytes32",
+                        name: "accountGasLimits",
+                        type: "bytes32"
                     },
                     {
                         internalType: "uint256",
@@ -258,14 +253,9 @@ const callsFromEntryPointMethodSigs: { [key: string]: string } = {
                         type: "uint256"
                     },
                     {
-                        internalType: "uint256",
-                        name: "maxFeePerGas",
-                        type: "uint256"
-                    },
-                    {
-                        internalType: "uint256",
-                        name: "maxPriorityFeePerGas",
-                        type: "uint256"
+                        internalType: "bytes32",
+                        name: "gasFees",
+                        type: "bytes32"
                     },
                     {
                         internalType: "bytes",
@@ -278,13 +268,13 @@ const callsFromEntryPointMethodSigs: { [key: string]: string } = {
                         type: "bytes"
                     }
                 ],
-                internalType: "struct UserOperation",
+                internalType: "struct PackedUserOperation",
                 name: "userOp",
                 type: "tuple"
             },
             {
                 internalType: "bytes32",
-                name: "",
+                name: "userOpHash",
                 type: "bytes32"
             },
             {
@@ -297,7 +287,7 @@ const callsFromEntryPointMethodSigs: { [key: string]: string } = {
         outputs: [
             {
                 internalType: "uint256",
-                name: "",
+                name: "validationData",
                 type: "uint256"
             }
         ],
@@ -329,14 +319,9 @@ const callsFromEntryPointMethodSigs: { [key: string]: string } = {
                         type: "bytes"
                     },
                     {
-                        internalType: "uint256",
-                        name: "callGasLimit",
-                        type: "uint256"
-                    },
-                    {
-                        internalType: "uint256",
-                        name: "verificationGasLimit",
-                        type: "uint256"
+                        internalType: "bytes32",
+                        name: "accountGasLimits",
+                        type: "bytes32"
                     },
                     {
                         internalType: "uint256",
@@ -344,14 +329,9 @@ const callsFromEntryPointMethodSigs: { [key: string]: string } = {
                         type: "uint256"
                     },
                     {
-                        internalType: "uint256",
-                        name: "maxFeePerGas",
-                        type: "uint256"
-                    },
-                    {
-                        internalType: "uint256",
-                        name: "maxPriorityFeePerGas",
-                        type: "uint256"
+                        internalType: "bytes32",
+                        name: "gasFees",
+                        type: "bytes32"
                     },
                     {
                         internalType: "bytes",
@@ -364,7 +344,7 @@ const callsFromEntryPointMethodSigs: { [key: string]: string } = {
                         type: "bytes"
                     }
                 ],
-                internalType: "struct UserOperation",
+                internalType: "struct PackedUserOperation",
                 name: "userOp",
                 type: "tuple"
             },
@@ -406,7 +386,7 @@ const callsFromEntryPointMethodSigs: { [key: string]: string } = {
  * @return list of contract addresses referenced by this UserOp
  */
 export function tracerResultParser(
-    userOp: UserOperation,
+    userOp: UnPackedUserOperation,
     tracerResults: BundlerTracerResult,
     validationResult: ValidationResult,
     entryPointAddress: Address
@@ -451,7 +431,10 @@ export function tracerResultParser(
             call.method !== "depositTo"
     )
     // [OP-054]
-    if (callInfoEntryPoint) {
+    if (
+        callInfoEntryPoint &&
+        callInfoEntryPoint?.method !== "delegateAndRevert"
+    ) {
         throw new RpcError(
             `illegal call into EntryPoint during validation ${callInfoEntryPoint?.method}`,
             ValidationErrors.OpcodeValidation
@@ -489,6 +472,7 @@ export function tracerResultParser(
     for (const [title, entStakes] of Object.entries(stakeInfoEntities)) {
         const entityTitle = title as keyof StakeInfoEntities
         const entityAddr = (entStakes?.addr ?? "").toLowerCase()
+
         const currentNumLevel = tracerResults.callsFromEntryPoint.find(
             (info) =>
                 info.topLevelMethodSig ===
@@ -591,7 +575,7 @@ export function tracerResultParser(
                 // slot associated with sender is allowed (e.g. token.balanceOf(sender)
                 // but during initial UserOp (where there is an initCode), it is allowed only for staked entity
                 if (associatedWith(slot, sender, entitySlots)) {
-                    if (userOp.initCode.length > 2) {
+                    if (userOp.factory) {
                         // special case: account.validateUserOp is allowed to use assoc storage if factory is staked.
                         // [STO-022], [STO-021]
                         if (
@@ -637,10 +621,10 @@ export function tracerResultParser(
 
             // if addr is current account/paymaster/factory, then return that title
             // otherwise, return addr as-is
-            function nameAddr(addr: string, currentEntity: string): string {
+            function nameAddr(addr: string, _currentEntity: string): string {
                 const [title] =
                     Object.entries(stakeInfoEntities).find(
-                        ([title, info]) =>
+                        ([_title, info]) =>
                             info?.addr?.toLowerCase() === addr.toLowerCase()
                     ) ?? []
 

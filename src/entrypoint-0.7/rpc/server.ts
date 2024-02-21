@@ -211,6 +211,7 @@ export class Server {
                 "sent reply"
             )
         } catch (err) {
+            console.error(err)
             if (err instanceof RpcError) {
                 const rpcError = {
                     jsonrpc: "2.0",

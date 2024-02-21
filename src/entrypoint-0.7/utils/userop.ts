@@ -20,10 +20,10 @@ import {
 } from "viem"
 
 export function getInitCode(unpackedUserOperation: UnPackedUserOperation) {
-    return unpackedUserOperation.factory && unpackedUserOperation.factoryData
+    return unpackedUserOperation.factory
         ? concat([
               unpackedUserOperation.factory,
-              unpackedUserOperation.factoryData
+              unpackedUserOperation.factoryData || ("0x" as Hex)
           ])
         : "0x"
 }
@@ -31,8 +31,8 @@ export function getInitCode(unpackedUserOperation: UnPackedUserOperation) {
 export function unPackInitCode(initCode: Hex) {
     if (initCode === "0x") {
         return {
-            factory: undefined,
-            factoryData: undefined
+            factory: null,
+            factoryData: null
         }
     }
     return {
@@ -80,8 +80,7 @@ export function getPaymasterAndData(
 ) {
     return unpackedUserOperation.paymaster &&
         unpackedUserOperation.paymasterVerificationGasLimit &&
-        unpackedUserOperation.paymasterPostOpGasLimit &&
-        unpackedUserOperation.paymasterData
+        unpackedUserOperation.paymasterPostOpGasLimit
         ? concat([
               unpackedUserOperation.paymaster,
               pad(toHex(unpackedUserOperation.paymasterVerificationGasLimit), {
@@ -90,7 +89,7 @@ export function getPaymasterAndData(
               pad(toHex(unpackedUserOperation.paymasterPostOpGasLimit), {
                   size: 16
               }),
-              unpackedUserOperation.paymasterData
+              unpackedUserOperation.paymasterData || ("0x" as Hex)
           ])
         : "0x"
 }
@@ -98,10 +97,10 @@ export function getPaymasterAndData(
 export function unpackPaymasterAndData(paymasterAndData: Hex) {
     if (paymasterAndData === "0x") {
         return {
-            paymaster: undefined,
-            paymasterVerificationGasLimit: undefined,
-            paymasterPostOpGasLimit: undefined,
-            paymasterData: undefined
+            paymaster: null,
+            paymasterVerificationGasLimit: null,
+            paymasterPostOpGasLimit: null,
+            paymasterData: null
         }
     }
     return {

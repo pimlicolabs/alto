@@ -1,9 +1,13 @@
 // biome-ignore lint/nursery/noNodejsModules: <explanation>
 import { type ChildProcess, exec } from "child_process"
-import type { HexData, HexData32, UserOperation } from "@entrypoint-0.7/types"
+import type {
+    HexData,
+    HexData32,
+    UnPackedUserOperation
+} from "@entrypoint-0.7/types"
 import { entryPointExecutionErrorSchema } from "@entrypoint-0.7/types"
 import * as sentry from "@sentry/node"
-import { type Abi, parseAbiParameters } from "abitype"
+import { type Abi } from "abitype"
 import {
     http,
     type Account,
@@ -14,13 +18,12 @@ import {
     type WalletClient,
     createPublicClient,
     createTestClient,
-    createWalletClient,
-    encodeAbiParameters,
-    keccak256
+    createWalletClient
 } from "viem"
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import { type Chain, foundry } from "viem/chains"
 import { fromZodError } from "zod-validation-error"
+import { getUserOperationHash, toPackedUserOperation } from "./userop"
 
 export type Clients = {
     public: PublicClient<Transport, Chain>
@@ -120,51 +123,11 @@ export const deployContract = async (
 }
 
 export function getUserOpHash(
-    op: UserOperation,
+    op: UnPackedUserOperation,
     entryPoint: Address,
     chainId: number
 ): HexData32 {
-    const hashedUserOp = {
-        sender: op.sender,
-        nonce: op.nonce,
-        initCodeHash: keccak256(op.initCode),
-        callDataHash: keccak256(op.callData),
-        callGasLimit: op.callGasLimit,
-        verificationGasLimit: op.verificationGasLimit,
-        preVerificationGas: op.preVerificationGas,
-        maxFeePerGas: op.maxFeePerGas,
-        maxPriorityFeePerGas: op.maxPriorityFeePerGas,
-        paymasterAndDataHash: keccak256(op.paymasterAndData)
-    }
-
-    const userOpType = {
-        components: [
-            { type: "address", name: "sender" },
-            { type: "uint256", name: "nonce" },
-            { type: "bytes32", name: "initCodeHash" },
-            { type: "bytes32", name: "callDataHash" },
-            { type: "uint256", name: "callGasLimit" },
-            { type: "uint256", name: "verificationGasLimit" },
-            { type: "uint256", name: "preVerificationGas" },
-            { type: "uint256", name: "maxFeePerGas" },
-            { type: "uint256", name: "maxPriorityFeePerGas" },
-            { type: "bytes32", name: "paymasterAndDataHash" }
-        ],
-        name: "hashedUserOp",
-        type: "tuple"
-    }
-    const encoded: HexData = encodeAbiParameters(
-        [userOpType],
-        [{ ...hashedUserOp }]
-    )
-    // remove leading word (total length) and trailing word (zero-length signature)
-
-    const userOpHash = keccak256(encoded)
-    const enc = encodeAbiParameters(
-        parseAbiParameters("bytes32, address, uint256"),
-        [userOpHash, entryPoint, BigInt(chainId)]
-    )
-    return keccak256(enc)
+    return getUserOperationHash(toPackedUserOperation(op), entryPoint, chainId)
 }
 
 export const parseSenderAddressError = (e: Error): Address => {

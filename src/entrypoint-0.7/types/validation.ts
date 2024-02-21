@@ -104,6 +104,10 @@ export const validationResultSchema = z
             prefund: z.bigint(),
             accountValidationData: z.bigint(),
             paymasterValidationData: z.bigint(),
+            accountSigFailed: z.boolean().optional(),
+            paymasterSigFailed: z.boolean().optional(),
+            validAfter: z.number().optional(),
+            validUntil: z.number().optional(),
             paymasterContext: z
                 .string()
                 .regex(hexPattern)
@@ -138,6 +142,10 @@ export const validationResultWithAggregationSchema = z
             prefund: z.bigint(),
             accountValidationData: z.bigint(),
             paymasterValidationData: z.bigint(),
+            accountSigFailed: z.boolean().optional(),
+            paymasterSigFailed: z.boolean().optional(),
+            validAfter: z.number().optional(),
+            validUntil: z.number().optional(),
             paymasterContext: z
                 .string()
                 .regex(hexPattern)

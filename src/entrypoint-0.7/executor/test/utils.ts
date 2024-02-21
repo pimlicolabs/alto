@@ -2,7 +2,7 @@ import {
     type Address,
     EntryPointAbi,
     type HexData,
-    type UserOperation
+    UnPackedUserOperation
 } from "@entrypoint-0.7/types"
 import { SimpleAccountFactoryAbi } from "@entrypoint-0.7/types"
 import {
@@ -20,17 +20,21 @@ import {
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import { foundry } from "viem/chains"
 
-export const TEST_OP: UserOperation = {
+export const TEST_OP: UnPackedUserOperation = {
     sender: "0x0000000000000000000000000000000000000000",
     nonce: 0n,
-    initCode: "0x",
+    factory: null,
+    factoryData: null,
     callData: "0x",
     callGasLimit: 100_000n,
     verificationGasLimit: 1_000_000n,
     preVerificationGas: 60_000n,
     maxFeePerGas: 1n,
     maxPriorityFeePerGas: 1n,
-    paymasterAndData: "0x",
+    paymaster: null,
+    paymasterData: null,
+    paymasterPostOpGasLimit: null,
+    paymasterVerificationGasLimit: null,
     signature: "0x"
 }
 
@@ -66,7 +70,7 @@ export async function createOp(
     clients: Clients,
     maxFeePerGas?: bigint,
     nonce?: bigint
-): Promise<UserOperation> {
+): Promise<UnPackedUserOperation> {
     const initCode = concat([
         simpleAccountFactory,
         encodeFunctionData({
@@ -80,7 +84,12 @@ export async function createOp(
 
     const op = Object.assign({}, TEST_OP)
     op.sender = sender
-    op.initCode = initCode
+    op.factory = simpleAccountFactory
+    op.factoryData = encodeFunctionData({
+        abi: SimpleAccountFactoryAbi,
+        functionName: "createAccount",
+        args: [signer.address, 0n]
+    })
     op.nonce = nonce ?? 0n
     op.maxFeePerGas = maxFeePerGas ?? (await clients.public.getGasPrice())
 

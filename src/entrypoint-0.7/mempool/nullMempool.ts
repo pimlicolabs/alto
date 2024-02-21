@@ -3,7 +3,7 @@ import type {
     ReferencedCodeHashes,
     SubmittedUserOperation,
     TransactionInfo,
-    UserOperation,
+    UnPackedUserOperation,
     UserOperationInfo
 } from "@entrypoint-0.7/types"
 import type { Mempool } from "./types"
@@ -39,7 +39,9 @@ export class NullMempool implements Mempool {
     ): boolean {
         return false
     }
-    checkEntityMultipleRoleViolation(_op: UserOperation): Promise<void> {
+    checkEntityMultipleRoleViolation(
+        _op: UnPackedUserOperation
+    ): Promise<void> {
         return Promise.resolve()
     }
 

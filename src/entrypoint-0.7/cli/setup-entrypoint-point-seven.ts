@@ -452,7 +452,6 @@ export const setupEntryPointPointSeven = async ({
         metrics
     })
 
-    console.log("start ni hua kya")
     server.start()
 
     const gracefulShutdown = async (signal: string) => {

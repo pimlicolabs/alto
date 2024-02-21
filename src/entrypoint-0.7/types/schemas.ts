@@ -1,4 +1,4 @@
-import { type Hash, type Hex, getAddress, toHex, slice, pad } from "viem"
+import { type Hash, type Hex, getAddress } from "viem"
 import { z } from "zod"
 import type { MempoolUserOperation } from "./mempool"
 
@@ -34,18 +34,18 @@ const unPackedUserOperationSchema = z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
-        factory: addressSchema.optional(),
-        factoryData: hexDataSchema.optional(),
+        factory: z.union([addressSchema, z.null()]),
+        factoryData: z.union([hexDataSchema, z.null()]),
         callData: hexDataSchema,
         callGasLimit: hexNumberSchema,
         verificationGasLimit: hexNumberSchema,
         preVerificationGas: hexNumberSchema,
         maxFeePerGas: hexNumberSchema,
         maxPriorityFeePerGas: hexNumberSchema,
-        paymaster: addressSchema.optional(),
-        paymasterVerificationGasLimit: hexNumberSchema.optional(),
-        paymasterPostOpGasLimit: hexNumberSchema.optional(),
-        paymasterData: hexDataSchema.optional(),
+        paymaster: z.union([addressSchema, z.null()]),
+        paymasterVerificationGasLimit: z.union([hexNumberSchema, z.null()]),
+        paymasterPostOpGasLimit: z.union([hexNumberSchema, z.null()]),
+        paymasterData: z.union([hexDataSchema, z.null()]),
         signature: hexDataSchema
     })
     .strict()
@@ -55,18 +55,18 @@ const partialUnPackedUserOperationSchema = z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
-        factory: addressSchema.optional(),
-        factoryData: hexDataSchema.optional(),
+        factory: z.union([addressSchema, z.null()]),
+        factoryData: z.union([addressSchema, z.null()]),
         callData: hexDataSchema,
         callGasLimit: hexNumberSchema.default(1n),
         verificationGasLimit: hexNumberSchema.default(1n),
         preVerificationGas: hexNumberSchema.default(1n),
         maxFeePerGas: hexNumberSchema.default(1n),
         maxPriorityFeePerGas: hexNumberSchema.default(1n),
-        paymaster: addressSchema.optional(),
-        paymasterVerificationGasLimit: hexNumberSchema.optional(),
-        paymasterPostOpGasLimit: hexNumberSchema.optional(),
-        paymasterData: hexDataSchema.optional(),
+        paymaster: z.union([addressSchema, z.null()]),
+        paymasterVerificationGasLimit: z.union([hexNumberSchema, z.null()]),
+        paymasterPostOpGasLimit: z.union([hexNumberSchema, z.null()]),
+        paymasterData: z.union([hexDataSchema, z.null()]),
         signature: hexDataSchema
     })
     .strict()

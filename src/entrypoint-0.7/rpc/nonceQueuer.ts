@@ -7,7 +7,8 @@ import {
 import type { Logger } from "@alto/utils"
 import {
     getNonceKeyAndValue,
-    getUserOperationHash
+    getUserOperationHash,
+    toPackedUserOperation
 } from "@entrypoint-0.7/utils"
 import {
     type Address,
@@ -91,7 +92,9 @@ export class NonceQueuer {
         const [nonceKey, nonceValue] = getNonceKeyAndValue(userOp.nonce)
         this.queuedUserOperations.push({
             userOperationHash: getUserOperationHash(
-                deriveUserOperation(mempoolUserOperation),
+                toPackedUserOperation(
+                    deriveUserOperation(mempoolUserOperation)
+                ),
                 this.entryPoint,
                 this.publicClient.chain.id
             ),

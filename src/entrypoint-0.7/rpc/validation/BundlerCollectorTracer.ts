@@ -200,6 +200,9 @@ export function bundlerCollectorTracer(): BundlerCollectorTracer {
         },
         // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
         step(log: LogStep, db: LogDb): any {
+            if (log.getDepth() < 3) {
+                return
+            }
             if (this.stopCollecting) {
                 return
             }
@@ -214,6 +217,7 @@ export function bundlerCollectorTracer(): BundlerCollectorTracer {
             if (this.lastThreeOpcodes.length > 3) {
                 this.lastThreeOpcodes.shift()
             }
+
             if (
                 log.getGas() < log.getCost() ||
                 // special rule for SSTORE with gas metering
@@ -223,7 +227,7 @@ export function bundlerCollectorTracer(): BundlerCollectorTracer {
             }
 
             if (opcode === "REVERT" || opcode === "RETURN") {
-                if (log.getDepth() === 1) {
+                if (log.getDepth() === 3) {
                     // exit() is not called on top-level return/revent, so we reconstruct it
                     // from opcode
                     const ofs = Number.parseInt(log.stack.peek(0).toString())
@@ -243,7 +247,7 @@ export function bundlerCollectorTracer(): BundlerCollectorTracer {
                 this.lastThreeOpcodes = []
             }
 
-            if (log.getDepth() === 1) {
+            if (log.getDepth() === 3) {
                 if (opcode === "CALL" || opcode === "STATICCALL") {
                     // stack.peek(0) - gas
                     const addr = toAddress(log.stack.peek(1).toString(16))
@@ -298,11 +302,6 @@ export function bundlerCollectorTracer(): BundlerCollectorTracer {
                 ) {
                     this.currentLevel.extCodeAccessInfo[addrHex] = opcode
                 }
-
-                // this.debug.push({
-                //     last3opcodes: JSON.stringify(this.lastThreeOpcodes.map(x => x.opcode)),
-                //     extCodeAccessInfo: this.currentLevel.extCodeAccessInfo
-                // })
             }
 
             // not using 'isPrecompiled' to only allow the ones defined by the ERC-4337 as stateless precompiles
@@ -316,6 +315,7 @@ export function bundlerCollectorTracer(): BundlerCollectorTracer {
                 // this.debug.push(`isPrecompiled address=${addrHex} addressInt=${addressInt}`)
                 return addressInt > 0 && addressInt < 10
             }
+
             // [OP-041]
             if (
                 opcode.match(

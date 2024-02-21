@@ -7,19 +7,23 @@ import {
     EntryPointAbi,
     type ReferencedCodeHashes,
     RpcError,
-    type StakeInfo,
     type StorageMap,
-    type UserOperation,
     ValidationErrors,
-    type ValidationResultWithAggregation
+    type ValidationResultWithAggregation,
+    EntryPointSimulationsAbi,
+    PimlicoEntryPointSimulationsAbi,
+    PimlicoEntryPointSimulationsBytecode
 } from "@entrypoint-0.7/types"
-import type { ValidationResult } from "@entrypoint-0.7/types"
+import type {
+    UnPackedUserOperation,
+    ValidationResult
+} from "@entrypoint-0.7/types"
 import type { InterfaceValidator } from "@entrypoint-0.7/types"
 import type { ApiVersion } from "@entrypoint-0.7/types"
 import type { Logger } from "@alto/utils"
 import {
     calcVerificationGasAndCallGasLimit,
-    getAddressFromInitCodeOrPaymasterAndData
+    toPackedUserOperation
 } from "@entrypoint-0.7/utils"
 import {
     type Account,
@@ -31,7 +35,8 @@ import {
     decodeErrorResult,
     encodeDeployData,
     encodeFunctionData,
-    zeroAddress
+    zeroAddress,
+    decodeAbiParameters
 } from "viem"
 import {
     type BundlerTracerResult,
@@ -41,6 +46,7 @@ import {
 import { tracerResultParser } from "./TracerResultParser"
 import { UnsafeValidator } from "./UnsafeValidator"
 import { debug_traceCall } from "./tracer"
+import { parseFailedOpWithRevert } from "../EntryPointSimulations"
 
 export class SafeValidator
     extends UnsafeValidator
@@ -73,7 +79,7 @@ export class SafeValidator
     }
 
     async validateUserOperation(
-        userOperation: UserOperation,
+        userOperation: UnPackedUserOperation,
         referencedContracts?: ReferencedCodeHashes
     ): Promise<
         (ValidationResult | ValidationResultWithAggregation) & {
@@ -87,65 +93,34 @@ export class SafeValidator
                 referencedContracts
             )
 
-            if (validationResult.returnInfo.sigFailed) {
+            const prefund = validationResult.returnInfo.prefund
+
+            const [verificationGasLimit, callGasLimit] =
+                await calcVerificationGasAndCallGasLimit(
+                    this.publicClient,
+                    userOperation,
+                    {
+                        preOpGas: validationResult.returnInfo.preOpGas,
+                        paid: validationResult.returnInfo.prefund
+                    },
+                    this.chainId
+                )
+
+            const mul = userOperation.paymaster === "0x" ? 3n : 1n
+
+            const requiredPreFund =
+                callGasLimit +
+                verificationGasLimit * mul +
+                userOperation.preVerificationGas
+
+            if (requiredPreFund > prefund) {
                 throw new RpcError(
-                    "Invalid UserOp signature or paymaster signature",
-                    ValidationErrors.InvalidSignature
+                    `prefund is not enough, required: ${requiredPreFund}, got: ${prefund}`,
+                    ValidationErrors.SimulateValidation
                 )
             }
 
-            const now = Date.now() / 1000
-
-            this.logger.debug({
-                validAfter: validationResult.returnInfo.validAfter,
-                validUntil: validationResult.returnInfo.validUntil,
-                now: now
-            })
-
-            if (validationResult.returnInfo.validAfter > now - 5) {
-                throw new RpcError(
-                    "User operation is not valid yet",
-                    ValidationErrors.ExpiresShortly
-                )
-            }
-
-            if (validationResult.returnInfo.validUntil < now + 30) {
-                throw new RpcError(
-                    "expires too soon",
-                    ValidationErrors.ExpiresShortly
-                )
-            }
-
-            if (this.apiVersion !== "v1") {
-                const prefund = validationResult.returnInfo.prefund
-
-                const [verificationGasLimit, callGasLimit] =
-                    await calcVerificationGasAndCallGasLimit(
-                        this.publicClient,
-                        userOperation,
-                        {
-                            preOpGas: validationResult.returnInfo.preOpGas,
-                            paid: validationResult.returnInfo.prefund
-                        },
-                        this.chainId
-                    )
-
-                const mul = userOperation.paymasterAndData === "0x" ? 3n : 1n
-
-                const requiredPreFund =
-                    callGasLimit +
-                    verificationGasLimit * mul +
-                    userOperation.preVerificationGas
-
-                if (requiredPreFund > prefund) {
-                    throw new RpcError(
-                        `prefund is not enough, required: ${requiredPreFund}, got: ${prefund}`,
-                        ValidationErrors.SimulateValidation
-                    )
-                }
-
-                // TODO prefund should be greater than it costs us to add it to mempool
-            }
+            // TODO prefund should be greater than it costs us to add it to mempool
 
             this.metrics.userOperationsValidationSuccess.inc()
 
@@ -187,7 +162,7 @@ export class SafeValidator
     }
 
     async getValidationResult(
-        userOperation: UserOperation,
+        userOperation: UnPackedUserOperation,
         preCodeHashes?: ReferencedCodeHashes
     ): Promise<
         (ValidationResult | ValidationResultWithAggregation) & {
@@ -228,6 +203,43 @@ export class SafeValidator
                 "simulateValidation reverted with no revert string!"
             )
         }
+
+        if (res.returnInfo.accountSigFailed) {
+            throw new RpcError(
+                "Invalid UserOp signature",
+                ValidationErrors.InvalidSignature
+            )
+        }
+
+        if (res.returnInfo.paymasterSigFailed) {
+            throw new RpcError(
+                "Invalid UserOp paymasterData",
+                ValidationErrors.InvalidSignature
+            )
+        }
+
+        const now = Math.floor(Date.now() / 1000)
+
+        if (
+            res.returnInfo.validAfter === undefined ||
+            res.returnInfo.validAfter > now - 5
+        ) {
+            throw new RpcError(
+                `User operation is not valid yet, validAfter=${res.returnInfo.validAfter}, now=${now}`,
+                ValidationErrors.ExpiresShortly
+            )
+        }
+
+        if (
+            res.returnInfo.validUntil === undefined ||
+            res.returnInfo.validUntil < now + 30
+        ) {
+            throw new RpcError(
+                `UserOperation expires too soon, validUntil=${res.returnInfo.validUntil}, now=${now}`,
+                ValidationErrors.ExpiresShortly
+            )
+        }
+
         return {
             ...res,
             referencedContracts: codeHashes,
@@ -236,18 +248,27 @@ export class SafeValidator
     }
 
     async getValidationResultWithTracer(
-        userOperation: UserOperation
+        userOperation: UnPackedUserOperation
     ): Promise<[ValidationResult, BundlerTracerResult]> {
+        const packedUserOperation = toPackedUserOperation(userOperation)
+
+        const entryPointSimulationsCallData = encodeFunctionData({
+            abi: EntryPointSimulationsAbi,
+            functionName: "simulateValidation",
+            args: [packedUserOperation]
+        })
+
+        const callData = encodeDeployData({
+            abi: PimlicoEntryPointSimulationsAbi,
+            bytecode: PimlicoEntryPointSimulationsBytecode,
+            args: [this.entryPoint, entryPointSimulationsCallData]
+        })
+
         const tracerResult = await debug_traceCall(
             this.publicClient,
             {
                 from: zeroAddress,
-                to: this.entryPoint,
-                data: encodeFunctionData({
-                    abi: EntryPointAbi,
-                    functionName: "simulateValidation",
-                    args: [userOperation]
-                })
+                data: callData
             },
             {
                 tracer: bundlerCollectorTracer
@@ -271,15 +292,11 @@ export class SafeValidator
                 data
             })
 
-            const errFullName = `${errorName}(${errorArgs.toString()})`
             const errorResult = this.parseErrorResult(userOperation, {
                 errorName,
                 errorArgs
             })
-            if (!errorName.includes("Result")) {
-                // a real error, not a result.
-                throw new Error(errFullName)
-            }
+
             // @ts-ignore
             return [errorResult, tracerResult]
             // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
@@ -293,86 +310,223 @@ export class SafeValidator
     }
 
     parseErrorResult(
-        userOp: UserOperation,
+        userOp: UnPackedUserOperation,
         // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
         errorResult: { errorName: string; errorArgs: any }
     ): ValidationResult | ValidationResultWithAggregation {
-        if (!errorResult?.errorName?.startsWith("ValidationResult")) {
-            // parse it as FailedOp
-            // if its FailedOp, then we have the paymaster param... otherwise its an Error(string)
-            let paymaster = errorResult.errorArgs.paymaster
-            if (paymaster === zeroAddress) {
-                paymaster = undefined
-            }
+        let decodedResult: any
 
-            // eslint-disable-next-line
-            const msg: string =
-                errorResult.errorArgs[1] ?? errorResult.toString()
+        try {
+            decodeErrorResult({
+                abi: EntryPointSimulationsAbi,
+                data: errorResult.errorArgs[1] as Hex
+            })
 
-            if (paymaster == null) {
+            const result = decodeErrorResult({
+                abi: EntryPointSimulationsAbi,
+                data: errorResult.errorArgs[1] as Hex
+            })
+
+            if (result.errorName === "FailedOp") {
+                if ((result.args?.[1] as string).includes("AA24")) {
+                    throw new RpcError(
+                        "Invalid UserOp signature",
+                        ValidationErrors.InvalidSignature
+                    )
+                }
+
+                if ((result.args?.[1] as string).includes("AA34")) {
+                    throw new RpcError(
+                        "Invalid UserOp paymasterData",
+                        ValidationErrors.InvalidSignature
+                    )
+                }
+
                 throw new RpcError(
-                    `account validation failed: ${msg}`,
+                    `ValidationResult error: ${result.args?.[1]}`,
                     ValidationErrors.SimulateValidation
                 )
             }
+
+            if (result.errorName === "FailedOpWithRevert") {
+                const data = result.args?.[2] as Hex
+                const error = parseFailedOpWithRevert(data)
+
+                throw new RpcError(
+                    `ValidationResult error: ${result.args?.[1]} with revert error as: Panic(${error})`,
+                    ValidationErrors.SimulateValidation
+                )
+            }
+
             throw new RpcError(
-                `paymaster validation failed: ${msg}`,
-                ValidationErrors.SimulatePaymasterValidation,
-                {
-                    paymaster
-                }
+                `ValidationResult error: ${result.errorName}`,
+                ValidationErrors.SimulateValidation
             )
+        } catch (e) {
+            if (e instanceof RpcError) {
+                throw e
+            }
+            decodedResult = decodeAbiParameters(
+                [
+                    {
+                        components: [
+                            {
+                                components: [
+                                    {
+                                        internalType: "uint256",
+                                        name: "preOpGas",
+                                        type: "uint256"
+                                    },
+                                    {
+                                        internalType: "uint256",
+                                        name: "prefund",
+                                        type: "uint256"
+                                    },
+                                    {
+                                        internalType: "uint256",
+                                        name: "accountValidationData",
+                                        type: "uint256"
+                                    },
+                                    {
+                                        internalType: "uint256",
+                                        name: "paymasterValidationData",
+                                        type: "uint256"
+                                    },
+                                    {
+                                        internalType: "bytes",
+                                        name: "paymasterContext",
+                                        type: "bytes"
+                                    }
+                                ],
+                                internalType: "struct IEntryPoint.ReturnInfo",
+                                name: "returnInfo",
+                                type: "tuple"
+                            },
+                            {
+                                components: [
+                                    {
+                                        internalType: "uint256",
+                                        name: "stake",
+                                        type: "uint256"
+                                    },
+                                    {
+                                        internalType: "uint256",
+                                        name: "unstakeDelaySec",
+                                        type: "uint256"
+                                    }
+                                ],
+                                internalType: "struct IStakeManager.StakeInfo",
+                                name: "senderInfo",
+                                type: "tuple"
+                            },
+                            {
+                                components: [
+                                    {
+                                        internalType: "uint256",
+                                        name: "stake",
+                                        type: "uint256"
+                                    },
+                                    {
+                                        internalType: "uint256",
+                                        name: "unstakeDelaySec",
+                                        type: "uint256"
+                                    }
+                                ],
+                                internalType: "struct IStakeManager.StakeInfo",
+                                name: "factoryInfo",
+                                type: "tuple"
+                            },
+                            {
+                                components: [
+                                    {
+                                        internalType: "uint256",
+                                        name: "stake",
+                                        type: "uint256"
+                                    },
+                                    {
+                                        internalType: "uint256",
+                                        name: "unstakeDelaySec",
+                                        type: "uint256"
+                                    }
+                                ],
+                                internalType: "struct IStakeManager.StakeInfo",
+                                name: "paymasterInfo",
+                                type: "tuple"
+                            },
+                            {
+                                components: [
+                                    {
+                                        internalType: "address",
+                                        name: "aggregator",
+                                        type: "address"
+                                    },
+                                    {
+                                        components: [
+                                            {
+                                                internalType: "uint256",
+                                                name: "stake",
+                                                type: "uint256"
+                                            },
+                                            {
+                                                internalType: "uint256",
+                                                name: "unstakeDelaySec",
+                                                type: "uint256"
+                                            }
+                                        ],
+                                        internalType:
+                                            "struct IStakeManager.StakeInfo",
+                                        name: "stakeInfo",
+                                        type: "tuple"
+                                    }
+                                ],
+                                internalType:
+                                    "struct IEntryPoint.AggregatorStakeInfo",
+                                name: "aggregatorInfo",
+                                type: "tuple"
+                            }
+                        ],
+                        internalType:
+                            "struct IEntryPointSimulations.ValidationResult",
+                        name: "",
+                        type: "tuple"
+                    }
+                ],
+                errorResult.errorArgs[1] as Hex
+            )[0]
         }
 
-        const [
-            returnInfo,
-            senderInfo,
-            factoryInfo,
-            paymasterInfo,
-            aggregatorInfo // may be missing (exists only SimulationResultWithAggregator)
-        ] = errorResult.errorArgs
-
-        // extract address from "data" (first 20 bytes)
-        // add it as "addr" member to the "stakeinfo" struct
-        // if no address, then return "undefined" instead of struct.
-        function fillEntity(data: Hex, info: StakeInfo): StakeInfo | undefined {
-            const addr = getAddressFromInitCodeOrPaymasterAndData(data)
-            return addr == null
-                ? undefined
-                : {
-                      ...info,
-                      addr
-                  }
-        }
-
-        function fillEntityAggregator(
-            data: Hex,
-            info: StakeInfo
-        ): { aggregator: Address; stakeInfo: StakeInfo } | undefined {
-            const addr = getAddressFromInitCodeOrPaymasterAndData(data)
-            return addr == null
-                ? undefined
-                : {
-                      aggregator: data,
-                      stakeInfo: {
-                          ...info,
-                          addr
-                      }
-                  }
-        }
+        const mergedValidation = this.mergeValidationDataValues(
+            decodedResult.returnInfo.accountValidationData,
+            decodedResult.returnInfo.paymasterValidationData
+        )
 
         return {
-            returnInfo,
+            returnInfo: {
+                ...decodedResult.returnInfo,
+                accountSigFailed: mergedValidation.accountSigFailed,
+                paymasterSigFailed: mergedValidation.paymasterSigFailed,
+                validUntil: mergedValidation.validUntil,
+                validAfter: mergedValidation.validAfter
+            },
             senderInfo: {
-                ...senderInfo,
+                ...decodedResult.senderInfo,
                 addr: userOp.sender
             },
-            factoryInfo: fillEntity(userOp.initCode, factoryInfo),
-            paymasterInfo: fillEntity(userOp.paymasterAndData, paymasterInfo),
-            aggregatorInfo: fillEntityAggregator(
-                aggregatorInfo?.actualAggregator,
-                aggregatorInfo?.stakeInfo
-            )
+            factoryInfo:
+                userOp.factory && decodedResult.factoryInfo
+                    ? {
+                          ...decodedResult.factoryInfo,
+                          addr: userOp.factory
+                      }
+                    : undefined,
+            paymasterInfo:
+                userOp.paymaster && decodedResult.paymasterInfo
+                    ? {
+                          ...decodedResult.paymasterInfo,
+                          addr: userOp.paymaster
+                      }
+                    : undefined,
+            aggregatorInfo: decodedResult.aggregatorInfo
         }
     }
 }

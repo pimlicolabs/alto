@@ -8,6 +8,7 @@ import {
     type WalletClient,
     formatTransactionRequest
 } from "viem"
+import type { StateOverrides } from "@entrypoint-0.7/types"
 // from:https://geth.ethereum.org/docs/rpc/ns-debug#javascript-based-tracing
 //
 
@@ -125,6 +126,7 @@ export interface TraceOptions {
     enableReturnData?: boolean // Setting this to true will enable return data capture (default = false).
     tracer?: LogTracerFunc | string // Setting this will enable JavaScript-based transaction tracing, described below. If set, the previous four arguments will be ignored.
     timeout?: string // Overrides the default timeout of 5 seconds for JavaScript-based tracing calls. Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
+    stateOverrides?: StateOverrides
 }
 
 // the result type of debug_traceCall and debug_traceTransaction

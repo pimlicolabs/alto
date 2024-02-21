@@ -263,13 +263,17 @@ export function calcDefaultPreVerificationGas(
 ): bigint {
     const ov = { ...DefaultGasOverheads, ...(overheads ?? {}) }
 
-    userOperation.preVerificationGas ?? 21000n // dummy value, just for calldata cost
-    userOperation.signature =
-        userOperation.signature === "0x"
-            ? toHex(Buffer.alloc(ov.sigSize, 1))
-            : userOperation.signature // dummy signature
+    const uop = {
+        ...userOperation
+    }
 
-    const packedUserOperation = packUserOp(userOperation)
+    uop.preVerificationGas ?? 21000n // dummy value, just for calldata cost
+    uop.signature =
+        uop.signature === "0x"
+            ? toHex(Buffer.alloc(ov.sigSize, 1))
+            : uop.signature // dummy signature
+
+    const packedUserOperation = packUserOp(uop)
 
     const packed = toBytes(packedUserOperation)
 

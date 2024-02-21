@@ -8,7 +8,6 @@ import {
     type UnPackedUserOperation
 } from "@entrypoint-0.7/types"
 import type { Logger } from "@alto/utils"
-import { getAddressFromInitCodeOrPaymasterAndData } from "@entrypoint-0.7/utils"
 import { type Address, type PublicClient, getAddress, getContract } from "viem"
 
 export interface InterfaceReputationManager {
@@ -19,7 +18,7 @@ export interface InterfaceReputationManager {
     updateUserOperationSeenStatus(userOperation: UnPackedUserOperation): void
     increaseUserOperationCount(userOperation: UnPackedUserOperation): void
     decreaseUserOperationCount(userOperation: UnPackedUserOperation): void
-    getStatus(address?: Address): ReputationStatus
+    getStatus(address: Address | null): ReputationStatus
     updateUserOperationIncludedStatus(
         userOperation: UnPackedUserOperation,
         accountDeployed: boolean
@@ -123,7 +122,7 @@ export class NullReputationManager implements InterfaceReputationManager {
         return []
     }
 
-    getStatus(_address?: `0x${string}` | undefined): ReputationStatus {
+    getStatus(_address: Address | null): ReputationStatus {
         throw new Error("Method not implemented.")
     }
 
@@ -457,7 +456,7 @@ export class ReputationManager implements InterfaceReputationManager {
         }
     }
 
-    getStatus(address?: Address): ReputationStatus {
+    getStatus(address: Address | null): ReputationStatus {
         if (!address || this.whitelist.has(address)) {
             return ReputationStatuses.ok
         }
