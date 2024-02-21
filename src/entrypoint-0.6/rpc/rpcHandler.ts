@@ -335,6 +335,8 @@ export class RpcHandler implements IRpcEndpoint {
                 userOperation.callGasLimit = 1_000_000n
             }
 
+            userOperation.maxPriorityFeePerGas = userOperation.maxFeePerGas
+
             const executionResult = await this.validator.getExecutionResult(
                 userOperation,
                 stateOverrides
