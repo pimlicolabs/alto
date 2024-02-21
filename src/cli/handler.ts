@@ -324,6 +324,7 @@ export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
         parsedArgs.environment,
         compressionHandler,
         parsedArgs.noEip1559Support,
+        parsedArgs.hasZeroBaseFee,
         parsedArgs.dangerousSkipUserOperationValidation
     )
 

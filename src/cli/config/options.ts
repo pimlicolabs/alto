@@ -183,6 +183,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: true,
         default: false
     },
+    hasZeroBaseFee: {
+        description: "Blockchain has 0 block fee during eth_call",
+        type: "boolean",
+        require: false,
+        default: false
+    },
     noEthCallOverrideSupport: {
         description: "Rpc url does not support eth_call overrides",
         type: "boolean",

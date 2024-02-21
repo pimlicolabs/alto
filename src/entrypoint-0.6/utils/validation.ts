@@ -190,7 +190,7 @@ export async function calcPreVerificationGas(
             logger
         )
     } else if (
-        chainId === chains.arbitrum.id || 
+        chainId === chains.arbitrum.id ||
         chainId === chains.arbitrumSepolia.id
     ) {
         preVerificationGas = await calcArbitrumPreVerificationGas(
@@ -211,7 +211,9 @@ export async function calcVerificationGasAndCallGasLimit(
         preOpGas: bigint
         paid: bigint
     },
-    chainId: number
+    chainId: number,
+    noEip1559Support: boolean,
+    hasZeroBaseFee: boolean
 ) {
     const verificationGasLimit =
         ((executionResult.preOpGas - userOperation.preVerificationGas) * 3n) /
@@ -219,10 +221,15 @@ export async function calcVerificationGasAndCallGasLimit(
 
     let gasPrice: bigint
 
-    if (userOperation.maxPriorityFeePerGas === userOperation.maxFeePerGas) {
+    if (
+        noEip1559Support ||
+        userOperation.maxPriorityFeePerGas === userOperation.maxFeePerGas
+    ) {
         gasPrice = userOperation.maxFeePerGas
     } else {
-        const blockBaseFee = (await publicClient.getBlock()).baseFeePerGas
+        const blockBaseFee = hasZeroBaseFee
+            ? 0n
+            : (await publicClient.getBlock()).baseFeePerGas
         gasPrice =
             userOperation.maxFeePerGas <
             (blockBaseFee ?? 0n) + userOperation.maxPriorityFeePerGas

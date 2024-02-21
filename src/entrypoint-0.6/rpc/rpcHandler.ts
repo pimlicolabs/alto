@@ -116,6 +116,7 @@ export class RpcHandler implements IRpcEndpoint {
     reputationManager: InterfaceReputationManager
     compressionHandler: CompressionHandler | null
     noEip1559Support: boolean
+    hasZeroBaseFee: boolean
     dangerousSkipUserOperationValidation: boolean
 
     constructor(
@@ -138,6 +139,7 @@ export class RpcHandler implements IRpcEndpoint {
         environment: Environment,
         compressionHandler: CompressionHandler | null,
         noEip1559Support: boolean,
+        hasZeroBaseFee: boolean,
         dangerousSkipUserOperationValidation = false
     ) {
         this.entryPoint = entryPoint
@@ -160,6 +162,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.reputationManager = reputationManager
         this.compressionHandler = compressionHandler
         this.noEip1559Support = noEip1559Support
+        this.hasZeroBaseFee = hasZeroBaseFee
         this.dangerousSkipUserOperationValidation =
             dangerousSkipUserOperationValidation
     }
@@ -341,14 +344,22 @@ export class RpcHandler implements IRpcEndpoint {
                     this.publicClient,
                     userOperation,
                     executionResult,
-                    this.chainId
+                    this.chainId,
+                    this.noEip1559Support,
+                    this.hasZeroBaseFee
                 )
 
-            if (this.chainId === chains.base.id || this.chainId === chains.baseSepolia.id) {
+            if (
+                this.chainId === chains.base.id ||
+                this.chainId === chains.baseSepolia.id
+            ) {
                 callGasLimit += 10_000n
             }
 
-            if (this.chainId === chains.base.id || this.chainId === chains.optimism.id) {
+            if (
+                this.chainId === chains.base.id ||
+                this.chainId === chains.optimism.id
+            ) {
                 callGasLimit = maxBigInt(callGasLimit, 120_000n)
             }
         } else {
