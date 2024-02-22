@@ -322,19 +322,21 @@ export class UnsafeValidator implements InterfaceValidator {
     }
 
     async validatePreVerificationGas(userOperation: UserOperation) {
-        const preVerificationGas = await calcPreVerificationGas(
-            this.publicClient,
-            userOperation,
-            this.entryPoint,
-            this.chainId,
-            this.logger
-        )
-
-        if (preVerificationGas > userOperation.preVerificationGas) {
-            throw new RpcError(
-                `preVerificationGas is not enough, required: ${preVerificationGas}, got: ${userOperation.preVerificationGas}`,
-                ValidationErrors.SimulateValidation
+        if (this.apiVersion !== "v1") {
+            const preVerificationGas = await calcPreVerificationGas(
+                this.publicClient,
+                userOperation,
+                this.entryPoint,
+                this.chainId,
+                this.logger
             )
+
+            if (preVerificationGas > userOperation.preVerificationGas) {
+                throw new RpcError(
+                    `preVerificationGas is not enough, required: ${preVerificationGas}, got: ${userOperation.preVerificationGas}`,
+                    ValidationErrors.SimulateValidation
+                )
+            }
         }
     }
 
