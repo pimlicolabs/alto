@@ -56,7 +56,7 @@ const partialUnPackedUserOperationSchema = z
         sender: addressSchema,
         nonce: hexNumberSchema,
         factory: z.union([addressSchema, z.null()]),
-        factoryData: z.union([addressSchema, z.null()]),
+        factoryData: z.union([hexDataSchema, z.null()]),
         callData: hexDataSchema,
         callGasLimit: hexNumberSchema.default(1n),
         verificationGasLimit: hexNumberSchema.default(1n),
