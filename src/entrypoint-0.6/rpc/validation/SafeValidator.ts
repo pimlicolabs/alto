@@ -81,8 +81,6 @@ export class SafeValidator
             referencedContracts?: ReferencedCodeHashes
         }
     > {
-        userOperation.maxPriorityFeePerGas = userOperation.maxFeePerGas
-
         try {
             const validationResult = await this.getValidationResult(
                 userOperation,
@@ -122,7 +120,8 @@ export class SafeValidator
                 const prefund = validationResult.returnInfo.prefund
 
                 const [verificationGasLimit, callGasLimit] =
-                    calcVerificationGasAndCallGasLimit(
+                    await calcVerificationGasAndCallGasLimit(
+                        this.publicClient,
                         userOperation,
                         {
                             preOpGas: validationResult.returnInfo.preOpGas,

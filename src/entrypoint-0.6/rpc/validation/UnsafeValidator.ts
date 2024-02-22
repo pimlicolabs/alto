@@ -349,7 +349,6 @@ export class UnsafeValidator implements InterfaceValidator {
         }
     > {
         try {
-            userOperation.maxPriorityFeePerGas = userOperation.maxFeePerGas
             const validationResult =
                 await this.getValidationResult(userOperation)
 
@@ -392,7 +391,8 @@ export class UnsafeValidator implements InterfaceValidator {
                 const prefund = validationResult.returnInfo.prefund
 
                 const [verificationGasLimit, callGasLimit] =
-                    calcVerificationGasAndCallGasLimit(
+                    await calcVerificationGasAndCallGasLimit(
+                        this.publicClient,
                         userOperation,
                         {
                             preOpGas: validationResult.returnInfo.preOpGas,

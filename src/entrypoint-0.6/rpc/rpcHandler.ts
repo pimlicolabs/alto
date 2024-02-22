@@ -339,23 +339,18 @@ export class RpcHandler implements IRpcEndpoint {
                 stateOverrides
             )
             ;[verificationGasLimit, callGasLimit] =
-                calcVerificationGasAndCallGasLimit(
+                await calcVerificationGasAndCallGasLimit(
+                    this.publicClient,
                     userOperation,
                     executionResult,
                     this.chainId
                 )
 
-            if (
-                this.chainId === chains.base.id ||
-                this.chainId === chains.baseSepolia.id
-            ) {
+            if (this.chainId === chains.base.id || this.chainId === chains.baseSepolia.id) {
                 callGasLimit += 10_000n
             }
 
-            if (
-                this.chainId === chains.base.id ||
-                this.chainId === chains.optimism.id
-            ) {
+            if (this.chainId === chains.base.id || this.chainId === chains.optimism.id) {
                 callGasLimit = maxBigInt(callGasLimit, 120_000n)
             }
         } else {
