@@ -22,7 +22,8 @@ import {
     toHex,
     type Chain,
     type PublicClient,
-    type Transport
+    type Transport,
+    bytesToHex
 } from "viem"
 import * as chains from "viem/chains"
 import type { Logger } from "@alto/utils"
@@ -143,16 +144,28 @@ export function packUserOp(op: UserOperation): `0x${string}` {
         ],
         [
             op.sender,
-            op.nonce,
+            BigInt(
+                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            ),
             op.initCode,
             op.callData,
-            op.callGasLimit,
-            op.verificationGasLimit,
-            op.preVerificationGas,
-            op.maxFeePerGas,
-            op.maxPriorityFeePerGas,
-            op.paymasterAndData,
-            op.signature
+            BigInt(
+                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            ),
+            BigInt(
+                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            ),
+            BigInt(
+                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            ),
+            BigInt(
+                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            ),
+            BigInt(
+                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            ),
+            bytesToHex(new Uint8Array(op.paymasterAndData.length).fill(255)),
+            bytesToHex(new Uint8Array(op.signature.length).fill(255))
         ]
     )
 }
