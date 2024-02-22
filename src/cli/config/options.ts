@@ -248,6 +248,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "boolean",
         require: false,
         default: false
+    },
+    entryPointVersion: {
+        description: "Version of the entry point",
+        type: "string",
+        require: false,
+        default: "0.6"
     }
 }
 

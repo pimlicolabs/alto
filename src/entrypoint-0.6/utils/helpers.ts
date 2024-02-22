@@ -1,4 +1,4 @@
-import { Address, getAddress } from "viem"
+import { type Address, getAddress } from "viem"
 
 /// Resturns the bigger of two BigInts.
 export const minBigInt = (a: bigint, b: bigint) => {

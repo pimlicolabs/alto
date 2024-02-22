@@ -7,10 +7,8 @@ import {
     type ValidationResult,
     type ValidationResultWithAggregation
 } from "@entrypoint-0.6/types"
-import {
-    type Logger,
-    getAddressFromInitCodeOrPaymasterAndData
-} from "@entrypoint-0.6/utils"
+import type { Logger } from "@alto/utils"
+import { getAddressFromInitCodeOrPaymasterAndData } from "@entrypoint-0.6/utils"
 import { type Address, type PublicClient, getAddress, getContract } from "viem"
 
 export interface InterfaceReputationManager {
@@ -80,7 +78,7 @@ export const BundlerReputationParams: ReputationParams = {
     banSlack: 50n
 }
 
-export class NullRepuationManager implements InterfaceReputationManager {
+export class NullReputationManager implements InterfaceReputationManager {
     async checkReputation(
         userOperation: UserOperation,
         validationResult: ValidationResult | ValidationResultWithAggregation

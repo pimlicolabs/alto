@@ -1,4 +1,5 @@
-import logger, { type Logger, type SerializerFn } from "pino"
+import type { Logger } from "@alto/utils"
+import logger, { type SerializerFn } from "pino"
 import { toHex } from "viem"
 
 // customFormatter.ts

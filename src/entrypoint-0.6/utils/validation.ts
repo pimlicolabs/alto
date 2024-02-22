@@ -22,10 +22,12 @@ import {
     toHex,
     type Chain,
     type PublicClient,
-    type Transport
+    type Transport,
+    bytesToHex
 } from "viem"
 import * as chains from "viem/chains"
-import { getGasPrice, type Logger } from "."
+import type { Logger } from "@alto/utils"
+import { getGasPrice } from "."
 
 export interface GasOverheads {
     /**
@@ -142,16 +144,28 @@ export function packUserOp(op: UserOperation): `0x${string}` {
         ],
         [
             op.sender,
-            op.nonce,
+            BigInt(
+                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            ),
             op.initCode,
             op.callData,
-            op.callGasLimit,
-            op.verificationGasLimit,
-            op.preVerificationGas,
-            op.maxFeePerGas,
-            op.maxPriorityFeePerGas,
-            op.paymasterAndData,
-            op.signature
+            BigInt(
+                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            ),
+            BigInt(
+                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            ),
+            BigInt(
+                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            ),
+            BigInt(
+                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            ),
+            BigInt(
+                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            ),
+            bytesToHex(new Uint8Array(op.paymasterAndData.length).fill(255)),
+            bytesToHex(new Uint8Array(op.signature.length).fill(255))
         ]
     )
 }
@@ -190,7 +204,7 @@ export async function calcPreVerificationGas(
             logger
         )
     } else if (
-        chainId === chains.arbitrum.id || 
+        chainId === chains.arbitrum.id ||
         chainId === chains.arbitrumSepolia.id
     ) {
         preVerificationGas = await calcArbitrumPreVerificationGas(

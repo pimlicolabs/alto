@@ -9,11 +9,8 @@ import {
     deriveUserOperation,
     failedOpErrorSchema
 } from "@entrypoint-0.6/types"
-import {
-    type Logger,
-    parseViemError,
-    transactionIncluded
-} from "@entrypoint-0.6/utils"
+import type { Logger } from "@alto/utils"
+import { parseViemError, transactionIncluded } from "@entrypoint-0.6/utils"
 import * as sentry from "@sentry/node"
 import {
     type Account,

@@ -4,7 +4,7 @@ import type {
     SubmittedUserOperation,
     UserOperationInfo
 } from "@entrypoint-0.6/types"
-import type { Logger } from "@entrypoint-0.6/utils"
+import type { Logger } from "@alto/utils"
 
 export class MemoryStore {
     // private monitoredTransactions: Map<HexData32, TransactionInfo> = new Map() // tx hash to info

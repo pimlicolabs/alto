@@ -109,7 +109,8 @@ export const bundlerArgsSchema = z.object({
         .transform((val) => BigInt(val))
         .optional(),
     rpcMaxBlockRange: z.number().int().min(0).optional(),
-    dangerousSkipUserOperationValidation: z.boolean().optional()
+    dangerousSkipUserOperationValidation: z.boolean().optional(),
+    entryPointVersion: z.enum(["0.6", "0.7"])
 })
 
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>

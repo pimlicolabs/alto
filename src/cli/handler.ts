@@ -1,29 +1,9 @@
 import {
+    type Logger,
     createMetrics,
     initDebugLogger,
     initProductionLogger
 } from "@alto/utils"
-import {
-    BasicExecutor,
-    ExecutorManager,
-    SenderManager
-} from "@entrypoint-0.6/executor"
-import {
-    type InterfaceReputationManager,
-    MemoryMempool,
-    Monitor,
-    NullRepuationManager,
-    ReputationManager
-} from "@entrypoint-0.6/mempool"
-import {
-    NonceQueuer,
-    RpcHandler,
-    SafeValidator,
-    Server,
-    UnsafeValidator
-} from "@entrypoint-0.6/rpc"
-import type { InterfaceValidator } from "@entrypoint-0.6/types"
-import { CompressionHandler, type Logger } from "@entrypoint-0.6/utils"
 import { Registry } from "prom-client"
 import {
     type Chain,
@@ -39,9 +19,12 @@ import {
     bundlerArgsSchema
 } from "./config"
 import { customTransport } from "./customTransport"
+import { setupEntryPointPointSix } from "@entrypoint-0.6/cli"
+import { SenderManager } from "@alto/executor"
+import { setupEntryPointPointSeven } from "@entrypoint-0.7/cli"
 
 const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
-    // validate every arg, make typesafe so if i add a new arg i have to validate it
+    // validate every arg, make type safe so if i add a new arg i have to validate it
     const parsing = bundlerArgsSchema.safeParse(args)
     if (!parsing.success) {
         const error = fromZodError(parsing.error)
@@ -63,7 +46,6 @@ const preFlightChecks = async (
     }
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: <explanation>
 export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
     const parsedArgs = parseArgs(args)
     if (parsedArgs.signerPrivateKeysExtra !== undefined) {
@@ -161,210 +143,28 @@ export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
         parsedArgs.maxSigners
     )
 
-    let validator: InterfaceValidator
-    let reputationManager: InterfaceReputationManager
-
-    if (parsedArgs.safeMode) {
-        reputationManager = new ReputationManager(
-            client,
-            parsedArgs.entryPoint,
-            BigInt(parsedArgs.minStake),
-            BigInt(parsedArgs.minUnstakeDelay),
-            logger.child(
-                { module: "reputation_manager" },
-                {
-                    level:
-                        parsedArgs.reputationManagerLogLevel ||
-                        parsedArgs.logLevel
-                }
-            )
-        )
-
-        validator = new SafeValidator(
-            client,
-            senderManager,
-            parsedArgs.entryPoint,
-            logger.child(
-                { module: "rpc" },
-                { level: parsedArgs.rpcLogLevel || parsedArgs.logLevel }
-            ),
-            metrics,
-            parsedArgs.utilityPrivateKey,
-            parsedArgs.apiVersion,
-            parsedArgs.tenderlyEnabled,
-            parsedArgs.balanceOverrideEnabled
-        )
-    } else {
-        reputationManager = new NullRepuationManager()
-        validator = new UnsafeValidator(
-            client,
-            parsedArgs.entryPoint,
-            logger.child(
-                { module: "rpc" },
-                { level: parsedArgs.rpcLogLevel || parsedArgs.logLevel }
-            ),
-            metrics,
-            parsedArgs.utilityPrivateKey,
-            parsedArgs.apiVersion,
-            parsedArgs.tenderlyEnabled,
-            parsedArgs.balanceOverrideEnabled,
-            parsedArgs.disableExpirationCheck
-        )
-    }
-
-    await senderManager.validateAndRefillWallets(
-        client,
-        walletClient,
-        parsedArgs.minBalance
-    )
-
-    setInterval(async () => {
-        await senderManager.validateAndRefillWallets(
+    if (parsedArgs.entryPointVersion === "0.6") {
+        await setupEntryPointPointSix({
             client,
             walletClient,
-            parsedArgs.minBalance
-        )
-    }, parsedArgs.refillInterval)
-
-    const monitor = new Monitor()
-    const mempool = new MemoryMempool(
-        monitor,
-        reputationManager,
-        validator,
-        client,
-        parsedArgs.entryPoint,
-        parsedArgs.safeMode,
-        logger.child(
-            { module: "mempool" },
-            { level: parsedArgs.mempoolLogLevel || parsedArgs.logLevel }
-        ),
-        metrics
-    )
-
-    const { bundleBulkerAddress, perOpInflatorAddress } = parsedArgs
-
-    let compressionHandler = null
-    if (
-        bundleBulkerAddress !== undefined &&
-        perOpInflatorAddress !== undefined
-    ) {
-        compressionHandler = await CompressionHandler.createAsync(
-            bundleBulkerAddress,
-            perOpInflatorAddress,
-            client
-        )
+            parsedArgs,
+            logger,
+            rootLogger,
+            registry,
+            metrics,
+            senderManager
+        })
     }
-
-    const executor = new BasicExecutor(
-        client,
-        walletClient,
-        senderManager,
-        reputationManager,
-        parsedArgs.entryPoint,
-        logger.child(
-            { module: "executor" },
-            { level: parsedArgs.executorLogLevel || parsedArgs.logLevel }
-        ),
-        metrics,
-        compressionHandler,
-        !parsedArgs.tenderlyEnabled,
-        parsedArgs.noEip1559Support,
-        parsedArgs.customGasLimitForEstimation,
-        parsedArgs.useUserOperationGasLimitsForSubmission
-    )
-
-    const executorManager = new ExecutorManager(
-        executor,
-        mempool,
-        monitor,
-        reputationManager,
-        client,
-        parsedArgs.entryPoint,
-        parsedArgs.pollingInterval,
-        logger.child(
-            { module: "executor" },
-            { level: parsedArgs.executorLogLevel || parsedArgs.logLevel }
-        ),
-        metrics,
-        parsedArgs.bundleMode,
-        parsedArgs.bundlerFrequency,
-        parsedArgs.noEip1559Support
-    )
-
-    const nonceQueuer = new NonceQueuer(
-        mempool,
-        client,
-        parsedArgs.entryPoint,
-        logger.child(
-            { module: "nonce_queuer" },
-            { level: parsedArgs.nonceQueuerLogLevel || parsedArgs.logLevel }
-        )
-    )
-
-    const rpcEndpoint = new RpcHandler(
-        parsedArgs.entryPoint,
-        client,
-        validator,
-        mempool,
-        executor,
-        monitor,
-        nonceQueuer,
-        executorManager,
-        reputationManager,
-        parsedArgs.tenderlyEnabled ?? false,
-        parsedArgs.minimumGasPricePercent,
-        parsedArgs.apiVersion,
-        parsedArgs.noEthCallOverrideSupport,
-        parsedArgs.rpcMaxBlockRange,
-        logger.child(
-            { module: "rpc" },
-            { level: parsedArgs.rpcLogLevel || parsedArgs.logLevel }
-        ),
-        metrics,
-        parsedArgs.environment,
-        compressionHandler,
-        parsedArgs.noEip1559Support,
-        parsedArgs.dangerousSkipUserOperationValidation
-    )
-
-    if (parsedArgs.flushStuckTransactionsDuringStartup) {
-        executor.flushStuckTransactions()
+    if (parsedArgs.entryPointVersion === "0.7") {
+        await setupEntryPointPointSeven({
+            client,
+            walletClient,
+            parsedArgs,
+            logger,
+            rootLogger,
+            registry,
+            metrics,
+            senderManager
+        })
     }
-
-    rootLogger.info(
-        `Initialized ${senderManager.wallets.length} executor wallets`
-    )
-
-    const server = new Server(
-        rpcEndpoint,
-        parsedArgs.port,
-        parsedArgs.requestTimeout,
-        logger.child(
-            { module: "rpc" },
-            { level: parsedArgs.rpcLogLevel || parsedArgs.logLevel }
-        ),
-        registry,
-        metrics
-    )
-    await server.start()
-
-    const gracefulShutdown = async (signal: string) => {
-        rootLogger.info(`${signal} received, shutting down`)
-
-        await server.stop()
-        rootLogger.info("server stopped")
-
-        const outstanding = mempool.dumpOutstanding().length
-        const submitted = mempool.dumpSubmittedOps().length
-        const processing = mempool.dumpProcessing().length
-        rootLogger.info(
-            { outstanding, submitted, processing },
-            "dumping mempool before shutdown"
-        )
-
-        process.exit(0)
-    }
-
-    process.on("SIGINT", gracefulShutdown)
-    process.on("SIGTERM", gracefulShutdown)
 }

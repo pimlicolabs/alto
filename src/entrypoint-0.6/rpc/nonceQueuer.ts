@@ -4,8 +4,8 @@ import {
     type MempoolUserOperation,
     deriveUserOperation
 } from "@entrypoint-0.6/types"
+import type { Logger } from "@alto/utils"
 import {
-    type Logger,
     getNonceKeyAndValue,
     getUserOperationHash
 } from "@entrypoint-0.6/utils"

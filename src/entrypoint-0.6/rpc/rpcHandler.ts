@@ -42,6 +42,7 @@ import {
     type SupportedEntryPointsResponseResult,
     type UserOperation
 } from "@entrypoint-0.6/types"
+import type { Logger } from "@alto/utils"
 import {
     calcPreVerificationGas,
     calcVerificationGasAndCallGasLimit,
@@ -49,8 +50,7 @@ import {
     getNonceKeyAndValue,
     getUserOperationHash,
     maxBigInt,
-    type CompressionHandler,
-    type Logger
+    type CompressionHandler
 } from "@entrypoint-0.6/utils"
 import {
     TransactionNotFoundError,
@@ -346,11 +346,17 @@ export class RpcHandler implements IRpcEndpoint {
                     this.chainId
                 )
 
-            if (this.chainId === chains.base.id || this.chainId === chains.baseSepolia.id) {
+            if (
+                this.chainId === chains.base.id ||
+                this.chainId === chains.baseSepolia.id
+            ) {
                 callGasLimit += 10_000n
             }
 
-            if (this.chainId === chains.base.id || this.chainId === chains.optimism.id) {
+            if (
+                this.chainId === chains.base.id ||
+                this.chainId === chains.optimism.id
+            ) {
                 callGasLimit = maxBigInt(callGasLimit, 120_000n)
             }
         } else {

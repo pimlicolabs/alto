@@ -1,4 +1,4 @@
-import type { Metrics } from "@alto/utils"
+import type { Logger, Metrics } from "@alto/utils"
 import {
     type Address,
     CallEngineAbi,
@@ -6,7 +6,6 @@ import {
     type HexData32
 } from "@entrypoint-0.6/types"
 import type { ApiVersion } from "@entrypoint-0.6/types"
-import type { Logger } from "@entrypoint-0.6/utils"
 import { getGasPrice } from "@entrypoint-0.6/utils"
 import { Semaphore } from "async-mutex"
 import {
@@ -102,7 +101,7 @@ export class SenderManager {
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: <explanation>
     async validateAndRefillWallets(
         publicClient: PublicClient,
-        walletClient: WalletClient<Transport, Chain, undefined>,
+        walletClient: WalletClient<Transport, Chain>,
         minBalance: bigint
     ): Promise<void> {
         const utilityWalletBalance = await publicClient.getBalance({
