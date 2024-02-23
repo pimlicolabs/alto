@@ -816,15 +816,21 @@ export class RpcHandler implements InterfaceRpcEndpoint {
             const minMaxFeePerGas =
                 (gasPrice.maxFeePerGas * BigInt(this.minimumGasPricePercent)) /
                 100n
+
+            const minMaxPriorityFeePerGas =
+                (gasPrice.maxPriorityFeePerGas *
+                    BigInt(this.minimumGasPricePercent)) /
+                100n
+
             if (userOperation.maxFeePerGas < minMaxFeePerGas) {
                 throw new RpcError(
                     `maxFeePerGas must be at least ${minMaxFeePerGas} (current maxFeePerGas: ${gasPrice.maxFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
                 )
             }
 
-            if (userOperation.maxPriorityFeePerGas < minMaxFeePerGas) {
+            if (userOperation.maxPriorityFeePerGas < minMaxPriorityFeePerGas) {
                 throw new RpcError(
-                    `maxPriorityFeePerGas must be at least ${minMaxFeePerGas} (current maxPriorityFeePerGas: ${gasPrice.maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
+                    `maxPriorityFeePerGas must be at least ${minMaxPriorityFeePerGas} (current maxPriorityFeePerGas: ${gasPrice.maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
                 )
             }
         }
