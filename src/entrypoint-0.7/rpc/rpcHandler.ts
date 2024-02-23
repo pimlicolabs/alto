@@ -357,13 +357,14 @@ export class RpcHandler implements InterfaceRpcEndpoint {
             return {
                 preVerificationGas,
                 verificationGasLimit,
-                callGasLimit
+                callGasLimit,
+                paymasterVerificationGasLimit: verificationGasLimit,
+                paymasterPostOpGasLimit: verificationGasLimit
             }
         }
 
         return {
             preVerificationGas,
-            verificationGas: verificationGasLimit,
             verificationGasLimit,
             callGasLimit
         }

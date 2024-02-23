@@ -288,7 +288,8 @@ const estimateUserOperationGasResponseSchema = z.object({
         callGasLimit: hexNumberSchema,
         preVerificationGas: hexNumberSchema,
         verificationGasLimit: hexNumberSchema,
-        verificationGas: hexNumberSchema.optional()
+        paymasterVerificationGasLimit: hexNumberSchema.optional(),
+        paymasterPostOpGasLimit: hexNumberSchema.optional()
     })
 })
 
