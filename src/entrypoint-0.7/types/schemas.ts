@@ -1,4 +1,4 @@
-import { type Hash, type Hex, getAddress } from "viem"
+import { getAddress, type Hash, type Hex } from "viem"
 import { z } from "zod"
 import type { MempoolUserOperation } from "./mempool"
 
@@ -34,18 +34,18 @@ const unPackedUserOperationSchema = z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
-        factory: z.union([addressSchema, z.null()]),
-        factoryData: z.union([hexDataSchema, z.null()]),
+        factory: addressSchema.nullable().optional().transform((val) => val ?? null),
+        factoryData: hexDataSchema.nullable().optional().transform((val) => val ?? null),
         callData: hexDataSchema,
         callGasLimit: hexNumberSchema,
         verificationGasLimit: hexNumberSchema,
         preVerificationGas: hexNumberSchema,
         maxFeePerGas: hexNumberSchema,
         maxPriorityFeePerGas: hexNumberSchema,
-        paymaster: z.union([addressSchema, z.null()]),
-        paymasterVerificationGasLimit: z.union([hexNumberSchema, z.null()]),
-        paymasterPostOpGasLimit: z.union([hexNumberSchema, z.null()]),
-        paymasterData: z.union([hexDataSchema, z.null()]),
+        paymaster: addressSchema.nullable().optional().transform((val) => val ?? null),
+        paymasterVerificationGasLimit: hexNumberSchema.nullable().optional().transform((val) => val ?? null),
+        paymasterPostOpGasLimit: hexNumberSchema.nullable().optional().transform((val) => val ?? null),
+        paymasterData: hexDataSchema.nullable().optional().transform((val) => val ?? null),
         signature: hexDataSchema
     })
     .strict()
@@ -55,18 +55,18 @@ const partialUnPackedUserOperationSchema = z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
-        factory: z.union([addressSchema, z.null()]),
-        factoryData: z.union([hexDataSchema, z.null()]),
+        factory: addressSchema.nullable().optional().transform((val) => val ?? null),
+        factoryData: hexDataSchema.nullable().optional().transform((val) => val ?? null),
         callData: hexDataSchema,
         callGasLimit: hexNumberSchema.default(1n),
         verificationGasLimit: hexNumberSchema.default(1n),
         preVerificationGas: hexNumberSchema.default(1n),
         maxFeePerGas: hexNumberSchema.default(1n),
         maxPriorityFeePerGas: hexNumberSchema.default(1n),
-        paymaster: z.union([addressSchema, z.null()]),
-        paymasterVerificationGasLimit: z.union([hexNumberSchema, z.null()]),
-        paymasterPostOpGasLimit: z.union([hexNumberSchema, z.null()]),
-        paymasterData: z.union([hexDataSchema, z.null()]),
+        paymaster: addressSchema.nullable().optional().transform((val) => val ?? null),
+        paymasterVerificationGasLimit: hexNumberSchema.nullable().optional().transform((val) => val ?? null),
+        paymasterPostOpGasLimit: hexNumberSchema.nullable().optional().transform((val) => val ?? null),
+        paymasterData: hexDataSchema.nullable().optional().transform((val) => val ?? null),
         signature: hexDataSchema
     })
     .strict()
@@ -693,34 +693,15 @@ export type JSONRPCRequest = z.infer<typeof jsonRpcSchema>
 export type JSONRPCResponse = z.infer<typeof jsonRpcResultSchema>
 
 export {
-    bundlerClearStateRequestSchema,
-    bundlerClearMempoolRequestSchema,
-    bundlerDumpMempoolRequestSchema,
-    bundlerSendBundleNowRequestSchema,
+    bundlerClearMempoolRequestSchema, bundlerClearStateRequestSchema, bundlerDumpMempoolRequestSchema, bundlerDumpReputationsRequestSchema, bundlerRequestSchema, bundlerSendBundleNowRequestSchema,
     bundlerSetBundlingModeRequestSchema,
-    bundlerSetReputationsRequestSchema,
-    bundlerDumpReputationsRequestSchema,
-    pimlicoGetStakeStatusRequestSchema,
-    pimlicoGetUserOperationStatusRequestSchema,
-    pimlicoGetUserOperationGasPriceRequestSchema,
-    bundlerRequestSchema,
-    jsonRpcSchema,
-    jsonRpcResultSchema,
-    unPackedUserOperationSchema
+    bundlerSetReputationsRequestSchema, jsonRpcResultSchema, jsonRpcSchema, pimlicoGetStakeStatusRequestSchema, pimlicoGetUserOperationGasPriceRequestSchema, pimlicoGetUserOperationStatusRequestSchema, unPackedUserOperationSchema
 }
 
 export {
-    bundlerClearStateResponseSchema,
-    bundlerClearMempoolResponseSchema,
-    bundlerDumpMempoolResponseSchema,
-    bundlerGetStakeStatusResponseSchema,
-    bundlerSendBundleNowResponseSchema,
+    bundlerClearMempoolResponseSchema, bundlerClearStateResponseSchema, bundlerDumpMempoolResponseSchema, bundlerDumpReputationsResponseSchema, bundlerGetStakeStatusResponseSchema, bundlerResponseSchema, bundlerSendBundleNowResponseSchema,
     bundlerSetBundlingModeResponseSchema,
-    bundlerSetReputationsResponseSchema,
-    bundlerDumpReputationsResponseSchema,
-    pimlicoGetUserOperationStatusResponseSchema,
-    pimlicoGetUserOperationGasPriceResponseSchema,
-    bundlerResponseSchema
+    bundlerSetReputationsResponseSchema, pimlicoGetUserOperationGasPriceResponseSchema, pimlicoGetUserOperationStatusResponseSchema
 }
 
 export {
