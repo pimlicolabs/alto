@@ -78,15 +78,18 @@ export function unpackGasLimits(gasLimits: Hex) {
 export function getPaymasterAndData(
     unpackedUserOperation: UnPackedUserOperation
 ) {
-    return unpackedUserOperation.paymaster &&
-        unpackedUserOperation.paymasterVerificationGasLimit &&
-        unpackedUserOperation.paymasterPostOpGasLimit
+    return unpackedUserOperation.paymaster
         ? concat([
               unpackedUserOperation.paymaster,
-              pad(toHex(unpackedUserOperation.paymasterVerificationGasLimit), {
-                  size: 16
-              }),
-              pad(toHex(unpackedUserOperation.paymasterPostOpGasLimit), {
+              pad(
+                  toHex(
+                      unpackedUserOperation.paymasterVerificationGasLimit || 0n
+                  ),
+                  {
+                      size: 16
+                  }
+              ),
+              pad(toHex(unpackedUserOperation.paymasterPostOpGasLimit || 0n), {
                   size: 16
               }),
               unpackedUserOperation.paymasterData || ("0x" as Hex)
