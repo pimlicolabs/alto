@@ -316,6 +316,7 @@ export class RpcHandler implements InterfaceRpcEndpoint {
                 "user operation max fee per gas must be larger than 0 during gas estimation"
             )
         }
+
         const preVerificationGas = await calcPreVerificationGas(
             this.publicClient,
             userOperation,
@@ -327,6 +328,9 @@ export class RpcHandler implements InterfaceRpcEndpoint {
         userOperation.preVerificationGas = 1_000_000n
         userOperation.verificationGasLimit = 10_000_000n
         userOperation.callGasLimit = 10_000_000n
+
+        userOperation.paymasterPostOpGasLimit = 2_000_000n
+        userOperation.paymasterVerificationGasLimit = 5_000_000n
 
         if (this.chainId === chains.base.id) {
             userOperation.verificationGasLimit = 2_500_000n
