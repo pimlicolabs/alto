@@ -221,20 +221,6 @@ export class UnsafeValidator implements InterfaceValidator {
             const validationResult =
                 await this.getValidationResult(userOperation)
 
-            if (validationResult.returnInfo.accountValidationData) {
-                throw new RpcError(
-                    "User operation validation failed",
-                    ValidationErrors.InvalidSignature
-                )
-            }
-
-            if (validationResult.returnInfo.paymasterValidationData) {
-                throw new RpcError(
-                    "Paymaster validation failed",
-                    ValidationErrors.InvalidSignature
-                )
-            }
-
             const prefund = validationResult.returnInfo.prefund
 
             const [verificationGasLimit, callGasLimit] =
