@@ -243,19 +243,7 @@ export class UnsafeValidator implements InterfaceValidator {
                         slot !==
                         "0x0000000000000000000000000000000000000000000000000000000000000000"
                     ) {
-                        // accessing arbitrary storage of another contract is not allowed
-                        const message = `${entityTitle} has forbidden read/write ${nameAddr(
-                            addr,
-                            entityTitle
-                        )} slot ${slot}`
-
-                        throw new RpcError(
-                            message,
-                            ValidationErrors.OpcodeValidation,
-                            {
-                                [entityTitle]: entStakes?.addr
-                            }
-                        )
+                        requireStakeSlot = slot
                     }
                 }
 
