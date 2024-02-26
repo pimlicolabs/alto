@@ -365,7 +365,7 @@ export class ExecutorManager {
                         userOpHash: info.userOperationHash,
                         transactionHash: status.hash
                     },
-                    "user op failed"
+                    "user op rejected"
                 )
             })
 
