@@ -317,13 +317,30 @@ export class RpcHandler implements InterfaceRpcEndpoint {
             )
         }
 
-        const preVerificationGas = await calcPreVerificationGas(
+        let preVerificationGas = await calcPreVerificationGas(
             this.publicClient,
             userOperation,
             entryPoint,
             this.chainId,
             this.logger
         )
+
+        if (
+            this.chainId === chains.optimism.id ||
+            this.chainId === chains.optimismSepolia.id ||
+            this.chainId === chains.optimismGoerli.id ||
+            this.chainId === chains.base.id ||
+            this.chainId === chains.baseGoerli.id ||
+            this.chainId === chains.baseSepolia.id ||
+            this.chainId === chains.opBNB.id ||
+            this.chainId === chains.opBNBTestnet.id ||
+            this.chainId === 957 ||
+            this.chainId === chains.arbitrum.id
+        ) {
+            // Optimism and Arbitrum have a pre verification gas limit dependent on the gas price
+            // so we increase the requirement by 10% to incorporate the gas price
+            preVerificationGas = (preVerificationGas * 110n) / 100n
+        }
 
         userOperation.preVerificationGas = 1_000_000n
         userOperation.verificationGasLimit = 10_000_000n
