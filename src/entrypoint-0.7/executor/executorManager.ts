@@ -213,9 +213,7 @@ export class ExecutorManager {
                 )
                 this.mempool.removeProcessing(result.info.userOpHash)
                 this.mempool.add(result.info.userOperation)
-                this.metrics.userOperationsSubmitted
-                    .labels({ status: "resubmitted" })
-                    .inc()
+                this.metrics.userOperationsResubmitted.inc()
             }
         }
         return txHash
@@ -365,7 +363,7 @@ export class ExecutorManager {
                         userOpHash: info.userOperationHash,
                         transactionHash: status.hash
                     },
-                    "user op failed"
+                    "user op rejected"
                 )
             })
 

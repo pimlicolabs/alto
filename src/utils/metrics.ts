@@ -148,6 +148,13 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
+    const userOperationsResubmitted = new Counter({
+        name: "alto_user_operations_resubmitted_total",
+        help: "Number of user operations resubmitted",
+        labelNames: [] as const,
+        registers
+    })
+
     return {
         httpRequests,
         httpRequestsDuration,
@@ -164,6 +171,7 @@ export function createMetrics(registry: Registry, register = true) {
         userOperationInclusionDuration,
         verificationGasLimitEstimationTime,
         verificationGasLimitEstimationCount,
-        replacedTransactions
+        replacedTransactions,
+        userOperationsResubmitted
     }
 }
