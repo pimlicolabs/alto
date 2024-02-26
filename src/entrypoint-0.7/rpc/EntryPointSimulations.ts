@@ -2,8 +2,7 @@ import {
     EntryPointAbi,
     EntryPointSimulationsAbi,
     PimlicoEntryPointSimulationsAbi,
-    ValidationErrors,
-    ExecutionErrors
+    ValidationErrors
 } from "@entrypoint-0.7/types"
 import type {
     StateOverrides,
@@ -189,16 +188,6 @@ function getSimulateHandleOpResult(data: Hex) {
             ],
             decodedDelegateAndError.args[1] as Hex
         )[0]
-
-        if (!decodedResult.targetSuccess) {
-            return {
-                result: "failed",
-                data: parseFailedOpWithRevert(
-                    decodedResult.targetResult as Hex
-                ),
-                code: ExecutionErrors.UserOperationReverted
-            } as const
-        }
 
         return {
             result: "execution",
