@@ -194,16 +194,6 @@ function getSimulateHandleOpResult(data: Hex) {
             decodedDelegateAndError.args[1] as Hex
         )[0]
 
-        if (!decodedResult.targetSuccess) {
-            return {
-                result: "failed",
-                data: parseFailedOpWithRevert(
-                    decodedResult.targetResult as Hex
-                ),
-                code: ExecutionErrors.UserOperationReverted
-            } as const
-        }
-
         return {
             result: "execution",
             data: decodedResult
