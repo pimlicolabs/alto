@@ -348,6 +348,7 @@ export class RpcHandler implements InterfaceRpcEndpoint {
 
         userOperation.paymasterPostOpGasLimit = 2_000_000n
         userOperation.paymasterVerificationGasLimit = 5_000_000n
+        userOperation.maxPriorityFeePerGas = userOperation.maxFeePerGas
 
         if (this.chainId === chains.base.id) {
             userOperation.verificationGasLimit = 2_500_000n
