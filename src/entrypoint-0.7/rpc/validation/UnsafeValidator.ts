@@ -29,6 +29,7 @@ import {
     slice
 } from "viem"
 import { simulateHandleOp, simulateValidation } from "../EntryPointSimulations"
+import * as chains from "viem/chains"
 
 const maxUint48 = 2 ** 48 - 1
 
@@ -191,13 +192,30 @@ export class UnsafeValidator implements InterfaceValidator {
     }
 
     async validatePreVerificationGas(userOperation: UnPackedUserOperation) {
-        const preVerificationGas = await calcPreVerificationGas(
+        let preVerificationGas = await calcPreVerificationGas(
             this.publicClient,
             userOperation,
             this.entryPoint,
             this.chainId,
             this.logger
         )
+
+        if (
+            this.chainId === chains.optimism.id ||
+            this.chainId === chains.optimismSepolia.id ||
+            this.chainId === chains.optimismGoerli.id ||
+            this.chainId === chains.base.id ||
+            this.chainId === chains.baseGoerli.id ||
+            this.chainId === chains.baseSepolia.id ||
+            this.chainId === chains.opBNB.id ||
+            this.chainId === chains.opBNBTestnet.id ||
+            this.chainId === 957 ||
+            this.chainId === chains.arbitrum.id
+        ) {
+            // Optimism and Arbitrum have a pre verification gas limit dependent on the gas price
+            // so we lower the requirement by 10% to be safe
+            preVerificationGas = (preVerificationGas * 90n) / 100n
+        }
 
         if (preVerificationGas > userOperation.preVerificationGas) {
             throw new RpcError(
