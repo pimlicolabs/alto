@@ -145,7 +145,8 @@ export class UnsafeValidator implements InterfaceValidator {
         if (error.result === "failed") {
             throw new RpcError(
                 `UserOperation reverted during simulation with reason: ${error.data}`,
-                error.code ?? ValidationErrors.SimulateValidation
+                error.code ?? ValidationErrors.SimulateValidation,
+                error.data
             )
         }
 

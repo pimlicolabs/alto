@@ -87,6 +87,8 @@ export const DefaultGasOverheads: GasOverheads = {
  */
 export function packUserOp(op: UnPackedUserOperation): `0x${string}` {
     const packedUserOperation: PackedUserOperation = toPackedUserOperation(op)
+    const randomDataUserOp: PackedUserOperation =
+        packedUserOperationToRandomDataUserOp(packedUserOperation)
 
     return encodeAbiParameters(
         [
@@ -137,27 +139,43 @@ export function packUserOp(op: UnPackedUserOperation): `0x${string}` {
             }
         ],
         [
-            packedUserOperation.sender,
-            BigInt(
-                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-            ), // need non zero bytes to get better estimations for preVerificationGas
+            randomDataUserOp.sender,
+            randomDataUserOp.nonce, // need non zero bytes to get better estimations for preVerificationGas
             packedUserOperation.initCode,
             packedUserOperation.callData,
-            bytesToHex(new Uint8Array(32).fill(255)), // need non zero bytes to get better estimations for preVerificationGas
-            BigInt(
-                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-            ), // need non zero bytes to get better estimations for preVerificationGas
-            bytesToHex(new Uint8Array(32).fill(255)), // need non zero bytes to get better estimations for preVerificationGas
-            bytesToHex(
-                new Uint8Array(
-                    packedUserOperation.paymasterAndData.length
-                ).fill(255)
-            ),
-            bytesToHex(
-                new Uint8Array(packedUserOperation.signature.length).fill(255)
-            )
+            randomDataUserOp.accountGasLimits, // need non zero bytes to get better estimations for preVerificationGas
+            randomDataUserOp.preVerificationGas, // need non zero bytes to get better estimations for preVerificationGas
+            randomDataUserOp.gasFees, // need non zero bytes to get better estimations for preVerificationGas
+            randomDataUserOp.paymasterAndData,
+            randomDataUserOp.signature
         ]
     )
+}
+
+export function packedUserOperationToRandomDataUserOp(
+    packedUserOperation: PackedUserOperation
+) {
+    return {
+        sender: packedUserOperation.sender,
+        nonce: BigInt(
+            "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        ),
+        initCode: packedUserOperation.initCode,
+        callData: packedUserOperation.callData,
+        accountGasLimits: bytesToHex(new Uint8Array(32).fill(255)),
+        preVerificationGas: BigInt(
+            "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        ),
+        gasFees: bytesToHex(new Uint8Array(32).fill(255)),
+        paymasterAndData: bytesToHex(
+            new Uint8Array(packedUserOperation.paymasterAndData.length).fill(
+                255
+            )
+        ),
+        signature: bytesToHex(
+            new Uint8Array(packedUserOperation.signature.length).fill(255)
+        )
+    }
 }
 
 export async function calcPreVerificationGas(
@@ -322,7 +340,10 @@ export async function calcOptimismPreVerificationGas(
     staticFee: bigint,
     logger: Logger
 ) {
-    const randomDataUserOp: PackedUserOperation = toPackedUserOperation(op)
+    const packedUserOperation: PackedUserOperation = toPackedUserOperation(op)
+
+    const randomDataUserOp: PackedUserOperation =
+        packedUserOperationToRandomDataUserOp(packedUserOperation)
 
     const selector = getFunctionSelector(EntryPointAbi[28])
     const paramData = encodeAbiParameters(EntryPointAbi[28].inputs, [
@@ -426,7 +447,10 @@ export async function calcArbitrumPreVerificationGas(
     entryPoint: Address,
     staticFee: bigint
 ) {
-    const randomDataUserOp: PackedUserOperation = toPackedUserOperation(op)
+    const packedUserOperation: PackedUserOperation = toPackedUserOperation(op)
+
+    const randomDataUserOp: PackedUserOperation =
+        packedUserOperationToRandomDataUserOp(packedUserOperation)
 
     const selector = getFunctionSelector(EntryPointAbi[28])
     const paramData = encodeAbiParameters(EntryPointAbi[28].inputs, [
