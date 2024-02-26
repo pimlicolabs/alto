@@ -87,6 +87,8 @@ export const DefaultGasOverheads: GasOverheads = {
  */
 export function packUserOp(op: UnPackedUserOperation): `0x${string}` {
     const packedUserOperation: PackedUserOperation = toPackedUserOperation(op)
+    const randomDataUserOp: PackedUserOperation =
+        packedUserOperationToRandomDataUserOp(packedUserOperation)
 
     return encodeAbiParameters(
         [
@@ -137,25 +139,15 @@ export function packUserOp(op: UnPackedUserOperation): `0x${string}` {
             }
         ],
         [
-            packedUserOperation.sender,
-            BigInt(
-                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-            ), // need non zero bytes to get better estimations for preVerificationGas
+            randomDataUserOp.sender,
+            randomDataUserOp.nonce, // need non zero bytes to get better estimations for preVerificationGas
             packedUserOperation.initCode,
             packedUserOperation.callData,
-            bytesToHex(new Uint8Array(32).fill(255)), // need non zero bytes to get better estimations for preVerificationGas
-            BigInt(
-                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-            ), // need non zero bytes to get better estimations for preVerificationGas
-            bytesToHex(new Uint8Array(32).fill(255)), // need non zero bytes to get better estimations for preVerificationGas
-            bytesToHex(
-                new Uint8Array(
-                    packedUserOperation.paymasterAndData.length
-                ).fill(255)
-            ),
-            bytesToHex(
-                new Uint8Array(packedUserOperation.signature.length).fill(255)
-            )
+            randomDataUserOp.accountGasLimits, // need non zero bytes to get better estimations for preVerificationGas
+            randomDataUserOp.preVerificationGas, // need non zero bytes to get better estimations for preVerificationGas
+            randomDataUserOp.gasFees, // need non zero bytes to get better estimations for preVerificationGas
+            randomDataUserOp.paymasterAndData,
+            randomDataUserOp.signature
         ]
     )
 }
