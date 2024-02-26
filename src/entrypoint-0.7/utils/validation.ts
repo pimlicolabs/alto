@@ -160,6 +160,32 @@ export function packUserOp(op: UnPackedUserOperation): `0x${string}` {
     )
 }
 
+export function packedUserOperationToRandomDataUserOp(
+    packedUserOperation: PackedUserOperation
+) {
+    return {
+        sender: packedUserOperation.sender,
+        nonce: BigInt(
+            "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        ),
+        initCode: packedUserOperation.initCode,
+        callData: packedUserOperation.callData,
+        accountGasLimits: bytesToHex(new Uint8Array(32).fill(255)),
+        preVerificationGas: BigInt(
+            "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        ),
+        gasFees: bytesToHex(new Uint8Array(32).fill(255)),
+        paymasterAndData: bytesToHex(
+            new Uint8Array(packedUserOperation.paymasterAndData.length).fill(
+                255
+            )
+        ),
+        signature: bytesToHex(
+            new Uint8Array(packedUserOperation.signature.length).fill(255)
+        )
+    }
+}
+
 export async function calcPreVerificationGas(
     publicClient: PublicClient<Transport, Chain>,
     userOperation: UnPackedUserOperation,
@@ -324,27 +350,8 @@ export async function calcOptimismPreVerificationGas(
 ) {
     const packedUserOperation: PackedUserOperation = toPackedUserOperation(op)
 
-    const randomDataUserOp: PackedUserOperation = {
-        sender: op.sender,
-        nonce: BigInt(
-            "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-        ),
-        initCode: packedUserOperation.initCode,
-        callData: packedUserOperation.callData,
-        accountGasLimits: bytesToHex(new Uint8Array(32).fill(255)),
-        preVerificationGas: BigInt(
-            "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-        ),
-        gasFees: bytesToHex(new Uint8Array(32).fill(255)),
-        paymasterAndData: bytesToHex(
-            new Uint8Array(packedUserOperation.paymasterAndData.length).fill(
-                255
-            )
-        ),
-        signature: bytesToHex(
-            new Uint8Array(packedUserOperation.signature.length).fill(255)
-        )
-    }
+    const randomDataUserOp: PackedUserOperation =
+        packedUserOperationToRandomDataUserOp(packedUserOperation)
 
     const selector = getFunctionSelector(EntryPointAbi[28])
     const paramData = encodeAbiParameters(EntryPointAbi[28].inputs, [
@@ -450,27 +457,8 @@ export async function calcArbitrumPreVerificationGas(
 ) {
     const packedUserOperation: PackedUserOperation = toPackedUserOperation(op)
 
-    const randomDataUserOp: PackedUserOperation = {
-        sender: op.sender,
-        nonce: BigInt(
-            "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-        ),
-        initCode: packedUserOperation.initCode,
-        callData: packedUserOperation.callData,
-        accountGasLimits: bytesToHex(new Uint8Array(32).fill(255)),
-        preVerificationGas: BigInt(
-            "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-        ),
-        gasFees: bytesToHex(new Uint8Array(32).fill(255)),
-        paymasterAndData: bytesToHex(
-            new Uint8Array(packedUserOperation.paymasterAndData.length).fill(
-                255
-            )
-        ),
-        signature: bytesToHex(
-            new Uint8Array(packedUserOperation.signature.length).fill(255)
-        )
-    }
+    const randomDataUserOp: PackedUserOperation =
+        packedUserOperationToRandomDataUserOp(packedUserOperation)
 
     const selector = getFunctionSelector(EntryPointAbi[28])
     const paramData = encodeAbiParameters(EntryPointAbi[28].inputs, [
