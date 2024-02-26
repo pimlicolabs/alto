@@ -81,12 +81,11 @@ export class UnsafeValidator implements InterfaceValidator {
             stateOverrides
         )
 
-        console.log({ error })
-
         if (error.result === "failed") {
             throw new RpcError(
-                `UserOperation reverted during simulation with reason: ${error.data}`,
-                error.code ?? ValidationErrors.SimulateValidation
+                "UserOperation reverted during simulation",
+                error.code ?? ValidationErrors.SimulateValidation,
+                error.data
             )
         }
 
