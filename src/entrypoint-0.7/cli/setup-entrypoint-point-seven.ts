@@ -80,6 +80,7 @@ const getValidator = ({
             metrics,
             parsedArgs.utilityPrivateKey,
             parsedArgs.apiVersion,
+            parsedArgs.entryPointSimulationsAddress,
             parsedArgs.tenderlyEnabled,
             parsedArgs.balanceOverrideEnabled
         )
@@ -94,6 +95,7 @@ const getValidator = ({
         metrics,
         parsedArgs.utilityPrivateKey,
         parsedArgs.apiVersion,
+        parsedArgs.entryPointSimulationsAddress,
         parsedArgs.tenderlyEnabled,
         parsedArgs.balanceOverrideEnabled,
         parsedArgs.disableExpirationCheck

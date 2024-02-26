@@ -37,7 +37,7 @@ interface CallEntry {
     value?: Hex
 }
 
-type StakeInfoEntities = {
+export type StakeInfoEntities = {
     factory?: StakeInfo
     account?: StakeInfo
     paymaster?: StakeInfo
@@ -60,6 +60,41 @@ const functionSignatureToMethodName = (hash: any) => {
     }
 
     return functionName
+}
+
+export function isStaked(entStake?: StakeInfo): boolean {
+    return Boolean(
+        entStake && 1n <= entStake.stake && 1n <= entStake.unstakeDelaySec
+    )
+}
+
+export function associatedWith(
+    slot: string,
+    addr: string,
+    entitySlots: { [addr: string]: Set<string> }
+): boolean {
+    const addrPadded = pad(addr as Hex, {
+        size: 32
+    }).toLowerCase()
+    if (slot.toLowerCase() === addrPadded) {
+        return true
+    }
+
+    const k = entitySlots[addr]
+    if (!k) {
+        return false
+    }
+
+    const slotN = hexToBigInt(slot as Hex)
+    // scan all slot entries to check of the given slot is within a structure, starting at that offset.
+    // assume a maximum size on a (static) structure size.
+    for (const k1 of k.keys()) {
+        const kn = hexToBigInt(k1 as Hex)
+        if (slotN >= kn && slotN < kn + 128n) {
+            return true
+        }
+    }
+    return false
 }
 
 /**
@@ -158,7 +193,7 @@ function parseCallStack(tracerResults: BundlerTracerResult): CallEntry[] {
  * @param stakeInfoEntities stake info for (factory, account, paymaster). factory and paymaster can be null.
  * @param keccak array of buffers that were given to keccak in the transaction
  */
-function parseEntitySlots(
+export function parseEntitySlots(
     stakeInfoEntities: StakeInfoEntities,
     keccak: Hex[]
 ): {
@@ -486,7 +521,7 @@ export function tracerResultParser(
             continue
         }
         const opcodes = currentNumLevel.opcodes
-        const access = currentNumLevel.access
+        const access = currentNumLevel.access // address => { reads, writes }
 
         // [OP-020]
         if (currentNumLevel.oog ?? false) {
@@ -538,32 +573,6 @@ export function tracerResultParser(
             // @param slot the SLOAD/SSTORE slot address we're testing
             // @param addr - the address we try to check for association with
             // @param reverseKeccak - a mapping we built for keccak values that contained the address
-            function associatedWith(
-                slot: string,
-                addr: string,
-                entitySlots: { [addr: string]: Set<string> }
-            ): boolean {
-                const addrPadded = pad(addr as Hex, {
-                    size: 32
-                }).toLowerCase()
-                if (slot.toLowerCase() === addrPadded) {
-                    return true
-                }
-                const k = entitySlots[addr]
-                if (!k) {
-                    return false
-                }
-                const slotN = hexToBigInt(slot as Hex)
-                // scan all slot entries to check of the given slot is within a structure, starting at that offset.
-                // assume a maximum size on a (static) structure size.
-                for (const k1 of k.keys()) {
-                    const kn = hexToBigInt(k1 as Hex)
-                    if (slotN >= kn && slotN < kn + 128n) {
-                        return true
-                    }
-                }
-                return false
-            }
 
             // scan all slots. find a referenced slot
             // at the end of the scan, we will check if the entity has stake, and report that slot if not.
@@ -660,13 +669,6 @@ export function tracerResultParser(
         }
 
         // check if the given entity is staked
-        function isStaked(entStake?: StakeInfo): boolean {
-            return Boolean(
-                entStake &&
-                    1n <= entStake.stake &&
-                    1n <= entStake.unstakeDelaySec
-            )
-        }
 
         // helper method: if condition is true, then entity must be staked.
         function requireCondAndStake(

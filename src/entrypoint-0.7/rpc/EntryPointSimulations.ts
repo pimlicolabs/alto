@@ -1,9 +1,7 @@
 import {
     EntryPointAbi,
-    hexDataSchema,
     EntryPointSimulationsAbi,
     PimlicoEntryPointSimulationsAbi,
-    PimlicoEntryPointSimulationsBytecode,
     ValidationErrors,
     ExecutionErrors
 } from "@entrypoint-0.7/types"
@@ -13,17 +11,15 @@ import type {
     ValidationResult
 } from "@entrypoint-0.7/types"
 import { deepHexlify, toPackedUserOperation } from "@entrypoint-0.7/utils"
-import type { Hex, RpcRequestErrorType } from "viem"
+import type { AccessList, Hex } from "viem"
 import {
     type Address,
     type PublicClient,
     decodeErrorResult,
     encodeFunctionData,
     toHex,
-    decodeAbiParameters,
-    encodeDeployData
+    decodeAbiParameters
 } from "viem"
-import { z } from "zod"
 import { ExecuteSimulatorDeployedBytecode } from "./ExecuteSimulator"
 
 const panicCodes: { [key: number]: string } = {
@@ -212,48 +208,38 @@ function getSimulateHandleOpResult(data: Hex) {
     throw new Error("Unexpected error")
 }
 
-function callPimlicoEntryPointSimulations(
+async function callPimlicoEntryPointSimulations(
     publicClient: PublicClient,
-    calldata: Hex,
+    entryPoint: Address,
+    entryPointSimulationsCallData: Hex,
+    entryPointSimulationsAddress: Address,
     stateOverride?: StateOverrides
 ) {
-    return publicClient
-        .request({
-            method: "eth_call",
-            params: [
-                {
-                    data: calldata
-                },
-                "latest",
-                // @ts-ignore
-                stateOverride
-            ]
-        })
-        .catch((e) => {
-            const rpcRequestError = e as RpcRequestErrorType
+    const callData = encodeFunctionData({
+        abi: PimlicoEntryPointSimulationsAbi,
+        functionName: "simulateEntryPoint",
+        args: [entryPoint, entryPointSimulationsCallData]
+    })
 
-            if (!rpcRequestError) {
-                throw new Error("Unexpected error")
-            }
+    const result = (await publicClient.request({
+        method: "eth_call",
+        params: [
+            {
+                to: entryPointSimulationsAddress,
+                data: callData
+            },
+            "latest",
+            // @ts-ignore
+            stateOverride
+        ]
+    })) as Hex
 
-            const causeParseResult = z
-                .object({
-                    code: z.literal(3),
-                    message: z.string().regex(/execution reverted.*/),
-                    data: hexDataSchema
-                })
-                .safeParse(rpcRequestError.cause)
+    const returnBytes = decodeAbiParameters(
+        [{ name: "ret", type: "bytes" }],
+        result
+    )
 
-            if (!causeParseResult.success) {
-                throw new Error(JSON.stringify(rpcRequestError.cause))
-            }
-
-            return causeParseResult.data
-        }) as Promise<{
-        data: `0x${string}`
-        code: 3
-        message: string
-    }>
+    return returnBytes[0]
 }
 
 export async function simulateHandleOp(
@@ -263,6 +249,7 @@ export async function simulateHandleOp(
     replacedEntryPoint: boolean,
     targetAddress: Address,
     targetCallData: Hex,
+    entryPointSimulationsAddress: Address,
     stateOverride: StateOverrides = {}
 ) {
     const finalParam = getStateOverrides({
@@ -280,23 +267,15 @@ export async function simulateHandleOp(
         args: [packedUserOperation, targetAddress, targetCallData]
     })
 
-    const calldata = encodeDeployData({
-        abi: PimlicoEntryPointSimulationsAbi,
-        bytecode: PimlicoEntryPointSimulationsBytecode,
-        args: [entryPoint, entryPointSimulationsCallData]
-    })
-
-    const cause: {
-        data: `0x${string}`
-        code: 3
-        message: string
-    } = await callPimlicoEntryPointSimulations(
+    const cause = await callPimlicoEntryPointSimulations(
         publicClient,
-        calldata,
+        entryPoint,
+        entryPointSimulationsCallData,
+        entryPointSimulationsAddress,
         finalParam
     )
 
-    return getSimulateHandleOpResult(cause.data)
+    return getSimulateHandleOpResult(cause)
 }
 
 function getSimulateValidationResult(errorData: Hex): {
@@ -482,7 +461,8 @@ function getSimulateValidationResult(errorData: Hex): {
 export async function simulateValidation(
     userOperation: UnPackedUserOperation,
     entryPoint: Address,
-    publicClient: PublicClient
+    publicClient: PublicClient,
+    entryPointSimulationsAddress: Address
 ) {
     const packedUserOperation = toPackedUserOperation(userOperation)
 
@@ -492,16 +472,33 @@ export async function simulateValidation(
         args: [packedUserOperation]
     })
 
-    const calldata = encodeDeployData({
+    const errorResult = await callPimlicoEntryPointSimulations(
+        publicClient,
+        entryPoint,
+        entryPointSimulationsCallData,
+        entryPointSimulationsAddress
+    )
+
+    const callData = encodeFunctionData({
         abi: PimlicoEntryPointSimulationsAbi,
-        bytecode: PimlicoEntryPointSimulationsBytecode,
+        functionName: "simulateEntryPoint",
         args: [entryPoint, entryPointSimulationsCallData]
     })
 
-    const errorResult = await callPimlicoEntryPointSimulations(
-        publicClient,
-        calldata
-    )
+    const { accessList } = (await publicClient.request({
+        // @ts-ignore
+        method: "eth_createAccessList",
+        params: [
+            {
+                to: entryPointSimulationsAddress,
+                data: callData
+            },
+            "latest"
+        ]
+    })) as { accessList: AccessList }
 
-    return getSimulateValidationResult(errorResult.data)
+    return {
+        simulateValidationResult: getSimulateValidationResult(errorResult),
+        accessList
+    }
 }
