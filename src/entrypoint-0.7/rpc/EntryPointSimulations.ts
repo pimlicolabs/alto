@@ -4,8 +4,7 @@ import {
     EntryPointSimulationsAbi,
     PimlicoEntryPointSimulationsAbi,
     PimlicoEntryPointSimulationsBytecode,
-    ValidationErrors,
-    ExecutionErrors
+    ValidationErrors
 } from "@entrypoint-0.7/types"
 import type {
     StateOverrides,
