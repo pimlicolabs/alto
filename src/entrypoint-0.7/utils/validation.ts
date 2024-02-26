@@ -322,7 +322,29 @@ export async function calcOptimismPreVerificationGas(
     staticFee: bigint,
     logger: Logger
 ) {
-    const randomDataUserOp: PackedUserOperation = toPackedUserOperation(op)
+    const packedUserOperation: PackedUserOperation = toPackedUserOperation(op)
+
+    const randomDataUserOp: PackedUserOperation = {
+        sender: op.sender,
+        nonce: BigInt(
+            "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        ),
+        initCode: packedUserOperation.initCode,
+        callData: packedUserOperation.callData,
+        accountGasLimits: bytesToHex(new Uint8Array(32).fill(255)),
+        preVerificationGas: BigInt(
+            "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        ),
+        gasFees: bytesToHex(new Uint8Array(32).fill(255)),
+        paymasterAndData: bytesToHex(
+            new Uint8Array(packedUserOperation.paymasterAndData.length).fill(
+                255
+            )
+        ),
+        signature: bytesToHex(
+            new Uint8Array(packedUserOperation.signature.length).fill(255)
+        )
+    }
 
     const selector = getFunctionSelector(EntryPointAbi[28])
     const paramData = encodeAbiParameters(EntryPointAbi[28].inputs, [
@@ -426,7 +448,29 @@ export async function calcArbitrumPreVerificationGas(
     entryPoint: Address,
     staticFee: bigint
 ) {
-    const randomDataUserOp: PackedUserOperation = toPackedUserOperation(op)
+    const packedUserOperation: PackedUserOperation = toPackedUserOperation(op)
+
+    const randomDataUserOp: PackedUserOperation = {
+        sender: op.sender,
+        nonce: BigInt(
+            "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        ),
+        initCode: packedUserOperation.initCode,
+        callData: packedUserOperation.callData,
+        accountGasLimits: bytesToHex(new Uint8Array(32).fill(255)),
+        preVerificationGas: BigInt(
+            "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        ),
+        gasFees: bytesToHex(new Uint8Array(32).fill(255)),
+        paymasterAndData: bytesToHex(
+            new Uint8Array(packedUserOperation.paymasterAndData.length).fill(
+                255
+            )
+        ),
+        signature: bytesToHex(
+            new Uint8Array(packedUserOperation.signature.length).fill(255)
+        )
+    }
 
     const selector = getFunctionSelector(EntryPointAbi[28])
     const paramData = encodeAbiParameters(EntryPointAbi[28].inputs, [
