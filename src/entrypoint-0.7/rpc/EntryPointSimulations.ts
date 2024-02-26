@@ -1,6 +1,7 @@
 import {
     EntryPointAbi,
     EntryPointSimulationsAbi,
+    ExecutionErrors,
     PimlicoEntryPointSimulationsAbi,
     ValidationErrors
 } from "@entrypoint-0.7/types"
@@ -104,6 +105,46 @@ function getStateOverrides({
           }
 }
 
+function validateTargetCallDataResult(data: Hex) {
+    const decodedDelegateAndError = decodeErrorResult({
+        abi: EntryPointAbi,
+        data: data
+    })
+
+    if (!decodedDelegateAndError?.args?.[1]) {
+        throw new Error("Unexpected error")
+    }
+
+    try {
+        const decodedError = decodeErrorResult({
+            abi: EntryPointSimulationsAbi,
+            data: decodedDelegateAndError.args[1] as Hex
+        })
+
+        if (decodedError?.args) {
+            const targetSuccess = decodedError?.args[0]
+            const targetResult = decodedError?.args[1]
+            if (!targetSuccess) {
+                return {
+                    result: "failed",
+                    data: parseFailedOpWithRevert(targetResult as Hex),
+                    code: ExecutionErrors.UserOperationReverted
+                } as const
+            }
+        }
+        return {
+            result: "success"
+        } as const
+    } catch {
+        // no error we go the result
+        return {
+            result: "failed",
+            data: "Unknown error, could not parse target call data result.",
+            code: ExecutionErrors.UserOperationReverted
+        } as const
+    }
+}
+
 function getSimulateHandleOpResult(data: Hex) {
     const decodedDelegateAndError = decodeErrorResult({
         abi: EntryPointAbi,
@@ -200,7 +241,7 @@ function getSimulateHandleOpResult(data: Hex) {
 async function callPimlicoEntryPointSimulations(
     publicClient: PublicClient,
     entryPoint: Address,
-    entryPointSimulationsCallData: Hex,
+    entryPointSimulationsCallData: Hex[],
     entryPointSimulationsAddress: Address,
     stateOverride?: StateOverrides
 ) {
@@ -224,7 +265,7 @@ async function callPimlicoEntryPointSimulations(
     })) as Hex
 
     const returnBytes = decodeAbiParameters(
-        [{ name: "ret", type: "bytes" }],
+        [{ name: "ret", type: "bytes[]" }],
         result
     )
 
@@ -250,21 +291,36 @@ export async function simulateHandleOp(
 
     const packedUserOperation = toPackedUserOperation(userOperation)
 
-    const entryPointSimulationsCallData = encodeFunctionData({
+    const entryPointSimulationsSimulateHandleOpCallData = encodeFunctionData({
         abi: EntryPointSimulationsAbi,
         functionName: "simulateHandleOp",
-        args: [packedUserOperation, targetAddress, targetCallData]
+        args: [packedUserOperation]
+    })
+
+    const entryPointSimulationsSimulateCallDataCallData = encodeFunctionData({
+        abi: EntryPointSimulationsAbi,
+        functionName: "simulateCallData",
+        args: [targetAddress, targetCallData]
     })
 
     const cause = await callPimlicoEntryPointSimulations(
         publicClient,
         entryPoint,
-        entryPointSimulationsCallData,
+        [
+            entryPointSimulationsSimulateHandleOpCallData,
+            entryPointSimulationsSimulateCallDataCallData
+        ],
         entryPointSimulationsAddress,
         finalParam
     )
 
-    return getSimulateHandleOpResult(cause)
+    const targetCallValidationResult = validateTargetCallDataResult(cause[1])
+
+    if (targetCallValidationResult.result === "failed") {
+        return targetCallValidationResult
+    }
+
+    return getSimulateHandleOpResult(cause[0])
 }
 
 function getSimulateValidationResult(errorData: Hex): {
@@ -464,7 +520,7 @@ export async function simulateValidation(
     const errorResult = await callPimlicoEntryPointSimulations(
         publicClient,
         entryPoint,
-        entryPointSimulationsCallData,
+        [entryPointSimulationsCallData],
         entryPointSimulationsAddress
     )
 
@@ -487,7 +543,7 @@ export async function simulateValidation(
     // })) as { accessList: AccessList }
 
     return {
-        simulateValidationResult: getSimulateValidationResult(errorResult)
+        simulateValidationResult: getSimulateValidationResult(errorResult[0])
         // accessList
     }
 }

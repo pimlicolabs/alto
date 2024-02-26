@@ -99,11 +99,24 @@ contract EntryPointSimulations is EntryPoint, IEntryPointSimulations {
         );
     }
 
-    /// @inheritdoc IEntryPointSimulations
-    function simulateHandleOp(
-        PackedUserOperation calldata op,
+    function simulateCallData(
         address target,
         bytes calldata targetCallData
+    ) external {
+        bool targetSuccess;
+        bytes memory targetResult;
+        if (target != address(0)) {
+            (targetSuccess, targetResult) = target.call(targetCallData);
+        }
+        revert TargetCallResult(
+            targetSuccess.
+            targetResult
+        );
+    }
+
+    /// @inheritdoc IEntryPointSimulations
+    function simulateHandleOp(
+        PackedUserOperation calldata op
     )
     external nonReentrant
     returns (
@@ -117,19 +130,14 @@ contract EntryPointSimulations is EntryPoint, IEntryPointSimulations {
         ) = _validatePrepayment(0, op, opInfo);
 
         uint256 paid = _executeUserOp(0, op, opInfo);
-        bool targetSuccess;
-        bytes memory targetResult;
-        if (target != address(0)) {
-            (targetSuccess, targetResult) = target.call(targetCallData);
-        }
 
         return ExecutionResult(
             opInfo.preOpGas,
             paid,
             validationData,
             paymasterValidationData,
-            targetSuccess,
-            targetResult
+            false,
+            "0x"
         );
     }
 
