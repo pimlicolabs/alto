@@ -479,26 +479,26 @@ export async function simulateValidation(
         entryPointSimulationsAddress
     )
 
-    const callData = encodeFunctionData({
-        abi: PimlicoEntryPointSimulationsAbi,
-        functionName: "simulateEntryPoint",
-        args: [entryPoint, entryPointSimulationsCallData]
-    })
+    // const callData = encodeFunctionData({
+    //     abi: PimlicoEntryPointSimulationsAbi,
+    //     functionName: "simulateEntryPoint",
+    //     args: [entryPoint, entryPointSimulationsCallData]
+    // })
 
-    const { accessList } = (await publicClient.request({
-        // @ts-ignore
-        method: "eth_createAccessList",
-        params: [
-            {
-                to: entryPointSimulationsAddress,
-                data: callData
-            },
-            "latest"
-        ]
-    })) as { accessList: AccessList }
+    // const { accessList } = (await publicClient.request({
+    //     // @ts-ignore
+    //     method: "eth_createAccessList",
+    //     params: [
+    //         {
+    //             to: entryPointSimulationsAddress,
+    //             data: callData
+    //         },
+    //         "latest"
+    //     ]
+    // })) as { accessList: AccessList }
 
     return {
-        simulateValidationResult: getSimulateValidationResult(errorResult),
-        accessList
+        simulateValidationResult: getSimulateValidationResult(errorResult)
+        // accessList
     }
 }

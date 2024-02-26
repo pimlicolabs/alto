@@ -305,13 +305,12 @@ export class UnsafeValidator implements InterfaceValidator {
             referencedContracts?: ReferencedCodeHashes
         }
     > {
-        const { simulateValidationResult, accessList } =
-            await simulateValidation(
-                userOperation,
-                this.entryPoint,
-                this.publicClient,
-                this.entryPointSimulationsAddress
-            )
+        const { simulateValidationResult } = await simulateValidation(
+            userOperation,
+            this.entryPoint,
+            this.publicClient,
+            this.entryPointSimulationsAddress
+        )
 
         if (simulateValidationResult.status === "failed") {
             throw new RpcError(
@@ -360,7 +359,7 @@ export class UnsafeValidator implements InterfaceValidator {
             storageMap: {}
         }
 
-        this.validateStorageAccessList(userOperation, res, accessList)
+        // this.validateStorageAccessList(userOperation, res, accessList)
 
         if (res.returnInfo.accountSigFailed) {
             throw new RpcError(

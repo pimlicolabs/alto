@@ -68,6 +68,10 @@ const getValidator = ({
     senderManager: SenderManager
     metrics: Metrics
 }): InterfaceValidator => {
+    if (!parsedArgs.entryPointSimulationsAddress) {
+        throw new Error("entryPointSimulationsAddress is required for v0.7")
+    }
+
     if (parsedArgs.safeMode) {
         return new SafeValidator(
             client,

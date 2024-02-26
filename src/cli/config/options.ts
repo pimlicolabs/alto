@@ -16,7 +16,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
     entryPointSimulationsAddress: {
         description: "Address of the entry point simulations contract",
         type: "string",
-        require: true
+        require: false
     },
     signerPrivateKeys: {
         description: "Private key of the signer",
