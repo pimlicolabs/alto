@@ -11,7 +11,7 @@ import type {
     ValidationResult
 } from "@entrypoint-0.7/types"
 import { deepHexlify, toPackedUserOperation } from "@entrypoint-0.7/utils"
-import type { AccessList, Hex } from "viem"
+import type { Hex } from "viem"
 import {
     type Address,
     type PublicClient,
