@@ -9,6 +9,7 @@ import {
     type ValidationResultWithAggregation
 } from "@entrypoint-0.7/types"
 import type {
+    StakeInfo,
     UnPackedUserOperation,
     ValidationResult
 } from "@entrypoint-0.7/types"
@@ -26,11 +27,67 @@ import {
     type Transport,
     pad,
     toHex,
-    slice
+    slice,
+    type AccessList,
+    type Hex,
+    concat
 } from "viem"
 import { simulateHandleOp, simulateValidation } from "../EntryPointSimulations"
+import {
+    type StakeInfoEntities,
+    associatedWith,
+    isStaked,
+    parseEntitySlots
+} from "./TracerResultParser"
 
 const maxUint48 = 2 ** 48 - 1
+
+const createFakeKeccak = (
+    userOperation: UnPackedUserOperation,
+    simulatedValidationResult: (
+        | ValidationResult
+        | ValidationResultWithAggregation
+    ) & {
+        storageMap: StorageMap
+        referencedContracts?: ReferencedCodeHashes
+    }
+): Hex[] => {
+    const fakeKeccak: Hex[] = []
+
+    for (let i = 0; i < 1000; i++) {
+        simulatedValidationResult.factoryInfo &&
+            userOperation.factory &&
+            fakeKeccak.push(
+                concat([
+                    pad(
+                        simulatedValidationResult.factoryInfo.addr as Hex
+                    ).toLowerCase() as Hex,
+                    toHex(i)
+                ])
+            )
+        simulatedValidationResult.senderInfo &&
+            fakeKeccak.push(
+                concat([
+                    pad(
+                        simulatedValidationResult.senderInfo.addr as Hex
+                    ).toLowerCase() as Hex,
+                    toHex(i)
+                ])
+            )
+        simulatedValidationResult.paymasterInfo &&
+            userOperation.paymaster &&
+            fakeKeccak.push(
+                concat([
+                    pad(
+                        simulatedValidationResult.paymasterInfo.addr as Hex
+                    ).toLowerCase() as Hex,
+                    toHex(i)
+                ])
+            )
+    }
+
+    return fakeKeccak
+}
 
 export class UnsafeValidator implements InterfaceValidator {
     publicClient: PublicClient<Transport, Chain>
@@ -43,6 +100,7 @@ export class UnsafeValidator implements InterfaceValidator {
     disableExpirationCheck: boolean
     apiVersion: ApiVersion
     chainId: number
+    entryPointSimulationsAddress: Address
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
@@ -51,6 +109,7 @@ export class UnsafeValidator implements InterfaceValidator {
         metrics: Metrics,
         utilityWallet: Account,
         apiVersion: ApiVersion,
+        entryPointSimulationsAddress: Address,
         usingTenderly = false,
         balanceOverrideEnabled = false,
         disableExpirationCheck = false
@@ -65,6 +124,7 @@ export class UnsafeValidator implements InterfaceValidator {
         this.disableExpirationCheck = disableExpirationCheck
         this.apiVersion = apiVersion
         this.chainId = publicClient.chain.id
+        this.entryPointSimulationsAddress = entryPointSimulationsAddress
     }
 
     async getExecutionResult(
@@ -78,6 +138,7 @@ export class UnsafeValidator implements InterfaceValidator {
             false,
             zeroAddress,
             "0x",
+            this.entryPointSimulationsAddress,
             stateOverrides
         )
 
@@ -92,6 +153,150 @@ export class UnsafeValidator implements InterfaceValidator {
         return error.data
     }
 
+    validateStorageAccessList(
+        userOperation: UnPackedUserOperation,
+        simulatedValidationResult: (
+            | ValidationResult
+            | ValidationResultWithAggregation
+        ) & {
+            storageMap: StorageMap
+            referencedContracts?: ReferencedCodeHashes
+        },
+        accessList: AccessList
+    ) {
+        const stakeInfoEntities: StakeInfoEntities = {
+            factory: simulatedValidationResult.factoryInfo,
+            account: simulatedValidationResult.senderInfo,
+            paymaster: simulatedValidationResult.paymasterInfo
+        }
+
+        const fakeKeccak: Hex[] = createFakeKeccak(
+            userOperation,
+            simulatedValidationResult
+        )
+
+        const entitySlots: { [addr: string]: Set<string> } = parseEntitySlots(
+            stakeInfoEntities,
+            fakeKeccak
+        )
+
+        const accessListMap = accessList.reduce(
+            (acc, { address, storageKeys }) => {
+                acc[address.toLowerCase()] = {
+                    address: address,
+                    storageKeys
+                }
+                return acc
+            },
+            {} as Record<string, { address: Address; storageKeys: Hex[] }>
+        ) as Record<string, { address: Address; storageKeys: Hex[] }>
+
+        for (const [title, entStakes] of Object.entries(stakeInfoEntities)) {
+            const entityTitle = title as keyof StakeInfoEntities
+
+            if (!entStakes?.addr) {
+                continue
+            }
+
+            const entityAddr = (entStakes?.addr ?? "").toLowerCase()
+
+            for (const [addr, { storageKeys }] of Object.entries(
+                accessListMap
+            )) {
+                if (addr === userOperation.sender.toLowerCase()) {
+                    // allowed to access sender's storage
+                    // [STO-010]
+                    continue
+                }
+                if (addr === this.entryPoint.toLowerCase()) {
+                    // ignore storage access on entryPoint (balance/deposit of entities.
+                    // we block them on method calls: only allowed to deposit, never to read
+                    continue
+                }
+                let requireStakeSlot: string | undefined
+
+                for (const slot of storageKeys) {
+                    if (
+                        associatedWith(slot, userOperation.sender, entitySlots)
+                    ) {
+                        if (userOperation.factory) {
+                            // special case: account.validateUserOp is allowed to use assoc storage if factory is staked.
+                            // [STO-022], [STO-021]
+                            if (
+                                !(
+                                    entityAddr ===
+                                        userOperation.sender.toLowerCase() &&
+                                    isStaked(stakeInfoEntities.factory)
+                                )
+                            ) {
+                                requireStakeSlot = slot
+                            }
+                        }
+                    } else if (associatedWith(slot, entityAddr, entitySlots)) {
+                        // [STO-032]
+                        // accessing a slot associated with entityAddr (e.g. token.balanceOf(paymaster)
+                        requireStakeSlot = slot
+                    } else if (addr === entityAddr) {
+                        // [STO-031]
+                        // accessing storage member of entity itself requires stake.
+                        requireStakeSlot = slot
+                    } else if (
+                        slot !==
+                        "0x0000000000000000000000000000000000000000000000000000000000000000"
+                    ) {
+                        requireStakeSlot = slot
+                    }
+                }
+
+                function nameAddr(
+                    addr: string,
+                    _currentEntity: string
+                ): string {
+                    const [title] =
+                        Object.entries(stakeInfoEntities).find(
+                            ([_title, info]) =>
+                                info?.addr?.toLowerCase() === addr.toLowerCase()
+                        ) ?? []
+
+                    return title ?? addr
+                }
+
+                requireCondAndStake(
+                    requireStakeSlot !== undefined,
+                    entStakes,
+                    `un staked ${entityTitle} accessed ${nameAddr(
+                        addr,
+                        entityTitle
+                    )} slot ${requireStakeSlot}`
+                )
+            }
+
+            function requireCondAndStake(
+                cond: boolean,
+                entStake: StakeInfo | undefined,
+                failureMessage: string
+            ): void {
+                if (!cond) {
+                    return
+                }
+                if (!entStake) {
+                    throw new Error(
+                        `internal: ${entityTitle} not in userOp, but has storage accesses in`
+                    )
+                }
+                if (!isStaked(entStake)) {
+                    throw new RpcError(
+                        failureMessage,
+                        ValidationErrors.OpcodeValidation,
+                        {
+                            [entityTitle]: entStakes?.addr
+                        }
+                    )
+                }
+            }
+        }
+    }
+
     async getValidationResult(
         userOperation: UnPackedUserOperation,
         _codeHashes?: ReferencedCodeHashes
@@ -101,10 +306,11 @@ export class UnsafeValidator implements InterfaceValidator {
             referencedContracts?: ReferencedCodeHashes
         }
     > {
-        const simulateValidationResult = await simulateValidation(
+        const { simulateValidationResult } = await simulateValidation(
             userOperation,
             this.entryPoint,
-            this.publicClient
+            this.publicClient,
+            this.entryPointSimulationsAddress
         )
 
         if (simulateValidationResult.status === "failed") {
@@ -153,6 +359,8 @@ export class UnsafeValidator implements InterfaceValidator {
             aggregatorInfo: validationResult.aggregatorInfo,
             storageMap: {}
         }
+
+        // this.validateStorageAccessList(userOperation, res, accessList)
 
         if (res.returnInfo.accountSigFailed) {
             throw new RpcError(
