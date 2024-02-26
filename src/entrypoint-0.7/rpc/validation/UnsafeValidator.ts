@@ -76,8 +76,8 @@ export class UnsafeValidator implements InterfaceValidator {
             this.entryPoint,
             this.publicClient,
             false,
-            userOperation.sender,
-            userOperation.callData,
+            zeroAddress,
+            "0x",
             stateOverrides
         )
 
