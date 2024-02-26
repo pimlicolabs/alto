@@ -112,7 +112,11 @@ export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
     })
 
     const registry = new Registry()
-    registry.setDefaultLabels({ network: chain.name, chainId })
+    registry.setDefaultLabels({
+        network: chain.name,
+        chainId,
+        entrypoint_version: parsedArgs.entryPointVersion
+    })
     const metrics = createMetrics(registry)
 
     await preFlightChecks(client, parsedArgs)
