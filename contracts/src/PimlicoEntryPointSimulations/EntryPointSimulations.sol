@@ -100,16 +100,21 @@ contract EntryPointSimulations is EntryPoint, IEntryPointSimulations {
     }
 
     function simulateCallData(
+        PackedUserOperation calldata op,
         address target,
         bytes calldata targetCallData
     ) external {
+        UserOpInfo memory opInfo;
+        _simulationOnlyValidations(op);
+        _validatePrepayment(0, op, opInfo);
+
         bool targetSuccess;
         bytes memory targetResult;
         if (target != address(0)) {
             (targetSuccess, targetResult) = target.call(targetCallData);
         }
         revert TargetCallResult(
-            targetSuccess.
+            targetSuccess,
             targetResult
         );
     }

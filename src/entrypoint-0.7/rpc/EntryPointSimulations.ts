@@ -131,11 +131,16 @@ function validateTargetCallDataResult(data: Hex) {
                     code: ExecutionErrors.UserOperationReverted
                 } as const
             }
+            return {
+                result: "success"
+            } as const
         }
         return {
-            result: "success"
+            result: "failed",
+            data: "Unknown error, could not parse target call data result.",
+            code: ExecutionErrors.UserOperationReverted
         } as const
-    } catch {
+    } catch (e) {
         // no error we go the result
         return {
             result: "failed",
@@ -297,10 +302,10 @@ export async function simulateHandleOp(
         args: [packedUserOperation]
     })
 
-    const entryPointSimulationsSimulateCallDataCallData = encodeFunctionData({
+    const entryPointSimulationsSimulateTargetCallData = encodeFunctionData({
         abi: EntryPointSimulationsAbi,
         functionName: "simulateCallData",
-        args: [targetAddress, targetCallData]
+        args: [packedUserOperation, targetAddress, targetCallData]
     })
 
     const cause = await callPimlicoEntryPointSimulations(
@@ -308,7 +313,7 @@ export async function simulateHandleOp(
         entryPoint,
         [
             entryPointSimulationsSimulateHandleOpCallData,
-            entryPointSimulationsSimulateCallDataCallData
+            entryPointSimulationsSimulateTargetCallData
         ],
         entryPointSimulationsAddress,
         finalParam
