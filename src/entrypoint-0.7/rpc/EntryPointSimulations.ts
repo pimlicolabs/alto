@@ -1,6 +1,7 @@
 import {
     EntryPointAbi,
     EntryPointSimulationsAbi,
+    ExecutionErrors,
     PimlicoEntryPointSimulationsAbi,
     ValidationErrors
 } from "@entrypoint-0.7/types"
@@ -104,6 +105,51 @@ function getStateOverrides({
           }
 }
 
+function validateTargetCallDataResult(data: Hex) {
+    const decodedDelegateAndError = decodeErrorResult({
+        abi: EntryPointAbi,
+        data: data
+    })
+
+    if (!decodedDelegateAndError?.args?.[1]) {
+        throw new Error("Unexpected error")
+    }
+
+    try {
+        const decodedError = decodeErrorResult({
+            abi: EntryPointSimulationsAbi,
+            data: decodedDelegateAndError.args[1] as Hex
+        })
+
+        if (decodedError?.args) {
+            const targetSuccess = decodedError?.args[0]
+            const targetResult = decodedError?.args[1]
+            if (!targetSuccess) {
+                return {
+                    result: "failed",
+                    data: parseFailedOpWithRevert(targetResult as Hex),
+                    code: ExecutionErrors.UserOperationReverted
+                } as const
+            }
+            return {
+                result: "success"
+            } as const
+        }
+        return {
+            result: "failed",
+            data: "Unknown error, could not parse target call data result.",
+            code: ExecutionErrors.UserOperationReverted
+        } as const
+    } catch (e) {
+        // no error we go the result
+        return {
+            result: "failed",
+            data: "Unknown error, could not parse target call data result.",
+            code: ExecutionErrors.UserOperationReverted
+        } as const
+    }
+}
+
 function getSimulateHandleOpResult(data: Hex) {
     const decodedDelegateAndError = decodeErrorResult({
         abi: EntryPointAbi,
@@ -200,8 +246,8 @@ function getSimulateHandleOpResult(data: Hex) {
 async function callPimlicoEntryPointSimulations(
     publicClient: PublicClient,
     entryPoint: Address,
-    entryPointSimulationsCallData: Hex,
-    entryPointSimulationsAddress: Address,
+    entryPointSimulationsCallData: Hex[],
+    entryPointSimulationsAddressTemp: Address,
     stateOverride?: StateOverrides
 ) {
     const callData = encodeFunctionData({
@@ -214,7 +260,7 @@ async function callPimlicoEntryPointSimulations(
         method: "eth_call",
         params: [
             {
-                to: entryPointSimulationsAddress,
+                to: entryPointSimulationsAddressTemp,
                 data: callData
             },
             "latest",
@@ -224,7 +270,7 @@ async function callPimlicoEntryPointSimulations(
     })) as Hex
 
     const returnBytes = decodeAbiParameters(
-        [{ name: "ret", type: "bytes" }],
+        [{ name: "ret", type: "bytes[]" }],
         result
     )
 
@@ -238,7 +284,7 @@ export async function simulateHandleOp(
     replacedEntryPoint: boolean,
     targetAddress: Address,
     targetCallData: Hex,
-    entryPointSimulationsAddress: Address,
+    entryPointSimulationsAddressTemp: Address,
     stateOverride: StateOverrides = {}
 ) {
     const finalParam = getStateOverrides({
@@ -250,21 +296,36 @@ export async function simulateHandleOp(
 
     const packedUserOperation = toPackedUserOperation(userOperation)
 
-    const entryPointSimulationsCallData = encodeFunctionData({
+    const entryPointSimulationsSimulateHandleOpCallData = encodeFunctionData({
         abi: EntryPointSimulationsAbi,
         functionName: "simulateHandleOp",
+        args: [packedUserOperation]
+    })
+
+    const entryPointSimulationsSimulateTargetCallData = encodeFunctionData({
+        abi: EntryPointSimulationsAbi,
+        functionName: "simulateCallData",
         args: [packedUserOperation, targetAddress, targetCallData]
     })
 
     const cause = await callPimlicoEntryPointSimulations(
         publicClient,
         entryPoint,
-        entryPointSimulationsCallData,
-        entryPointSimulationsAddress,
+        [
+            entryPointSimulationsSimulateHandleOpCallData,
+            entryPointSimulationsSimulateTargetCallData
+        ],
+        entryPointSimulationsAddressTemp,
         finalParam
     )
 
-    return getSimulateHandleOpResult(cause)
+    const targetCallValidationResult = validateTargetCallDataResult(cause[1])
+
+    if (targetCallValidationResult.result === "failed") {
+        return targetCallValidationResult
+    }
+
+    return getSimulateHandleOpResult(cause[0])
 }
 
 function getSimulateValidationResult(errorData: Hex): {
@@ -451,7 +512,7 @@ export async function simulateValidation(
     userOperation: UnPackedUserOperation,
     entryPoint: Address,
     publicClient: PublicClient,
-    entryPointSimulationsAddress: Address
+    entryPointSimulationsAddressTemp: Address
 ) {
     const packedUserOperation = toPackedUserOperation(userOperation)
 
@@ -464,8 +525,8 @@ export async function simulateValidation(
     const errorResult = await callPimlicoEntryPointSimulations(
         publicClient,
         entryPoint,
-        entryPointSimulationsCallData,
-        entryPointSimulationsAddress
+        [entryPointSimulationsCallData],
+        entryPointSimulationsAddressTemp
     )
 
     // const callData = encodeFunctionData({
@@ -479,7 +540,7 @@ export async function simulateValidation(
     //     method: "eth_createAccessList",
     //     params: [
     //         {
-    //             to: entryPointSimulationsAddress,
+    //             to: entryPointSimulationsAddressTemp,
     //             data: callData
     //         },
     //         "latest"
@@ -487,7 +548,7 @@ export async function simulateValidation(
     // })) as { accessList: AccessList }
 
     return {
-        simulateValidationResult: getSimulateValidationResult(errorResult)
+        simulateValidationResult: getSimulateValidationResult(errorResult[0])
         // accessList
     }
 }

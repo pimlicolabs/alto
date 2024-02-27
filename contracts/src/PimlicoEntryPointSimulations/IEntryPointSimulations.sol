@@ -5,6 +5,9 @@ import "@account-abstraction/interfaces/PackedUserOperation.sol";
 import "@account-abstraction/interfaces/EntryPoint.sol";
 
 interface IEntryPointSimulations is IEntryPoint {
+
+    error TargetCallResult(bool targetSuccess, bytes targetResult);
+
     // Return value of simulateHandleOp.
     struct ExecutionResult {
         uint256 preOpGas;
@@ -56,15 +59,10 @@ interface IEntryPointSimulations is IEntryPoint {
      * Note that in order to collect the the success/failure of the target call, it must be executed
      * with trace enabled to track the emitted events.
      * @param op The UserOperation to simulate.
-     * @param target         - If nonzero, a target address to call after userop simulation. If called,
-     *                         the targetSuccess and targetResult are set to the return from that call.
-     * @param targetCallData - CallData to pass to target address.
      * @return the execution result structure
      */
     function simulateHandleOp(
-        PackedUserOperation calldata op,
-        address target,
-        bytes calldata targetCallData
+        PackedUserOperation calldata op
     )
     external
     returns (

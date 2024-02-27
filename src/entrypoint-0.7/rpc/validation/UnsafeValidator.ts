@@ -100,7 +100,7 @@ export class UnsafeValidator implements InterfaceValidator {
     disableExpirationCheck: boolean
     apiVersion: ApiVersion
     chainId: number
-    entryPointSimulationsAddress: Address
+    entryPointSimulationsAddressTemp: Address
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
@@ -109,7 +109,7 @@ export class UnsafeValidator implements InterfaceValidator {
         metrics: Metrics,
         utilityWallet: Account,
         apiVersion: ApiVersion,
-        entryPointSimulationsAddress: Address,
+        entryPointSimulationsAddressTemp: Address,
         usingTenderly = false,
         balanceOverrideEnabled = false,
         disableExpirationCheck = false
@@ -124,7 +124,7 @@ export class UnsafeValidator implements InterfaceValidator {
         this.disableExpirationCheck = disableExpirationCheck
         this.apiVersion = apiVersion
         this.chainId = publicClient.chain.id
-        this.entryPointSimulationsAddress = entryPointSimulationsAddress
+        this.entryPointSimulationsAddressTemp = entryPointSimulationsAddressTemp
     }
 
     async getExecutionResult(
@@ -136,9 +136,9 @@ export class UnsafeValidator implements InterfaceValidator {
             this.entryPoint,
             this.publicClient,
             false,
-            zeroAddress,
-            "0x",
-            this.entryPointSimulationsAddress,
+            userOperation.sender,
+            userOperation.callData,
+            this.entryPointSimulationsAddressTemp,
             stateOverrides
         )
 
@@ -310,7 +310,7 @@ export class UnsafeValidator implements InterfaceValidator {
             userOperation,
             this.entryPoint,
             this.publicClient,
-            this.entryPointSimulationsAddress
+            this.entryPointSimulationsAddressTemp
         )
 
         if (simulateValidationResult.status === "failed") {
