@@ -10,7 +10,7 @@ export const bundlerArgsSchema = z.object({
     // (better for cli and env vars) or an array of addresses
     // (better for config files)
     entryPoint: addressSchema,
-    entryPointSimulationsAddressTemp: addressSchema.optional(),
+    entryPointSimulationsAddress: addressSchema.optional(),
     networkName: z.string(),
     signerPrivateKeys: z.union([
         z

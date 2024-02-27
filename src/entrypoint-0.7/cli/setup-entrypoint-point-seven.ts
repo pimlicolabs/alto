@@ -68,8 +68,8 @@ const getValidator = ({
     senderManager: SenderManager
     metrics: Metrics
 }): InterfaceValidator => {
-    if (!parsedArgs.entryPointSimulationsAddressTemp) {
-        throw new Error("entryPointSimulationsAddressTemp is required for v0.7")
+    if (!parsedArgs.entryPointSimulationsAddress) {
+        throw new Error("entryPointSimulationsAddress is required for v0.7")
     }
 
     if (parsedArgs.safeMode) {
@@ -84,7 +84,7 @@ const getValidator = ({
             metrics,
             parsedArgs.utilityPrivateKey,
             parsedArgs.apiVersion,
-            parsedArgs.entryPointSimulationsAddressTemp,
+            parsedArgs.entryPointSimulationsAddress,
             parsedArgs.tenderlyEnabled,
             parsedArgs.balanceOverrideEnabled
         )
@@ -99,7 +99,7 @@ const getValidator = ({
         metrics,
         parsedArgs.utilityPrivateKey,
         parsedArgs.apiVersion,
-        parsedArgs.entryPointSimulationsAddressTemp,
+        parsedArgs.entryPointSimulationsAddress,
         parsedArgs.tenderlyEnabled,
         parsedArgs.balanceOverrideEnabled,
         parsedArgs.disableExpirationCheck

@@ -62,7 +62,7 @@ export class SafeValidator
         metrics: Metrics,
         utilityWallet: Account,
         apiVersion: ApiVersion,
-        entryPointSimulationsAddressTemp: Address,
+        entryPointSimulationsAddress: Address,
         usingTenderly = false,
         balanceOverrideEnabled = false
     ) {
@@ -73,7 +73,7 @@ export class SafeValidator
             metrics,
             utilityWallet,
             apiVersion,
-            entryPointSimulationsAddressTemp,
+            entryPointSimulationsAddress,
             usingTenderly,
             balanceOverrideEnabled
         )
