@@ -247,7 +247,7 @@ async function callPimlicoEntryPointSimulations(
     publicClient: PublicClient,
     entryPoint: Address,
     entryPointSimulationsCallData: Hex[],
-    entryPointSimulationsAddressTemp: Address,
+    entryPointSimulationsAddress: Address,
     stateOverride?: StateOverrides
 ) {
     const callData = encodeFunctionData({
@@ -260,7 +260,7 @@ async function callPimlicoEntryPointSimulations(
         method: "eth_call",
         params: [
             {
-                to: entryPointSimulationsAddressTemp,
+                to: entryPointSimulationsAddress,
                 data: callData
             },
             "latest",
@@ -284,7 +284,7 @@ export async function simulateHandleOp(
     replacedEntryPoint: boolean,
     targetAddress: Address,
     targetCallData: Hex,
-    entryPointSimulationsAddressTemp: Address,
+    entryPointSimulationsAddress: Address,
     stateOverride: StateOverrides = {}
 ) {
     const finalParam = getStateOverrides({
@@ -315,7 +315,7 @@ export async function simulateHandleOp(
             entryPointSimulationsSimulateHandleOpCallData,
             entryPointSimulationsSimulateTargetCallData
         ],
-        entryPointSimulationsAddressTemp,
+        entryPointSimulationsAddress,
         finalParam
     )
 
@@ -512,7 +512,7 @@ export async function simulateValidation(
     userOperation: UnPackedUserOperation,
     entryPoint: Address,
     publicClient: PublicClient,
-    entryPointSimulationsAddressTemp: Address
+    entryPointSimulationsAddress: Address
 ) {
     const packedUserOperation = toPackedUserOperation(userOperation)
 
@@ -526,7 +526,7 @@ export async function simulateValidation(
         publicClient,
         entryPoint,
         [entryPointSimulationsCallData],
-        entryPointSimulationsAddressTemp
+        entryPointSimulationsAddress
     )
 
     // const callData = encodeFunctionData({
@@ -540,7 +540,7 @@ export async function simulateValidation(
     //     method: "eth_createAccessList",
     //     params: [
     //         {
-    //             to: entryPointSimulationsAddressTemp,
+    //             to: entryPointSimulationsAddress,
     //             data: callData
     //         },
     //         "latest"
