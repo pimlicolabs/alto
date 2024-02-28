@@ -53,7 +53,6 @@ import type { Logger } from "@alto/utils"
 import {
     type CompressionHandler,
     calcPreVerificationGas,
-    getGasPrice,
     getNonceKeyAndValue,
     getUserOperationHash,
     toPackedUserOperation,
@@ -77,6 +76,7 @@ import * as chains from "viem/chains"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
 import type { NonceQueuer } from "./nonceQueuer"
+import type { GasPriceManager } from "@entrypoint-0.7/gasPriceManager"
 
 export interface InterfaceRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>
@@ -127,6 +127,7 @@ export class RpcHandler implements InterfaceRpcEndpoint {
     compressionHandler: CompressionHandler | null
     noEip1559Support: boolean
     dangerousSkipUserOperationValidation: boolean
+    gasPriceManager: GasPriceManager
 
     constructor(
         entryPoint: Address,
@@ -148,6 +149,7 @@ export class RpcHandler implements InterfaceRpcEndpoint {
         environment: Environment,
         compressionHandler: CompressionHandler | null,
         noEip1559Support: boolean,
+        gasPriceManager: GasPriceManager,
         dangerousSkipUserOperationValidation = false
     ) {
         this.entryPoint = entryPoint
@@ -170,6 +172,7 @@ export class RpcHandler implements InterfaceRpcEndpoint {
         this.reputationManager = reputationManager
         this.compressionHandler = compressionHandler
         this.noEip1559Support = noEip1559Support
+        this.gasPriceManager = gasPriceManager
         this.dangerousSkipUserOperationValidation =
             dangerousSkipUserOperationValidation
     }
@@ -322,7 +325,8 @@ export class RpcHandler implements InterfaceRpcEndpoint {
             userOperation,
             entryPoint,
             this.chainId,
-            this.logger
+            this.logger,
+            this.gasPriceManager
         )
 
         if (
@@ -777,7 +781,7 @@ export class RpcHandler implements InterfaceRpcEndpoint {
 
     // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     async pimlico_getUserOperationGasPrice(): Promise<PimlicoGetUserOperationGasPriceResponseResult> {
-        const gasPrice = await getGasPrice(
+        const gasPrice = await this.gasPriceManager.getGasPrice(
             this.publicClient.chain,
             this.publicClient,
             this.noEip1559Support,
@@ -828,34 +832,10 @@ export class RpcHandler implements InterfaceRpcEndpoint {
             }
         }
 
-        if (this.minimumGasPricePercent !== 0) {
-            const gasPrice = await getGasPrice(
-                this.publicClient.chain,
-                this.publicClient,
-                this.noEip1559Support,
-                this.logger
-            )
-            const minMaxFeePerGas =
-                (gasPrice.maxFeePerGas * BigInt(this.minimumGasPricePercent)) /
-                100n
-
-            const minMaxPriorityFeePerGas =
-                (gasPrice.maxPriorityFeePerGas *
-                    BigInt(this.minimumGasPricePercent)) /
-                100n
-
-            if (userOperation.maxFeePerGas < minMaxFeePerGas) {
-                throw new RpcError(
-                    `maxFeePerGas must be at least ${minMaxFeePerGas} (current maxFeePerGas: ${gasPrice.maxFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
-                )
-            }
-
-            if (userOperation.maxPriorityFeePerGas < minMaxPriorityFeePerGas) {
-                throw new RpcError(
-                    `maxPriorityFeePerGas must be at least ${minMaxPriorityFeePerGas} (current maxPriorityFeePerGas: ${gasPrice.maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
-                )
-            }
-        }
+        this.gasPriceManager.validateGasPrice({
+            maxFeePerGas: userOperation.maxFeePerGas,
+            maxPriorityFeePerGas: userOperation.maxPriorityFeePerGas
+        })
 
         if (userOperation.verificationGasLimit < 10000n) {
             throw new RpcError("verificationGasLimit must be at least 10000")

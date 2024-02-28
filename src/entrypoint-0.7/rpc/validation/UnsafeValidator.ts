@@ -39,6 +39,7 @@ import {
     isStaked,
     parseEntitySlots
 } from "./TracerResultParser"
+import type { GasPriceManager } from "@entrypoint-0.7/gasPriceManager"
 
 const maxUint48 = 2 ** 48 - 1
 
@@ -101,12 +102,14 @@ export class UnsafeValidator implements InterfaceValidator {
     apiVersion: ApiVersion
     chainId: number
     entryPointSimulationsAddress: Address
+    gasPriceManager: GasPriceManager
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
         entryPoint: Address,
         logger: Logger,
         metrics: Metrics,
+        gasPriceManager: GasPriceManager,
         utilityWallet: Account,
         apiVersion: ApiVersion,
         entryPointSimulationsAddress: Address,
@@ -120,6 +123,7 @@ export class UnsafeValidator implements InterfaceValidator {
         this.metrics = metrics
         this.utilityWallet = utilityWallet
         this.usingTenderly = usingTenderly
+        this.gasPriceManager = gasPriceManager
         this.balanceOverrideEnabled = balanceOverrideEnabled
         this.disableExpirationCheck = disableExpirationCheck
         this.apiVersion = apiVersion
@@ -404,7 +408,8 @@ export class UnsafeValidator implements InterfaceValidator {
             userOperation,
             this.entryPoint,
             this.chainId,
-            this.logger
+            this.logger,
+            this.gasPriceManager
         )
 
         if (preVerificationGas > userOperation.preVerificationGas) {

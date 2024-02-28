@@ -259,6 +259,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "string",
         require: false,
         default: "0.6"
+    },
+    gasPriceTimeValidityInSeconds: {
+        description: "Time in seconds that the gas price is valid for",
+        type: "number",
+        require: false,
+        default: 10
     }
 }
 

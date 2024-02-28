@@ -47,6 +47,7 @@ import { tracerResultParser } from "./TracerResultParser"
 import { UnsafeValidator } from "./UnsafeValidator"
 import { debug_traceCall } from "./tracer"
 import { parseFailedOpWithRevert } from "../EntryPointSimulations"
+import type { GasPriceManager } from "@entrypoint-0.7/gasPriceManager"
 
 export class SafeValidator
     extends UnsafeValidator
@@ -60,6 +61,7 @@ export class SafeValidator
         entryPoint: Address,
         logger: Logger,
         metrics: Metrics,
+        gasPriceManager: GasPriceManager,
         utilityWallet: Account,
         apiVersion: ApiVersion,
         entryPointSimulationsAddress: Address,
@@ -71,6 +73,7 @@ export class SafeValidator
             entryPoint,
             logger,
             metrics,
+            gasPriceManager,
             utilityWallet,
             apiVersion,
             entryPointSimulationsAddress,

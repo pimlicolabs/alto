@@ -33,6 +33,9 @@
             "@entrypoint-0.7/utils": ["./entrypoint-0.7/utils"],
             "@entrypoint-0.7/mempool": ["./entrypoint-0.7/mempool"],
             "@entrypoint-0.7/rpc": ["./entrypoint-0.7/rpc"],
+            "@entrypoint-0.7/gasPriceManager": [
+                "./entrypoint-0.7/gasPriceManager"
+            ]
         }
     },
     "ts-node": {
