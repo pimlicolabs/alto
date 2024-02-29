@@ -7,7 +7,8 @@ import {
     type UserOperation,
     ValidationErrors,
     executionResultSchema,
-    hexDataSchema
+    hexDataSchema,
+    EntryPointSimulationsAbi
 } from "@entrypoint-0.6/types"
 import type { StateOverrides } from "@entrypoint-0.6/types"
 import type { Logger } from "@alto/utils"
@@ -97,20 +98,7 @@ export async function simulateHandleOp(
         const cause = causeParseResult.data
 
         const decodedError = decodeErrorResult({
-            abi: [
-                ...EntryPointAbi,
-                {
-                    inputs: [
-                        {
-                            internalType: "string",
-                            name: "reason",
-                            type: "string"
-                        }
-                    ],
-                    name: "Error",
-                    type: "error"
-                }
-            ],
+            abi: [...EntryPointAbi, ...EntryPointSimulationsAbi],
             data: cause.data
         })
 
@@ -304,18 +292,7 @@ export async function estimateCallGasLimit(
     } else {
         try {
             const reason = decodeErrorResult({
-                abi: [
-                    {
-                        inputs: [
-                            {
-                                name: "reason",
-                                type: "string"
-                            }
-                        ],
-                        name: "Error",
-                        type: "error"
-                    }
-                ],
+                abi: EntryPointSimulationsAbi,
                 data: result.revertData
             })
             throw new RpcError(
