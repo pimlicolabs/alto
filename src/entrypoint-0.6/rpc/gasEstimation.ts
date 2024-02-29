@@ -97,7 +97,20 @@ export async function simulateHandleOp(
         const cause = causeParseResult.data
 
         const decodedError = decodeErrorResult({
-            abi: EntryPointAbi,
+            abi: [
+                ...EntryPointAbi,
+                {
+                    inputs: [
+                        {
+                            internalType: "string",
+                            name: "reason",
+                            type: "string"
+                        }
+                    ],
+                    name: "Error",
+                    type: "error"
+                }
+            ],
             data: cause.data
         })
 
@@ -107,6 +120,14 @@ export async function simulateHandleOp(
             decodedError.args
         ) {
             return { result: "failed", data: decodedError.args[1] } as const
+        }
+
+        if (
+            decodedError &&
+            decodedError.errorName === "Error" &&
+            decodedError.args
+        ) {
+            return { result: "failed", data: decodedError.args[0] } as const
         }
 
         if (decodedError.errorName === "ExecutionResult") {
