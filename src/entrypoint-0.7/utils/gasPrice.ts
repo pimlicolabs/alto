@@ -127,16 +127,6 @@ const bumpTheGasPrice = (
         }
     }
 
-    if (chainId === chains.base.id) {
-        return {
-            maxFeePerGas: maxBigInt(result.maxFeePerGas, 1_000_000n),
-            maxPriorityFeePerGas: maxBigInt(
-                result.maxPriorityFeePerGas,
-                1_000_000n
-            )
-        }
-    }
-
     return result
 }
 
