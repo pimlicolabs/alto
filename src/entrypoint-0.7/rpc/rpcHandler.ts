@@ -1,4 +1,4 @@
-import type { Metrics } from "@alto/utils"
+import type { Logger, Metrics } from "@alto/utils"
 import type {
     ExecutorManager,
     InterfaceExecutor
@@ -8,7 +8,21 @@ import type {
     Mempool,
     Monitor
 } from "@entrypoint-0.7/mempool"
+import type {
+    ApiVersion,
+    PackedUserOperation,
+    StateOverrides,
+    UnPackedUserOperation
+} from "@entrypoint-0.7/types"
 import {
+    EntryPointAbi,
+    IOpInflatorAbi,
+    RpcError,
+    ValidationErrors,
+    bundlerGetStakeStatusResponseSchema,
+    deriveUserOperation,
+    logSchema,
+    receiptSchema,
     type Address,
     type BundlerClearMempoolResponseResult,
     type BundlerClearStateResponseResult,
@@ -23,55 +37,40 @@ import {
     type BundlingMode,
     type ChainIdResponseResult,
     type CompressedUserOperation,
-    EntryPointAbi,
     type Environment,
     type EstimateUserOperationGasResponseResult,
     type GetUserOperationByHashResponseResult,
     type GetUserOperationReceiptResponseResult,
     type HexData32,
-    IOpInflatorAbi,
     type InterfaceValidator,
     type MempoolUserOperation,
     type PimlicoGetUserOperationGasPriceResponseResult,
     type PimlicoGetUserOperationStatusResponseResult,
-    RpcError,
     type SendUserOperationResponseResult,
-    type SupportedEntryPointsResponseResult,
-    ValidationErrors,
-    bundlerGetStakeStatusResponseSchema,
-    deriveUserOperation,
-    logSchema,
-    receiptSchema
+    type SupportedEntryPointsResponseResult
 } from "@entrypoint-0.7/types"
-import type {
-    PackedUserOperation,
-    StateOverrides,
-    UnPackedUserOperation
-} from "@entrypoint-0.7/types"
-import type { ApiVersion } from "@entrypoint-0.7/types"
-import type { Logger } from "@alto/utils"
 import {
-    type CompressionHandler,
     calcPreVerificationGas,
+    calcVerificationGasAndCallGasLimit,
     getGasPrice,
     getNonceKeyAndValue,
     getUserOperationHash,
     toPackedUserOperation,
-    toUnPackedUserOperation
+    toUnPackedUserOperation,
+    type CompressionHandler
 } from "@entrypoint-0.7/utils"
-import { calcVerificationGasAndCallGasLimit } from "@entrypoint-0.7/utils"
 import {
+    TransactionNotFoundError,
+    TransactionReceiptNotFoundError,
+    decodeFunctionData,
+    getAbiItem,
+    getContract,
     type Chain,
     type Hex,
     type PublicClient,
     type Transaction,
-    TransactionNotFoundError,
     type TransactionReceipt,
-    TransactionReceiptNotFoundError,
-    type Transport,
-    decodeFunctionData,
-    getAbiItem,
-    getContract
+    type Transport
 } from "viem"
 import * as chains from "viem/chains"
 import { z } from "zod"
@@ -306,7 +305,7 @@ export class RpcHandler implements InterfaceRpcEndpoint {
     ): Promise<EstimateUserOperationGasResponseResult> {
         // check if entryPoint is supported, if not throw
         if (this.entryPoint !== entryPoint) {
-            throw new Error(
+            throw new RpcError(
                 `EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.entryPoint}`
             )
         }
