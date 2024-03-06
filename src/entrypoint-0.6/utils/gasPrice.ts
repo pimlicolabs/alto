@@ -199,6 +199,8 @@ export async function getGasPrice(
         logger
     )
 
+    logger.debug({ gasPrice }, "got gas price for estimations")
+
     return {
         maxFeePerGas: maxFeeFloor
             ? maxBigInt(gasPrice.maxFeePerGas, maxFeeFloor)
