@@ -113,7 +113,6 @@ export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
     })
 
     const gasPriceManager = new GasPriceManager(
-        parsedArgs.gasPriceTimeValidityInSeconds,
         chain,
         client,
         parsedArgs.noEip1559Support,
@@ -122,7 +121,8 @@ export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
             {
                 level: parsedArgs.publicClientLogLevel || parsedArgs.logLevel
             }
-        )
+        ),
+        parsedArgs.gasPriceTimeValidityInSeconds
     )
 
     const registry = new Registry()

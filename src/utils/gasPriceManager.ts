@@ -34,7 +34,6 @@ function getGasStationUrl(chainId: ChainId.Polygon | ChainId.Mumbai): string {
 }
 
 export class GasPriceManager implements InterfaceGasPriceManager {
-    private gasPriceTimeValidity: number
     private chain: Chain
     private publicClient: PublicClient
     private noEip1559Support: boolean
@@ -45,16 +44,16 @@ export class GasPriceManager implements InterfaceGasPriceManager {
         timestamp: number
         maxPriorityFeePerGas: bigint
     }[] = [] // Store pairs of [price, timestamp]
-    private maxQueueSize = 10
+    private maxQueueSize
 
     constructor(
-        gasPriceTimeValidityInSeconds: number,
         chain: Chain,
         publicClient: PublicClient,
         noEip1559Support: boolean,
-        logger: Logger
+        logger: Logger,
+        gasPriceTimeValidityInSeconds = 10
     ) {
-        this.gasPriceTimeValidity = gasPriceTimeValidityInSeconds * 1000
+        this.maxQueueSize = gasPriceTimeValidityInSeconds
         this.chain = chain
         this.publicClient = publicClient
         this.noEip1559Support = noEip1559Support
