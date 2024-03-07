@@ -409,26 +409,24 @@ export class GasPriceManager implements InterfaceGasPriceManager {
     }
 
     private async getMinMaxFeePerGas() {
-        const queue = this.queueMaxFeePerGas
-        if (queue.length === 0) {
+        if (this.queueMaxFeePerGas.length === 0) {
             await this.getGasPrice()
         }
 
-        return queue.reduce(
+        return this.queueMaxFeePerGas.reduce(
             (acc: bigint, cur) => minBigInt(cur.maxFeePerGas, acc),
-            queue[0].maxFeePerGas
+            this.queueMaxFeePerGas[0].maxFeePerGas
         )
     }
 
     private async getMinMaxPriorityFeePerGas() {
-        const queue = this.queueMaxPriorityFeePerGas
-        if (queue.length === 0) {
+        if (this.queueMaxPriorityFeePerGas.length === 0) {
             await this.getGasPrice()
         }
 
-        return queue.reduce(
+        return this.queueMaxPriorityFeePerGas.reduce(
             (acc, cur) => minBigInt(cur.maxPriorityFeePerGas, acc),
-            queue[0].maxPriorityFeePerGas
+            this.queueMaxPriorityFeePerGas[0].maxPriorityFeePerGas
         )
     }
 
