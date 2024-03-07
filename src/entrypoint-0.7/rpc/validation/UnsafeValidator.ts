@@ -1,4 +1,4 @@
-import type { Metrics } from "@alto/utils"
+import type { InterfaceGasPriceManager, Metrics } from "@alto/utils"
 import {
     type Address,
     type ExecutionResult,
@@ -39,7 +39,6 @@ import {
     isStaked,
     parseEntitySlots
 } from "./TracerResultParser"
-import type { GasPriceManager } from "@entrypoint-0.7/gasPriceManager"
 
 const maxUint48 = 2 ** 48 - 1
 
@@ -102,14 +101,14 @@ export class UnsafeValidator implements InterfaceValidator {
     apiVersion: ApiVersion
     chainId: number
     entryPointSimulationsAddress: Address
-    gasPriceManager: GasPriceManager
+    gasPriceManager: InterfaceGasPriceManager
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
         entryPoint: Address,
         logger: Logger,
         metrics: Metrics,
-        gasPriceManager: GasPriceManager,
+        gasPriceManager: InterfaceGasPriceManager,
         utilityWallet: Account,
         apiVersion: ApiVersion,
         entryPointSimulationsAddress: Address,

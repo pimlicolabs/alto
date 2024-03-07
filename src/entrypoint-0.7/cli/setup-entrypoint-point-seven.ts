@@ -1,4 +1,4 @@
-import type { Logger } from "@alto/utils"
+import type { InterfaceGasPriceManager, Logger } from "@alto/utils"
 import type { IBundlerArgs } from "@alto/cli"
 import type { Metrics } from "@alto/utils"
 import {
@@ -26,7 +26,6 @@ import {
 } from "@entrypoint-0.7/executor"
 import type { Registry } from "prom-client"
 import type { SenderManager } from "@alto/executor"
-import { GasPriceManager } from "@entrypoint-0.7/gasPriceManager"
 
 const getReputationManager = ({
     client,
@@ -69,7 +68,7 @@ const getValidator = ({
     logger: Logger
     senderManager: SenderManager
     metrics: Metrics
-    gasPriceManager: GasPriceManager
+    gasPriceManager: InterfaceGasPriceManager
 }): InterfaceValidator => {
     if (!parsedArgs.entryPointSimulationsAddress) {
         throw new Error("entryPointSimulationsAddress is required for v0.7")
@@ -187,7 +186,7 @@ const getExecutor = ({
     logger: Logger
     metrics: Metrics
     compressionHandler: CompressionHandler | null
-    gasPriceManager: GasPriceManager
+    gasPriceManager: InterfaceGasPriceManager
 }): InterfaceExecutor => {
     return new BasicExecutor(
         client,
@@ -228,7 +227,7 @@ const getExecutorManager = ({
     parsedArgs: IBundlerArgs
     logger: Logger
     metrics: Metrics
-    gasPriceManager: GasPriceManager
+    gasPriceManager: InterfaceGasPriceManager
 }) => {
     return new ExecutorManager(
         executor,
@@ -245,7 +244,6 @@ const getExecutorManager = ({
         metrics,
         parsedArgs.bundleMode,
         parsedArgs.bundlerFrequency,
-        parsedArgs.noEip1559Support,
         gasPriceManager
     )
 }
@@ -299,7 +297,7 @@ const getRpcHandler = ({
     logger: Logger
     metrics: Metrics
     compressionHandler: CompressionHandler | null
-    gasPriceManager: GasPriceManager
+    gasPriceManager: InterfaceGasPriceManager
 }) => {
     return new RpcHandler(
         parsedArgs.entryPoint,
@@ -363,7 +361,8 @@ export const setupEntryPointPointSeven = async ({
     rootLogger,
     registry,
     metrics,
-    senderManager
+    senderManager,
+    gasPriceManager
 }: {
     client: PublicClient<Transport, Chain>
     walletClient: WalletClient<Transport, Chain>
@@ -373,10 +372,8 @@ export const setupEntryPointPointSeven = async ({
     registry: Registry
     metrics: Metrics
     senderManager: SenderManager
+    gasPriceManager: InterfaceGasPriceManager
 }) => {
-    const gasPriceManager = new GasPriceManager(
-        parsedArgs.gasPriceTimeValidityInSeconds
-    )
     const validator = getValidator({
         client,
         logger,

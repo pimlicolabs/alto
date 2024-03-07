@@ -1,4 +1,4 @@
-import type { Metrics } from "@alto/utils"
+import type { InterfaceGasPriceManager, Metrics } from "@alto/utils"
 import type {
     ExecutorManager,
     InterfaceExecutor
@@ -76,7 +76,6 @@ import * as chains from "viem/chains"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
 import type { NonceQueuer } from "./nonceQueuer"
-import type { GasPriceManager } from "@entrypoint-0.7/gasPriceManager"
 
 export interface InterfaceRpcEndpoint {
     handleMethod(request: BundlerRequest): Promise<BundlerResponse>
@@ -127,7 +126,7 @@ export class RpcHandler implements InterfaceRpcEndpoint {
     compressionHandler: CompressionHandler | null
     noEip1559Support: boolean
     dangerousSkipUserOperationValidation: boolean
-    gasPriceManager: GasPriceManager
+    gasPriceManager: InterfaceGasPriceManager
 
     constructor(
         entryPoint: Address,
@@ -149,7 +148,7 @@ export class RpcHandler implements InterfaceRpcEndpoint {
         environment: Environment,
         compressionHandler: CompressionHandler | null,
         noEip1559Support: boolean,
-        gasPriceManager: GasPriceManager,
+        gasPriceManager: InterfaceGasPriceManager,
         dangerousSkipUserOperationValidation = false
     ) {
         this.entryPoint = entryPoint
@@ -781,12 +780,7 @@ export class RpcHandler implements InterfaceRpcEndpoint {
 
     // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     async pimlico_getUserOperationGasPrice(): Promise<PimlicoGetUserOperationGasPriceResponseResult> {
-        const gasPrice = await this.gasPriceManager.getGasPrice(
-            this.publicClient.chain,
-            this.publicClient,
-            this.noEip1559Support,
-            this.logger
-        )
+        const gasPrice = await this.gasPriceManager.getGasPrice()
         return {
             slow: {
                 maxFeePerGas: (gasPrice.maxFeePerGas * 105n) / 100n,

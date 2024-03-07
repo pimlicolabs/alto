@@ -9,12 +9,7 @@ import * as chains from "viem/chains"
 import * as sentry from "@sentry/node"
 
 export interface InterfaceGasPriceManager {
-    getGasPrice(
-        chain: Chain,
-        publicClient: PublicClient,
-        noEip1559Support: boolean,
-        logger: Logger
-    ): Promise<GasPriceParameters>
+    getGasPrice(): Promise<GasPriceParameters>
     validateGasPrice(gasPrice: GasPriceParameters): void
 }
 
@@ -39,17 +34,31 @@ function getGasStationUrl(chainId: ChainId.Polygon | ChainId.Mumbai): string {
 }
 
 export class GasPriceManager implements InterfaceGasPriceManager {
-    private lowestGasPrice: GasPriceParameters
-    private lowestGasPriceTimestamp: number
     private gasPriceTimeValidity: number
+    private chain: Chain
+    private publicClient: PublicClient
+    private noEip1559Support: boolean
+    private logger: Logger
+    private queueMaxFeePerGas: { timestamp: number; maxFeePerGas: bigint }[] =
+        [] // Store pairs of [price, timestamp]
+    private queueMaxPriorityFeePerGas: {
+        timestamp: number
+        maxPriorityFeePerGas: bigint
+    }[] = [] // Store pairs of [price, timestamp]
+    private maxQueueSize = 10
 
-    constructor(gasPriceTimeValidityInSeconds: number) {
-        this.lowestGasPrice = {
-            maxFeePerGas: BigInt(2) ** BigInt(53) - BigInt(1),
-            maxPriorityFeePerGas: BigInt(2) ** BigInt(53) - BigInt(1)
-        }
-        this.lowestGasPriceTimestamp = 0
+    constructor(
+        gasPriceTimeValidityInSeconds: number,
+        chain: Chain,
+        publicClient: PublicClient,
+        noEip1559Support: boolean,
+        logger: Logger
+    ) {
         this.gasPriceTimeValidity = gasPriceTimeValidityInSeconds * 1000
+        this.chain = chain
+        this.publicClient = publicClient
+        this.noEip1559Support = noEip1559Support
+        this.logger = logger
     }
 
     private getDefaultGasFee(
@@ -65,11 +74,8 @@ export class GasPriceManager implements InterfaceGasPriceManager {
         }
     }
 
-    private async getPolygonGasPriceParameters(
-        chainId: ChainId.Polygon | ChainId.Mumbai,
-        logger: Logger
-    ): Promise<GasPriceParameters | null> {
-        const gasStationUrl = getGasStationUrl(chainId)
+    private async getPolygonGasPriceParameters(): Promise<GasPriceParameters | null> {
+        const gasStationUrl = getGasStationUrl(this.chain.id)
         try {
             const data = await (await fetch(gasStationUrl)).json()
             // take the standard speed here, SDK options will define the extra tip
@@ -77,7 +83,7 @@ export class GasPriceManager implements InterfaceGasPriceManager {
 
             return parsedData.fast
         } catch (e) {
-            logger.error(
+            this.logger.error(
                 { error: e },
                 "failed to get gas price from gas station, using default"
             )
@@ -116,14 +122,13 @@ export class GasPriceManager implements InterfaceGasPriceManager {
     }
 
     private bumpTheGasPrice(
-        chainId: number,
         gasPriceParameters: GasPriceParameters
     ): GasPriceParameters {
-        const bumpAmount = this.getBumpAmount(chainId)
+        const bumpAmount = this.getBumpAmount(this.chain.id)
 
         const maxPriorityFeePerGas = maxBigInt(
             gasPriceParameters.maxPriorityFeePerGas,
-            this.getDefaultGasFee(chainId)
+            this.getDefaultGasFee(this.chain.id)
         )
         const maxFeePerGas = maxBigInt(
             gasPriceParameters.maxFeePerGas,
@@ -136,9 +141,9 @@ export class GasPriceManager implements InterfaceGasPriceManager {
         }
 
         if (
-            chainId === chains.celo.id ||
-            chainId === chains.celoAlfajores.id ||
-            chainId === chains.celoCannoli.id
+            this.chain.id === chains.celo.id ||
+            this.chain.id === chains.celoAlfajores.id ||
+            this.chain.id === chains.celoCannoli.id
         ) {
             const maxFee = maxBigInt(
                 result.maxFeePerGas,
@@ -200,21 +205,17 @@ export class GasPriceManager implements InterfaceGasPriceManager {
         return currentBaseFeePerGas - baseFeePerGasDelta
     }
 
-    private async getNoEip1559SupportGasPrice(
-        publicClient: PublicClient,
-        chain: Chain,
-        logger: Logger
-    ): Promise<GasPriceParameters> {
+    private async getNoEip1559SupportGasPrice(): Promise<GasPriceParameters> {
         let gasPrice: bigint | undefined
         try {
-            const gasInfo = await publicClient.estimateFeesPerGas({
-                chain,
+            const gasInfo = await this.publicClient.estimateFeesPerGas({
+                chain: this.chain,
                 type: "legacy"
             })
             gasPrice = gasInfo.gasPrice
         } catch (e) {
             sentry.captureException(e)
-            logger.error(
+            this.logger.error(
                 "failed to fetch legacy gasPrices from estimateFeesPerGas",
                 { error: e }
             )
@@ -222,11 +223,11 @@ export class GasPriceManager implements InterfaceGasPriceManager {
         }
 
         if (gasPrice === undefined) {
-            logger.warn("gasPrice is undefined, using fallback value")
+            this.logger.warn("gasPrice is undefined, using fallback value")
             try {
-                gasPrice = await publicClient.getGasPrice()
+                gasPrice = await this.publicClient.getGasPrice()
             } catch (e) {
-                logger.error("failed to get fallback gasPrice")
+                this.logger.error("failed to get fallback gasPrice")
                 sentry.captureException(e)
                 throw e
             }
@@ -238,20 +239,18 @@ export class GasPriceManager implements InterfaceGasPriceManager {
         }
     }
 
-    private async estimateGasPrice(
-        chain: Chain,
-        publicClient: PublicClient,
-        logger: Logger
-    ): Promise<GasPriceParameters> {
+    private async estimateGasPrice(): Promise<GasPriceParameters> {
         let maxFeePerGas: bigint | undefined
         let maxPriorityFeePerGas: bigint | undefined
         try {
-            const fees = await publicClient.estimateFeesPerGas({ chain })
+            const fees = await this.publicClient.estimateFeesPerGas({
+                chain: this.chain
+            })
             maxFeePerGas = fees.maxFeePerGas
             maxPriorityFeePerGas = fees.maxPriorityFeePerGas
         } catch (e) {
             sentry.captureException(e)
-            logger.error(
+            this.logger.error(
                 "failed to fetch eip-1559 gasPrices from estimateFeesPerGas",
                 { error: e }
             )
@@ -260,30 +259,30 @@ export class GasPriceManager implements InterfaceGasPriceManager {
         }
 
         if (maxPriorityFeePerGas === undefined) {
-            logger.warn(
+            this.logger.warn(
                 "maxPriorityFeePerGas is undefined, using fallback value"
             )
             try {
                 maxPriorityFeePerGas =
                     await this.getFallBackMaxPriorityFeePerGas(
-                        publicClient,
+                        this.publicClient,
                         maxFeePerGas ?? 0n
                     )
             } catch (e) {
-                logger.error("failed to get fallback maxPriorityFeePerGas")
+                this.logger.error("failed to get fallback maxPriorityFeePerGas")
                 sentry.captureException(e)
                 throw e
             }
         }
 
         if (maxFeePerGas === undefined) {
-            logger.warn("maxFeePerGas is undefined, using fallback value")
+            this.logger.warn("maxFeePerGas is undefined, using fallback value")
             try {
                 maxFeePerGas =
-                    (await this.getNextBaseFee(publicClient)) +
+                    (await this.getNextBaseFee(this.publicClient)) +
                     maxPriorityFeePerGas
             } catch (e) {
-                logger.error("failed to get fallback maxFeePerGas")
+                this.logger.error("failed to get fallback maxFeePerGas")
                 sentry.captureException(e)
                 throw e
             }
@@ -296,88 +295,158 @@ export class GasPriceManager implements InterfaceGasPriceManager {
         return { maxFeePerGas, maxPriorityFeePerGas }
     }
 
-    private saveGasPrice(gasPrice: GasPriceParameters) {
-        this.lowestGasPrice = {
-            maxFeePerGas: minBigInt(
-                gasPrice.maxFeePerGas,
-                this.lowestGasPrice.maxFeePerGas
-            ),
-            maxPriorityFeePerGas: minBigInt(
-                gasPrice.maxPriorityFeePerGas,
-                this.lowestGasPrice.maxPriorityFeePerGas
-            )
+    private saveMaxFeePerGas(gasPrice: bigint, timestamp: number) {
+        const queue = this.queueMaxFeePerGas
+        const last = queue.length > 0 ? queue[queue.length - 1] : null
+
+        if (!last || timestamp - last.timestamp >= 1000) {
+            if (queue.length >= this.maxQueueSize) {
+                queue.shift()
+            }
+            queue.push({ maxFeePerGas: gasPrice, timestamp })
+        } else if (gasPrice < last.maxFeePerGas) {
+            last.maxFeePerGas = gasPrice
+            last.timestamp = timestamp
         }
-        this.lowestGasPriceTimestamp = Date.now()
     }
 
-    public async getGasPrice(
-        chain: Chain,
-        publicClient: PublicClient,
-        noEip1559Support: boolean,
-        logger: Logger
-    ): Promise<GasPriceParameters> {
-        if (
-            chain.id === chains.polygon.id ||
-            chain.id === chains.polygonMumbai.id
-        ) {
-            const polygonEstimate = await this.getPolygonGasPriceParameters(
-                chain.id,
-                logger
+    private saveMaxPriorityFeePerGas(gasPrice: bigint, timestamp: number) {
+        const queue = this.queueMaxPriorityFeePerGas
+        const last = queue.length > 0 ? queue[queue.length - 1] : null
+
+        if (!last || timestamp - last.timestamp >= 1000) {
+            if (queue.length >= this.maxQueueSize) {
+                queue.shift()
+            }
+            queue.push({ maxPriorityFeePerGas: gasPrice, timestamp })
+        } else if (gasPrice < last.maxPriorityFeePerGas) {
+            last.maxPriorityFeePerGas = gasPrice
+            last.timestamp = timestamp
+        }
+    }
+
+    private saveGasPrice(gasPrice: GasPriceParameters, timestamp: number) {
+        return new Promise<void>((resolve) => {
+            this.saveMaxFeePerGas(gasPrice.maxFeePerGas, timestamp)
+            this.saveMaxPriorityFeePerGas(
+                gasPrice.maxPriorityFeePerGas,
+                timestamp
             )
+            resolve()
+        })
+    }
+
+    public async getGasPrice(): Promise<GasPriceParameters> {
+        let maxFeeFloor = 0n
+        let maxPriorityFeeFloor = 0n
+
+        if (this.chain.id === chains.dfk.id) {
+            maxFeeFloor = 5_000_000_000n
+            maxPriorityFeeFloor = 5_000_000_000n
+        }
+
+        if (
+            this.chain.id === chains.polygon.id ||
+            this.chain.id === chains.polygonMumbai.id
+        ) {
+            const polygonEstimate = await this.getPolygonGasPriceParameters()
             if (polygonEstimate) {
-                const gasPrice = this.bumpTheGasPrice(chain.id, {
+                const gasPrice = this.bumpTheGasPrice({
                     maxFeePerGas: polygonEstimate.maxFeePerGas,
                     maxPriorityFeePerGas: polygonEstimate.maxPriorityFeePerGas
                 })
-                this.saveGasPrice(gasPrice)
+                this.saveGasPrice(
+                    {
+                        maxFeePerGas: maxBigInt(
+                            gasPrice.maxFeePerGas,
+                            maxFeeFloor
+                        ),
+                        maxPriorityFeePerGas: maxBigInt(
+                            gasPrice.maxPriorityFeePerGas,
+                            maxPriorityFeeFloor
+                        )
+                    },
+                    Date.now()
+                )
                 return gasPrice
             }
         }
 
-        if (noEip1559Support) {
+        if (this.noEip1559Support) {
             const gasPrice = this.bumpTheGasPrice(
-                chain.id,
-                await this.getNoEip1559SupportGasPrice(
-                    publicClient,
-                    chain,
-                    logger
-                )
+                await this.getNoEip1559SupportGasPrice()
             )
-            this.saveGasPrice(gasPrice)
+            this.saveGasPrice(
+                {
+                    maxFeePerGas: maxBigInt(gasPrice.maxFeePerGas, maxFeeFloor),
+                    maxPriorityFeePerGas: maxBigInt(
+                        gasPrice.maxPriorityFeePerGas,
+                        maxPriorityFeeFloor
+                    )
+                },
+                Date.now()
+            )
             return gasPrice
         }
 
         const { maxFeePerGas, maxPriorityFeePerGas } =
-            await this.estimateGasPrice(chain, publicClient, logger)
+            await this.estimateGasPrice()
 
-        const gasPrice = this.bumpTheGasPrice(chain.id, {
+        const gasPrice = this.bumpTheGasPrice({
             maxFeePerGas,
             maxPriorityFeePerGas
         })
-        this.saveGasPrice(gasPrice)
+        this.saveGasPrice(
+            {
+                maxFeePerGas: maxBigInt(gasPrice.maxFeePerGas, maxFeeFloor),
+                maxPriorityFeePerGas: maxBigInt(
+                    gasPrice.maxPriorityFeePerGas,
+                    maxPriorityFeeFloor
+                )
+            },
+            Date.now()
+        )
         return gasPrice
     }
 
-    public validateGasPrice(gasPrice: GasPriceParameters) {
-        const now = Date.now()
-        if (now - this.lowestGasPriceTimestamp > this.gasPriceTimeValidity) {
+    private async getMinMaxFeePerGas() {
+        const queue = this.queueMaxFeePerGas
+        if (queue.length === 0) {
+            await this.getGasPrice()
+        }
+
+        return queue.reduce(
+            (acc: bigint, cur) => minBigInt(cur.maxFeePerGas, acc),
+            queue[0].maxFeePerGas
+        )
+    }
+
+    private async getMinMaxPriorityFeePerGas() {
+        const queue = this.queueMaxPriorityFeePerGas
+        if (queue.length === 0) {
+            await this.getGasPrice()
+        }
+
+        return queue.reduce(
+            (acc, cur) => minBigInt(cur.maxPriorityFeePerGas, acc),
+            queue[0].maxPriorityFeePerGas
+        )
+    }
+
+    public async validateGasPrice(gasPrice: GasPriceParameters) {
+        const lowestMaxFeePerGas = await this.getMinMaxFeePerGas()
+        const lowestMaxPriorityFeePerGas =
+            await this.getMinMaxPriorityFeePerGas()
+
+        if (gasPrice.maxFeePerGas < lowestMaxFeePerGas) {
             throw new RpcError(
-                "Gas price is outdated, use pimlico_getUserOperationGasPrice to get the current gas price"
+                `maxFeePerGas must be at least ${lowestMaxFeePerGas} (current maxFeePerGas: ${gasPrice.maxFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
             )
         }
 
-        if (gasPrice.maxFeePerGas < this.lowestGasPrice.maxFeePerGas) {
+        if (gasPrice.maxPriorityFeePerGas < lowestMaxPriorityFeePerGas) {
             throw new RpcError(
-                `maxFeePerGas must be at least ${this.lowestGasPrice.maxFeePerGas} (current maxFeePerGas: ${gasPrice.maxFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
-            )
-        }
-
-        if (
-            gasPrice.maxPriorityFeePerGas <
-            this.lowestGasPrice.maxPriorityFeePerGas
-        ) {
-            throw new RpcError(
-                `maxPriorityFeePerGas must be at least ${this.lowestGasPrice.maxPriorityFeePerGas} (current maxPriorityFeePerGas: ${gasPrice.maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
+                `maxPriorityFeePerGas must be at least ${lowestMaxPriorityFeePerGas} (current maxPriorityFeePerGas: ${gasPrice.maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
             )
         }
     }

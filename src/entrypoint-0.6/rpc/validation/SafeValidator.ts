@@ -1,4 +1,4 @@
-import type { Metrics } from "@alto/utils"
+import type { InterfaceGasPriceManager, Metrics } from "@alto/utils"
 import type { SenderManager } from "@alto/executor"
 import {
     type Address,
@@ -56,6 +56,7 @@ export class SafeValidator
         metrics: Metrics,
         utilityWallet: Account,
         apiVersion: ApiVersion,
+        gasPriceManager: InterfaceGasPriceManager,
         usingTenderly = false,
         balanceOverrideEnabled = false
     ) {
@@ -66,6 +67,7 @@ export class SafeValidator
             metrics,
             utilityWallet,
             apiVersion,
+            gasPriceManager,
             usingTenderly,
             balanceOverrideEnabled
         )

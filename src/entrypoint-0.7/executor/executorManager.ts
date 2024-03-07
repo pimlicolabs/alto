@@ -1,4 +1,4 @@
-import type { Metrics, Logger } from "@alto/utils"
+import type { Metrics, Logger, InterfaceGasPriceManager } from "@alto/utils"
 import type {
     InterfaceReputationManager,
     Mempool,
@@ -27,7 +27,6 @@ import type {
     WatchBlocksReturnType
 } from "viem"
 import type { InterfaceExecutor, ReplaceTransactionResult } from "./executor"
-import type { GasPriceManager } from "@entrypoint-0.7/gasPriceManager"
 
 function getTransactionsFromUserOperationEntries(
     entries: SubmittedUserOperation[]
@@ -55,8 +54,7 @@ export class ExecutorManager {
     private currentlyHandlingBlock = false
     private timer?: NodeJS.Timer
     private bundlerFrequency: number
-    private noEip1559Support: boolean
-    gasPriceManager: GasPriceManager
+    gasPriceManager: InterfaceGasPriceManager
 
     constructor(
         executor: InterfaceExecutor,
@@ -70,8 +68,7 @@ export class ExecutorManager {
         metrics: Metrics,
         bundleMode: BundlingMode,
         bundlerFrequency: number,
-        noEip1559Support: boolean,
-        gasPriceManager: GasPriceManager
+        gasPriceManager: InterfaceGasPriceManager
     ) {
         this.reputationManager = reputationManager
         this.executor = executor
@@ -83,7 +80,6 @@ export class ExecutorManager {
         this.logger = logger
         this.metrics = metrics
         this.bundlerFrequency = bundlerFrequency
-        this.noEip1559Support = noEip1559Support
         this.gasPriceManager = gasPriceManager
 
         if (bundleMode === "auto") {
@@ -407,12 +403,7 @@ export class ExecutorManager {
         await this.refreshUserOperationStatuses()
 
         // for all still not included check if needs to be replaced (based on gas price)
-        const gasPriceParameters = await this.gasPriceManager.getGasPrice(
-            this.publicClient.chain,
-            this.publicClient,
-            this.noEip1559Support,
-            this.logger
-        )
+        const gasPriceParameters = await this.gasPriceManager.getGasPrice()
         this.logger.trace(
             { gasPriceParameters },
             "fetched gas price parameters"

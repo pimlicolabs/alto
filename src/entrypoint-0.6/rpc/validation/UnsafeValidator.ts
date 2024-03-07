@@ -1,4 +1,4 @@
-import type { Metrics } from "@alto/utils"
+import type { InterfaceGasPriceManager, Metrics } from "@alto/utils"
 import {
     type Address,
     EntryPointAbi,
@@ -140,6 +140,7 @@ export class UnsafeValidator implements InterfaceValidator {
     disableExpirationCheck: boolean
     apiVersion: ApiVersion
     chainId: number
+    gasPriceManager: InterfaceGasPriceManager
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
@@ -148,6 +149,7 @@ export class UnsafeValidator implements InterfaceValidator {
         metrics: Metrics,
         utilityWallet: Account,
         apiVersion: ApiVersion,
+        gasPriceManager: InterfaceGasPriceManager,
         usingTenderly = false,
         balanceOverrideEnabled = false,
         disableExpirationCheck = false
@@ -162,6 +164,7 @@ export class UnsafeValidator implements InterfaceValidator {
         this.disableExpirationCheck = disableExpirationCheck
         this.apiVersion = apiVersion
         this.chainId = publicClient.chain.id
+        this.gasPriceManager = gasPriceManager
     }
 
     async getExecutionResult(
@@ -328,7 +331,8 @@ export class UnsafeValidator implements InterfaceValidator {
                 userOperation,
                 this.entryPoint,
                 this.chainId,
-                this.logger
+                this.logger,
+                this.gasPriceManager
             )
 
             if (preVerificationGas > userOperation.preVerificationGas) {
