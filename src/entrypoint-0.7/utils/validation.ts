@@ -27,9 +27,8 @@ import {
     bytesToHex
 } from "viem"
 import * as chains from "viem/chains"
-import type { Logger } from "@alto/utils"
+import type { GasPriceManager, Logger } from "@alto/utils"
 import { toPackedUserOperation } from "./userop"
-import { getGasPrice } from "./gasPrice"
 
 export interface GasOverheads {
     /**
@@ -184,6 +183,7 @@ export async function calcPreVerificationGas(
     entryPoint: Address,
     chainId: number,
     logger: Logger,
+    gasPriceManager: GasPriceManager,
     overheads?: GasOverheads
 ): Promise<bigint> {
     let preVerificationGas = calcDefaultPreVerificationGas(
@@ -209,7 +209,7 @@ export async function calcPreVerificationGas(
             userOperation,
             entryPoint,
             preVerificationGas,
-            logger
+            gasPriceManager
         )
     } else if (chainId === chains.arbitrum.id) {
         preVerificationGas = await calcArbitrumPreVerificationGas(
@@ -338,7 +338,7 @@ export async function calcOptimismPreVerificationGas(
     op: UnPackedUserOperation,
     entryPoint: Address,
     staticFee: bigint,
-    logger: Logger
+    gasPriceManager: GasPriceManager
 ) {
     const packedUserOperation: PackedUserOperation = toPackedUserOperation(op)
 
@@ -383,12 +383,7 @@ export async function calcOptimismPreVerificationGas(
         serializedTx
     ])
 
-    const gasPrice = await getGasPrice(
-        publicClient.chain,
-        publicClient,
-        true,
-        logger
-    )
+    const gasPrice = await gasPriceManager.getGasPrice()
 
     const l2MaxFee = gasPrice.maxFeePerGas
     const l2PriorityFee =

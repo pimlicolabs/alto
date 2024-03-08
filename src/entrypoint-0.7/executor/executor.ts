@@ -1,4 +1,9 @@
-import type { Metrics, Logger } from "@alto/utils"
+import {
+    type Metrics,
+    type Logger,
+    maxBigInt,
+    type GasPriceManager
+} from "@alto/utils"
 import type { InterfaceReputationManager } from "@entrypoint-0.7/mempool"
 import {
     type Address,
@@ -13,9 +18,7 @@ import {
 } from "@entrypoint-0.7/types"
 import {
     type CompressionHandler,
-    getGasPrice,
     getUserOperationHash,
-    maxBigInt,
     parseViemError,
     toPackedUserOperation
 } from "@entrypoint-0.7/utils"
@@ -129,6 +132,7 @@ export class BasicExecutor implements InterfaceExecutor {
     useUserOperationGasLimitsForSubmission: boolean
     reputationManager: InterfaceReputationManager
     compressionHandler: CompressionHandler | null
+    gasPriceManager: GasPriceManager
 
     mutex: Mutex
 
@@ -141,6 +145,7 @@ export class BasicExecutor implements InterfaceExecutor {
         logger: Logger,
         metrics: Metrics,
         compressionHandler: CompressionHandler | null,
+        gasPriceManager: GasPriceManager,
         simulateTransaction = false,
         noEip1559Support = false,
         customGasLimitForEstimation?: bigint,
@@ -153,6 +158,7 @@ export class BasicExecutor implements InterfaceExecutor {
         this.entryPoint = entryPoint
         this.logger = logger
         this.metrics = metrics
+        this.gasPriceManager = gasPriceManager
         this.simulateTransaction = simulateTransaction
         this.noEip1559Support = noEip1559Support
         this.customGasLimitForEstimation = customGasLimitForEstimation
@@ -192,12 +198,7 @@ export class BasicExecutor implements InterfaceExecutor {
     ): Promise<ReplaceTransactionResult> {
         const newRequest = { ...transactionInfo.transactionRequest }
 
-        const gasPriceParameters = await getGasPrice(
-            this.walletClient.chain,
-            this.publicClient,
-            this.noEip1559Support,
-            this.logger
-        )
+        const gasPriceParameters = await this.gasPriceManager.getGasPrice()
 
         newRequest.maxFeePerGas = maxBigInt(
             gasPriceParameters.maxFeePerGas,
@@ -440,12 +441,7 @@ export class BasicExecutor implements InterfaceExecutor {
     }
 
     async flushStuckTransactions(): Promise<void> {
-        const gasPrice = await getGasPrice(
-            this.walletClient.chain,
-            this.publicClient,
-            this.noEip1559Support,
-            this.logger
-        )
+        const gasPrice = await this.gasPriceManager.getGasPrice()
 
         const wallets = Array.from(
             new Set([
@@ -497,12 +493,7 @@ export class BasicExecutor implements InterfaceExecutor {
         })
         childLogger.debug("bundling user operation")
 
-        const gasPriceParameters = await getGasPrice(
-            this.walletClient.chain,
-            this.publicClient,
-            this.noEip1559Support,
-            this.logger
-        )
+        const gasPriceParameters = await this.gasPriceManager.getGasPrice()
         childLogger.debug({ gasPriceParameters }, "got gas price")
 
         const nonce = await this.publicClient.getTransactionCount({
@@ -709,12 +700,7 @@ export class BasicExecutor implements InterfaceExecutor {
         })
         childLogger.debug("bundling compressed user operation")
 
-        const gasPriceParameters = await getGasPrice(
-            this.walletClient.chain,
-            this.publicClient,
-            this.noEip1559Support,
-            this.logger
-        )
+        const gasPriceParameters = await this.gasPriceManager.getGasPrice()
         childLogger.debug({ gasPriceParameters }, "got gas price")
 
         const nonce = await this.publicClient.getTransactionCount({

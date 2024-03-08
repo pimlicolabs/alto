@@ -1,4 +1,4 @@
-import type { Logger, Metrics } from "@alto/utils"
+import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
 import type {
     ExecutorManager,
     InterfaceExecutor
@@ -52,7 +52,6 @@ import {
 import {
     calcPreVerificationGas,
     calcVerificationGasAndCallGasLimit,
-    getGasPrice,
     getNonceKeyAndValue,
     getUserOperationHash,
     toPackedUserOperation,
@@ -126,6 +125,7 @@ export class RpcHandler implements InterfaceRpcEndpoint {
     compressionHandler: CompressionHandler | null
     noEip1559Support: boolean
     dangerousSkipUserOperationValidation: boolean
+    gasPriceManager: GasPriceManager
 
     constructor(
         entryPoint: Address,
@@ -147,6 +147,7 @@ export class RpcHandler implements InterfaceRpcEndpoint {
         environment: Environment,
         compressionHandler: CompressionHandler | null,
         noEip1559Support: boolean,
+        gasPriceManager: GasPriceManager,
         dangerousSkipUserOperationValidation = false
     ) {
         this.entryPoint = entryPoint
@@ -169,6 +170,7 @@ export class RpcHandler implements InterfaceRpcEndpoint {
         this.reputationManager = reputationManager
         this.compressionHandler = compressionHandler
         this.noEip1559Support = noEip1559Support
+        this.gasPriceManager = gasPriceManager
         this.dangerousSkipUserOperationValidation =
             dangerousSkipUserOperationValidation
     }
@@ -321,7 +323,8 @@ export class RpcHandler implements InterfaceRpcEndpoint {
             userOperation,
             entryPoint,
             this.chainId,
-            this.logger
+            this.logger,
+            this.gasPriceManager
         )
 
         if (
@@ -776,12 +779,7 @@ export class RpcHandler implements InterfaceRpcEndpoint {
 
     // biome-ignore lint/style/useNamingConvention: want to name it same as rpc for easy search
     async pimlico_getUserOperationGasPrice(): Promise<PimlicoGetUserOperationGasPriceResponseResult> {
-        const gasPrice = await getGasPrice(
-            this.publicClient.chain,
-            this.publicClient,
-            this.noEip1559Support,
-            this.logger
-        )
+        const gasPrice = await this.gasPriceManager.getGasPrice()
         return {
             slow: {
                 maxFeePerGas: (gasPrice.maxFeePerGas * 105n) / 100n,
@@ -827,34 +825,10 @@ export class RpcHandler implements InterfaceRpcEndpoint {
             }
         }
 
-        if (this.minimumGasPricePercent !== 0) {
-            const gasPrice = await getGasPrice(
-                this.publicClient.chain,
-                this.publicClient,
-                this.noEip1559Support,
-                this.logger
-            )
-            const minMaxFeePerGas =
-                (gasPrice.maxFeePerGas * BigInt(this.minimumGasPricePercent)) /
-                100n
-
-            const minMaxPriorityFeePerGas =
-                (gasPrice.maxPriorityFeePerGas *
-                    BigInt(this.minimumGasPricePercent)) /
-                100n
-
-            if (userOperation.maxFeePerGas < minMaxFeePerGas) {
-                throw new RpcError(
-                    `maxFeePerGas must be at least ${minMaxFeePerGas} (current maxFeePerGas: ${userOperation.maxFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
-                )
-            }
-
-            if (userOperation.maxPriorityFeePerGas < minMaxPriorityFeePerGas) {
-                throw new RpcError(
-                    `maxPriorityFeePerGas must be at least ${minMaxPriorityFeePerGas} (current maxPriorityFeePerGas: ${userOperation.maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
-                )
-            }
-        }
+        this.gasPriceManager.validateGasPrice({
+            maxFeePerGas: userOperation.maxFeePerGas,
+            maxPriorityFeePerGas: userOperation.maxPriorityFeePerGas
+        })
 
         if (userOperation.verificationGasLimit < 10000n) {
             throw new RpcError("verificationGasLimit must be at least 10000")

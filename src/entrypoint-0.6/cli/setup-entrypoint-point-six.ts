@@ -1,4 +1,4 @@
-import type { Logger } from "@alto/utils"
+import type { GasPriceManager, Logger } from "@alto/utils"
 import type { IBundlerArgs } from "../../cli/config"
 import type { Metrics } from "@alto/utils"
 import {
@@ -60,13 +60,15 @@ const getValidator = ({
     parsedArgs,
     logger,
     senderManager,
-    metrics
+    metrics,
+    gasPriceManager
 }: {
     client: PublicClient<Transport, Chain>
     parsedArgs: IBundlerArgs
     logger: Logger
     senderManager: SenderManager
     metrics: Metrics
+    gasPriceManager: GasPriceManager
 }): InterfaceValidator => {
     if (parsedArgs.safeMode) {
         return new SafeValidator(
@@ -80,6 +82,7 @@ const getValidator = ({
             metrics,
             parsedArgs.utilityPrivateKey,
             parsedArgs.apiVersion,
+            gasPriceManager,
             parsedArgs.tenderlyEnabled,
             parsedArgs.balanceOverrideEnabled
         )
@@ -94,6 +97,7 @@ const getValidator = ({
         metrics,
         parsedArgs.utilityPrivateKey,
         parsedArgs.apiVersion,
+        gasPriceManager,
         parsedArgs.tenderlyEnabled,
         parsedArgs.balanceOverrideEnabled,
         parsedArgs.disableExpirationCheck
@@ -165,7 +169,8 @@ const getExecutor = ({
     parsedArgs,
     logger,
     metrics,
-    compressionHandler
+    compressionHandler,
+    gasPriceManager
 }: {
     client: PublicClient<Transport, Chain>
     walletClient: WalletClient<Transport, Chain>
@@ -175,6 +180,7 @@ const getExecutor = ({
     logger: Logger
     metrics: Metrics
     compressionHandler: CompressionHandler | null
+    gasPriceManager: GasPriceManager
 }): IExecutor => {
     return new BasicExecutor(
         client,
@@ -188,6 +194,7 @@ const getExecutor = ({
         ),
         metrics,
         compressionHandler,
+        gasPriceManager,
         !parsedArgs.tenderlyEnabled,
         parsedArgs.noEip1559Support,
         parsedArgs.customGasLimitForEstimation,
@@ -203,7 +210,8 @@ const getExecutorManager = ({
     client,
     parsedArgs,
     logger,
-    metrics
+    metrics,
+    gasPriceManager
 }: {
     executor: IExecutor
     mempool: Mempool
@@ -213,6 +221,7 @@ const getExecutorManager = ({
     parsedArgs: IBundlerArgs
     logger: Logger
     metrics: Metrics
+    gasPriceManager: GasPriceManager
 }) => {
     return new ExecutorManager(
         executor,
@@ -229,7 +238,7 @@ const getExecutorManager = ({
         metrics,
         parsedArgs.bundleMode,
         parsedArgs.bundlerFrequency,
-        parsedArgs.noEip1559Support
+        gasPriceManager
     )
 }
 
@@ -267,7 +276,8 @@ const getRpcHandler = ({
     parsedArgs,
     logger,
     metrics,
-    compressionHandler
+    compressionHandler,
+    gasPriceManager
 }: {
     client: PublicClient<Transport, Chain>
     validator: InterfaceValidator
@@ -281,6 +291,7 @@ const getRpcHandler = ({
     logger: Logger
     metrics: Metrics
     compressionHandler: CompressionHandler | null
+    gasPriceManager: GasPriceManager
 }) => {
     return new RpcHandler(
         parsedArgs.entryPoint,
@@ -305,6 +316,7 @@ const getRpcHandler = ({
         parsedArgs.environment,
         compressionHandler,
         parsedArgs.noEip1559Support,
+        gasPriceManager,
         parsedArgs.dangerousSkipUserOperationValidation
     )
 }
@@ -343,7 +355,8 @@ export const setupEntryPointPointSix = async ({
     rootLogger,
     registry,
     metrics,
-    senderManager
+    senderManager,
+    gasPriceManager
 }: {
     client: PublicClient<Transport, Chain>
     walletClient: WalletClient<Transport, Chain>
@@ -353,13 +366,15 @@ export const setupEntryPointPointSix = async ({
     registry: Registry
     metrics: Metrics
     senderManager: SenderManager
+    gasPriceManager: GasPriceManager
 }) => {
     const validator = getValidator({
         client,
         logger,
         parsedArgs,
         senderManager,
-        metrics
+        metrics,
+        gasPriceManager
     })
     const reputationManager = getReputationManager({
         client,
@@ -405,7 +420,8 @@ export const setupEntryPointPointSix = async ({
         parsedArgs,
         logger,
         metrics,
-        compressionHandler
+        compressionHandler,
+        gasPriceManager
     })
 
     const executorManager = getExecutorManager({
@@ -416,7 +432,8 @@ export const setupEntryPointPointSix = async ({
         client,
         parsedArgs,
         logger,
-        metrics
+        metrics,
+        gasPriceManager
     })
 
     const nonceQueuer = getNonceQueuer({ mempool, client, parsedArgs, logger })
@@ -433,7 +450,8 @@ export const setupEntryPointPointSix = async ({
         parsedArgs,
         logger,
         metrics,
-        compressionHandler
+        compressionHandler,
+        gasPriceManager
     })
 
     if (parsedArgs.flushStuckTransactionsDuringStartup) {

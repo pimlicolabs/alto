@@ -1,4 +1,4 @@
-import type { Metrics, Logger } from "@alto/utils"
+import type { Metrics, Logger, GasPriceManager } from "@alto/utils"
 import type { InterfaceReputationManager } from "@entrypoint-0.6/mempool"
 import {
     type Address,
@@ -13,7 +13,6 @@ import {
 } from "@entrypoint-0.6/types"
 import {
     type CompressionHandler,
-    getGasPrice,
     getUserOperationHash,
     maxBigInt,
     parseViemError
@@ -76,27 +75,35 @@ export interface IExecutor {
 }
 
 export class NullExecutor implements IExecutor {
-    async bundle(
-        entryPoint: Address,
-        ops: UserOperation[]
+    bundle(
+        _entryPoint: Address,
+        _ops: UserOperation[]
     ): Promise<BundleResult[]> {
-        return []
+        return Promise.resolve([])
     }
-    async bundleCompressed(
-        entryPoint: Address,
-        compressedOps: CompressedUserOperation[]
+    bundleCompressed(
+        _entryPoint: Address,
+        _compressedOps: CompressedUserOperation[]
     ): Promise<BundleResult[]> {
-        return []
+        return Promise.resolve([])
     }
-    async replaceTransaction(
-        transactionInfo: TransactionInfo
+    replaceTransaction(
+        _transactionInfo: TransactionInfo
     ): Promise<ReplaceTransactionResult> {
-        return { status: "failed" }
+        return Promise.resolve({ status: "failed" })
     }
-    async replaceOps(opHahes: HexData32[]): Promise<void> {}
-    async cancelOps(entryPoint: Address, ops: UserOperation[]): Promise<void> {}
-    async markWalletProcessed(executor: Account): Promise<void> {}
-    async flushStuckTransactions(): Promise<void> {}
+    replaceOps(_opHashes: HexData32[]): Promise<void> {
+        return Promise.resolve()
+    }
+    cancelOps(_entryPoint: Address, _ops: UserOperation[]): Promise<void> {
+        return Promise.resolve()
+    }
+    markWalletProcessed(_executor: Account): Promise<void> {
+        return Promise.resolve()
+    }
+    flushStuckTransactions(): Promise<void> {
+        return Promise.resolve()
+    }
 }
 
 export class BasicExecutor implements IExecutor {
@@ -114,7 +121,7 @@ export class BasicExecutor implements IExecutor {
     useUserOperationGasLimitsForSubmission: boolean
     reputationManager: InterfaceReputationManager
     compressionHandler: CompressionHandler | null
-
+    gasPriceManager: GasPriceManager
     mutex: Mutex
 
     constructor(
@@ -126,6 +133,7 @@ export class BasicExecutor implements IExecutor {
         logger: Logger,
         metrics: Metrics,
         compressionHandler: CompressionHandler | null,
+        gasPriceManager: GasPriceManager,
         simulateTransaction = false,
         noEip1559Support = false,
         customGasLimitForEstimation?: bigint,
@@ -144,6 +152,7 @@ export class BasicExecutor implements IExecutor {
         this.useUserOperationGasLimitsForSubmission =
             useUserOperationGasLimitsForSubmission
         this.compressionHandler = compressionHandler
+        this.gasPriceManager = gasPriceManager
 
         this.mutex = new Mutex()
     }
@@ -161,10 +170,11 @@ export class BasicExecutor implements IExecutor {
         throw new Error("Method not implemented.")
     }
 
-    async markWalletProcessed(executor: Account) {
+    markWalletProcessed(executor: Account) {
         if (!this.senderManager.availableWallets.includes(executor)) {
             this.senderManager.pushWallet(executor)
         }
+        return Promise.resolve()
     }
 
     async replaceTransaction(
@@ -172,12 +182,7 @@ export class BasicExecutor implements IExecutor {
     ): Promise<ReplaceTransactionResult> {
         const newRequest = { ...transactionInfo.transactionRequest }
 
-        const gasPriceParameters = await getGasPrice(
-            this.walletClient.chain,
-            this.publicClient,
-            this.noEip1559Support,
-            this.logger
-        )
+        const gasPriceParameters = await this.gasPriceManager.getGasPrice()
 
         newRequest.maxFeePerGas = maxBigInt(
             gasPriceParameters.maxFeePerGas,
@@ -418,12 +423,7 @@ export class BasicExecutor implements IExecutor {
     }
 
     async flushStuckTransactions(): Promise<void> {
-        const gasPrice = await getGasPrice(
-            this.walletClient.chain,
-            this.publicClient,
-            this.noEip1559Support,
-            this.logger
-        )
+        const gasPrice = await this.gasPriceManager.getGasPrice()
 
         const wallets = Array.from(
             new Set([
@@ -476,12 +476,7 @@ export class BasicExecutor implements IExecutor {
         })
         childLogger.debug("bundling user operation")
 
-        const gasPriceParameters = await getGasPrice(
-            this.walletClient.chain,
-            this.publicClient,
-            this.noEip1559Support,
-            this.logger
-        )
+        const gasPriceParameters = await this.gasPriceManager.getGasPrice()
         childLogger.debug({ gasPriceParameters }, "got gas price")
 
         const nonce = await this.publicClient.getTransactionCount({
@@ -686,12 +681,7 @@ export class BasicExecutor implements IExecutor {
         })
         childLogger.debug("bundling compressed user operation")
 
-        const gasPriceParameters = await getGasPrice(
-            this.walletClient.chain,
-            this.publicClient,
-            this.noEip1559Support,
-            this.logger
-        )
+        const gasPriceParameters = await this.gasPriceManager.getGasPrice()
         childLogger.debug({ gasPriceParameters }, "got gas price")
 
         const nonce = await this.publicClient.getTransactionCount({

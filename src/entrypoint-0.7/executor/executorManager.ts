@@ -1,4 +1,4 @@
-import type { Metrics, Logger } from "@alto/utils"
+import type { Metrics, Logger, GasPriceManager } from "@alto/utils"
 import type {
     InterfaceReputationManager,
     Mempool,
@@ -16,7 +16,7 @@ import {
     isCompressedType,
     type UnPackedUserOperation
 } from "@entrypoint-0.7/types"
-import { getGasPrice, transactionIncluded } from "@entrypoint-0.7/utils"
+import { transactionIncluded } from "@entrypoint-0.7/utils"
 import type {
     Address,
     Block,
@@ -54,7 +54,7 @@ export class ExecutorManager {
     private currentlyHandlingBlock = false
     private timer?: NodeJS.Timer
     private bundlerFrequency: number
-    private noEip1559Support: boolean
+    gasPriceManager: GasPriceManager
 
     constructor(
         executor: InterfaceExecutor,
@@ -68,7 +68,7 @@ export class ExecutorManager {
         metrics: Metrics,
         bundleMode: BundlingMode,
         bundlerFrequency: number,
-        noEip1559Support: boolean
+        gasPriceManager: GasPriceManager
     ) {
         this.reputationManager = reputationManager
         this.executor = executor
@@ -80,7 +80,7 @@ export class ExecutorManager {
         this.logger = logger
         this.metrics = metrics
         this.bundlerFrequency = bundlerFrequency
-        this.noEip1559Support = noEip1559Support
+        this.gasPriceManager = gasPriceManager
 
         if (bundleMode === "auto") {
             this.timer = setInterval(async () => {
@@ -403,12 +403,7 @@ export class ExecutorManager {
         await this.refreshUserOperationStatuses()
 
         // for all still not included check if needs to be replaced (based on gas price)
-        const gasPriceParameters = await getGasPrice(
-            this.publicClient.chain,
-            this.publicClient,
-            this.noEip1559Support,
-            this.logger
-        )
+        const gasPriceParameters = await this.gasPriceManager.getGasPrice()
         this.logger.trace(
             { gasPriceParameters },
             "fetched gas price parameters"

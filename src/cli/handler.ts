@@ -2,7 +2,8 @@ import {
     type Logger,
     createMetrics,
     initDebugLogger,
-    initProductionLogger
+    initProductionLogger,
+    GasPriceManager
 } from "@alto/utils"
 import { Registry } from "prom-client"
 import {
@@ -111,6 +112,19 @@ export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
         chain
     })
 
+    const gasPriceManager = new GasPriceManager(
+        chain,
+        client,
+        parsedArgs.noEip1559Support,
+        logger.child(
+            { module: "gas_price_manager" },
+            {
+                level: parsedArgs.publicClientLogLevel || parsedArgs.logLevel
+            }
+        ),
+        parsedArgs.gasPriceTimeValidityInSeconds
+    )
+
     const registry = new Registry()
     registry.setDefaultLabels({
         network: chain.name,
@@ -144,6 +158,7 @@ export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
         metrics,
         parsedArgs.noEip1559Support,
         parsedArgs.apiVersion,
+        gasPriceManager,
         parsedArgs.maxSigners
     )
 
@@ -156,7 +171,8 @@ export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
             rootLogger,
             registry,
             metrics,
-            senderManager
+            senderManager,
+            gasPriceManager
         })
     }
     if (parsedArgs.entryPointVersion === "0.7") {
@@ -168,7 +184,8 @@ export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
             rootLogger,
             registry,
             metrics,
-            senderManager
+            senderManager,
+            gasPriceManager
         })
     }
 }

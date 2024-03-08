@@ -1,4 +1,4 @@
-import type { Logger, Metrics } from "@alto/utils"
+import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
 import {
     type Address,
     CallEngineAbi,
@@ -6,7 +6,6 @@ import {
     type HexData32
 } from "@entrypoint-0.6/types"
 import type { ApiVersion } from "@entrypoint-0.6/types"
-import { getGasPrice } from "@entrypoint-0.6/utils"
 import { Semaphore } from "async-mutex"
 import {
     type Account,
@@ -39,6 +38,7 @@ export class SenderManager {
     private noEip1559Support: boolean
     private semaphore: Semaphore
     private apiVersion: ApiVersion
+    private gasPriceManager: GasPriceManager
 
     constructor(
         wallets: Account[],
@@ -47,6 +47,7 @@ export class SenderManager {
         metrics: Metrics,
         noEip1559Support: boolean,
         apiVersion: ApiVersion,
+        gasPriceManager: GasPriceManager,
         maxSigners?: number
     ) {
         if (maxSigners !== undefined && wallets.length > maxSigners) {
@@ -65,6 +66,7 @@ export class SenderManager {
         metrics.walletsTotal.set(this.wallets.length)
         this.semaphore = new Semaphore(this.availableWallets.length)
         this.apiVersion = apiVersion
+        this.gasPriceManager = gasPriceManager
     }
 
     async validateWallets(
@@ -148,12 +150,8 @@ export class SenderManager {
         }
 
         if (Object.keys(balancesMissing).length > 0) {
-            const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPrice(
-                walletClient.chain,
-                publicClient,
-                this.noEip1559Support,
-                this.logger
-            )
+            const { maxFeePerGas, maxPriorityFeePerGas } =
+                await this.gasPriceManager.getGasPrice()
 
             if (
                 walletClient.chain.id === 59140 ||

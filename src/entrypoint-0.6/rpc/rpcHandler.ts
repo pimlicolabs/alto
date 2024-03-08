@@ -1,4 +1,4 @@
-import type { Metrics } from "@alto/utils"
+import type { GasPriceManager, Metrics } from "@alto/utils"
 import type { ExecutorManager, IExecutor } from "@entrypoint-0.6/executor"
 import type {
     InterfaceReputationManager,
@@ -46,7 +46,6 @@ import type { Logger } from "@alto/utils"
 import {
     calcPreVerificationGas,
     calcVerificationGasAndCallGasLimit,
-    getGasPrice,
     getNonceKeyAndValue,
     getUserOperationHash,
     maxBigInt,
@@ -117,6 +116,7 @@ export class RpcHandler implements IRpcEndpoint {
     compressionHandler: CompressionHandler | null
     noEip1559Support: boolean
     dangerousSkipUserOperationValidation: boolean
+    gasPriceManager: GasPriceManager
 
     constructor(
         entryPoint: Address,
@@ -138,6 +138,7 @@ export class RpcHandler implements IRpcEndpoint {
         environment: Environment,
         compressionHandler: CompressionHandler | null,
         noEip1559Support: boolean,
+        gasPriceManager: GasPriceManager,
         dangerousSkipUserOperationValidation = false
     ) {
         this.entryPoint = entryPoint
@@ -162,6 +163,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.noEip1559Support = noEip1559Support
         this.dangerousSkipUserOperationValidation =
             dangerousSkipUserOperationValidation
+        this.gasPriceManager = gasPriceManager
     }
 
     async handleMethod(request: BundlerRequest): Promise<BundlerResponse> {
@@ -308,7 +310,8 @@ export class RpcHandler implements IRpcEndpoint {
             userOperation,
             entryPoint,
             this.chainId,
-            this.logger
+            this.logger,
+            this.gasPriceManager
         )
 
         let verificationGasLimit: bigint
@@ -778,12 +781,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async pimlico_getUserOperationGasPrice(): Promise<PimlicoGetUserOperationGasPriceResponseResult> {
-        const gasPrice = await getGasPrice(
-            this.publicClient.chain,
-            this.publicClient,
-            this.noEip1559Support,
-            this.logger
-        )
+        const gasPrice = await this.gasPriceManager.getGasPrice()
         return {
             slow: {
                 maxFeePerGas: (gasPrice.maxFeePerGas * 105n) / 100n,
@@ -830,12 +828,7 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         if (this.minimumGasPricePercent !== 0) {
-            const gasPrice = await getGasPrice(
-                this.publicClient.chain,
-                this.publicClient,
-                this.noEip1559Support,
-                this.logger
-            )
+            const gasPrice = await this.gasPriceManager.getGasPrice()
             const minMaxFeePerGas =
                 (gasPrice.maxFeePerGas * BigInt(this.minimumGasPricePercent)) /
                 100n

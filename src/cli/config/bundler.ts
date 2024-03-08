@@ -111,7 +111,8 @@ export const bundlerArgsSchema = z.object({
         .optional(),
     rpcMaxBlockRange: z.number().int().min(0).optional(),
     dangerousSkipUserOperationValidation: z.boolean().optional(),
-    entryPointVersion: z.enum(["0.6", "0.7"])
+    entryPointVersion: z.enum(["0.6", "0.7"]),
+    gasPriceTimeValidityInSeconds: z.number().int().min(0)
 })
 
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>
