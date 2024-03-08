@@ -1,4 +1,4 @@
-import type { Metrics, Logger, InterfaceGasPriceManager } from "@alto/utils"
+import type { Metrics, Logger, GasPriceManager } from "@alto/utils"
 import type {
     InterfaceReputationManager,
     Mempool,
@@ -54,7 +54,7 @@ export class ExecutorManager {
     private currentlyHandlingBlock = false
     private timer?: NodeJS.Timer
     private bundlerFrequency: number
-    gasPriceManager: InterfaceGasPriceManager
+    gasPriceManager: GasPriceManager
 
     constructor(
         executor: InterfaceExecutor,
@@ -68,7 +68,7 @@ export class ExecutorManager {
         metrics: Metrics,
         bundleMode: BundlingMode,
         bundlerFrequency: number,
-        gasPriceManager: InterfaceGasPriceManager
+        gasPriceManager: GasPriceManager
     ) {
         this.reputationManager = reputationManager
         this.executor = executor

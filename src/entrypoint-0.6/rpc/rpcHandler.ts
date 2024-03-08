@@ -1,4 +1,4 @@
-import type { InterfaceGasPriceManager, Metrics } from "@alto/utils"
+import type { GasPriceManager, Metrics } from "@alto/utils"
 import type { ExecutorManager, IExecutor } from "@entrypoint-0.6/executor"
 import type {
     InterfaceReputationManager,
@@ -116,7 +116,7 @@ export class RpcHandler implements IRpcEndpoint {
     compressionHandler: CompressionHandler | null
     noEip1559Support: boolean
     dangerousSkipUserOperationValidation: boolean
-    gasPriceManager: InterfaceGasPriceManager
+    gasPriceManager: GasPriceManager
 
     constructor(
         entryPoint: Address,
@@ -138,7 +138,7 @@ export class RpcHandler implements IRpcEndpoint {
         environment: Environment,
         compressionHandler: CompressionHandler | null,
         noEip1559Support: boolean,
-        gasPriceManager: InterfaceGasPriceManager,
+        gasPriceManager: GasPriceManager,
         dangerousSkipUserOperationValidation = false
     ) {
         this.entryPoint = entryPoint

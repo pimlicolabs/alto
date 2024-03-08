@@ -8,11 +8,6 @@ import { type Logger, maxBigInt, minBigInt } from "@alto/utils"
 import * as chains from "viem/chains"
 import * as sentry from "@sentry/node"
 
-export interface InterfaceGasPriceManager {
-    getGasPrice(): Promise<GasPriceParameters>
-    validateGasPrice(gasPrice: GasPriceParameters): void
-}
-
 enum ChainId {
     Goerli = 5,
     Polygon = 137,
@@ -33,7 +28,7 @@ function getGasStationUrl(chainId: ChainId.Polygon | ChainId.Mumbai): string {
     }
 }
 
-export class GasPriceManager implements InterfaceGasPriceManager {
+export class GasPriceManager {
     private chain: Chain
     private publicClient: PublicClient
     private noEip1559Support: boolean
@@ -335,13 +330,13 @@ export class GasPriceManager implements InterfaceGasPriceManager {
         })
     }
 
-    public async getGasPrice(): Promise<GasPriceParameters> {
-        let maxFeeFloor = 0n
-        let maxPriorityFeeFloor = 0n
+    private async innerGetGasPrice(): Promise<GasPriceParameters> {
+        let maxFeePerGas = 0n
+        let maxPriorityFeePerGas = 0n
 
         if (this.chain.id === chains.dfk.id) {
-            maxFeeFloor = 5_000_000_000n
-            maxPriorityFeeFloor = 5_000_000_000n
+            maxFeePerGas = 5_000_000_000n
+            maxPriorityFeePerGas = 5_000_000_000n
         }
 
         if (
@@ -354,20 +349,17 @@ export class GasPriceManager implements InterfaceGasPriceManager {
                     maxFeePerGas: polygonEstimate.maxFeePerGas,
                     maxPriorityFeePerGas: polygonEstimate.maxPriorityFeePerGas
                 })
-                this.saveGasPrice(
-                    {
-                        maxFeePerGas: maxBigInt(
-                            gasPrice.maxFeePerGas,
-                            maxFeeFloor
-                        ),
-                        maxPriorityFeePerGas: maxBigInt(
-                            gasPrice.maxPriorityFeePerGas,
-                            maxPriorityFeeFloor
-                        )
-                    },
-                    Date.now()
-                )
-                return gasPrice
+
+                return {
+                    maxFeePerGas: maxBigInt(
+                        gasPrice.maxFeePerGas,
+                        maxFeePerGas
+                    ),
+                    maxPriorityFeePerGas: maxBigInt(
+                        gasPrice.maxPriorityFeePerGas,
+                        maxPriorityFeePerGas
+                    )
+                }
             }
         }
 
@@ -375,33 +367,40 @@ export class GasPriceManager implements InterfaceGasPriceManager {
             const gasPrice = this.bumpTheGasPrice(
                 await this.getNoEip1559SupportGasPrice()
             )
-            this.saveGasPrice(
-                {
-                    maxFeePerGas: maxBigInt(gasPrice.maxFeePerGas, maxFeeFloor),
-                    maxPriorityFeePerGas: maxBigInt(
-                        gasPrice.maxPriorityFeePerGas,
-                        maxPriorityFeeFloor
-                    )
-                },
-                Date.now()
-            )
-            return gasPrice
+            return {
+                maxFeePerGas: maxBigInt(gasPrice.maxFeePerGas, maxFeePerGas),
+                maxPriorityFeePerGas: maxBigInt(
+                    gasPrice.maxPriorityFeePerGas,
+                    maxPriorityFeePerGas
+                )
+            }
         }
 
-        const { maxFeePerGas, maxPriorityFeePerGas } =
-            await this.estimateGasPrice()
+        const estimatedPrice = await this.estimateGasPrice()
+
+        maxFeePerGas = estimatedPrice.maxFeePerGas
+        maxPriorityFeePerGas = estimatedPrice.maxPriorityFeePerGas
 
         const gasPrice = this.bumpTheGasPrice({
             maxFeePerGas,
             maxPriorityFeePerGas
         })
+        return {
+            maxFeePerGas: maxBigInt(gasPrice.maxFeePerGas, maxFeePerGas),
+            maxPriorityFeePerGas: maxBigInt(
+                gasPrice.maxPriorityFeePerGas,
+                maxPriorityFeePerGas
+            )
+        }
+    }
+
+    public async getGasPrice(): Promise<GasPriceParameters> {
+        const gasPrice = await this.innerGetGasPrice()
+
         this.saveGasPrice(
             {
-                maxFeePerGas: maxBigInt(gasPrice.maxFeePerGas, maxFeeFloor),
-                maxPriorityFeePerGas: maxBigInt(
-                    gasPrice.maxPriorityFeePerGas,
-                    maxPriorityFeeFloor
-                )
+                maxFeePerGas: gasPrice.maxFeePerGas,
+                maxPriorityFeePerGas: gasPrice.maxPriorityFeePerGas
             },
             Date.now()
         )

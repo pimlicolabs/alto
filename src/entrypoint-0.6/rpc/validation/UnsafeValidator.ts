@@ -1,4 +1,4 @@
-import type { InterfaceGasPriceManager, Metrics } from "@alto/utils"
+import type { GasPriceManager, Metrics } from "@alto/utils"
 import {
     type Address,
     EntryPointAbi,
@@ -140,7 +140,7 @@ export class UnsafeValidator implements InterfaceValidator {
     disableExpirationCheck: boolean
     apiVersion: ApiVersion
     chainId: number
-    gasPriceManager: InterfaceGasPriceManager
+    gasPriceManager: GasPriceManager
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
@@ -149,7 +149,7 @@ export class UnsafeValidator implements InterfaceValidator {
         metrics: Metrics,
         utilityWallet: Account,
         apiVersion: ApiVersion,
-        gasPriceManager: InterfaceGasPriceManager,
+        gasPriceManager: GasPriceManager,
         usingTenderly = false,
         balanceOverrideEnabled = false,
         disableExpirationCheck = false

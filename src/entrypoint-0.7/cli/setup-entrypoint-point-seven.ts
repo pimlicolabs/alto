@@ -1,4 +1,4 @@
-import type { InterfaceGasPriceManager, Logger } from "@alto/utils"
+import type { GasPriceManager, Logger } from "@alto/utils"
 import type { IBundlerArgs } from "@alto/cli"
 import type { Metrics } from "@alto/utils"
 import {
@@ -68,7 +68,7 @@ const getValidator = ({
     logger: Logger
     senderManager: SenderManager
     metrics: Metrics
-    gasPriceManager: InterfaceGasPriceManager
+    gasPriceManager: GasPriceManager
 }): InterfaceValidator => {
     if (!parsedArgs.entryPointSimulationsAddress) {
         throw new Error("entryPointSimulationsAddress is required for v0.7")
@@ -186,7 +186,7 @@ const getExecutor = ({
     logger: Logger
     metrics: Metrics
     compressionHandler: CompressionHandler | null
-    gasPriceManager: InterfaceGasPriceManager
+    gasPriceManager: GasPriceManager
 }): InterfaceExecutor => {
     return new BasicExecutor(
         client,
@@ -227,7 +227,7 @@ const getExecutorManager = ({
     parsedArgs: IBundlerArgs
     logger: Logger
     metrics: Metrics
-    gasPriceManager: InterfaceGasPriceManager
+    gasPriceManager: GasPriceManager
 }) => {
     return new ExecutorManager(
         executor,
@@ -297,7 +297,7 @@ const getRpcHandler = ({
     logger: Logger
     metrics: Metrics
     compressionHandler: CompressionHandler | null
-    gasPriceManager: InterfaceGasPriceManager
+    gasPriceManager: GasPriceManager
 }) => {
     return new RpcHandler(
         parsedArgs.entryPoint,
@@ -372,7 +372,7 @@ export const setupEntryPointPointSeven = async ({
     registry: Registry
     metrics: Metrics
     senderManager: SenderManager
-    gasPriceManager: InterfaceGasPriceManager
+    gasPriceManager: GasPriceManager
 }) => {
     const validator = getValidator({
         client,

@@ -1,4 +1,4 @@
-import type { InterfaceGasPriceManager, Metrics } from "@alto/utils"
+import type { GasPriceManager, Metrics } from "@alto/utils"
 import {
     type Address,
     type ExecutionResult,
@@ -101,14 +101,14 @@ export class UnsafeValidator implements InterfaceValidator {
     apiVersion: ApiVersion
     chainId: number
     entryPointSimulationsAddress: Address
-    gasPriceManager: InterfaceGasPriceManager
+    gasPriceManager: GasPriceManager
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
         entryPoint: Address,
         logger: Logger,
         metrics: Metrics,
-        gasPriceManager: InterfaceGasPriceManager,
+        gasPriceManager: GasPriceManager,
         utilityWallet: Account,
         apiVersion: ApiVersion,
         entryPointSimulationsAddress: Address,

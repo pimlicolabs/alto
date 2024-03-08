@@ -1,4 +1,4 @@
-import type { Metrics, Logger, InterfaceGasPriceManager } from "@alto/utils"
+import type { Metrics, Logger, GasPriceManager } from "@alto/utils"
 import type { InterfaceReputationManager } from "@entrypoint-0.6/mempool"
 import {
     type Address,
@@ -121,7 +121,7 @@ export class BasicExecutor implements IExecutor {
     useUserOperationGasLimitsForSubmission: boolean
     reputationManager: InterfaceReputationManager
     compressionHandler: CompressionHandler | null
-    gasPriceManager: InterfaceGasPriceManager
+    gasPriceManager: GasPriceManager
     mutex: Mutex
 
     constructor(
@@ -133,7 +133,7 @@ export class BasicExecutor implements IExecutor {
         logger: Logger,
         metrics: Metrics,
         compressionHandler: CompressionHandler | null,
-        gasPriceManager: InterfaceGasPriceManager,
+        gasPriceManager: GasPriceManager,
         simulateTransaction = false,
         noEip1559Support = false,
         customGasLimitForEstimation?: bigint,

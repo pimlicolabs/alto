@@ -1,4 +1,4 @@
-import type { InterfaceGasPriceManager, Logger, Metrics } from "@alto/utils"
+import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
 import {
     type Address,
     CallEngineAbi,
@@ -38,7 +38,7 @@ export class SenderManager {
     private noEip1559Support: boolean
     private semaphore: Semaphore
     private apiVersion: ApiVersion
-    private gasPriceManager: InterfaceGasPriceManager
+    private gasPriceManager: GasPriceManager
 
     constructor(
         wallets: Account[],
@@ -47,7 +47,7 @@ export class SenderManager {
         metrics: Metrics,
         noEip1559Support: boolean,
         apiVersion: ApiVersion,
-        gasPriceManager: InterfaceGasPriceManager,
+        gasPriceManager: GasPriceManager,
         maxSigners?: number
     ) {
         if (maxSigners !== undefined && wallets.length > maxSigners) {

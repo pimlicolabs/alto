@@ -26,7 +26,7 @@ import {
     bytesToHex
 } from "viem"
 import * as chains from "viem/chains"
-import type { InterfaceGasPriceManager, Logger } from "@alto/utils"
+import type { GasPriceManager, Logger } from "@alto/utils"
 
 export interface GasOverheads {
     /**
@@ -175,7 +175,7 @@ export async function calcPreVerificationGas(
     entryPoint: Address,
     chainId: number,
     logger: Logger,
-    gasPriceManager: InterfaceGasPriceManager,
+    gasPriceManager: GasPriceManager,
     overheads?: GasOverheads
 ): Promise<bigint> {
     let preVerificationGas = calcDefaultPreVerificationGas(
@@ -201,7 +201,6 @@ export async function calcPreVerificationGas(
             userOperation,
             entryPoint,
             preVerificationGas,
-            logger,
             gasPriceManager
         )
     } else if (
@@ -325,8 +324,7 @@ export async function calcOptimismPreVerificationGas(
     op: UserOperation,
     entryPoint: Address,
     staticFee: bigint,
-    logger: Logger,
-    gasPriceManager: InterfaceGasPriceManager
+    gasPriceManager: GasPriceManager
 ) {
     const randomDataUserOp: UserOperation = {
         ...op

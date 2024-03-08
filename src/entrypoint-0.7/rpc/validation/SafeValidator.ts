@@ -1,4 +1,4 @@
-import type { InterfaceGasPriceManager, Metrics } from "@alto/utils"
+import type { GasPriceManager, Metrics } from "@alto/utils"
 import type { SenderManager } from "@alto/executor"
 import {
     type Address,
@@ -60,7 +60,7 @@ export class SafeValidator
         entryPoint: Address,
         logger: Logger,
         metrics: Metrics,
-        gasPriceManager: InterfaceGasPriceManager,
+        gasPriceManager: GasPriceManager,
         utilityWallet: Account,
         apiVersion: ApiVersion,
         entryPointSimulationsAddress: Address,

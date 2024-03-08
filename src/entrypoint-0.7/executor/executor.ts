@@ -2,7 +2,7 @@ import {
     type Metrics,
     type Logger,
     maxBigInt,
-    type InterfaceGasPriceManager
+    type GasPriceManager
 } from "@alto/utils"
 import type { InterfaceReputationManager } from "@entrypoint-0.7/mempool"
 import {
@@ -132,7 +132,7 @@ export class BasicExecutor implements InterfaceExecutor {
     useUserOperationGasLimitsForSubmission: boolean
     reputationManager: InterfaceReputationManager
     compressionHandler: CompressionHandler | null
-    gasPriceManager: InterfaceGasPriceManager
+    gasPriceManager: GasPriceManager
 
     mutex: Mutex
 
@@ -145,7 +145,7 @@ export class BasicExecutor implements InterfaceExecutor {
         logger: Logger,
         metrics: Metrics,
         compressionHandler: CompressionHandler | null,
-        gasPriceManager: InterfaceGasPriceManager,
+        gasPriceManager: GasPriceManager,
         simulateTransaction = false,
         noEip1559Support = false,
         customGasLimitForEstimation?: bigint,
