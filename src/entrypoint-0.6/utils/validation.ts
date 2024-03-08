@@ -316,6 +316,13 @@ const getL1FeeAbi = [
         ],
         stateMutability: "nonpayable",
         type: "function"
+    },
+    {
+        inputs: [],
+        name: "l1BaseFee",
+        outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+        stateMutability: "view",
+        type: "function"
     }
 ] as const
 
@@ -368,15 +375,17 @@ export async function calcOptimismPreVerificationGas(
         serializedTx
     ])
 
-    const gasPrice = await gasPriceManager.getGasPrice()
+    const gasPrice = await opGasPriceOracle.read.l1BaseFee()
 
-    const l2MaxFee = gasPrice.maxFeePerGas
-    const l2PriorityFee =
-        latestBlock.baseFeePerGas + gasPrice.maxPriorityFeePerGas
+    // const gasPrice = await gasPriceManager.getGasPrice()
 
-    const l2price = l2MaxFee < l2PriorityFee ? l2MaxFee : l2PriorityFee
+    // const l2MaxFee = gasPrice.maxFeePerGas
+    // const l2PriorityFee =
+    //     latestBlock.baseFeePerGas + gasPrice.maxPriorityFeePerGas
 
-    return staticFee + l1Fee / l2price
+    // const l2price = l2MaxFee < l2PriorityFee ? l2MaxFee : l2PriorityFee
+
+    return staticFee + l1Fee / gasPrice
 }
 
 const getArbitrumL1FeeAbi = [
