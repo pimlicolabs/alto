@@ -1,12 +1,12 @@
+import { maxBigInt, minBigInt, type Logger } from "@alto/utils"
 import {
+    RpcError,
     gasStationResult,
-    type GasPriceParameters,
-    RpcError
+    type GasPriceParameters
 } from "@entrypoint-0.7/types"
-import { parseGwei, type Chain, type PublicClient } from "viem"
-import { type Logger, maxBigInt, minBigInt } from "@alto/utils"
-import * as chains from "viem/chains"
 import * as sentry from "@sentry/node"
+import { parseGwei, type Chain, type PublicClient } from "viem"
+import * as chains from "viem/chains"
 
 enum ChainId {
     Goerli = 5,
@@ -337,6 +337,11 @@ export class GasPriceManager {
         if (this.chain.id === chains.dfk.id) {
             maxFeePerGas = 5_000_000_000n
             maxPriorityFeePerGas = 5_000_000_000n
+
+            return {
+                maxFeePerGas,
+                maxPriorityFeePerGas
+            }
         }
 
         if (
