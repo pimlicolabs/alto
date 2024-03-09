@@ -149,6 +149,19 @@ export class GasPriceManager {
             }
         }
 
+        if (this.chain.id === chains.dfk.id) {
+            const maxFeePerGas = maxBigInt(5_000_000_000n, result.maxFeePerGas)
+            const maxPriorityFeePerGas = maxBigInt(
+                5_000_000_000n,
+                result.maxPriorityFeePerGas
+            )
+
+            return {
+                maxFeePerGas,
+                maxPriorityFeePerGas
+            }
+        }
+
         return result
     }
 
@@ -333,16 +346,6 @@ export class GasPriceManager {
     private async innerGetGasPrice(): Promise<GasPriceParameters> {
         let maxFeePerGas = 0n
         let maxPriorityFeePerGas = 0n
-
-        if (this.chain.id === chains.dfk.id) {
-            maxFeePerGas = 5_000_000_000n
-            maxPriorityFeePerGas = 5_000_000_000n
-
-            return {
-                maxFeePerGas,
-                maxPriorityFeePerGas
-            }
-        }
 
         if (
             this.chain.id === chains.polygon.id ||
