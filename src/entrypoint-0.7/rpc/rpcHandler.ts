@@ -322,9 +322,7 @@ export class RpcHandler implements InterfaceRpcEndpoint {
             this.publicClient,
             userOperation,
             entryPoint,
-            this.chainId,
-            this.logger,
-            this.gasPriceManager
+            this.chainId
         )
 
         if (

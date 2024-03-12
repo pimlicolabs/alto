@@ -309,9 +309,7 @@ export class RpcHandler implements IRpcEndpoint {
             this.publicClient,
             userOperation,
             entryPoint,
-            this.chainId,
-            this.logger,
-            this.gasPriceManager
+            this.chainId
         )
 
         let verificationGasLimit: bigint
