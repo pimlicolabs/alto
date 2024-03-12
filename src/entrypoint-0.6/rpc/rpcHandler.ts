@@ -321,8 +321,7 @@ export class RpcHandler implements IRpcEndpoint {
             userOperation.callGasLimit = 10_000_000n
 
             if (this.chainId === chains.base.id) {
-                userOperation.verificationGasLimit = 2_500_000n
-                userOperation.callGasLimit = 2_500_000n
+                userOperation.verificationGasLimit = 5_000_000n
             }
 
             if (
