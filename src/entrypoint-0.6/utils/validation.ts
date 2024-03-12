@@ -26,7 +26,6 @@ import {
     bytesToHex
 } from "viem"
 import * as chains from "viem/chains"
-import type { GasPriceManager, Logger } from "@alto/utils"
 
 export interface GasOverheads {
     /**
@@ -174,8 +173,6 @@ export async function calcPreVerificationGas(
     userOperation: UserOperation,
     entryPoint: Address,
     chainId: number,
-    logger: Logger,
-    gasPriceManager: GasPriceManager,
     overheads?: GasOverheads
 ): Promise<bigint> {
     let preVerificationGas = calcDefaultPreVerificationGas(
@@ -200,8 +197,7 @@ export async function calcPreVerificationGas(
             publicClient,
             userOperation,
             entryPoint,
-            preVerificationGas,
-            gasPriceManager
+            preVerificationGas
         )
     } else if (
         chainId === chains.arbitrum.id ||
@@ -330,8 +326,7 @@ export async function calcOptimismPreVerificationGas(
     publicClient: PublicClient<Transport, Chain>,
     op: UserOperation,
     entryPoint: Address,
-    staticFee: bigint,
-    gasPriceManager: GasPriceManager
+    staticFee: bigint
 ) {
     const randomDataUserOp: UserOperation = {
         ...op
@@ -375,17 +370,12 @@ export async function calcOptimismPreVerificationGas(
         serializedTx
     ])
 
-    const gasPrice = await opGasPriceOracle.read.l1BaseFee()
+    const l2MaxFee = op.maxFeePerGas
+    const l2PriorityFee = latestBlock.baseFeePerGas + op.maxPriorityFeePerGas
 
-    // const gasPrice = await gasPriceManager.getGasPrice()
+    const l2price = l2MaxFee < l2PriorityFee ? l2MaxFee : l2PriorityFee
 
-    // const l2MaxFee = gasPrice.maxFeePerGas
-    // const l2PriorityFee =
-    //     latestBlock.baseFeePerGas + gasPrice.maxPriorityFeePerGas
-
-    // const l2price = l2MaxFee < l2PriorityFee ? l2MaxFee : l2PriorityFee
-
-    return staticFee + l1Fee / gasPrice
+    return staticFee + l1Fee / l2price
 }
 
 const getArbitrumL1FeeAbi = [
