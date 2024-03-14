@@ -837,13 +837,13 @@ export class RpcHandler implements IRpcEndpoint {
 
             if (userOperation.maxFeePerGas < minMaxFeePerGas) {
                 throw new RpcError(
-                    `maxFeePerGas must be at least ${minMaxFeePerGas} (current maxFeePerGas: ${gasPrice.maxFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
+                    `maxFeePerGas must be at least ${minMaxFeePerGas} (current maxFeePerGas: ${userOperation.maxFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
                 )
             }
 
             if (userOperation.maxPriorityFeePerGas < minMaxPriorityFeePerGas) {
                 throw new RpcError(
-                    `maxPriorityFeePerGas must be at least ${minMaxPriorityFeePerGas} (current maxPriorityFeePerGas: ${gasPrice.maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
+                    `maxPriorityFeePerGas must be at least ${minMaxPriorityFeePerGas} (current maxPriorityFeePerGas: ${userOperation.maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
                 )
             }
         }
