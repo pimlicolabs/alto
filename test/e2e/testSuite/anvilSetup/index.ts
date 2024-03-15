@@ -1,9 +1,9 @@
 import {
-    http,
     concat,
     createWalletClient,
     encodeAbiParameters,
-    getContract
+    getContract,
+    http
 } from "viem"
 import { foundry } from "viem/chains"
 import {
@@ -72,7 +72,9 @@ const setupCompressedEnvironment = async () => {
     const perOpInflator = getContract({
         address: PER_OP_INFLATOR_ADDRESS,
         abi: perOpInflatorAbi,
-        walletClient
+        client: {
+            wallet: walletClient
+        }
     })
 
     await perOpInflator.write.registerOpInflator([
@@ -85,7 +87,9 @@ const setupCompressedEnvironment = async () => {
     const bundleBulker = getContract({
         address: BUNDLE_BULKER_ADDRESS,
         abi: bundleBulkerAbi,
-        walletClient
+        client: {
+            wallet: walletClient
+        }
     })
 
     await bundleBulker.write.registerInflator([4337, PER_OP_INFLATOR_ADDRESS])

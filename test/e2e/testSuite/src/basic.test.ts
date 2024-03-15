@@ -1,3 +1,4 @@
+import { ENTRYPOINT_ADDRESS_V06 } from "permissionless"
 import { createPimlicoBundlerClient } from "permissionless/clients/pimlico"
 import {
     Hex,
@@ -37,7 +38,8 @@ import {
 let anvilCheckpoint: Hex | null = null
 
 const pimlicoClient = createPimlicoBundlerClient({
-    transport: http(altoEndpoint)
+    transport: http(altoEndpoint),
+    entryPoint: ENTRYPOINT_ADDRESS_V06
 })
 const publicClient = createPublicClient({
     transport: http(anvilEndpoint),
