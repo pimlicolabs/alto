@@ -1,39 +1,38 @@
-import type { Metrics } from "@alto/utils"
+import type { Logger, Metrics } from "@alto/utils"
 // import { MongoClient, Collection, Filter } from "mongodb"
 // import { PublicClient, getContract } from "viem"
 // import { EntryPointAbi } from "../types/EntryPoint"
+import type { HexData32, UnPackedUserOperation } from "@entrypoint-0.7/types"
 import {
     EntryPointAbi,
+    RpcError,
+    ValidationErrors,
+    deriveUserOperation,
     type InterfaceValidator,
     type MempoolUserOperation,
     type ReferencedCodeHashes,
-    RpcError,
     type StorageMap,
     type SubmittedUserOperation,
     type TransactionInfo,
     type UserOperationInfo,
-    ValidationErrors,
-    type ValidationResult,
-    deriveUserOperation
+    type ValidationResult
 } from "@entrypoint-0.7/types"
-import type { HexData32, UnPackedUserOperation } from "@entrypoint-0.7/types"
-import type { Logger } from "@alto/utils"
 import {
     getUserOperationHash,
     toPackedUserOperation
 } from "@entrypoint-0.7/utils"
 import {
+    getAddress,
+    getContract,
     type Address,
     type Chain,
     type PublicClient,
-    type Transport,
-    getAddress,
-    getContract
+    type Transport
 } from "viem"
 import type { Monitor } from "./monitoring"
 import {
-    type InterfaceReputationManager,
-    ReputationStatuses
+    ReputationStatuses,
+    type InterfaceReputationManager
 } from "./reputationManager"
 import { MemoryStore } from "./store"
 import type { Mempool } from "./types"
@@ -444,7 +443,9 @@ export class MemoryMempool implements Mempool {
                 const entryPointContract = getContract({
                     abi: EntryPointAbi,
                     address: this.entryPointAddress,
-                    publicClient: this.publicClient
+                    client: {
+                        public: this.publicClient
+                    }
                 })
                 paymasterDeposit[paymaster] =
                     await entryPointContract.read.balanceOf([paymaster])

@@ -1,16 +1,8 @@
 import * as sentry from "@sentry/node"
-import dotenv from "dotenv"
 import yargs from "yargs"
 import { hideBin } from "yargs/helpers"
 import { bundlerCommand, bundlerOptions } from "./config"
 import { registerCommandToYargs } from "./util"
-
-// Load environment variables from .env file
-if (process.env.DOTENV_CONFIG_PATH) {
-    dotenv.config({ path: process.env.DOTENV_CONFIG_PATH })
-} else {
-    dotenv.config()
-}
 
 if (process.env.SENTRY_DSN) {
     sentry.init({
@@ -28,7 +20,7 @@ export const yarg = yargs(
 )
 
 const topBanner = `🏔️ Alto: TypeScript ERC-4337 Bundler.
-  * by Pimlico, 2023`
+  * by Pimlico, 2024`
 const bottomBanner = `📖 For more information, check the our docs:
   * https://docs.pimlico.io/
 `

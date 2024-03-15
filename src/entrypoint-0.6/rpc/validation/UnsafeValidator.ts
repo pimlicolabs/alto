@@ -1,38 +1,41 @@
-import type { GasPriceManager, Metrics } from "@alto/utils"
+import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
+import type {
+    ApiVersion,
+    InterfaceValidator,
+    StateOverrides,
+    ValidationResult
+} from "@entrypoint-0.6/types"
 import {
-    type Address,
     EntryPointAbi,
     ExecutionErrors,
+    RpcError,
+    ValidationErrors,
+    entryPointErrorsSchema,
+    entryPointExecutionErrorSchema,
+    hexDataSchema,
+    type Address,
     type ExecutionResult,
     type ReferencedCodeHashes,
-    RpcError,
     type StorageMap,
     type UserOperation,
-    ValidationErrors,
-    type ValidationResultWithAggregation,
-    entryPointErrorsSchema,
-    entryPointExecutionErrorSchema
+    type ValidationResultWithAggregation
 } from "@entrypoint-0.6/types"
-import type { ValidationResult } from "@entrypoint-0.6/types"
-import { hexDataSchema } from "@entrypoint-0.6/types"
-import type { InterfaceValidator } from "@entrypoint-0.6/types"
-import type { StateOverrides } from "@entrypoint-0.6/types"
-import type { ApiVersion } from "@entrypoint-0.6/types"
-import type { Logger } from "@alto/utils"
-import { calcPreVerificationGas } from "@entrypoint-0.6/utils"
-import { calcVerificationGasAndCallGasLimit } from "@entrypoint-0.6/utils"
+import {
+    calcPreVerificationGas,
+    calcVerificationGasAndCallGasLimit
+} from "@entrypoint-0.6/utils"
 import * as sentry from "@sentry/node"
 import {
-    type Account,
     BaseError,
-    type Chain,
     ContractFunctionExecutionError,
-    type PublicClient,
-    type Transport,
     decodeErrorResult,
     encodeFunctionData,
     getContract,
-    zeroAddress
+    zeroAddress,
+    type Chain,
+    type PrivateKeyAccount,
+    type PublicClient,
+    type Transport
 } from "viem"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
@@ -134,7 +137,7 @@ export class UnsafeValidator implements InterfaceValidator {
     entryPoint: Address
     logger: Logger
     metrics: Metrics
-    utilityWallet: Account
+    utilityWallet: PrivateKeyAccount
     usingTenderly: boolean
     balanceOverrideEnabled: boolean
     disableExpirationCheck: boolean
@@ -147,7 +150,7 @@ export class UnsafeValidator implements InterfaceValidator {
         entryPoint: Address,
         logger: Logger,
         metrics: Metrics,
-        utilityWallet: Account,
+        utilityWallet: PrivateKeyAccount,
         apiVersion: ApiVersion,
         gasPriceManager: GasPriceManager,
         usingTenderly = false,
@@ -174,7 +177,9 @@ export class UnsafeValidator implements InterfaceValidator {
         const entryPointContract = getContract({
             address: this.entryPoint,
             abi: EntryPointAbi,
-            publicClient: this.publicClient
+            client: {
+                public: this.publicClient
+            }
         })
 
         if (this.usingTenderly) {
@@ -269,7 +274,9 @@ export class UnsafeValidator implements InterfaceValidator {
         const entryPointContract = getContract({
             address: this.entryPoint,
             abi: EntryPointAbi,
-            publicClient: this.publicClient
+            client: {
+                public: this.publicClient
+            }
         })
 
         if (this.usingTenderly) {

@@ -1,45 +1,45 @@
-import type { Metrics, Logger, GasPriceManager } from "@alto/utils"
+import type { SenderManager } from "@alto/executor"
+import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
 import type { InterfaceReputationManager } from "@entrypoint-0.6/mempool"
 import {
+    EntryPointAbi,
+    deriveUserOperation,
     type Address,
     type BundleResult,
     type CompressedUserOperation,
-    EntryPointAbi,
     type HexData32,
     type TransactionInfo,
     type UserOperation,
-    type UserOperationWithHash,
-    deriveUserOperation
+    type UserOperationWithHash
 } from "@entrypoint-0.6/types"
 import {
-    type CompressionHandler,
     getUserOperationHash,
     maxBigInt,
-    parseViemError
+    parseViemError,
+    type CompressionHandler
 } from "@entrypoint-0.6/utils"
 import * as sentry from "@sentry/node"
 import { Mutex } from "async-mutex"
 import {
-    type Account,
-    type Chain,
     FeeCapTooLowError,
     InsufficientFundsError,
     IntrinsicGasTooLowError,
     NonceTooLowError,
+    encodeFunctionData,
+    getContract,
+    type Account,
+    type Chain,
     type PublicClient,
     type Transport,
-    type WalletClient,
-    encodeFunctionData,
-    getContract
+    type WalletClient
 } from "viem"
-import type { SenderManager } from "@alto/executor"
 import {
-    type CompressedFilterOpsAndEstimateGasParams,
-    type DefaultFilterOpsAndEstimateGasParams,
     createCompressedCalldata,
     filterOpsAndEstimateGas,
     flushStuckTransaction,
-    simulatedOpsToResults
+    simulatedOpsToResults,
+    type CompressedFilterOpsAndEstimateGasParams,
+    type DefaultFilterOpsAndEstimateGasParams
 } from "./utils"
 
 export interface GasEstimateResult {
@@ -217,8 +217,10 @@ export class BasicExecutor implements IExecutor {
             const ep = getContract({
                 abi: EntryPointAbi,
                 address: this.entryPoint,
-                publicClient: this.publicClient,
-                walletClient: this.walletClient
+                client: {
+                    public: this.publicClient,
+                    wallet: this.walletClient
+                }
             })
 
             callContext = {
@@ -466,8 +468,10 @@ export class BasicExecutor implements IExecutor {
         const ep = getContract({
             abi: EntryPointAbi,
             address: entryPoint,
-            publicClient: this.publicClient,
-            walletClient: this.walletClient
+            client: {
+                public: this.publicClient,
+                wallet: this.walletClient
+            }
         })
 
         let childLogger = this.logger.child({

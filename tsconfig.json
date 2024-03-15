@@ -1,0 +1,46 @@
+{
+    "compilerOptions": {
+        "outDir": "lib",
+        "target": "esnext",
+        "module": "ES2022",
+        "esModuleInterop": true,
+        "forceConsistentCasingInFileNames": true,
+        "strict": true,
+        "noImplicitReturns": true,
+        "noUnusedLocals": true,
+        "preserveConstEnums": true,
+        "removeComments": false,
+        "resolveJsonModule": true,
+        "sourceMap": true,
+        "skipLibCheck": true,
+        "declaration": true,
+        "declarationMap": true,
+        "moduleResolution": "node",
+        "paths": {
+            "@alto/cli": ["./src/cli"],
+            "@alto/utils": ["./src/utils"],
+            "@alto/executor": ["./src/executor"],
+            "@alto/types": ["./src/types"],
+            "@entrypoint-0.6/cli": ["./src/entrypoint-0.6/cli"],
+            "@entrypoint-0.6/executor": ["./src/entrypoint-0.6/executor"],
+            "@entrypoint-0.6/types": ["./src/entrypoint-0.6/types"],
+            "@entrypoint-0.6/utils": ["./src/entrypoint-0.6/utils"],
+            "@entrypoint-0.6/mempool": ["./src/entrypoint-0.6/mempool"],
+            "@entrypoint-0.6/rpc": ["./src/entrypoint-0.6/rpc"],
+            "@entrypoint-0.7/cli": ["./src/entrypoint-0.7/cli"],
+            "@entrypoint-0.7/executor": ["./src/entrypoint-0.7/executor"],
+            "@entrypoint-0.7/types": ["./src/entrypoint-0.7/types"],
+            "@entrypoint-0.7/utils": ["./src/entrypoint-0.7/utils"],
+            "@entrypoint-0.7/mempool": ["./src/entrypoint-0.7/mempool"],
+            "@entrypoint-0.7/rpc": ["./src/entrypoint-0.7/rpc"],
+            "@entrypoint-0.7/gasPriceManager": [
+                "./src/entrypoint-0.7/gasPriceManager"
+            ]
+        }
+    },
+    "include": ["./**/*", "./utils/metrics.ts", "./cli", "./utils/logger.ts"],
+    "exclude": ["./**/*.test.ts", "./lib/*", "./node_modules/*", "./test/*", "./contracts/*"],
+    "tsc-alias": {
+        "resolveFullPaths": true,
+    }
+}

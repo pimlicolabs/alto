@@ -1,12 +1,13 @@
 import type { Logger } from "@alto/utils"
 import {
-    type HttpTransport,
-    type HttpTransportConfig,
     RpcRequestError,
     UrlRequiredError,
-    createTransport
+    createTransport,
+    type HttpTransport,
+    type HttpTransportConfig
 } from "viem"
-import { type RpcRequest, rpc } from "viem/utils"
+import type { RpcRequest } from "viem/_types/types/rpc"
+import { rpc } from "viem/utils"
 
 export function customTransport(
     /** URL of the JSON-RPC API. Defaults to the chain's public RPC URL. */

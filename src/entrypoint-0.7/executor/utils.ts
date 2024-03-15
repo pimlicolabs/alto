@@ -1,15 +1,15 @@
+import type { Logger } from "@alto/utils"
 import type { InterfaceReputationManager } from "@entrypoint-0.7/mempool"
 import {
-    type BundleResult,
-    type CompressedUserOperation,
     EntryPointAbi,
-    type TransactionInfo,
-    type UserOperationWithHash,
     deriveUserOperation,
     failedOpErrorSchema,
-    type UnPackedUserOperation
+    type BundleResult,
+    type CompressedUserOperation,
+    type TransactionInfo,
+    type UnPackedUserOperation,
+    type UserOperationWithHash
 } from "@entrypoint-0.7/types"
-import type { Logger } from "@alto/utils"
 import {
     parseViemError,
     toPackedUserOperation,
@@ -17,21 +17,21 @@ import {
 } from "@entrypoint-0.7/utils"
 import * as sentry from "@sentry/node"
 import {
-    type Account,
-    type Address,
-    type Chain,
     ContractFunctionRevertedError,
     EstimateGasExecutionError,
     FeeCapTooLowError,
+    concat,
+    decodeErrorResult,
+    hexToBytes,
+    numberToHex,
+    type Account,
+    type Address,
+    type Chain,
     type GetContractReturnType,
     type Hex,
     type PublicClient,
     type Transport,
-    type WalletClient,
-    concat,
-    decodeErrorResult,
-    hexToBytes,
-    numberToHex
+    type WalletClient
 } from "viem"
 
 export function simulatedOpsToResults(
@@ -67,7 +67,10 @@ export function simulatedOpsToResults(
 }
 
 export type DefaultFilterOpsAndEstimateGasParams = {
-    ep: GetContractReturnType<typeof EntryPointAbi, PublicClient, WalletClient>
+    ep: GetContractReturnType<
+        typeof EntryPointAbi,
+        { public: PublicClient; wallet: WalletClient }
+    >
     type: "default"
 }
 

@@ -1,21 +1,21 @@
 import {
-    type Address,
     EntryPointAbi,
-    type HexData,
-    UnPackedUserOperation
+    SimpleAccountFactoryAbi,
+    UnPackedUserOperation,
+    type Address,
+    type HexData
 } from "@entrypoint-0.7/types"
-import { SimpleAccountFactoryAbi } from "@entrypoint-0.7/types"
 import {
-    type Clients,
     getUserOpHash,
-    parseSenderAddressError
+    parseSenderAddressError,
+    type Clients
 } from "@entrypoint-0.7/utils"
 import {
-    type Account,
     concat,
     encodeFunctionData,
     getContract,
-    parseEther
+    parseEther,
+    type Account
 } from "viem"
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import { foundry } from "viem/chains"
@@ -46,7 +46,9 @@ export async function getSender(
     const entryPointContract = getContract({
         address: entryPoint,
         abi: EntryPointAbi,
-        publicClient: clients.public
+        client: {
+            public: clients.public
+        }
     })
 
     const sender = await entryPointContract.simulate

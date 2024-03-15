@@ -1,10 +1,12 @@
-import type { Metrics, Logger, GasPriceManager } from "@alto/utils"
+import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
 import type {
     InterfaceReputationManager,
     Mempool,
     Monitor
 } from "@entrypoint-0.6/mempool"
 import {
+    deriveUserOperation,
+    isCompressedType,
     type BundleResult,
     type BundlingMode,
     type CompressedUserOperation,
@@ -12,9 +14,7 @@ import {
     type MempoolUserOperation,
     type SubmittedUserOperation,
     type TransactionInfo,
-    type UserOperation,
-    deriveUserOperation,
-    isCompressedType
+    type UserOperation
 } from "@entrypoint-0.6/types"
 import { transactionIncluded } from "@entrypoint-0.6/utils"
 import type {
@@ -52,7 +52,7 @@ export class ExecutorManager {
     private reputationManager: InterfaceReputationManager
     private unWatch: WatchBlocksReturnType | undefined
     private currentlyHandlingBlock = false
-    private timer?: NodeJS.Timer
+    private timer?: Timer
     private bundlerFrequency: number
     private gasPriceManager: GasPriceManager
 

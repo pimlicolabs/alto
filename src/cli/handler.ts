@@ -1,28 +1,28 @@
+import { SenderManager } from "@alto/executor"
 import {
-    type Logger,
+    GasPriceManager,
     createMetrics,
     initDebugLogger,
     initProductionLogger,
-    GasPriceManager
+    type Logger
 } from "@alto/utils"
+import { setupEntryPointPointSix } from "@entrypoint-0.6/cli"
+import { setupEntryPointPointSeven } from "@entrypoint-0.7/cli"
 import { Registry } from "prom-client"
 import {
+    createPublicClient,
+    createWalletClient,
     type Chain,
     type PublicClient,
-    type Transport,
-    createPublicClient,
-    createWalletClient
+    type Transport
 } from "viem"
 import { fromZodError } from "zod-validation-error"
 import {
+    bundlerArgsSchema,
     type IBundlerArgs,
-    type IBundlerArgsInput,
-    bundlerArgsSchema
+    type IBundlerArgsInput
 } from "./config"
 import { customTransport } from "./customTransport"
-import { setupEntryPointPointSix } from "@entrypoint-0.6/cli"
-import { SenderManager } from "@alto/executor"
-import { setupEntryPointPointSeven } from "@entrypoint-0.7/cli"
 
 const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
     // validate every arg, make type safe so if i add a new arg i have to validate it
@@ -87,7 +87,6 @@ export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
     const chain: Chain = {
         id: chainId,
         name: args.networkName,
-        network: args.networkName,
         nativeCurrency: {
             name: "ETH",
             symbol: "ETH",

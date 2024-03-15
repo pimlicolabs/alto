@@ -1,23 +1,23 @@
+import type { Logger } from "@alto/utils"
 import type { Mempool } from "@entrypoint-0.7/mempool"
 import {
     EntryPointAbi,
-    type MempoolUserOperation,
-    deriveUserOperation
+    deriveUserOperation,
+    type MempoolUserOperation
 } from "@entrypoint-0.7/types"
-import type { Logger } from "@alto/utils"
 import {
     getNonceKeyAndValue,
     getUserOperationHash,
     toPackedUserOperation
 } from "@entrypoint-0.7/utils"
 import {
+    getContract,
     type Address,
     type Chain,
     type Hash,
     type MulticallReturnType,
     type PublicClient,
-    type Transport,
-    getContract
+    type Transport
 } from "viem"
 
 type QueuedUserOperation = {
@@ -152,7 +152,9 @@ export class NonceQueuer {
             const entryPointContract = getContract({
                 abi: EntryPointAbi,
                 address: entryPoint,
-                publicClient: publicClient
+                client: {
+                    public: publicClient
+                }
             })
 
             results = await Promise.all(

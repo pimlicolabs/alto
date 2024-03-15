@@ -1,11 +1,11 @@
-import type { Metrics } from "@alto/utils"
+import type { Logger, Metrics } from "@alto/utils"
 import {
-    type JSONRPCResponse,
+    RpcError,
+    ValidationErrors,
     bundlerRequestSchema,
-    jsonRpcSchema
+    jsonRpcSchema,
+    type JSONRPCResponse
 } from "@entrypoint-0.6/types"
-import { RpcError, ValidationErrors } from "@entrypoint-0.6/types"
-import type { Logger } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import Fastify, {
     type FastifyBaseLogger,
@@ -93,7 +93,7 @@ export class Server {
 
         this.fastify.addHook("onResponse", (request, reply) => {
             const ignoredRoutes = ["/health", "/metrics"]
-            if (ignoredRoutes.includes(request.routeOptions.url)) {
+            if (ignoredRoutes.includes(request.routeOptions.url ?? "")) {
                 return
             }
 

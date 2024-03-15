@@ -1,4 +1,4 @@
-import type { GasPriceManager, Metrics } from "@alto/utils"
+import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
 import type { ExecutorManager, IExecutor } from "@entrypoint-0.6/executor"
 import type {
     InterfaceReputationManager,
@@ -42,7 +42,6 @@ import {
     type SupportedEntryPointsResponseResult,
     type UserOperation
 } from "@entrypoint-0.6/types"
-import type { Logger } from "@alto/utils"
 import {
     calcPreVerificationGas,
     calcVerificationGasAndCallGasLimit,
@@ -867,7 +866,9 @@ export class RpcHandler implements IRpcEndpoint {
         const entryPointContract = getContract({
             address: this.entryPoint,
             abi: EntryPointAbi,
-            publicClient: this.publicClient
+            client: {
+                public: this.publicClient
+            }
         })
 
         const [nonceKey, userOperationNonceValue] = getNonceKeyAndValue(
@@ -1006,7 +1007,9 @@ export class RpcHandler implements IRpcEndpoint {
         const inflatorContract = getContract({
             address: inflatorAddress,
             abi: IOpInflatorAbi,
-            publicClient: this.publicClient
+            client: {
+                public: this.publicClient
+            }
         })
 
         let inflatedOp: UserOperation
