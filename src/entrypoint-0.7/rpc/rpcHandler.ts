@@ -335,7 +335,8 @@ export class RpcHandler implements InterfaceRpcEndpoint {
             this.chainId === chains.opBNB.id ||
             this.chainId === chains.opBNBTestnet.id ||
             this.chainId === 957 ||
-            this.chainId === chains.arbitrum.id
+            this.chainId === chains.arbitrum.id ||
+            this.chainId === chains.arbitrumNova.id
         ) {
             // Optimism and Arbitrum have a pre verification gas limit dependent on the gas price
             // so we increase the requirement by 10% to incorporate the gas price
