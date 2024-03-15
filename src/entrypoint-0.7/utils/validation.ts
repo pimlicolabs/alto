@@ -1,12 +1,11 @@
 import {
-    type Address,
     EntryPointAbi,
     RpcError,
-    type UnPackedUserOperation,
-    type PackedUserOperation
+    type Address,
+    type PackedUserOperation,
+    type UnPackedUserOperation
 } from "@entrypoint-0.7/types"
 import {
-    type Chain,
     ContractFunctionExecutionError,
     ContractFunctionRevertedError,
     EstimateGasExecutionError,
@@ -14,9 +13,8 @@ import {
     InsufficientFundsError,
     IntrinsicGasTooLowError,
     NonceTooLowError,
-    type PublicClient,
     TransactionExecutionError,
-    type Transport,
+    bytesToHex,
     concat,
     encodeAbiParameters,
     getContract,
@@ -24,7 +22,9 @@ import {
     serializeTransaction,
     toBytes,
     toHex,
-    bytesToHex
+    type Chain,
+    type PublicClient,
+    type Transport
 } from "viem"
 import * as chains from "viem/chains"
 import { toPackedUserOperation } from "./userop"
@@ -378,7 +378,9 @@ export async function calcOptimismPreVerificationGas(
     const opGasPriceOracle = getContract({
         abi: getL1FeeAbi,
         address: "0x420000000000000000000000000000000000000F",
-        publicClient
+        client: {
+            public: publicClient
+        }
     })
 
     const { result: l1Fee } = await opGasPriceOracle.simulate.getL1Fee([
@@ -474,7 +476,9 @@ export async function calcArbitrumPreVerificationGas(
     const arbGasPriceOracle = getContract({
         abi: getArbitrumL1FeeAbi,
         address: precompileAddress,
-        publicClient
+        client: {
+            public: publicClient
+        }
     })
 
     const { result } = await arbGasPriceOracle.simulate.gasEstimateL1Component([

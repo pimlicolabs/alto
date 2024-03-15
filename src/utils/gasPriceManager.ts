@@ -106,7 +106,6 @@ export class GasPriceManager {
             chainId === chains.base.id ||
             chainId === chains.dfk.id ||
             chainId === chains.celoAlfajores.id ||
-            chainId === chains.celoCannoli.id ||
             chainId === chains.avalanche.id
         ) {
             return 111n
@@ -136,8 +135,7 @@ export class GasPriceManager {
 
         if (
             this.chain.id === chains.celo.id ||
-            this.chain.id === chains.celoAlfajores.id ||
-            this.chain.id === chains.celoCannoli.id
+            this.chain.id === chains.celoAlfajores.id
         ) {
             const maxFee = maxBigInt(
                 result.maxFeePerGas,

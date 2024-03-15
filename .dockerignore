@@ -5,7 +5,7 @@ docker-compose.yml
 
 # Tests
 src/**/test
-src/**/lib
+test
 
 # Other / artifacts
 **/.nyc_output

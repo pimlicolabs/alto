@@ -1,42 +1,43 @@
-import type { GasPriceManager, Metrics } from "@alto/utils"
 import type { SenderManager } from "@alto/executor"
+import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
+import type {
+    ApiVersion,
+    InterfaceValidator,
+    ValidationResult
+} from "@entrypoint-0.6/types"
 import {
-    type Address,
     CodeHashGetterAbi,
     CodeHashGetterBytecode,
     EntryPointAbi,
-    type ReferencedCodeHashes,
     RpcError,
+    ValidationErrors,
+    type Address,
+    type ReferencedCodeHashes,
     type StakeInfo,
     type StorageMap,
     type UserOperation,
-    ValidationErrors,
     type ValidationResultWithAggregation
 } from "@entrypoint-0.6/types"
-import type { ValidationResult } from "@entrypoint-0.6/types"
-import type { InterfaceValidator } from "@entrypoint-0.6/types"
-import type { ApiVersion } from "@entrypoint-0.6/types"
-import type { Logger } from "@alto/utils"
 import {
     calcVerificationGasAndCallGasLimit,
     getAddressFromInitCodeOrPaymasterAndData
 } from "@entrypoint-0.6/utils"
 import {
-    type Account,
-    type Chain,
-    type ExecutionRevertedError,
-    type Hex,
-    type PublicClient,
-    type Transport,
     decodeErrorResult,
     encodeDeployData,
     encodeFunctionData,
-    zeroAddress
+    zeroAddress,
+    type Chain,
+    type ExecutionRevertedError,
+    type Hex,
+    type PrivateKeyAccount,
+    type PublicClient,
+    type Transport
 } from "viem"
 import {
+    bundlerCollectorTracer,
     type BundlerTracerResult,
-    type ExitInfo,
-    bundlerCollectorTracer
+    type ExitInfo
 } from "./BundlerCollectorTracer"
 import { tracerResultParser } from "./TracerResultParser"
 import { UnsafeValidator } from "./UnsafeValidator"
@@ -54,7 +55,7 @@ export class SafeValidator
         entryPoint: Address,
         logger: Logger,
         metrics: Metrics,
-        utilityWallet: Account,
+        utilityWallet: PrivateKeyAccount,
         apiVersion: ApiVersion,
         gasPriceManager: GasPriceManager,
         usingTenderly = false,

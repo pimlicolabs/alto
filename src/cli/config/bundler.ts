@@ -1,6 +1,6 @@
 import { addressSchema, hexData32Schema } from "@entrypoint-0.6/types"
 import type { Hex } from "viem"
-import { type Account, privateKeyToAccount } from "viem/accounts"
+import { privateKeyToAccount, type Account } from "viem/accounts"
 import { z } from "zod"
 
 const logLevel = z.enum(["trace", "debug", "info", "warn", "error", "fatal"])

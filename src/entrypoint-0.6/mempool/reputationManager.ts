@@ -1,15 +1,15 @@
+import type { Logger } from "@alto/utils"
 import {
     EntryPointAbi,
     RpcError,
+    ValidationErrors,
     type StakeInfo,
     type UserOperation,
-    ValidationErrors,
     type ValidationResult,
     type ValidationResultWithAggregation
 } from "@entrypoint-0.6/types"
-import type { Logger } from "@alto/utils"
 import { getAddressFromInitCodeOrPaymasterAndData } from "@entrypoint-0.6/utils"
-import { type Address, type PublicClient, getAddress, getContract } from "viem"
+import { getAddress, getContract, type Address, type PublicClient } from "viem"
 
 export interface InterfaceReputationManager {
     checkReputation(
@@ -79,6 +79,7 @@ export const BundlerReputationParams: ReputationParams = {
 }
 
 export class NullReputationManager implements InterfaceReputationManager {
+    // biome-ignore lint/nursery/useAwait: <explanation>
     async checkReputation(
         userOperation: UserOperation,
         validationResult: ValidationResult | ValidationResultWithAggregation
@@ -238,7 +239,9 @@ export class ReputationManager implements InterfaceReputationManager {
         const entryPoint = getContract({
             abi: EntryPointAbi,
             address: this.entryPoint,
-            publicClient: this.publicClient
+            client: {
+                public: this.publicClient
+            }
         })
         const stakeInfo = await entryPoint.read.getDepositInfo([address])
 
@@ -258,6 +261,7 @@ export class ReputationManager implements InterfaceReputationManager {
         }
     }
 
+    // biome-ignore lint/nursery/useAwait: <explanation>
     async checkReputation(
         userOperation: UserOperation,
         validationResult: ValidationResult | ValidationResultWithAggregation
@@ -519,16 +523,18 @@ export class ReputationManager implements InterfaceReputationManager {
         ) {
             entry.status = ReputationStatuses.OK
             return ReputationStatuses.OK
-        } else if (
+        }
+
+        if (
             minExpectedIncluded <=
             entry.opsIncluded + this.bundlerReputationParams.banSlack
         ) {
             entry.status = ReputationStatuses.THROTTLED
             return ReputationStatuses.THROTTLED
-        } else {
-            entry.status = ReputationStatuses.BANNED
-            return ReputationStatuses.BANNED
         }
+
+        entry.status = ReputationStatuses.BANNED
+        return ReputationStatuses.BANNED
     }
 
     checkBanned(entityType: EntityType, stakeInfo: StakeInfo) {

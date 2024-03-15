@@ -1,21 +1,21 @@
 import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
+import type { ApiVersion } from "@entrypoint-0.6/types"
 import {
-    type Address,
     CallEngineAbi,
+    type Address,
     type HexData,
     type HexData32
 } from "@entrypoint-0.6/types"
-import type { ApiVersion } from "@entrypoint-0.6/types"
 import { Semaphore } from "async-mutex"
 import {
+    formatEther,
+    getContract,
     type Account,
     type Chain,
     type PublicClient,
     type TransactionReceipt,
     type Transport,
-    type WalletClient,
-    formatEther,
-    getContract
+    type WalletClient
 } from "viem"
 
 const waitForTransactionReceipt = async (
@@ -181,8 +181,10 @@ export class SenderManager {
                 const callEngine = getContract({
                     abi: CallEngineAbi,
                     address: refillAddress,
-                    publicClient,
-                    walletClient
+                    client: {
+                        public: publicClient,
+                        wallet: walletClient
+                    }
                 })
                 const tx = await callEngine.write.execute([instructions], {
                     account: this.utilityAccount,

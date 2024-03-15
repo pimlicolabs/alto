@@ -1,14 +1,14 @@
+import type { Logger } from "@alto/utils"
 import {
     EntryPointAbi,
     RpcError,
-    type StakeInfo,
     ValidationErrors,
+    type StakeInfo,
+    type UnPackedUserOperation,
     type ValidationResult,
-    type ValidationResultWithAggregation,
-    type UnPackedUserOperation
+    type ValidationResultWithAggregation
 } from "@entrypoint-0.7/types"
-import type { Logger } from "@alto/utils"
-import { type Address, type PublicClient, getAddress, getContract } from "viem"
+import { getAddress, getContract, type Address, type PublicClient } from "viem"
 
 export interface InterfaceReputationManager {
     checkReputation(
@@ -240,7 +240,9 @@ export class ReputationManager implements InterfaceReputationManager {
         const entryPoint = getContract({
             abi: EntryPointAbi,
             address: this.entryPoint,
-            publicClient: this.publicClient
+            client: {
+                public: this.publicClient
+            }
         })
         const stakeInfo = await entryPoint.read.getDepositInfo([address])
 
