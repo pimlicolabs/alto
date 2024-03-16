@@ -824,28 +824,11 @@ export class RpcHandler implements IRpcEndpoint {
             }
         }
 
-        if (this.minimumGasPricePercent !== 0) {
-            const gasPrice = await this.gasPriceManager.getGasPrice()
-            const minMaxFeePerGas =
-                (gasPrice.maxFeePerGas * BigInt(this.minimumGasPricePercent)) /
-                100n
-
-            const minMaxPriorityFeePerGas =
-                (gasPrice.maxPriorityFeePerGas *
-                    BigInt(this.minimumGasPricePercent)) /
-                100n
-
-            if (userOperation.maxFeePerGas < minMaxFeePerGas) {
-                throw new RpcError(
-                    `maxFeePerGas must be at least ${minMaxFeePerGas} (current maxFeePerGas: ${userOperation.maxFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
-                )
-            }
-
-            if (userOperation.maxPriorityFeePerGas < minMaxPriorityFeePerGas) {
-                throw new RpcError(
-                    `maxPriorityFeePerGas must be at least ${minMaxPriorityFeePerGas} (current maxPriorityFeePerGas: ${userOperation.maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
-                )
-            }
+        if (this.apiVersion !== "v1") {
+            this.gasPriceManager.validateGasPrice({
+                maxFeePerGas: userOperation.maxFeePerGas,
+                maxPriorityFeePerGas: userOperation.maxPriorityFeePerGas
+            })
         }
 
         if (userOperation.verificationGasLimit < 10000n) {
