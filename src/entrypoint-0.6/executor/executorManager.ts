@@ -52,7 +52,7 @@ export class ExecutorManager {
     private reputationManager: InterfaceReputationManager
     private unWatch: WatchBlocksReturnType | undefined
     private currentlyHandlingBlock = false
-    private timer?: NodeJS.Timer
+    private timer?: Timer | NodeJS.Timer
     private bundlerFrequency: number
     private gasPriceManager: GasPriceManager
 
