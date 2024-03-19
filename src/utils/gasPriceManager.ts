@@ -162,6 +162,23 @@ export class GasPriceManager {
             }
         }
 
+        // set a minimum maxPriorityFee & maxFee to 1.5gwei on avalanche (because eth_maxPriorityFeePerGas returns 0)
+        if (this.chain.id === chains.avalanche.id) {
+            const maxFeePerGas = maxBigInt(
+                parseGwei("1.5"),
+                result.maxFeePerGas
+            )
+            const maxPriorityFeePerGas = maxBigInt(
+                parseGwei("1.5"),
+                result.maxPriorityFeePerGas
+            )
+
+            return {
+                maxFeePerGas,
+                maxPriorityFeePerGas
+            }
+        }
+
         return result
     }
 
