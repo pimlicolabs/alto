@@ -340,7 +340,7 @@ export class RpcHandler implements InterfaceRpcEndpoint {
         ) {
             // Optimism and Arbitrum have a pre verification gas limit dependent on the gas price
             // so we increase the requirement by 2x to incorporate the gas price. we do 2x because now calldata is super cheap on l1
-            preVerificationGas *= 2n
+            preVerificationGas = (preVerificationGas * 130n) / 100n
         }
 
         userOperation.preVerificationGas = 1_000_000n
