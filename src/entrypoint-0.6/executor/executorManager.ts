@@ -52,7 +52,7 @@ export class ExecutorManager {
     private reputationManager: InterfaceReputationManager
     private unWatch: WatchBlocksReturnType | undefined
     private currentlyHandlingBlock = false
-    private timer?: Timer | NodeJS.Timer
+    private timer?: NodeJS.Timer
     private bundlerFrequency: number
     private gasPriceManager: GasPriceManager
 
@@ -85,7 +85,7 @@ export class ExecutorManager {
         if (bundleMode === "auto") {
             this.timer = setInterval(async () => {
                 await this.bundle()
-            }, bundlerFrequency)
+            }, bundlerFrequency) as NodeJS.Timer
         }
     }
 
@@ -93,7 +93,7 @@ export class ExecutorManager {
         if (bundleMode === "auto" && !this.timer) {
             this.timer = setInterval(async () => {
                 await this.bundle()
-            }, this.bundlerFrequency)
+            }, this.bundlerFrequency) as NodeJS.Timer
         } else if (bundleMode === "manual" && this.timer) {
             clearInterval(this.timer)
             this.timer = undefined
