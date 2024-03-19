@@ -2,7 +2,7 @@ import type { HexData32, UserOperationStatus } from "@entrypoint-0.6/types"
 
 export class Monitor {
     private userOperationToStatus: Record<HexData32, UserOperationStatus>
-    private userOperationTimeouts: Record<HexData32, NodeJS.Timeout | Timer>
+    private userOperationTimeouts: Record<HexData32, NodeJS.Timeout>
     private timeout: number
 
     constructor(timeout: number = 60 * 60 * 1000) {
@@ -27,7 +27,7 @@ export class Monitor {
         this.userOperationTimeouts[userOperation] = setTimeout(() => {
             delete this.userOperationToStatus[userOperation]
             delete this.userOperationTimeouts[userOperation]
-        }, this.timeout)
+        }, this.timeout) as NodeJS.Timeout
     }
 
     public getUserOperationStatus(
