@@ -162,6 +162,22 @@ export class GasPriceManager {
             }
         }
 
+        if (this.chain.id === chains.avalanche.id) {
+            const maxFeePerGas = maxBigInt(
+                parseGwei("1.5"),
+                result.maxFeePerGas
+            )
+            const maxPriorityFeePerGas = maxBigInt(
+                parseGwei("1.5"),
+                result.maxPriorityFeePerGas
+            )
+
+            return {
+                maxFeePerGas,
+                maxPriorityFeePerGas
+            }
+        }
+
         return result
     }
 
