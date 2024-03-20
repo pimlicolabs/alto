@@ -11,6 +11,7 @@ export const bundlerArgsSchema = z.object({
     // (better for config files)
     entryPoint: addressSchema,
     entryPointSimulationsAddress: addressSchema.optional(),
+    pimlicoSimulationsAddress: addressSchema.optional(),
     networkName: z.string(),
     signerPrivateKeys: z.union([
         z

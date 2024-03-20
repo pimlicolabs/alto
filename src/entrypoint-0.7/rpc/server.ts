@@ -211,6 +211,9 @@ export class Server {
                 "sent reply"
             )
         } catch (err) {
+            if (process.env.ALTO_ENVIRONMENT === "development") {
+                console.log(err)
+            }
             if (err instanceof RpcError) {
                 const rpcError = {
                     jsonrpc: "2.0",

@@ -18,6 +18,11 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "string",
         require: false
     },
+    pimlicoSimulationsAddress: {
+        description: "Address of the pimlico simulations contract",
+        type: "string",
+        require: false
+    },
     signerPrivateKeys: {
         description: "Private key of the signer",
         type: "string",

@@ -64,6 +64,7 @@ export class SafeValidator
         utilityWallet: Account,
         apiVersion: ApiVersion,
         entryPointSimulationsAddress: Address,
+        pimlicoSimulationsAddress: Address,
         usingTenderly = false,
         balanceOverrideEnabled = false
     ) {
@@ -76,6 +77,7 @@ export class SafeValidator
             utilityWallet,
             apiVersion,
             entryPointSimulationsAddress,
+            pimlicoSimulationsAddress,
             usingTenderly,
             balanceOverrideEnabled
         )

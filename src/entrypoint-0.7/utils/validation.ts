@@ -207,7 +207,11 @@ export async function calcPreVerificationGas(
             entryPoint,
             preVerificationGas
         )
-    } else if (chainId === chains.arbitrum.id || chainId === chains.arbitrumNova.id || chainId === chains.arbitrumSepolia.id) {
+    } else if (
+        chainId === chains.arbitrum.id ||
+        chainId === chains.arbitrumNova.id ||
+        chainId === chains.arbitrumSepolia.id
+    ) {
         preVerificationGas = await calcArbitrumPreVerificationGas(
             publicClient,
             userOperation,

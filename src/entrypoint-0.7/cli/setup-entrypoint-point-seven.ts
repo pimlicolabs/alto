@@ -70,8 +70,15 @@ const getValidator = ({
     metrics: Metrics
     gasPriceManager: GasPriceManager
 }): InterfaceValidator => {
-    if (!parsedArgs.entryPointSimulationsAddress) {
-        throw new Error("entryPointSimulationsAddress is required for v0.7")
+    if (
+        !(
+            parsedArgs.entryPointSimulationsAddress &&
+            parsedArgs.pimlicoSimulationsAddress
+        )
+    ) {
+        throw new Error(
+            "entryPointSimulationsAddress & pimlicoSimulationsAddress is required for v0.7"
+        )
     }
 
     if (parsedArgs.safeMode) {
@@ -88,6 +95,7 @@ const getValidator = ({
             parsedArgs.utilityPrivateKey,
             parsedArgs.apiVersion,
             parsedArgs.entryPointSimulationsAddress,
+            parsedArgs.pimlicoSimulationsAddress,
             parsedArgs.tenderlyEnabled,
             parsedArgs.balanceOverrideEnabled
         )
@@ -104,6 +112,7 @@ const getValidator = ({
         parsedArgs.utilityPrivateKey,
         parsedArgs.apiVersion,
         parsedArgs.entryPointSimulationsAddress,
+        parsedArgs.pimlicoSimulationsAddress,
         parsedArgs.tenderlyEnabled,
         parsedArgs.balanceOverrideEnabled,
         parsedArgs.disableExpirationCheck

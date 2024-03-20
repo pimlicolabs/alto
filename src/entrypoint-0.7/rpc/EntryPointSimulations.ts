@@ -248,19 +248,24 @@ async function callPimlicoEntryPointSimulations(
     entryPoint: Address,
     entryPointSimulationsCallData: Hex[],
     entryPointSimulationsAddress: Address,
+    pimlicoSimulationsAddress: Address,
     stateOverride?: StateOverrides
 ) {
     const callData = encodeFunctionData({
         abi: PimlicoEntryPointSimulationsAbi,
         functionName: "simulateEntryPoint",
-        args: [entryPoint, entryPointSimulationsCallData]
+        args: [
+            entryPointSimulationsAddress,
+            entryPoint,
+            entryPointSimulationsCallData
+        ]
     })
 
     const result = (await publicClient.request({
         method: "eth_call",
         params: [
             {
-                to: entryPointSimulationsAddress,
+                to: pimlicoSimulationsAddress,
                 data: callData
             },
             "latest",
@@ -285,6 +290,7 @@ export async function simulateHandleOp(
     targetAddress: Address,
     targetCallData: Hex,
     entryPointSimulationsAddress: Address,
+    pimlicoSimulationsAddress: Address,
     stateOverride: StateOverrides = {}
 ) {
     const finalParam = getStateOverrides({
@@ -316,6 +322,7 @@ export async function simulateHandleOp(
             entryPointSimulationsSimulateTargetCallData
         ],
         entryPointSimulationsAddress,
+        pimlicoSimulationsAddress,
         finalParam
     )
 
@@ -512,7 +519,8 @@ export async function simulateValidation(
     userOperation: UnPackedUserOperation,
     entryPoint: Address,
     publicClient: PublicClient,
-    entryPointSimulationsAddress: Address
+    entryPointSimulationsAddress: Address,
+    pimlicoSimulationsAddress: Address
 ) {
     const packedUserOperation = toPackedUserOperation(userOperation)
 
@@ -526,7 +534,8 @@ export async function simulateValidation(
         publicClient,
         entryPoint,
         [entryPointSimulationsCallData],
-        entryPointSimulationsAddress
+        entryPointSimulationsAddress,
+        pimlicoSimulationsAddress
     )
 
     // const callData = encodeFunctionData({

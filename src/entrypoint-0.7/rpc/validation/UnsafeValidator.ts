@@ -101,6 +101,7 @@ export class UnsafeValidator implements InterfaceValidator {
     apiVersion: ApiVersion
     chainId: number
     entryPointSimulationsAddress: Address
+    pimlicoSimulationsAddress: Address
     gasPriceManager: GasPriceManager
 
     constructor(
@@ -112,6 +113,7 @@ export class UnsafeValidator implements InterfaceValidator {
         utilityWallet: Account,
         apiVersion: ApiVersion,
         entryPointSimulationsAddress: Address,
+        pimlicoSimulationsAddress: Address,
         usingTenderly = false,
         balanceOverrideEnabled = false,
         disableExpirationCheck = false
@@ -128,6 +130,7 @@ export class UnsafeValidator implements InterfaceValidator {
         this.apiVersion = apiVersion
         this.chainId = publicClient.chain.id
         this.entryPointSimulationsAddress = entryPointSimulationsAddress
+        this.pimlicoSimulationsAddress = pimlicoSimulationsAddress
     }
 
     async getExecutionResult(
@@ -142,6 +145,7 @@ export class UnsafeValidator implements InterfaceValidator {
             userOperation.sender,
             userOperation.callData,
             this.entryPointSimulationsAddress,
+            this.pimlicoSimulationsAddress,
             stateOverrides
         )
 
@@ -313,7 +317,8 @@ export class UnsafeValidator implements InterfaceValidator {
             userOperation,
             this.entryPoint,
             this.publicClient,
-            this.entryPointSimulationsAddress
+            this.entryPointSimulationsAddress,
+            this.pimlicoSimulationsAddress
         )
 
         if (simulateValidationResult.status === "failed") {
