@@ -247,7 +247,7 @@ async function callPimlicoEntryPointSimulations(
     publicClient: PublicClient,
     entryPoint: Address,
     entryPointSimulationsCallData: Hex[],
-    entryPointSimulationsAddress: Address,
+    entryPointSimulationsAddressTemp: Address,
     pimlicoSimulationsAddress: Address,
     stateOverride?: StateOverrides
 ) {
@@ -255,7 +255,7 @@ async function callPimlicoEntryPointSimulations(
         abi: PimlicoEntryPointSimulationsAbi,
         functionName: "simulateEntryPoint",
         args: [
-            entryPointSimulationsAddress,
+            entryPointSimulationsAddressTemp,
             entryPoint,
             entryPointSimulationsCallData
         ]
@@ -289,7 +289,7 @@ export async function simulateHandleOp(
     replacedEntryPoint: boolean,
     targetAddress: Address,
     targetCallData: Hex,
-    entryPointSimulationsAddress: Address,
+    entryPointSimulationsAddressTemp: Address,
     pimlicoSimulationsAddress: Address,
     stateOverride: StateOverrides = {}
 ) {
@@ -321,7 +321,7 @@ export async function simulateHandleOp(
             entryPointSimulationsSimulateHandleOpCallData,
             entryPointSimulationsSimulateTargetCallData
         ],
-        entryPointSimulationsAddress,
+        entryPointSimulationsAddressTemp,
         pimlicoSimulationsAddress,
         finalParam
     )
@@ -519,7 +519,7 @@ export async function simulateValidation(
     userOperation: UnPackedUserOperation,
     entryPoint: Address,
     publicClient: PublicClient,
-    entryPointSimulationsAddress: Address,
+    entryPointSimulationsAddressTemp: Address,
     pimlicoSimulationsAddress: Address
 ) {
     const packedUserOperation = toPackedUserOperation(userOperation)
@@ -534,7 +534,7 @@ export async function simulateValidation(
         publicClient,
         entryPoint,
         [entryPointSimulationsCallData],
-        entryPointSimulationsAddress,
+        entryPointSimulationsAddressTemp,
         pimlicoSimulationsAddress
     )
 
@@ -549,7 +549,7 @@ export async function simulateValidation(
     //     method: "eth_createAccessList",
     //     params: [
     //         {
-    //             to: entryPointSimulationsAddress,
+    //             to: entryPointSimulationsAddressTemp,
     //             data: callData
     //         },
     //         "latest"

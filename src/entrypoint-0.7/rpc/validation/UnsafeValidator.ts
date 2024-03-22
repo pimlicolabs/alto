@@ -100,7 +100,7 @@ export class UnsafeValidator implements InterfaceValidator {
     disableExpirationCheck: boolean
     apiVersion: ApiVersion
     chainId: number
-    entryPointSimulationsAddress: Address
+    entryPointSimulationsAddressTemp: Address
     pimlicoSimulationsAddress: Address
     gasPriceManager: GasPriceManager
 
@@ -112,7 +112,7 @@ export class UnsafeValidator implements InterfaceValidator {
         gasPriceManager: GasPriceManager,
         utilityWallet: Account,
         apiVersion: ApiVersion,
-        entryPointSimulationsAddress: Address,
+        entryPointSimulationsAddressTemp: Address,
         pimlicoSimulationsAddress: Address,
         usingTenderly = false,
         balanceOverrideEnabled = false,
@@ -129,7 +129,7 @@ export class UnsafeValidator implements InterfaceValidator {
         this.disableExpirationCheck = disableExpirationCheck
         this.apiVersion = apiVersion
         this.chainId = publicClient.chain.id
-        this.entryPointSimulationsAddress = entryPointSimulationsAddress
+        this.entryPointSimulationsAddressTemp = entryPointSimulationsAddressTemp
         this.pimlicoSimulationsAddress = pimlicoSimulationsAddress
     }
 
@@ -144,7 +144,7 @@ export class UnsafeValidator implements InterfaceValidator {
             false,
             userOperation.sender,
             userOperation.callData,
-            this.entryPointSimulationsAddress,
+            this.entryPointSimulationsAddressTemp,
             this.pimlicoSimulationsAddress,
             stateOverrides
         )
@@ -317,7 +317,7 @@ export class UnsafeValidator implements InterfaceValidator {
             userOperation,
             this.entryPoint,
             this.publicClient,
-            this.entryPointSimulationsAddress,
+            this.entryPointSimulationsAddressTemp,
             this.pimlicoSimulationsAddress
         )
 

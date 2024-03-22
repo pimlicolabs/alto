@@ -63,7 +63,7 @@ export class SafeValidator
         gasPriceManager: GasPriceManager,
         utilityWallet: Account,
         apiVersion: ApiVersion,
-        entryPointSimulationsAddress: Address,
+        entryPointSimulationsAddressTemp: Address,
         pimlicoSimulationsAddress: Address,
         usingTenderly = false,
         balanceOverrideEnabled = false
@@ -76,7 +76,7 @@ export class SafeValidator
             gasPriceManager,
             utilityWallet,
             apiVersion,
-            entryPointSimulationsAddress,
+            entryPointSimulationsAddressTemp,
             pimlicoSimulationsAddress,
             usingTenderly,
             balanceOverrideEnabled
