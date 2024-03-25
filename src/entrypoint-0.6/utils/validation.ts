@@ -191,6 +191,7 @@ export async function calcPreVerificationGas(
         chainId === chains.baseSepolia.id ||
         chainId === chains.opBNB.id ||
         chainId === chains.opBNBTestnet.id ||
+        chainId === chains.mantle.id ||
         chainId === 957 // Lyra chain
     ) {
         preVerificationGas = await calcOptimismPreVerificationGas(
