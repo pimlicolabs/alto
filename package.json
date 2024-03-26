@@ -5,6 +5,9 @@
     "repository": "https://github.com/pimlicolabs/alto.git",
     "author": "Pimlico",
     "license": "GPL-3.0-or-later",
+    "bin": {
+        "alto": "./src/lib/cli/alto.js"
+    },
     "scripts": {
         "clean": "rm -rf ./src/lib ./src/*.tsbuildinfo",
         "clean-modules": "rm -rf ./src/node_modules node_modules",
