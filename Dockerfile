@@ -24,7 +24,7 @@ RUN pnpm fetch
 RUN pnpm install -r
 
 # copy source code
-RUN pnpm build
+RUN SENTRY_AUTH_TOKEN={$SENTRY_AUTH_TOKEN} pnpm build
 
 # remove dev dependencies
 RUN pnpm clean-modules
