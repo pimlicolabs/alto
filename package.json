@@ -9,7 +9,6 @@
         "clean": "rm -rf ./src/lib ./src/*.tsbuildinfo",
         "clean-modules": "rm -rf ./src/node_modules node_modules",
         "build": "pnpm -r run build",
-        "sentry:sourcemaps": "pnpm -r run sentry:sourcemaps",
         "start": "node src/lib/cli/alto.js run",
         "dev": "pnpm -r run dev",
         "test": "pnpm -r --workspace-concurrency 1 test --verbose=true",

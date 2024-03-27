@@ -15,7 +15,8 @@
         "*.js"
     ],
     "scripts": {
-        "build": "tsc -p ./tsconfig.json && tsc-alias -p tsconfig.json",
+        "compile-tsc": "tsc -p ./tsconfig.json && tsc-alias -p tsconfig.json",
+        "build": "./build.sh",
         "dev": "nodemon --exec DOTENV_CONFIG_PATH=$(pwd)/../.env ts-node -r tsconfig-paths/register cli/alto.ts run",
         "test": "test -d test && mocha test/**/*.test.ts --exit || echo 'No test folder found. Skipping tests.'",
         "lint": "eslint src/**/*.ts",
