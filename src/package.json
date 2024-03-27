@@ -15,11 +15,12 @@
         "*.js"
     ],
     "scripts": {
-        "build": "tsc -p ./tsconfig.json && tsc-alias -p tsconfig.json",
+        "build": "tsc -p ./tsconfig.json && tsc-alias -p tsconfig.json && npm run sentry:sourcemaps",
         "dev": "nodemon --exec DOTENV_CONFIG_PATH=$(pwd)/../.env ts-node -r tsconfig-paths/register cli/alto.ts run",
         "test": "test -d test && mocha test/**/*.test.ts --exit || echo 'No test folder found. Skipping tests.'",
         "lint": "eslint src/**/*.ts",
-        "lint:fix": "eslint src/**/*.ts --fix"
+        "lint:fix": "eslint src/**/*.ts --fix",
+        "sentry:sourcemaps": "sentry-cli sourcemaps inject --org pimlico --project alto ./lib && sentry-cli sourcemaps upload --org pimlico --project alto ./lib"
     },
     "dependencies": {
         "@opentelemetry/api": "^1.7.0",
@@ -32,6 +33,7 @@
         "@opentelemetry/sdk-node": "^0.46.0",
         "@opentelemetry/sdk-trace-base": "^1.19.0",
         "@opentelemetry/semantic-conventions": "^1.19.0",
+        "@sentry/cli": "^2.30.4",
         "@sentry/node": "^7.83.0",
         "@types/node": "^18.16.3",
         "abitype": "^0.8.0",

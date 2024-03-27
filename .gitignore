@@ -12,3 +12,6 @@ test/build
 
 .nx/cache
 .vscode/
+
+# Sentry Config File
+.sentryclirc
