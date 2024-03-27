@@ -33,6 +33,8 @@ jobs:
 
     - name: Build
       run: pnpm build
+      env:
+        SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
     - name: Test
       run: pnpm test
