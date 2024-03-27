@@ -26,9 +26,6 @@ RUN pnpm install -r
 # copy source code
 RUN pnpm build
 
-# push sorcemaps to sentry
-RUN pnpm sentry:sourcemaps
-
 # remove dev dependencies
 RUN pnpm clean-modules
 
