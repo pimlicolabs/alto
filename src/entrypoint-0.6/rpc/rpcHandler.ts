@@ -359,6 +359,10 @@ export class RpcHandler implements IRpcEndpoint {
             ) {
                 callGasLimit = maxBigInt(callGasLimit, 120_000n)
             }
+
+            if (userOperation.callData === "0x") {
+                callGasLimit = 0n
+            }
         } else {
             userOperation.maxFeePerGas = 0n
             userOperation.maxPriorityFeePerGas = 0n
@@ -856,8 +860,7 @@ export class RpcHandler implements IRpcEndpoint {
 
         if (
             userOperation.preVerificationGas === 0n ||
-            userOperation.verificationGasLimit === 0n ||
-            userOperation.callGasLimit === 0n
+            userOperation.verificationGasLimit === 0n
         ) {
             throw new RpcError(
                 "user operation gas limits must be larger than 0"

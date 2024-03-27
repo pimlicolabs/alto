@@ -207,7 +207,11 @@ export async function calcPreVerificationGas(
             entryPoint,
             preVerificationGas
         )
-    } else if (chainId === chains.arbitrum.id || chainId === chains.arbitrumNova.id || chainId === chains.arbitrumSepolia.id) {
+    } else if (
+        chainId === chains.arbitrum.id ||
+        chainId === chains.arbitrumNova.id ||
+        chainId === chains.arbitrumSepolia.id
+    ) {
         preVerificationGas = await calcArbitrumPreVerificationGas(
             publicClient,
             userOperation,
@@ -259,6 +263,10 @@ export async function calcVerificationGasAndCallGasLimit(
         chainId === chains.base.id
     ) {
         callGasLimit = (110n * callGasLimit) / 100n
+    }
+
+    if (userOperation.callData === "0x") {
+        callGasLimit = 0n
     }
 
     return [verificationGasLimit, callGasLimit]
