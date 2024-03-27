@@ -16,6 +16,7 @@
         "declaration": true,
         "declarationMap": true,
         "moduleResolution": "node",
+
         "paths": {
             "@alto/cli": ["./cli"],
             "@alto/utils": ["./utils"],
@@ -36,7 +37,14 @@
             "@entrypoint-0.7/gasPriceManager": [
                 "./entrypoint-0.7/gasPriceManager"
             ]
-        }
+        },
+
+        "inlineSources": true,
+
+        // Set `sourceRoot` to  "/" to strip the build path prefix
+        // from generated source code references.
+        // This improves issue grouping in Sentry.
+        "sourceRoot": "/"
     },
     "ts-node": {
         "swc": true
