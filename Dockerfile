@@ -1,6 +1,8 @@
 # production ready dockerfile that runs pnpm start
 FROM node:20-alpine
 
+ARG SENTRY_AUTH_TOKEN
+
 # set working directory
 WORKDIR /app
 
@@ -23,6 +25,9 @@ RUN pnpm install -r
 
 # copy source code
 RUN pnpm build
+
+# push sorcemaps to sentry
+RUN pnpm sentry:sourcemaps
 
 # remove dev dependencies
 RUN pnpm clean-modules
