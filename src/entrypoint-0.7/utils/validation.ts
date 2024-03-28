@@ -198,6 +198,7 @@ export async function calcPreVerificationGas(
         chainId === chains.baseGoerli.id ||
         chainId === chains.baseSepolia.id ||
         chainId === chains.opBNB.id ||
+        chainId === chains.mantle.id ||
         chainId === chains.opBNBTestnet.id ||
         chainId === 957 // Lyra chain
     ) {
