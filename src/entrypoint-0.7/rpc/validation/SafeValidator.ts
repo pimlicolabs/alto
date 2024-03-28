@@ -1,18 +1,19 @@
-import type { GasPriceManager, Metrics } from "@alto/utils"
 import type { SenderManager } from "@alto/executor"
+import type { GasPriceManager, Metrics } from "@alto/utils"
+import type { Logger } from "@alto/utils"
 import {
     type Address,
     CodeHashGetterAbi,
     CodeHashGetterBytecode,
     EntryPointAbi,
+    EntryPointSimulationsAbi,
+    PimlicoEntryPointSimulationsAbi,
+    PimlicoEntryPointSimulationsBytecode,
     type ReferencedCodeHashes,
     RpcError,
     type StorageMap,
     ValidationErrors,
-    type ValidationResultWithAggregation,
-    EntryPointSimulationsAbi,
-    PimlicoEntryPointSimulationsAbi,
-    PimlicoEntryPointSimulationsBytecode
+    type ValidationResultWithAggregation
 } from "@entrypoint-0.7/types"
 import type {
     UnPackedUserOperation,
@@ -20,7 +21,6 @@ import type {
 } from "@entrypoint-0.7/types"
 import type { InterfaceValidator } from "@entrypoint-0.7/types"
 import type { ApiVersion } from "@entrypoint-0.7/types"
-import type { Logger } from "@alto/utils"
 import {
     calcVerificationGasAndCallGasLimit,
     toPackedUserOperation
@@ -32,12 +32,13 @@ import {
     type Hex,
     type PublicClient,
     type Transport,
+    decodeAbiParameters,
     decodeErrorResult,
     encodeDeployData,
     encodeFunctionData,
-    zeroAddress,
-    decodeAbiParameters
+    zeroAddress
 } from "viem"
+import { parseFailedOpWithRevert } from "../EntryPointSimulations"
 import {
     type BundlerTracerResult,
     type ExitInfo,
@@ -46,7 +47,6 @@ import {
 import { tracerResultParser } from "./TracerResultParser"
 import { UnsafeValidator } from "./UnsafeValidator"
 import { debug_traceCall } from "./tracer"
-import { parseFailedOpWithRevert } from "../EntryPointSimulations"
 
 export class SafeValidator
     extends UnsafeValidator

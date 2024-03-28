@@ -1,3 +1,4 @@
+import type { StateOverrides } from "@entrypoint-0.7/types"
 import * as sentry from "@sentry/node"
 import {
     type Account,
@@ -8,7 +9,6 @@ import {
     type WalletClient,
     formatTransactionRequest
 } from "viem"
-import type { StateOverrides } from "@entrypoint-0.7/types"
 // from:https://geth.ethereum.org/docs/rpc/ns-debug#javascript-based-tracing
 //
 

@@ -1,3 +1,4 @@
+import type { Logger } from "@alto/utils"
 import type { InterfaceReputationManager } from "@entrypoint-0.6/mempool"
 import {
     type BundleResult,
@@ -9,7 +10,6 @@ import {
     deriveUserOperation,
     failedOpErrorSchema
 } from "@entrypoint-0.6/types"
-import type { Logger } from "@alto/utils"
 import { parseViemError, transactionIncluded } from "@entrypoint-0.6/utils"
 import * as sentry from "@sentry/node"
 import {

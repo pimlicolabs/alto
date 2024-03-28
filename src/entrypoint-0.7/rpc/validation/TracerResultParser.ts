@@ -5,9 +5,9 @@ import {
     SenderCreatorAbi,
     type StakeInfo,
     type StorageMap,
+    type UnPackedUserOperation,
     ValidationErrors,
-    type ValidationResult,
-    type UnPackedUserOperation
+    type ValidationResult
 } from "@entrypoint-0.7/types"
 import type { Abi, AbiFunction } from "abitype"
 // This file contains references to validation rules, in the format [xxx-###]

@@ -1,7 +1,7 @@
 import {
     EntryPointAbi,
-    type PackedUserOperation,
     type HexData32,
+    type PackedUserOperation,
     type UnPackedUserOperation
 } from "@entrypoint-0.7/types"
 import * as sentry from "@sentry/node"
@@ -9,14 +9,14 @@ import {
     type Address,
     type Hex,
     type PublicClient,
+    concat,
     decodeEventLog,
     encodeAbiParameters,
     getAddress,
     keccak256,
-    toHex,
-    concat,
     pad,
-    slice
+    slice,
+    toHex
 } from "viem"
 
 export function getInitCode(unpackedUserOperation: UnPackedUserOperation) {

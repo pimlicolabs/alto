@@ -1,3 +1,4 @@
+import type { Logger } from "@alto/utils"
 import {
     EntryPointAbi,
     RpcError,
@@ -7,7 +8,6 @@ import {
     type ValidationResult,
     type ValidationResultWithAggregation
 } from "@entrypoint-0.6/types"
-import type { Logger } from "@alto/utils"
 import { getAddressFromInitCodeOrPaymasterAndData } from "@entrypoint-0.6/utils"
 import { type Address, type PublicClient, getAddress, getContract } from "viem"
 

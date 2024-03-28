@@ -1,10 +1,10 @@
+import type { Logger } from "@alto/utils"
 import type { Mempool } from "@entrypoint-0.6/mempool"
 import {
     EntryPointAbi,
     type MempoolUserOperation,
     deriveUserOperation
 } from "@entrypoint-0.6/types"
-import type { Logger } from "@alto/utils"
 import {
     getNonceKeyAndValue,
     getUserOperationHash

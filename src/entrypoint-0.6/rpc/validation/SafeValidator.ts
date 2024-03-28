@@ -1,5 +1,6 @@
-import type { GasPriceManager, Metrics } from "@alto/utils"
 import type { SenderManager } from "@alto/executor"
+import type { GasPriceManager, Metrics } from "@alto/utils"
+import type { Logger } from "@alto/utils"
 import {
     type Address,
     CodeHashGetterAbi,
@@ -16,7 +17,6 @@ import {
 import type { ValidationResult } from "@entrypoint-0.6/types"
 import type { InterfaceValidator } from "@entrypoint-0.6/types"
 import type { ApiVersion } from "@entrypoint-0.6/types"
-import type { Logger } from "@alto/utils"
 import {
     calcVerificationGasAndCallGasLimit,
     getAddressFromInitCodeOrPaymasterAndData

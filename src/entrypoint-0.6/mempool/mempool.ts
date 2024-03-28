@@ -1,4 +1,5 @@
 import type { Metrics } from "@alto/utils"
+import type { Logger } from "@alto/utils"
 // import { MongoClient, Collection, Filter } from "mongodb"
 // import { PublicClient, getContract } from "viem"
 // import { EntryPointAbi } from "../types/EntryPoint"
@@ -18,7 +19,6 @@ import {
     deriveUserOperation
 } from "@entrypoint-0.6/types"
 import type { HexData32 } from "@entrypoint-0.6/types"
-import type { Logger } from "@alto/utils"
 import {
     getAddressFromInitCodeOrPaymasterAndData,
     getUserOperationHash

@@ -1,4 +1,4 @@
-import type { Metrics, Logger, GasPriceManager } from "@alto/utils"
+import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
 import type {
     InterfaceReputationManager,
     Mempool,
@@ -12,9 +12,9 @@ import {
     type MempoolUserOperation,
     type SubmittedUserOperation,
     type TransactionInfo,
+    type UnPackedUserOperation,
     deriveUserOperation,
-    isCompressedType,
-    type UnPackedUserOperation
+    isCompressedType
 } from "@entrypoint-0.7/types"
 import { transactionIncluded } from "@entrypoint-0.7/utils"
 import type {

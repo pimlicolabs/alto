@@ -1,4 +1,4 @@
-import type { Metrics, Logger, GasPriceManager } from "@alto/utils"
+import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
 import type {
     InterfaceReputationManager,
     Mempool,

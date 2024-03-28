@@ -1,10 +1,13 @@
+import { SenderManager } from "@alto/executor"
 import {
+    GasPriceManager,
     type Logger,
     createMetrics,
     initDebugLogger,
-    initProductionLogger,
-    GasPriceManager
+    initProductionLogger
 } from "@alto/utils"
+import { setupEntryPointPointSix } from "@entrypoint-0.6/cli"
+import { setupEntryPointPointSeven } from "@entrypoint-0.7/cli"
 import { Registry } from "prom-client"
 import {
     type Chain,
@@ -20,9 +23,6 @@ import {
     bundlerArgsSchema
 } from "./config"
 import { customTransport } from "./customTransport"
-import { setupEntryPointPointSix } from "@entrypoint-0.6/cli"
-import { SenderManager } from "@alto/executor"
-import { setupEntryPointPointSeven } from "@entrypoint-0.7/cli"
 
 const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
     // validate every arg, make type safe so if i add a new arg i have to validate it

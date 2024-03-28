@@ -1,13 +1,13 @@
+import type { Logger } from "@alto/utils"
 import {
     EntryPointAbi,
     RpcError,
     type StakeInfo,
+    type UnPackedUserOperation,
     ValidationErrors,
     type ValidationResult,
-    type ValidationResultWithAggregation,
-    type UnPackedUserOperation
+    type ValidationResultWithAggregation
 } from "@entrypoint-0.7/types"
-import type { Logger } from "@alto/utils"
 import { type Address, type PublicClient, getAddress, getContract } from "viem"
 
 export interface InterfaceReputationManager {

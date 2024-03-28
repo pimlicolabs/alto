@@ -1,11 +1,11 @@
-import { maxBigInt, minBigInt, type Logger } from "@alto/utils"
+import { type Logger, maxBigInt, minBigInt } from "@alto/utils"
 import {
+    type GasPriceParameters,
     RpcError,
-    gasStationResult,
-    type GasPriceParameters
+    gasStationResult
 } from "@entrypoint-0.7/types"
 import * as sentry from "@sentry/node"
-import { parseGwei, type Chain, type PublicClient } from "viem"
+import { type Chain, type PublicClient, parseGwei } from "viem"
 import * as chains from "viem/chains"
 
 enum ChainId {

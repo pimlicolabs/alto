@@ -1,4 +1,5 @@
 import type { GasPriceManager, Metrics } from "@alto/utils"
+import type { Logger } from "@alto/utils"
 import {
     type Address,
     EntryPointAbi,
@@ -18,7 +19,6 @@ import { hexDataSchema } from "@entrypoint-0.6/types"
 import type { InterfaceValidator } from "@entrypoint-0.6/types"
 import type { StateOverrides } from "@entrypoint-0.6/types"
 import type { ApiVersion } from "@entrypoint-0.6/types"
-import type { Logger } from "@alto/utils"
 import { calcPreVerificationGas } from "@entrypoint-0.6/utils"
 import { calcVerificationGasAndCallGasLimit } from "@entrypoint-0.6/utils"
 import * as sentry from "@sentry/node"
@@ -218,7 +218,8 @@ export class UnsafeValidator implements InterfaceValidator {
                 false,
                 zeroAddress,
                 "0x",
-                stateOverrides
+                stateOverrides,
+                this.logger
             )
 
             if (error.result === "failed") {

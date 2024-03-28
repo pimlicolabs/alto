@@ -15,10 +15,10 @@ import type { Hex } from "viem"
 import {
     type Address,
     type PublicClient,
+    decodeAbiParameters,
     decodeErrorResult,
     encodeFunctionData,
-    toHex,
-    decodeAbiParameters
+    toHex
 } from "viem"
 import { ExecuteSimulatorDeployedBytecode } from "./ExecuteSimulator"
 

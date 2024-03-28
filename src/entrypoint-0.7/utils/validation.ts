@@ -1,9 +1,9 @@
 import {
     type Address,
     EntryPointAbi,
+    type PackedUserOperation,
     RpcError,
-    type UnPackedUserOperation,
-    type PackedUserOperation
+    type UnPackedUserOperation
 } from "@entrypoint-0.7/types"
 import {
     type Chain,
@@ -17,14 +17,14 @@ import {
     type PublicClient,
     TransactionExecutionError,
     type Transport,
+    bytesToHex,
     concat,
     encodeAbiParameters,
     getContract,
     getFunctionSelector,
     serializeTransaction,
     toBytes,
-    toHex,
-    bytesToHex
+    toHex
 } from "viem"
 import * as chains from "viem/chains"
 import { toPackedUserOperation } from "./userop"

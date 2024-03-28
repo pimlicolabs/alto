@@ -1,10 +1,10 @@
 import type { Metrics } from "@alto/utils"
+import type { Logger } from "@alto/utils"
 import type {
     HexData32,
     SubmittedUserOperation,
     UserOperationInfo
 } from "@entrypoint-0.7/types"
-import type { Logger } from "@alto/utils"
 
 export class MemoryStore {
     // private monitoredTransactions: Map<HexData32, TransactionInfo> = new Map() // tx hash to info

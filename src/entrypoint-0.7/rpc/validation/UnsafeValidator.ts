@@ -1,4 +1,5 @@
 import type { GasPriceManager, Metrics } from "@alto/utils"
+import type { Logger } from "@alto/utils"
 import {
     type Address,
     type ExecutionResult,
@@ -16,21 +17,20 @@ import type {
 import type { InterfaceValidator } from "@entrypoint-0.7/types"
 import type { StateOverrides } from "@entrypoint-0.7/types"
 import type { ApiVersion } from "@entrypoint-0.7/types"
-import type { Logger } from "@alto/utils"
 import { calcPreVerificationGas } from "@entrypoint-0.7/utils"
 import { calcVerificationGasAndCallGasLimit } from "@entrypoint-0.7/utils"
 import {
-    zeroAddress,
+    type AccessList,
     type Account,
     type Chain,
+    type Hex,
     type PublicClient,
     type Transport,
+    concat,
     pad,
-    toHex,
     slice,
-    type AccessList,
-    type Hex,
-    concat
+    toHex,
+    zeroAddress
 } from "viem"
 import { simulateHandleOp, simulateValidation } from "../EntryPointSimulations"
 import {

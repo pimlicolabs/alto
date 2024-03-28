@@ -1,15 +1,20 @@
-import type { GasPriceManager, Logger } from "@alto/utils"
 import type { IBundlerArgs } from "@alto/cli"
+import type { SenderManager } from "@alto/executor"
+import type { GasPriceManager, Logger } from "@alto/utils"
 import type { Metrics } from "@alto/utils"
 import {
-    NullReputationManager,
-    ReputationManager,
-    Monitor,
+    BasicExecutor,
+    ExecutorManager,
+    type InterfaceExecutor
+} from "@entrypoint-0.7/executor"
+import {
+    type InterfaceReputationManager,
     MemoryMempool,
     type Mempool,
-    type InterfaceReputationManager
+    Monitor,
+    NullReputationManager,
+    ReputationManager
 } from "@entrypoint-0.7/mempool"
-import type { Chain, PublicClient, Transport, WalletClient } from "viem"
 import {
     NonceQueuer,
     RpcHandler,
@@ -19,13 +24,8 @@ import {
 } from "@entrypoint-0.7/rpc"
 import type { InterfaceValidator } from "@entrypoint-0.7/types"
 import { CompressionHandler } from "@entrypoint-0.7/utils"
-import {
-    BasicExecutor,
-    ExecutorManager,
-    type InterfaceExecutor
-} from "@entrypoint-0.7/executor"
 import type { Registry } from "prom-client"
-import type { SenderManager } from "@alto/executor"
+import type { Chain, PublicClient, Transport, WalletClient } from "viem"
 
 const getReputationManager = ({
     client,

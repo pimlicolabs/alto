@@ -1,15 +1,15 @@
+import type { Logger } from "@alto/utils"
 import type { InterfaceReputationManager } from "@entrypoint-0.7/mempool"
 import {
     type BundleResult,
     type CompressedUserOperation,
     EntryPointAbi,
     type TransactionInfo,
+    type UnPackedUserOperation,
     type UserOperationWithHash,
     deriveUserOperation,
-    failedOpErrorSchema,
-    type UnPackedUserOperation
+    failedOpErrorSchema
 } from "@entrypoint-0.7/types"
-import type { Logger } from "@alto/utils"
 import {
     parseViemError,
     toPackedUserOperation,

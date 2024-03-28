@@ -1,8 +1,9 @@
+import type { SenderManager } from "@alto/executor"
 import {
-    type Metrics,
+    type GasPriceManager,
     type Logger,
-    maxBigInt,
-    type GasPriceManager
+    type Metrics,
+    maxBigInt
 } from "@alto/utils"
 import type { InterfaceReputationManager } from "@entrypoint-0.7/mempool"
 import {
@@ -12,9 +13,9 @@ import {
     EntryPointAbi,
     type HexData32,
     type TransactionInfo,
+    type UnPackedUserOperation,
     type UserOperationWithHash,
-    deriveUserOperation,
-    type UnPackedUserOperation
+    deriveUserOperation
 } from "@entrypoint-0.7/types"
 import {
     type CompressionHandler,
@@ -37,7 +38,6 @@ import {
     encodeFunctionData,
     getContract
 } from "viem"
-import type { SenderManager } from "@alto/executor"
 import {
     type CompressedFilterOpsAndEstimateGasParams,
     type DefaultFilterOpsAndEstimateGasParams,

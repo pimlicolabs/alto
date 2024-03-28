@@ -1,17 +1,17 @@
 import type { Metrics } from "@alto/utils"
+import type { Logger } from "@alto/utils"
 import {
     EntryPointAbi,
+    EntryPointSimulationsAbi,
     ExecutionErrors,
     type ExecutionResult,
     RpcError,
     type UserOperation,
     ValidationErrors,
     executionResultSchema,
-    hexDataSchema,
-    EntryPointSimulationsAbi
+    hexDataSchema
 } from "@entrypoint-0.6/types"
 import type { StateOverrides } from "@entrypoint-0.6/types"
-import type { Logger } from "@alto/utils"
 import { deepHexlify } from "@entrypoint-0.6/utils"
 import type { Chain, Hex, RpcRequestErrorType, Transport } from "viem"
 import {
@@ -35,7 +35,8 @@ export async function simulateHandleOp(
     replacedEntryPoint: boolean,
     targetAddress: Address,
     targetCallData: Hex,
-    stateOverride?: StateOverrides
+    stateOverride?: StateOverrides,
+    logger?: Logger
 ) {
     const finalParam = replacedEntryPoint
         ? {
@@ -61,6 +62,8 @@ export async function simulateHandleOp(
           }
 
     try {
+        logger?.info(`Verification gas limit: ${JSON.stringify(finalParam)}`)
+
         await publicClient.request({
             method: "eth_call",
             // @ts-ignore
