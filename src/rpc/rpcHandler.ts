@@ -62,7 +62,8 @@ import {
     type PublicClient,
     type Transaction,
     type TransactionReceipt,
-    type Transport
+    type Transport,
+    getAddress
 } from "viem"
 import * as chains from "viem/chains"
 import { z } from "zod"
@@ -524,7 +525,7 @@ export class RpcHandler implements IRpcEndpoint {
 
         const result: GetUserOperationByHashResponseResult = {
             userOperation: op,
-            entryPoint: tx.to,
+            entryPoint: getAddress(tx.to),
             transactionHash: txHash,
             blockHash: tx.blockHash ?? "0x",
             blockNumber: BigInt(tx.blockNumber ?? 0n)
