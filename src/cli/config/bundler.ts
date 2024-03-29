@@ -1,4 +1,4 @@
-import { addressSchema, hexData32Schema } from "@entrypoint-0.6/types"
+import { addressSchema, hexData32Schema } from "@alto/types"
 import type { Hex } from "viem"
 import { type Account, privateKeyToAccount } from "viem/accounts"
 import { z } from "zod"
@@ -9,7 +9,13 @@ export const bundlerArgsSchema = z.object({
     // allow both a comma separated list of addresses
     // (better for cli and env vars) or an array of addresses
     // (better for config files)
-    entryPoint: addressSchema,
+    entryPoints: z.string().transform((val) => {
+        const addresses = val.split(",")
+        const validatedAddresses = addresses.map(
+            (address) => addressSchema.parse(address.trim()) // Trimming to handle spaces after commas
+        )
+        return validatedAddresses
+    }),
     entryPointSimulationsAddress: addressSchema.optional(),
     networkName: z.string(),
     signerPrivateKeys: z.union([
@@ -111,7 +117,6 @@ export const bundlerArgsSchema = z.object({
         .optional(),
     rpcMaxBlockRange: z.number().int().min(0).optional(),
     dangerousSkipUserOperationValidation: z.boolean().optional(),
-    entryPointVersion: z.enum(["0.6", "0.7"]),
     gasPriceTimeValidityInSeconds: z.number().int().min(0)
 })
 

@@ -1,5 +1,5 @@
 import type { GasPriceManager, Logger } from "@alto/utils"
-import type { IBundlerArgs } from "@alto/cli"
+import type { IBundlerArgs } from "./config"
 import type { Metrics } from "@alto/utils"
 import {
     NullReputationManager,
@@ -8,7 +8,7 @@ import {
     MemoryMempool,
     type Mempool,
     type InterfaceReputationManager
-} from "@entrypoint-0.7/mempool"
+} from "@alto/mempool"
 import type { Chain, PublicClient, Transport, WalletClient } from "viem"
 import {
     NonceQueuer,
@@ -16,14 +16,10 @@ import {
     SafeValidator,
     Server,
     UnsafeValidator
-} from "@entrypoint-0.7/rpc"
-import type { InterfaceValidator } from "@entrypoint-0.7/types"
-import { CompressionHandler } from "@entrypoint-0.7/utils"
-import {
-    BasicExecutor,
-    ExecutorManager,
-    type InterfaceExecutor
-} from "@entrypoint-0.7/executor"
+} from "@alto/rpc"
+import type { InterfaceValidator } from "@alto/types"
+import { CompressionHandler } from "@alto/utils"
+import { BasicExecutor, ExecutorManager, type IExecutor } from "@alto/executor"
 import type { Registry } from "prom-client"
 import type { SenderManager } from "@alto/executor"
 
@@ -70,10 +66,6 @@ const getValidator = ({
     metrics: Metrics
     gasPriceManager: GasPriceManager
 }): InterfaceValidator => {
-    if (!parsedArgs.entryPointSimulationsAddress) {
-        throw new Error("entryPointSimulationsAddress is required for v0.7")
-    }
-
     if (parsedArgs.safeMode) {
         return new SafeValidator(
             client,
@@ -84,10 +76,9 @@ const getValidator = ({
                 { level: parsedArgs.rpcLogLevel || parsedArgs.logLevel }
             ),
             metrics,
-            gasPriceManager,
             parsedArgs.utilityPrivateKey,
             parsedArgs.apiVersion,
-            parsedArgs.entryPointSimulationsAddress,
+            gasPriceManager,
             parsedArgs.tenderlyEnabled,
             parsedArgs.balanceOverrideEnabled
         )
@@ -100,10 +91,9 @@ const getValidator = ({
             { level: parsedArgs.rpcLogLevel || parsedArgs.logLevel }
         ),
         metrics,
-        gasPriceManager,
         parsedArgs.utilityPrivateKey,
         parsedArgs.apiVersion,
-        parsedArgs.entryPointSimulationsAddress,
+        gasPriceManager,
         parsedArgs.tenderlyEnabled,
         parsedArgs.balanceOverrideEnabled,
         parsedArgs.disableExpirationCheck
@@ -187,7 +177,7 @@ const getExecutor = ({
     metrics: Metrics
     compressionHandler: CompressionHandler | null
     gasPriceManager: GasPriceManager
-}): InterfaceExecutor => {
+}): IExecutor => {
     return new BasicExecutor(
         client,
         walletClient,
@@ -219,7 +209,7 @@ const getExecutorManager = ({
     metrics,
     gasPriceManager
 }: {
-    executor: InterfaceExecutor
+    executor: IExecutor
     mempool: Mempool
     monitor: Monitor
     reputationManager: InterfaceReputationManager
@@ -288,7 +278,7 @@ const getRpcHandler = ({
     client: PublicClient<Transport, Chain>
     validator: InterfaceValidator
     mempool: Mempool
-    executor: InterfaceExecutor
+    executor: IExecutor
     monitor: Monitor
     nonceQueuer: NonceQueuer
     executorManager: ExecutorManager
@@ -300,7 +290,7 @@ const getRpcHandler = ({
     gasPriceManager: GasPriceManager
 }) => {
     return new RpcHandler(
-        parsedArgs.entryPoints[0],
+        parsedArgs.entryPoints,
         client,
         validator,
         mempool,
@@ -353,7 +343,7 @@ const getServer = ({
     )
 }
 
-export const setupEntryPointPointSeven = async ({
+export const setupServer = async ({
     client,
     walletClient,
     parsedArgs,

@@ -4,8 +4,8 @@ import {
     CallEngineAbi,
     type HexData,
     type HexData32
-} from "@entrypoint-0.6/types"
-import type { ApiVersion } from "@entrypoint-0.6/types"
+} from "@alto/types"
+import type { ApiVersion } from "@alto/types"
 import { Semaphore } from "async-mutex"
 import {
     type Account,
