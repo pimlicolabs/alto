@@ -7,7 +7,7 @@ import type {
 } from "@entrypoint-0.7/types"
 import { entryPointExecutionErrorSchema } from "@entrypoint-0.7/types"
 import * as sentry from "@sentry/node"
-import { type Abi } from "abitype"
+import type { Abi } from "abitype"
 import {
     http,
     type Account,
@@ -115,7 +115,7 @@ export const deployContract = async (
     const rcp = await clients.public.waitForTransactionReceipt({ hash })
 
     const contractAddress = rcp.contractAddress
-    if (contractAddress === null) {
+    if (!contractAddress) {
         throw new Error("contract deployment failed")
     }
 

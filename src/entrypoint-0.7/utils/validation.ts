@@ -386,7 +386,9 @@ export async function calcOptimismPreVerificationGas(
     const opGasPriceOracle = getContract({
         abi: getL1FeeAbi,
         address: "0x420000000000000000000000000000000000000F",
-        publicClient
+        client: {
+            public: publicClient
+        }
     })
 
     const { result: l1Fee } = await opGasPriceOracle.simulate.getL1Fee([
@@ -482,7 +484,9 @@ export async function calcArbitrumPreVerificationGas(
     const arbGasPriceOracle = getContract({
         abi: getArbitrumL1FeeAbi,
         address: precompileAddress,
-        publicClient
+        client: {
+            public: publicClient
+        }
     })
 
     const { result } = await arbGasPriceOracle.simulate.gasEstimateL1Component([

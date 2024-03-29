@@ -217,8 +217,10 @@ export class BasicExecutor implements IExecutor {
             const ep = getContract({
                 abi: EntryPointAbi,
                 address: this.entryPoint,
-                publicClient: this.publicClient,
-                walletClient: this.walletClient
+                client: {
+                    public: this.publicClient,
+                    wallet: this.walletClient
+                }
             })
 
             callContext = {
@@ -466,8 +468,10 @@ export class BasicExecutor implements IExecutor {
         const ep = getContract({
             abi: EntryPointAbi,
             address: entryPoint,
-            publicClient: this.publicClient,
-            walletClient: this.walletClient
+            client: {
+                public: this.publicClient,
+                wallet: this.walletClient
+            }
         })
 
         let childLogger = this.logger.child({

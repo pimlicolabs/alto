@@ -444,7 +444,9 @@ export class MemoryMempool implements Mempool {
                 const entryPointContract = getContract({
                     abi: EntryPointAbi,
                     address: this.entryPointAddress,
-                    publicClient: this.publicClient
+                    client: {
+                        public: this.publicClient
+                    }
                 })
                 paymasterDeposit[paymaster] =
                     await entryPointContract.read.balanceOf([paymaster])

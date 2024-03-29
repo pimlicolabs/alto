@@ -1,4 +1,4 @@
-export const PerOpInfaltorAbi = [
+export const PerOpInflatorAbi = [
     {
         type: "constructor",
         inputs: [

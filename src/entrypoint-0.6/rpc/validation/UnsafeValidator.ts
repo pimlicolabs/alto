@@ -174,7 +174,9 @@ export class UnsafeValidator implements InterfaceValidator {
         const entryPointContract = getContract({
             address: this.entryPoint,
             abi: EntryPointAbi,
-            publicClient: this.publicClient
+            client: {
+                public: this.publicClient
+            }
         })
 
         if (this.usingTenderly) {
@@ -232,16 +234,11 @@ export class UnsafeValidator implements InterfaceValidator {
         }
 
         const errorResult = await entryPointContract.simulate
-            .simulateHandleOp(
-                [
-                    userOperation,
-                    "0x0000000000000000000000000000000000000000",
-                    "0x"
-                ],
-                {
-                    account: this.utilityWallet
-                }
-            )
+            .simulateHandleOp([
+                userOperation,
+                "0x0000000000000000000000000000000000000000",
+                "0x"
+            ])
             .catch((e) => {
                 if (e instanceof Error) {
                     return e
@@ -269,7 +266,9 @@ export class UnsafeValidator implements InterfaceValidator {
         const entryPointContract = getContract({
             address: this.entryPoint,
             abi: EntryPointAbi,
-            publicClient: this.publicClient
+            client: {
+                public: this.publicClient
+            }
         })
 
         if (this.usingTenderly) {

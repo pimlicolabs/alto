@@ -12,3 +12,4 @@ test/build
 
 .nx/cache
 .vscode/
+.sentryclirc

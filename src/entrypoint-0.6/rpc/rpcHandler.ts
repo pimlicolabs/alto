@@ -870,7 +870,9 @@ export class RpcHandler implements IRpcEndpoint {
         const entryPointContract = getContract({
             address: this.entryPoint,
             abi: EntryPointAbi,
-            publicClient: this.publicClient
+            client: {
+                public: this.publicClient
+            }
         })
 
         const [nonceKey, userOperationNonceValue] = getNonceKeyAndValue(
@@ -1009,7 +1011,9 @@ export class RpcHandler implements IRpcEndpoint {
         const inflatorContract = getContract({
             address: inflatorAddress,
             abi: IOpInflatorAbi,
-            publicClient: this.publicClient
+            client: {
+                public: this.publicClient
+            }
         })
 
         let inflatedOp: UserOperation

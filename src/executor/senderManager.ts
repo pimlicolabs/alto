@@ -181,8 +181,10 @@ export class SenderManager {
                 const callEngine = getContract({
                     abi: CallEngineAbi,
                     address: refillAddress,
-                    publicClient,
-                    walletClient
+                    client: {
+                        public: publicClient,
+                        wallet: walletClient
+                    }
                 })
                 const tx = await callEngine.write.execute([instructions], {
                     account: this.utilityAccount,

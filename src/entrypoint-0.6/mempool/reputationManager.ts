@@ -79,11 +79,11 @@ export const BundlerReputationParams: ReputationParams = {
 }
 
 export class NullReputationManager implements InterfaceReputationManager {
-    async checkReputation(
-        userOperation: UserOperation,
-        validationResult: ValidationResult | ValidationResultWithAggregation
+    checkReputation(
+        _userOperation: UserOperation,
+        _validationResult: ValidationResult | ValidationResultWithAggregation
     ): Promise<void> {
-        return
+        return Promise.resolve()
     }
 
     increaseUserOperationCount(_: UserOperation): void {
@@ -238,7 +238,9 @@ export class ReputationManager implements InterfaceReputationManager {
         const entryPoint = getContract({
             abi: EntryPointAbi,
             address: this.entryPoint,
-            publicClient: this.publicClient
+            client: {
+                public: this.publicClient
+            }
         })
         const stakeInfo = await entryPoint.read.getDepositInfo([address])
 
@@ -258,7 +260,7 @@ export class ReputationManager implements InterfaceReputationManager {
         }
     }
 
-    async checkReputation(
+    checkReputation(
         userOperation: UserOperation,
         validationResult: ValidationResult | ValidationResultWithAggregation
     ): Promise<void> {
@@ -292,6 +294,7 @@ export class ReputationManager implements InterfaceReputationManager {
                 aggregaorValidationResult.aggregatorInfo.stakeInfo
             )
         }
+        return Promise.resolve()
     }
 
     getEntityCount(address: Address): bigint {
@@ -519,16 +522,16 @@ export class ReputationManager implements InterfaceReputationManager {
         ) {
             entry.status = ReputationStatuses.OK
             return ReputationStatuses.OK
-        } else if (
+        }
+        if (
             minExpectedIncluded <=
             entry.opsIncluded + this.bundlerReputationParams.banSlack
         ) {
             entry.status = ReputationStatuses.THROTTLED
             return ReputationStatuses.THROTTLED
-        } else {
-            entry.status = ReputationStatuses.BANNED
-            return ReputationStatuses.BANNED
         }
+        entry.status = ReputationStatuses.BANNED
+        return ReputationStatuses.BANNED
     }
 
     checkBanned(entityType: EntityType, stakeInfo: StakeInfo) {

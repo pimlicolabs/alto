@@ -87,7 +87,6 @@ export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
     const chain: Chain = {
         id: chainId,
         name: args.networkName,
-        network: args.networkName,
         nativeCurrency: {
             name: "ETH",
             symbol: "ETH",

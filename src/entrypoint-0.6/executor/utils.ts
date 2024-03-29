@@ -63,7 +63,13 @@ export function simulatedOpsToResults(
 }
 
 export type DefaultFilterOpsAndEstimateGasParams = {
-    ep: GetContractReturnType<typeof EntryPointAbi, PublicClient, WalletClient>
+    ep: GetContractReturnType<
+        typeof EntryPointAbi,
+        {
+            public: PublicClient
+            wallet: WalletClient
+        }
+    >
     type: "default"
 }
 

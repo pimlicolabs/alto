@@ -1,7 +1,7 @@
 import {
     type Address,
     BundleBulkerAbi,
-    PerOpInfaltorAbi
+    PerOpInflatorAbi
 } from "@entrypoint-0.6/types"
 import { type Client, type PublicClient, getContract } from "viem"
 
@@ -34,7 +34,9 @@ export class CompressionHandler {
         const bundleBulker = getContract({
             address: bundleBulkerAddress,
             abi: BundleBulkerAbi,
-            publicClient
+            client: {
+                public: publicClient
+            }
         })
 
         compressionHandler.perOpInflatorId =
@@ -55,8 +57,10 @@ export class CompressionHandler {
     ): Promise<number> {
         const perOpInflator = getContract({
             address: this.perOpInflatorAddress,
-            abi: PerOpInfaltorAbi,
-            publicClient
+            abi: PerOpInflatorAbi,
+            client: {
+                public: publicClient
+            }
         })
 
         return await perOpInflator.read.inflatorToID([inflator])

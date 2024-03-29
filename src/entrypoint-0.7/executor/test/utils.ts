@@ -46,7 +46,9 @@ export async function getSender(
     const entryPointContract = getContract({
         address: entryPoint,
         abi: EntryPointAbi,
-        publicClient: clients.public
+        client: {
+            public: clients.public
+        }
     })
 
     const sender = await entryPointContract.simulate

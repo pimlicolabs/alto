@@ -152,7 +152,9 @@ export class NonceQueuer {
             const entryPointContract = getContract({
                 abi: EntryPointAbi,
                 address: entryPoint,
-                publicClient: publicClient
+                client: {
+                    public: publicClient
+                }
             })
 
             results = await Promise.all(

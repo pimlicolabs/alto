@@ -240,7 +240,9 @@ export class ReputationManager implements InterfaceReputationManager {
         const entryPoint = getContract({
             abi: EntryPointAbi,
             address: this.entryPoint,
-            publicClient: this.publicClient
+            client: {
+                public: this.publicClient
+            }
         })
         const stakeInfo = await entryPoint.read.getDepositInfo([address])
 

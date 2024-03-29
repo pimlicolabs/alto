@@ -34,18 +34,36 @@ const unPackedUserOperationSchema = z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
-        factory: addressSchema.nullable().optional().transform((val) => val ?? null),
-        factoryData: hexDataSchema.nullable().optional().transform((val) => val ?? null),
+        factory: addressSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        factoryData: hexDataSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
         callData: hexDataSchema,
         callGasLimit: hexNumberSchema,
         verificationGasLimit: hexNumberSchema,
         preVerificationGas: hexNumberSchema,
         maxFeePerGas: hexNumberSchema,
         maxPriorityFeePerGas: hexNumberSchema,
-        paymaster: addressSchema.nullable().optional().transform((val) => val ?? null),
-        paymasterVerificationGasLimit: hexNumberSchema.nullable().optional().transform((val) => val ?? null),
-        paymasterPostOpGasLimit: hexNumberSchema.nullable().optional().transform((val) => val ?? null),
-        paymasterData: hexDataSchema.nullable().optional().transform((val) => val ?? null),
+        paymaster: addressSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        paymasterVerificationGasLimit: hexNumberSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        paymasterPostOpGasLimit: hexNumberSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        paymasterData: hexDataSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
         signature: hexDataSchema
     })
     .strict()
@@ -55,18 +73,36 @@ const partialUnPackedUserOperationSchema = z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
-        factory: addressSchema.nullable().optional().transform((val) => val ?? null),
-        factoryData: hexDataSchema.nullable().optional().transform((val) => val ?? null),
+        factory: addressSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        factoryData: hexDataSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
         callData: hexDataSchema,
         callGasLimit: hexNumberSchema.default(1n),
         verificationGasLimit: hexNumberSchema.default(1n),
         preVerificationGas: hexNumberSchema.default(1n),
         maxFeePerGas: hexNumberSchema.default(1n),
         maxPriorityFeePerGas: hexNumberSchema.default(1n),
-        paymaster: addressSchema.nullable().optional().transform((val) => val ?? null),
-        paymasterVerificationGasLimit: hexNumberSchema.nullable().optional().transform((val) => val ?? null),
-        paymasterPostOpGasLimit: hexNumberSchema.nullable().optional().transform((val) => val ?? null),
-        paymasterData: hexDataSchema.nullable().optional().transform((val) => val ?? null),
+        paymaster: addressSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        paymasterVerificationGasLimit: hexNumberSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        paymasterPostOpGasLimit: hexNumberSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        paymasterData: hexDataSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
         signature: hexDataSchema
     })
     .strict()
@@ -694,15 +730,34 @@ export type JSONRPCRequest = z.infer<typeof jsonRpcSchema>
 export type JSONRPCResponse = z.infer<typeof jsonRpcResultSchema>
 
 export {
-    bundlerClearMempoolRequestSchema, bundlerClearStateRequestSchema, bundlerDumpMempoolRequestSchema, bundlerDumpReputationsRequestSchema, bundlerRequestSchema, bundlerSendBundleNowRequestSchema,
+    bundlerClearMempoolRequestSchema,
+    bundlerClearStateRequestSchema,
+    bundlerDumpMempoolRequestSchema,
+    bundlerDumpReputationsRequestSchema,
+    bundlerRequestSchema,
+    bundlerSendBundleNowRequestSchema,
     bundlerSetBundlingModeRequestSchema,
-    bundlerSetReputationsRequestSchema, jsonRpcResultSchema, jsonRpcSchema, pimlicoGetStakeStatusRequestSchema, pimlicoGetUserOperationGasPriceRequestSchema, pimlicoGetUserOperationStatusRequestSchema, unPackedUserOperationSchema
+    bundlerSetReputationsRequestSchema,
+    jsonRpcResultSchema,
+    jsonRpcSchema,
+    pimlicoGetStakeStatusRequestSchema,
+    pimlicoGetUserOperationGasPriceRequestSchema,
+    pimlicoGetUserOperationStatusRequestSchema,
+    unPackedUserOperationSchema
 }
 
 export {
-    bundlerClearMempoolResponseSchema, bundlerClearStateResponseSchema, bundlerDumpMempoolResponseSchema, bundlerDumpReputationsResponseSchema, bundlerGetStakeStatusResponseSchema, bundlerResponseSchema, bundlerSendBundleNowResponseSchema,
+    bundlerClearMempoolResponseSchema,
+    bundlerClearStateResponseSchema,
+    bundlerDumpMempoolResponseSchema,
+    bundlerDumpReputationsResponseSchema,
+    bundlerGetStakeStatusResponseSchema,
+    bundlerResponseSchema,
+    bundlerSendBundleNowResponseSchema,
     bundlerSetBundlingModeResponseSchema,
-    bundlerSetReputationsResponseSchema, pimlicoGetUserOperationGasPriceResponseSchema, pimlicoGetUserOperationStatusResponseSchema
+    bundlerSetReputationsResponseSchema,
+    pimlicoGetUserOperationGasPriceResponseSchema,
+    pimlicoGetUserOperationStatusResponseSchema
 }
 
 export {
