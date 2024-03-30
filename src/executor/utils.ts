@@ -5,7 +5,6 @@ import {
     EntryPointV06Abi,
     deriveUserOperation,
     failedOpErrorSchema,
-    type UserOperationV06,
     EntryPointV07Abi,
     type UserOperationWithHash,
     type TransactionInfo,
@@ -51,6 +50,7 @@ export function simulatedOpsToResults(
                 status: "success",
                 value: {
                     userOperation: {
+                        entryPoint: transactionInfo.entryPoint,
                         mempoolUserOperation: sop.owh.mempoolUserOperation,
                         userOperationHash: sop.owh.userOperationHash,
                         lastReplaced: Date.now(),
@@ -58,15 +58,16 @@ export function simulatedOpsToResults(
                     },
                     transactionInfo
                 }
-            } as BundleResult
+            }
         }
         return {
             status: "failure",
             error: {
+                entryPoint: transactionInfo.entryPoint,
                 userOpHash: sop.owh.userOperationHash,
                 reason: sop.reason as string
             }
-        } as BundleResult
+        }
     })
 }
 
@@ -136,9 +137,13 @@ export async function filterOpsAndEstimateGas(
 
     let gasLimit: bigint
 
-    const isUserOpV06 = isVersion06(
-        simulatedOps[0].owh.mempoolUserOperation as UserOperation
-    )
+    // TODO compressed ops are not supported in V07
+    const isUserOpV06 =
+        callContext.type === "default"
+            ? isVersion06(
+                  simulatedOps[0].owh.mempoolUserOperation as UserOperation
+              )
+            : true
 
     while (simulatedOps.filter((op) => op.reason === undefined).length > 0) {
         try {
@@ -153,7 +158,7 @@ export async function filterOpsAndEstimateGas(
                     .filter((op) => op.reason === undefined)
                     .map((op) => {
                         return isUserOpV06
-                            ? (op.owh.mempoolUserOperation as UserOperationV06)
+                            ? op.owh.mempoolUserOperation
                             : toPackedUserOperation(
                                   op.owh
                                       .mempoolUserOperation as UserOperationV07

@@ -12,7 +12,6 @@ import {
     type UserOperationV06,
     type UserOperationV07,
     EntryPointV07Abi,
-    type UserOperationInfo,
     type UserOperationWithHash
 } from "@alto/types"
 import {
@@ -245,7 +244,7 @@ export class Executor {
             callContext = {
                 ep,
                 type: "default"
-            } as DefaultFilterOpsAndEstimateGasParams
+            }
         } else {
             const compressionHandler = this.getCompressionHandler()
 
@@ -254,7 +253,7 @@ export class Executor {
                 bundleBulker: compressionHandler.bundleBulkerAddress,
                 perOpInflatorId: compressionHandler.perOpInflatorId,
                 type: "compressed"
-            } as CompressedFilterOpsAndEstimateGasParams
+            }
         }
 
         const result = await filterOpsAndEstimateGas(
@@ -586,14 +585,16 @@ export class Executor {
         if (resubmitAllOps) {
             this.markWalletProcessed(wallet)
             return opsWithHashes.map((owh) => {
-                return {
+                const bundleResult: BundleResult = {
                     status: "resubmit",
                     info: {
+                        entryPoint,
                         userOpHash: owh.userOperationHash,
                         userOperation: owh.mempoolUserOperation,
                         reason: FeeCapTooLowError.name
                     }
-                } as BundleResult
+                }
+                return bundleResult
             })
         }
 
@@ -606,10 +607,11 @@ export class Executor {
                 return {
                     status: "failure",
                     error: {
+                        entryPoint,
                         userOpHash: owh.userOperationHash,
                         reason: "INTERNAL FAILURE"
                     }
-                } as BundleResult
+                }
             })
         }
 
@@ -620,10 +622,11 @@ export class Executor {
                 return {
                     status: "failure",
                     error: {
+                        entryPoint,
                         userOpHash: op.owh.userOperationHash,
                         reason: op.reason as string
                     }
-                } as BundleResult
+                }
             })
         }
 
@@ -694,20 +697,22 @@ export class Executor {
                 return {
                     status: "failure",
                     error: {
+                        entryPoint,
                         userOpHash: owh.userOperationHash,
                         reason: "INTERNAL FAILURE"
                     }
-                } as BundleResult
+                }
             })
         }
 
         const userOperationInfos = opsWithHashToBundle.map((op) => {
             return {
+                entryPoint,
                 mempoolUserOperation: op.mempoolUserOperation,
                 userOperationHash: op.userOperationHash,
                 lastReplaced: Date.now(),
                 firstSubmitted: Date.now()
-            } as UserOperationInfo
+            }
         })
 
         const transactionInfo: TransactionInfo = {
@@ -840,6 +845,7 @@ export class Executor {
                 return {
                     status: "resubmit",
                     info: {
+                        entryPoint,
                         userOpHash: getUserOperationHash(
                             compressedOp.inflatedOp,
                             entryPoint,
@@ -848,7 +854,7 @@ export class Executor {
                         userOperation: compressedOp,
                         reason: FeeCapTooLowError.name
                     }
-                } as BundleResult
+                }
             })
         }
 
@@ -859,6 +865,7 @@ export class Executor {
                 return {
                     status: "failure",
                     error: {
+                        entryPoint,
                         userOpHash: getUserOperationHash(
                             compressedOp.inflatedOp,
                             entryPoint,
@@ -866,7 +873,7 @@ export class Executor {
                         ),
                         reason: "INTERNAL FAILURE"
                     }
-                } as BundleResult
+                }
             })
         }
 
@@ -880,10 +887,11 @@ export class Executor {
                 return {
                     status: "failure",
                     error: {
+                        entryPoint,
                         userOpHash: simulatedOp.owh.userOperationHash,
                         reason: simulatedOp.reason as string
                     }
-                } as BundleResult
+                }
             })
         }
 
@@ -926,20 +934,22 @@ export class Executor {
                 return {
                     status: "failure",
                     error: {
+                        entryPoint,
                         userOpHash: op.userOperationHash,
                         reason: "INTERNAL FAILURE"
                     }
-                } as BundleResult
+                }
             })
         }
 
         const userOperationInfos = opsToBundle.map((owh) => {
             return {
+                entryPoint,
                 mempoolUserOperation: owh.mempoolUserOperation,
                 userOperationHash: owh.userOperationHash,
                 lastReplaced: Date.now(),
                 firstSubmitted: Date.now()
-            } as UserOperationInfo
+            }
         })
 
         const transactionInfo: TransactionInfo = {
