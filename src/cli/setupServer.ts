@@ -125,7 +125,6 @@ const getMempool = ({
         reputationManager,
         validator,
         client,
-        parsedArgs.entryPoints[0],
         parsedArgs.safeMode,
         logger.child(
             { module: "mempool" },
@@ -182,7 +181,7 @@ const getExecutor = ({
         walletClient,
         senderManager,
         reputationManager,
-        parsedArgs.entryPoints[0],
+        parsedArgs.entryPoints,
         logger.child(
             { module: "executor" },
             { level: parsedArgs.executorLogLevel || parsedArgs.logLevel }

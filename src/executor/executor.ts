@@ -106,8 +106,8 @@ export class Executor {
 
     publicClient: PublicClient
     walletClient: WalletClient<Transport, Chain, Account | undefined>
+    entryPoints: Address[]
     senderManager: SenderManager
-    entryPoint: Address
     logger: Logger
     metrics: Metrics
     simulateTransaction: boolean
@@ -124,7 +124,7 @@ export class Executor {
         walletClient: WalletClient<Transport, Chain, Account | undefined>,
         senderManager: SenderManager,
         reputationManager: InterfaceReputationManager,
-        entryPoint: Address,
+        entryPoints: Address[],
         logger: Logger,
         metrics: Metrics,
         compressionHandler: CompressionHandler | null,
@@ -138,7 +138,6 @@ export class Executor {
         this.walletClient = walletClient
         this.senderManager = senderManager
         this.reputationManager = reputationManager
-        this.entryPoint = entryPoint
         this.logger = logger
         this.metrics = metrics
         this.simulateTransaction = simulateTransaction
@@ -148,6 +147,7 @@ export class Executor {
             useUserOperationGasLimitsForSubmission
         this.compressionHandler = compressionHandler
         this.gasPriceManager = gasPriceManager
+        this.entryPoints = entryPoints
 
         this.mutex = new Mutex()
     }
@@ -197,9 +197,10 @@ export class Executor {
                     mempoolUserOperation: opInfo.mempoolUserOperation,
                     userOperationHash: getUserOperationHash(
                         op,
-                        this.entryPoint,
+                        opInfo.entryPoint,
                         this.walletClient.chain.id
-                    )
+                    ),
+                    entryPoint: opInfo.entryPoint
                 }
             }
         )
@@ -209,11 +210,14 @@ export class Executor {
             | CompressedFilterOpsAndEstimateGasParams
 
         if (transactionInfo.transactionType === "default") {
-            const isUserOpVersion06 = opsWithHashes.reduce(
+            const [isUserOpVersion06, entryPoint] = opsWithHashes.reduce(
                 (acc, op) => {
                     if (
-                        acc !==
-                        isVersion06(op.mempoolUserOperation as UserOperation)
+                        acc[0] !==
+                            isVersion06(
+                                op.mempoolUserOperation as UserOperation
+                            ) ||
+                        acc[1] !== op.entryPoint
                     ) {
                         throw new Error(
                             "All user operations must be of the same version"
@@ -221,14 +225,17 @@ export class Executor {
                     }
                     return acc
                 },
-                isVersion06(
-                    opsWithHashes[0].mempoolUserOperation as UserOperation
-                )
+                [
+                    isVersion06(
+                        opsWithHashes[0].mempoolUserOperation as UserOperation
+                    ),
+                    opsWithHashes[0].entryPoint
+                ]
             )
 
             const ep = getContract({
                 abi: isUserOpVersion06 ? EntryPointV06Abi : EntryPointV07Abi,
-                address: this.entryPoint,
+                address: entryPoint,
                 client: {
                     public: this.publicClient,
                     wallet: this.walletClient
@@ -482,14 +489,16 @@ export class Executor {
         )
         // biome-ignore lint/nursery/useAwait: <explanation>
         const promises = wallets.map(async (wallet) => {
-            return flushStuckTransaction(
-                this.publicClient,
-                this.walletClient,
-                wallet,
-                gasPrice.maxFeePerGas * 5n,
-                this.logger,
-                this.entryPoint
-            )
+            for (const entryPoint of this.entryPoints) {
+                await flushStuckTransaction(
+                    this.publicClient,
+                    this.walletClient,
+                    wallet,
+                    gasPrice.maxFeePerGas * 5n,
+                    this.logger,
+                    entryPoint
+                )
+            }
         })
 
         await Promise.all(promises)
@@ -529,7 +538,7 @@ export class Executor {
 
         const ep = getContract({
             abi: isUserOpVersion06 ? EntryPointV06Abi : EntryPointV07Abi,
-            address: this.entryPoint,
+            address: entryPoint,
             client: {
                 public: this.publicClient,
                 wallet: this.walletClient
@@ -777,7 +786,7 @@ export class Executor {
 
         const childLogger = this.logger.child({
             compressedUserOperations: compressedOps,
-            entryPoint: this.entryPoint
+            entryPoint: entryPoint
         })
         childLogger.debug("bundling compressed user operation")
 

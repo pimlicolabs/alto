@@ -43,7 +43,6 @@ import { MemoryStore } from "./store"
 export class MemoryMempool {
     private monitor: Monitor
     private publicClient: PublicClient<Transport, Chain>
-    private entryPointAddress: Address
     private reputationManager: InterfaceReputationManager
     private store: MemoryStore
     private throttledEntityBundleCount: number
@@ -56,7 +55,6 @@ export class MemoryMempool {
         reputationManager: InterfaceReputationManager,
         validator: InterfaceValidator,
         publicClient: PublicClient<Transport, Chain>,
-        entryPointAddress: Address,
         safeMode: boolean,
         logger: Logger,
         metrics: Metrics,
@@ -66,7 +64,6 @@ export class MemoryMempool {
         this.monitor = monitor
         this.validator = validator
         this.publicClient = publicClient
-        this.entryPointAddress = entryPointAddress
         this.safeMode = safeMode
         this.logger = logger
         this.store = new MemoryStore(logger, metrics)
@@ -283,7 +280,7 @@ export class MemoryMempool {
 
         const hash = getUserOperationHash(
             op,
-            this.entryPointAddress,
+            entryPoint,
             this.publicClient.chain.id
         )
 
@@ -486,7 +483,7 @@ export class MemoryMempool {
             if (paymasterDeposit[paymaster] === undefined) {
                 const entryPointContract = getContract({
                     abi: EntryPointV06Abi,
-                    address: this.entryPointAddress,
+                    address: opInfo.entryPoint,
                     client: {
                         public: this.publicClient
                     }
