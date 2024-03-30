@@ -197,7 +197,7 @@ export class Executor {
                     mempoolUserOperation: opInfo.mempoolUserOperation,
                     userOperationHash: getUserOperationHash(
                         op,
-                        opInfo.entryPoint,
+                        transactionInfo.entryPoint,
                         this.walletClient.chain.id
                     ),
                     entryPoint: opInfo.entryPoint
@@ -413,7 +413,7 @@ export class Executor {
                     : newRequest
             )
 
-            const newTxInfo = {
+            const newTxInfo: TransactionInfo = {
                 ...transactionInfo,
                 transactionRequest: newRequest,
                 transactionHash: txHash,
@@ -424,13 +424,14 @@ export class Executor {
                 lastReplaced: Date.now(),
                 userOperationInfos: opsToBundle.map((opInfo) => {
                     return {
+                        entryPoint: opInfo.entryPoint,
                         mempoolUserOperation: opInfo.mempoolUserOperation,
                         userOperationHash: opInfo.userOperationHash,
                         lastReplaced: Date.now(),
                         firstSubmitted: opInfo.firstSubmitted
                     }
                 })
-            } as TransactionInfo
+            }
 
             return {
                 status: "replaced",

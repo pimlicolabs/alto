@@ -128,8 +128,7 @@ export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
     const registry = new Registry()
     registry.setDefaultLabels({
         network: chain.name,
-        chainId,
-        entrypoints: parsedArgs.entryPoints
+        chainId
     })
     const metrics = createMetrics(registry)
 

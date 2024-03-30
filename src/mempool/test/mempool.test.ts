@@ -145,6 +145,7 @@ describe("mempool", () => {
             {
                 status: SubmissionStatus.Submitted,
                 userOperationInfo: {
+                    entryPoint,
                     userOperation: op,
                     userOperationHash: opHash,
                     lastReplaced: Date.now(),
