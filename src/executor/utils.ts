@@ -6,12 +6,19 @@ import {
     deriveUserOperation,
     failedOpErrorSchema,
     type UserOperationV06,
-    type EntryPointV07Abi,
+    EntryPointV07Abi,
     type UserOperationWithHash,
-    type TransactionInfo
+    type TransactionInfo,
+    type UserOperation,
+    type UserOperationV07
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
-import { parseViemError, transactionIncluded } from "@alto/utils"
+import {
+    isVersion06,
+    parseViemError,
+    toPackedUserOperation,
+    transactionIncluded
+} from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
     type Account,
@@ -61,28 +68,6 @@ export function simulatedOpsToResults(
             }
         } as BundleResult
     })
-}
-
-export type DefaultFilterOpsAndEstimateGasParamsV06 = {
-    ep: GetContractReturnType<
-        typeof EntryPointV06Abi,
-        {
-            public: PublicClient
-            wallet: WalletClient
-        }
-    >
-    type: "default"
-}
-
-export type DefaultFilterOpsAndEstimateGasParamsV07 = {
-    ep: GetContractReturnType<
-        typeof EntryPointV07Abi,
-        {
-            public: PublicClient
-            wallet: WalletClient
-        }
-    >
-    type: "default"
 }
 
 export type DefaultFilterOpsAndEstimateGasParams = {
@@ -151,6 +136,10 @@ export async function filterOpsAndEstimateGas(
 
     let gasLimit: bigint
 
+    const isUserOpV06 = isVersion06(
+        simulatedOps[0].owh.mempoolUserOperation as UserOperation
+    )
+
     while (simulatedOps.filter((op) => op.reason === undefined).length > 0) {
         try {
             const gasOptions = onlyPre1559
@@ -159,13 +148,20 @@ export async function filterOpsAndEstimateGas(
 
             if (callContext.type === "default") {
                 const ep = callContext.ep
+
                 const opsToSend = simulatedOps
                     .filter((op) => op.reason === undefined)
-                    .map(
-                        (op) => op.owh.mempoolUserOperation as UserOperationV06
-                    )
+                    .map((op) => {
+                        return isUserOpV06
+                            ? (op.owh.mempoolUserOperation as UserOperationV06)
+                            : toPackedUserOperation(
+                                  op.owh
+                                      .mempoolUserOperation as UserOperationV07
+                              )
+                    })
 
                 gasLimit = await ep.estimateGas.handleOps(
+                    // @ts-ignore - ep is set correctly for opsToSend, but typescript doesn't know that
                     [opsToSend, wallet.address],
                     {
                         account: wallet,
@@ -242,7 +238,7 @@ export async function filterOpsAndEstimateGas(
                 try {
                     const errorHexData = e.details.split("Reverted ")[1] as Hex
                     const errorResult = decodeErrorResult({
-                        abi: EntryPointV06Abi,
+                        abi: isUserOpV06 ? EntryPointV06Abi : EntryPointV07Abi,
                         data: errorHexData
                     })
                     logger.debug(
@@ -368,7 +364,9 @@ export async function flushStuckTransaction(
                 "flushed stuck transaction"
             )
 
-            await transactionIncluded(txHash, publicClient, entryPoint)
+            // TODO: We don't know if the entrypoint is the V06 or V07. So we try and catch both.
+            await transactionIncluded(true, txHash, publicClient, entryPoint)
+            await transactionIncluded(false, txHash, publicClient, entryPoint)
         } catch (e) {
             sentry.captureException(e)
             logger.warn({ error: e }, "error flushing stuck transaction")

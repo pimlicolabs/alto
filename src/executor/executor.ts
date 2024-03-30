@@ -487,7 +487,6 @@ export class Executor {
                 this.senderManager.utilityAccount
             ])
         )
-        // biome-ignore lint/nursery/useAwait: <explanation>
         const promises = wallets.map(async (wallet) => {
             for (const entryPoint of this.entryPoints) {
                 await flushStuckTransaction(
@@ -712,6 +711,7 @@ export class Executor {
 
         const transactionInfo: TransactionInfo = {
             entryPoint,
+            isVersion06: isUserOpVersion06,
             transactionType: "default",
             transactionHash: txHash,
             previousTransactionHashes: [],
@@ -943,6 +943,7 @@ export class Executor {
 
         const transactionInfo: TransactionInfo = {
             entryPoint,
+            isVersion06: true, //TODO: compressed bundles are always v06
             transactionType: "compressed",
             transactionHash: txHash,
             previousTransactionHashes: [],

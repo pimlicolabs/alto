@@ -360,6 +360,7 @@ export class ExecutorManager {
                 return {
                     hash: hash,
                     transactionStatuses: await transactionIncluded(
+                        transactionInfo.isVersion06,
                         hash,
                         this.publicClient,
                         entryPoint

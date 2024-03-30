@@ -11,7 +11,8 @@ import {
     ValidationErrors,
     type ValidationResultWithAggregation,
     entryPointErrorsSchema,
-    entryPointExecutionErrorSchema
+    entryPointExecutionErrorSchemaV06,
+    entryPointExecutionErrorSchemaV07
 } from "@alto/types"
 import type {
     UserOperationV06,
@@ -47,6 +48,7 @@ import { simulateHandleOp } from "../gasEstimation"
 import { simulateValidation } from "../EntryPointSimulationsV07"
 
 async function getSimulationResult(
+    isVersion06: boolean,
     errorResult: unknown,
     logger: Logger,
     simulationType: "validation" | "execution",
@@ -54,6 +56,10 @@ async function getSimulationResult(
 ): Promise<
     ValidationResult | ValidationResultWithAggregation | ExecutionResult
 > {
+    const entryPointExecutionErrorSchema = isVersion06
+        ? entryPointExecutionErrorSchemaV06
+        : entryPointExecutionErrorSchemaV07
+
     const entryPointErrorSchemaParsing = usingTenderly
         ? entryPointErrorsSchema.safeParse(errorResult)
         : entryPointExecutionErrorSchema.safeParse(errorResult)
@@ -209,6 +215,7 @@ export class UnsafeValidator implements InterfaceValidator {
 
         const validationResult = {
             ...((await getSimulationResult(
+                isVersion06(userOperation),
                 errorResult,
                 this.logger,
                 "validation",

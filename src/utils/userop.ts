@@ -4,7 +4,8 @@ import {
     type HexData32,
     type UserOperation,
     type UserOperationV07,
-    PackedUserOperation
+    type PackedUserOperation,
+    EntryPointV07Abi
 } from "@alto/types"
 import * as sentry from "@sentry/node"
 import {
@@ -185,6 +186,7 @@ export function getAddressFromInitCodeOrPaymasterAndData(
 }
 
 export const transactionIncluded = async (
+    isVersion06: boolean,
     txHash: HexData32,
     publicClient: PublicClient,
     entryPoint: Address
@@ -204,7 +206,9 @@ export const transactionIncluded = async (
                     if (areAddressesEqual(l.address, entryPoint)) {
                         try {
                             const log = decodeEventLog({
-                                abi: EntryPointV06Abi,
+                                abi: isVersion06
+                                    ? EntryPointV06Abi
+                                    : EntryPointV07Abi,
                                 data: l.data,
                                 topics: l.topics
                             })

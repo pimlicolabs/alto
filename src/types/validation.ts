@@ -323,7 +323,7 @@ export const vmExecutionError = z.object({
     })
 })
 
-export const entryPointExecutionErrorSchema = z
+export const entryPointExecutionErrorSchemaV06 = z
     .object({
         name: z.literal("ContractFunctionExecutionError"),
         cause: z.discriminatedUnion("name", [
@@ -338,6 +338,25 @@ export const entryPointExecutionErrorSchema = z
         return val.cause.data
     })
 
-export type EntryPointExecutionError = z.infer<
-    typeof entryPointExecutionErrorSchema
+export type EntryPointExecutionErrorV06 = z.infer<
+    typeof entryPointExecutionErrorSchemaV06
+>
+
+export const entryPointExecutionErrorSchemaV07 = z
+    .object({
+        name: z.literal("ContractFunctionExecutionError"),
+        cause: z.discriminatedUnion("name", [
+            errorCauseSchema,
+            vmExecutionError
+        ])
+    })
+    .transform((val) => {
+        if (val.cause.name === "CallExecutionError") {
+            return val.cause.cause.cause.data
+        }
+        return val.cause.data
+    })
+
+export type EntryPointExecutionErrorV07 = z.infer<
+    typeof entryPointExecutionErrorSchemaV07
 >

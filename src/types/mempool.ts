@@ -29,6 +29,7 @@ export type TransactionInfo = {
     transactionHash: HexData32
     previousTransactionHashes: HexData32[]
     entryPoint: Address
+    isVersion06: boolean
     transactionRequest: {
         account: Account
         to: Address

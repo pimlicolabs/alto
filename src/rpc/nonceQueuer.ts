@@ -1,7 +1,8 @@
 import {
     EntryPointV06Abi,
     type MempoolUserOperation,
-    deriveUserOperation
+    deriveUserOperation,
+    EntryPointV07Abi
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
@@ -130,9 +131,12 @@ export class NonceQueuer {
             results = await publicClient.multicall({
                 contracts: queuedUserOperations.map((qop) => {
                     const userOp = deriveUserOperation(qop.mempoolUserOperation)
+
+                    const isUserOpV06 = isVersion06(userOp)
+
                     return {
                         address: qop.entryPoint,
-                        abi: EntryPointV06Abi,
+                        abi: isUserOpV06 ? EntryPointV06Abi : EntryPointV07Abi,
                         functionName: "getNonce",
                         args: [userOp.sender, qop.nonceKey]
                     }
@@ -160,7 +164,7 @@ export class NonceQueuer {
                                   }
                               })
                             : getContract({
-                                  abi: EntryPointV06Abi,
+                                  abi: EntryPointV07Abi,
                                   address: qop.entryPoint,
                                   client: {
                                       public: publicClient

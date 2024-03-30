@@ -15,7 +15,8 @@ import {
     type UserOperationInfo,
     ValidationErrors,
     type ValidationResult,
-    deriveUserOperation
+    deriveUserOperation,
+    EntryPointV07Abi
 } from "@alto/types"
 import type { HexData32 } from "@alto/types"
 import type { Logger } from "@alto/utils"
@@ -482,7 +483,7 @@ export class MemoryMempool {
         if (paymaster) {
             if (paymasterDeposit[paymaster] === undefined) {
                 const entryPointContract = getContract({
-                    abi: EntryPointV06Abi,
+                    abi: isUserOpV06 ? EntryPointV06Abi : EntryPointV07Abi,
                     address: opInfo.entryPoint,
                     client: {
                         public: this.publicClient

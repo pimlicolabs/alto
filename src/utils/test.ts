@@ -1,7 +1,7 @@
 // biome-ignore lint/nursery/noNodejsModules: <explanation>
 import { type ChildProcess, exec } from "child_process"
 import type { HexData, HexData32, UserOperationV06 } from "@alto/types"
-import { entryPointExecutionErrorSchema } from "@alto/types"
+import { entryPointExecutionErrorSchemaV06 } from "@alto/types"
 import * as sentry from "@sentry/node"
 import { type Abi, parseAbiParameters } from "abitype"
 import {
@@ -170,7 +170,7 @@ export function getUserOpHash(
 
 export const parseSenderAddressError = (e: Error): Address => {
     const entryPointExecutionErrorSchemaParsing =
-        entryPointExecutionErrorSchema.safeParse(e)
+        entryPointExecutionErrorSchemaV06.safeParse(e)
     if (!entryPointExecutionErrorSchemaParsing.success) {
         sentry.captureException(e)
         throw fromZodError(entryPointExecutionErrorSchemaParsing.error)
