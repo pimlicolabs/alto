@@ -1,5 +1,11 @@
+import type { Address } from "viem"
 import type { ReferencedCodeHashes } from "./mempool"
-import type { StateOverrides, UserOperation } from "./schemas"
+import type {
+    StateOverrides,
+    UserOperation,
+    UserOperationV06,
+    UserOperationV07
+} from "./schemas"
 import type {
     ExecutionResult,
     StorageMap,
@@ -10,10 +16,12 @@ import type {
 export interface InterfaceValidator {
     getExecutionResult(
         userOperation: UserOperation,
+        entryPoint: Address,
         stateOverrides?: StateOverrides
     ): Promise<ExecutionResult>
-    getValidationResult(
-        userOperation: UserOperation,
+    getValidationResultV06(
+        userOperation: UserOperationV06,
+        entryPoint: Address,
         _codeHashes?: ReferencedCodeHashes
     ): Promise<
         (ValidationResult | ValidationResultWithAggregation) & {
@@ -21,9 +29,33 @@ export interface InterfaceValidator {
             referencedContracts?: ReferencedCodeHashes
         }
     >
-    validatePreVerificationGas(userOperation: UserOperation): Promise<void>
+    getValidationResultV07(
+        userOperation: UserOperationV07,
+        entryPoint: Address,
+        _codeHashes?: ReferencedCodeHashes
+    ): Promise<
+        (ValidationResult | ValidationResultWithAggregation) & {
+            storageMap: StorageMap
+            referencedContracts?: ReferencedCodeHashes
+        }
+    >
+    getValidationResult(
+        userOperation: UserOperation,
+        entryPoint: Address,
+        _codeHashes?: ReferencedCodeHashes
+    ): Promise<
+        (ValidationResult | ValidationResultWithAggregation) & {
+            storageMap: StorageMap
+            referencedContracts?: ReferencedCodeHashes
+        }
+    >
+    validatePreVerificationGas(
+        userOperation: UserOperation,
+        entryPoint: Address
+    ): Promise<void>
     validateUserOperation(
         userOperation: UserOperation,
+        entryPoint: Address,
         referencedContracts?: ReferencedCodeHashes
     ): Promise<
         (ValidationResult | ValidationResultWithAggregation) & {

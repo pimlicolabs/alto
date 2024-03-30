@@ -1,4 +1,11 @@
-import { EntryPointAbi, type HexData32, type UserOperation } from "@alto/types"
+import {
+    EntryPointV06Abi,
+    type UserOperationV06,
+    type HexData32,
+    type UserOperation,
+    type UserOperationV07,
+    PackedUserOperation
+} from "@alto/types"
 import * as sentry from "@sentry/node"
 import {
     type Address,
@@ -8,9 +15,133 @@ import {
     encodeAbiParameters,
     getAddress,
     keccak256,
-    toHex
+    toHex,
+    concat,
+    slice,
+    pad
 } from "viem"
 import { areAddressesEqual } from "./helpers"
+
+// Type predicate check if the UserOperation is V06.
+export function isVersion06(
+    operation: UserOperation
+): operation is UserOperationV06 {
+    return "initCode" in operation && "paymasterAndData" in operation
+}
+
+// Type predicate to check if the UserOperation is V07.
+export function isVersion07(
+    operation: UserOperation
+): operation is UserOperationV07 {
+    return "factory" in operation && "paymaster" in operation
+}
+
+export function getInitCode(unpackedUserOperation: UserOperationV07) {
+    return unpackedUserOperation.factory
+        ? concat([
+              unpackedUserOperation.factory,
+              unpackedUserOperation.factoryData || ("0x" as Hex)
+          ])
+        : "0x"
+}
+
+export function unPackInitCode(initCode: Hex) {
+    if (initCode === "0x") {
+        return {
+            factory: null,
+            factoryData: null
+        }
+    }
+    return {
+        factory: getAddress(slice(initCode, 0, 20)),
+        factoryData: slice(initCode, 20)
+    }
+}
+
+export function getAccountGasLimits(unpackedUserOperation: UserOperationV07) {
+    return concat([
+        pad(toHex(unpackedUserOperation.verificationGasLimit), {
+            size: 16
+        }),
+        pad(toHex(unpackedUserOperation.callGasLimit), { size: 16 })
+    ])
+}
+
+export function unpackAccountGasLimits(accountGasLimits: Hex) {
+    return {
+        verificationGasLimit: BigInt(slice(accountGasLimits, 0, 16)),
+        callGasLimit: BigInt(slice(accountGasLimits, 16))
+    }
+}
+
+export function getGasLimits(unpackedUserOperation: UserOperationV07) {
+    return concat([
+        pad(toHex(unpackedUserOperation.maxPriorityFeePerGas), {
+            size: 16
+        }),
+        pad(toHex(unpackedUserOperation.maxFeePerGas), { size: 16 })
+    ])
+}
+
+export function unpackGasLimits(gasLimits: Hex) {
+    return {
+        maxPriorityFeePerGas: BigInt(slice(gasLimits, 0, 16)),
+        maxFeePerGas: BigInt(slice(gasLimits, 16))
+    }
+}
+
+export function getPaymasterAndData(unpackedUserOperation: UserOperationV07) {
+    return unpackedUserOperation.paymaster
+        ? concat([
+              unpackedUserOperation.paymaster,
+              pad(
+                  toHex(
+                      unpackedUserOperation.paymasterVerificationGasLimit || 0n
+                  ),
+                  {
+                      size: 16
+                  }
+              ),
+              pad(toHex(unpackedUserOperation.paymasterPostOpGasLimit || 0n), {
+                  size: 16
+              }),
+              unpackedUserOperation.paymasterData || ("0x" as Hex)
+          ])
+        : "0x"
+}
+
+export function unpackPaymasterAndData(paymasterAndData: Hex) {
+    if (paymasterAndData === "0x") {
+        return {
+            paymaster: null,
+            paymasterVerificationGasLimit: null,
+            paymasterPostOpGasLimit: null,
+            paymasterData: null
+        }
+    }
+    return {
+        paymaster: getAddress(slice(paymasterAndData, 0, 20)),
+        paymasterVerificationGasLimit: BigInt(slice(paymasterAndData, 20, 36)),
+        paymasterPostOpGasLimit: BigInt(slice(paymasterAndData, 36, 52)),
+        paymasterData: slice(paymasterAndData, 52)
+    }
+}
+
+export function toPackedUserOperation(
+    unpackedUserOperation: UserOperationV07
+): PackedUserOperation {
+    return {
+        sender: unpackedUserOperation.sender,
+        nonce: unpackedUserOperation.nonce,
+        initCode: getInitCode(unpackedUserOperation),
+        callData: unpackedUserOperation.callData,
+        accountGasLimits: getAccountGasLimits(unpackedUserOperation),
+        preVerificationGas: unpackedUserOperation.preVerificationGas,
+        gasFees: getGasLimits(unpackedUserOperation),
+        paymasterAndData: getPaymasterAndData(unpackedUserOperation),
+        signature: unpackedUserOperation.signature
+    }
+}
 
 // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
 export function deepHexlify(obj: any): any {
@@ -43,14 +174,14 @@ export function deepHexlify(obj: any): any {
 
 export function getAddressFromInitCodeOrPaymasterAndData(
     data: Hex
-): Address | undefined {
+): Address | null {
     if (!data) {
-        return undefined
+        return null
     }
     if (data.length >= 42) {
         return getAddress(data.slice(0, 42))
     }
-    return undefined
+    return null
 }
 
 export const transactionIncluded = async (
@@ -73,7 +204,7 @@ export const transactionIncluded = async (
                     if (areAddressesEqual(l.address, entryPoint)) {
                         try {
                             const log = decodeEventLog({
-                                abi: EntryPointAbi,
+                                abi: EntryPointV06Abi,
                                 data: l.data,
                                 topics: l.topics
                             })
@@ -154,8 +285,8 @@ export const transactionIncluded = async (
     }
 }
 
-export const getUserOperationHash = (
-    userOperation: UserOperation,
+export const getUserOperationHashV06 = (
+    userOperation: UserOperationV06,
     entryPointAddress: Address,
     chainId: number
 ) => {
@@ -239,11 +370,147 @@ export const getUserOperationHash = (
     )
 }
 
+export const getUserOperationHashV07 = (
+    userOperation: PackedUserOperation,
+    entryPointAddress: Address,
+    chainId: number
+) => {
+    const hash = keccak256(
+        encodeAbiParameters(
+            [
+                {
+                    name: "sender",
+                    type: "address"
+                },
+                {
+                    name: "nonce",
+                    type: "uint256"
+                },
+                {
+                    name: "initCodeHash",
+                    type: "bytes32"
+                },
+                {
+                    name: "callDataHash",
+                    type: "bytes32"
+                },
+                {
+                    name: "accountGasLimits",
+                    type: "bytes32"
+                },
+                {
+                    name: "preVerificationGas",
+                    type: "uint256"
+                },
+                {
+                    name: "gasFees",
+                    type: "bytes32"
+                },
+                {
+                    name: "paymasterAndDataHash",
+                    type: "bytes32"
+                }
+            ],
+            [
+                userOperation.sender,
+                userOperation.nonce,
+                keccak256(userOperation.initCode),
+                keccak256(userOperation.callData),
+                userOperation.accountGasLimits,
+                userOperation.preVerificationGas,
+                userOperation.gasFees,
+                keccak256(userOperation.paymasterAndData)
+            ]
+        )
+    )
+
+    return keccak256(
+        encodeAbiParameters(
+            [
+                {
+                    name: "userOpHash",
+                    type: "bytes32"
+                },
+                {
+                    name: "entryPointAddress",
+                    type: "address"
+                },
+                {
+                    name: "chainId",
+                    type: "uint256"
+                }
+            ],
+            [hash, entryPointAddress, BigInt(chainId)]
+        )
+    )
+}
+
+export const getUserOperationHash = (
+    userOperation: UserOperation,
+    entryPointAddress: Address,
+    chainId: number
+) => {
+    if (isVersion06(userOperation)) {
+        return getUserOperationHashV06(
+            userOperation,
+            entryPointAddress,
+            chainId
+        )
+    }
+
+    return getUserOperationHashV07(
+        toPackedUserOperation(userOperation),
+        entryPointAddress,
+        chainId
+    )
+}
+
 export const getNonceKeyAndValue = (nonce: bigint) => {
     const nonceKey = nonce >> 64n // first 192 bits of nonce
     const userOperationNonceValue = nonce & 0xffffffffffffffffn // last 64 bits of nonce
 
     return [nonceKey, userOperationNonceValue]
+}
+
+export function toUnPackedUserOperation(
+    packedUserOperation: PackedUserOperation
+): UserOperationV07 {
+    const { factory, factoryData } = unPackInitCode(
+        packedUserOperation.initCode
+    )
+
+    const { callGasLimit, verificationGasLimit } = unpackAccountGasLimits(
+        packedUserOperation.accountGasLimits
+    )
+
+    const { maxFeePerGas, maxPriorityFeePerGas } = unpackGasLimits(
+        packedUserOperation.gasFees
+    )
+
+    const {
+        paymaster,
+        paymasterVerificationGasLimit,
+        paymasterPostOpGasLimit,
+        paymasterData
+    } = unpackPaymasterAndData(packedUserOperation.paymasterAndData)
+
+    return {
+        sender: packedUserOperation.sender,
+        nonce: packedUserOperation.nonce,
+        factory: factory,
+        factoryData: factoryData,
+        callData: packedUserOperation.callData,
+        callGasLimit: callGasLimit,
+        verificationGasLimit: verificationGasLimit,
+        preVerificationGas: packedUserOperation.preVerificationGas,
+        maxFeePerGas: maxFeePerGas,
+        maxPriorityFeePerGas: maxPriorityFeePerGas,
+        paymaster: paymaster,
+        paymasterVerificationGasLimit: paymasterVerificationGasLimit,
+        paymasterPostOpGasLimit: paymasterPostOpGasLimit,
+        paymasterData: paymasterData,
+        signature: packedUserOperation.signature
+    }
 }
 
 /*

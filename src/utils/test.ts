@@ -1,6 +1,6 @@
 // biome-ignore lint/nursery/noNodejsModules: <explanation>
 import { type ChildProcess, exec } from "child_process"
-import type { HexData, HexData32, UserOperation } from "@alto/types"
+import type { HexData, HexData32, UserOperationV06 } from "@alto/types"
 import { entryPointExecutionErrorSchema } from "@alto/types"
 import * as sentry from "@sentry/node"
 import { type Abi, parseAbiParameters } from "abitype"
@@ -121,7 +121,7 @@ export const deployContract = async (
 }
 
 export function getUserOpHash(
-    op: UserOperation,
+    op: UserOperationV06,
     entryPoint: Address,
     chainId: number
 ): HexData32 {

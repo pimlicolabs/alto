@@ -6,7 +6,6 @@ import {
     ReputationManager,
     Monitor,
     MemoryMempool,
-    type Mempool,
     type InterfaceReputationManager
 } from "@alto/mempool"
 import type { Chain, PublicClient, Transport, WalletClient } from "viem"
@@ -19,7 +18,7 @@ import {
 } from "@alto/rpc"
 import type { InterfaceValidator } from "@alto/types"
 import { CompressionHandler } from "@alto/utils"
-import { BasicExecutor, ExecutorManager, type IExecutor } from "@alto/executor"
+import { Executor, ExecutorManager } from "@alto/executor"
 import type { Registry } from "prom-client"
 import type { SenderManager } from "@alto/executor"
 
@@ -35,7 +34,7 @@ const getReputationManager = ({
     if (parsedArgs.safeMode) {
         return new ReputationManager(
             client,
-            parsedArgs.entryPoints[0],
+            parsedArgs.entryPoints,
             BigInt(parsedArgs.minStake),
             BigInt(parsedArgs.minUnstakeDelay),
             logger.child(
@@ -70,7 +69,6 @@ const getValidator = ({
         return new SafeValidator(
             client,
             senderManager,
-            parsedArgs.entryPoints[0],
             logger.child(
                 { module: "rpc" },
                 { level: parsedArgs.rpcLogLevel || parsedArgs.logLevel }
@@ -79,13 +77,13 @@ const getValidator = ({
             parsedArgs.utilityPrivateKey,
             parsedArgs.apiVersion,
             gasPriceManager,
+            parsedArgs.entryPointSimulationsAddress,
             parsedArgs.tenderlyEnabled,
             parsedArgs.balanceOverrideEnabled
         )
     }
     return new UnsafeValidator(
         client,
-        parsedArgs.entryPoints[0],
         logger.child(
             { module: "rpc" },
             { level: parsedArgs.rpcLogLevel || parsedArgs.logLevel }
@@ -94,6 +92,7 @@ const getValidator = ({
         parsedArgs.utilityPrivateKey,
         parsedArgs.apiVersion,
         gasPriceManager,
+        parsedArgs.entryPointSimulationsAddress,
         parsedArgs.tenderlyEnabled,
         parsedArgs.balanceOverrideEnabled,
         parsedArgs.disableExpirationCheck
@@ -120,7 +119,7 @@ const getMempool = ({
     parsedArgs: IBundlerArgs
     logger: Logger
     metrics: Metrics
-}): Mempool => {
+}): MemoryMempool => {
     return new MemoryMempool(
         monitor,
         reputationManager,
@@ -177,8 +176,8 @@ const getExecutor = ({
     metrics: Metrics
     compressionHandler: CompressionHandler | null
     gasPriceManager: GasPriceManager
-}): IExecutor => {
-    return new BasicExecutor(
+}): Executor => {
+    return new Executor(
         client,
         walletClient,
         senderManager,
@@ -209,8 +208,8 @@ const getExecutorManager = ({
     metrics,
     gasPriceManager
 }: {
-    executor: IExecutor
-    mempool: Mempool
+    executor: Executor
+    mempool: MemoryMempool
     monitor: Monitor
     reputationManager: InterfaceReputationManager
     client: PublicClient<Transport, Chain>
@@ -225,7 +224,6 @@ const getExecutorManager = ({
         monitor,
         reputationManager,
         client,
-        parsedArgs.entryPoints[0],
         parsedArgs.pollingInterval,
         logger.child(
             { module: "executor" },
@@ -244,7 +242,7 @@ const getNonceQueuer = ({
     parsedArgs,
     logger
 }: {
-    mempool: Mempool
+    mempool: MemoryMempool
     client: PublicClient<Transport, Chain>
     parsedArgs: IBundlerArgs
     logger: Logger
@@ -252,7 +250,6 @@ const getNonceQueuer = ({
     return new NonceQueuer(
         mempool,
         client,
-        parsedArgs.entryPoints[0],
         logger.child(
             { module: "nonce_queuer" },
             { level: parsedArgs.nonceQueuerLogLevel || parsedArgs.logLevel }
@@ -277,8 +274,8 @@ const getRpcHandler = ({
 }: {
     client: PublicClient<Transport, Chain>
     validator: InterfaceValidator
-    mempool: Mempool
-    executor: IExecutor
+    mempool: MemoryMempool
+    executor: Executor
     monitor: Monitor
     nonceQueuer: NonceQueuer
     executorManager: ExecutorManager
@@ -339,7 +336,8 @@ const getServer = ({
             { level: parsedArgs.rpcLogLevel || parsedArgs.logLevel }
         ),
         registry,
-        metrics
+        metrics,
+        parsedArgs.environment
     )
 }
 

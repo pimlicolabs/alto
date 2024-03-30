@@ -6,9 +6,8 @@ import type {
     UserOperation,
     UserOperationInfo
 } from "@alto/types"
-import type { Mempool } from "./types"
 
-export class NullMempool implements Mempool {
+export class NullMempool {
     clear(): void {
         throw new Error("Method not implemented.")
     }

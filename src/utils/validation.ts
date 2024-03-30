@@ -1,8 +1,12 @@
 import {
-    EntryPointAbi,
+    EntryPointV06Abi,
     RpcError,
     type Address,
-    type UserOperation
+    type UserOperation,
+    type UserOperationV06,
+    type UserOperationV07,
+    type PackedUserOperation,
+    EntryPointV07Abi
 } from "@alto/types"
 import {
     ContractFunctionExecutionError,
@@ -16,16 +20,18 @@ import {
     concat,
     encodeAbiParameters,
     getContract,
-    getFunctionSelector,
     serializeTransaction,
     toBytes,
     toHex,
     type Chain,
     type PublicClient,
     type Transport,
-    bytesToHex
+    bytesToHex,
+    toFunctionSelector,
+    type Hex
 } from "viem"
 import * as chains from "viem/chains"
+import { isVersion06, toPackedUserOperation } from "./userop"
 
 export interface GasOverheads {
     /**
@@ -81,7 +87,7 @@ export const DefaultGasOverheads: GasOverheads = {
  * @param op
  *  "false" to pack entire UserOp, for calculating the calldata cost of putting it on-chain.
  */
-export function packUserOp(op: UserOperation): `0x${string}` {
+export function packUserOpV06(op: UserOperationV06): `0x${string}` {
     return encodeAbiParameters(
         [
             {
@@ -166,6 +172,106 @@ export function packUserOp(op: UserOperation): `0x${string}` {
             bytesToHex(new Uint8Array(op.signature.length).fill(255))
         ]
     )
+}
+
+export function packedUserOperationToRandomDataUserOp(
+    packedUserOperation: PackedUserOperation
+) {
+    return {
+        sender: packedUserOperation.sender,
+        nonce: BigInt(
+            "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        ),
+        initCode: packedUserOperation.initCode,
+        callData: packedUserOperation.callData,
+        accountGasLimits: bytesToHex(new Uint8Array(32).fill(255)),
+        preVerificationGas: BigInt(
+            "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+        ),
+        gasFees: bytesToHex(new Uint8Array(32).fill(255)),
+        paymasterAndData: bytesToHex(
+            new Uint8Array(packedUserOperation.paymasterAndData.length).fill(
+                255
+            )
+        ),
+        signature: bytesToHex(
+            new Uint8Array(packedUserOperation.signature.length).fill(255)
+        )
+    }
+}
+
+export function packUserOpV07(op: UserOperationV07): `0x${string}` {
+    const packedUserOperation: PackedUserOperation = toPackedUserOperation(op)
+    const randomDataUserOp: PackedUserOperation =
+        packedUserOperationToRandomDataUserOp(packedUserOperation)
+
+    return encodeAbiParameters(
+        [
+            {
+                internalType: "address",
+                name: "sender",
+                type: "address"
+            },
+            {
+                internalType: "uint256",
+                name: "nonce",
+                type: "uint256"
+            },
+            {
+                internalType: "bytes",
+                name: "initCode",
+                type: "bytes"
+            },
+            {
+                internalType: "bytes",
+                name: "callData",
+                type: "bytes"
+            },
+            {
+                internalType: "uint256",
+                name: "accountGasLimits",
+                type: "bytes32"
+            },
+            {
+                internalType: "uint256",
+                name: "preVerificationGas",
+                type: "uint256"
+            },
+            {
+                internalType: "uint256",
+                name: "gasFees",
+                type: "bytes32"
+            },
+            {
+                internalType: "bytes",
+                name: "paymasterAndData",
+                type: "bytes"
+            },
+            {
+                internalType: "bytes",
+                name: "signature",
+                type: "bytes"
+            }
+        ],
+        [
+            randomDataUserOp.sender,
+            randomDataUserOp.nonce, // need non zero bytes to get better estimations for preVerificationGas
+            packedUserOperation.initCode,
+            packedUserOperation.callData,
+            randomDataUserOp.accountGasLimits, // need non zero bytes to get better estimations for preVerificationGas
+            randomDataUserOp.preVerificationGas, // need non zero bytes to get better estimations for preVerificationGas
+            randomDataUserOp.gasFees, // need non zero bytes to get better estimations for preVerificationGas
+            randomDataUserOp.paymasterAndData,
+            randomDataUserOp.signature
+        ]
+    )
+}
+
+export function packUserOp(op: UserOperation): `0x${string}` {
+    if (isVersion06(op)) {
+        return packUserOpV06(op)
+    }
+    return packUserOpV07(op)
 }
 
 export async function calcPreVerificationGas(
@@ -329,15 +435,33 @@ export async function calcOptimismPreVerificationGas(
     entryPoint: Address,
     staticFee: bigint
 ) {
-    const randomDataUserOp: UserOperation = {
-        ...op
+    let selector: Hex
+    let paramData: Hex
+
+    if (isVersion06(op)) {
+        const randomDataUserOp: UserOperation = {
+            ...op
+        }
+
+        selector = toFunctionSelector(EntryPointV06Abi[27])
+        paramData = encodeAbiParameters(EntryPointV06Abi[27].inputs, [
+            [randomDataUserOp],
+            entryPoint
+        ])
+    } else {
+        const packedUserOperation: PackedUserOperation =
+            toPackedUserOperation(op)
+
+        const randomDataUserOp: PackedUserOperation =
+            packedUserOperationToRandomDataUserOp(packedUserOperation)
+
+        selector = toFunctionSelector(EntryPointV07Abi[28])
+        paramData = encodeAbiParameters(EntryPointV07Abi[28].inputs, [
+            [randomDataUserOp],
+            entryPoint
+        ])
     }
 
-    const selector = getFunctionSelector(EntryPointAbi[27])
-    const paramData = encodeAbiParameters(EntryPointAbi[27].inputs, [
-        [randomDataUserOp],
-        entryPoint
-    ])
     const data = concat([selector, paramData])
 
     const latestBlock = await publicClient.getBlock()
@@ -429,11 +553,29 @@ export async function calcArbitrumPreVerificationGas(
     entryPoint: Address,
     staticFee: bigint
 ) {
-    const selector = getFunctionSelector(EntryPointAbi[27])
-    const paramData = encodeAbiParameters(EntryPointAbi[27].inputs, [
-        [op],
-        entryPoint
-    ])
+    let selector: Hex
+    let paramData: Hex
+
+    if (isVersion06(op)) {
+        selector = toFunctionSelector(EntryPointV06Abi[27])
+        paramData = encodeAbiParameters(EntryPointV06Abi[27].inputs, [
+            [op],
+            entryPoint
+        ])
+    } else {
+        const packedUserOperation: PackedUserOperation =
+            toPackedUserOperation(op)
+
+        const randomDataUserOp: PackedUserOperation =
+            packedUserOperationToRandomDataUserOp(packedUserOperation)
+
+        selector = toFunctionSelector(EntryPointV07Abi[28])
+        paramData = encodeAbiParameters(EntryPointV07Abi[28].inputs, [
+            [randomDataUserOp],
+            entryPoint
+        ])
+    }
+
     const data = concat([selector, paramData])
 
     const precompileAddress = "0x00000000000000000000000000000000000000C8"

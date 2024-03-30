@@ -34,27 +34,6 @@
             ],
             "@alto/utils": [
                 "./utils"
-            ],
-            "@entrypoint-0.7/cli": [
-                "./entrypoint-0.7/cli"
-            ],
-            "@entrypoint-0.7/executor": [
-                "./entrypoint-0.7/executor"
-            ],
-            "@entrypoint-0.7/types": [
-                "./entrypoint-0.7/types"
-            ],
-            "@entrypoint-0.7/utils": [
-                "./entrypoint-0.7/utils"
-            ],
-            "@entrypoint-0.7/mempool": [
-                "./entrypoint-0.7/mempool"
-            ],
-            "@entrypoint-0.7/rpc": [
-                "./entrypoint-0.7/rpc"
-            ],
-            "@entrypoint-0.7/gasPriceManager": [
-                "./entrypoint-0.7/gasPriceManager"
             ]
         }
     },

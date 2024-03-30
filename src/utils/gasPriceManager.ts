@@ -1,12 +1,12 @@
 import { maxBigInt, minBigInt, type Logger } from "@alto/utils"
-import {
-    RpcError,
-    gasStationResult,
-    type GasPriceParameters
-} from "@entrypoint-0.7/types"
 import * as sentry from "@sentry/node"
 import { parseGwei, type Chain, type PublicClient } from "viem"
 import * as chains from "viem/chains"
+import {
+    gasStationResult,
+    type GasPriceParameters,
+    RpcError
+} from "@alto/types"
 
 enum ChainId {
     Goerli = 5,

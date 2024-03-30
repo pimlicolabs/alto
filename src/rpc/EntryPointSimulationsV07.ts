@@ -1,16 +1,3 @@
-import {
-    EntryPointAbi,
-    EntryPointSimulationsAbi,
-    ExecutionErrors,
-    PimlicoEntryPointSimulationsAbi,
-    ValidationErrors
-} from "@entrypoint-0.7/types"
-import type {
-    StateOverrides,
-    UnPackedUserOperation,
-    ValidationResult
-} from "@entrypoint-0.7/types"
-import { deepHexlify, toPackedUserOperation } from "@entrypoint-0.7/utils"
 import type { Hex } from "viem"
 import {
     type Address,
@@ -21,6 +8,17 @@ import {
     decodeAbiParameters
 } from "viem"
 import { ExecuteSimulatorDeployedBytecode } from "./ExecuteSimulator"
+import {
+    EntryPointV07Abi,
+    EntryPointV07SimulationsAbi,
+    ExecutionErrors,
+    ValidationErrors,
+    type StateOverrides,
+    type UserOperationV07,
+    PimlicoEntryPointSimulationsAbi,
+    ValidationResultV07
+} from "@alto/types"
+import { deepHexlify, toPackedUserOperation } from "@alto/utils"
 
 const panicCodes: { [key: number]: string } = {
     // from https://docs.soliditylang.org/en/v0.8.0/control-structures.html
@@ -79,7 +77,7 @@ function getStateOverrides({
     entryPoint: Address
     replacedEntryPoint: boolean
     stateOverride: StateOverrides
-    userOperation: UnPackedUserOperation
+    userOperation: UserOperationV07
 }) {
     return replacedEntryPoint
         ? {
@@ -107,7 +105,7 @@ function getStateOverrides({
 
 function validateTargetCallDataResult(data: Hex) {
     const decodedDelegateAndError = decodeErrorResult({
-        abi: EntryPointAbi,
+        abi: EntryPointV07Abi,
         data: data
     })
 
@@ -117,7 +115,7 @@ function validateTargetCallDataResult(data: Hex) {
 
     try {
         const decodedError = decodeErrorResult({
-            abi: EntryPointSimulationsAbi,
+            abi: EntryPointV07SimulationsAbi,
             data: decodedDelegateAndError.args[1] as Hex
         })
 
@@ -152,7 +150,7 @@ function validateTargetCallDataResult(data: Hex) {
 
 function getSimulateHandleOpResult(data: Hex) {
     const decodedDelegateAndError = decodeErrorResult({
-        abi: EntryPointAbi,
+        abi: EntryPointV07Abi,
         data: data
     })
 
@@ -162,7 +160,7 @@ function getSimulateHandleOpResult(data: Hex) {
 
     try {
         const decodedError = decodeErrorResult({
-            abi: EntryPointSimulationsAbi,
+            abi: EntryPointV07SimulationsAbi,
             data: decodedDelegateAndError.args[1] as Hex
         })
 
@@ -278,7 +276,7 @@ async function callPimlicoEntryPointSimulations(
 }
 
 export async function simulateHandleOp(
-    userOperation: UnPackedUserOperation,
+    userOperation: UserOperationV07,
     entryPoint: Address,
     publicClient: PublicClient,
     replacedEntryPoint: boolean,
@@ -297,13 +295,13 @@ export async function simulateHandleOp(
     const packedUserOperation = toPackedUserOperation(userOperation)
 
     const entryPointSimulationsSimulateHandleOpCallData = encodeFunctionData({
-        abi: EntryPointSimulationsAbi,
+        abi: EntryPointV07SimulationsAbi,
         functionName: "simulateHandleOp",
         args: [packedUserOperation]
     })
 
     const entryPointSimulationsSimulateTargetCallData = encodeFunctionData({
-        abi: EntryPointSimulationsAbi,
+        abi: EntryPointV07SimulationsAbi,
         functionName: "simulateCallData",
         args: [packedUserOperation, targetAddress, targetCallData]
     })
@@ -330,10 +328,10 @@ export async function simulateHandleOp(
 
 function getSimulateValidationResult(errorData: Hex): {
     status: "failed" | "validation"
-    data: ValidationResult | Hex | string
+    data: ValidationResultV07 | Hex | string
 } {
     const decodedDelegateAndError = decodeErrorResult({
-        abi: EntryPointAbi,
+        abi: EntryPointV07Abi,
         data: errorData
     })
 
@@ -343,7 +341,7 @@ function getSimulateValidationResult(errorData: Hex): {
 
     try {
         const decodedError = decodeErrorResult({
-            abi: EntryPointSimulationsAbi,
+            abi: EntryPointV07SimulationsAbi,
             data: decodedDelegateAndError.args[1] as Hex
         })
 
@@ -509,7 +507,7 @@ function getSimulateValidationResult(errorData: Hex): {
 }
 
 export async function simulateValidation(
-    userOperation: UnPackedUserOperation,
+    userOperation: UserOperationV07,
     entryPoint: Address,
     publicClient: PublicClient,
     entryPointSimulationsAddress: Address
@@ -517,7 +515,7 @@ export async function simulateValidation(
     const packedUserOperation = toPackedUserOperation(userOperation)
 
     const entryPointSimulationsCallData = encodeFunctionData({
-        abi: EntryPointSimulationsAbi,
+        abi: EntryPointV07SimulationsAbi,
         functionName: "simulateValidation",
         args: [packedUserOperation]
     })

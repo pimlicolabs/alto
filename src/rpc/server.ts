@@ -68,6 +68,7 @@ export class Server {
     private port: number
     private registry: Registry
     private metrics: Metrics
+    private environment: "production" | "staging" | "development"
 
     constructor(
         rpcEndpoint: IRpcEndpoint,
@@ -75,7 +76,8 @@ export class Server {
         requestTimeout: number | undefined,
         logger: Logger,
         registry: Registry,
-        metrics: Metrics
+        metrics: Metrics,
+        environment: "production" | "staging" | "development"
     ) {
         this.fastify = Fastify({
             logger: logger as FastifyBaseLogger, // workaround for https://github.com/fastify/fastify/issues/4960
@@ -123,6 +125,7 @@ export class Server {
         this.port = port
         this.registry = registry
         this.metrics = metrics
+        this.environment = environment
     }
 
     public start(): void {
@@ -211,6 +214,10 @@ export class Server {
                 "sent reply"
             )
         } catch (err) {
+            if (this.environment === "development") {
+                console.error(err)
+            }
+
             if (err instanceof RpcError) {
                 const rpcError = {
                     jsonrpc: "2.0",

@@ -1,11 +1,14 @@
-import type { Mempool } from "@alto/mempool"
 import {
-    EntryPointAbi,
+    EntryPointV06Abi,
     type MempoolUserOperation,
     deriveUserOperation
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
-import { getNonceKeyAndValue, getUserOperationHash } from "@alto/utils"
+import {
+    getNonceKeyAndValue,
+    getUserOperationHash,
+    isVersion06
+} from "@alto/utils"
 import {
     type Address,
     type Chain,
@@ -15,8 +18,10 @@ import {
     type Transport,
     getContract
 } from "viem"
+import type { MemoryMempool } from "@alto/mempool"
 
 type QueuedUserOperation = {
+    entryPoint: Address
     userOperationHash: Hash
     mempoolUserOperation: MempoolUserOperation
     nonceKey: bigint
@@ -27,20 +32,17 @@ type QueuedUserOperation = {
 export class NonceQueuer {
     queuedUserOperations: QueuedUserOperation[] = []
 
-    mempool: Mempool
+    mempool: MemoryMempool
     publicClient: PublicClient<Transport, Chain>
-    entryPoint: Address
     logger: Logger
 
     constructor(
-        mempool: Mempool,
+        mempool: MemoryMempool,
         publicClient: PublicClient<Transport, Chain>,
-        entryPoint: Address,
         logger: Logger
     ) {
         this.mempool = mempool
         this.publicClient = publicClient
-        this.entryPoint = entryPoint
         this.logger = logger
 
         setInterval(() => {
@@ -59,8 +61,7 @@ export class NonceQueuer {
         }
 
         const availableOps = await this.getAvailableUserOperations(
-            this.publicClient,
-            this.entryPoint
+            this.publicClient
         )
 
         if (availableOps.length === 0) {
@@ -74,7 +75,7 @@ export class NonceQueuer {
         })
 
         availableOps.map((op) => {
-            this.resubmitUserOperation(op.mempoolUserOperation)
+            this.resubmitUserOperation(op.mempoolUserOperation, op.entryPoint)
         })
 
         this.logger.info(
@@ -83,13 +84,14 @@ export class NonceQueuer {
         )
     }
 
-    add(mempoolUserOperation: MempoolUserOperation) {
+    add(mempoolUserOperation: MempoolUserOperation, entryPoint: Address) {
         const userOp = deriveUserOperation(mempoolUserOperation)
         const [nonceKey, nonceValue] = getNonceKeyAndValue(userOp.nonce)
         this.queuedUserOperations.push({
+            entryPoint,
             userOperationHash: getUserOperationHash(
                 deriveUserOperation(mempoolUserOperation),
-                this.entryPoint,
+                entryPoint,
                 this.publicClient.chain.id
             ),
             mempoolUserOperation: mempoolUserOperation,
@@ -99,13 +101,16 @@ export class NonceQueuer {
         })
     }
 
-    resubmitUserOperation(mempoolUserOperation: MempoolUserOperation) {
+    resubmitUserOperation(
+        mempoolUserOperation: MempoolUserOperation,
+        entryPoint: Address
+    ) {
         const userOperation = mempoolUserOperation
         this.logger.info(
             { userOperation: userOperation },
             "submitting user operation from nonce queue"
         )
-        const result = this.mempool.add(mempoolUserOperation)
+        const result = this.mempool.add(mempoolUserOperation, entryPoint)
         if (result) {
             this.logger.info(
                 { userOperation: userOperation, result: result },
@@ -116,10 +121,7 @@ export class NonceQueuer {
         }
     }
 
-    async getAvailableUserOperations(
-        publicClient: PublicClient,
-        entryPoint: Address
-    ) {
+    async getAvailableUserOperations(publicClient: PublicClient) {
         const queuedUserOperations = this.queuedUserOperations.slice()
 
         let results: MulticallReturnType
@@ -129,8 +131,8 @@ export class NonceQueuer {
                 contracts: queuedUserOperations.map((qop) => {
                     const userOp = deriveUserOperation(qop.mempoolUserOperation)
                     return {
-                        address: entryPoint,
-                        abi: EntryPointAbi,
+                        address: qop.entryPoint,
+                        abi: EntryPointV06Abi,
                         functionName: "getNonce",
                         args: [userOp.sender, qop.nonceKey]
                     }
@@ -143,18 +145,28 @@ export class NonceQueuer {
                 "error fetching with multiCall"
             )
 
-            const entryPointContract = getContract({
-                abi: EntryPointAbi,
-                address: entryPoint,
-                client: {
-                    public: publicClient
-                }
-            })
-
             results = await Promise.all(
                 queuedUserOperations.map(async (qop) => {
                     const userOp = deriveUserOperation(qop.mempoolUserOperation)
                     try {
+                        const isUserOpV06 = isVersion06(userOp)
+
+                        const entryPointContract = isUserOpV06
+                            ? getContract({
+                                  abi: EntryPointV06Abi,
+                                  address: qop.entryPoint,
+                                  client: {
+                                      public: publicClient
+                                  }
+                              })
+                            : getContract({
+                                  abi: EntryPointV06Abi,
+                                  address: qop.entryPoint,
+                                  client: {
+                                      public: publicClient
+                                  }
+                              })
+
                         const nonce = await entryPointContract.read.getNonce(
                             [userOp.sender, qop.nonceKey],
                             { blockTag: "latest" }

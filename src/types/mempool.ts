@@ -28,6 +28,7 @@ export type TransactionInfo = {
     transactionType: "default" | "compressed"
     transactionHash: HexData32
     previousTransactionHashes: HexData32[]
+    entryPoint: Address
     transactionRequest: {
         account: Account
         to: Address
@@ -47,6 +48,7 @@ export type TransactionInfo = {
 
 export type UserOperationInfo = {
     mempoolUserOperation: MempoolUserOperation
+    entryPoint: Address
     userOperationHash: HexData32
     lastReplaced: number
     firstSubmitted: number
@@ -83,11 +85,15 @@ interface Resubmit<R> {
 }
 
 export type BundleResult = Result<
-    { userOperation: UserOperationInfo; transactionInfo: TransactionInfo },
-    { reason: string; userOpHash: HexData32 },
+    {
+        userOperation: UserOperationInfo
+        transactionInfo: TransactionInfo
+    },
+    { reason: string; userOpHash: HexData32; entryPoint: Address },
     {
         reason: string
         userOpHash: HexData32
         userOperation: MempoolUserOperation
+        entryPoint: Address
     }
 >

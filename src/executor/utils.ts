@@ -2,12 +2,13 @@ import type { InterfaceReputationManager } from "@alto/mempool"
 import {
     type BundleResult,
     type CompressedUserOperation,
-    EntryPointAbi,
-    type TransactionInfo,
-    type UserOperation,
-    type UserOperationWithHash,
+    EntryPointV06Abi,
     deriveUserOperation,
-    failedOpErrorSchema
+    failedOpErrorSchema,
+    type UserOperationV06,
+    type EntryPointV07Abi,
+    type UserOperationWithHash,
+    type TransactionInfo
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import { parseViemError, transactionIncluded } from "@alto/utils"
@@ -50,7 +51,7 @@ export function simulatedOpsToResults(
                     },
                     transactionInfo
                 }
-            }
+            } as BundleResult
         }
         return {
             status: "failure",
@@ -58,13 +59,35 @@ export function simulatedOpsToResults(
                 userOpHash: sop.owh.userOperationHash,
                 reason: sop.reason as string
             }
-        }
+        } as BundleResult
     })
+}
+
+export type DefaultFilterOpsAndEstimateGasParamsV06 = {
+    ep: GetContractReturnType<
+        typeof EntryPointV06Abi,
+        {
+            public: PublicClient
+            wallet: WalletClient
+        }
+    >
+    type: "default"
+}
+
+export type DefaultFilterOpsAndEstimateGasParamsV07 = {
+    ep: GetContractReturnType<
+        typeof EntryPointV07Abi,
+        {
+            public: PublicClient
+            wallet: WalletClient
+        }
+    >
+    type: "default"
 }
 
 export type DefaultFilterOpsAndEstimateGasParams = {
     ep: GetContractReturnType<
-        typeof EntryPointAbi,
+        typeof EntryPointV06Abi | typeof EntryPointV07Abi,
         {
             public: PublicClient
             wallet: WalletClient
@@ -104,6 +127,7 @@ export function createCompressedCalldata(
 }
 
 export async function filterOpsAndEstimateGas(
+    entryPoint: Address,
     callContext:
         | DefaultFilterOpsAndEstimateGasParams
         | CompressedFilterOpsAndEstimateGasParams,
@@ -137,7 +161,9 @@ export async function filterOpsAndEstimateGas(
                 const ep = callContext.ep
                 const opsToSend = simulatedOps
                     .filter((op) => op.reason === undefined)
-                    .map((op) => op.owh.mempoolUserOperation as UserOperation)
+                    .map(
+                        (op) => op.owh.mempoolUserOperation as UserOperationV06
+                    )
 
                 gasLimit = await ep.estimateGas.handleOps(
                     [opsToSend, wallet.address],
@@ -195,6 +221,7 @@ export async function filterOpsAndEstimateGas(
                     failingOp.reason = failedOpError.args.reason
                     reputationManager.crashedHandleOps(
                         deriveUserOperation(failingOp.owh.mempoolUserOperation),
+                        entryPoint,
                         failingOp.reason
                     )
                 } else {
@@ -215,7 +242,7 @@ export async function filterOpsAndEstimateGas(
                 try {
                     const errorHexData = e.details.split("Reverted ")[1] as Hex
                     const errorResult = decodeErrorResult({
-                        abi: EntryPointAbi,
+                        abi: EntryPointV06Abi,
                         data: errorHexData
                     })
                     logger.debug(
@@ -284,7 +311,6 @@ export async function filterOpsAndEstimateGas(
     }
     return { simulatedOps, gasLimit: 0n, resubmitAllOps: false }
 }
-
 export async function flushStuckTransaction(
     publicClient: PublicClient,
     walletClient: WalletClient<Transport, Chain, Account | undefined>,

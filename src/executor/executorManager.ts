@@ -1,20 +1,21 @@
 import type { Metrics, Logger, GasPriceManager } from "@alto/utils"
 import type {
     InterfaceReputationManager,
-    Mempool,
+    MemoryMempool,
     Monitor
 } from "@alto/mempool"
 import {
     type BundleResult,
     type BundlingMode,
-    type CompressedUserOperation,
     type HexData32,
     type MempoolUserOperation,
     type SubmittedUserOperation,
     type TransactionInfo,
-    type UserOperation,
     deriveUserOperation,
-    isCompressedType
+    isCompressedType,
+    type UserOperation,
+    type CompressedUserOperation,
+    type UserOperationInfo
 } from "@alto/types"
 import { transactionIncluded } from "@alto/utils"
 import type {
@@ -26,7 +27,7 @@ import type {
     Transport,
     WatchBlocksReturnType
 } from "viem"
-import type { IExecutor, ReplaceTransactionResult } from "./executor"
+import type { Executor, ReplaceTransactionResult } from "./executor"
 
 function getTransactionsFromUserOperationEntries(
     entries: SubmittedUserOperation[]
@@ -41,11 +42,10 @@ function getTransactionsFromUserOperationEntries(
 }
 
 export class ExecutorManager {
-    private executor: IExecutor
-    private mempool: Mempool
+    private executor: Executor
+    private mempool: MemoryMempool
     private monitor: Monitor
     private publicClient: PublicClient<Transport, Chain>
-    private entryPointAddress: Address
     private pollingInterval: number
     private logger: Logger
     private metrics: Metrics
@@ -57,12 +57,11 @@ export class ExecutorManager {
     private gasPriceManager: GasPriceManager
 
     constructor(
-        executor: IExecutor,
-        mempool: Mempool,
+        executor: Executor,
+        mempool: MemoryMempool,
         monitor: Monitor,
         reputationManager: InterfaceReputationManager,
         publicClient: PublicClient<Transport, Chain>,
-        entryPointAddress: Address,
         pollingInterval: number,
         logger: Logger,
         metrics: Metrics,
@@ -75,7 +74,6 @@ export class ExecutorManager {
         this.mempool = mempool
         this.monitor = monitor
         this.publicClient = publicClient
-        this.entryPointAddress = entryPointAddress
         this.pollingInterval = pollingInterval
         this.logger = logger
         this.metrics = metrics
@@ -100,21 +98,54 @@ export class ExecutorManager {
         }
     }
 
-    async bundleNow(): Promise<Hash> {
+    async bundleNow(): Promise<Hash[]> {
         const ops = await this.mempool.process(5_000_000n, 1)
         if (ops.length === 0) {
             throw new Error("no ops to bundle")
         }
 
-        const txHash = await this.sendToExecutor(ops)
+        const uniqueEntryPoints = new Set<Address>(
+            ops.map((op) => op.entryPoint)
+        )
 
-        if (!txHash) {
-            throw new Error("no tx hash")
+        const userOpEntryPointMap = new Map<Address, MempoolUserOperation[]>()
+
+        for (const op of ops) {
+            if (!userOpEntryPointMap.has(op.entryPoint)) {
+                userOpEntryPointMap.set(op.entryPoint, [])
+            }
+            userOpEntryPointMap
+                .get(op.entryPoint)
+                ?.push(op.mempoolUserOperation)
         }
-        return txHash
+
+        const txHashes: Hash[] = []
+
+        for (const entryPoint of uniqueEntryPoints) {
+            const userOps = userOpEntryPointMap.get(entryPoint)
+            if (userOps) {
+                const txHash = await this.sendToExecutor(entryPoint, userOps)
+
+                if (!txHash) {
+                    throw new Error("no tx hash")
+                }
+
+                txHashes.push(txHash)
+            } else {
+                this.logger.warn(
+                    { entryPoint },
+                    "no user operations for entry point"
+                )
+            }
+        }
+
+        return txHashes
     }
 
-    async sendToExecutor(mempoolOps: MempoolUserOperation[]) {
+    async sendToExecutor(
+        entryPoint: Address,
+        mempoolOps: MempoolUserOperation[]
+    ) {
         const ops = mempoolOps
             .filter((op) => !isCompressedType(op))
             .map((op) => op as UserOperation)
@@ -124,16 +155,11 @@ export class ExecutorManager {
 
         const bundles: BundleResult[][] = []
         if (ops.length > 0) {
-            bundles.push(
-                await this.executor.bundle(this.entryPointAddress, ops)
-            )
+            bundles.push(await this.executor.bundle(entryPoint, ops))
         }
         if (compressedOps.length > 0) {
             bundles.push(
-                await this.executor.bundleCompressed(
-                    this.entryPointAddress,
-                    compressedOps
-                )
+                await this.executor.bundleCompressed(entryPoint, compressedOps)
             )
         }
 
@@ -212,7 +238,10 @@ export class ExecutorManager {
                     "resubmitting user operation"
                 )
                 this.mempool.removeProcessing(result.info.userOpHash)
-                this.mempool.add(result.info.userOperation)
+                this.mempool.add(
+                    result.info.userOperation,
+                    result.info.entryPoint
+                )
                 this.metrics.userOperationsResubmitted.inc()
             }
         }
@@ -220,7 +249,8 @@ export class ExecutorManager {
     }
 
     async bundle() {
-        const opsToBundle: MempoolUserOperation[][] = []
+        const opsToBundle: UserOperationInfo[][] = []
+
         while (true) {
             const ops = await this.mempool.process(5_000_000n, 1)
             if (ops?.length > 0) {
@@ -236,7 +266,42 @@ export class ExecutorManager {
 
         await Promise.all(
             opsToBundle.map(async (ops) => {
-                await this.sendToExecutor(ops)
+                const uniqueEntryPoints = new Set<Address>(
+                    ops.map((op) => op.entryPoint)
+                )
+
+                const userOpEntryPointMap = new Map<
+                    Address,
+                    MempoolUserOperation[]
+                >()
+
+                for (const op of ops) {
+                    if (!userOpEntryPointMap.has(op.entryPoint)) {
+                        userOpEntryPointMap.set(op.entryPoint, [])
+                    }
+                    userOpEntryPointMap
+                        .get(op.entryPoint)
+                        ?.push(op.mempoolUserOperation)
+                }
+
+                for (const entryPoint of uniqueEntryPoints) {
+                    const userOps = userOpEntryPointMap.get(entryPoint)
+                    if (userOps) {
+                        const txHash = await this.sendToExecutor(
+                            entryPoint,
+                            userOps
+                        )
+
+                        if (!txHash) {
+                            throw new Error("no tx hash")
+                        }
+                    } else {
+                        this.logger.warn(
+                            { entryPoint },
+                            "no user operations for entry point"
+                        )
+                    }
+                }
             })
         )
     }
@@ -278,7 +343,10 @@ export class ExecutorManager {
         }
     }
 
-    private async refreshTransactionStatus(transactionInfo: TransactionInfo) {
+    private async refreshTransactionStatus(
+        entryPoint: Address,
+        transactionInfo: TransactionInfo
+    ) {
         const hashesToCheck = [
             transactionInfo.transactionHash,
             ...transactionInfo.previousTransactionHashes
@@ -294,7 +362,7 @@ export class ExecutorManager {
                     transactionStatuses: await transactionIncluded(
                         hash,
                         this.publicClient,
-                        this.entryPointAddress
+                        entryPoint
                     )
                 }
             })
@@ -331,6 +399,7 @@ export class ExecutorManager {
                 )
                 this.reputationManager.updateUserOperationIncludedStatus(
                     deriveUserOperation(info.mempoolUserOperation),
+                    info.entryPoint,
                     status.transactionStatuses[info.userOperationHash]
                         .accountDeployed
                 )
@@ -375,13 +444,37 @@ export class ExecutorManager {
     async refreshUserOperationStatuses(): Promise<void> {
         const ops = this.mempool.dumpSubmittedOps()
 
-        const txs = getTransactionsFromUserOperationEntries(ops)
-
-        await Promise.all(
-            txs.map(async (txInfo) => {
-                await this.refreshTransactionStatus(txInfo)
-            })
+        const uniqueEntryPoints = new Set<Address>(
+            ops.map((op) => op.userOperation.entryPoint)
         )
+
+        const userOpEntryPointMap = new Map<Address, SubmittedUserOperation[]>()
+
+        for (const op of ops) {
+            if (!userOpEntryPointMap.has(op.userOperation.entryPoint)) {
+                userOpEntryPointMap.set(op.userOperation.entryPoint, [])
+            }
+            userOpEntryPointMap.get(op.userOperation.entryPoint)?.push(op)
+        }
+
+        for (const entryPoint of uniqueEntryPoints) {
+            const userOps = userOpEntryPointMap.get(entryPoint)
+
+            if (userOps) {
+                const txs = getTransactionsFromUserOperationEntries(userOps)
+
+                await Promise.all(
+                    txs.map(async (txInfo) => {
+                        await this.refreshTransactionStatus(entryPoint, txInfo)
+                    })
+                )
+            } else {
+                this.logger.warn(
+                    { entryPoint },
+                    "no user operations for entry point"
+                )
+            }
+        }
     }
 
     async handleBlock(block: Block) {

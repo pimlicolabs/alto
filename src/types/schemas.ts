@@ -30,7 +30,7 @@ export type HexNumber = z.infer<typeof hexNumberSchema>
 export type HexData = z.infer<typeof hexDataSchema>
 export type HexData32 = z.infer<typeof hexData32Schema>
 
-const userOperationSchema = z
+const userOperationV06Schema = z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
@@ -49,7 +49,46 @@ const userOperationSchema = z
         return val
     })
 
-const partialUserOperationSchema = z
+const userOperationV07Schema = z
+    .object({
+        sender: addressSchema,
+        nonce: hexNumberSchema,
+        factory: addressSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        factoryData: hexDataSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        callData: hexDataSchema,
+        callGasLimit: hexNumberSchema,
+        verificationGasLimit: hexNumberSchema,
+        preVerificationGas: hexNumberSchema,
+        maxFeePerGas: hexNumberSchema,
+        maxPriorityFeePerGas: hexNumberSchema,
+        paymaster: addressSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        paymasterVerificationGasLimit: hexNumberSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        paymasterPostOpGasLimit: hexNumberSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        paymasterData: hexDataSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        signature: hexDataSchema
+    })
+    .strict()
+    .transform((val) => val)
+
+const partialUserOperationV06Schema = z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
@@ -68,19 +107,75 @@ const partialUserOperationSchema = z
         return val
     })
 
-export type UserOperation = {
-    sender: Address
-    nonce: bigint
-    initCode: HexData
-    callData: HexData
-    callGasLimit: bigint
-    verificationGasLimit: bigint
-    preVerificationGas: bigint
-    maxFeePerGas: bigint
-    maxPriorityFeePerGas: bigint
-    paymasterAndData: HexData
-    signature: HexData
-}
+const partialUserOperationV07Schema = z
+    .object({
+        sender: addressSchema,
+        nonce: hexNumberSchema,
+        factory: addressSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        factoryData: hexDataSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        callData: hexDataSchema,
+        callGasLimit: hexNumberSchema.default(1n),
+        verificationGasLimit: hexNumberSchema.default(1n),
+        preVerificationGas: hexNumberSchema.default(1n),
+        maxFeePerGas: hexNumberSchema.default(1n),
+        maxPriorityFeePerGas: hexNumberSchema.default(1n),
+        paymaster: addressSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        paymasterVerificationGasLimit: hexNumberSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        paymasterPostOpGasLimit: hexNumberSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        paymasterData: hexDataSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        signature: hexDataSchema
+    })
+    .strict()
+    .transform((val) => val)
+
+const packerUserOperationSchema = z
+    .object({
+        sender: addressSchema,
+        nonce: hexNumberSchema,
+        initCode: hexDataSchema,
+        callData: hexDataSchema,
+        accountGasLimits: hexData32Schema,
+        preVerificationGas: hexNumberSchema,
+        gasFees: hexData32Schema,
+        paymasterAndData: hexDataSchema,
+        signature: hexDataSchema
+    })
+    .strict()
+    .transform((val) => val)
+
+const partialUserOperationSchema = z.union([
+    partialUserOperationV06Schema,
+    partialUserOperationV07Schema
+])
+
+const userOperationSchema = z.union([
+    userOperationV06Schema,
+    userOperationV07Schema
+])
+
+export type UserOperationV06 = z.infer<typeof userOperationV06Schema>
+export type UserOperationV07 = z.infer<typeof userOperationV07Schema>
+export type PackedUserOperation = z.infer<typeof packerUserOperationSchema>
+
+export type UserOperation = z.infer<typeof userOperationSchema>
 
 export type CompressedUserOperation = {
     compressedCalldata: Hex

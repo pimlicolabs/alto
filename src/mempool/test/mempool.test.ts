@@ -1,10 +1,5 @@
 import { ChildProcess } from "child_process"
-import {
-    BasicExecutor,
-    IExecutor,
-    NullExecutor,
-    SenderManager
-} from "@alto/executor"
+import { NullExecutor, SenderManager } from "@alto/executor"
 import { createOp, generateAccounts } from "@alto/executor/test/utils"
 import {
     Address,
@@ -43,7 +38,7 @@ describe("mempool", () => {
     let signer: Account
     let signer2: Account
 
-    let executor: MockObject<IExecutor>
+    let executor: MockObject<NullExecutor>
     let mempool: MemoryMempool
 
     beforeEach(async () => {
@@ -97,7 +92,7 @@ describe("mempool", () => {
         //     true
         // )
 
-        executor = mockObject<IExecutor>({
+        executor = mockObject<NullExecutor>({
             bundle: mockFn()
         })
 

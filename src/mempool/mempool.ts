@@ -3,7 +3,7 @@ import type { Metrics } from "@alto/utils"
 // import { PublicClient, getContract } from "viem"
 // import { EntryPointAbi } from "../types/EntryPoint"
 import {
-    EntryPointAbi,
+    EntryPointV06Abi,
     type InterfaceValidator,
     type MempoolUserOperation,
     type ReferencedCodeHashes,
@@ -21,7 +21,9 @@ import type { HexData32 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
     getAddressFromInitCodeOrPaymasterAndData,
-    getUserOperationHash
+    getUserOperationHash,
+    isVersion06,
+    isVersion07
 } from "@alto/utils"
 import {
     type Address,
@@ -37,9 +39,8 @@ import {
     ReputationStatuses
 } from "./reputationManager"
 import { MemoryStore } from "./store"
-import type { Mempool } from "./types"
 
-export class MemoryMempool implements Mempool {
+export class MemoryMempool {
     private monitor: Monitor
     private publicClient: PublicClient<Transport, Chain>
     private entryPointAddress: Address
@@ -148,7 +149,7 @@ export class MemoryMempool implements Mempool {
 
         if (
             knownEntities.paymasters.has(op.sender) ||
-            knownEntities.facotries.has(op.sender)
+            knownEntities.factories.has(op.sender)
         ) {
             throw new RpcError(
                 `The sender address "${op.sender}" is used as a different entity in another UserOperation currently in mempool`,
@@ -156,9 +157,21 @@ export class MemoryMempool implements Mempool {
             )
         }
 
-        const paymaster = getAddressFromInitCodeOrPaymasterAndData(
-            op.paymasterAndData
-        )
+        let paymaster: Address | null = null
+        let factory: Address | null = null
+
+        if (isVersion06(op)) {
+            paymaster = getAddressFromInitCodeOrPaymasterAndData(
+                op.paymasterAndData
+            )
+
+            factory = getAddressFromInitCodeOrPaymasterAndData(op.initCode)
+        }
+
+        if (isVersion07(op)) {
+            paymaster = op.paymaster
+            factory = op.factory
+        }
 
         if (paymaster && knownEntities.sender.has(paymaster)) {
             throw new RpcError(
@@ -166,9 +179,6 @@ export class MemoryMempool implements Mempool {
                 ValidationErrors.OpcodeValidation
             )
         }
-
-        const factory = getAddressFromInitCodeOrPaymasterAndData(op.initCode)
-
         if (factory && knownEntities.sender.has(factory)) {
             throw new RpcError(
                 `A Factory at ${factory} in this UserOperation is used as a sender entity in another UserOperation currently in mempool.`,
@@ -180,34 +190,40 @@ export class MemoryMempool implements Mempool {
     getKnownEntities(): {
         sender: Set<Address>
         paymasters: Set<Address>
-        facotries: Set<Address>
+        factories: Set<Address>
     } {
         const allOps = [...this.store.dumpOutstanding()]
 
         const entities: {
             sender: Set<Address>
             paymasters: Set<Address>
-            facotries: Set<Address>
+            factories: Set<Address>
         } = {
             sender: new Set(),
             paymasters: new Set(),
-            facotries: new Set()
+            factories: new Set()
         }
 
         for (const mempoolOp of allOps) {
             const op = deriveUserOperation(mempoolOp.mempoolUserOperation)
             entities.sender.add(op.sender)
-            const paymaster = getAddressFromInitCodeOrPaymasterAndData(
-                op.paymasterAndData
-            )
+
+            const isUserOpV06 = isVersion06(op)
+
+            const paymaster = isUserOpV06
+                ? getAddressFromInitCodeOrPaymasterAndData(op.paymasterAndData)
+                : op.paymaster
+
             if (paymaster) {
                 entities.paymasters.add(paymaster)
             }
-            const factory = getAddressFromInitCodeOrPaymasterAndData(
-                op.initCode
-            )
+
+            const factory = isUserOpV06
+                ? getAddressFromInitCodeOrPaymasterAndData(op.initCode)
+                : op.factory
+
             if (factory) {
-                entities.facotries.add(factory)
+                entities.factories.add(factory)
             }
         }
 
@@ -216,6 +232,7 @@ export class MemoryMempool implements Mempool {
 
     add(
         mempoolUserOperation: MempoolUserOperation,
+        entryPoint: Address,
         referencedContracts?: ReferencedCodeHashes
     ) {
         const op = deriveUserOperation(mempoolUserOperation)
@@ -236,7 +253,7 @@ export class MemoryMempool implements Mempool {
             return false
         }
 
-        this.reputationManager.updateUserOperationSeenStatus(op)
+        this.reputationManager.updateUserOperationSeenStatus(op, entryPoint)
         const oldUserOp = outstandingOps.find((uo) => {
             const userOp = deriveUserOperation(uo.mempoolUserOperation)
             return userOp.sender === op.sender && userOp.nonce === op.nonce
@@ -272,6 +289,7 @@ export class MemoryMempool implements Mempool {
 
         this.store.addOutstanding({
             mempoolUserOperation,
+            entryPoint: entryPoint,
             userOperationHash: hash,
             firstSubmitted: oldUserOp ? oldUserOp.firstSubmitted : Date.now(),
             lastReplaced: Date.now(),
@@ -293,7 +311,7 @@ export class MemoryMempool implements Mempool {
         knownEntities: {
             sender: Set<`0x${string}`>
             paymasters: Set<`0x${string}`>
-            facotries: Set<`0x${string}`>
+            factories: Set<`0x${string}`>
         },
         senders: Set<string>,
         storageMap: StorageMap
@@ -304,7 +322,7 @@ export class MemoryMempool implements Mempool {
         knownEntities: {
             sender: Set<`0x${string}`>
             paymasters: Set<`0x${string}`>
-            facotries: Set<`0x${string}`>
+            factories: Set<`0x${string}`>
         }
         senders: Set<string>
         storageMap: StorageMap
@@ -320,16 +338,27 @@ export class MemoryMempool implements Mempool {
                 storageMap
             }
         }
-        const paymaster = getAddressFromInitCodeOrPaymasterAndData(
-            op.paymasterAndData
+
+        const isUserOpV06 = isVersion06(op)
+
+        const paymaster = isUserOpV06
+            ? getAddressFromInitCodeOrPaymasterAndData(op.paymasterAndData)
+            : op.paymaster
+        const factory = isUserOpV06
+            ? getAddressFromInitCodeOrPaymasterAndData(op.initCode)
+            : op.factory
+        const paymasterStatus = this.reputationManager.getStatus(
+            opInfo.entryPoint,
+            paymaster
         )
-        const factory = getAddressFromInitCodeOrPaymasterAndData(op.initCode)
-        const paymasterStatus = this.reputationManager.getStatus(paymaster)
-        const factoryStatus = this.reputationManager.getStatus(factory)
+        const factoryStatus = this.reputationManager.getStatus(
+            opInfo.entryPoint,
+            factory
+        )
 
         if (
-            paymasterStatus === ReputationStatuses.BANNED ||
-            factoryStatus === ReputationStatuses.BANNED
+            paymasterStatus === ReputationStatuses.banned ||
+            factoryStatus === ReputationStatuses.banned
         ) {
             this.store.removeOutstanding(opInfo.userOperationHash)
             return {
@@ -343,7 +372,7 @@ export class MemoryMempool implements Mempool {
         }
 
         if (
-            paymasterStatus === ReputationStatuses.THROTTLED &&
+            paymasterStatus === ReputationStatuses.throttled &&
             paymaster &&
             stakedEntityCount[paymaster] >= this.throttledEntityBundleCount
         ) {
@@ -365,7 +394,7 @@ export class MemoryMempool implements Mempool {
         }
 
         if (
-            factoryStatus === ReputationStatuses.THROTTLED &&
+            factoryStatus === ReputationStatuses.throttled &&
             factory &&
             stakedEntityCount[factory] >= this.throttledEntityBundleCount
         ) {
@@ -409,6 +438,7 @@ export class MemoryMempool implements Mempool {
         try {
             validationResult = await this.validator.validateUserOperation(
                 op,
+                opInfo.entryPoint,
                 opInfo.referencedContracts
             )
         } catch (e) {
@@ -455,7 +485,7 @@ export class MemoryMempool implements Mempool {
         if (paymaster) {
             if (paymasterDeposit[paymaster] === undefined) {
                 const entryPointContract = getContract({
-                    abi: EntryPointAbi,
+                    abi: EntryPointV06Abi,
                     address: this.entryPointAddress,
                     client: {
                         public: this.publicClient
@@ -508,15 +538,15 @@ export class MemoryMempool implements Mempool {
     async process(
         maxGasLimit: bigint,
         minOps?: number
-    ): Promise<MempoolUserOperation[]> {
+    ): Promise<UserOperationInfo[]> {
         const outstandingUserOperations = this.store.dumpOutstanding().slice()
         let opsTaken = 0
         let gasUsed = 0n
-        const result: MempoolUserOperation[] = []
+        const result: UserOperationInfo[] = []
 
         // paymaster deposit should be enough for all UserOps in the bundle.
         let paymasterDeposit: { [paymaster: string]: bigint } = {}
-        // throttled paymasters and deployers are allowed only small UserOps per bundle.
+        // throttled paymasters and factories are allowed only small UserOps per bundle.
         let stakedEntityCount: { [addr: string]: number } = {}
         // each sender is allowed only once per bundle
         let senders = new Set<string>()
@@ -554,7 +584,7 @@ export class MemoryMempool implements Mempool {
             this.reputationManager.decreaseUserOperationCount(op)
             this.store.removeOutstanding(opInfo.userOperationHash)
             this.store.addProcessing(opInfo)
-            result.push(opInfo.mempoolUserOperation)
+            result.push(opInfo)
             opsTaken++
         }
         return result

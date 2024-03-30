@@ -1,5 +1,5 @@
 import {
-    EntryPointAbi,
+    EntryPointV06Abi,
     RpcError,
     type StakeInfo,
     type UserOperation,
@@ -8,32 +8,48 @@ import {
     type ValidationResultWithAggregation
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
-import { getAddressFromInitCodeOrPaymasterAndData } from "@alto/utils"
+import {
+    getAddressFromInitCodeOrPaymasterAndData,
+    isVersion06
+} from "@alto/utils"
 import { type Address, type PublicClient, getAddress, getContract } from "viem"
 
 export interface InterfaceReputationManager {
     checkReputation(
         userOperation: UserOperation,
+        entryPoint: Address,
         validationResult: ValidationResult | ValidationResultWithAggregation
     ): Promise<void>
-    updateUserOperationSeenStatus(userOperation: UserOperation): void
+    updateUserOperationSeenStatus(
+        userOperation: UserOperation,
+        entryPoint: Address
+    ): void
     increaseUserOperationCount(userOperation: UserOperation): void
     decreaseUserOperationCount(userOperation: UserOperation): void
-    getStatus(address?: Address): ReputationStatus
+    getStatus(entryPoint: Address, address: Address | null): ReputationStatus
     updateUserOperationIncludedStatus(
         userOperation: UserOperation,
+        entryPoint: Address,
         accountDeployed: boolean
     ): void
-    crashedHandleOps(userOperation: UserOperation, reason: string): void
+    crashedHandleOps(
+        userOperation: UserOperation,
+        entryPoint: Address,
+        reason: string
+    ): void
     setReputation(
+        entryPoint: Address,
         args: {
             address: Address
             opsSeen: bigint
             opsIncluded: bigint
         }[]
     ): void
-    dumpReputations(): ReputationEntry[]
-    getStakeStatus(address: Address): Promise<{
+    dumpReputations(entryPoint: Address): ReputationEntry[]
+    getStakeStatus(
+        entryPoint: Address,
+        address: Address
+    ): Promise<{
         stakeInfo: StakeInfo
         isStaked: boolean
     }>
@@ -42,21 +58,21 @@ export interface InterfaceReputationManager {
 }
 
 export enum EntityType {
-    ACCOUNT = "Account",
-    PAYMASTER = "Paymaster",
-    FACTORY = "Factory",
-    AGGREGATOR = "Aggregator"
+    Account = "Account",
+    Paymaster = "Paymaster",
+    Factory = "Factory",
+    Aggregator = "Aggregator"
 }
 
 export type ReputationStatus = 0n | 1n | 2n
 export const ReputationStatuses: {
-    OK: ReputationStatus
-    THROTTLED: ReputationStatus
-    BANNED: ReputationStatus
+    ok: ReputationStatus
+    throttled: ReputationStatus
+    banned: ReputationStatus
 } = {
-    OK: 0n,
-    THROTTLED: 1n,
-    BANNED: 2n
+    ok: 0n,
+    throttled: 1n,
+    banned: 2n
 }
 
 export interface ReputationEntry {
@@ -81,6 +97,7 @@ export const BundlerReputationParams: ReputationParams = {
 export class NullReputationManager implements InterfaceReputationManager {
     checkReputation(
         _userOperation: UserOperation,
+        _entryPoint: Address,
         _validationResult: ValidationResult | ValidationResultWithAggregation
     ): Promise<void> {
         return Promise.resolve()
@@ -94,20 +111,28 @@ export class NullReputationManager implements InterfaceReputationManager {
         return
     }
 
-    updateUserOperationSeenStatus(_: UserOperation): void {
+    updateUserOperationSeenStatus(
+        _: UserOperation,
+        _entryPoint: Address
+    ): void {
         return
     }
 
-    updateUserOperationIncludedStatus(_: UserOperation, __: boolean): void {
+    updateUserOperationIncludedStatus(
+        _: UserOperation,
+        _entryPoint: Address,
+        __: boolean
+    ): void {
         return
     }
 
-    crashedHandleOps(_: UserOperation, __: string): void {
+    crashedHandleOps(_: UserOperation, _entryPoint: Address, __: string): void {
         return
     }
 
     setReputation(
-        _: {
+        _: Address,
+        __: {
             address: Address
             opsSeen: bigint
             opsIncluded: bigint
@@ -116,15 +141,21 @@ export class NullReputationManager implements InterfaceReputationManager {
         return
     }
 
-    dumpReputations(): ReputationEntry[] {
+    dumpReputations(_entryPoint: Address): ReputationEntry[] {
         return []
     }
 
-    getStatus(_address?: `0x${string}` | undefined): ReputationStatus {
+    getStatus(
+        _entryPoint: Address,
+        _address: `0x${string}` | null
+    ): ReputationStatus {
         throw new Error("Method not implemented.")
     }
 
-    getStakeStatus(_: Address): Promise<{
+    getStakeStatus(
+        _entryPoint: Address,
+        _: Address
+    ): Promise<{
         stakeInfo: StakeInfo
         isStaked: boolean
     }> {
@@ -142,7 +173,6 @@ export class NullReputationManager implements InterfaceReputationManager {
 
 export class ReputationManager implements InterfaceReputationManager {
     private publicClient: PublicClient
-    private entryPoint: Address
     private minStake: bigint
     private minUnstakeDelay: bigint
     private entityCount: { [address: Address]: bigint } = {}
@@ -150,7 +180,9 @@ export class ReputationManager implements InterfaceReputationManager {
     private maxMempoolUserOperationsPerSender: bigint
     private maxMempoolUserOperationsPerNewUnstakedEntity: bigint
     private inclusionRateFactor: bigint
-    private entries: { [address: Address]: ReputationEntry } = {}
+    private entries: {
+        [entryPoint: Address]: { [address: Address]: ReputationEntry }
+    } = {}
     private whitelist: Set<Address> = new Set()
     private blackList: Set<Address> = new Set()
     private bundlerReputationParams: ReputationParams
@@ -158,7 +190,7 @@ export class ReputationManager implements InterfaceReputationManager {
 
     constructor(
         publicClient: PublicClient,
-        entryPoint: Address,
+        entryPoints: Address[],
         minStake: bigint,
         minUnstakeDelay: bigint,
         logger: Logger,
@@ -171,7 +203,6 @@ export class ReputationManager implements InterfaceReputationManager {
         bundlerReputationParams?: ReputationParams
     ) {
         this.publicClient = publicClient
-        this.entryPoint = entryPoint
         this.minStake = minStake
         this.minUnstakeDelay = minUnstakeDelay
         this.logger = logger
@@ -190,9 +221,13 @@ export class ReputationManager implements InterfaceReputationManager {
         for (const address of whiteList || []) {
             this.whitelist.add(address)
         }
+        for (const entryPoint of entryPoints) {
+            this.entries[entryPoint] = {}
+        }
     }
 
     setReputation(
+        entryPoint: Address,
         reputations: {
             address: Address
             opsSeen: bigint
@@ -201,7 +236,7 @@ export class ReputationManager implements InterfaceReputationManager {
     ): void {
         for (const reputation of reputations) {
             const address = getAddress(reputation.address)
-            this.entries[address] = {
+            this.entries[entryPoint][address] = {
                 address,
                 opsSeen: BigInt(reputation.opsSeen),
                 opsIncluded: BigInt(reputation.opsIncluded)
@@ -215,10 +250,10 @@ export class ReputationManager implements InterfaceReputationManager {
         )
     }
 
-    dumpReputations(): ReputationEntry[] {
-        return Object.values(this.entries).map((entry) => ({
+    dumpReputations(entryPoint: Address): ReputationEntry[] {
+        return Object.values(this.entries[entryPoint]).map((entry) => ({
             ...entry,
-            status: this.getStatus(entry.address)
+            status: this.getStatus(entryPoint, entry.address)
         }))
     }
 
@@ -231,18 +266,23 @@ export class ReputationManager implements InterfaceReputationManager {
         this.entityCount = {}
     }
 
-    async getStakeStatus(address: Address): Promise<{
+    async getStakeStatus(
+        entryPoint: Address,
+        address: Address
+    ): Promise<{
         stakeInfo: StakeInfo
         isStaked: boolean
     }> {
-        const entryPoint = getContract({
-            abi: EntryPointAbi,
-            address: this.entryPoint,
+        const entryPointContract = getContract({
+            abi: EntryPointV06Abi,
+            address: entryPoint,
             client: {
                 public: this.publicClient
             }
         })
-        const stakeInfo = await entryPoint.read.getDepositInfo([address])
+        const stakeInfo = await entryPointContract.read.getDepositInfo([
+            address
+        ])
 
         const stake = BigInt(stakeInfo.stake)
         const unstakeDelaySec = BigInt(stakeInfo.unstakeDelaySec)
@@ -262,36 +302,41 @@ export class ReputationManager implements InterfaceReputationManager {
 
     checkReputation(
         userOperation: UserOperation,
+        entryPoint: Address,
         validationResult: ValidationResult | ValidationResultWithAggregation
     ): Promise<void> {
         this.increaseUserOperationCount(userOperation)
 
         this.checkReputationStatus(
-            EntityType.ACCOUNT,
+            entryPoint,
+            EntityType.Account,
             validationResult.senderInfo,
             this.maxMempoolUserOperationsPerSender
         )
 
         if (validationResult.paymasterInfo) {
             this.checkReputationStatus(
-                EntityType.PAYMASTER,
+                entryPoint,
+                EntityType.Paymaster,
                 validationResult.paymasterInfo
             )
         }
 
         if (validationResult.factoryInfo) {
             this.checkReputationStatus(
-                EntityType.FACTORY,
+                entryPoint,
+                EntityType.Factory,
                 validationResult.factoryInfo
             )
         }
 
-        const aggregaorValidationResult =
+        const aggregatorValidationResult =
             validationResult as ValidationResultWithAggregation
-        if (aggregaorValidationResult.aggregatorInfo) {
+        if (aggregatorValidationResult.aggregatorInfo) {
             this.checkReputationStatus(
-                EntityType.AGGREGATOR,
-                aggregaorValidationResult.aggregatorInfo.stakeInfo
+                entryPoint,
+                EntityType.Aggregator,
+                aggregatorValidationResult.aggregatorInfo.stakeInfo
             )
         }
         return Promise.resolve()
@@ -301,23 +346,22 @@ export class ReputationManager implements InterfaceReputationManager {
         return this.entityCount[address] ?? 0
     }
 
-    increaseSeen(address: Address): void {
-        const entry = this.entries[address]
+    increaseSeen(entryPoint: Address, address: Address): void {
+        const entry = this.entries[entryPoint][address]
         if (!entry) {
-            this.entries[address] = {
+            this.entries[entryPoint][address] = {
                 address,
-                opsSeen: 1n,
+                opsSeen: 0n,
                 opsIncluded: 0n
             }
-            return
         }
         entry.opsSeen++
     }
 
-    updateCrashedHandleOps(address: Address): void {
-        const entry = this.entries[address]
+    updateCrashedHandleOps(entryPoint: Address, address: Address): void {
+        const entry = this.entries[entryPoint][address]
         if (!entry) {
-            this.entries[address] = {
+            this.entries[entryPoint][address] = {
                 address,
                 opsSeen: 1000n,
                 opsIncluded: 0n
@@ -328,80 +372,102 @@ export class ReputationManager implements InterfaceReputationManager {
         entry.opsIncluded = 0n
     }
 
-    crashedHandleOps(op: UserOperation, reason: string): void {
+    crashedHandleOps(
+        op: UserOperation,
+        entryPoint: Address,
+        reason: string
+    ): void {
+        const isUserOpV06 = isVersion06(op)
         if (reason.startsWith("AA3")) {
             // paymaster
-            const paymaster = getAddressFromInitCodeOrPaymasterAndData(
-                op.paymasterAndData
-            ) as Address | undefined
+            const paymaster = isUserOpV06
+                ? getAddressFromInitCodeOrPaymasterAndData(op.paymasterAndData)
+                : (op.paymaster as Address | undefined)
             if (paymaster) {
-                this.updateCrashedHandleOps(paymaster)
+                this.updateCrashedHandleOps(entryPoint, paymaster)
             }
         } else if (reason.startsWith("AA2")) {
             // sender
             const sender = op.sender
-            this.updateCrashedHandleOps(sender)
+            this.updateCrashedHandleOps(entryPoint, sender)
         } else if (reason.startsWith("AA1")) {
             // init code
-            const factory = getAddressFromInitCodeOrPaymasterAndData(
-                op.initCode
-            ) as Address | undefined
+            const factory = isUserOpV06
+                ? getAddressFromInitCodeOrPaymasterAndData(op.initCode)
+                : (op.factory as Address | undefined)
             if (factory) {
-                this.updateCrashedHandleOps(factory)
+                this.updateCrashedHandleOps(entryPoint, factory)
             }
         }
     }
 
-    updateIncludedStatus(address: Address): void {
-        const entry = this.entries[address]
+    updateIncludedStatus(entryPoint: Address, address: Address): void {
+        const entry = this.entries[entryPoint][address]
         if (!entry) {
-            this.entries[address] = {
+            this.entries[entryPoint][address] = {
                 address,
                 opsSeen: 0n,
-                opsIncluded: 1n
+                opsIncluded: 0n
             }
-            return
         }
         entry.opsIncluded++
     }
 
     updateUserOperationIncludedStatus(
         userOperation: UserOperation,
+        entryPoint: Address,
         accountDeployed: boolean
     ): void {
         const sender = userOperation.sender
-        this.updateIncludedStatus(sender)
+        this.updateIncludedStatus(entryPoint, sender)
+        const isUserOpV06 = isVersion06(userOperation)
 
-        const paymaster = getAddressFromInitCodeOrPaymasterAndData(
-            userOperation.paymasterAndData
-        ) as Address | undefined
+        const paymaster = isUserOpV06
+            ? getAddressFromInitCodeOrPaymasterAndData(
+                  userOperation.paymasterAndData
+              )
+            : (userOperation.paymaster as Address | undefined)
         if (paymaster) {
-            this.updateIncludedStatus(paymaster)
+            this.updateIncludedStatus(entryPoint, paymaster)
         }
 
         if (accountDeployed) {
-            const factory = getAddressFromInitCodeOrPaymasterAndData(
-                userOperation.initCode
+            const factory = (
+                isUserOpV06
+                    ? getAddressFromInitCodeOrPaymasterAndData(
+                          userOperation.initCode
+                      )
+                    : userOperation.factory
             ) as Address | undefined
             if (factory) {
-                this.updateIncludedStatus(factory)
+                this.updateIncludedStatus(entryPoint, factory)
             }
         }
     }
 
-    updateUserOperationSeenStatus(userOperation: UserOperation): void {
+    updateUserOperationSeenStatus(
+        userOperation: UserOperation,
+        entryPoint: Address
+    ): void {
         const sender = userOperation.sender
-        this.increaseSeen(sender)
+        this.increaseSeen(entryPoint, sender)
+        const isUserOpV06 = isVersion06(userOperation)
 
-        const paymaster = getAddressFromInitCodeOrPaymasterAndData(
-            userOperation.paymasterAndData
-        ) as Address | undefined
+        const paymaster = isUserOpV06
+            ? getAddressFromInitCodeOrPaymasterAndData(
+                  userOperation.paymasterAndData
+              )
+            : (userOperation.paymaster as Address | undefined)
         if (paymaster) {
-            this.increaseSeen(paymaster)
+            this.increaseSeen(entryPoint, paymaster)
         }
 
-        const factory = getAddressFromInitCodeOrPaymasterAndData(
-            userOperation.initCode
+        const factory = (
+            isUserOpV06
+                ? getAddressFromInitCodeOrPaymasterAndData(
+                      userOperation.initCode
+                  )
+                : userOperation.factory
         ) as Address | undefined
 
         this.logger.debug(
@@ -410,25 +476,32 @@ export class ReputationManager implements InterfaceReputationManager {
         )
 
         if (factory) {
-            this.increaseSeen(factory)
+            this.increaseSeen(entryPoint, factory)
         }
     }
 
     increaseUserOperationCount(userOperation: UserOperation) {
         const sender = userOperation.sender
         this.entityCount[sender] = (this.entityCount[sender] ?? 0n) + 1n
+        const isUserOpV06 = isVersion06(userOperation)
 
-        const paymaster = getAddressFromInitCodeOrPaymasterAndData(
-            userOperation.paymasterAndData
-        )
+        const paymaster = isUserOpV06
+            ? getAddressFromInitCodeOrPaymasterAndData(
+                  userOperation.paymasterAndData
+              )
+            : (userOperation.paymaster as Address | undefined)
         if (paymaster) {
             this.entityCount[paymaster] =
                 (this.entityCount[paymaster] ?? 0n) + 1n
         }
 
-        const factory = getAddressFromInitCodeOrPaymasterAndData(
-            userOperation.initCode
-        )
+        const factory = (
+            isUserOpV06
+                ? getAddressFromInitCodeOrPaymasterAndData(
+                      userOperation.initCode
+                  )
+                : userOperation.factory
+        ) as Address | undefined
         if (factory) {
             this.entityCount[factory] = (this.entityCount[factory] ?? 0n) + 1n
         }
@@ -437,13 +510,16 @@ export class ReputationManager implements InterfaceReputationManager {
     decreaseUserOperationCount(userOperation: UserOperation) {
         const sender = userOperation.sender
         this.entityCount[sender] = (this.entityCount[sender] ?? 0n) - 1n
+        const isUserOpV06 = isVersion06(userOperation)
 
         this.entityCount[sender] =
             this.entityCount[sender] < 0n ? 0n : this.entityCount[sender]
 
-        const paymaster = getAddressFromInitCodeOrPaymasterAndData(
-            userOperation.paymasterAndData
-        )
+        const paymaster = isUserOpV06
+            ? getAddressFromInitCodeOrPaymasterAndData(
+                  userOperation.paymasterAndData
+              )
+            : (userOperation.paymaster as Address | undefined)
         if (paymaster) {
             this.entityCount[paymaster] =
                 (this.entityCount[paymaster] ?? 0n) - 1n
@@ -454,9 +530,13 @@ export class ReputationManager implements InterfaceReputationManager {
                     : this.entityCount[paymaster]
         }
 
-        const factory = getAddressFromInitCodeOrPaymasterAndData(
-            userOperation.initCode
-        )
+        const factory = (
+            isUserOpV06
+                ? getAddressFromInitCodeOrPaymasterAndData(
+                      userOperation.initCode
+                  )
+                : userOperation.factory
+        ) as Address | undefined
         if (factory) {
             this.entityCount[factory] = (this.entityCount[factory] ?? 0n) - 1n
 
@@ -466,38 +546,40 @@ export class ReputationManager implements InterfaceReputationManager {
     }
 
     checkReputationStatus(
-        entyType: EntityType,
+        entryPoint: Address,
+        entityType: EntityType,
         stakeInfo: StakeInfo,
         maxMempoolUserOperationsPerSenderOverride?: bigint
     ) {
         const maxTxMempoolAllowedEntity =
             maxMempoolUserOperationsPerSenderOverride ??
             this.calCulateMaxMempoolUserOperationsPerEntity(
+                entryPoint,
                 stakeInfo.addr as Address
             )
 
-        this.checkBanned(entyType, stakeInfo)
+        this.checkBanned(entryPoint, entityType, stakeInfo)
 
         const entityCount = this.getEntityCount(stakeInfo.addr as Address)
 
         if (entityCount > this.throttledEntityMinMempoolCount) {
-            this.checkThrottled(entyType, stakeInfo)
+            this.checkThrottled(entryPoint, entityType, stakeInfo)
         }
         if (entityCount > maxTxMempoolAllowedEntity) {
-            this.checkStake(entyType, stakeInfo)
+            this.checkStake(entryPoint, entityType, stakeInfo)
         }
     }
 
-    getStatus(address?: Address): ReputationStatus {
+    getStatus(entryPoint: Address, address: Address | null): ReputationStatus {
         if (!address || this.whitelist.has(address)) {
-            return ReputationStatuses.OK
+            return ReputationStatuses.ok
         }
         if (this.blackList.has(address)) {
-            return ReputationStatuses.BANNED
+            return ReputationStatuses.banned
         }
-        const entry = this.entries[address]
+        const entry = this.entries[entryPoint][address]
         if (!entry) {
-            return ReputationStatuses.OK
+            return ReputationStatuses.ok
         }
         const minExpectedIncluded =
             entry.opsSeen / this.bundlerReputationParams.minInclusionDenominator
@@ -520,23 +602,27 @@ export class ReputationManager implements InterfaceReputationManager {
             minExpectedIncluded <=
             entry.opsIncluded + this.bundlerReputationParams.throttlingSlack
         ) {
-            entry.status = ReputationStatuses.OK
-            return ReputationStatuses.OK
+            entry.status = ReputationStatuses.ok
+            return ReputationStatuses.ok
         }
         if (
             minExpectedIncluded <=
             entry.opsIncluded + this.bundlerReputationParams.banSlack
         ) {
-            entry.status = ReputationStatuses.THROTTLED
-            return ReputationStatuses.THROTTLED
+            entry.status = ReputationStatuses.throttled
+            return ReputationStatuses.throttled
         }
-        entry.status = ReputationStatuses.BANNED
-        return ReputationStatuses.BANNED
+        entry.status = ReputationStatuses.banned
+        return ReputationStatuses.banned
     }
 
-    checkBanned(entityType: EntityType, stakeInfo: StakeInfo) {
-        const status = this.getStatus(stakeInfo.addr as Address)
-        if (status === ReputationStatuses.BANNED) {
+    checkBanned(
+        entryPoint: Address,
+        entityType: EntityType,
+        stakeInfo: StakeInfo
+    ) {
+        const status = this.getStatus(entryPoint, stakeInfo.addr as Address)
+        if (status === ReputationStatuses.banned) {
             throw new RpcError(
                 `${entityType} ${stakeInfo.addr} is banned from using the pimlico`,
                 ValidationErrors.Reputation
@@ -544,9 +630,13 @@ export class ReputationManager implements InterfaceReputationManager {
         }
     }
 
-    checkThrottled(entityType: EntityType, stakeInfo: StakeInfo) {
-        const status = this.getStatus(stakeInfo.addr as Address)
-        if (status === ReputationStatuses.THROTTLED) {
+    checkThrottled(
+        entryPoint: Address,
+        entityType: EntityType,
+        stakeInfo: StakeInfo
+    ) {
+        const status = this.getStatus(entryPoint, stakeInfo.addr as Address)
+        if (status === ReputationStatuses.throttled) {
             throw new RpcError(
                 `${entityType} ${stakeInfo.addr} is throttled by the pimlico`,
                 ValidationErrors.Reputation
@@ -558,11 +648,15 @@ export class ReputationManager implements InterfaceReputationManager {
         return this.whitelist.has(address)
     }
 
-    checkStake(entityType: EntityType, stakeInfo: StakeInfo) {
+    checkStake(
+        entryPoint: Address,
+        entityType: EntityType,
+        stakeInfo: StakeInfo
+    ) {
         if (this.isWhiteListed(stakeInfo.addr as Address)) {
             return
         }
-        this.checkBanned(entityType, stakeInfo)
+        this.checkBanned(entryPoint, entityType, stakeInfo)
 
         if (stakeInfo.stake < this.minStake) {
             if (stakeInfo.stake === 0n) {
@@ -586,8 +680,11 @@ export class ReputationManager implements InterfaceReputationManager {
         }
     }
 
-    calCulateMaxMempoolUserOperationsPerEntity(address: Address): bigint {
-        const entry = this.entries[address]
+    calCulateMaxMempoolUserOperationsPerEntity(
+        entryPoint: Address,
+        address: Address
+    ): bigint {
+        const entry = this.entries[entryPoint][address]
         if (!entry) {
             return this.maxMempoolUserOperationsPerNewUnstakedEntity
         }

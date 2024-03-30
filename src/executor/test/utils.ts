@@ -1,8 +1,8 @@
 import {
     type Address,
-    EntryPointAbi,
+    EntryPointV06Abi,
     type HexData,
-    type UserOperation
+    UserOperationV06
 } from "@alto/types"
 import { SimpleAccountFactoryAbi } from "@alto/types"
 import {
@@ -20,7 +20,7 @@ import {
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import { foundry } from "viem/chains"
 
-export const TEST_OP: UserOperation = {
+export const TEST_OP: UserOperationV06 = {
     sender: "0x0000000000000000000000000000000000000000",
     nonce: 0n,
     initCode: "0x",
@@ -41,7 +41,7 @@ export async function getSender(
 ): Promise<Address> {
     const entryPointContract = getContract({
         address: entryPoint,
-        abi: EntryPointAbi,
+        abi: EntryPointV06Abi,
         client: {
             public: clients.public
         }
@@ -68,7 +68,7 @@ export async function createOp(
     clients: Clients,
     maxFeePerGas?: bigint,
     nonce?: bigint
-): Promise<UserOperation> {
+): Promise<UserOperationV06> {
     const initCode = concat([
         simpleAccountFactory,
         encodeFunctionData({

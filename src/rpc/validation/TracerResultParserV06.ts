@@ -1,5 +1,5 @@
 import {
-    EntryPointAbi,
+    EntryPointV06Abi,
     PaymasterAbi,
     RpcError,
     SenderCreatorAbi,
@@ -7,8 +7,8 @@ import {
     type StorageMap,
     ValidationErrors,
     type ValidationResult,
-    type UnPackedUserOperation
-} from "@entrypoint-0.7/types"
+    type UserOperationV06
+} from "@alto/types"
 import type { Abi, AbiFunction } from "abitype"
 // This file contains references to validation rules, in the format [xxx-###]
 // where xxx is OP/STO/COD/EP/SREP/EREP/UREP/ALT, and ### is a number
@@ -23,7 +23,7 @@ import {
     keccak256,
     pad
 } from "viem"
-import type { BundlerTracerResult } from "./BundlerCollectorTracer"
+import type { BundlerTracerResult } from "./BundlerCollectorTracerV06"
 
 interface CallEntry {
     to: string
@@ -37,13 +37,13 @@ interface CallEntry {
     value?: Hex
 }
 
-export type StakeInfoEntities = {
+type StakeInfoEntities = {
     factory?: StakeInfo
     account?: StakeInfo
     paymaster?: StakeInfo
 }
 
-const abi = [...SenderCreatorAbi, ...EntryPointAbi, ...PaymasterAbi] as Abi
+const abi = [...SenderCreatorAbi, ...EntryPointV06Abi, ...PaymasterAbi] as Abi
 
 // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
 const functionSignatureToMethodName = (hash: any) => {
@@ -60,41 +60,6 @@ const functionSignatureToMethodName = (hash: any) => {
     }
 
     return functionName
-}
-
-export function isStaked(entStake?: StakeInfo): boolean {
-    return Boolean(
-        entStake && 1n <= entStake.stake && 1n <= entStake.unstakeDelaySec
-    )
-}
-
-export function associatedWith(
-    slot: string,
-    addr: string,
-    entitySlots: { [addr: string]: Set<string> }
-): boolean {
-    const addrPadded = pad(addr as Hex, {
-        size: 32
-    }).toLowerCase()
-    if (slot.toLowerCase() === addrPadded) {
-        return true
-    }
-
-    const k = entitySlots[addr]
-    if (!k) {
-        return false
-    }
-
-    const slotN = hexToBigInt(slot as Hex)
-    // scan all slot entries to check of the given slot is within a structure, starting at that offset.
-    // assume a maximum size on a (static) structure size.
-    for (const k1 of k.keys()) {
-        const kn = hexToBigInt(k1 as Hex)
-        if (slotN >= kn && slotN < kn + 128n) {
-            return true
-        }
-    }
-    return false
 }
 
 /**
@@ -193,7 +158,7 @@ function parseCallStack(tracerResults: BundlerTracerResult): CallEntry[] {
  * @param stakeInfoEntities stake info for (factory, account, paymaster). factory and paymaster can be null.
  * @param keccak array of buffers that were given to keccak in the transaction
  */
-export function parseEntitySlots(
+function parseEntitySlots(
     stakeInfoEntities: StakeInfoEntities,
     keccak: Hex[]
 ): {
@@ -278,9 +243,14 @@ const callsFromEntryPointMethodSigs: { [key: string]: string } = {
                         type: "bytes"
                     },
                     {
-                        internalType: "bytes32",
-                        name: "accountGasLimits",
-                        type: "bytes32"
+                        internalType: "uint256",
+                        name: "callGasLimit",
+                        type: "uint256"
+                    },
+                    {
+                        internalType: "uint256",
+                        name: "verificationGasLimit",
+                        type: "uint256"
                     },
                     {
                         internalType: "uint256",
@@ -288,9 +258,14 @@ const callsFromEntryPointMethodSigs: { [key: string]: string } = {
                         type: "uint256"
                     },
                     {
-                        internalType: "bytes32",
-                        name: "gasFees",
-                        type: "bytes32"
+                        internalType: "uint256",
+                        name: "maxFeePerGas",
+                        type: "uint256"
+                    },
+                    {
+                        internalType: "uint256",
+                        name: "maxPriorityFeePerGas",
+                        type: "uint256"
                     },
                     {
                         internalType: "bytes",
@@ -303,13 +278,13 @@ const callsFromEntryPointMethodSigs: { [key: string]: string } = {
                         type: "bytes"
                     }
                 ],
-                internalType: "struct PackedUserOperation",
+                internalType: "struct UserOperation",
                 name: "userOp",
                 type: "tuple"
             },
             {
                 internalType: "bytes32",
-                name: "userOpHash",
+                name: "",
                 type: "bytes32"
             },
             {
@@ -322,7 +297,7 @@ const callsFromEntryPointMethodSigs: { [key: string]: string } = {
         outputs: [
             {
                 internalType: "uint256",
-                name: "validationData",
+                name: "",
                 type: "uint256"
             }
         ],
@@ -354,9 +329,14 @@ const callsFromEntryPointMethodSigs: { [key: string]: string } = {
                         type: "bytes"
                     },
                     {
-                        internalType: "bytes32",
-                        name: "accountGasLimits",
-                        type: "bytes32"
+                        internalType: "uint256",
+                        name: "callGasLimit",
+                        type: "uint256"
+                    },
+                    {
+                        internalType: "uint256",
+                        name: "verificationGasLimit",
+                        type: "uint256"
                     },
                     {
                         internalType: "uint256",
@@ -364,9 +344,14 @@ const callsFromEntryPointMethodSigs: { [key: string]: string } = {
                         type: "uint256"
                     },
                     {
-                        internalType: "bytes32",
-                        name: "gasFees",
-                        type: "bytes32"
+                        internalType: "uint256",
+                        name: "maxFeePerGas",
+                        type: "uint256"
+                    },
+                    {
+                        internalType: "uint256",
+                        name: "maxPriorityFeePerGas",
+                        type: "uint256"
                     },
                     {
                         internalType: "bytes",
@@ -379,7 +364,7 @@ const callsFromEntryPointMethodSigs: { [key: string]: string } = {
                         type: "bytes"
                     }
                 ],
-                internalType: "struct PackedUserOperation",
+                internalType: "struct UserOperation",
                 name: "userOp",
                 type: "tuple"
             },
@@ -420,8 +405,8 @@ const callsFromEntryPointMethodSigs: { [key: string]: string } = {
  * @param entryPoint the entryPoint that hosted the "simulatedValidation" traced call.
  * @return list of contract addresses referenced by this UserOp
  */
-export function tracerResultParser(
-    userOp: UnPackedUserOperation,
+export function tracerResultParserV06(
+    userOp: UserOperationV06,
     tracerResults: BundlerTracerResult,
     validationResult: ValidationResult,
     entryPointAddress: Address
@@ -466,10 +451,7 @@ export function tracerResultParser(
             call.method !== "depositTo"
     )
     // [OP-054]
-    if (
-        callInfoEntryPoint &&
-        callInfoEntryPoint?.method !== "delegateAndRevert"
-    ) {
+    if (callInfoEntryPoint) {
         throw new RpcError(
             `illegal call into EntryPoint during validation ${callInfoEntryPoint?.method}`,
             ValidationErrors.OpcodeValidation
@@ -507,7 +489,6 @@ export function tracerResultParser(
     for (const [title, entStakes] of Object.entries(stakeInfoEntities)) {
         const entityTitle = title as keyof StakeInfoEntities
         const entityAddr = (entStakes?.addr ?? "").toLowerCase()
-
         const currentNumLevel = tracerResults.callsFromEntryPoint.find(
             (info) =>
                 info.topLevelMethodSig ===
@@ -521,7 +502,7 @@ export function tracerResultParser(
             continue
         }
         const opcodes = currentNumLevel.opcodes
-        const access = currentNumLevel.access // address => { reads, writes }
+        const access = currentNumLevel.access
 
         // [OP-020]
         if (currentNumLevel.oog ?? false) {
@@ -573,6 +554,32 @@ export function tracerResultParser(
             // @param slot the SLOAD/SSTORE slot address we're testing
             // @param addr - the address we try to check for association with
             // @param reverseKeccak - a mapping we built for keccak values that contained the address
+            function associatedWith(
+                slot: string,
+                addr: string,
+                entitySlots: { [addr: string]: Set<string> }
+            ): boolean {
+                const addrPadded = pad(addr as Hex, {
+                    size: 32
+                }).toLowerCase()
+                if (slot.toLowerCase() === addrPadded) {
+                    return true
+                }
+                const k = entitySlots[addr]
+                if (!k) {
+                    return false
+                }
+                const slotN = hexToBigInt(slot as Hex)
+                // scan all slot entries to check of the given slot is within a structure, starting at that offset.
+                // assume a maximum size on a (static) structure size.
+                for (const k1 of k.keys()) {
+                    const kn = hexToBigInt(k1 as Hex)
+                    if (slotN >= kn && slotN < kn + 128n) {
+                        return true
+                    }
+                }
+                return false
+            }
 
             // scan all slots. find a referenced slot
             // at the end of the scan, we will check if the entity has stake, and report that slot if not.
@@ -584,7 +591,7 @@ export function tracerResultParser(
                 // slot associated with sender is allowed (e.g. token.balanceOf(sender)
                 // but during initial UserOp (where there is an initCode), it is allowed only for staked entity
                 if (associatedWith(slot, sender, entitySlots)) {
-                    if (userOp.factory) {
+                    if (userOp.initCode.length > 2) {
                         // special case: account.validateUserOp is allowed to use assoc storage if factory is staked.
                         // [STO-022], [STO-021]
                         if (
@@ -630,10 +637,10 @@ export function tracerResultParser(
 
             // if addr is current account/paymaster/factory, then return that title
             // otherwise, return addr as-is
-            function nameAddr(addr: string, _currentEntity: string): string {
+            function nameAddr(addr: string, currentEntity: string): string {
                 const [title] =
                     Object.entries(stakeInfoEntities).find(
-                        ([_title, info]) =>
+                        ([title, info]) =>
                             info?.addr?.toLowerCase() === addr.toLowerCase()
                     ) ?? []
 
@@ -669,6 +676,13 @@ export function tracerResultParser(
         }
 
         // check if the given entity is staked
+        function isStaked(entStake?: StakeInfo): boolean {
+            return Boolean(
+                entStake &&
+                    1n <= entStake.stake &&
+                    1n <= entStake.unstakeDelaySec
+            )
+        }
 
         // helper method: if condition is true, then entity must be staked.
         function requireCondAndStake(

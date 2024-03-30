@@ -1,7 +1,7 @@
 import type { GasPriceManager, Metrics } from "@alto/utils"
 import {
     type Address,
-    EntryPointAbi,
+    EntryPointV06Abi,
     ExecutionErrors,
     type ExecutionResult,
     type ReferencedCodeHashes,
@@ -13,13 +13,20 @@ import {
     entryPointErrorsSchema,
     entryPointExecutionErrorSchema
 } from "@alto/types"
-import type { ValidationResult } from "@alto/types"
-import { hexDataSchema } from "@alto/types"
+import type {
+    UserOperationV06,
+    UserOperationV07,
+    ValidationResult,
+    ValidationResultV06,
+    ValidationResultV07,
+    ValidationResultWithAggregationV06,
+    ValidationResultWithAggregationV07
+} from "@alto/types"
 import type { InterfaceValidator } from "@alto/types"
 import type { StateOverrides } from "@alto/types"
 import type { ApiVersion } from "@alto/types"
 import type { Logger } from "@alto/utils"
-import { calcPreVerificationGas } from "@alto/utils"
+import { calcPreVerificationGas, isVersion06, isVersion07 } from "@alto/utils"
 import { calcVerificationGasAndCallGasLimit } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
@@ -29,35 +36,15 @@ import {
     ContractFunctionExecutionError,
     type PublicClient,
     type Transport,
-    decodeErrorResult,
-    encodeFunctionData,
     getContract,
-    zeroAddress
+    zeroAddress,
+    pad,
+    toHex,
+    slice
 } from "viem"
-import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
 import { simulateHandleOp } from "../gasEstimation"
-
-// let id = 0
-
-// biome-ignore lint/suspicious/noExplicitAny: it's a generic type
-async function simulateTenderlyCall(publicClient: PublicClient, params: any) {
-    const response = await publicClient.transport
-        .request({ method: "eth_call", params })
-        .catch((e) => {
-            return e
-        })
-
-    const parsedObject = z
-        .object({
-            cause: z.object({
-                data: hexDataSchema
-            })
-        })
-        .parse(response)
-
-    return parsedObject.cause.data
-}
+import { simulateValidation } from "../EntryPointSimulationsV07"
 
 async function getSimulationResult(
     errorResult: unknown,
@@ -131,7 +118,6 @@ async function getSimulationResult(
 
 export class UnsafeValidator implements InterfaceValidator {
     publicClient: PublicClient<Transport, Chain>
-    entryPoint: Address
     logger: Logger
     metrics: Metrics
     utilityWallet: Account
@@ -141,21 +127,21 @@ export class UnsafeValidator implements InterfaceValidator {
     apiVersion: ApiVersion
     chainId: number
     gasPriceManager: GasPriceManager
+    entryPointSimulationsAddress?: Address
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
-        entryPoint: Address,
         logger: Logger,
         metrics: Metrics,
         utilityWallet: Account,
         apiVersion: ApiVersion,
         gasPriceManager: GasPriceManager,
+        entryPointSimulationsAddress?: Address,
         usingTenderly = false,
         balanceOverrideEnabled = false,
         disableExpirationCheck = false
     ) {
         this.publicClient = publicClient
-        this.entryPoint = entryPoint
         this.logger = logger
         this.metrics = metrics
         this.utilityWallet = utilityWallet
@@ -165,143 +151,52 @@ export class UnsafeValidator implements InterfaceValidator {
         this.apiVersion = apiVersion
         this.chainId = publicClient.chain.id
         this.gasPriceManager = gasPriceManager
+        this.entryPointSimulationsAddress = entryPointSimulationsAddress
     }
 
     async getExecutionResult(
         userOperation: UserOperation,
+        entryPoint: Address,
         stateOverrides?: StateOverrides
     ): Promise<ExecutionResult> {
-        const entryPointContract = getContract({
-            address: this.entryPoint,
-            abi: EntryPointAbi,
-            client: {
-                public: this.publicClient
-            }
-        })
+        const error = await simulateHandleOp(
+            userOperation,
+            entryPoint,
+            this.publicClient,
+            false,
+            zeroAddress,
+            "0x",
+            stateOverrides,
+            this.entryPointSimulationsAddress
+        )
 
-        if (this.usingTenderly) {
-            const tenderlyResult = await simulateTenderlyCall(
-                this.publicClient,
-                [
-                    {
-                        to: this.entryPoint,
-                        data: encodeFunctionData({
-                            abi: entryPointContract.abi,
-                            functionName: "simulateHandleOp",
-                            args: [
-                                userOperation,
-                                "0x0000000000000000000000000000000000000000",
-                                "0x"
-                            ]
-                        })
-                    },
-                    "latest"
-                ]
+        if (error.result === "failed") {
+            throw new RpcError(
+                `UserOperation reverted during simulation with reason: ${error.data}`,
+                ExecutionErrors.UserOperationReverted
             )
-
-            const errorResult = decodeErrorResult({
-                abi: entryPointContract.abi,
-                data: tenderlyResult
-            })
-
-            return getSimulationResult(
-                errorResult,
-                this.logger,
-                "execution",
-                this.usingTenderly
-            ) as Promise<ExecutionResult>
         }
 
-        if (this.balanceOverrideEnabled) {
-            const error = await simulateHandleOp(
-                userOperation,
-                this.entryPoint,
-                this.publicClient,
-                false,
-                zeroAddress,
-                "0x",
-                stateOverrides
-            )
-
-            if (error.result === "failed") {
-                throw new RpcError(
-                    `UserOperation reverted during simulation with reason: ${error.data}`,
-                    ExecutionErrors.UserOperationReverted
-                )
-            }
-
-            return error.data
-        }
-
-        const errorResult = await entryPointContract.simulate
-            .simulateHandleOp([
-                userOperation,
-                "0x0000000000000000000000000000000000000000",
-                "0x"
-            ])
-            .catch((e) => {
-                if (e instanceof Error) {
-                    return e
-                }
-                throw e
-            })
-
-        return getSimulationResult(
-            errorResult,
-            this.logger,
-            "execution",
-            this.usingTenderly
-        ) as Promise<ExecutionResult>
+        return error.data
     }
 
-    async getValidationResult(
-        userOperation: UserOperation,
+    async getValidationResultV06(
+        userOperation: UserOperationV06,
+        entryPoint: Address,
         _codeHashes?: ReferencedCodeHashes
     ): Promise<
-        (ValidationResult | ValidationResultWithAggregation) & {
+        (ValidationResultV06 | ValidationResultWithAggregationV06) & {
             storageMap: StorageMap
             referencedContracts?: ReferencedCodeHashes
         }
     > {
         const entryPointContract = getContract({
-            address: this.entryPoint,
-            abi: EntryPointAbi,
+            address: entryPoint,
+            abi: EntryPointV06Abi,
             client: {
                 public: this.publicClient
             }
         })
-
-        if (this.usingTenderly) {
-            const tenderlyResult = await simulateTenderlyCall(
-                this.publicClient,
-                [
-                    {
-                        to: this.entryPoint,
-                        data: encodeFunctionData({
-                            abi: entryPointContract.abi,
-                            functionName: "simulateValidation",
-                            args: [userOperation]
-                        })
-                    },
-                    "latest"
-                ]
-            )
-
-            const errorResult = decodeErrorResult({
-                abi: entryPointContract.abi,
-                data: tenderlyResult
-            })
-
-            return {
-                ...((await getSimulationResult(
-                    errorResult,
-                    this.logger,
-                    "validation",
-                    this.usingTenderly
-                )) as ValidationResult | ValidationResultWithAggregation),
-                storageMap: {}
-            }
-        }
 
         const errorResult = await entryPointContract.simulate
             .simulateValidation([userOperation])
@@ -312,23 +207,263 @@ export class UnsafeValidator implements InterfaceValidator {
                 throw e
             })
 
-        return {
+        const validationResult = {
             ...((await getSimulationResult(
                 errorResult,
                 this.logger,
                 "validation",
                 this.usingTenderly
-            )) as ValidationResult | ValidationResultWithAggregation),
+            )) as ValidationResultV06 | ValidationResultWithAggregationV06),
             storageMap: {}
+        }
+
+        if (validationResult.returnInfo.sigFailed) {
+            throw new RpcError(
+                "Invalid UserOp signature or  paymaster signature",
+                ValidationErrors.InvalidSignature
+            )
+        }
+
+        const now = Date.now() / 1000
+
+        this.logger.debug({
+            validAfter: validationResult.returnInfo.validAfter,
+            validUntil: validationResult.returnInfo.validUntil,
+            now
+        })
+
+        if (
+            validationResult.returnInfo.validAfter > now - 5 &&
+            !this.disableExpirationCheck
+        ) {
+            throw new RpcError(
+                "User operation is not valid yet",
+                ValidationErrors.ExpiresShortly
+            )
+        }
+
+        if (
+            validationResult.returnInfo.validUntil < now + 30 &&
+            !this.disableExpirationCheck
+        ) {
+            throw new RpcError(
+                "expires too soon",
+                ValidationErrors.ExpiresShortly
+            )
+        }
+
+        return validationResult
+    }
+
+    parseValidationData(validationData: bigint): {
+        aggregator: string
+        validAfter: number
+        validUntil: number
+    } {
+        const maxUint48 = 2 ** 48 - 1
+        const data = pad(toHex(validationData), { size: 32 })
+
+        // string offsets start from left (msb)
+        const aggregator = slice(data, 32 - 20)
+        let validUntil = Number.parseInt(slice(data, 32 - 26, 32 - 20), 16)
+        if (validUntil === 0) {
+            validUntil = maxUint48
+        }
+        const validAfter = Number.parseInt(slice(data, 0, 6), 16)
+
+        return {
+            aggregator,
+            validAfter,
+            validUntil
         }
     }
 
-    async validatePreVerificationGas(userOperation: UserOperation) {
+    mergeValidationData(
+        accountValidationData: {
+            aggregator: string
+            validAfter: number
+            validUntil: number
+        },
+        paymasterValidationData: {
+            aggregator: string
+            validAfter: number
+            validUntil: number
+        }
+    ): {
+        paymasterSigFailed: boolean
+        accountSigFailed: boolean
+        validAfter: number
+        validUntil: number
+    } {
+        return {
+            paymasterSigFailed:
+                paymasterValidationData.aggregator !== zeroAddress,
+            accountSigFailed: accountValidationData.aggregator !== zeroAddress,
+            validAfter: Math.max(
+                accountValidationData.validAfter,
+                paymasterValidationData.validAfter
+            ),
+            validUntil: Math.min(
+                accountValidationData.validUntil,
+                paymasterValidationData.validUntil
+            )
+        }
+    }
+
+    mergeValidationDataValues(
+        accountValidationData: bigint,
+        paymasterValidationData: bigint
+    ): {
+        paymasterSigFailed: boolean
+        accountSigFailed: boolean
+        validAfter: number
+        validUntil: number
+    } {
+        return this.mergeValidationData(
+            this.parseValidationData(accountValidationData),
+            this.parseValidationData(paymasterValidationData)
+        )
+    }
+
+    async getValidationResultV07(
+        userOperation: UserOperationV07,
+        entryPoint: Address,
+        _codeHashes?: ReferencedCodeHashes
+    ): Promise<
+        (ValidationResultV07 | ValidationResultWithAggregationV07) & {
+            storageMap: StorageMap
+            referencedContracts?: ReferencedCodeHashes
+        }
+    > {
+        if (!this.entryPointSimulationsAddress) {
+            throw new Error("entryPointSimulationsAddress is not set")
+        }
+
+        const { simulateValidationResult } = await simulateValidation(
+            userOperation,
+            entryPoint,
+            this.publicClient,
+            this.entryPointSimulationsAddress
+        )
+
+        if (simulateValidationResult.status === "failed") {
+            throw new RpcError(
+                `UserOperation reverted with reason: ${
+                    simulateValidationResult.data as string
+                }`,
+                ValidationErrors.SimulateValidation
+            )
+        }
+
+        const validationResult =
+            simulateValidationResult.data as ValidationResultWithAggregationV07
+
+        const mergedValidation = this.mergeValidationDataValues(
+            validationResult.returnInfo.accountValidationData,
+            validationResult.returnInfo.paymasterValidationData
+        )
+
+        const res = {
+            returnInfo: {
+                ...validationResult.returnInfo,
+                accountSigFailed: mergedValidation.accountSigFailed,
+                paymasterSigFailed: mergedValidation.paymasterSigFailed,
+                validUntil: mergedValidation.validUntil,
+                validAfter: mergedValidation.validAfter
+            },
+            senderInfo: {
+                ...validationResult.senderInfo,
+                addr: userOperation.sender
+            },
+            factoryInfo:
+                userOperation.factory && validationResult.factoryInfo
+                    ? {
+                          ...validationResult.factoryInfo,
+                          addr: userOperation.factory
+                      }
+                    : undefined,
+            paymasterInfo:
+                userOperation.paymaster && validationResult.paymasterInfo
+                    ? {
+                          ...validationResult.paymasterInfo,
+                          addr: userOperation.paymaster
+                      }
+                    : undefined,
+            aggregatorInfo: validationResult.aggregatorInfo,
+            storageMap: {}
+        }
+
+        // this.validateStorageAccessList(userOperation, res, accessList)
+
+        if (res.returnInfo.accountSigFailed) {
+            throw new RpcError(
+                "Invalid UserOp signature",
+                ValidationErrors.InvalidSignature
+            )
+        }
+
+        if (res.returnInfo.paymasterSigFailed) {
+            throw new RpcError(
+                "Invalid UserOp paymasterData",
+                ValidationErrors.InvalidSignature
+            )
+        }
+
+        const now = Math.floor(Date.now() / 1000)
+
+        if (res.returnInfo.validAfter > now - 5) {
+            throw new RpcError(
+                `User operation is not valid yet, validAfter=${res.returnInfo.validAfter}, now=${now}`,
+                ValidationErrors.ExpiresShortly
+            )
+        }
+
+        if (
+            res.returnInfo.validUntil == null ||
+            res.returnInfo.validUntil < now + 30
+        ) {
+            throw new RpcError(
+                `UserOperation expires too soon, validUntil=${res.returnInfo.validUntil}, now=${now}`,
+                ValidationErrors.ExpiresShortly
+            )
+        }
+
+        return res
+    }
+
+    getValidationResult(
+        userOperation: UserOperation,
+        entryPoint: Address,
+        _codeHashes?: ReferencedCodeHashes
+    ): Promise<
+        (ValidationResult | ValidationResultWithAggregation) & {
+            storageMap: StorageMap
+            referencedContracts?: ReferencedCodeHashes
+        }
+    > {
+        if (isVersion06(userOperation)) {
+            return this.getValidationResultV06(
+                userOperation,
+                entryPoint,
+                _codeHashes
+            )
+        }
+        return this.getValidationResultV07(
+            userOperation,
+            entryPoint,
+            _codeHashes
+        )
+    }
+
+    async validatePreVerificationGas(
+        userOperation: UserOperation,
+        entryPoint: Address
+    ) {
         if (this.apiVersion !== "v1") {
             const preVerificationGas = await calcPreVerificationGas(
                 this.publicClient,
                 userOperation,
-                this.entryPoint,
+                entryPoint,
                 this.chainId
             )
 
@@ -343,6 +478,7 @@ export class UnsafeValidator implements InterfaceValidator {
 
     async validateUserOperation(
         userOperation: UserOperation,
+        entryPoint: Address,
         _referencedContracts?: ReferencedCodeHashes
     ): Promise<
         (ValidationResult | ValidationResultWithAggregation) & {
@@ -351,43 +487,10 @@ export class UnsafeValidator implements InterfaceValidator {
         }
     > {
         try {
-            const validationResult =
-                await this.getValidationResult(userOperation)
-
-            if (validationResult.returnInfo.sigFailed) {
-                throw new RpcError(
-                    "Invalid UserOp signature or  paymaster signature",
-                    ValidationErrors.InvalidSignature
-                )
-            }
-
-            const now = Date.now() / 1000
-
-            this.logger.debug({
-                validAfter: validationResult.returnInfo.validAfter,
-                validUntil: validationResult.returnInfo.validUntil,
-                now
-            })
-
-            if (
-                validationResult.returnInfo.validAfter > now - 5 &&
-                !this.disableExpirationCheck
-            ) {
-                throw new RpcError(
-                    "User operation is not valid yet",
-                    ValidationErrors.ExpiresShortly
-                )
-            }
-
-            if (
-                validationResult.returnInfo.validUntil < now + 30 &&
-                !this.disableExpirationCheck
-            ) {
-                throw new RpcError(
-                    "expires too soon",
-                    ValidationErrors.ExpiresShortly
-                )
-            }
+            const validationResult = await this.getValidationResult(
+                userOperation,
+                entryPoint
+            )
 
             if (this.apiVersion !== "v1") {
                 const prefund = validationResult.returnInfo.prefund
@@ -403,7 +506,21 @@ export class UnsafeValidator implements InterfaceValidator {
                         this.chainId
                     )
 
-                const mul = userOperation.paymasterAndData === "0x" ? 3n : 1n
+                let mul = 1n
+
+                if (
+                    isVersion06(userOperation) &&
+                    userOperation.paymasterAndData
+                ) {
+                    mul = 3n
+                }
+
+                if (
+                    isVersion07(userOperation) &&
+                    userOperation.paymaster === "0x"
+                ) {
+                    mul = 3n
+                }
 
                 const requiredPreFund =
                     callGasLimit +
