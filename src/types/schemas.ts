@@ -370,12 +370,21 @@ const supportedEntryPointsResponseSchema = z.object({
 
 const estimateUserOperationGasResponseSchema = z.object({
     method: z.literal("eth_estimateUserOperationGas"),
-    result: z.object({
-        callGasLimit: hexNumberSchema,
-        preVerificationGas: hexNumberSchema,
-        verificationGasLimit: hexNumberSchema,
-        verificationGas: hexNumberSchema.optional()
-    })
+    result: z.union([
+        z.object({
+            callGasLimit: hexNumberSchema,
+            preVerificationGas: hexNumberSchema,
+            verificationGasLimit: hexNumberSchema,
+            verificationGas: hexNumberSchema.optional()
+        }),
+        z.object({
+            callGasLimit: hexNumberSchema,
+            preVerificationGas: hexNumberSchema,
+            verificationGasLimit: hexNumberSchema,
+            paymasterVerificationGasLimit: hexNumberSchema.optional(),
+            paymasterPostOpGasLimit: hexNumberSchema.optional()
+        })
+    ])
 })
 
 const sendUserOperationResponseSchema = z.object({
