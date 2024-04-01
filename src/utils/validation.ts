@@ -6,8 +6,7 @@ import {
     RpcError,
     type UserOperation,
     type UserOperationV06,
-    type UserOperationV07,
-    TargetCallResult
+    type UserOperationV07
 } from "@alto/types"
 import {
     type Chain,
