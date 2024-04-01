@@ -824,7 +824,7 @@ export class RpcHandler implements InterfaceRpcEndpoint {
             }
         }
 
-        this.gasPriceManager.validateGasPrice({
+        await this.gasPriceManager.validateGasPrice({
             maxFeePerGas: userOperation.maxFeePerGas,
             maxPriorityFeePerGas: userOperation.maxPriorityFeePerGas
         })
