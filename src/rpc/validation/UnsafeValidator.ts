@@ -44,7 +44,7 @@ import {
     slice
 } from "viem"
 import { fromZodError } from "zod-validation-error"
-import { simulateHandleOp } from "../gasEstimation"
+import { SimulateHandleOpResult, simulateHandleOp } from "../gasEstimation"
 import { simulateValidation } from "../EntryPointSimulationsV07"
 
 async function getSimulationResult(
@@ -164,7 +164,7 @@ export class UnsafeValidator implements InterfaceValidator {
         userOperation: UserOperation,
         entryPoint: Address,
         stateOverrides?: StateOverrides
-    ): Promise<ExecutionResult> {
+    ): Promise<SimulateHandleOpResult<"execution">> {
         const error = await simulateHandleOp(
             userOperation,
             entryPoint,
@@ -183,7 +183,7 @@ export class UnsafeValidator implements InterfaceValidator {
             )
         }
 
-        return error.data
+        return error as SimulateHandleOpResult<"execution">
     }
 
     async getValidationResultV06(
@@ -503,8 +503,7 @@ export class UnsafeValidator implements InterfaceValidator {
                 const prefund = validationResult.returnInfo.prefund
 
                 const [verificationGasLimit, callGasLimit] =
-                    await calcVerificationGasAndCallGasLimit(
-                        this.publicClient,
+                    calcVerificationGasAndCallGasLimit(
                         userOperation,
                         {
                             preOpGas: validationResult.returnInfo.preOpGas,

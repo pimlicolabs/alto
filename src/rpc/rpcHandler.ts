@@ -349,6 +349,10 @@ export class RpcHandler implements IRpcEndpoint {
                 userOperation.paymasterVerificationGasLimit = 5_000_000n
             }
 
+            // This is necessary because entryPoint pays
+            // min(maxFeePerGas, baseFee + maxPriorityFeePerGas) for the verification
+            // Since we don't want our estimations to depend upon baseFee, we set
+            // maxFeePerGas to maxPriorityFeePerGas
             userOperation.maxPriorityFeePerGas = userOperation.maxFeePerGas
 
             const executionResult = await this.validator.getExecutionResult(
@@ -357,11 +361,11 @@ export class RpcHandler implements IRpcEndpoint {
                 stateOverrides
             )
             ;[verificationGasLimit, callGasLimit] =
-                await calcVerificationGasAndCallGasLimit(
-                    this.publicClient,
+                calcVerificationGasAndCallGasLimit(
                     userOperation,
-                    executionResult,
-                    this.chainId
+                    executionResult.data.executionResult,
+                    this.chainId,
+                    executionResult.data.callDataResult
                 )
 
             if (
@@ -881,7 +885,7 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         if (this.apiVersion !== "v1") {
-            this.gasPriceManager.validateGasPrice({
+            await this.gasPriceManager.validateGasPrice({
                 maxFeePerGas: userOperation.maxFeePerGas,
                 maxPriorityFeePerGas: userOperation.maxPriorityFeePerGas
             })

@@ -111,6 +111,17 @@ export const executionResultSchema = z.union([
 
 export type ExecutionResult = z.infer<typeof executionResultSchema>
 
+export const targetCallResultSchema = z.object({
+    gasUsed: z.bigint(),
+    success: z.boolean(),
+    returnData: z
+        .string()
+        .regex(hexPattern)
+        .transform((val) => val as HexData)
+})
+
+export type TargetCallResult = z.infer<typeof targetCallResultSchema>
+
 export const executionResultErrorSchema = z.object({
     args: executionResultSchema,
     errorName: z.literal("ExecutionResult")

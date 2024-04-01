@@ -10,10 +10,12 @@ import {
     hexDataSchema,
     EntryPointV06SimulationsAbi,
     EntryPointV07SimulationsAbi,
-    EntryPointV07Abi
+    EntryPointV07Abi,
+    targetCallResultSchema
 } from "@alto/types"
 import type {
     StateOverrides,
+    TargetCallResult,
     UserOperationV06,
     UserOperationV07
 } from "@alto/types"
@@ -27,7 +29,8 @@ import {
     encodeFunctionData,
     toHex,
     zeroAddress,
-    decodeAbiParameters
+    decodeAbiParameters,
+    decodeFunctionResult
 } from "viem"
 import { z } from "zod"
 import {
@@ -78,7 +81,7 @@ export async function simulateHandleOpV06(
     targetAddress: Address,
     targetCallData: Hex,
     finalParam: StateOverrides = {}
-) {
+): Promise<SimulateHandleOpResult> {
     try {
         await publicClient.request({
             method: "eth_call",
@@ -126,7 +129,10 @@ export async function simulateHandleOpV06(
             decodedError.errorName === "FailedOp" &&
             decodedError.args
         ) {
-            return { result: "failed", data: decodedError.args[1] } as const
+            return {
+                result: "failed",
+                data: decodedError.args[1] as string
+            } as const
         }
 
         if (
@@ -141,7 +147,12 @@ export async function simulateHandleOpV06(
             const parsedExecutionResult = executionResultSchema.parse(
                 decodedError.args
             )
-            return { result: "execution", data: parsedExecutionResult } as const
+            return {
+                result: "execution",
+                data: {
+                    executionResult: parsedExecutionResult
+                } as const
+            }
         }
     }
     throw new Error("Unexpected error")
@@ -229,7 +240,16 @@ export function parseFailedOpWithRevert(data: Hex) {
     return data
 }
 
-function validateTargetCallDataResult(data: Hex) {
+function validateTargetCallDataResult(data: Hex):
+    | {
+          result: "success"
+          data: TargetCallResult
+      }
+    | {
+          result: "failed"
+          data: string
+          code: number
+      } {
     const decodedDelegateAndError = decodeErrorResult({
         abi: EntryPointV07Abi,
         data: data
@@ -240,31 +260,20 @@ function validateTargetCallDataResult(data: Hex) {
     }
 
     try {
-        const decodedError = decodeErrorResult({
+        const targetCallResult = decodeFunctionResult({
             abi: EntryPointV07SimulationsAbi,
+            functionName: "simulateCallData",
             data: decodedDelegateAndError.args[1] as Hex
         })
 
-        if (decodedError?.args) {
-            const targetSuccess = decodedError?.args[0]
-            const targetResult = decodedError?.args[1]
-            if (!targetSuccess) {
-                return {
-                    result: "failed",
-                    data: parseFailedOpWithRevert(targetResult as Hex),
-                    code: ExecutionErrors.UserOperationReverted
-                } as const
-            }
-            return {
-                result: "success"
-            } as const
-        }
+        const parsedTargetCallResult =
+            targetCallResultSchema.parse(targetCallResult)
+
         return {
-            result: "failed",
-            data: "Unknown error, could not parse target call data result.",
-            code: ExecutionErrors.UserOperationReverted
+            result: "success",
+            data: parsedTargetCallResult
         } as const
-    } catch (e) {
+    } catch (_e) {
         // no error we go the result
         return {
             result: "failed",
@@ -274,7 +283,7 @@ function validateTargetCallDataResult(data: Hex) {
     }
 }
 
-function getSimulateHandleOpResult(data: Hex) {
+function getSimulateHandleOpResult(data: Hex): SimulateHandleOpResult {
     const decodedDelegateAndError = decodeErrorResult({
         abi: EntryPointV07Abi,
         data: data
@@ -297,7 +306,7 @@ function getSimulateHandleOpResult(data: Hex) {
         ) {
             return {
                 result: "failed",
-                data: decodedError.args[1],
+                data: decodedError.args[1] as string,
                 code: ValidationErrors.SimulateValidation
             } as const
         }
@@ -315,54 +324,18 @@ function getSimulateHandleOpResult(data: Hex) {
         }
     } catch {
         // no error we go the result
-        const decodedResult = decodeAbiParameters(
-            [
-                {
-                    components: [
-                        {
-                            internalType: "uint256",
-                            name: "preOpGas",
-                            type: "uint256"
-                        },
-                        {
-                            internalType: "uint256",
-                            name: "paid",
-                            type: "uint256"
-                        },
-                        {
-                            internalType: "uint256",
-                            name: "validationData",
-                            type: "uint256"
-                        },
-                        {
-                            internalType: "uint256",
-                            name: "paymasterValidationData",
-                            type: "uint256"
-                        },
-                        {
-                            internalType: "bool",
-                            name: "targetSuccess",
-                            type: "bool"
-                        },
-                        {
-                            internalType: "bytes",
-                            name: "targetResult",
-                            type: "bytes"
-                        }
-                    ],
-                    internalType:
-                        "struct IEntryPointSimulations.ExecutionResult",
-                    name: "",
-                    type: "tuple"
-                }
-            ],
-            decodedDelegateAndError.args[1] as Hex
-        )[0]
+        const decodedResult: ExecutionResult = decodeFunctionResult({
+            abi: EntryPointV07SimulationsAbi,
+            functionName: "simulateHandleOp",
+            data: decodedDelegateAndError.args[1] as Hex
+        }) as unknown as ExecutionResult
 
         return {
             result: "execution",
-            data: decodedResult
-        } as const
+            data: {
+                executionResult: decodedResult
+            } as const
+        }
     }
     throw new Error("Unexpected error")
 }
@@ -375,7 +348,7 @@ export async function simulateHandleOpV07(
     targetCallData: Hex,
     entryPointSimulationsAddress: Address,
     finalParam: StateOverrides = {}
-) {
+): Promise<SimulateHandleOpResult> {
     const packedUserOperation = toPackedUserOperation(userOperation)
 
     const entryPointSimulationsSimulateHandleOpCallData = encodeFunctionData({
@@ -407,7 +380,34 @@ export async function simulateHandleOpV07(
         return targetCallValidationResult
     }
 
-    return getSimulateHandleOpResult(cause[0])
+    const executionResult = getSimulateHandleOpResult(cause[0])
+
+    if (executionResult.result === "failed") {
+        return executionResult
+    }
+
+    return {
+        result: "execution",
+        data: {
+            callDataResult: targetCallValidationResult.data,
+            executionResult: (
+                executionResult as SimulateHandleOpResult<"execution">
+            ).data.executionResult
+        }
+    }
+}
+
+export type SimulateHandleOpResult<
+    TypeResult extends "failed" | "execution" = "failed" | "execution"
+> = {
+    result: TypeResult
+    data: TypeResult extends "failed"
+        ? string
+        : {
+              callDataResult?: TargetCallResult
+              executionResult: ExecutionResult
+          }
+    code?: TypeResult extends "failed" ? number : undefined
 }
 
 export function simulateHandleOp(
@@ -419,7 +419,7 @@ export function simulateHandleOp(
     targetCallData: Hex,
     stateOverride: StateOverrides = {},
     entryPointSimulationsAddress?: Address
-) {
+): Promise<SimulateHandleOpResult> {
     const finalParam = getStateOverrides({
         userOperation,
         entryPoint,
@@ -501,7 +501,11 @@ export async function estimateVerificationGasLimit(
     )
 
     if (initial.result === "execution") {
-        upper = 6n * (initial.data.preOpGas - userOperation.preVerificationGas)
+        const simulationResult = initial as SimulateHandleOpResult<"execution">
+        upper =
+            6n *
+            (simulationResult.data.executionResult.preOpGas -
+                userOperation.preVerificationGas)
     } else {
         throw new RpcError(
             `UserOperation reverted during simulation with reason: ${initial.data}`,
@@ -605,7 +609,9 @@ export async function estimateCallGasLimit(
         )
     }
 
-    const result = getCallExecuteResult(error.data)
+    const result = getCallExecuteResult(
+        (error as SimulateHandleOpResult<"execution">).data.executionResult
+    )
 
     let lower = 0n
     let upper: bigint
@@ -661,7 +667,9 @@ export async function estimateCallGasLimit(
             throw new Error("Unexpected error")
         }
 
-        const result = getCallExecuteResult(error.data)
+        const result = getCallExecuteResult(
+            (error as SimulateHandleOpResult<"execution">).data.executionResult
+        )
 
         if (result.success) {
             upper = mid

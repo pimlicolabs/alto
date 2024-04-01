@@ -1,34 +1,35 @@
 import {
-    EntryPointV06Abi,
-    RpcError,
     type Address,
+    EntryPointV06Abi,
+    EntryPointV07Abi,
+    type PackedUserOperation,
+    RpcError,
     type UserOperation,
     type UserOperationV06,
     type UserOperationV07,
-    type PackedUserOperation,
-    EntryPointV07Abi
+    TargetCallResult
 } from "@alto/types"
 import {
+    type Chain,
     ContractFunctionExecutionError,
     ContractFunctionRevertedError,
     EstimateGasExecutionError,
     FeeCapTooLowError,
+    type Hex,
     InsufficientFundsError,
     IntrinsicGasTooLowError,
     NonceTooLowError,
+    type PublicClient,
     TransactionExecutionError,
+    type Transport,
+    bytesToHex,
     concat,
     encodeAbiParameters,
     getContract,
     serializeTransaction,
     toBytes,
-    toHex,
-    type Chain,
-    type PublicClient,
-    type Transport,
-    bytesToHex,
     toFunctionSelector,
-    type Hex
+    toHex
 } from "viem"
 import * as chains from "viem/chains"
 import { isVersion06, toPackedUserOperation } from "./userop"
@@ -321,14 +322,16 @@ export async function calcPreVerificationGas(
     return preVerificationGas
 }
 
-export async function calcVerificationGasAndCallGasLimit(
-    publicClient: PublicClient<Transport, Chain>,
+export function calcVerificationGasAndCallGasLimit(
     userOperation: UserOperation,
     executionResult: {
         preOpGas: bigint
         paid: bigint
     },
-    chainId: number
+    chainId: number,
+    callDataResult?: {
+        gasUsed: bigint
+    }
 ) {
     const verificationGasLimit =
         ((executionResult.preOpGas - userOperation.preVerificationGas) * 3n) /
@@ -339,21 +342,17 @@ export async function calcVerificationGasAndCallGasLimit(
     if (userOperation.maxPriorityFeePerGas === userOperation.maxFeePerGas) {
         gasPrice = userOperation.maxFeePerGas
     } else {
-        const blockBaseFee = (await publicClient.getBlock()).baseFeePerGas
-        gasPrice =
-            userOperation.maxFeePerGas <
-            (blockBaseFee ?? 0n) + userOperation.maxPriorityFeePerGas
-                ? userOperation.maxFeePerGas
-                : userOperation.maxPriorityFeePerGas + (blockBaseFee ?? 0n)
+        gasPrice = userOperation.maxFeePerGas
     }
+
     const calculatedCallGasLimit =
-        executionResult.paid / gasPrice -
-        executionResult.preOpGas +
-        21000n +
-        50000n
+        callDataResult?.gasUsed ??
+        executionResult.paid / gasPrice - executionResult.preOpGas
 
     let callGasLimit =
-        calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n
+        (calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n) +
+        21000n +
+        50000n
 
     if (
         chainId === chains.baseGoerli.id ||

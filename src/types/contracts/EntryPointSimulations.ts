@@ -109,22 +109,6 @@ export const EntryPointV07SimulationsAbi = [
         type: "error"
     },
     {
-        inputs: [
-            {
-                internalType: "bool",
-                name: "targetSuccess",
-                type: "bool"
-            },
-            {
-                internalType: "bytes",
-                name: "targetResult",
-                type: "bytes"
-            }
-        ],
-        name: "TargetCallResult",
-        type: "error"
-    },
-    {
         anonymous: false,
         inputs: [
             {
@@ -1032,7 +1016,30 @@ export const EntryPointV07SimulationsAbi = [
             }
         ],
         name: "simulateCallData",
-        outputs: [],
+        outputs: [
+            {
+                components: [
+                    {
+                        internalType: "uint256",
+                        name: "gasUsed",
+                        type: "uint256"
+                    },
+                    {
+                        internalType: "bool",
+                        name: "success",
+                        type: "bool"
+                    },
+                    {
+                        internalType: "bytes",
+                        name: "returnData",
+                        type: "bytes"
+                    }
+                ],
+                internalType: "struct IEntryPointSimulations.TargetCallResult",
+                name: "",
+                type: "tuple"
+            }
+        ],
         stateMutability: "nonpayable",
         type: "function"
     },

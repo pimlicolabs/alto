@@ -113,8 +113,7 @@ export class SafeValidator
                 const prefund = validationResult.returnInfo.prefund
 
                 const [verificationGasLimit, callGasLimit] =
-                    await calcVerificationGasAndCallGasLimit(
-                        this.publicClient,
+                    calcVerificationGasAndCallGasLimit(
                         userOperation,
                         {
                             preOpGas: validationResult.returnInfo.preOpGas,
