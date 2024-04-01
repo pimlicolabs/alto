@@ -1,5 +1,5 @@
-export * from "./logger"
-export * from "./metrics"
+export { type Logger } from "pino"
 export * from "./bigInt"
 export * from "./gasPriceManager"
-export { Logger } from "pino"
+export * from "./logger"
+export * from "./metrics"

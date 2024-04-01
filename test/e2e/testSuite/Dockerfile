@@ -1,26 +1,17 @@
 # production ready dockerfile that runs pnpm start
-FROM node:20-alpine
+FROM oven/bun:1.0.30-alpine
 
 # set working directory
 WORKDIR /app
 
-# install pnpm
-RUN npm install -g pnpm
+# copy package.json and pnpm-lock.yaml
+COPY package.json bun.lockb ./
 
-# install typescript
-RUN npm add -g typescript
-
-# copy package.json
-COPY package.json tsconfig.json jest.config.js ./
+# install dependencies
+RUN bun install
 
 # copy source code
 COPY ./src .
 
-# install dependencies
-RUN pnpm fetch
-RUN pnpm install
-
-RUN ls
-
 # start app
-ENTRYPOINT ["pnpm", "jest"]
+ENTRYPOINT ["bun", "run", "jest"]

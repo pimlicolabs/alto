@@ -1,20 +1,25 @@
-import { type UserOperation, createSmartAccountClient } from "permissionless"
+import {
+    createSmartAccountClient,
+    ENTRYPOINT_ADDRESS_V06,
+    type UserOperation
+} from "permissionless"
 import { privateKeyToSimpleSmartAccount } from "permissionless/accounts"
 import type { PimlicoBundlerClient } from "permissionless/clients/pimlico"
+import { ENTRYPOINT_ADDRESS_V06_TYPE } from "permissionless/types/entrypoint"
 import {
-    http,
-    type PublicClient,
-    type TestClient,
     createWalletClient,
     getContract,
+    http,
     parseEther,
-    parseGwei
+    parseGwei,
+    type PublicClient,
+    type TestClient
 } from "viem"
 import {
-    type Address,
     generatePrivateKey,
     mnemonicToAccount,
-    privateKeyToAddress
+    privateKeyToAddress,
+    type Address
 } from "viem/accounts"
 import { foundry } from "viem/chains"
 import { simpleInflatorAbi } from "./data"
@@ -84,14 +89,16 @@ export const sendBundleNow = async () => {
 }
 
 export const compressAndSendOp = async (
-    userOperation: UserOperation,
+    userOperation: UserOperation<"v0.6">,
     publicClient: PublicClient,
-    _pimlicoClient: PimlicoBundlerClient
+    _pimlicoClient: PimlicoBundlerClient<ENTRYPOINT_ADDRESS_V06_TYPE>
 ) => {
     const simpleInflator = getContract({
         address: SIMPLE_INFLATOR_ADDRESS,
         abi: simpleInflatorAbi,
-        publicClient
+        client: {
+            public: publicClient
+        }
     })
 
     const compressed = await simpleInflator.read.compress([userOperation])
@@ -123,7 +130,7 @@ export const newRandomAddress = (): Address => {
 }
 
 export const setupSimpleSmartAccountClient = async (
-    bundlerClient: PimlicoBundlerClient,
+    bundlerClient: PimlicoBundlerClient<ENTRYPOINT_ADDRESS_V06_TYPE>,
     publicClient: PublicClient
 ) => {
     const simpleAccount = await privateKeyToSimpleSmartAccount(publicClient, {
@@ -136,19 +143,23 @@ export const setupSimpleSmartAccountClient = async (
 
     return createSmartAccountClient({
         account: simpleAccount,
+        entryPoint: ENTRYPOINT_ADDRESS_V06,
         chain: foundry,
-        transport: http(altoEndpoint),
-        sponsorUserOperation: async (args: {
-            userOperation: UserOperation
-            entryPoint: Address
-        }) => {
-            const gasInfo = await bundlerClient.estimateUserOperationGas(args)
-            return Promise.resolve({
-                ...args.userOperation,
-                preVerificationGas: gasInfo.preVerificationGas,
-                verificationGasLimit: gasInfo.verificationGasLimit,
-                callGasLimit: gasInfo.callGasLimit * 5n
-            })
+        bundlerTransport: http(altoEndpoint),
+        middleware: {
+            sponsorUserOperation: async (args: {
+                userOperation: UserOperation<"v0.6">
+                entryPoint: Address
+            }) => {
+                const gasInfo =
+                    await bundlerClient.estimateUserOperationGas(args)
+                return Promise.resolve({
+                    ...args.userOperation,
+                    preVerificationGas: gasInfo.preVerificationGas,
+                    verificationGasLimit: gasInfo.verificationGasLimit,
+                    callGasLimit: gasInfo.callGasLimit * 5n
+                })
+            }
         }
     })
 }
