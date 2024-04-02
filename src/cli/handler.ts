@@ -1,27 +1,28 @@
+import { SenderManager } from "@alto/executor"
 import {
-    type Logger,
+    GasPriceManager,
     createMetrics,
     initDebugLogger,
     initProductionLogger,
-    GasPriceManager
+    type Logger
 } from "@alto/utils"
 import { Registry } from "prom-client"
 import {
+    createPublicClient,
+    createWalletClient,
     type Chain,
     type PublicClient,
-    type Transport,
-    createPublicClient,
-    createWalletClient
+    type Transport
 } from "viem"
 import { fromZodError } from "zod-validation-error"
 import {
+    bundlerArgsSchema,
     type IBundlerArgs,
     type IBundlerArgsInput,
-    bundlerArgsSchema
+    type IOptions
 } from "./config"
 import { customTransport } from "./customTransport"
 import { setupServer } from "./setupServer"
-import { SenderManager } from "@alto/executor"
 
 const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
     // validate every arg, make type safe so if i add a new arg i have to validate it
@@ -48,7 +49,7 @@ const preFlightChecks = async (
     }
 }
 
-export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
+export async function bundlerHandler(args: IOptions): Promise<void> {
     const parsedArgs = parseArgs(args)
     if (parsedArgs.signerPrivateKeysExtra !== undefined) {
         parsedArgs.signerPrivateKeys = [

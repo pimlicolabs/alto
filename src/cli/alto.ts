@@ -2,7 +2,16 @@ import * as sentry from "@sentry/node"
 import dotenv from "dotenv"
 import yargs from "yargs"
 import { hideBin } from "yargs/helpers"
-import { bundlerCommand, bundlerOptions } from "./config"
+import {
+    bundleCompressionOptions,
+    bundlerCommand,
+    bundlerOptions,
+    compatibilityOptions,
+    debugOptions,
+    logOptions,
+    rpcOptions,
+    serverOptions
+} from "./config"
 import { registerCommandToYargs } from "./util"
 
 // Load environment variables from .env file
@@ -43,6 +52,22 @@ export function getAltoCli(): yargs.Argv {
             "dot-notation": true
         })
         .options(bundlerOptions)
+        .group(Object.keys(bundlerOptions), "Options:")
+        .options(compatibilityOptions)
+        .group(Object.keys(compatibilityOptions), "Compatibility Options:")
+        .options(serverOptions)
+        .group(Object.keys(serverOptions), "Server Options:")
+        .options(rpcOptions)
+        .group(Object.keys(rpcOptions), "RPC Options:")
+        .options(bundleCompressionOptions)
+        .group(
+            Object.keys(bundleCompressionOptions),
+            "Bundle Compression Options:"
+        )
+        .options(logOptions)
+        .group(Object.keys(logOptions), "Logging Options:")
+        .options(debugOptions)
+        .group(Object.keys(debugOptions), "Debug Options:")
         // blank scriptName so that help text doesn't display the cli name before each command
         .scriptName("")
         .demandCommand(1)
