@@ -443,7 +443,7 @@ export class MemoryMempool {
 
         try {
             validationResult = await this.validator.validateUserOperation(
-                "v1",
+                false,
                 op,
                 opInfo.entryPoint,
                 opInfo.referencedContracts

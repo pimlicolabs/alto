@@ -976,7 +976,7 @@ export class RpcHandler implements IRpcEndpoint {
 
                 const validationResult =
                     await this.validator.validateUserOperation(
-                        apiVersion,
+                        apiVersion !== "v1",
                         userOperation,
                         entryPoint
                     )

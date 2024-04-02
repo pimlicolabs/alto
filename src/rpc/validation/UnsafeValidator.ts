@@ -482,7 +482,7 @@ export class UnsafeValidator implements InterfaceValidator {
     }
 
     async validateUserOperation(
-        apiVersion: ApiVersion,
+        shouldCheckPrefund: boolean,
         userOperation: UserOperation,
         entryPoint: Address,
         _referencedContracts?: ReferencedCodeHashes
@@ -498,7 +498,7 @@ export class UnsafeValidator implements InterfaceValidator {
                 entryPoint
             )
 
-            if (apiVersion !== "v1") {
+            if (shouldCheckPrefund) {
                 const prefund = validationResult.returnInfo.prefund
 
                 const [verificationGasLimit, callGasLimit] =

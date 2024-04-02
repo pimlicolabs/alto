@@ -91,7 +91,7 @@ export class SafeValidator
     }
 
     async validateUserOperation(
-        apiVersion: ApiVersion,
+        shouldCheckPrefund: boolean,
         userOperation: UserOperation,
         entryPoint: Address,
         referencedContracts?: ReferencedCodeHashes
@@ -108,7 +108,7 @@ export class SafeValidator
                 referencedContracts
             )
 
-            if (apiVersion !== "v1") {
+            if (shouldCheckPrefund) {
                 const prefund = validationResult.returnInfo.prefund
 
                 const [verificationGasLimit, callGasLimit] =
