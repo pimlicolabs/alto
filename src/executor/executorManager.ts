@@ -108,23 +108,21 @@ export class ExecutorManager {
             ops.map((op) => op.entryPoint)
         )
 
-        const userOpEntryPointMap = new Map<Address, MempoolUserOperation[]>()
+        const opEntryPointMap = new Map<Address, MempoolUserOperation[]>()
 
         for (const op of ops) {
-            if (!userOpEntryPointMap.has(op.entryPoint)) {
-                userOpEntryPointMap.set(op.entryPoint, [])
+            if (!opEntryPointMap.has(op.entryPoint)) {
+                opEntryPointMap.set(op.entryPoint, [])
             }
-            userOpEntryPointMap
-                .get(op.entryPoint)
-                ?.push(op.mempoolUserOperation)
+            opEntryPointMap.get(op.entryPoint)?.push(op.mempoolUserOperation)
         }
 
         const txHashes: Hash[] = []
 
         for (const entryPoint of uniqueEntryPoints) {
-            const userOps = userOpEntryPointMap.get(entryPoint)
-            if (userOps) {
-                const txHash = await this.sendToExecutor(entryPoint, userOps)
+            const ops = opEntryPointMap.get(entryPoint)
+            if (ops) {
+                const txHash = await this.sendToExecutor(entryPoint, ops)
 
                 if (!txHash) {
                     throw new Error("no tx hash")
@@ -270,26 +268,26 @@ export class ExecutorManager {
                     ops.map((op) => op.entryPoint)
                 )
 
-                const userOpEntryPointMap = new Map<
+                const opEntryPointMap = new Map<
                     Address,
                     MempoolUserOperation[]
                 >()
 
                 for (const op of ops) {
-                    if (!userOpEntryPointMap.has(op.entryPoint)) {
-                        userOpEntryPointMap.set(op.entryPoint, [])
+                    if (!opEntryPointMap.has(op.entryPoint)) {
+                        opEntryPointMap.set(op.entryPoint, [])
                     }
-                    userOpEntryPointMap
+                    opEntryPointMap
                         .get(op.entryPoint)
                         ?.push(op.mempoolUserOperation)
                 }
 
                 for (const entryPoint of uniqueEntryPoints) {
-                    const userOps = userOpEntryPointMap.get(entryPoint)
-                    if (userOps) {
+                    const userOperations = opEntryPointMap.get(entryPoint)
+                    if (userOperations) {
                         const txHash = await this.sendToExecutor(
                             entryPoint,
-                            userOps
+                            userOperations
                         )
 
                         if (!txHash) {
@@ -449,20 +447,20 @@ export class ExecutorManager {
             ops.map((op) => op.userOperation.entryPoint)
         )
 
-        const userOpEntryPointMap = new Map<Address, SubmittedUserOperation[]>()
+        const opEntryPointMap = new Map<Address, SubmittedUserOperation[]>()
 
         for (const op of ops) {
-            if (!userOpEntryPointMap.has(op.userOperation.entryPoint)) {
-                userOpEntryPointMap.set(op.userOperation.entryPoint, [])
+            if (!opEntryPointMap.has(op.userOperation.entryPoint)) {
+                opEntryPointMap.set(op.userOperation.entryPoint, [])
             }
-            userOpEntryPointMap.get(op.userOperation.entryPoint)?.push(op)
+            opEntryPointMap.get(op.userOperation.entryPoint)?.push(op)
         }
 
         for (const entryPoint of uniqueEntryPoints) {
-            const userOps = userOpEntryPointMap.get(entryPoint)
+            const ops = opEntryPointMap.get(entryPoint)
 
-            if (userOps) {
-                const txs = getTransactionsFromUserOperationEntries(userOps)
+            if (ops) {
+                const txs = getTransactionsFromUserOperationEntries(ops)
 
                 await Promise.all(
                     txs.map(async (txInfo) => {

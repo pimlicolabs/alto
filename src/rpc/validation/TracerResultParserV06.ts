@@ -399,14 +399,14 @@ const callsFromEntryPointMethodSigs: { [key: string]: string } = {
 
 /**
  * parse collected simulation traces and revert if they break our rules
- * @param userOp the userOperation that was used in this simulation
+ * @param userOperation the userOperation that was used in this simulation
  * @param tracerResults the tracer return value
  * @param validationResult output from simulateValidation
  * @param entryPoint the entryPoint that hosted the "simulatedValidation" traced call.
  * @return list of contract addresses referenced by this UserOp
  */
 export function tracerResultParserV06(
-    userOp: UserOperationV06,
+    userOperation: UserOperationV06,
     tracerResults: BundlerTracerResult,
     validationResult: ValidationResult,
     entryPointAddress: Address
@@ -472,7 +472,7 @@ export function tracerResultParserV06(
         )
     }
 
-    const sender = userOp.sender.toLowerCase()
+    const sender = userOperation.sender.toLowerCase()
     // stake info per "number" level (factory, sender, paymaster)
     // we only use stake info if we notice a memory reference that require stake
     const stakeInfoEntities: StakeInfoEntities = {
@@ -591,7 +591,7 @@ export function tracerResultParserV06(
                 // slot associated with sender is allowed (e.g. token.balanceOf(sender)
                 // but during initial UserOp (where there is an initCode), it is allowed only for staked entity
                 if (associatedWith(slot, sender, entitySlots)) {
-                    if (userOp.initCode.length > 2) {
+                    if (userOperation.initCode.length > 2) {
                         // special case: account.validateUserOp is allowed to use assoc storage if factory is staked.
                         // [STO-022], [STO-021]
                         if (

@@ -244,8 +244,13 @@ export class MemoryMempool {
 
         if (
             processedOrSubmittedOps.find((uo) => {
-                const userOp = deriveUserOperation(uo.mempoolUserOperation)
-                return userOp.sender === op.sender && userOp.nonce === op.nonce
+                const userOperation = deriveUserOperation(
+                    uo.mempoolUserOperation
+                )
+                return (
+                    userOperation.sender === op.sender &&
+                    userOperation.nonce === op.nonce
+                )
             })
         ) {
             return false
@@ -253,8 +258,11 @@ export class MemoryMempool {
 
         this.reputationManager.updateUserOperationSeenStatus(op, entryPoint)
         const oldUserOp = outstandingOps.find((uo) => {
-            const userOp = deriveUserOperation(uo.mempoolUserOperation)
-            return userOp.sender === op.sender && userOp.nonce === op.nonce
+            const userOperation = deriveUserOperation(uo.mempoolUserOperation)
+            return (
+                userOperation.sender === op.sender &&
+                userOperation.nonce === op.nonce
+            )
         })
         if (oldUserOp) {
             const oldOp = deriveUserOperation(oldUserOp.mempoolUserOperation)

@@ -86,8 +86,8 @@ export class NonceQueuer {
     }
 
     add(mempoolUserOperation: MempoolUserOperation, entryPoint: Address) {
-        const userOp = deriveUserOperation(mempoolUserOperation)
-        const [nonceKey, nonceValue] = getNonceKeyAndValue(userOp.nonce)
+        const userOperation = deriveUserOperation(mempoolUserOperation)
+        const [nonceKey, nonceValue] = getNonceKeyAndValue(userOperation.nonce)
         this.queuedUserOperations.push({
             entryPoint,
             userOperationHash: getUserOperationHash(
@@ -130,15 +130,17 @@ export class NonceQueuer {
         try {
             results = await publicClient.multicall({
                 contracts: queuedUserOperations.map((qop) => {
-                    const userOp = deriveUserOperation(qop.mempoolUserOperation)
+                    const userOperation = deriveUserOperation(
+                        qop.mempoolUserOperation
+                    )
 
-                    const isUserOpV06 = isVersion06(userOp)
+                    const isUserOpV06 = isVersion06(userOperation)
 
                     return {
                         address: qop.entryPoint,
                         abi: isUserOpV06 ? EntryPointV06Abi : EntryPointV07Abi,
                         functionName: "getNonce",
-                        args: [userOp.sender, qop.nonceKey]
+                        args: [userOperation.sender, qop.nonceKey]
                     }
                 }),
                 blockTag: "latest"
@@ -151,9 +153,11 @@ export class NonceQueuer {
 
             results = await Promise.all(
                 queuedUserOperations.map(async (qop) => {
-                    const userOp = deriveUserOperation(qop.mempoolUserOperation)
+                    const userOperation = deriveUserOperation(
+                        qop.mempoolUserOperation
+                    )
                     try {
-                        const isUserOpV06 = isVersion06(userOp)
+                        const isUserOpV06 = isVersion06(userOperation)
 
                         const entryPointContract = isUserOpV06
                             ? getContract({
@@ -172,7 +176,7 @@ export class NonceQueuer {
                               })
 
                         const nonce = await entryPointContract.read.getNonce(
-                            [userOp.sender, qop.nonceKey],
+                            [userOperation.sender, qop.nonceKey],
                             { blockTag: "latest" }
                         )
                         return {

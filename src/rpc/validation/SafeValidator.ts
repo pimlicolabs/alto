@@ -423,7 +423,7 @@ export class SafeValidator
     }
 
     parseErrorResultV06(
-        userOp: UserOperationV06,
+        userOperation: UserOperationV06,
         // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
         errorResult: { errorName: string; errorArgs: any }
     ): ValidationResult | ValidationResultWithAggregation {
@@ -495,10 +495,13 @@ export class SafeValidator
             returnInfo,
             senderInfo: {
                 ...senderInfo,
-                addr: userOp.sender
+                addr: userOperation.sender
             },
-            factoryInfo: fillEntity(userOp.initCode, factoryInfo),
-            paymasterInfo: fillEntity(userOp.paymasterAndData, paymasterInfo),
+            factoryInfo: fillEntity(userOperation.initCode, factoryInfo),
+            paymasterInfo: fillEntity(
+                userOperation.paymasterAndData,
+                paymasterInfo
+            ),
             aggregatorInfo: fillEntityAggregator(
                 aggregatorInfo?.actualAggregator,
                 aggregatorInfo?.stakeInfo
@@ -570,7 +573,7 @@ export class SafeValidator
     }
 
     parseErrorResultV07(
-        userOp: UserOperationV07,
+        userOperation: UserOperationV07,
         // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
         errorResult: { errorName: string; errorArgs: any }
     ): ValidationResult | ValidationResultWithAggregation {
@@ -770,20 +773,20 @@ export class SafeValidator
             },
             senderInfo: {
                 ...decodedResult.senderInfo,
-                addr: userOp.sender
+                addr: userOperation.sender
             },
             factoryInfo:
-                userOp.factory && decodedResult.factoryInfo
+                userOperation.factory && decodedResult.factoryInfo
                     ? {
                           ...decodedResult.factoryInfo,
-                          addr: userOp.factory
+                          addr: userOperation.factory
                       }
                     : undefined,
             paymasterInfo:
-                userOp.paymaster && decodedResult.paymasterInfo
+                userOperation.paymaster && decodedResult.paymasterInfo
                     ? {
                           ...decodedResult.paymasterInfo,
-                          addr: userOp.paymaster
+                          addr: userOperation.paymaster
                       }
                     : undefined,
             aggregatorInfo: decodedResult.aggregatorInfo
