@@ -156,7 +156,6 @@ export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
         ),
         metrics,
         parsedArgs.noEip1559Support,
-        parsedArgs.apiVersion,
         gasPriceManager,
         parsedArgs.maxSigners
     )

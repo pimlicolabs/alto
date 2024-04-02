@@ -8,6 +8,7 @@ import type {
     UserOperationV07
 } from "./schemas"
 import type * as validation from "./validation"
+import { ApiVersion } from "./utils"
 
 export interface InterfaceValidator {
     getExecutionResult(
@@ -55,10 +56,12 @@ export interface InterfaceValidator {
         }
     >
     validatePreVerificationGas(
+        apiVersion: ApiVersion,
         userOperation: UserOperation,
         entryPoint: Address
     ): Promise<void>
     validateUserOperation(
+        apiVersion: ApiVersion,
         userOperation: UserOperation,
         entryPoint: Address,
         referencedContracts?: ReferencedCodeHashes

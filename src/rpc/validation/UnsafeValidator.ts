@@ -130,7 +130,6 @@ export class UnsafeValidator implements InterfaceValidator {
     usingTenderly: boolean
     balanceOverrideEnabled: boolean
     disableExpirationCheck: boolean
-    apiVersion: ApiVersion
     chainId: number
     gasPriceManager: GasPriceManager
     entryPointSimulationsAddress?: Address
@@ -140,7 +139,6 @@ export class UnsafeValidator implements InterfaceValidator {
         logger: Logger,
         metrics: Metrics,
         utilityWallet: Account,
-        apiVersion: ApiVersion,
         gasPriceManager: GasPriceManager,
         entryPointSimulationsAddress?: Address,
         usingTenderly = false,
@@ -154,7 +152,6 @@ export class UnsafeValidator implements InterfaceValidator {
         this.usingTenderly = usingTenderly
         this.balanceOverrideEnabled = balanceOverrideEnabled
         this.disableExpirationCheck = disableExpirationCheck
-        this.apiVersion = apiVersion
         this.chainId = publicClient.chain.id
         this.gasPriceManager = gasPriceManager
         this.entryPointSimulationsAddress = entryPointSimulationsAddress
@@ -463,10 +460,11 @@ export class UnsafeValidator implements InterfaceValidator {
     }
 
     async validatePreVerificationGas(
+        apiVersion: ApiVersion,
         userOperation: UserOperation,
         entryPoint: Address
     ) {
-        if (this.apiVersion !== "v1") {
+        if (apiVersion !== "v1") {
             const preVerificationGas = await calcPreVerificationGas(
                 this.publicClient,
                 userOperation,
@@ -484,6 +482,7 @@ export class UnsafeValidator implements InterfaceValidator {
     }
 
     async validateUserOperation(
+        apiVersion: ApiVersion,
         userOperation: UserOperation,
         entryPoint: Address,
         _referencedContracts?: ReferencedCodeHashes
@@ -499,7 +498,7 @@ export class UnsafeValidator implements InterfaceValidator {
                 entryPoint
             )
 
-            if (this.apiVersion !== "v1") {
+            if (apiVersion !== "v1") {
                 const prefund = validationResult.returnInfo.prefund
 
                 const [verificationGasLimit, callGasLimit] =

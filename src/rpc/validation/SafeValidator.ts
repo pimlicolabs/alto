@@ -72,7 +72,6 @@ export class SafeValidator
         logger: Logger,
         metrics: Metrics,
         utilityWallet: Account,
-        apiVersion: ApiVersion,
         gasPriceManager: GasPriceManager,
         entryPointSimulationsAddress?: Address,
         usingTenderly = false,
@@ -83,7 +82,6 @@ export class SafeValidator
             logger,
             metrics,
             utilityWallet,
-            apiVersion,
             gasPriceManager,
             entryPointSimulationsAddress,
             usingTenderly,
@@ -93,6 +91,7 @@ export class SafeValidator
     }
 
     async validateUserOperation(
+        apiVersion: ApiVersion,
         userOperation: UserOperation,
         entryPoint: Address,
         referencedContracts?: ReferencedCodeHashes
@@ -109,7 +108,7 @@ export class SafeValidator
                 referencedContracts
             )
 
-            if (this.apiVersion !== "v1") {
+            if (apiVersion !== "v1") {
                 const prefund = validationResult.returnInfo.prefund
 
                 const [verificationGasLimit, callGasLimit] =

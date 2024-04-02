@@ -5,7 +5,6 @@ import {
     type HexData,
     type HexData32
 } from "@alto/types"
-import type { ApiVersion } from "@alto/types"
 import { Semaphore } from "async-mutex"
 import {
     type Account,
@@ -37,7 +36,6 @@ export class SenderManager {
     private metrics: Metrics
     private noEip1559Support: boolean
     private semaphore: Semaphore
-    private apiVersion: ApiVersion
     private gasPriceManager: GasPriceManager
 
     constructor(
@@ -46,7 +44,6 @@ export class SenderManager {
         logger: Logger,
         metrics: Metrics,
         noEip1559Support: boolean,
-        apiVersion: ApiVersion,
         gasPriceManager: GasPriceManager,
         maxSigners?: number
     ) {
@@ -65,7 +62,6 @@ export class SenderManager {
         metrics.walletsAvailable.set(this.availableWallets.length)
         metrics.walletsTotal.set(this.wallets.length)
         this.semaphore = new Semaphore(this.availableWallets.length)
-        this.apiVersion = apiVersion
         this.gasPriceManager = gasPriceManager
     }
 
@@ -241,10 +237,7 @@ export class SenderManager {
         )
         await this.semaphore.waitForUnlock()
         await this.semaphore.acquire()
-        const wallet =
-            this.apiVersion === "v1"
-                ? this.availableWallets.shift()
-                : this.availableWallets.pop()
+        const wallet = this.availableWallets.shift()
 
         // should never happen because of semaphore
         if (!wallet) {
@@ -264,10 +257,7 @@ export class SenderManager {
     }
 
     pushWallet(wallet: Account): void {
-        // push to the end of the queue
-        this.apiVersion === "v1"
-            ? this.availableWallets.push(wallet)
-            : this.availableWallets.unshift(wallet)
+        this.availableWallets.push(wallet)
         this.semaphore.release()
         this.logger.trace(
             { executor: wallet.address },

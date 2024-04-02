@@ -340,6 +340,9 @@ const pimlicoSendCompressedUserOperationRequestSchema = z.object({
     params: z.tuple([hexDataSchema, addressSchema, addressSchema])
 })
 
+export const altoVersions = z.enum(["v1", "v2"])
+export type AltoVersions = z.infer<typeof altoVersions>
+
 const bundlerRequestSchema = z.discriminatedUnion("method", [
     chainIdRequestSchema,
     supportedEntryPointsRequestSchema,

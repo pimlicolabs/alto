@@ -75,7 +75,6 @@ const getValidator = ({
             ),
             metrics,
             parsedArgs.utilityPrivateKey,
-            parsedArgs.apiVersion,
             gasPriceManager,
             parsedArgs.pimlicoSimulationsAddress,
             parsedArgs.tenderlyEnabled,
@@ -90,7 +89,6 @@ const getValidator = ({
         ),
         metrics,
         parsedArgs.utilityPrivateKey,
-        parsedArgs.apiVersion,
         gasPriceManager,
         parsedArgs.pimlicoSimulationsAddress,
         parsedArgs.tenderlyEnabled,
@@ -298,7 +296,6 @@ const getRpcHandler = ({
         reputationManager,
         parsedArgs.tenderlyEnabled ?? false,
         parsedArgs.minimumGasPricePercent,
-        parsedArgs.apiVersion,
         parsedArgs.noEthCallOverrideSupport,
         parsedArgs.rpcMaxBlockRange,
         logger.child(

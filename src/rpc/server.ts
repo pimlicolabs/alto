@@ -2,7 +2,9 @@ import type { Metrics } from "@alto/utils"
 import {
     type JSONRPCResponse,
     bundlerRequestSchema,
-    jsonRpcSchema
+    jsonRpcSchema,
+    altoVersions,
+    ApiVersion
 } from "@alto/types"
 import { RpcError, ValidationErrors } from "@alto/types"
 import type { Logger } from "@alto/utils"
@@ -116,7 +118,7 @@ export class Server {
                 .observe(durationSeconds)
         })
 
-        this.fastify.post("/rpc", this.rpc.bind(this))
+        this.fastify.post("/:version/rpc", this.rpc.bind(this))
         this.fastify.post("/", this.rpc.bind(this))
         this.fastify.get("/health", this.healthCheck.bind(this))
         this.fastify.get("/metrics", this.serveMetrics.bind(this))
@@ -149,6 +151,21 @@ export class Server {
     ): Promise<void> {
         reply.rpcStatus = "failed" // default to failed
         let requestId: number | null = null
+
+        const versionParsingResult = altoVersions.safeParse(
+            (request.params as any).version
+        )
+
+        if (!versionParsingResult.success) {
+            const error = fromZodError(versionParsingResult.error)
+            throw new RpcError(
+                `invalid version ${error.message}`,
+                ValidationErrors.InvalidFields
+            )
+        }
+
+        const apiVersion: ApiVersion = versionParsingResult.data
+
         try {
             const contentTypeHeader = request.headers["content-type"]
             if (contentTypeHeader !== "application/json") {
@@ -197,7 +214,10 @@ export class Server {
                 },
                 "incoming request"
             )
-            const result = await this.rpcEndpoint.handleMethod(bundlerRequest)
+            const result = await this.rpcEndpoint.handleMethod(
+                bundlerRequest,
+                apiVersion
+            )
             const jsonRpcResponse: JSONRPCResponse = {
                 jsonrpc: "2.0",
                 id: jsonRpcRequest.id,
