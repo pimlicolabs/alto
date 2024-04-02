@@ -8,7 +8,6 @@ import type {
     UserOperationV07
 } from "./schemas"
 import type * as validation from "./validation"
-import { ApiVersion } from "./utils"
 
 export interface InterfaceValidator {
     getExecutionResult(
