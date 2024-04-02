@@ -80,7 +80,7 @@ export async function simulateHandleOpV06(
     publicClient: PublicClient,
     targetAddress: Address,
     targetCallData: Hex,
-    finalParam: StateOverrides = {}
+    finalParam: StateOverrides | undefined = undefined
 ): Promise<SimulateHandleOpResult> {
     try {
         await publicClient.request({
@@ -99,7 +99,7 @@ export async function simulateHandleOpV06(
                 // @ts-ignore
                 "latest",
                 // @ts-ignore
-                finalParam
+                ...(finalParam ? [finalParam] : [])
             ]
         })
     } catch (e) {
@@ -180,7 +180,7 @@ async function callPimlicoEntryPointSimulations(
             },
             "latest",
             // @ts-ignore
-            stateOverride
+            ...(stateOverride ? [stateOverride] : [])
         ]
     })) as Hex
 
@@ -347,7 +347,7 @@ export async function simulateHandleOpV07(
     targetAddress: Address,
     targetCallData: Hex,
     entryPointSimulationsAddress: Address,
-    finalParam: StateOverrides = {}
+    finalParam: StateOverrides | undefined = undefined
 ): Promise<SimulateHandleOpResult> {
     const packedUserOperation = toPackedUserOperation(userOperation)
 
@@ -421,7 +421,8 @@ export function simulateHandleOp(
     stateOverride: StateOverrides = {},
     entryPointSimulationsAddress?: Address
 ): Promise<SimulateHandleOpResult> {
-    let finalStateOverride = {}
+    let finalStateOverride = undefined
+
     if (balanceOverrideEnabled) {
         finalStateOverride = getStateOverrides({
             userOperation,
