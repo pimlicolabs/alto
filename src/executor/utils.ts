@@ -3,13 +3,16 @@ import {
     type BundleResult,
     type CompressedUserOperation,
     EntryPointV06Abi,
-    deriveUserOperation,
-    failedOpErrorSchema,
     EntryPointV07Abi,
-    type UserOperationWithHash,
+    FailedOp,
+    FailedOpWithRevert,
     type TransactionInfo,
     type UserOperation,
-    type UserOperationV07
+    type UserOperationV07,
+    type UserOperationWithHash,
+    deriveUserOperation,
+    failedOpErrorSchema,
+    failedOpWithRevertErrorSchema
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
@@ -202,12 +205,24 @@ export async function filterOpsAndEstimateGas(
         } catch (err: unknown) {
             const e = parseViemError(err)
             if (e instanceof ContractFunctionRevertedError) {
-                const parsingResult = failedOpErrorSchema.safeParse(e.data)
-                if (parsingResult.success) {
-                    const failedOpError = parsingResult.data
+                const failedOpError = failedOpErrorSchema.safeParse(e.data)
+                const failedOpWithRevertError =
+                    failedOpWithRevertErrorSchema.safeParse(e.data)
+
+                let errorData: FailedOp | FailedOpWithRevert | undefined =
+                    undefined
+
+                if (failedOpError.success) {
+                    errorData = failedOpError.data.args
+                }
+                if (failedOpWithRevertError.success) {
+                    errorData = failedOpWithRevertError.data.args
+                }
+
+                if (errorData) {
                     logger.debug(
                         {
-                            failedOpError,
+                            errorData,
                             userOpHashes: simulatedOps
                                 .filter((op) => op.reason === undefined)
                                 .map((op) => op.owh.userOperationHash)
@@ -217,19 +232,28 @@ export async function filterOpsAndEstimateGas(
 
                     const failingOp = simulatedOps.filter(
                         (op) => op.reason === undefined
-                    )[Number(failedOpError.args.opIndex)]
+                    )[Number(errorData.opIndex)]
 
-                    failingOp.reason = failedOpError.args.reason
+                    failingOp.reason = `${errorData.reason}${
+                        (errorData as FailedOpWithRevert)?.inner
+                            ? ` - ${(errorData as FailedOpWithRevert).inner}`
+                            : ""
+                    }`
+
                     reputationManager.crashedHandleOps(
                         deriveUserOperation(failingOp.owh.mempoolUserOperation),
                         entryPoint,
                         failingOp.reason
                     )
-                } else {
+                }
+
+                if (
+                    !(failedOpError.success || failedOpWithRevertError.success)
+                ) {
                     sentry.captureException(err)
                     logger.error(
                         {
-                            error: parsingResult.error
+                            error: `${failedOpError.error} ${failedOpWithRevertError.error}`
                         },
                         "failed to parse failedOpError"
                     )

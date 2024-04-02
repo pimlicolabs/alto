@@ -363,7 +363,9 @@ function getSimulateValidationResult(errorData: Hex): {
         ) {
             return {
                 status: "failed",
-                data: parseFailedOpWithRevert(decodedError.args?.[2] as Hex)
+                data: `${decodedError.args?.[1]} - ${parseFailedOpWithRevert(
+                    decodedError.args?.[2] as Hex
+                )}`
             } as const
         }
     } catch {
@@ -527,26 +529,7 @@ export async function simulateValidation(
         entryPointSimulationsAddress
     )
 
-    // const callData = encodeFunctionData({
-    //     abi: PimlicoEntryPointSimulationsAbi,
-    //     functionName: "simulateEntryPoint",
-    //     args: [entryPoint, entryPointSimulationsCallData]
-    // })
-
-    // const { accessList } = (await publicClient.request({
-    //     // @ts-ignore
-    //     method: "eth_createAccessList",
-    //     params: [
-    //         {
-    //             to: entryPointSimulationsAddress,
-    //             data: callData
-    //         },
-    //         "latest"
-    //     ]
-    // })) as { accessList: AccessList }
-
     return {
         simulateValidationResult: getSimulateValidationResult(errorResult[0])
-        // accessList
     }
 }

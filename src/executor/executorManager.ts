@@ -283,14 +283,10 @@ export class ExecutorManager {
                     this.entryPoints.map(async (entryPoint) => {
                         const userOperations = opEntryPointMap.get(entryPoint)
                         if (userOperations) {
-                            const txHash = await this.sendToExecutor(
+                            await this.sendToExecutor(
                                 entryPoint,
                                 userOperations
                             )
-
-                            if (!txHash) {
-                                throw new Error("no tx hash")
-                            }
                         } else {
                             this.logger.warn(
                                 { entryPoint },
