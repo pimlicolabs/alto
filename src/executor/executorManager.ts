@@ -456,24 +456,29 @@ export class ExecutorManager {
             opEntryPointMap.get(op.userOperation.entryPoint)?.push(op)
         }
 
-        for (const entryPoint of uniqueEntryPoints) {
-            const ops = opEntryPointMap.get(entryPoint)
+        await Promise.all(
+            [...uniqueEntryPoints].map(async (entryPoint) => {
+                const ops = opEntryPointMap.get(entryPoint)
 
-            if (ops) {
-                const txs = getTransactionsFromUserOperationEntries(ops)
+                if (ops) {
+                    const txs = getTransactionsFromUserOperationEntries(ops)
 
-                await Promise.all(
-                    txs.map(async (txInfo) => {
-                        await this.refreshTransactionStatus(entryPoint, txInfo)
-                    })
-                )
-            } else {
-                this.logger.warn(
-                    { entryPoint },
-                    "no user operations for entry point"
-                )
-            }
-        }
+                    await Promise.all(
+                        txs.map(async (txInfo) => {
+                            await this.refreshTransactionStatus(
+                                entryPoint,
+                                txInfo
+                            )
+                        })
+                    )
+                } else {
+                    this.logger.warn(
+                        { entryPoint },
+                        "no user operations for entry point"
+                    )
+                }
+            })
+        )
     }
 
     async handleBlock(block: Block) {
