@@ -64,6 +64,19 @@ export const failedOpErrorSchema = z.object({
     errorName: z.literal("FailedOp")
 })
 
+export const failedOpWithRevertSchema = z
+    .tuple([z.bigint(), z.string(), z.string()])
+    .transform((val) => {
+        return { opIndex: val[0], reason: val[1], inner: val[2] }
+    })
+
+export type FailedOpWithRevert = z.infer<typeof failedOpWithRevertSchema>
+
+export const failedOpWithRevertErrorSchema = z.object({
+    args: failedOpWithRevertSchema,
+    errorName: z.literal("FailedOpWithRevert")
+})
+
 export const executionResultSchemaV06 = z
     .tuple([
         z.bigint(),

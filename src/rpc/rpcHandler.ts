@@ -967,14 +967,17 @@ export class RpcHandler implements IRpcEndpoint {
                     entryPoint,
                     validationResult
                 )
+
                 await this.mempool.checkEntityMultipleRoleViolation(
                     userOperation
                 )
+
                 const success = this.mempool.add(
                     op,
                     entryPoint,
                     validationResult.referencedContracts
                 )
+
                 if (!success) {
                     throw new RpcError(
                         "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
