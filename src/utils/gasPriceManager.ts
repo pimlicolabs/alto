@@ -1,12 +1,12 @@
 import { maxBigInt, minBigInt, type Logger } from "@alto/utils"
-import {
-    RpcError,
-    gasStationResult,
-    type GasPriceParameters
-} from "@entrypoint-0.7/types"
 import * as sentry from "@sentry/node"
 import { parseGwei, type Chain, type PublicClient } from "viem"
 import * as chains from "viem/chains"
+import {
+    gasStationResult,
+    type GasPriceParameters,
+    RpcError
+} from "@alto/types"
 
 enum ChainId {
     Goerli = 5,
@@ -106,7 +106,6 @@ export class GasPriceManager {
             chainId === chains.base.id ||
             chainId === chains.dfk.id ||
             chainId === chains.celoAlfajores.id ||
-            chainId === chains.celoCannoli.id ||
             chainId === chains.avalanche.id
         ) {
             return 111n
@@ -136,8 +135,7 @@ export class GasPriceManager {
 
         if (
             this.chain.id === chains.celo.id ||
-            this.chain.id === chains.celoAlfajores.id ||
-            this.chain.id === chains.celoCannoli.id
+            this.chain.id === chains.celoAlfajores.id
         ) {
             const maxFee = maxBigInt(
                 result.maxFeePerGas,

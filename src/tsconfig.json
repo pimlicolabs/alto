@@ -17,32 +17,40 @@
         "declarationMap": true,
         "moduleResolution": "node",
         "paths": {
-            "@alto/cli": ["./cli"],
-            "@alto/utils": ["./utils"],
-            "@alto/executor": ["./executor"],
-            "@alto/types": ["./types"],
-            "@entrypoint-0.6/cli": ["./entrypoint-0.6/cli"],
-            "@entrypoint-0.6/executor": ["./entrypoint-0.6/executor"],
-            "@entrypoint-0.6/types": ["./entrypoint-0.6/types"],
-            "@entrypoint-0.6/utils": ["./entrypoint-0.6/utils"],
-            "@entrypoint-0.6/mempool": ["./entrypoint-0.6/mempool"],
-            "@entrypoint-0.6/rpc": ["./entrypoint-0.6/rpc"],
-            "@entrypoint-0.7/cli": ["./entrypoint-0.7/cli"],
-            "@entrypoint-0.7/executor": ["./entrypoint-0.7/executor"],
-            "@entrypoint-0.7/types": ["./entrypoint-0.7/types"],
-            "@entrypoint-0.7/utils": ["./entrypoint-0.7/utils"],
-            "@entrypoint-0.7/mempool": ["./entrypoint-0.7/mempool"],
-            "@entrypoint-0.7/rpc": ["./entrypoint-0.7/rpc"],
-            "@entrypoint-0.7/gasPriceManager": [
-                "./entrypoint-0.7/gasPriceManager"
+            "@alto/cli": [
+                "./cli"
+            ],
+            "@alto/executor": [
+                "./executor"
+            ],
+            "@alto/mempool": [
+                "./mempool"
+            ],
+            "@alto/rpc": [
+                "./rpc"
+            ],
+            "@alto/types": [
+                "./types"
+            ],
+            "@alto/utils": [
+                "./utils"
             ]
         }
     },
     "ts-node": {
         "swc": true
     },
-    "include": ["./**/*", "./utils/metrics.ts", "./cli", "./utils/logger.ts"],
-    "exclude": ["./**/*.test.ts", "./lib/*", "./node_modules/*"],
+    "include": [
+        "./**/*",
+        "./utils/metrics.ts",
+        "./cli",
+        "./utils/logger.ts"
+    ],
+    "exclude": [
+        "./**/*.test.ts",
+        "./lib/*",
+        "./node_modules/*"
+    ],
     "tsc-alias": {
         "resolveFullPaths": true,
     }
