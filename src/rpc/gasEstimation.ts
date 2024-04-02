@@ -106,11 +106,22 @@ export async function simulateHandleOpV06(
         const err = e as RpcRequestErrorType
 
         const causeParseResult = z
-            .object({
-                code: z.literal(3),
-                message: z.string().regex(/execution reverted.*/),
-                data: hexDataSchema
-            })
+            .union([
+                z.object({
+                    code: z.literal(3),
+                    message: z.string().regex(/execution reverted.*/),
+                    data: hexDataSchema
+                }),
+                /* fuse rpcs return weird values, this accounts for that. */
+                z.object({
+                    code: z.number(),
+                    message: z.string().regex(/VM execution error.*/),
+                    data: z
+                        .string()
+                        .transform((data) => data.replace("Reverted ", ""))
+                        .pipe(hexDataSchema)
+                })
+            ])
             .safeParse(err.cause)
 
         if (!causeParseResult.success) {
