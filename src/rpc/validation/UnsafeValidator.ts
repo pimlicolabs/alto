@@ -44,7 +44,7 @@ import {
     slice
 } from "viem"
 import { fromZodError } from "zod-validation-error"
-import { SimulateHandleOpResult, simulateHandleOp } from "../gasEstimation"
+import { type SimulateHandleOpResult, simulateHandleOp } from "../gasEstimation"
 import { simulateValidation } from "../EntryPointSimulationsV07"
 
 async function getSimulationResult(
@@ -172,6 +172,7 @@ export class UnsafeValidator implements InterfaceValidator {
             false,
             zeroAddress,
             "0x",
+            this.balanceOverrideEnabled,
             stateOverrides,
             this.entryPointSimulationsAddress
         )

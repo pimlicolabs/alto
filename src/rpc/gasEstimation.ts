@@ -417,15 +417,19 @@ export function simulateHandleOp(
     replacedEntryPoint: boolean,
     targetAddress: Address,
     targetCallData: Hex,
+    balanceOverrideEnabled: boolean,
     stateOverride: StateOverrides = {},
     entryPointSimulationsAddress?: Address
 ): Promise<SimulateHandleOpResult> {
-    const finalParam = getStateOverrides({
-        userOperation,
-        entryPoint,
-        replacedEntryPoint,
-        stateOverride
-    })
+    let finalStateOverride = {}
+    if (balanceOverrideEnabled) {
+        finalStateOverride = getStateOverrides({
+            userOperation,
+            entryPoint,
+            replacedEntryPoint,
+            stateOverride
+        })
+    }
 
     if (isVersion06(userOperation)) {
         return simulateHandleOpV06(
@@ -434,7 +438,7 @@ export function simulateHandleOp(
             publicClient,
             targetAddress,
             targetCallData,
-            finalParam
+            finalStateOverride
         )
     }
 
@@ -452,7 +456,7 @@ export function simulateHandleOp(
         userOperation.sender,
         userOperation.callData,
         entryPointSimulationsAddress,
-        finalParam
+        finalStateOverride
     )
 }
 
@@ -476,6 +480,7 @@ export async function estimateVerificationGasLimit(
     publicClient: PublicClient,
     logger: Logger,
     metrics: Metrics,
+    balanceOverrideEnabled: boolean,
     stateOverrides?: StateOverrides
 ): Promise<bigint> {
     userOperation.callGasLimit = 0n
@@ -497,6 +502,7 @@ export async function estimateVerificationGasLimit(
         false,
         zeroAddress,
         "0x",
+        balanceOverrideEnabled,
         stateOverrides
     )
 
@@ -527,6 +533,7 @@ export async function estimateVerificationGasLimit(
             false,
             zeroAddress,
             "0x",
+            balanceOverrideEnabled,
             stateOverrides
         )
         simulationCounter++
@@ -582,6 +589,7 @@ export async function estimateCallGasLimit(
     publicClient: PublicClient<Transport, Chain>,
     logger: Logger,
     metrics: Metrics,
+    balanceOverrideEnabled: boolean,
     stateOverrides?: StateOverrides
 ): Promise<bigint> {
     const targetCallData = encodeFunctionData({
@@ -599,6 +607,7 @@ export async function estimateCallGasLimit(
         true,
         entryPoint,
         targetCallData,
+        balanceOverrideEnabled,
         stateOverrides
     )
 
@@ -660,6 +669,7 @@ export async function estimateCallGasLimit(
             true,
             entryPoint,
             targetCallData,
+            balanceOverrideEnabled,
             stateOverrides
         )
 
