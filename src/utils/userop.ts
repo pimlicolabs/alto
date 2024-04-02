@@ -476,7 +476,7 @@ export const getNonceKeyAndValue = (nonce: bigint) => {
     return [nonceKey, userOperationNonceValue]
 }
 
-export function toUnPackedUserOperation(
+export function toUnpackedUserOperation(
     packedUserOperation: PackedUserOperation
 ): UserOperationV07 {
     const { factory, factoryData } = unPackInitCode(

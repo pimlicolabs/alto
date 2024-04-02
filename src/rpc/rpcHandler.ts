@@ -57,7 +57,7 @@ import {
     maxBigInt,
     type CompressionHandler,
     isVersion06,
-    toUnPackedUserOperation,
+    toUnpackedUserOperation,
     isVersion07
 } from "@alto/utils"
 import {
@@ -560,7 +560,7 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         const result: GetUserOperationByHashResponseResult = {
-            userOperation: isVersion06(op) ? op : toUnPackedUserOperation(op),
+            userOperation: isVersion06(op) ? op : toUnpackedUserOperation(op),
             entryPoint: getAddress(tx.to),
             transactionHash: txHash,
             blockHash: tx.blockHash ?? "0x",
