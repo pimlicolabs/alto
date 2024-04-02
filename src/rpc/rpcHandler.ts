@@ -127,6 +127,7 @@ export class RpcHandler implements IRpcEndpoint {
     noEip1559Support: boolean
     dangerousSkipUserOperationValidation: boolean
     gasPriceManager: GasPriceManager
+    balanceOverrideEnabled: boolean
 
     constructor(
         entryPoints: Address[],
@@ -149,6 +150,7 @@ export class RpcHandler implements IRpcEndpoint {
         compressionHandler: CompressionHandler | null,
         noEip1559Support: boolean,
         gasPriceManager: GasPriceManager,
+        balanceOverrideEnabled: boolean,
         dangerousSkipUserOperationValidation = false
     ) {
         this.entryPoints = entryPoints
@@ -174,6 +176,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.dangerousSkipUserOperationValidation =
             dangerousSkipUserOperationValidation
         this.gasPriceManager = gasPriceManager
+        this.balanceOverrideEnabled = balanceOverrideEnabled
     }
 
     async handleMethod(request: BundlerRequest): Promise<BundlerResponse> {
@@ -403,6 +406,7 @@ export class RpcHandler implements IRpcEndpoint {
                 this.publicClient,
                 this.logger,
                 this.metrics,
+                this.balanceOverrideEnabled,
                 stateOverrides
             )
 
@@ -419,6 +423,7 @@ export class RpcHandler implements IRpcEndpoint {
                 this.publicClient,
                 this.logger,
                 this.metrics,
+                this.balanceOverrideEnabled,
                 stateOverrides
             )
         }

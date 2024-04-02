@@ -310,6 +310,7 @@ const getRpcHandler = ({
         compressionHandler,
         parsedArgs.noEip1559Support,
         gasPriceManager,
+        parsedArgs.balanceOverrideEnabled,
         parsedArgs.dangerousSkipUserOperationValidation
     )
 }

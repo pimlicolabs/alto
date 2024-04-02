@@ -80,7 +80,7 @@ export async function simulateHandleOpV06(
     publicClient: PublicClient,
     targetAddress: Address,
     targetCallData: Hex,
-    finalParam: StateOverrides = {}
+    finalParam: StateOverrides | undefined = undefined
 ): Promise<SimulateHandleOpResult> {
     try {
         await publicClient.request({
@@ -99,18 +99,29 @@ export async function simulateHandleOpV06(
                 // @ts-ignore
                 "latest",
                 // @ts-ignore
-                finalParam
+                ...(finalParam ? [finalParam] : [])
             ]
         })
     } catch (e) {
         const err = e as RpcRequestErrorType
 
         const causeParseResult = z
-            .object({
-                code: z.literal(3),
-                message: z.string().regex(/execution reverted.*/),
-                data: hexDataSchema
-            })
+            .union([
+                z.object({
+                    code: z.literal(3),
+                    message: z.string().regex(/execution reverted.*/),
+                    data: hexDataSchema
+                }),
+                /* fuse rpcs return weird values, this accounts for that. */
+                z.object({
+                    code: z.number(),
+                    message: z.string().regex(/VM execution error.*/),
+                    data: z
+                        .string()
+                        .transform((data) => data.replace("Reverted ", ""))
+                        .pipe(hexDataSchema)
+                })
+            ])
             .safeParse(err.cause)
 
         if (!causeParseResult.success) {
@@ -180,7 +191,7 @@ async function callPimlicoEntryPointSimulations(
             },
             "latest",
             // @ts-ignore
-            stateOverride
+            ...(stateOverride ? [stateOverride] : [])
         ]
     })) as Hex
 
@@ -347,7 +358,7 @@ export async function simulateHandleOpV07(
     targetAddress: Address,
     targetCallData: Hex,
     entryPointSimulationsAddress: Address,
-    finalParam: StateOverrides = {}
+    finalParam: StateOverrides | undefined = undefined
 ): Promise<SimulateHandleOpResult> {
     const packedUserOperation = toPackedUserOperation(userOperation)
 
@@ -417,15 +428,20 @@ export function simulateHandleOp(
     replacedEntryPoint: boolean,
     targetAddress: Address,
     targetCallData: Hex,
+    balanceOverrideEnabled: boolean,
     stateOverride: StateOverrides = {},
     entryPointSimulationsAddress?: Address
 ): Promise<SimulateHandleOpResult> {
-    const finalParam = getStateOverrides({
-        userOperation,
-        entryPoint,
-        replacedEntryPoint,
-        stateOverride
-    })
+    let finalStateOverride = undefined
+
+    if (balanceOverrideEnabled) {
+        finalStateOverride = getStateOverrides({
+            userOperation,
+            entryPoint,
+            replacedEntryPoint,
+            stateOverride
+        })
+    }
 
     if (isVersion06(userOperation)) {
         return simulateHandleOpV06(
@@ -434,7 +450,7 @@ export function simulateHandleOp(
             publicClient,
             targetAddress,
             targetCallData,
-            finalParam
+            finalStateOverride
         )
     }
 
@@ -452,7 +468,7 @@ export function simulateHandleOp(
         userOperation.sender,
         userOperation.callData,
         entryPointSimulationsAddress,
-        finalParam
+        finalStateOverride
     )
 }
 
@@ -476,6 +492,7 @@ export async function estimateVerificationGasLimit(
     publicClient: PublicClient,
     logger: Logger,
     metrics: Metrics,
+    balanceOverrideEnabled: boolean,
     stateOverrides?: StateOverrides
 ): Promise<bigint> {
     userOperation.callGasLimit = 0n
@@ -497,6 +514,7 @@ export async function estimateVerificationGasLimit(
         false,
         zeroAddress,
         "0x",
+        balanceOverrideEnabled,
         stateOverrides
     )
 
@@ -527,6 +545,7 @@ export async function estimateVerificationGasLimit(
             false,
             zeroAddress,
             "0x",
+            balanceOverrideEnabled,
             stateOverrides
         )
         simulationCounter++
@@ -582,6 +601,7 @@ export async function estimateCallGasLimit(
     publicClient: PublicClient<Transport, Chain>,
     logger: Logger,
     metrics: Metrics,
+    balanceOverrideEnabled: boolean,
     stateOverrides?: StateOverrides
 ): Promise<bigint> {
     const targetCallData = encodeFunctionData({
@@ -599,6 +619,7 @@ export async function estimateCallGasLimit(
         true,
         entryPoint,
         targetCallData,
+        balanceOverrideEnabled,
         stateOverrides
     )
 
@@ -660,6 +681,7 @@ export async function estimateCallGasLimit(
             true,
             entryPoint,
             targetCallData,
+            balanceOverrideEnabled,
             stateOverrides
         )
 
