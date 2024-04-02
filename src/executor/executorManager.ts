@@ -42,6 +42,7 @@ function getTransactionsFromUserOperationEntries(
 }
 
 export class ExecutorManager {
+    private entryPoints: Address[]
     private executor: Executor
     private mempool: MemoryMempool
     private monitor: Monitor
@@ -58,6 +59,7 @@ export class ExecutorManager {
 
     constructor(
         executor: Executor,
+        entryPoints: Address[],
         mempool: MemoryMempool,
         monitor: Monitor,
         reputationManager: InterfaceReputationManager,
@@ -69,6 +71,7 @@ export class ExecutorManager {
         bundlerFrequency: number,
         gasPriceManager: GasPriceManager
     ) {
+        this.entryPoints = entryPoints
         this.reputationManager = reputationManager
         this.executor = executor
         this.mempool = mempool
@@ -104,10 +107,6 @@ export class ExecutorManager {
             throw new Error("no ops to bundle")
         }
 
-        const uniqueEntryPoints = new Set<Address>(
-            ops.map((op) => op.entryPoint)
-        )
-
         const opEntryPointMap = new Map<Address, MempoolUserOperation[]>()
 
         for (const op of ops) {
@@ -119,23 +118,25 @@ export class ExecutorManager {
 
         const txHashes: Hash[] = []
 
-        for (const entryPoint of uniqueEntryPoints) {
-            const ops = opEntryPointMap.get(entryPoint)
-            if (ops) {
-                const txHash = await this.sendToExecutor(entryPoint, ops)
+        await Promise.all(
+            this.entryPoints.map(async (entryPoint) => {
+                const ops = opEntryPointMap.get(entryPoint)
+                if (ops) {
+                    const txHash = await this.sendToExecutor(entryPoint, ops)
 
-                if (!txHash) {
-                    throw new Error("no tx hash")
+                    if (!txHash) {
+                        throw new Error("no tx hash")
+                    }
+
+                    txHashes.push(txHash)
+                } else {
+                    this.logger.warn(
+                        { entryPoint },
+                        "no user operations for entry point"
+                    )
                 }
-
-                txHashes.push(txHash)
-            } else {
-                this.logger.warn(
-                    { entryPoint },
-                    "no user operations for entry point"
-                )
-            }
-        }
+            })
+        )
 
         return txHashes
     }
@@ -264,10 +265,6 @@ export class ExecutorManager {
 
         await Promise.all(
             opsToBundle.map(async (ops) => {
-                const uniqueEntryPoints = new Set<Address>(
-                    ops.map((op) => op.entryPoint)
-                )
-
                 const opEntryPointMap = new Map<
                     Address,
                     MempoolUserOperation[]
@@ -282,24 +279,26 @@ export class ExecutorManager {
                         ?.push(op.mempoolUserOperation)
                 }
 
-                for (const entryPoint of uniqueEntryPoints) {
-                    const userOperations = opEntryPointMap.get(entryPoint)
-                    if (userOperations) {
-                        const txHash = await this.sendToExecutor(
-                            entryPoint,
-                            userOperations
-                        )
+                await Promise.all(
+                    this.entryPoints.map(async (entryPoint) => {
+                        const userOperations = opEntryPointMap.get(entryPoint)
+                        if (userOperations) {
+                            const txHash = await this.sendToExecutor(
+                                entryPoint,
+                                userOperations
+                            )
 
-                        if (!txHash) {
-                            throw new Error("no tx hash")
+                            if (!txHash) {
+                                throw new Error("no tx hash")
+                            }
+                        } else {
+                            this.logger.warn(
+                                { entryPoint },
+                                "no user operations for entry point"
+                            )
                         }
-                    } else {
-                        this.logger.warn(
-                            { entryPoint },
-                            "no user operations for entry point"
-                        )
-                    }
-                }
+                    })
+                )
             })
         )
     }
@@ -443,10 +442,6 @@ export class ExecutorManager {
     async refreshUserOperationStatuses(): Promise<void> {
         const ops = this.mempool.dumpSubmittedOps()
 
-        const uniqueEntryPoints = new Set<Address>(
-            ops.map((op) => op.userOperation.entryPoint)
-        )
-
         const opEntryPointMap = new Map<Address, SubmittedUserOperation[]>()
 
         for (const op of ops) {
@@ -457,7 +452,7 @@ export class ExecutorManager {
         }
 
         await Promise.all(
-            [...uniqueEntryPoints].map(async (entryPoint) => {
+            this.entryPoints.map(async (entryPoint) => {
                 const ops = opEntryPointMap.get(entryPoint)
 
                 if (ops) {

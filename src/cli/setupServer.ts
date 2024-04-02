@@ -219,6 +219,7 @@ const getExecutorManager = ({
 }) => {
     return new ExecutorManager(
         executor,
+        parsedArgs.entryPoints,
         mempool,
         monitor,
         reputationManager,
