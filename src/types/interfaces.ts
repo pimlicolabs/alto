@@ -56,7 +56,6 @@ export interface InterfaceValidator {
         }
     >
     validatePreVerificationGas(
-        apiVersion: ApiVersion,
         userOperation: UserOperation,
         entryPoint: Address
     ): Promise<void>

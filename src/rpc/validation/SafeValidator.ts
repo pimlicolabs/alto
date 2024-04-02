@@ -27,7 +27,6 @@ import type {
     ValidationResultWithAggregationV07
 } from "@alto/types"
 import type { InterfaceValidator } from "@alto/types"
-import type { ApiVersion } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
     calcVerificationGasAndCallGasLimit,

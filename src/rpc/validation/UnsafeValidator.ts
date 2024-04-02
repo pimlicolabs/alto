@@ -25,7 +25,6 @@ import type {
 } from "@alto/types"
 import type { InterfaceValidator } from "@alto/types"
 import type { StateOverrides } from "@alto/types"
-import type { ApiVersion } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import { calcPreVerificationGas, isVersion06, isVersion07 } from "@alto/utils"
 import { calcVerificationGasAndCallGasLimit } from "@alto/utils"
@@ -460,24 +459,21 @@ export class UnsafeValidator implements InterfaceValidator {
     }
 
     async validatePreVerificationGas(
-        apiVersion: ApiVersion,
         userOperation: UserOperation,
         entryPoint: Address
     ) {
-        if (apiVersion !== "v1") {
-            const preVerificationGas = await calcPreVerificationGas(
-                this.publicClient,
-                userOperation,
-                entryPoint,
-                this.chainId
-            )
+        const preVerificationGas = await calcPreVerificationGas(
+            this.publicClient,
+            userOperation,
+            entryPoint,
+            this.chainId
+        )
 
-            if (preVerificationGas > userOperation.preVerificationGas) {
-                throw new RpcError(
-                    `preVerificationGas is not enough, required: ${preVerificationGas}, got: ${userOperation.preVerificationGas}`,
-                    ValidationErrors.SimulateValidation
-                )
-            }
+        if (preVerificationGas > userOperation.preVerificationGas) {
+            throw new RpcError(
+                `preVerificationGas is not enough, required: ${preVerificationGas}, got: ${userOperation.preVerificationGas}`,
+                ValidationErrors.SimulateValidation
+            )
         }
     }
 

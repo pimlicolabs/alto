@@ -968,11 +968,12 @@ export class RpcHandler implements IRpcEndpoint {
                     )
                 }
             } else {
-                await this.validator.validatePreVerificationGas(
-                    apiVersion,
-                    userOperation,
-                    entryPoint
-                )
+                if (apiVersion !== "v1") {
+                    await this.validator.validatePreVerificationGas(
+                        userOperation,
+                        entryPoint
+                    )
+                }
 
                 const validationResult =
                     await this.validator.validateUserOperation(
