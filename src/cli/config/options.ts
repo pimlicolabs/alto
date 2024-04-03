@@ -176,6 +176,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: true,
         default: 0
     },
+    apiVersion: {
+        description: "API version of the bundler",
+        type: "string",
+        require: false,
+        default: "all"
+    },
     noEip1559Support: {
         description: "Rpc url does not support EIP1559",
         type: "boolean",

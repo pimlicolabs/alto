@@ -71,9 +71,11 @@ export class Server {
     private registry: Registry
     private metrics: Metrics
     private environment: "production" | "staging" | "development"
+    private apiVersions: ApiVersion[]
 
     constructor(
         rpcEndpoint: IRpcEndpoint,
+        apiVersions: ApiVersion[],
         port: number,
         requestTimeout: number | undefined,
         logger: Logger,
@@ -128,6 +130,7 @@ export class Server {
         this.registry = registry
         this.metrics = metrics
         this.environment = environment
+        this.apiVersions = apiVersions
     }
 
     public start(): void {
@@ -165,6 +168,13 @@ export class Server {
         }
 
         const apiVersion: ApiVersion = versionParsingResult.data
+
+        if (this.apiVersions.indexOf(apiVersion) === -1) {
+            throw new RpcError(
+                `unsupported version ${apiVersion}`,
+                ValidationErrors.InvalidFields
+            )
+        }
 
         try {
             const contentTypeHeader = request.headers["content-type"]

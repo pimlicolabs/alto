@@ -1,4 +1,5 @@
 import {
+    ApiVersion,
     addressSchema,
     commaSeperatedAddressPattern,
     hexData32Schema
@@ -113,6 +114,12 @@ export const bundlerArgsSchema = z.object({
 
     tenderlyEnabled: z.boolean().optional(),
     minimumGasPricePercent: z.number().int().min(0),
+    apiVersion: z
+        .string()
+        .regex(/^(v1,v2|v2,v1|v1|v2)$/)
+        .optional()
+        .default("v1,v2")
+        .transform((val) => val.split(",") as ApiVersion[]),
     noEip1559Support: z.boolean(),
     noEthCallOverrideSupport: z.boolean(),
     balanceOverrideEnabled: z.boolean(),
