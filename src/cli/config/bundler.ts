@@ -114,7 +114,7 @@ export const debugArgsSchema = z.object({
     "enable-debug-endpoints": z.boolean(),
     "expiration-check": z.boolean(),
     "dangerous-skip-user-operation-validation": z.boolean(),
-    "tenderly-rpc": z.boolean()
+    tenderly: z.boolean()
 })
 
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>

@@ -480,12 +480,14 @@ export class Executor {
     async flushStuckTransactions(): Promise<void> {
         const gasPrice = await this.gasPriceManager.getGasPrice()
 
-        const wallets = Array.from(
-            new Set([
-                ...this.senderManager.wallets,
-                this.senderManager.utilityAccount
-            ])
-        )
+        const wallets = this.senderManager.utilityAccount
+            ? Array.from(
+                  new Set([
+                      ...this.senderManager.wallets,
+                      this.senderManager.utilityAccount
+                  ])
+              )
+            : Array.from(new Set(this.senderManager.wallets))
         const promises = wallets.map(async (wallet) => {
             for (const entryPoint of this.entryPoints) {
                 await flushStuckTransaction(

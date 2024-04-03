@@ -30,7 +30,7 @@ const waitForTransactionReceipt = async (
 
 export class SenderManager {
     wallets: Account[]
-    utilityAccount: Account
+    utilityAccount: Account | undefined
     availableWallets: Account[]
     private logger: Logger
     private metrics: Metrics
@@ -40,7 +40,7 @@ export class SenderManager {
 
     constructor(
         wallets: Account[],
-        utilityAccount: Account,
+        utilityAccount: Account | undefined,
         logger: Logger,
         metrics: Metrics,
         legacyTransactions: boolean,
@@ -65,43 +65,16 @@ export class SenderManager {
         this.gasPriceManager = gasPriceManager
     }
 
-    async validateWallets(
-        publicClient: PublicClient,
-        minBalance: bigint
-    ): Promise<void> {
-        const promises = this.availableWallets.map(async (wallet) => {
-            const balance = await publicClient.getBalance({
-                address: wallet.address
-            })
-
-            if (balance < minBalance) {
-                this.logger.error(
-                    {
-                        balance,
-                        requiredBalance: minBalance,
-                        executor: wallet.address
-                    },
-                    "wallet has insufficient balance"
-                )
-                throw new Error(
-                    `wallet ${
-                        wallet.address
-                    } has insufficient balance ${formatEther(
-                        balance
-                    )} < ${formatEther(minBalance)}`
-                )
-            }
-        })
-
-        await Promise.all(promises)
-    }
-
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: <explanation>
     async validateAndRefillWallets(
         publicClient: PublicClient,
         walletClient: WalletClient<Transport, Chain>,
-        minBalance: bigint
+        minBalance?: bigint
     ): Promise<void> {
+        if (!(minBalance && this.utilityAccount)) {
+            return
+        }
+
         const utilityWalletBalance = await publicClient.getBalance({
             address: this.utilityAccount.address
         })

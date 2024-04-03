@@ -79,7 +79,7 @@ const getValidator = ({
             parsedArgs["utility-private-key"],
             gasPriceManager,
             parsedArgs["user-operation-simulation-contract"],
-            parsedArgs["tenderly-rpc"],
+            parsedArgs.tenderly,
             parsedArgs["balance-override"]
         )
     }
@@ -93,7 +93,7 @@ const getValidator = ({
         parsedArgs["utility-private-key"],
         gasPriceManager,
         parsedArgs["user-operation-simulation-contract"],
-        parsedArgs["tenderly-rpc"],
+        parsedArgs.tenderly,
         parsedArgs["balance-override"],
         parsedArgs["expiration-check"]
     )
@@ -195,7 +195,7 @@ const getExecutor = ({
         metrics,
         compressionHandler,
         gasPriceManager,
-        !parsedArgs["tenderly-rpc"],
+        !parsedArgs.tenderly,
         parsedArgs["legacy-transactions"],
         parsedArgs["fixed-gas-limit-for-estimation"],
         parsedArgs["local-gas-limit-calculation"]
@@ -309,7 +309,7 @@ const getRpcHandler = ({
         nonceQueuer,
         executorManager,
         reputationManager,
-        parsedArgs["tenderly-rpc"] ?? false,
+        parsedArgs.tenderly ?? false,
         parsedArgs["max-block-range"],
         logger.child(
             { module: "rpc" },
@@ -399,7 +399,7 @@ export const setupServer = async ({
             walletClient,
             parsedArgs["min-executor-balance"]
         )
-    }, parsedArgs["executor-refill-interval"])
+    }, parsedArgs["executor-refill-interval"] * 1000)
 
     const monitor = getMonitor()
     const mempool = getMempool({
