@@ -72,10 +72,12 @@ export class Server {
     private metrics: Metrics
     private environment: "production" | "staging" | "development"
     private apiVersions: ApiVersion[]
+    private defaultApiVersion: ApiVersion
 
     constructor(
         rpcEndpoint: IRpcEndpoint,
         apiVersions: ApiVersion[],
+        defaultApiVersion: ApiVersion,
         port: number,
         requestTimeout: number | undefined,
         logger: Logger,
@@ -120,6 +122,7 @@ export class Server {
                 .observe(durationSeconds)
         })
 
+        this.fastify.post("/rpc", this.rpc.bind(this))
         this.fastify.post("/:version/rpc", this.rpc.bind(this))
         this.fastify.post("/", this.rpc.bind(this))
         this.fastify.get("/health", this.healthCheck.bind(this))
@@ -131,6 +134,7 @@ export class Server {
         this.metrics = metrics
         this.environment = environment
         this.apiVersions = apiVersions
+        this.defaultApiVersion = defaultApiVersion
     }
 
     public start(): void {
@@ -156,7 +160,7 @@ export class Server {
         let requestId: number | null = null
 
         const versionParsingResult = altoVersions.safeParse(
-            (request.params as any).version
+            (request.params as any)?.version ?? this.defaultApiVersion
         )
 
         if (!versionParsingResult.success) {

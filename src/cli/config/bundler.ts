@@ -120,6 +120,10 @@ export const bundlerArgsSchema = z.object({
         .optional()
         .default("v1,v2")
         .transform((val) => val.split(",") as ApiVersion[]),
+    defaultApiVersion: z
+        .enum(["v1", "v2"])
+        .optional()
+        .transform((val) => val as ApiVersion),
     noEip1559Support: z.boolean(),
     noEthCallOverrideSupport: z.boolean(),
     balanceOverrideEnabled: z.boolean(),
