@@ -103,6 +103,8 @@ export const executionResultSchemaV07 = z
         z.bigint(),
         z.bigint(),
         z.bigint(),
+        z.bigint(),
+        z.bigint(),
         z.boolean(),
         z.string().regex(hexPattern)
     ])
@@ -112,8 +114,10 @@ export const executionResultSchemaV07 = z
             paid: val[1],
             validationData: val[2],
             paymasterValidationData: val[3],
-            targetSuccess: val[4],
-            targetResult: val[5] as HexData
+            paymasterVerificationGasLimit: val[4],
+            paymasterPostOpGasLimit: val[5],
+            targetSuccess: val[6],
+            targetResult: val[7] as HexData
         }
     })
 

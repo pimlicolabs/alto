@@ -337,6 +337,8 @@ export class RpcHandler implements IRpcEndpoint {
 
         let verificationGasLimit: bigint
         let callGasLimit: bigint
+        let paymasterVerificationGasLimit: bigint = 0n
+        let paymasterPostOpGasLimit: bigint = 0n
 
         if (this.noEthCallOverrideSupport) {
             userOperation.preVerificationGas = 1_000_000n
@@ -378,6 +380,19 @@ export class RpcHandler implements IRpcEndpoint {
                     this.chainId,
                     executionResult.data.callDataResult
                 )
+
+            if (
+                "paymasterVerificationGasLimit" in
+                    executionResult.data.executionResult &&
+                "paymasterPostOpGasLimit" in
+                    executionResult.data.executionResult
+            ) {
+                paymasterVerificationGasLimit =
+                    executionResult.data.executionResult
+                        .paymasterVerificationGasLimit
+                paymasterPostOpGasLimit =
+                    executionResult.data.executionResult.paymasterPostOpGasLimit
+            }
 
             if (
                 this.chainId === chains.base.id ||
@@ -439,8 +454,8 @@ export class RpcHandler implements IRpcEndpoint {
                 preVerificationGas,
                 verificationGasLimit,
                 callGasLimit,
-                paymasterVerificationGasLimit: verificationGasLimit,
-                paymasterPostOpGasLimit: verificationGasLimit
+                paymasterVerificationGasLimit,
+                paymasterPostOpGasLimit
             }
         }
 
