@@ -106,7 +106,8 @@ export class GasPriceManager {
             chainId === chains.base.id ||
             chainId === chains.dfk.id ||
             chainId === chains.celoAlfajores.id ||
-            chainId === chains.avalanche.id
+            chainId === chains.avalanche.id ||
+            chainId === chains.linea.id
         ) {
             return 111n
         }
