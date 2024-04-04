@@ -106,25 +106,29 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             description:
                 "Send a legacy transactions instead of an EIP-1559 transactions",
             type: "boolean",
-            require: false
+            require: true,
+            default: false
         },
         "balance-override": {
             description:
                 "Override the sender native token balance during estimation",
             type: "boolean",
-            require: false
+            require: true,
+            default: true
         },
         "local-gas-limit-calculation": {
             description:
                 "Calculate the bundle transaction gas limits locally instead of using the RPC gas limit estimation",
             type: "boolean",
-            require: false
+            require: true,
+            default: false
         },
         "flush-stuck-transactions-during-startup": {
             description:
                 "Flush stuck transactions with old nonces during bundler startup",
             type: "boolean",
-            require: false
+            require: true,
+            default: false
         },
         "fixed-gas-limit-for-estimation": {
             description:
@@ -136,7 +140,7 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             description:
                 "API version (used for internal Pimlico versioning compatibility)",
             type: "string",
-            require: false,
+            require: true,
             default: "v1,v2"
         },
         "default-api-version": {

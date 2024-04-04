@@ -40,7 +40,6 @@ import {
     slice,
     toHex,
     zeroAddress,
-    type Account,
     type Chain,
     type PublicClient,
     type Transport
@@ -128,7 +127,6 @@ export class UnsafeValidator implements InterfaceValidator {
     publicClient: PublicClient<Transport, Chain>
     logger: Logger
     metrics: Metrics
-    utilityWallet: Account
     usingTenderly: boolean
     balanceOverrideEnabled: boolean
     expirationCheck: boolean
@@ -140,7 +138,6 @@ export class UnsafeValidator implements InterfaceValidator {
         publicClient: PublicClient<Transport, Chain>,
         logger: Logger,
         metrics: Metrics,
-        utilityWallet: Account,
         gasPriceManager: GasPriceManager,
         entryPointSimulationsAddress?: Address,
         usingTenderly = false,
@@ -150,7 +147,6 @@ export class UnsafeValidator implements InterfaceValidator {
         this.publicClient = publicClient
         this.logger = logger
         this.metrics = metrics
-        this.utilityWallet = utilityWallet
         this.usingTenderly = usingTenderly
         this.balanceOverrideEnabled = balanceOverrideEnabled
         this.expirationCheck = expirationCheck

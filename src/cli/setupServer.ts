@@ -76,7 +76,6 @@ const getValidator = ({
                 }
             ),
             metrics,
-            parsedArgs["utility-private-key"],
             gasPriceManager,
             parsedArgs["user-operation-simulation-contract"],
             parsedArgs.tenderly,
@@ -90,7 +89,6 @@ const getValidator = ({
             { level: parsedArgs["rpc-log-level"] || parsedArgs["log-level"] }
         ),
         metrics,
-        parsedArgs["utility-private-key"],
         gasPriceManager,
         parsedArgs["user-operation-simulation-contract"],
         parsedArgs.tenderly,

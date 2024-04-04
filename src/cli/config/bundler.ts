@@ -23,9 +23,9 @@ export const bundlerArgsSchema = z.object({
         }),
     "user-operation-simulation-contract": addressSchema.optional(),
     "safe-mode": z.boolean(),
-    "utility-private-key": hexData32Schema.transform(
-        (val) => privateKeyToAccount(val) satisfies Account
-    ),
+    "utility-private-key": hexData32Schema
+        .transform((val) => privateKeyToAccount(val) satisfies Account)
+        .optional(),
     "executor-private-keys": z.union([
         z
             .array(hexData32Schema)
@@ -45,7 +45,10 @@ export const bundlerArgsSchema = z.object({
             )
     ]),
     "max-executors": z.number().int().min(0).optional(),
-    "min-executor-balance": z.string().transform((val) => BigInt(val)),
+    "min-executor-balance": z
+        .string()
+        .transform((val) => BigInt(val))
+        .optional(),
     "executor-refill-interval": z.number().int().min(0),
 
     "min-entity-stake": z.number().int().min(0),
