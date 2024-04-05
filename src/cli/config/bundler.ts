@@ -24,7 +24,7 @@ export const bundlerArgsSchema = z.object({
             )
             return validatedAddresses
         }),
-    pimlicoSimulationsAddress: addressSchema.optional(),
+    entryPointSimulationsAddress: addressSchema.optional(),
     networkName: z.string(),
     signerPrivateKeys: z.union([
         z

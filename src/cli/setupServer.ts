@@ -76,7 +76,7 @@ const getValidator = ({
             metrics,
             parsedArgs.utilityPrivateKey,
             gasPriceManager,
-            parsedArgs.pimlicoSimulationsAddress,
+            parsedArgs.entryPointSimulationsAddress,
             parsedArgs.tenderlyEnabled,
             parsedArgs.balanceOverrideEnabled
         )
@@ -90,7 +90,7 @@ const getValidator = ({
         metrics,
         parsedArgs.utilityPrivateKey,
         gasPriceManager,
-        parsedArgs.pimlicoSimulationsAddress,
+        parsedArgs.entryPointSimulationsAddress,
         parsedArgs.tenderlyEnabled,
         parsedArgs.balanceOverrideEnabled,
         parsedArgs.disableExpirationCheck
