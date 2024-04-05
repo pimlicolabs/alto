@@ -467,10 +467,7 @@ export async function calcOptimismPreVerificationGas(
 
     const l1GasUsed = await opGasPriceOracle.read.getL1GasUsed([serializedTx])
 
-    const totalGas = staticFee + l1GasUsed
-
-    // bump up by 5% just to ensure all ops go through
-    return (totalGas * 105n) / 100n
+    return staticFee + l1GasUsed
 }
 
 const getArbitrumL1FeeAbi = [
