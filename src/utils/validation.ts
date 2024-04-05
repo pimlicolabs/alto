@@ -28,7 +28,8 @@ import {
     serializeTransaction,
     toBytes,
     toFunctionSelector,
-    toHex
+    toHex,
+    parseAbi
 } from "viem"
 import * as chains from "viem/chains"
 import { isVersion06, toPackedUserOperation } from "./userop"
@@ -398,35 +399,6 @@ export function calcDefaultPreVerificationGas(
 
 const maxUint64 = 2n ** 64n - 1n
 
-const getL1FeeAbi = [
-    {
-        inputs: [
-            {
-                internalType: "bytes",
-                name: "data",
-                type: "bytes"
-            }
-        ],
-        name: "getL1Fee",
-        outputs: [
-            {
-                internalType: "uint256",
-                name: "fee",
-                type: "uint256"
-            }
-        ],
-        stateMutability: "nonpayable",
-        type: "function"
-    },
-    {
-        inputs: [],
-        name: "l1BaseFee",
-        outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-        stateMutability: "view",
-        type: "function"
-    }
-] as const
-
 export async function calcOptimismPreVerificationGas(
     publicClient: PublicClient<Transport, Chain>,
     op: UserOperation,
@@ -472,7 +444,7 @@ export async function calcOptimismPreVerificationGas(
             to: entryPoint,
             chainId: publicClient.chain.id,
             nonce: 999999,
-            gasLimit: maxUint64,
+            gas: maxUint64,
             gasPrice: maxUint64,
             data
         },
@@ -484,23 +456,21 @@ export async function calcOptimismPreVerificationGas(
     )
 
     const opGasPriceOracle = getContract({
-        abi: getL1FeeAbi,
+        abi: parseAbi([
+            "function getL1GasUsed(bytes memory _data) public view returns (uint256)"
+        ]),
         address: "0x420000000000000000000000000000000000000F",
         client: {
             public: publicClient
         }
     })
 
-    const { result: l1Fee } = await opGasPriceOracle.simulate.getL1Fee([
-        serializedTx
-    ])
+    const l1GasUsed = await opGasPriceOracle.read.getL1GasUsed([serializedTx])
 
-    const l2MaxFee = op.maxFeePerGas
-    const l2PriorityFee = latestBlock.baseFeePerGas + op.maxPriorityFeePerGas
+    const totalGas = staticFee + l1GasUsed
 
-    const l2price = l2MaxFee < l2PriorityFee ? l2MaxFee : l2PriorityFee
-
-    return staticFee + l1Fee / l2price
+    // bump up by 5% just to ensure all ops go through
+    return (totalGas * 105n) / 100n
 }
 
 const getArbitrumL1FeeAbi = [
@@ -583,7 +553,7 @@ export async function calcArbitrumPreVerificationGas(
             to: entryPoint,
             chainId: publicClient.chain?.id ?? 10,
             nonce: 999999,
-            gasLimit: maxUint64,
+            gas: maxUint64,
             gasPrice: maxUint64,
             data
         },
