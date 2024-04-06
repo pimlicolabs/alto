@@ -327,7 +327,6 @@ const getServer = ({
     return new Server(
         rpcEndpoint,
         parsedArgs.apiVersion,
-        parsedArgs.defaultApiVersion,
         parsedArgs.port,
         parsedArgs.requestTimeout,
         logger.child(
