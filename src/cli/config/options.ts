@@ -13,7 +13,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "string",
         require: true
     },
-    pimlicoSimulationsAddress: {
+    entryPointSimulationsAddress: {
         description: "Address of the entry point simulations contract",
         type: "string",
         require: false
@@ -178,6 +178,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
     },
     apiVersion: {
         description: "API version of the bundler",
+        type: "string",
+        require: false,
+        default: "v1,v2"
+    },
+    defaultApiVersion: {
+        description: "Default API version of the bundler",
         type: "string",
         require: false,
         default: "v1"

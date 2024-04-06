@@ -200,7 +200,17 @@ async function callPimlicoEntryPointSimulations(
         result
     )
 
-    return returnBytes[0]
+    return returnBytes[0].map((data: Hex) => {
+        const decodedDelegateAndError = decodeErrorResult({
+            abi: EntryPointV07Abi,
+            data: data
+        })
+
+        if (!decodedDelegateAndError?.args?.[1]) {
+            throw new Error("Unexpected error")
+        }
+        return decodedDelegateAndError.args[1] as Hex
+    })
 }
 
 const panicCodes: { [key: number]: string } = {
@@ -261,20 +271,11 @@ function validateTargetCallDataResult(data: Hex):
           data: string
           code: number
       } {
-    const decodedDelegateAndError = decodeErrorResult({
-        abi: EntryPointV07Abi,
-        data: data
-    })
-
-    if (!decodedDelegateAndError?.args?.[1]) {
-        throw new Error("Unexpected error")
-    }
-
     try {
         const targetCallResult = decodeFunctionResult({
             abi: EntryPointV07SimulationsAbi,
             functionName: "simulateCallData",
-            data: decodedDelegateAndError.args[1] as Hex
+            data: data
         })
 
         const parsedTargetCallResult =
@@ -295,19 +296,10 @@ function validateTargetCallDataResult(data: Hex):
 }
 
 function getSimulateHandleOpResult(data: Hex): SimulateHandleOpResult {
-    const decodedDelegateAndError = decodeErrorResult({
-        abi: EntryPointV07Abi,
-        data: data
-    })
-
-    if (!decodedDelegateAndError?.args?.[1]) {
-        throw new Error("Unexpected error")
-    }
-
     try {
         const decodedError = decodeErrorResult({
             abi: EntryPointV07SimulationsAbi,
-            data: decodedDelegateAndError.args[1] as Hex
+            data: data
         })
 
         if (
@@ -338,7 +330,7 @@ function getSimulateHandleOpResult(data: Hex): SimulateHandleOpResult {
         const decodedResult: ExecutionResult = decodeFunctionResult({
             abi: EntryPointV07SimulationsAbi,
             functionName: "simulateHandleOp",
-            data: decodedDelegateAndError.args[1] as Hex
+            data
         }) as unknown as ExecutionResult
 
         return {
@@ -385,16 +377,16 @@ export async function simulateHandleOpV07(
         finalParam
     )
 
-    const targetCallValidationResult = validateTargetCallDataResult(cause[1])
-
-    if (targetCallValidationResult.result === "failed") {
-        return targetCallValidationResult
-    }
-
     const executionResult = getSimulateHandleOpResult(cause[0])
 
     if (executionResult.result === "failed") {
         return executionResult
+    }
+
+    const targetCallValidationResult = validateTargetCallDataResult(cause[1])
+
+    if (targetCallValidationResult.result === "failed") {
+        return targetCallValidationResult
     }
 
     return {

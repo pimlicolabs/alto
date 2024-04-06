@@ -75,9 +75,8 @@ const getValidator = ({
             ),
             metrics,
             parsedArgs.utilityPrivateKey,
-            parsedArgs.apiVersion,
             gasPriceManager,
-            parsedArgs.pimlicoSimulationsAddress,
+            parsedArgs.entryPointSimulationsAddress,
             parsedArgs.tenderlyEnabled,
             parsedArgs.balanceOverrideEnabled
         )
@@ -90,9 +89,8 @@ const getValidator = ({
         ),
         metrics,
         parsedArgs.utilityPrivateKey,
-        parsedArgs.apiVersion,
         gasPriceManager,
-        parsedArgs.pimlicoSimulationsAddress,
+        parsedArgs.entryPointSimulationsAddress,
         parsedArgs.tenderlyEnabled,
         parsedArgs.balanceOverrideEnabled,
         parsedArgs.disableExpirationCheck
@@ -298,7 +296,6 @@ const getRpcHandler = ({
         reputationManager,
         parsedArgs.tenderlyEnabled ?? false,
         parsedArgs.minimumGasPricePercent,
-        parsedArgs.apiVersion,
         parsedArgs.noEthCallOverrideSupport,
         parsedArgs.rpcMaxBlockRange,
         logger.child(
@@ -330,6 +327,8 @@ const getServer = ({
 }) => {
     return new Server(
         rpcEndpoint,
+        parsedArgs.apiVersion,
+        parsedArgs.defaultApiVersion,
         parsedArgs.port,
         parsedArgs.requestTimeout,
         logger.child(

@@ -27,7 +27,6 @@ import type {
     ValidationResultWithAggregationV07
 } from "@alto/types"
 import type { InterfaceValidator } from "@alto/types"
-import type { ApiVersion } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
     calcVerificationGasAndCallGasLimit,
@@ -72,7 +71,6 @@ export class SafeValidator
         logger: Logger,
         metrics: Metrics,
         utilityWallet: Account,
-        apiVersion: ApiVersion,
         gasPriceManager: GasPriceManager,
         entryPointSimulationsAddress?: Address,
         usingTenderly = false,
@@ -83,7 +81,6 @@ export class SafeValidator
             logger,
             metrics,
             utilityWallet,
-            apiVersion,
             gasPriceManager,
             entryPointSimulationsAddress,
             usingTenderly,
@@ -93,6 +90,7 @@ export class SafeValidator
     }
 
     async validateUserOperation(
+        shouldCheckPrefund: boolean,
         userOperation: UserOperation,
         entryPoint: Address,
         referencedContracts?: ReferencedCodeHashes
@@ -109,7 +107,7 @@ export class SafeValidator
                 referencedContracts
             )
 
-            if (this.apiVersion !== "v1") {
+            if (shouldCheckPrefund) {
                 const prefund = validationResult.returnInfo.prefund
 
                 const [verificationGasLimit, callGasLimit] =

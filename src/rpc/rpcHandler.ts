@@ -84,15 +84,20 @@ import {
 import type { NonceQueuer } from "./nonceQueuer"
 
 export interface IRpcEndpoint {
-    handleMethod(request: BundlerRequest): Promise<BundlerResponse>
+    handleMethod(
+        request: BundlerRequest,
+        apiVersion: ApiVersion
+    ): Promise<BundlerResponse>
     eth_chainId(): ChainIdResponseResult
     eth_supportedEntryPoints(): SupportedEntryPointsResponseResult
     eth_estimateUserOperationGas(
+        apiVersion: ApiVersion,
         userOperation: UserOperation,
         entryPoint: Address,
         stateOverrides?: StateOverrides
     ): Promise<EstimateUserOperationGasResponseResult>
     eth_sendUserOperation(
+        apiVersion: ApiVersion,
         userOperation: UserOperation,
         entryPoint: Address
     ): Promise<SendUserOperationResponseResult>
@@ -114,7 +119,6 @@ export class RpcHandler implements IRpcEndpoint {
     nonceQueuer: NonceQueuer
     usingTenderly: boolean
     minimumGasPricePercent: number
-    apiVersion: ApiVersion
     noEthCallOverrideSupport: boolean
     rpcMaxBlockRange: number | undefined
     logger: Logger
@@ -141,7 +145,6 @@ export class RpcHandler implements IRpcEndpoint {
         reputationManager: InterfaceReputationManager,
         usingTenderly: boolean,
         minimumGasPricePercent: number,
-        apiVersion: ApiVersion,
         noEthCallOverrideSupport: boolean,
         rpcMaxBlockRange: number | undefined,
         logger: Logger,
@@ -162,7 +165,6 @@ export class RpcHandler implements IRpcEndpoint {
         this.nonceQueuer = nonceQueuer
         this.usingTenderly = usingTenderly
         this.minimumGasPricePercent = minimumGasPricePercent
-        this.apiVersion = apiVersion
         this.noEthCallOverrideSupport = noEthCallOverrideSupport
         this.rpcMaxBlockRange = rpcMaxBlockRange
         this.logger = logger
@@ -179,7 +181,10 @@ export class RpcHandler implements IRpcEndpoint {
         this.balanceOverrideEnabled = balanceOverrideEnabled
     }
 
-    async handleMethod(request: BundlerRequest): Promise<BundlerResponse> {
+    async handleMethod(
+        request: BundlerRequest,
+        apiVersion: ApiVersion
+    ): Promise<BundlerResponse> {
         // call the method with the params
         const method = request.method
         switch (method) {
@@ -197,6 +202,7 @@ export class RpcHandler implements IRpcEndpoint {
                 return {
                     method,
                     result: await this.eth_estimateUserOperationGas(
+                        apiVersion,
                         request.params[0],
                         request.params[1],
                         request.params[2]
@@ -205,7 +211,10 @@ export class RpcHandler implements IRpcEndpoint {
             case "eth_sendUserOperation":
                 return {
                     method,
-                    result: await this.eth_sendUserOperation(...request.params)
+                    result: await this.eth_sendUserOperation(
+                        apiVersion,
+                        ...request.params
+                    )
                 }
             case "eth_getUserOperationByHash":
                 return {
@@ -287,6 +296,7 @@ export class RpcHandler implements IRpcEndpoint {
                 return {
                     method,
                     result: await this.pimlico_sendCompressedUserOperation(
+                        apiVersion,
                         ...request.params
                     )
                 }
@@ -302,6 +312,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async eth_estimateUserOperationGas(
+        apiVersion: ApiVersion,
         userOperation: UserOperation,
         entryPoint: Address,
         stateOverrides?: StateOverrides
@@ -329,6 +340,8 @@ export class RpcHandler implements IRpcEndpoint {
 
         let verificationGasLimit: bigint
         let callGasLimit: bigint
+        let paymasterVerificationGasLimit: bigint = 0n
+        let paymasterPostOpGasLimit: bigint = 0n
 
         if (this.noEthCallOverrideSupport) {
             userOperation.preVerificationGas = 1_000_000n
@@ -370,6 +383,19 @@ export class RpcHandler implements IRpcEndpoint {
                     this.chainId,
                     executionResult.data.callDataResult
                 )
+
+            if (
+                "paymasterVerificationGasLimit" in
+                    executionResult.data.executionResult &&
+                "paymasterPostOpGasLimit" in
+                    executionResult.data.executionResult
+            ) {
+                paymasterVerificationGasLimit =
+                    executionResult.data.executionResult
+                        .paymasterVerificationGasLimit
+                paymasterPostOpGasLimit =
+                    executionResult.data.executionResult.paymasterPostOpGasLimit
+            }
 
             if (
                 this.chainId === chains.base.id ||
@@ -433,12 +459,12 @@ export class RpcHandler implements IRpcEndpoint {
                 preVerificationGas,
                 verificationGasLimit,
                 callGasLimit,
-                paymasterVerificationGasLimit: verificationGasLimit,
-                paymasterPostOpGasLimit: verificationGasLimit
+                paymasterVerificationGasLimit,
+                paymasterPostOpGasLimit
             }
         }
 
-        if (this.apiVersion === "v2") {
+        if (apiVersion === "v2") {
             return {
                 preVerificationGas,
                 verificationGasLimit,
@@ -455,12 +481,17 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async eth_sendUserOperation(
+        apiVersion: ApiVersion,
         userOperation: UserOperation,
         entryPoint: Address
     ): Promise<SendUserOperationResponseResult> {
         let status: "added" | "queued" | "rejected" = "rejected"
         try {
-            status = await this.addToMempoolIfValid(userOperation, entryPoint)
+            status = await this.addToMempoolIfValid(
+                userOperation,
+                entryPoint,
+                apiVersion
+            )
 
             const hash = getUserOperationHash(
                 userOperation,
@@ -864,7 +895,8 @@ export class RpcHandler implements IRpcEndpoint {
     // check if we want to bundle userOperation. If yes, add to mempool
     async addToMempoolIfValid(
         op: MempoolUserOperation,
-        entryPoint: Address
+        entryPoint: Address,
+        apiVersion: ApiVersion
     ): Promise<"added" | "queued"> {
         const userOperation = deriveUserOperation(op)
         if (!this.entryPoints.includes(entryPoint)) {
@@ -889,7 +921,7 @@ export class RpcHandler implements IRpcEndpoint {
             }
         }
 
-        if (this.apiVersion !== "v1") {
+        if (apiVersion !== "v1") {
             await this.gasPriceManager.validateGasPrice({
                 maxFeePerGas: userOperation.maxFeePerGas,
                 maxPriorityFeePerGas: userOperation.maxPriorityFeePerGas
@@ -956,13 +988,16 @@ export class RpcHandler implements IRpcEndpoint {
                     )
                 }
             } else {
-                await this.validator.validatePreVerificationGas(
-                    userOperation,
-                    entryPoint
-                )
+                if (apiVersion !== "v1") {
+                    await this.validator.validatePreVerificationGas(
+                        userOperation,
+                        entryPoint
+                    )
+                }
 
                 const validationResult =
                     await this.validator.validateUserOperation(
+                        apiVersion !== "v1",
                         userOperation,
                         entryPoint
                     )
@@ -998,6 +1033,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async pimlico_sendCompressedUserOperation(
+        apiVersion: ApiVersion,
         compressedCalldata: Hex,
         inflatorAddress: Address,
         entryPoint: Address
@@ -1020,7 +1056,8 @@ export class RpcHandler implements IRpcEndpoint {
             // check userOps inputs.
             status = await this.addToMempoolIfValid(
                 compressedUserOp,
-                entryPoint
+                entryPoint,
+                apiVersion
             )
 
             const hash = getUserOperationHash(

@@ -25,7 +25,6 @@ import type {
 } from "@alto/types"
 import type { InterfaceValidator } from "@alto/types"
 import type { StateOverrides } from "@alto/types"
-import type { ApiVersion } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import { calcPreVerificationGas, isVersion06, isVersion07 } from "@alto/utils"
 import { calcVerificationGasAndCallGasLimit } from "@alto/utils"
@@ -130,7 +129,6 @@ export class UnsafeValidator implements InterfaceValidator {
     usingTenderly: boolean
     balanceOverrideEnabled: boolean
     disableExpirationCheck: boolean
-    apiVersion: ApiVersion
     chainId: number
     gasPriceManager: GasPriceManager
     entryPointSimulationsAddress?: Address
@@ -140,7 +138,6 @@ export class UnsafeValidator implements InterfaceValidator {
         logger: Logger,
         metrics: Metrics,
         utilityWallet: Account,
-        apiVersion: ApiVersion,
         gasPriceManager: GasPriceManager,
         entryPointSimulationsAddress?: Address,
         usingTenderly = false,
@@ -154,7 +151,6 @@ export class UnsafeValidator implements InterfaceValidator {
         this.usingTenderly = usingTenderly
         this.balanceOverrideEnabled = balanceOverrideEnabled
         this.disableExpirationCheck = disableExpirationCheck
-        this.apiVersion = apiVersion
         this.chainId = publicClient.chain.id
         this.gasPriceManager = gasPriceManager
         this.entryPointSimulationsAddress = entryPointSimulationsAddress
@@ -467,24 +463,23 @@ export class UnsafeValidator implements InterfaceValidator {
         userOperation: UserOperation,
         entryPoint: Address
     ) {
-        if (this.apiVersion !== "v1") {
-            const preVerificationGas = await calcPreVerificationGas(
-                this.publicClient,
-                userOperation,
-                entryPoint,
-                this.chainId
-            )
+        const preVerificationGas = await calcPreVerificationGas(
+            this.publicClient,
+            userOperation,
+            entryPoint,
+            this.chainId
+        )
 
-            if (preVerificationGas > userOperation.preVerificationGas) {
-                throw new RpcError(
-                    `preVerificationGas is not enough, required: ${preVerificationGas}, got: ${userOperation.preVerificationGas}`,
-                    ValidationErrors.SimulateValidation
-                )
-            }
+        if (preVerificationGas > userOperation.preVerificationGas) {
+            throw new RpcError(
+                `preVerificationGas is not enough, required: ${preVerificationGas}, got: ${userOperation.preVerificationGas}`,
+                ValidationErrors.SimulateValidation
+            )
         }
     }
 
     async validateUserOperation(
+        shouldCheckPrefund: boolean,
         userOperation: UserOperation,
         entryPoint: Address,
         _referencedContracts?: ReferencedCodeHashes
@@ -500,7 +495,7 @@ export class UnsafeValidator implements InterfaceValidator {
                 entryPoint
             )
 
-            if (this.apiVersion !== "v1") {
+            if (shouldCheckPrefund) {
                 const prefund = validationResult.returnInfo.prefund
 
                 const [verificationGasLimit, callGasLimit] =

@@ -1,4 +1,5 @@
 import {
+    ApiVersion,
     addressSchema,
     commaSeperatedAddressPattern,
     hexData32Schema
@@ -23,7 +24,7 @@ export const bundlerArgsSchema = z.object({
             )
             return validatedAddresses
         }),
-    pimlicoSimulationsAddress: addressSchema.optional(),
+    entryPointSimulationsAddress: addressSchema.optional(),
     networkName: z.string(),
     signerPrivateKeys: z.union([
         z
@@ -113,7 +114,16 @@ export const bundlerArgsSchema = z.object({
 
     tenderlyEnabled: z.boolean().optional(),
     minimumGasPricePercent: z.number().int().min(0),
-    apiVersion: z.enum(["v1", "v2"]),
+    apiVersion: z
+        .string()
+        .regex(/^(v1,v2|v2,v1|v1|v2)$/)
+        .optional()
+        .default("v1,v2")
+        .transform((val) => val.split(",") as ApiVersion[]),
+    defaultApiVersion: z
+        .enum(["v1", "v2"])
+        .optional()
+        .transform((val) => val as ApiVersion),
     noEip1559Support: z.boolean(),
     noEthCallOverrideSupport: z.boolean(),
     balanceOverrideEnabled: z.boolean(),

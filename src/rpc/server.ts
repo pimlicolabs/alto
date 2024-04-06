@@ -2,7 +2,9 @@ import type { Metrics } from "@alto/utils"
 import {
     type JSONRPCResponse,
     bundlerRequestSchema,
-    jsonRpcSchema
+    jsonRpcSchema,
+    altoVersions,
+    ApiVersion
 } from "@alto/types"
 import { RpcError, ValidationErrors } from "@alto/types"
 import type { Logger } from "@alto/utils"
@@ -69,9 +71,13 @@ export class Server {
     private registry: Registry
     private metrics: Metrics
     private environment: "production" | "staging" | "development"
+    private apiVersions: ApiVersion[]
+    private defaultApiVersion: ApiVersion
 
     constructor(
         rpcEndpoint: IRpcEndpoint,
+        apiVersions: ApiVersion[],
+        defaultApiVersion: ApiVersion,
         port: number,
         requestTimeout: number | undefined,
         logger: Logger,
@@ -117,6 +123,7 @@ export class Server {
         })
 
         this.fastify.post("/rpc", this.rpc.bind(this))
+        this.fastify.post("/:version/rpc", this.rpc.bind(this))
         this.fastify.post("/", this.rpc.bind(this))
         this.fastify.get("/health", this.healthCheck.bind(this))
         this.fastify.get("/metrics", this.serveMetrics.bind(this))
@@ -126,6 +133,8 @@ export class Server {
         this.registry = registry
         this.metrics = metrics
         this.environment = environment
+        this.apiVersions = apiVersions
+        this.defaultApiVersion = defaultApiVersion
     }
 
     public start(): void {
@@ -149,6 +158,28 @@ export class Server {
     ): Promise<void> {
         reply.rpcStatus = "failed" // default to failed
         let requestId: number | null = null
+
+        const versionParsingResult = altoVersions.safeParse(
+            (request.params as any)?.version ?? this.defaultApiVersion
+        )
+
+        if (!versionParsingResult.success) {
+            const error = fromZodError(versionParsingResult.error)
+            throw new RpcError(
+                `invalid version ${error.message}`,
+                ValidationErrors.InvalidFields
+            )
+        }
+
+        const apiVersion: ApiVersion = versionParsingResult.data
+
+        if (this.apiVersions.indexOf(apiVersion) === -1) {
+            throw new RpcError(
+                `unsupported version ${apiVersion}`,
+                ValidationErrors.InvalidFields
+            )
+        }
+
         try {
             const contentTypeHeader = request.headers["content-type"]
             if (contentTypeHeader !== "application/json") {
@@ -197,7 +228,10 @@ export class Server {
                 },
                 "incoming request"
             )
-            const result = await this.rpcEndpoint.handleMethod(bundlerRequest)
+            const result = await this.rpcEndpoint.handleMethod(
+                bundlerRequest,
+                apiVersion
+            )
             const jsonRpcResponse: JSONRPCResponse = {
                 jsonrpc: "2.0",
                 id: jsonRpcRequest.id,
