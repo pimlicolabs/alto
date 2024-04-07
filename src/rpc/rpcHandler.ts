@@ -392,9 +392,10 @@ export class RpcHandler implements IRpcEndpoint {
             ) {
                 paymasterVerificationGasLimit =
                     executionResult.data.executionResult
-                        .paymasterVerificationGasLimit
+                        .paymasterVerificationGasLimit || 1n
                 paymasterPostOpGasLimit =
-                    executionResult.data.executionResult.paymasterPostOpGasLimit
+                    executionResult.data.executionResult
+                        .paymasterPostOpGasLimit || 1n
             }
 
             if (
@@ -412,7 +413,7 @@ export class RpcHandler implements IRpcEndpoint {
             }
 
             if (userOperation.callData === "0x") {
-                callGasLimit = 0n
+                callGasLimit = 1n
             }
         } else {
             if (isVersion07(userOperation)) {
