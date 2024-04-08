@@ -25,9 +25,18 @@ services:
         condition: service_completed_successfully
 
   test_suite:
-    build: testSuite
+    build: testSuite-v1
     environment:
-      - ALTO_ENDPOINT=http://alto:3000
+      - ALTO_ENDPOINT=http://alto:3000/v1/rpc
+      - ANVIL_ENDPOINT=http://anvil:8545
+    depends_on:
+      alto:
+        condition: service_started
+
+  test_suite:
+    build: testSuite-v2
+    environment:
+      - ALTO_ENDPOINT=http://alto:3000/v2/rpc
       - ANVIL_ENDPOINT=http://anvil:8545
     depends_on:
       alto:

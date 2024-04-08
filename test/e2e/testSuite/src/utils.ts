@@ -33,7 +33,7 @@ export const SIMPLE_INFLATOR_ADDRESS =
 
 export const anvilEndpoint =
     process.env.ANVIL_ENDPOINT ?? "http://127.0.0.1:8545"
-export const altoEndpoint = process.env.ALTO_ENDPOINT ?? "http://0.0.0.0:3000"
+export const altoEndpoint = process.env.ALTO_ENDPOINT ?? "http://0.0.0.0:3000/v1/rpc"
 export const anvilAccount = mnemonicToAccount(
     "test test test test test test test test test test test junk"
 )
