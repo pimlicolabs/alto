@@ -1,12 +1,12 @@
+import {
+    RpcError,
+    gasStationResult,
+    type GasPriceParameters
+} from "@alto/types"
 import { maxBigInt, minBigInt, type Logger } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import { parseGwei, type Chain, type PublicClient } from "viem"
 import * as chains from "viem/chains"
-import {
-    gasStationResult,
-    type GasPriceParameters,
-    RpcError
-} from "@alto/types"
 
 enum ChainId {
     Goerli = 5,
@@ -31,7 +31,7 @@ function getGasStationUrl(chainId: ChainId.Polygon | ChainId.Mumbai): string {
 export class GasPriceManager {
     private chain: Chain
     private publicClient: PublicClient
-    private noEip1559Support: boolean
+    private legacyTransactions: boolean
     private logger: Logger
     private queueMaxFeePerGas: { timestamp: number; maxFeePerGas: bigint }[] =
         [] // Store pairs of [price, timestamp]
@@ -44,14 +44,14 @@ export class GasPriceManager {
     constructor(
         chain: Chain,
         publicClient: PublicClient,
-        noEip1559Support: boolean,
+        legacyTransactions: boolean,
         logger: Logger,
         gasPriceTimeValidityInSeconds = 10
     ) {
         this.maxQueueSize = gasPriceTimeValidityInSeconds
         this.chain = chain
         this.publicClient = publicClient
-        this.noEip1559Support = noEip1559Support
+        this.legacyTransactions = legacyTransactions
         this.logger = logger
     }
 
@@ -228,7 +228,7 @@ export class GasPriceManager {
         return currentBaseFeePerGas - baseFeePerGasDelta
     }
 
-    private async getNoEip1559SupportGasPrice(): Promise<GasPriceParameters> {
+    private async getLegacyTransactionGasPrice(): Promise<GasPriceParameters> {
         let gasPrice: bigint | undefined
         try {
             const gasInfo = await this.publicClient.estimateFeesPerGas({
@@ -387,9 +387,9 @@ export class GasPriceManager {
             }
         }
 
-        if (this.noEip1559Support) {
+        if (this.legacyTransactions) {
             const gasPrice = this.bumpTheGasPrice(
-                await this.getNoEip1559SupportGasPrice()
+                await this.getLegacyTransactionGasPrice()
             )
             return {
                 maxFeePerGas: maxBigInt(gasPrice.maxFeePerGas, maxFeePerGas),

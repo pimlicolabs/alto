@@ -1,20 +1,20 @@
-import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
 import {
-    type Address,
     CallEngineAbi,
+    type Address,
     type HexData,
     type HexData32
 } from "@alto/types"
+import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
 import { Semaphore } from "async-mutex"
 import {
+    formatEther,
+    getContract,
     type Account,
     type Chain,
     type PublicClient,
     type TransactionReceipt,
     type Transport,
-    type WalletClient,
-    formatEther,
-    getContract
+    type WalletClient
 } from "viem"
 
 const waitForTransactionReceipt = async (
@@ -34,7 +34,7 @@ export class SenderManager {
     availableWallets: Account[]
     private logger: Logger
     private metrics: Metrics
-    private noEip1559Support: boolean
+    private legacyTransactions: boolean
     private semaphore: Semaphore
     private gasPriceManager: GasPriceManager
 
@@ -43,7 +43,7 @@ export class SenderManager {
         utilityAccount: Account,
         logger: Logger,
         metrics: Metrics,
-        noEip1559Support: boolean,
+        legacyTransactions: boolean,
         gasPriceManager: GasPriceManager,
         maxSigners?: number
     ) {
@@ -58,7 +58,7 @@ export class SenderManager {
         this.utilityAccount = utilityAccount
         this.logger = logger
         this.metrics = metrics
-        this.noEip1559Support = noEip1559Support
+        this.legacyTransactions = legacyTransactions
         metrics.walletsAvailable.set(this.availableWallets.length)
         metrics.walletsTotal.set(this.wallets.length)
         this.semaphore = new Semaphore(this.availableWallets.length)
@@ -208,13 +208,13 @@ export class SenderManager {
                         // @ts-ignore
                         to: address,
                         value: missingBalance,
-                        maxFeePerGas: this.noEip1559Support
+                        maxFeePerGas: this.legacyTransactions
                             ? undefined
                             : maxFeePerGas,
-                        maxPriorityFeePerGas: this.noEip1559Support
+                        maxPriorityFeePerGas: this.legacyTransactions
                             ? undefined
                             : maxPriorityFeePerGas,
-                        gasPrice: this.noEip1559Support
+                        gasPrice: this.legacyTransactions
                             ? maxFeePerGas
                             : undefined
                     })

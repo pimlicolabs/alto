@@ -1,13 +1,13 @@
-import type { Metrics } from "@alto/utils"
 import {
-    type JSONRPCResponse,
+    RpcError,
+    ValidationErrors,
     bundlerRequestSchema,
     jsonRpcSchema,
     altoVersions,
-    ApiVersion
+    type ApiVersion,
+    type JSONRPCResponse
 } from "@alto/types"
-import { RpcError, ValidationErrors } from "@alto/types"
-import type { Logger } from "@alto/utils"
+import type { Logger, Metrics } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import Fastify, {
     type FastifyBaseLogger,
@@ -70,7 +70,6 @@ export class Server {
     private port: number
     private registry: Registry
     private metrics: Metrics
-    private environment: "production" | "staging" | "development"
     private apiVersions: ApiVersion[]
     private defaultApiVersion: ApiVersion
 
@@ -82,8 +81,7 @@ export class Server {
         requestTimeout: number | undefined,
         logger: Logger,
         registry: Registry,
-        metrics: Metrics,
-        environment: "production" | "staging" | "development"
+        metrics: Metrics
     ) {
         this.fastify = Fastify({
             logger: logger as FastifyBaseLogger, // workaround for https://github.com/fastify/fastify/issues/4960
@@ -132,7 +130,6 @@ export class Server {
         this.port = port
         this.registry = registry
         this.metrics = metrics
-        this.environment = environment
         this.apiVersions = apiVersions
         this.defaultApiVersion = defaultApiVersion
     }
@@ -248,10 +245,6 @@ export class Server {
                 "sent reply"
             )
         } catch (err) {
-            if (this.environment === "development") {
-                console.error(err)
-            }
-
             if (err instanceof RpcError) {
                 const rpcError = {
                     jsonrpc: "2.0",

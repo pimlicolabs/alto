@@ -16,17 +16,17 @@ import {
 } from "viem"
 import { fromZodError } from "zod-validation-error"
 import {
-    bundlerArgsSchema,
+    optionArgsSchema,
     type IBundlerArgs,
-    type IBundlerArgsInput,
-    type IOptions
+    type IOptions,
+    type IOptionsInput
 } from "./config"
 import { customTransport } from "./customTransport"
 import { setupServer } from "./setupServer"
 
-const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
+const parseArgs = (args: IOptionsInput): IOptions => {
     // validate every arg, make type safe so if i add a new arg i have to validate it
-    const parsing = bundlerArgsSchema.safeParse(args)
+    const parsing = optionArgsSchema.safeParse(args)
     if (!parsing.success) {
         const error = fromZodError(parsing.error)
         throw new Error(error.message)
@@ -39,7 +39,7 @@ const preFlightChecks = async (
     publicClient: PublicClient<Transport, Chain>,
     parsedArgs: IBundlerArgs
 ): Promise<void> => {
-    for (const entrypoint of parsedArgs.entryPoints) {
+    for (const entrypoint of parsedArgs.entrypoints) {
         const entryPointCode = await publicClient.getBytecode({
             address: entrypoint
         })
@@ -49,35 +49,30 @@ const preFlightChecks = async (
     }
 }
 
-export async function bundlerHandler(args: IOptions): Promise<void> {
+export async function bundlerHandler(args: IOptionsInput): Promise<void> {
     const parsedArgs = parseArgs(args)
-    if (parsedArgs.signerPrivateKeysExtra !== undefined) {
-        parsedArgs.signerPrivateKeys = [
-            ...parsedArgs.signerPrivateKeys,
-            ...parsedArgs.signerPrivateKeysExtra
-        ]
-    }
 
     let logger: Logger
-    if (parsedArgs.logEnvironment === "development") {
-        logger = initDebugLogger(parsedArgs.logLevel)
+    if (parsedArgs.json) {
+        logger = initProductionLogger(parsedArgs["log-level"])
     } else {
-        logger = initProductionLogger(parsedArgs.logLevel)
+        logger = initDebugLogger(parsedArgs["log-level"])
     }
+
     const rootLogger = logger.child(
         { module: "root" },
-        { level: parsedArgs.logLevel }
+        { level: parsedArgs["log-level"] }
     )
 
     const getChainId = async () => {
         const client = createPublicClient({
-            transport: customTransport(args.rpcUrl, {
+            transport: customTransport(args["rpc-url"], {
                 logger: logger.child(
                     { module: "public_client" },
                     {
                         level:
-                            parsedArgs.publicClientLogLevel ||
-                            parsedArgs.logLevel
+                            parsedArgs["public-client-log-level"] ||
+                            parsedArgs["log-level"]
                     }
                 )
             })
@@ -88,25 +83,26 @@ export async function bundlerHandler(args: IOptions): Promise<void> {
 
     const chain: Chain = {
         id: chainId,
-        name: args.networkName,
+        name: args["network-name"],
         nativeCurrency: {
             name: "ETH",
             symbol: "ETH",
             decimals: 18
         },
         rpcUrls: {
-            default: { http: [args.rpcUrl] },
-            public: { http: [args.rpcUrl] }
+            default: { http: [args["rpc-url"]] },
+            public: { http: [args["rpc-url"]] }
         }
     }
 
     const client = createPublicClient({
-        transport: customTransport(args.rpcUrl, {
+        transport: customTransport(args["rpc-url"], {
             logger: logger.child(
                 { module: "public_client" },
                 {
                     level:
-                        parsedArgs.publicClientLogLevel || parsedArgs.logLevel
+                        parsedArgs["public-client-log-level"] ||
+                        parsedArgs["log-level"]
                 }
             )
         }),
@@ -116,14 +112,16 @@ export async function bundlerHandler(args: IOptions): Promise<void> {
     const gasPriceManager = new GasPriceManager(
         chain,
         client,
-        parsedArgs.noEip1559Support,
+        parsedArgs["legacy-transactions"],
         logger.child(
             { module: "gas_price_manager" },
             {
-                level: parsedArgs.publicClientLogLevel || parsedArgs.logLevel
+                level:
+                    parsedArgs["public-client-log-level"] ||
+                    parsedArgs["log-level"]
             }
         ),
-        parsedArgs.gasPriceTimeValidityInSeconds
+        parsedArgs["gas-price-expiry"]
     )
 
     const registry = new Registry()
@@ -136,29 +134,36 @@ export async function bundlerHandler(args: IOptions): Promise<void> {
     await preFlightChecks(client, parsedArgs)
 
     const walletClient = createWalletClient({
-        transport: customTransport(parsedArgs.executionRpcUrl ?? args.rpcUrl, {
-            logger: logger.child(
-                { module: "wallet_client" },
-                {
-                    level:
-                        parsedArgs.walletClientLogLevel || parsedArgs.logLevel
-                }
-            )
-        }),
+        transport: customTransport(
+            parsedArgs["send-transaction-rpc-url"] ?? args["rpc-url"],
+            {
+                logger: logger.child(
+                    { module: "wallet_client" },
+                    {
+                        level:
+                            parsedArgs["wallet-client-log-level"] ||
+                            parsedArgs["log-level"]
+                    }
+                )
+            }
+        ),
         chain
     })
 
     const senderManager = new SenderManager(
-        parsedArgs.signerPrivateKeys,
-        parsedArgs.utilityPrivateKey,
+        parsedArgs["executor-private-keys"],
+        parsedArgs["utility-private-key"],
         logger.child(
             { module: "executor" },
-            { level: parsedArgs.executorLogLevel || parsedArgs.logLevel }
+            {
+                level:
+                    parsedArgs["executor-log-level"] || parsedArgs["log-level"]
+            }
         ),
         metrics,
-        parsedArgs.noEip1559Support,
+        parsedArgs["legacy-transactions"],
         gasPriceManager,
-        parsedArgs.maxSigners
+        parsedArgs["max-executors"]
     )
 
     await setupServer({

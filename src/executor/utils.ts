@@ -4,8 +4,8 @@ import {
     type CompressedUserOperation,
     EntryPointV06Abi,
     EntryPointV07Abi,
-    FailedOp,
-    FailedOpWithRevert,
+    type FailedOp,
+    type FailedOpWithRevert,
     type TransactionInfo,
     type UserOperation,
     type UserOperationV07,
@@ -127,7 +127,7 @@ export async function filterOpsAndEstimateGas(
     maxPriorityFeePerGas: bigint,
     blockTag: "latest" | "pending",
     onlyPre1559: boolean,
-    customGasLimitForEstimation: bigint | undefined,
+    fixedGasLimitForEstimation: bigint | undefined,
     reputationManager: InterfaceReputationManager,
     logger: Logger
 ) {
@@ -173,7 +173,7 @@ export async function filterOpsAndEstimateGas(
                     [opsToSend, wallet.address],
                     {
                         account: wallet,
-                        gas: customGasLimitForEstimation,
+                        gas: fixedGasLimitForEstimation,
                         nonce: nonce,
                         blockTag,
                         ...gasOptions
@@ -194,7 +194,7 @@ export async function filterOpsAndEstimateGas(
                     to: bundleBulker,
                     account: wallet,
                     data: createCompressedCalldata(opsToSend, perOpInflatorId),
-                    gas: customGasLimitForEstimation,
+                    gas: fixedGasLimitForEstimation,
                     nonce: nonce,
                     blockTag,
                     ...gasOptions

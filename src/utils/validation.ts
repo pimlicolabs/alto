@@ -1,26 +1,22 @@
 import {
-    type Address,
     EntryPointV06Abi,
     EntryPointV07Abi,
-    type PackedUserOperation,
     RpcError,
+    type Address,
+    type PackedUserOperation,
     type UserOperation,
     type UserOperationV06,
     type UserOperationV07
 } from "@alto/types"
 import {
-    type Chain,
     ContractFunctionExecutionError,
     ContractFunctionRevertedError,
     EstimateGasExecutionError,
     FeeCapTooLowError,
-    type Hex,
     InsufficientFundsError,
     IntrinsicGasTooLowError,
     NonceTooLowError,
-    type PublicClient,
     TransactionExecutionError,
-    type Transport,
     bytesToHex,
     concat,
     encodeAbiParameters,
@@ -28,7 +24,11 @@ import {
     serializeTransaction,
     toBytes,
     toFunctionSelector,
-    toHex
+    toHex,
+    type Chain,
+    type Hex,
+    type PublicClient,
+    type Transport
 } from "viem"
 import * as chains from "viem/chains"
 import { isVersion06, toPackedUserOperation } from "./userop"
@@ -361,7 +361,7 @@ export function calcVerificationGasAndCallGasLimit(
         callGasLimit = (110n * callGasLimit) / 100n
     }
 
-    return [verificationGasLimit, callGasLimit]
+    return { verificationGasLimit, callGasLimit }
 }
 
 /**

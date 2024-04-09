@@ -1,20 +1,6 @@
-import type { GasPriceManager, Metrics } from "@alto/utils"
-import {
-    type Address,
-    EntryPointV06Abi,
-    ExecutionErrors,
-    type ExecutionResult,
-    type ReferencedCodeHashes,
-    RpcError,
-    type StorageMap,
-    type UserOperation,
-    ValidationErrors,
-    type ValidationResultWithAggregation,
-    entryPointErrorsSchema,
-    entryPointExecutionErrorSchemaV06,
-    entryPointExecutionErrorSchemaV07
-} from "@alto/types"
 import type {
+    InterfaceValidator,
+    StateOverrides,
     UserOperationV06,
     UserOperationV07,
     ValidationResult,
@@ -23,28 +9,45 @@ import type {
     ValidationResultWithAggregationV06,
     ValidationResultWithAggregationV07
 } from "@alto/types"
-import type { InterfaceValidator } from "@alto/types"
-import type { StateOverrides } from "@alto/types"
-import type { Logger } from "@alto/utils"
-import { calcPreVerificationGas, isVersion06, isVersion07 } from "@alto/utils"
-import { calcVerificationGasAndCallGasLimit } from "@alto/utils"
+import {
+    EntryPointV06Abi,
+    ExecutionErrors,
+    RpcError,
+    ValidationErrors,
+    entryPointErrorsSchema,
+    entryPointExecutionErrorSchemaV06,
+    entryPointExecutionErrorSchemaV07,
+    type Address,
+    type ExecutionResult,
+    type ReferencedCodeHashes,
+    type StorageMap,
+    type UserOperation,
+    type ValidationResultWithAggregation
+} from "@alto/types"
+import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
+import {
+    calcPreVerificationGas,
+    calcVerificationGasAndCallGasLimit,
+    isVersion06,
+    isVersion07
+} from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
-    type Account,
     BaseError,
-    type Chain,
     ContractFunctionExecutionError,
-    type PublicClient,
-    type Transport,
     getContract,
-    zeroAddress,
     pad,
+    slice,
     toHex,
-    slice
+    zeroAddress,
+    type Account,
+    type Chain,
+    type PublicClient,
+    type Transport
 } from "viem"
 import { fromZodError } from "zod-validation-error"
-import { type SimulateHandleOpResult, simulateHandleOp } from "../gasEstimation"
 import { simulateValidation } from "../EntryPointSimulationsV07"
+import { simulateHandleOp, type SimulateHandleOpResult } from "../gasEstimation"
 
 async function getSimulationResult(
     isVersion06: boolean,
@@ -128,7 +131,7 @@ export class UnsafeValidator implements InterfaceValidator {
     utilityWallet: Account
     usingTenderly: boolean
     balanceOverrideEnabled: boolean
-    disableExpirationCheck: boolean
+    expirationCheck: boolean
     chainId: number
     gasPriceManager: GasPriceManager
     entryPointSimulationsAddress?: Address
@@ -142,7 +145,7 @@ export class UnsafeValidator implements InterfaceValidator {
         entryPointSimulationsAddress?: Address,
         usingTenderly = false,
         balanceOverrideEnabled = false,
-        disableExpirationCheck = false
+        expirationCheck = true
     ) {
         this.publicClient = publicClient
         this.logger = logger
@@ -150,7 +153,7 @@ export class UnsafeValidator implements InterfaceValidator {
         this.utilityWallet = utilityWallet
         this.usingTenderly = usingTenderly
         this.balanceOverrideEnabled = balanceOverrideEnabled
-        this.disableExpirationCheck = disableExpirationCheck
+        this.expirationCheck = expirationCheck
         this.chainId = publicClient.chain.id
         this.gasPriceManager = gasPriceManager
         this.entryPointSimulationsAddress = entryPointSimulationsAddress
@@ -238,7 +241,7 @@ export class UnsafeValidator implements InterfaceValidator {
 
         if (
             validationResult.returnInfo.validAfter > now - 5 &&
-            !this.disableExpirationCheck
+            this.expirationCheck
         ) {
             throw new RpcError(
                 "User operation is not valid yet",
@@ -248,7 +251,7 @@ export class UnsafeValidator implements InterfaceValidator {
 
         if (
             validationResult.returnInfo.validUntil < now + 30 &&
-            !this.disableExpirationCheck
+            this.expirationCheck
         ) {
             throw new RpcError(
                 "expires too soon",
@@ -498,7 +501,7 @@ export class UnsafeValidator implements InterfaceValidator {
             if (shouldCheckPrefund) {
                 const prefund = validationResult.returnInfo.prefund
 
-                const [verificationGasLimit, callGasLimit] =
+                const { verificationGasLimit, callGasLimit } =
                     calcVerificationGasAndCallGasLimit(
                         userOperation,
                         {

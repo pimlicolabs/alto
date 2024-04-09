@@ -1,5 +1,4 @@
-import type { GasPriceManager, Metrics } from "@alto/utils"
-import type { ExecutorManager, Executor } from "@alto/executor"
+import type { Executor, ExecutorManager } from "@alto/executor"
 import type {
     InterfaceReputationManager,
     MemoryMempool,
@@ -13,6 +12,7 @@ import type {
 } from "@alto/types"
 import {
     EntryPointV06Abi,
+    EntryPointV07Abi,
     IOpInflatorAbi,
     RpcError,
     ValidationErrors,
@@ -34,7 +34,6 @@ import {
     type BundlingMode,
     type ChainIdResponseResult,
     type CompressedUserOperation,
-    type Environment,
     type EstimateUserOperationGasResponseResult,
     type GetUserOperationByHashResponseResult,
     type GetUserOperationReceiptResponseResult,
@@ -45,42 +44,37 @@ import {
     type PimlicoGetUserOperationStatusResponseResult,
     type SendUserOperationResponseResult,
     type SupportedEntryPointsResponseResult,
-    type UserOperation,
-    EntryPointV07Abi
+    type UserOperation
 } from "@alto/types"
-import type { Logger } from "@alto/utils"
+import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
 import {
     calcPreVerificationGas,
     calcVerificationGasAndCallGasLimit,
     getNonceKeyAndValue,
     getUserOperationHash,
-    maxBigInt,
-    type CompressionHandler,
     isVersion06,
+    isVersion07,
+    maxBigInt,
     toUnpackedUserOperation,
-    isVersion07
+    type CompressionHandler
 } from "@alto/utils"
 import {
     TransactionNotFoundError,
     TransactionReceiptNotFoundError,
     decodeFunctionData,
     getAbiItem,
+    getAddress,
     getContract,
     type Chain,
     type Hex,
     type PublicClient,
     type Transaction,
     type TransactionReceipt,
-    type Transport,
-    getAddress
+    type Transport
 } from "viem"
 import * as chains from "viem/chains"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
-import {
-    estimateCallGasLimit,
-    estimateVerificationGasLimit
-} from "./gasEstimation"
 import type { NonceQueuer } from "./nonceQueuer"
 
 export interface IRpcEndpoint {
@@ -118,20 +112,17 @@ export class RpcHandler implements IRpcEndpoint {
     monitor: Monitor
     nonceQueuer: NonceQueuer
     usingTenderly: boolean
-    minimumGasPricePercent: number
-    noEthCallOverrideSupport: boolean
     rpcMaxBlockRange: number | undefined
     logger: Logger
     metrics: Metrics
     chainId: number
-    environment: Environment
+    enableDebugEndpoints: boolean
     executorManager: ExecutorManager
     reputationManager: InterfaceReputationManager
     compressionHandler: CompressionHandler | null
-    noEip1559Support: boolean
+    legacyTransactions: boolean
     dangerousSkipUserOperationValidation: boolean
     gasPriceManager: GasPriceManager
-    balanceOverrideEnabled: boolean
 
     constructor(
         entryPoints: Address[],
@@ -144,16 +135,13 @@ export class RpcHandler implements IRpcEndpoint {
         executorManager: ExecutorManager,
         reputationManager: InterfaceReputationManager,
         usingTenderly: boolean,
-        minimumGasPricePercent: number,
-        noEthCallOverrideSupport: boolean,
         rpcMaxBlockRange: number | undefined,
         logger: Logger,
         metrics: Metrics,
-        environment: Environment,
+        enableDebugEndpoints: boolean,
         compressionHandler: CompressionHandler | null,
-        noEip1559Support: boolean,
+        legacyTransactions: boolean,
         gasPriceManager: GasPriceManager,
-        balanceOverrideEnabled: boolean,
         dangerousSkipUserOperationValidation = false
     ) {
         this.entryPoints = entryPoints
@@ -164,21 +152,18 @@ export class RpcHandler implements IRpcEndpoint {
         this.monitor = monitor
         this.nonceQueuer = nonceQueuer
         this.usingTenderly = usingTenderly
-        this.minimumGasPricePercent = minimumGasPricePercent
-        this.noEthCallOverrideSupport = noEthCallOverrideSupport
         this.rpcMaxBlockRange = rpcMaxBlockRange
         this.logger = logger
         this.metrics = metrics
-        this.environment = environment
+        this.enableDebugEndpoints = enableDebugEndpoints
         this.chainId = publicClient.chain.id
         this.executorManager = executorManager
         this.reputationManager = reputationManager
         this.compressionHandler = compressionHandler
-        this.noEip1559Support = noEip1559Support
+        this.legacyTransactions = legacyTransactions
         this.dangerousSkipUserOperationValidation =
             dangerousSkipUserOperationValidation
         this.gasPriceManager = gasPriceManager
-        this.balanceOverrideEnabled = balanceOverrideEnabled
     }
 
     async handleMethod(
@@ -338,121 +323,63 @@ export class RpcHandler implements IRpcEndpoint {
             this.chainId
         )
 
-        let verificationGasLimit: bigint
-        let callGasLimit: bigint
-        let paymasterVerificationGasLimit: bigint = 0n
-        let paymasterPostOpGasLimit: bigint = 0n
+        userOperation.preVerificationGas = 1_000_000n
+        userOperation.verificationGasLimit = 10_000_000n
+        userOperation.callGasLimit = 10_000_000n
 
-        if (this.noEthCallOverrideSupport) {
-            userOperation.preVerificationGas = 1_000_000n
-            userOperation.verificationGasLimit = 10_000_000n
-            userOperation.callGasLimit = 10_000_000n
+        if (this.chainId === chains.base.id) {
+            userOperation.verificationGasLimit = 5_000_000n
+        }
 
-            if (this.chainId === chains.base.id) {
-                userOperation.verificationGasLimit = 5_000_000n
-            }
+        if (
+            this.chainId === chains.celoAlfajores.id ||
+            this.chainId === chains.celo.id
+        ) {
+            userOperation.verificationGasLimit = 1_000_000n
+            userOperation.callGasLimit = 1_000_000n
+        }
 
-            if (
-                this.chainId === chains.celoAlfajores.id ||
-                this.chainId === chains.celo.id
-            ) {
-                userOperation.verificationGasLimit = 1_000_000n
-                userOperation.callGasLimit = 1_000_000n
-            }
+        if (isVersion07(userOperation)) {
+            userOperation.paymasterPostOpGasLimit = 2_000_000n
+            userOperation.paymasterVerificationGasLimit = 5_000_000n
+        }
 
-            if (isVersion07(userOperation)) {
-                userOperation.paymasterPostOpGasLimit = 2_000_000n
-                userOperation.paymasterVerificationGasLimit = 5_000_000n
-            }
+        // This is necessary because entryPoint pays
+        // min(maxFeePerGas, baseFee + maxPriorityFeePerGas) for the verification
+        // Since we don't want our estimations to depend upon baseFee, we set
+        // maxFeePerGas to maxPriorityFeePerGas
+        userOperation.maxPriorityFeePerGas = userOperation.maxFeePerGas
 
-            // This is necessary because entryPoint pays
-            // min(maxFeePerGas, baseFee + maxPriorityFeePerGas) for the verification
-            // Since we don't want our estimations to depend upon baseFee, we set
-            // maxFeePerGas to maxPriorityFeePerGas
-            userOperation.maxPriorityFeePerGas = userOperation.maxFeePerGas
+        const executionResult = await this.validator.getExecutionResult(
+            userOperation,
+            entryPoint,
+            stateOverrides
+        )
 
-            const executionResult = await this.validator.getExecutionResult(
+        let { verificationGasLimit, callGasLimit } =
+            calcVerificationGasAndCallGasLimit(
                 userOperation,
-                entryPoint,
-                stateOverrides
-            )
-            ;[verificationGasLimit, callGasLimit] =
-                calcVerificationGasAndCallGasLimit(
-                    userOperation,
-                    executionResult.data.executionResult,
-                    this.chainId,
-                    executionResult.data.callDataResult
-                )
-
-            if (
-                "paymasterVerificationGasLimit" in
-                    executionResult.data.executionResult &&
-                "paymasterPostOpGasLimit" in
-                    executionResult.data.executionResult
-            ) {
-                paymasterVerificationGasLimit =
-                    executionResult.data.executionResult
-                        .paymasterVerificationGasLimit || 1n
-                paymasterPostOpGasLimit =
-                    executionResult.data.executionResult
-                        .paymasterPostOpGasLimit || 1n
-            }
-
-            if (
-                this.chainId === chains.base.id ||
-                this.chainId === chains.baseSepolia.id
-            ) {
-                callGasLimit += 10_000n
-            }
-
-            if (
-                this.chainId === chains.base.id ||
-                this.chainId === chains.optimism.id
-            ) {
-                callGasLimit = maxBigInt(callGasLimit, 120_000n)
-            }
-
-            if (userOperation.callData === "0x") {
-                callGasLimit = 1n
-            }
-        } else {
-            if (isVersion07(userOperation)) {
-                throw new Error(
-                    "Unsupported version 0.7 without noEthCallOverrideSupport"
-                )
-            }
-
-            userOperation.maxFeePerGas = 0n
-            userOperation.maxPriorityFeePerGas = 0n
-
-            const time = Date.now()
-
-            verificationGasLimit = await estimateVerificationGasLimit(
-                userOperation as UserOperationV06,
-                entryPoint,
-                this.publicClient,
-                this.logger,
-                this.metrics,
-                this.balanceOverrideEnabled,
-                stateOverrides
+                executionResult.data.executionResult,
+                this.chainId,
+                executionResult.data.callDataResult
             )
 
-            userOperation.preVerificationGas = preVerificationGas
-            userOperation.verificationGasLimit = verificationGasLimit
+        if (
+            this.chainId === chains.base.id ||
+            this.chainId === chains.baseSepolia.id
+        ) {
+            callGasLimit += 10_000n
+        }
 
-            this.metrics.verificationGasLimitEstimationTime.observe(
-                (Date.now() - time) / 1000
-            )
+        if (
+            this.chainId === chains.base.id ||
+            this.chainId === chains.optimism.id
+        ) {
+            callGasLimit = maxBigInt(callGasLimit, 120_000n)
+        }
 
-            callGasLimit = await estimateCallGasLimit(
-                userOperation,
-                entryPoint,
-                this.publicClient,
-                this.logger,
-                this.metrics,
-                this.balanceOverrideEnabled,
-                stateOverrides
-            )
+        if (userOperation.callData === "0x") {
+            callGasLimit = 0n
         }
 
         if (isVersion07(userOperation)) {
@@ -746,7 +673,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     debug_bundler_clearState(): BundlerClearStateResponseResult {
-        if (this.environment !== "development") {
+        if (!this.enableDebugEndpoints) {
             throw new RpcError(
                 "debug_bundler_clearState is only available in development environment"
             )
@@ -757,7 +684,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     debug_bundler_clearMempool(): BundlerClearMempoolResponseResult {
-        if (this.environment !== "development") {
+        if (!this.enableDebugEndpoints) {
             throw new RpcError(
                 "debug_bundler_clearMempool is only available in development environment"
             )
@@ -770,7 +697,7 @@ export class RpcHandler implements IRpcEndpoint {
     async debug_bundler_dumpMempool(
         entryPoint: Address
     ): Promise<BundlerDumpMempoolResponseResult> {
-        if (this.environment !== "development") {
+        if (!this.enableDebugEndpoints) {
             throw new RpcError(
                 "debug_bundler_dumpMempool is only available in development environment"
             )
@@ -790,7 +717,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
-        if (this.environment !== "development") {
+        if (!this.enableDebugEndpoints) {
             throw new RpcError(
                 "debug_bundler_sendBundleNow is only available in development environment"
             )
@@ -802,7 +729,7 @@ export class RpcHandler implements IRpcEndpoint {
     debug_bundler_setBundlingMode(
         bundlingMode: BundlingMode
     ): BundlerSetBundlingModeResponseResult {
-        if (this.environment !== "development") {
+        if (!this.enableDebugEndpoints) {
             throw new RpcError(
                 "debug_bundler_setBundlingMode is only available in development environment"
             )
@@ -814,7 +741,7 @@ export class RpcHandler implements IRpcEndpoint {
     debug_bundler_dumpReputation(
         entryPoint: Address
     ): BundlerDumpReputationsResponseResult {
-        if (this.environment !== "development") {
+        if (!this.enableDebugEndpoints) {
             throw new RpcError(
                 "debug_bundler_setRe is only available in development environment"
             )
@@ -833,7 +760,7 @@ export class RpcHandler implements IRpcEndpoint {
         address: Address,
         entryPoint: Address
     ): Promise<BundlerGetStakeStatusResponseResult> {
-        if (this.environment !== "development") {
+        if (!this.enableDebugEndpoints) {
             throw new RpcError(
                 "debug_bundler_getStakeStatus is only available in development environment"
             )
@@ -857,7 +784,7 @@ export class RpcHandler implements IRpcEndpoint {
     debug_bundler_setReputation(
         args: BundlerSetReputationsRequestParams
     ): BundlerSetBundlingModeResponseResult {
-        if (this.environment !== "development") {
+        if (!this.enableDebugEndpoints) {
             throw new RpcError(
                 "debug_bundler_setReputation is only available in development environment"
             )

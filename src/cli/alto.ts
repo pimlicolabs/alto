@@ -37,7 +37,7 @@ export const yarg = yargs(
 )
 
 const topBanner = `🏔️ Alto: TypeScript ERC-4337 Bundler.
-  * by Pimlico, 2023`
+  * by Pimlico, 2024`
 const bottomBanner = `📖 For more information, check the our docs:
   * https://docs.pimlico.io/
 `

@@ -6,7 +6,7 @@ import type {
     ICompatibilityArgsInput,
     IDebugArgsInput,
     ILogArgsInput,
-    IOptions,
+    IOptionsInput,
     IRpcArgsInput,
     IServerArgsInput
 } from "./bundler"
@@ -15,27 +15,32 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
     entrypoints: {
         description: "EntryPoint contract addresses split by commas",
         type: "string",
+        alias: "e",
         require: true
     },
     "user-operation-simulation-contract": {
         description: "Address of the entry point simulations contract",
         type: "string",
+        alias: "c",
         require: false
     },
     "executor-private-keys": {
         description: "Private key of the signer",
         type: "string",
+        alias: "x",
         require: true
     },
     "utility-private-key": {
         description: "Private key of the utility account",
         type: "string",
+        alias: "u",
         require: true
     },
     "max-executors": {
         description:
             "Maximum number of signers to use from the list of signer private keys",
-        type: "number"
+        type: "number",
+        require: false
     },
     "min-executor-balance": {
         description: "Minimum balance required for the signer",
@@ -197,7 +202,8 @@ export const logOptions: CliCommandOptions<ILogArgsInput> = {
     json: {
         description: "Log in JSON format",
         type: "boolean",
-        require: true
+        require: true,
+        default: false
     },
     "network-name": {
         description: "Name of the network (used for metrics)",
@@ -282,7 +288,7 @@ export const debugOptions: CliCommandOptions<IDebugArgsInput> = {
     }
 }
 
-export const bundlerCommand: CliCommand<IOptions> = {
+export const bundlerCommand: CliCommand<IOptionsInput> = {
     command: "$0",
     describe: "Starts the bundler",
     options: {

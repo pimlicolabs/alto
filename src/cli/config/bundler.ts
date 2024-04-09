@@ -140,10 +140,15 @@ export type ILogArgsInput = z.input<typeof logArgsSchema>
 export type IDebugArgs = z.infer<typeof debugArgsSchema>
 export type IDebugArgsInput = z.input<typeof debugArgsSchema>
 
-export type IOptions = IBundlerArgsInput &
-    ICompatibilityArgsInput &
-    ILogArgsInput &
-    IServerArgsInput &
-    IRpcArgsInput &
-    IBundleCompressionArgsInput &
-    IDebugArgsInput
+export const optionArgsSchema = z.object({
+    ...bundlerArgsSchema.shape,
+    ...compatibilityArgsSchema.shape,
+    ...logArgsSchema.shape,
+    ...serverArgsSchema.shape,
+    ...rpcArgsSchema.shape,
+    ...bundleCopmressionArgsSchema.shape,
+    ...debugArgsSchema.shape
+})
+
+export type IOptions = z.infer<typeof optionArgsSchema>
+export type IOptionsInput = z.input<typeof optionArgsSchema>
