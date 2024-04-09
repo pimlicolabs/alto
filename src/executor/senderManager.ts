@@ -106,7 +106,11 @@ export class SenderManager {
                 "balances missing"
             )
             this.logger.error(
-                { utilityWalletBalance, totalBalanceMissing },
+                {
+                    utilityWalletBalance,
+                    totalBalanceMissing,
+                    utilityAccount: this.utilityAccount.address
+                },
                 "utility wallet has insufficient balance to refill wallets"
             )
             throw new Error(
