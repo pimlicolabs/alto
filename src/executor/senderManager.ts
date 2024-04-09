@@ -1,20 +1,20 @@
-import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
 import {
-    type Address,
     CallEngineAbi,
+    type Address,
     type HexData,
     type HexData32
 } from "@alto/types"
+import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
 import { Semaphore } from "async-mutex"
 import {
+    formatEther,
+    getContract,
     type Account,
     type Chain,
     type PublicClient,
     type TransactionReceipt,
     type Transport,
-    type WalletClient,
-    formatEther,
-    getContract
+    type WalletClient
 } from "viem"
 
 const waitForTransactionReceipt = async (
@@ -30,20 +30,20 @@ const waitForTransactionReceipt = async (
 
 export class SenderManager {
     wallets: Account[]
-    utilityAccount: Account
+    utilityAccount: Account | undefined
     availableWallets: Account[]
     private logger: Logger
     private metrics: Metrics
-    private noEip1559Support: boolean
+    private legacyTransactions: boolean
     private semaphore: Semaphore
     private gasPriceManager: GasPriceManager
 
     constructor(
         wallets: Account[],
-        utilityAccount: Account,
+        utilityAccount: Account | undefined,
         logger: Logger,
         metrics: Metrics,
-        noEip1559Support: boolean,
+        legacyTransactions: boolean,
         gasPriceManager: GasPriceManager,
         maxSigners?: number
     ) {
@@ -58,50 +58,23 @@ export class SenderManager {
         this.utilityAccount = utilityAccount
         this.logger = logger
         this.metrics = metrics
-        this.noEip1559Support = noEip1559Support
+        this.legacyTransactions = legacyTransactions
         metrics.walletsAvailable.set(this.availableWallets.length)
         metrics.walletsTotal.set(this.wallets.length)
         this.semaphore = new Semaphore(this.availableWallets.length)
         this.gasPriceManager = gasPriceManager
     }
 
-    async validateWallets(
-        publicClient: PublicClient,
-        minBalance: bigint
-    ): Promise<void> {
-        const promises = this.availableWallets.map(async (wallet) => {
-            const balance = await publicClient.getBalance({
-                address: wallet.address
-            })
-
-            if (balance < minBalance) {
-                this.logger.error(
-                    {
-                        balance,
-                        requiredBalance: minBalance,
-                        executor: wallet.address
-                    },
-                    "wallet has insufficient balance"
-                )
-                throw new Error(
-                    `wallet ${
-                        wallet.address
-                    } has insufficient balance ${formatEther(
-                        balance
-                    )} < ${formatEther(minBalance)}`
-                )
-            }
-        })
-
-        await Promise.all(promises)
-    }
-
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: <explanation>
     async validateAndRefillWallets(
         publicClient: PublicClient,
         walletClient: WalletClient<Transport, Chain>,
-        minBalance: bigint
+        minBalance?: bigint
     ): Promise<void> {
+        if (!(minBalance && this.utilityAccount)) {
+            return
+        }
+
         const utilityWalletBalance = await publicClient.getBalance({
             address: this.utilityAccount.address
         })
@@ -133,7 +106,12 @@ export class SenderManager {
                 "balances missing"
             )
             this.logger.error(
-                { utilityWalletBalance, totalBalanceMissing },
+                {
+                    minBalance,
+                    utilityWalletBalance,
+                    totalBalanceMissing,
+                    utilityAccount: this.utilityAccount.address
+                },
                 "utility wallet has insufficient balance to refill wallets"
             )
             throw new Error(
@@ -208,13 +186,13 @@ export class SenderManager {
                         // @ts-ignore
                         to: address,
                         value: missingBalance,
-                        maxFeePerGas: this.noEip1559Support
+                        maxFeePerGas: this.legacyTransactions
                             ? undefined
                             : maxFeePerGas,
-                        maxPriorityFeePerGas: this.noEip1559Support
+                        maxPriorityFeePerGas: this.legacyTransactions
                             ? undefined
                             : maxPriorityFeePerGas,
-                        gasPrice: this.noEip1559Support
+                        gasPrice: this.legacyTransactions
                             ? maxFeePerGas
                             : undefined
                     })
