@@ -18,7 +18,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         alias: "e",
         require: true
     },
-    "user-operation-simulation-contract": {
+    "entrypoint-simulation-contract": {
         description: "Address of the EntryPoint simulations contract",
         type: "string",
         alias: "c",

@@ -21,7 +21,7 @@ export const bundlerArgsSchema = z.object({
             )
             return validatedAddresses
         }),
-    "user-operation-simulation-contract": addressSchema.optional(),
+    "entrypoint-simulation-contract": addressSchema.optional(),
     "safe-mode": z.boolean(),
     "utility-private-key": hexData32Schema
         .transform((val) => privateKeyToAccount(val) satisfies Account)

@@ -77,7 +77,7 @@ const getValidator = ({
             ),
             metrics,
             gasPriceManager,
-            parsedArgs["user-operation-simulation-contract"],
+            parsedArgs["entrypoint-simulation-contract"],
             parsedArgs.tenderly,
             parsedArgs["balance-override"]
         )
@@ -90,7 +90,7 @@ const getValidator = ({
         ),
         metrics,
         gasPriceManager,
-        parsedArgs["user-operation-simulation-contract"],
+        parsedArgs["entrypoint-simulation-contract"],
         parsedArgs.tenderly,
         parsedArgs["balance-override"],
         parsedArgs["expiration-check"]
