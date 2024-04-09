@@ -107,6 +107,7 @@ export class SenderManager {
             )
             this.logger.error(
                 {
+                    minBalance,
                     utilityWalletBalance,
                     totalBalanceMissing,
                     utilityAccount: this.utilityAccount.address
