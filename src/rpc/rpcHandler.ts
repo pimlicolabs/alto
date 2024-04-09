@@ -364,6 +364,22 @@ export class RpcHandler implements IRpcEndpoint {
                 executionResult.data.callDataResult
             )
 
+        let paymasterVerificationGasLimit = 0n
+        let paymasterPostOpGasLimit = 0n
+
+        if (
+            "paymasterVerificationGasLimit" in
+                executionResult.data.executionResult &&
+            "paymasterPostOpGasLimit" in executionResult.data.executionResult
+        ) {
+            paymasterVerificationGasLimit =
+                executionResult.data.executionResult
+                    .paymasterVerificationGasLimit || 1n
+            paymasterPostOpGasLimit =
+                executionResult.data.executionResult.paymasterPostOpGasLimit ||
+                1n
+        }
+
         if (
             this.chainId === chains.base.id ||
             this.chainId === chains.baseSepolia.id

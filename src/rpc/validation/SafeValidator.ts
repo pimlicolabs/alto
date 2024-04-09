@@ -1,6 +1,5 @@
 import type { SenderManager } from "@alto/executor"
 import type {
-    ApiVersion,
     InterfaceValidator,
     UserOperationV06,
     UserOperationV07,
