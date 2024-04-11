@@ -1042,7 +1042,7 @@ export class RpcHandler implements IRpcEndpoint {
             !isVersion06(userOperation)
         ) {
             throw new RpcError(
-                "EntryPoint 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789 requires UserOperation v0.6",
+                "Incorrect UserOperation version sent, EntryPoint requires v0.6",
                 ValidationErrors.InvalidFields
             )
         }
@@ -1052,7 +1052,7 @@ export class RpcHandler implements IRpcEndpoint {
             !isVersion07(userOperation)
         ) {
             throw new RpcError(
-                "EntryPoint 0x0000000071727De22E5E9d8BAf0edAc6f37da032 requires UserOperation v0.7",
+                "Incorrect UserOperation version sent, EntryPoint requires v0.7",
                 ValidationErrors.InvalidFields
             )
         }
