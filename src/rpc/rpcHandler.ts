@@ -311,6 +311,8 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
 
+        this.validateUserOperationVersion(userOperation, entryPoint)
+
         if (userOperation.maxFeePerGas === 0n) {
             throw new RpcError(
                 "user operation max fee per gas must be larger than 0 during gas estimation"
@@ -434,6 +436,8 @@ export class RpcHandler implements IRpcEndpoint {
     ): Promise<SendUserOperationResponseResult> {
         let status: "added" | "queued" | "rejected" = "rejected"
         try {
+            this.validateUserOperationVersion(userOperation, entryPoint)
+
             status = await this.addToMempoolIfValid(
                 userOperation,
                 entryPoint,
@@ -1000,6 +1004,8 @@ export class RpcHandler implements IRpcEndpoint {
                 inflatorId
             }
 
+            this.validateUserOperationVersion(inflatedOp, entryPoint)
+
             // check userOps inputs.
             status = await this.addToMempoolIfValid(
                 compressedUserOp,
@@ -1024,6 +1030,31 @@ export class RpcHandler implements IRpcEndpoint {
                     type: "compressed"
                 })
                 .inc()
+        }
+    }
+
+    private validateUserOperationVersion(
+        userOperation: UserOperation,
+        entryPoint: Address
+    ) {
+        if (
+            entryPoint === "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789" &&
+            !isVersion06(userOperation)
+        ) {
+            throw new RpcError(
+                "EntryPoint 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789 requires UserOperation v0.6",
+                ValidationErrors.InvalidFields
+            )
+        }
+
+        if (
+            entryPoint === "0x0000000071727De22E5E9d8BAf0edAc6f37da032" &&
+            !isVersion07(userOperation)
+        ) {
+            throw new RpcError(
+                "EntryPoint 0x0000000071727De22E5E9d8BAf0edAc6f37da032 requires UserOperation v0.7",
+                ValidationErrors.InvalidFields
+            )
         }
     }
 
