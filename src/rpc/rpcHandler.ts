@@ -402,12 +402,16 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         if (isVersion07(userOperation)) {
+            const paymasterLimits = {
+                paymasterVerificationGasLimit,
+                paymasterPostOpGasLimit
+            }
+
             return {
                 preVerificationGas,
                 verificationGasLimit,
                 callGasLimit,
-                paymasterVerificationGasLimit,
-                paymasterPostOpGasLimit
+                ...(userOperation.paymasterData === null ? {} : paymasterLimits)
             }
         }
 
