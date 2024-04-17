@@ -371,6 +371,8 @@ export class RpcHandler implements IRpcEndpoint {
         let paymasterPostOpGasLimit = 0n
 
         if (
+            isVersion07(userOperation) && 
+            userOperation.paymaster !== null &&
             "paymasterVerificationGasLimit" in
                 executionResult.data.executionResult &&
             "paymasterPostOpGasLimit" in executionResult.data.executionResult
