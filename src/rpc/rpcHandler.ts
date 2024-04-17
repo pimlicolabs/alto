@@ -381,6 +381,11 @@ export class RpcHandler implements IRpcEndpoint {
             paymasterPostOpGasLimit =
                 executionResult.data.executionResult.paymasterPostOpGasLimit ||
                 1n
+
+            // during estimation the signature is wrong so it takes less gas to prove it's false while when the signature will be correct it will take more gas so adjusting the gas limit
+            paymasterVerificationGasLimit =
+                (paymasterVerificationGasLimit * 105n) / 100n
+            paymasterPostOpGasLimit = (paymasterPostOpGasLimit * 105n) / 100n
         }
 
         if (
