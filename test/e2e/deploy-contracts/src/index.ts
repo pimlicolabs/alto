@@ -4,14 +4,14 @@ import {
     createPublicClient,
     createTestClient,
     createWalletClient,
-    parseEther,
     concat,
     encodeAbiParameters,
     getContract,
-    parseAbi
+    parseAbi,
+    encodeFunctionData,
+    parseEther
 } from "viem"
 import { mnemonicToAccount } from "viem/accounts"
-import { sendTransaction } from "viem/actions"
 import { foundry } from "viem/chains"
 import {
     BUNDLE_BULKER_CREATECALL,
@@ -47,18 +47,17 @@ const walletClient = createWalletClient({
     transport: http(process.env.ANVIL_RPC)
 })
 
+const client = createPublicClient({
+    transport: http(process.env.ANVIL_RPC)
+})
+
 const anvilClient = createTestClient({
     transport: http(process.env.ANVIL_RPC),
     mode: "anvil"
 })
 
-const client = createPublicClient({
-    transport: http(process.env.ANVIL_RPC)
-})
-
 const main = async () => {
     let nonce = 0
-    await anvilClient.setAutomine(true)
 
     walletClient
         .sendTransaction({
@@ -114,22 +113,16 @@ const main = async () => {
         })
         .then(() => console.log("[COMPRESSION] Deploying BundleBulker"))
 
-    walletClient
+    await walletClient
         .sendTransaction({
             to: DETERMINISTIC_DEPLOYER,
-            data: concat([
-                PER_OP_INFLATOR_CREATECALL,
-                encodeAbiParameters(
-                    [{ name: "owner", type: "address" }],
-                    [walletClient.account.address]
-                )
-            ]),
+            data: PER_OP_INFLATOR_CREATECALL,
             gas: 15_000_000n,
             nonce: nonce++
         })
         .then(() => console.log("[COMPRESSION] Deploying PerOpInflator"))
 
-    walletClient
+    await walletClient
         .sendTransaction({
             to: DETERMINISTIC_DEPLOYER,
             data: SIMPLE_INFLATOR_CREATECALL,
@@ -138,34 +131,55 @@ const main = async () => {
         })
         .then(() => console.log("[COMPRESSION] Deploying SimpleInflator"))
 
-    const BUNDLE_BULKER_ADDRESS = "0x09aeBCF1DF7d4D0FBf26073e79A6B250f458fFB8"
-    const PER_OP_INFLATOR_ADDRESS = "0x79741195EA18e1ed7deD6C224e9037d673cE9484"
-    const SIMPLE_INFLATOR_ADDRESS = "0x92d2f9EF7b520D91A34501FBb31E5428AB2fd5Df"
+
+    const BUNDLE_BULKER_ADDRESS = "0x000000000091a1f34f51ce866bed8983db51a97e"
+    const PER_OP_INFLATOR_ADDRESS = "0x0000000000DD00D61091435B84D1371A1000de9a"
+    const SIMPLE_INFLATOR_ADDRESS = "0x564c7dC50f8293d070F490Fc31fEc3A0A091b9bB"
+
+    await anvilClient.setBalance({
+        address: "0x433704c40f80cbff02e86fd36bc8bac5e31eb0c1",
+        value: parseEther("69")
+    })
+
+    await anvilClient.impersonateAccount({
+        address: "0x433704c40f80cbff02e86fd36bc8bac5e31eb0c1"
+    })
 
     // register our SimpleInflator with PerOpInflator.
-    const perOpInflator = getContract({
-        address: PER_OP_INFLATOR_ADDRESS,
-        abi: parseAbi(["function registerOpInflator(uint32 inflatorId, IOpInflator inflator) public"]),
-        client: {
-            wallet: walletClient
-        }
+    await walletClient.sendTransaction({
+        account: "0x433704c40f80cbff02e86fd36bc8bac5e31eb0c1",
+        to: PER_OP_INFLATOR_ADDRESS,
+        data: encodeFunctionData({
+            abi: parseAbi(["function registerOpInflator(uint32 inflatorId, address inflator)"]),
+            functionName: "registerOpInflator",
+            args: [1337, SIMPLE_INFLATOR_ADDRESS]
+        }),
+        nonce: 0,
+        gas: 15_000_000n,
+    }).then((hash) => console.log(`Registered ${hash}`))
+
+    await anvilClient.stopImpersonatingAccount({
+        address: "0x433704c40f80cbff02e86fd36bc8bac5e31eb0c1"
     })
 
-    await perOpInflator.write.registerOpInflator([
-        1337,
-        SIMPLE_INFLATOR_ADDRESS
-    ])
 
     // register our PerOpInflator with the BundleBulker.
-    const bundleBulker = getContract({
-        address: BUNDLE_BULKER_ADDRESS,
-        abi: parseAbi(["function registerInflator(uint32 inflatorId, IInflator inflator) public"]),
-        client: {
-            wallet: walletClient
-        }
+    await walletClient.sendTransaction({
+        to: BUNDLE_BULKER_ADDRESS,
+        data: encodeFunctionData({
+            abi: parseAbi(["function registerInflator(uint32 inflatorId, address inflator)"]),
+            functionName: "registerInflator",
+            args: [4337, PER_OP_INFLATOR_ADDRESS]
+        }),
+        nonce: nonce++,
+        gas: 15_000_000n,
     })
 
-    await bundleBulker.write.registerInflator([4337, PER_OP_INFLATOR_ADDRESS])
+    let onchainNonce = 0;
+    do {
+        onchainNonce = await client.getTransactionCount({ address: walletClient.account.address })
+        await new Promise((resolve) => setTimeout(resolve, 500))
+    } while (onchainNonce != nonce)
 
     await verifyDeployed([
         "0x4e59b44847b379578588920ca78fbf26c0b4956c", /* deterministic deployer */

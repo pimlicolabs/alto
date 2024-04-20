@@ -14,7 +14,7 @@ RUN npm add -g typescript
 COPY package.json tsconfig.json jest.config.js ./
 
 # copy source code
-COPY ./src .
+COPY . .
 
 # install dependencies
 RUN pnpm fetch

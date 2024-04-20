@@ -7,7 +7,7 @@ services:
   deploy-contracts:
     build:
       context: ./deploy-contracts
-      dockerfile: ./deploy-contracts/Dockerfile
+      dockerfile: ./Dockerfile
     environment:
       - ANVIL_RPC=http://anvil:8545
     depends_on:
@@ -16,7 +16,7 @@ services:
 
   alto:
     build: ../../
-    ports: [ "3000:3000" ]
+    ports: [ "4337:4337" ]
     depends_on:
       deploy-contracts:
         condition: service_completed_successfully
@@ -41,9 +41,9 @@ services:
       ALTO_WALLET_CLIENT_LOG_LEVEL: "error"
 
   test-cases:
-    build: testSuite
+    build: test-cases
     environment:
-      - ALTO_RPC=http://alto:3000
+      - ALTO_RPC=http://alto:4337
       - ANVIL_RPC=http://anvil:8545
     depends_on:
       alto:

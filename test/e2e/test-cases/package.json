@@ -4,8 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "jest",
-    "anvilSetup": "ts-node anvilSetup/index.ts"
+    "test": "wait-port alto:3000 && jest"
   },
   "keywords": [],
   "author": "",
@@ -14,12 +13,13 @@
     "@types/jest": "^29.5.11",
     "@types/node": "^18.19.8",
     "jest": "^29.7.0",
-    "permissionless": "^0.0.28",
+    "permissionless": "^0.1.0",
     "tests": "link:",
     "ts-jest": "^29.1.1",
     "tslib": "^2.6.2",
     "typescript": "^5.3.3",
-    "viem": "^1.21.4"
+    "viem": "^1.21.4",
+    "wait-port": "^1.1.0"
   },
   "devDependencies": {
     "ts-node": "^10.9.2"
