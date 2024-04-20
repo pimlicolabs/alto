@@ -281,9 +281,17 @@ function validateTargetCallDataResult(data: Hex):
         const parsedTargetCallResult =
             targetCallResultSchema.parse(targetCallResult)
 
+        if (parsedTargetCallResult.success) {
+            return {
+                result: "success",
+                data: parsedTargetCallResult
+            } as const
+        }
+
         return {
-            result: "success",
-            data: parsedTargetCallResult
+            result: "failed",
+            data: parsedTargetCallResult.returnData,
+            code: ExecutionErrors.UserOperationReverted
         } as const
     } catch (_e) {
         // no error we go the result
