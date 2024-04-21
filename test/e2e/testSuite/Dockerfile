@@ -5,7 +5,7 @@ FROM node:20-alpine
 WORKDIR /app
 
 # install pnpm
-RUN npm install -g pnpm
+RUN corepack install && corepack enable
 
 # install typescript
 RUN npm add -g typescript
