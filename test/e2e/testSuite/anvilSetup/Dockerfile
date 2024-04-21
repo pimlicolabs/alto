@@ -5,7 +5,7 @@ FROM node:20-alpine
 WORKDIR /app
 
 # install pnpm
-RUN npm install -g pnpm@8.15
+RUN npm install -g pnpm
 
 # install typescript
 RUN npm add -g typescript
