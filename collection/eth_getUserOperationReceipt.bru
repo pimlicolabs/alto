@@ -1,0 +1,26 @@
+meta {
+  name: eth_getUserOperationReceipt
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}{{apiVersion}}{{chainId}}{{rpcPrefix}}?apikey={{apiKey}}
+  body: json
+  auth: none
+}
+
+query {
+  apikey: {{apiKey}}
+}
+
+body:json {
+  {
+    "id": 7,
+    "jsonrpc": "2.0",
+    "method": "pimlico_getUserOperationStatus",
+    "params": [
+      "0xa304025c875a448198ca0608c74b82ba579987fa47bf3067dc9bf63e4374afde"
+    ]
+  }
+}
