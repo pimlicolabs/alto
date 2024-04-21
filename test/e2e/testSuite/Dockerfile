@@ -4,7 +4,7 @@ FROM node:20-alpine
 # set working directory
 WORKDIR /app
 
-COPY package.json ./
+COPY package.json pnpm-lock.yaml  ./
 
 # install pnpm
 RUN corepack install && corepack enable
