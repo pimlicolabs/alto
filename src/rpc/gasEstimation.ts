@@ -385,25 +385,35 @@ export async function simulateHandleOpV07(
         finalParam
     )
 
-    const executionResult = getSimulateHandleOpResult(cause[0])
+    try {
+        const executionResult = getSimulateHandleOpResult(cause[0])
 
-    if (executionResult.result === "failed") {
-        return executionResult
-    }
+        if (executionResult.result === "failed") {
+            return executionResult
+        }
 
-    const targetCallValidationResult = validateTargetCallDataResult(cause[1])
+        const targetCallValidationResult = validateTargetCallDataResult(
+            cause[1]
+        )
 
-    if (targetCallValidationResult.result === "failed") {
-        return targetCallValidationResult
-    }
+        if (targetCallValidationResult.result === "failed") {
+            return targetCallValidationResult
+        }
 
-    return {
-        result: "execution",
-        data: {
-            callDataResult: targetCallValidationResult.data,
-            executionResult: (
-                executionResult as SimulateHandleOpResult<"execution">
-            ).data.executionResult
+        return {
+            result: "execution",
+            data: {
+                callDataResult: targetCallValidationResult.data,
+                executionResult: (
+                    executionResult as SimulateHandleOpResult<"execution">
+                ).data.executionResult
+            }
+        }
+    } catch (e) {
+        return {
+            result: "failed",
+            data: "Unknown error, could not parse simulate handle op result.",
+            code: ValidationErrors.SimulateValidation
         }
     }
 }

@@ -25,10 +25,10 @@ RUN pnpm install -r
 RUN pnpm build
 
 # remove dev dependencies
-RUN pnpm clean-modules
+# RUN pnpm clean-modules
 
 # install dependencies
-RUN pnpm install -r --prod
+# RUN pnpm install -r
 
 # start app
 ENTRYPOINT ["pnpm", "start"]
