@@ -4,6 +4,8 @@ FROM node:20-alpine
 # set working directory
 WORKDIR /app
 
+COPY package.json ./
+
 # install pnpm
 RUN corepack install && corepack enable
 
