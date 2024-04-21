@@ -4,10 +4,8 @@ FROM node:20-alpine
 # set working directory
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml  ./
-
 # install pnpm
-RUN corepack install && corepack enable
+RUN npm install -g pnpm@8.15
 
 # install typescript
 RUN npm add -g typescript
