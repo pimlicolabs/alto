@@ -21,9 +21,7 @@ export const bundlerArgsSchema = z.object({
             )
             return validatedAddresses
         }),
-    "entrypoint-simulation-contract": z.preprocess((val) => {
-        val === "" ? undefined : val
-    }, addressSchema.optional()),
+    "entrypoint-simulation-contract": addressSchema.optional(),
     "safe-mode": z.boolean(),
     "utility-private-key": hexData32Schema
         .transform((val) => privateKeyToAccount(val) satisfies Account)

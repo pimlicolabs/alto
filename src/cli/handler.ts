@@ -47,18 +47,6 @@ const preFlightChecks = async (
             throw new Error(`entry point ${entrypoint} does not exist`)
         }
     }
-
-    if (parsedArgs["entrypoint-simulation-contract"]) {
-        const simulations = parsedArgs["entrypoint-simulation-contract"]
-        const simulationsCode = await publicClient.getBytecode({
-            address: simulations
-        })
-        if (simulationsCode === undefined || simulationsCode === "0x") {
-            throw new Error(
-                `EntryPointSimulations contract ${simulations} does not exist`
-            )
-        }
-    }
 }
 
 export async function bundlerHandler(args: IOptionsInput): Promise<void> {
