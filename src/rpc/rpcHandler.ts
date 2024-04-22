@@ -103,7 +103,7 @@ export interface IRpcEndpoint {
     ): Promise<GetUserOperationReceiptResponseResult>
 }
 
-type GasPriceMultiplier = {
+type GasPriceMultipliers = {
     fast: bigint
     standard: bigint
     slow: bigint
@@ -129,7 +129,7 @@ export class RpcHandler implements IRpcEndpoint {
     legacyTransactions: boolean
     dangerousSkipUserOperationValidation: boolean
     gasPriceManager: GasPriceManager
-    gasPriceMultiplier: GasPriceMultiplier
+    gasPriceMultiplier: GasPriceMultipliers
 
     constructor(
         entryPoints: Address[],
@@ -149,7 +149,7 @@ export class RpcHandler implements IRpcEndpoint {
         compressionHandler: CompressionHandler | null,
         legacyTransactions: boolean,
         gasPriceManager: GasPriceManager,
-        gasPriceMultiplier: GasPriceMultiplier,
+        gasPriceMultiplier: GasPriceMultipliers,
         dangerousSkipUserOperationValidation = false
     ) {
         this.entryPoints = entryPoints
