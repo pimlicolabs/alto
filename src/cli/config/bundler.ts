@@ -5,7 +5,7 @@ import {
     hexData32Schema
 } from "@alto/types"
 import type { Hex } from "viem"
-import { privateKeyToAccount, type Account } from "viem/accounts"
+import { type Account, privateKeyToAccount } from "viem/accounts"
 import { z } from "zod"
 
 const logLevel = z.enum(["trace", "debug", "info", "warn", "error", "fatal"])
@@ -61,7 +61,13 @@ export const bundlerArgsSchema = z.object({
     "max-bundle-size": z.number().int().min(0),
 
     "gas-price-floor-percent": z.number().int().min(0),
-    "gas-price-expiry": z.number().int().min(0)
+    "gas-price-expiry": z.number().int().min(0),
+    "gas-price-multiplier": z
+        .number()
+        .int()
+        .min(0)
+        .transform((v) => BigInt(v))
+        .optional()
 })
 
 export const compatibilityArgsSchema = z.object({

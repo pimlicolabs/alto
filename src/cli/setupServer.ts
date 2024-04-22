@@ -318,6 +318,7 @@ const getRpcHandler = ({
         compressionHandler,
         parsedArgs["legacy-transactions"],
         gasPriceManager,
+        parsedArgs["gas-price-multiplier"],
         parsedArgs["dangerous-skip-user-operation-validation"]
     )
 }

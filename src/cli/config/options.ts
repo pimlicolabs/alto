@@ -78,6 +78,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: true,
         default: 10
     },
+    "safe-mode": {
+        description: "Enable safe mode (enforcing all ERC-4337 rules)",
+        type: "boolean",
+        require: true,
+        default: true
+    },
     "gas-price-floor-percent": {
         description:
             "The minimum percentage of incoming user operation gas prices compared to the gas price used by the bundler to submit bundles",
@@ -85,18 +91,18 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: true,
         default: 101
     },
-    "safe-mode": {
-        description: "Enable safe mode (enforcing all ERC-4337 rules)",
-        type: "boolean",
-        require: true,
-        default: true
-    },
     "gas-price-expiry": {
         description:
             "Maximum that the gas prices fetched using pimlico_getUserOperationGasPrice will be accepted for (seconds)",
         type: "number",
         require: false,
         default: 10
+    },
+    "gas-price-multiplier": {
+        description:
+            "Amount to multiply the gas prices fetched using pimlico_getUserOperationGasPrice (takes a int, 100 = 100%)",
+        type: "number",
+        require: false
     }
 }
 
