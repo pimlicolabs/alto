@@ -98,11 +98,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: 10
     },
-    "gas-price-multiplier": {
+    "gas-price-multipliers": {
         description:
-            "Amount to multiply the gas prices fetched using pimlico_getUserOperationGasPrice (takes a int, 100 = 100%)",
-        type: "number",
-        require: false
+            "Amount to multiply the gas prices fetched using pimlico_getUserOperationGasPrice (format: slow,standard,fast)",
+        type: "string",
+        require: false,
+        default: "105,110,115"
     }
 }
 

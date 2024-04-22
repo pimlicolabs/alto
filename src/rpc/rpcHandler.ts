@@ -103,6 +103,12 @@ export interface IRpcEndpoint {
     ): Promise<GetUserOperationReceiptResponseResult>
 }
 
+type GasPriceMultiplier = {
+    fast: bigint
+    standard: bigint
+    slow: bigint
+}
+
 export class RpcHandler implements IRpcEndpoint {
     entryPoints: Address[]
     publicClient: PublicClient<Transport, Chain>
@@ -123,7 +129,7 @@ export class RpcHandler implements IRpcEndpoint {
     legacyTransactions: boolean
     dangerousSkipUserOperationValidation: boolean
     gasPriceManager: GasPriceManager
-    pimlicoGasPriceMultiplier: bigint | undefined
+    gasPriceMultiplier: GasPriceMultiplier
 
     constructor(
         entryPoints: Address[],
@@ -143,7 +149,7 @@ export class RpcHandler implements IRpcEndpoint {
         compressionHandler: CompressionHandler | null,
         legacyTransactions: boolean,
         gasPriceManager: GasPriceManager,
-        pimlicoGetGasPriceMultiplier: bigint | undefined,
+        gasPriceMultiplier: GasPriceMultiplier,
         dangerousSkipUserOperationValidation = false
     ) {
         this.entryPoints = entryPoints
@@ -165,7 +171,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.legacyTransactions = legacyTransactions
         this.dangerousSkipUserOperationValidation =
             dangerousSkipUserOperationValidation
-        this.pimlicoGasPriceMultiplier = pimlicoGetGasPriceMultiplier
+        this.gasPriceMultiplier = gasPriceMultiplier
         this.gasPriceManager = gasPriceManager
     }
 
@@ -824,33 +830,25 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async pimlico_getUserOperationGasPrice(): Promise<PimlicoGetUserOperationGasPriceResponseResult> {
-        let gasPrice = await this.gasPriceManager.getGasPrice()
+        const gasPrice = await this.gasPriceManager.getGasPrice()
 
-        if (this.pimlicoGasPriceMultiplier) {
-            const multiplier = this.pimlicoGasPriceMultiplier
-
-            gasPrice = {
-                maxFeePerGas: (gasPrice.maxFeePerGas * multiplier) / 100n,
-                maxPriorityFeePerGas:
-                    (gasPrice.maxPriorityFeePerGas * multiplier) / 100n
-            }
-        }
+        const { fast, standard, slow } = this.gasPriceMultiplier
 
         return {
             slow: {
-                maxFeePerGas: (gasPrice.maxFeePerGas * 105n) / 100n,
+                maxFeePerGas: (gasPrice.maxFeePerGas * slow) / 100n,
                 maxPriorityFeePerGas:
-                    (gasPrice.maxPriorityFeePerGas * 105n) / 100n
+                    (gasPrice.maxPriorityFeePerGas * slow) / 100n
             },
             standard: {
-                maxFeePerGas: (gasPrice.maxFeePerGas * 110n) / 100n,
+                maxFeePerGas: (gasPrice.maxFeePerGas * standard) / 100n,
                 maxPriorityFeePerGas:
-                    (gasPrice.maxPriorityFeePerGas * 110n) / 100n
+                    (gasPrice.maxPriorityFeePerGas * standard) / 100n
             },
             fast: {
-                maxFeePerGas: (gasPrice.maxFeePerGas * 115n) / 100n,
+                maxFeePerGas: (gasPrice.maxFeePerGas * fast) / 100n,
                 maxPriorityFeePerGas:
-                    (gasPrice.maxPriorityFeePerGas * 115n) / 100n
+                    (gasPrice.maxPriorityFeePerGas * fast) / 100n
             }
         }
     }

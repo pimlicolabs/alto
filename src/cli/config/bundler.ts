@@ -62,12 +62,14 @@ export const bundlerArgsSchema = z.object({
 
     "gas-price-floor-percent": z.number().int().min(0),
     "gas-price-expiry": z.number().int().min(0),
-    "gas-price-multiplier": z
-        .number()
-        .int()
-        .min(0)
-        .transform((v) => BigInt(v))
-        .optional()
+    "gas-price-multipliers": z
+        .string()
+        .transform((value) => value.split(",").map(BigInt))
+        .refine(
+            (values) => values.length === 3,
+            "Must contain 3 comma seperated items in format: slow,standard,fast"
+        )
+        .transform(([slow, standard, fast]) => ({ slow, standard, fast }))
 })
 
 export const compatibilityArgsSchema = z.object({
