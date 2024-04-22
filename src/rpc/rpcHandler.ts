@@ -129,7 +129,7 @@ export class RpcHandler implements IRpcEndpoint {
     legacyTransactions: boolean
     dangerousSkipUserOperationValidation: boolean
     gasPriceManager: GasPriceManager
-    gasPriceMultiplier: GasPriceMultipliers
+    gasPriceMultipliers: GasPriceMultipliers
 
     constructor(
         entryPoints: Address[],
@@ -149,7 +149,7 @@ export class RpcHandler implements IRpcEndpoint {
         compressionHandler: CompressionHandler | null,
         legacyTransactions: boolean,
         gasPriceManager: GasPriceManager,
-        gasPriceMultiplier: GasPriceMultipliers,
+        gasPriceMultipliers: GasPriceMultipliers,
         dangerousSkipUserOperationValidation = false
     ) {
         this.entryPoints = entryPoints
@@ -171,7 +171,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.legacyTransactions = legacyTransactions
         this.dangerousSkipUserOperationValidation =
             dangerousSkipUserOperationValidation
-        this.gasPriceMultiplier = gasPriceMultiplier
+        this.gasPriceMultipliers = gasPriceMultipliers
         this.gasPriceManager = gasPriceManager
     }
 
@@ -832,7 +832,7 @@ export class RpcHandler implements IRpcEndpoint {
     async pimlico_getUserOperationGasPrice(): Promise<PimlicoGetUserOperationGasPriceResponseResult> {
         const gasPrice = await this.gasPriceManager.getGasPrice()
 
-        const { fast, standard, slow } = this.gasPriceMultiplier
+        const { fast, standard, slow } = this.gasPriceMultipliers
 
         return {
             slow: {
