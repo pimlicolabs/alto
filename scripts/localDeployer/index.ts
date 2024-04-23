@@ -260,6 +260,16 @@ const main = async () => {
         })
         .then(() => console.log("Deployed Kernel Factory"))
 
+    // biome-ignore lint/suspicious/noConsoleLog: []
+    console.log("========== MISC ==========")
+
+    await anvilClient
+        .setCode({
+            address: "0xcA11bde05977b3631167028862bE2a173976CA11",
+            bytecode: MULTICALL3_BYTECODE,
+        })
+        .then(() => console.log("Etched Multicall Factory Bytecode"))
+
     await verifyDeployed([
         "0x4e59b44847b379578588920ca78fbf26c0b4956c",
         "0x914d7Fec6aaC8cd542e72Bca78B30650d45643d7",
@@ -283,7 +293,8 @@ const main = async () => {
         "0x0bBa6d96BD616BedC6BFaa341742FD43c60b83C1",
         "0xd9AB5096a832b9ce79914329DAEE236f8Eea0390",
         "0x0DA6a956B9488eD4dd761E59f52FDc6c8068E6B5",
-        "0x5de4839a76cf55d0c90e2061ef4386d962E15ae3"
+        "0x5de4839a76cf55d0c90e2061ef4386d962E15ae3",
+        "0xca11bde05977b3631167028862be2a173976ca11"
     ])
 }
 
