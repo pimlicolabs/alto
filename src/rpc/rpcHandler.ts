@@ -827,7 +827,7 @@ export class RpcHandler implements IRpcEndpoint {
     async pimlico_getUserOperationGasPrice(): Promise<PimlicoGetUserOperationGasPriceResponseResult> {
         const gasPrice = await this.gasPriceManager.getGasPrice()
 
-        const { fast, standard, slow } = this.gasPriceMultipliers
+        const { slow, standard, fast } = this.gasPriceMultipliers
 
         return {
             slow: {
