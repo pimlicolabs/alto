@@ -2,6 +2,7 @@ packages:
   - 'src'
   # all packages in subdirs of components/
   - 'components/**'
+  - 'scripts/localDeployer'
   # exclude packages that are inside test directories
   - '!**/test/**'
   - '!**/lib/**'
