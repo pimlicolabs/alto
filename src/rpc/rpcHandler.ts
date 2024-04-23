@@ -8,7 +8,8 @@ import type {
     ApiVersion,
     PackedUserOperation,
     StateOverrides,
-    UserOperationV06
+    UserOperationV06,
+    GasPriceMultipliers
 } from "@alto/types"
 import {
     EntryPointV06Abi,
@@ -101,12 +102,6 @@ export interface IRpcEndpoint {
     eth_getUserOperationReceipt(
         userOperationHash: HexData32
     ): Promise<GetUserOperationReceiptResponseResult>
-}
-
-type GasPriceMultipliers = {
-    fast: bigint
-    standard: bigint
-    slow: bigint
 }
 
 export class RpcHandler implements IRpcEndpoint {
