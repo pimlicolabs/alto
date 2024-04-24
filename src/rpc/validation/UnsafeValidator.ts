@@ -204,7 +204,7 @@ export class UnsafeValidator implements InterfaceValidator {
             }
         })
 
-        const errorResult = await entryPointContract.simulate
+        const simulateValidationPromise = entryPointContract.simulate
             .simulateValidation([userOperation])
             .catch((e) => {
                 if (e instanceof Error) {
@@ -213,10 +213,22 @@ export class UnsafeValidator implements InterfaceValidator {
                 throw e
             })
 
+        const runtimeValidationPromise = simulateHandleOpV06(
+            userOperation,
+            entryPoint,
+            this.publicClient,
+            zeroAddress,
+            "0x"
+        )
+
+        const [simulateValidationResult, runtimeValidation] = await Promise.all(
+            [simulateValidationPromise, runtimeValidationPromise]
+        )
+
         const validationResult = {
             ...((await getSimulationResult(
                 isVersion06(userOperation),
-                errorResult,
+                simulateValidationResult,
                 this.logger,
                 "validation",
                 this.usingTenderly
@@ -260,14 +272,6 @@ export class UnsafeValidator implements InterfaceValidator {
         }
 
         // validate runtime
-        const runtimeValidation = await simulateHandleOpV06(
-            userOperation,
-            entryPoint,
-            this.publicClient,
-            zeroAddress,
-            "0x"
-        )
-
         if (runtimeValidation.result === "failed") {
             throw new RpcError(
                 `UserOperation reverted during simulation with reason: ${runtimeValidation.data}`,
