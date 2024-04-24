@@ -19,7 +19,7 @@
 //   }
 
 import { parseGwei } from "viem"
-import { z } from "zod"
+import { bigint, z } from "zod"
 
 const gasPrice = z
     .object({
@@ -49,4 +49,11 @@ export const gasStationResult = z.object({
     // blockNumber: z.number()
 })
 
+export const gasPriceMultipliers = z.object({
+    slow: bigint(),
+    standard: bigint(),
+    fast: bigint()
+})
+
+export type GasPriceMultipliers = z.infer<typeof gasPriceMultipliers>
 export type GasPriceParameters = z.infer<typeof gasPrice>

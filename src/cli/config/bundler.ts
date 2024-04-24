@@ -1,11 +1,11 @@
 import {
-    ApiVersion,
+    type ApiVersion,
     addressSchema,
     commaSeperatedAddressPattern,
     hexData32Schema
 } from "@alto/types"
 import type { Hex } from "viem"
-import { privateKeyToAccount, type Account } from "viem/accounts"
+import { type Account, privateKeyToAccount } from "viem/accounts"
 import { z } from "zod"
 
 const logLevel = z.enum(["trace", "debug", "info", "warn", "error", "fatal"])
@@ -21,7 +21,10 @@ export const bundlerArgsSchema = z.object({
             )
             return validatedAddresses
         }),
-    "entrypoint-simulation-contract": addressSchema.optional(),
+    "entrypoint-simulation-contract": z.preprocess(
+        (v) => (v === "" ? undefined : v),
+        addressSchema.optional()
+    ),
     "safe-mode": z.boolean(),
     "utility-private-key": hexData32Schema
         .transform((val) => privateKeyToAccount(val) satisfies Account)
@@ -58,7 +61,15 @@ export const bundlerArgsSchema = z.object({
     "max-bundle-size": z.number().int().min(0),
 
     "gas-price-floor-percent": z.number().int().min(0),
-    "gas-price-expiry": z.number().int().min(0)
+    "gas-price-expiry": z.number().int().min(0),
+    "gas-price-multipliers": z
+        .string()
+        .transform((value) => value.split(",").map(BigInt))
+        .refine(
+            (values) => values.length === 3,
+            "Must contain 3 comma seperated items in format: slow,standard,fast"
+        )
+        .transform(([slow, standard, fast]) => ({ slow, standard, fast }))
 })
 
 export const compatibilityArgsSchema = z.object({

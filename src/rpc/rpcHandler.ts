@@ -8,7 +8,8 @@ import type {
     ApiVersion,
     PackedUserOperation,
     StateOverrides,
-    UserOperationV06
+    UserOperationV06,
+    GasPriceMultipliers
 } from "@alto/types"
 import {
     EntryPointV06Abi,
@@ -123,6 +124,7 @@ export class RpcHandler implements IRpcEndpoint {
     legacyTransactions: boolean
     dangerousSkipUserOperationValidation: boolean
     gasPriceManager: GasPriceManager
+    gasPriceMultipliers: GasPriceMultipliers
 
     constructor(
         entryPoints: Address[],
@@ -142,6 +144,7 @@ export class RpcHandler implements IRpcEndpoint {
         compressionHandler: CompressionHandler | null,
         legacyTransactions: boolean,
         gasPriceManager: GasPriceManager,
+        gasPriceMultipliers: GasPriceMultipliers,
         dangerousSkipUserOperationValidation = false
     ) {
         this.entryPoints = entryPoints
@@ -163,6 +166,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.legacyTransactions = legacyTransactions
         this.dangerousSkipUserOperationValidation =
             dangerousSkipUserOperationValidation
+        this.gasPriceMultipliers = gasPriceMultipliers
         this.gasPriceManager = gasPriceManager
     }
 
@@ -371,6 +375,8 @@ export class RpcHandler implements IRpcEndpoint {
         let paymasterPostOpGasLimit = 0n
 
         if (
+            isVersion07(userOperation) &&
+            userOperation.paymaster !== null &&
             "paymasterVerificationGasLimit" in
                 executionResult.data.executionResult &&
             "paymasterPostOpGasLimit" in executionResult.data.executionResult
@@ -820,21 +826,24 @@ export class RpcHandler implements IRpcEndpoint {
 
     async pimlico_getUserOperationGasPrice(): Promise<PimlicoGetUserOperationGasPriceResponseResult> {
         const gasPrice = await this.gasPriceManager.getGasPrice()
+
+        const { slow, standard, fast } = this.gasPriceMultipliers
+
         return {
             slow: {
-                maxFeePerGas: (gasPrice.maxFeePerGas * 105n) / 100n,
+                maxFeePerGas: (gasPrice.maxFeePerGas * slow) / 100n,
                 maxPriorityFeePerGas:
-                    (gasPrice.maxPriorityFeePerGas * 105n) / 100n
+                    (gasPrice.maxPriorityFeePerGas * slow) / 100n
             },
             standard: {
-                maxFeePerGas: (gasPrice.maxFeePerGas * 110n) / 100n,
+                maxFeePerGas: (gasPrice.maxFeePerGas * standard) / 100n,
                 maxPriorityFeePerGas:
-                    (gasPrice.maxPriorityFeePerGas * 110n) / 100n
+                    (gasPrice.maxPriorityFeePerGas * standard) / 100n
             },
             fast: {
-                maxFeePerGas: (gasPrice.maxFeePerGas * 115n) / 100n,
+                maxFeePerGas: (gasPrice.maxFeePerGas * fast) / 100n,
                 maxPriorityFeePerGas:
-                    (gasPrice.maxPriorityFeePerGas * 115n) / 100n
+                    (gasPrice.maxPriorityFeePerGas * fast) / 100n
             }
         }
     }
