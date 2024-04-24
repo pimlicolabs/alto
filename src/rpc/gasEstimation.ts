@@ -113,7 +113,7 @@ export async function simulateHandleOpV06(
             // out of bound (low level evm error) occurs when paymaster reverts with less than 32bytes
             return {
                 result: "failed",
-                data: "AA50 postOp revert"
+                data: "AA50 postOp revert (paymaster revert data out of bounds)"
             } as const
         }
 
