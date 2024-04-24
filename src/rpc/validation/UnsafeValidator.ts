@@ -42,12 +42,11 @@ import {
     type Chain,
     type PublicClient,
     type Transport,
-    type RpcRequestErrorType
+    getContract
 } from "viem"
 import { fromZodError } from "zod-validation-error"
 import { simulateValidation } from "../EntryPointSimulationsV07"
 import {
-    parseSimulateHandleOpV06,
     simulateHandleOp,
     simulateHandleOpV06,
     type SimulateHandleOpResult
@@ -197,32 +196,27 @@ export class UnsafeValidator implements InterfaceValidator {
             referencedContracts?: ReferencedCodeHashes
         }
     > {
-        const entryPointContract = {
+        const entryPointContract = getContract({
             address: entryPoint,
-            abi: EntryPointV06Abi
-        }
+            abi: EntryPointV06Abi,
+            client: {
+                public: this.publicClient
+            }
+        })
 
-        const [simulatedValidation, simulatedHandleOps] =
-            await this.publicClient.multicall({
-                contracts: [
-                    {
-                        ...entryPointContract,
-                        functionName: "simulateValidation",
-                        args: [userOperation]
-                    },
-                    {
-                        ...entryPointContract,
-                        functionName: "simulateHandleOp",
-                        args: [userOperation, zeroAddress, "0x"]
-                    }
-                ],
-                multicallAddress: "0xca11bde05977b3631167028862be2a173976ca11"
+        const errorResult = await entryPointContract.simulate
+            .simulateValidation([userOperation])
+            .catch((e) => {
+                if (e instanceof Error) {
+                    return e
+                }
+                throw e
             })
 
         const validationResult = {
             ...((await getSimulationResult(
                 isVersion06(userOperation),
-                simulatedValidation.error,
+                errorResult,
                 this.logger,
                 "validation",
                 this.usingTenderly
@@ -266,30 +260,17 @@ export class UnsafeValidator implements InterfaceValidator {
         }
 
         // validate runtime
-        let runtimeResult: SimulateHandleOpResult
-        if (
-            simulatedHandleOps.error?.cause &&
-            simulatedHandleOps.error?.cause instanceof Object &&
-            "data" in simulatedHandleOps.error.cause &&
-            simulatedHandleOps.error.cause.data !== undefined
-        ) {
-            // multicall reverted properly with a datafield
-            runtimeResult = parseSimulateHandleOpV06(
-                simulatedHandleOps.error as RpcRequestErrorType
-            )
-        } else {
-            runtimeResult = await simulateHandleOpV06(
-                userOperation,
-                entryPoint,
-                this.publicClient,
-                zeroAddress,
-                "0x"
-            )
-        }
+        const runtimeValidation = await simulateHandleOpV06(
+            userOperation,
+            entryPoint,
+            this.publicClient,
+            zeroAddress,
+            "0x"
+        )
 
-        if (runtimeResult.result === "failed") {
+        if (runtimeValidation.result === "failed") {
             throw new RpcError(
-                `UserOperation reverted during simulation with reason: ${runtimeResult.data}`,
+                `UserOperation reverted during simulation with reason: ${runtimeValidation.data}`,
                 ValidationErrors.SimulateValidation
             )
         }

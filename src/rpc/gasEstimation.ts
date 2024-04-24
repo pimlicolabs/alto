@@ -74,86 +74,6 @@ function getStateOverrides({
           }
 }
 
-export function parseSimulateHandleOpV06(
-    err: RpcRequestErrorType
-): SimulateHandleOpResult {
-    if (
-        /return data out of bounds.*|EVM error OutOfOffset.*/.test(err.details)
-    ) {
-        // out of bound (low level evm error) occurs when paymaster reverts with less than 32bytes
-        return {
-            result: "failed",
-            data: "AA50 postOp revert"
-        } as const
-    }
-
-    const causeParseResult = z
-        .union([
-            z.object({
-                code: z.literal(3),
-                message: z.string().regex(/execution reverted.*/),
-                data: hexDataSchema
-            }),
-            /* fuse rpcs return weird values, this accounts for that. */
-            z.object({
-                code: z.number(),
-                message: z.string().regex(/VM execution error.*/),
-                data: z
-                    .string()
-                    .transform((data) => data.replace("Reverted ", ""))
-                    .pipe(hexDataSchema)
-            })
-        ])
-        .safeParse(err.cause)
-
-    if (!causeParseResult.success) {
-        throw new Error(JSON.stringify(err.cause))
-    }
-
-    const cause = causeParseResult.data
-
-    const decodedError = decodeErrorResult({
-        abi: [...EntryPointV06Abi, ...EntryPointV06SimulationsAbi],
-        data: cause.data
-    })
-
-    if (
-        decodedError &&
-        decodedError.errorName === "FailedOp" &&
-        decodedError.args
-    ) {
-        return {
-            result: "failed",
-            data: decodedError.args[1] as string
-        } as const
-    }
-
-    if (
-        decodedError &&
-        decodedError.errorName === "Error" &&
-        decodedError.args
-    ) {
-        return {
-            result: "failed",
-            data: decodedError.args[0]
-        } as const
-    }
-
-    if (decodedError.errorName === "ExecutionResult") {
-        const parsedExecutionResult = executionResultSchema.parse(
-            decodedError.args
-        )
-        return {
-            result: "execution",
-            data: {
-                executionResult: parsedExecutionResult
-            } as const
-        }
-    }
-
-    throw new Error("Unexpected error whilst parsing")
-}
-
 export async function simulateHandleOpV06(
     userOperation: UserOperationV06,
     entryPoint: Address,
@@ -183,7 +103,83 @@ export async function simulateHandleOpV06(
             ]
         })
     } catch (e) {
-        return parseSimulateHandleOpV06(e as RpcRequestErrorType)
+        const err = e as RpcRequestErrorType
+
+        if (
+            /return data out of bounds.*|EVM error OutOfOffset.*/.test(
+                err.details
+            )
+        ) {
+            // out of bound (low level evm error) occurs when paymaster reverts with less than 32bytes
+            return {
+                result: "failed",
+                data: "AA50 postOp revert"
+            } as const
+        }
+
+        const causeParseResult = z
+            .union([
+                z.object({
+                    code: z.literal(3),
+                    message: z.string().regex(/execution reverted.*/),
+                    data: hexDataSchema
+                }),
+                /* fuse rpcs return weird values, this accounts for that. */
+                z.object({
+                    code: z.number(),
+                    message: z.string().regex(/VM execution error.*/),
+                    data: z
+                        .string()
+                        .transform((data) => data.replace("Reverted ", ""))
+                        .pipe(hexDataSchema)
+                })
+            ])
+            .safeParse(err.cause)
+
+        if (!causeParseResult.success) {
+            throw new Error(JSON.stringify(err.cause))
+        }
+
+        const cause = causeParseResult.data
+
+        const decodedError = decodeErrorResult({
+            abi: [...EntryPointV06Abi, ...EntryPointV06SimulationsAbi],
+            data: cause.data
+        })
+
+        if (
+            decodedError &&
+            decodedError.errorName === "FailedOp" &&
+            decodedError.args
+        ) {
+            return {
+                result: "failed",
+                data: decodedError.args[1] as string
+            } as const
+        }
+
+        if (
+            decodedError &&
+            decodedError.errorName === "Error" &&
+            decodedError.args
+        ) {
+            return {
+                result: "failed",
+                data: decodedError.args[0]
+            } as const
+        }
+
+        if (decodedError.errorName === "ExecutionResult") {
+            const parsedExecutionResult = executionResultSchema.parse(
+                decodedError.args
+            )
+            return {
+                result: "execution",
+                data: {
+                    executionResult: parsedExecutionResult
+                } as const
+            }
+        }
     }
     throw new Error("Unexpected error")
 }
