@@ -138,7 +138,7 @@ export class MemoryMempool {
         this.store.removeProcessing(userOpHash)
     }
 
-    // biome-ignore lint/nursery/useAwait: keep async to adhere to interface
+    // biome-ignore lint/suspicious/useAwait: keep async to adhere to interface
     async checkEntityMultipleRoleViolation(op: UserOperation): Promise<void> {
         if (!this.safeMode) {
             return
