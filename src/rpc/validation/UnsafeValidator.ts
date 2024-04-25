@@ -35,18 +35,22 @@ import * as sentry from "@sentry/node"
 import {
     BaseError,
     ContractFunctionExecutionError,
-    getContract,
     pad,
     slice,
     toHex,
     zeroAddress,
     type Chain,
     type PublicClient,
-    type Transport
+    type Transport,
+    getContract
 } from "viem"
 import { fromZodError } from "zod-validation-error"
 import { simulateValidation } from "../EntryPointSimulationsV07"
-import { simulateHandleOp, type SimulateHandleOpResult } from "../gasEstimation"
+import {
+    simulateHandleOp,
+    simulateHandleOpV06,
+    type SimulateHandleOpResult
+} from "../gasEstimation"
 
 async function getSimulationResult(
     isVersion06: boolean,
@@ -200,7 +204,7 @@ export class UnsafeValidator implements InterfaceValidator {
             }
         })
 
-        const errorResult = await entryPointContract.simulate
+        const simulateValidationPromise = entryPointContract.simulate
             .simulateValidation([userOperation])
             .catch((e) => {
                 if (e instanceof Error) {
@@ -209,10 +213,22 @@ export class UnsafeValidator implements InterfaceValidator {
                 throw e
             })
 
+        const runtimeValidationPromise = simulateHandleOpV06(
+            userOperation,
+            entryPoint,
+            this.publicClient,
+            zeroAddress,
+            "0x"
+        )
+
+        const [simulateValidationResult, runtimeValidation] = await Promise.all(
+            [simulateValidationPromise, runtimeValidationPromise]
+        )
+
         const validationResult = {
             ...((await getSimulationResult(
                 isVersion06(userOperation),
-                errorResult,
+                simulateValidationResult,
                 this.logger,
                 "validation",
                 this.usingTenderly
@@ -222,7 +238,7 @@ export class UnsafeValidator implements InterfaceValidator {
 
         if (validationResult.returnInfo.sigFailed) {
             throw new RpcError(
-                "Invalid UserOp signature or  paymaster signature",
+                "Invalid UserOperation signature or paymaster signature",
                 ValidationErrors.InvalidSignature
             )
         }
@@ -252,6 +268,14 @@ export class UnsafeValidator implements InterfaceValidator {
             throw new RpcError(
                 "expires too soon",
                 ValidationErrors.ExpiresShortly
+            )
+        }
+
+        // validate runtime
+        if (runtimeValidation.result === "failed") {
+            throw new RpcError(
+                `UserOperation reverted during simulation with reason: ${runtimeValidation.data}`,
+                ValidationErrors.SimulateValidation
             )
         }
 

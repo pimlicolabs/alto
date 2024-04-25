@@ -105,6 +105,18 @@ export async function simulateHandleOpV06(
     } catch (e) {
         const err = e as RpcRequestErrorType
 
+        if (
+            /return data out of bounds.*|EVM error OutOfOffset.*/.test(
+                err.details
+            )
+        ) {
+            // out of bound (low level evm error) occurs when paymaster reverts with less than 32bytes
+            return {
+                result: "failed",
+                data: "AA50 postOp revert (paymaster revert data out of bounds)"
+            } as const
+        }
+
         const causeParseResult = z
             .union([
                 z.object({
@@ -151,7 +163,10 @@ export async function simulateHandleOpV06(
             decodedError.errorName === "Error" &&
             decodedError.args
         ) {
-            return { result: "failed", data: decodedError.args[0] } as const
+            return {
+                result: "failed",
+                data: decodedError.args[0]
+            } as const
         }
 
         if (decodedError.errorName === "ExecutionResult") {
