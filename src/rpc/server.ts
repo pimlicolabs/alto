@@ -340,7 +340,7 @@ export class Server {
                 }
 
                 await reply.status(500).send(rpcError)
-                this.fastify.log.info(request.raw, "error reply (non-rpc)")
+                this.fastify.log.error({ err }, "error reply (unhandled error type)");
             }
         }
     }
