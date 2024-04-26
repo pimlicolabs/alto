@@ -92,7 +92,11 @@ export class Server {
             disableRequestLogging: true
         })
 
-        this.fastify.register(websocket)
+        this.fastify.register(websocket, {
+            options: {
+                maxPayload: 1048576, // maximum allowed messages size is 1 MiB
+            }
+        })
 
         this.fastify.register(require("fastify-cors"), {
             origin: "*",
@@ -132,9 +136,9 @@ export class Server {
         this.fastify.register(async () => {
             this.fastify.route({
                 method: "GET",
-                url: '/',
+                url: '/:version/rpc',
                 handler: async (request, reply) => {
-                    await reply.status(500).send('Invalid request')
+                    await reply.status(500).send('Not implemented')
                 },
                 wsHandler: async (socket: WebSocket.WebSocket, request) => {
                     socket.on(
@@ -334,7 +338,7 @@ export class Server {
                 }
 
                 await reply.status(500).send(rpcError)
-                // this.fastify.log.info(reply.raw, "error reply (non-rpc)")
+                this.fastify.log.info(request.raw, "error reply (non-rpc)")
             }
         }
     }

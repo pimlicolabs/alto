@@ -27,9 +27,9 @@ class ReplyMiddleware {
 
     public async send(data: any) {
         if (this.http) {
-            this.http.status(this._status).send(data);
+            return this.http.status(this._status).send(data);
         } else if (this.websocket) {
-            this.websocket.send(JSON.stringify(data));
+            return this.websocket.send(JSON.stringify(data));
         }
     }
 
