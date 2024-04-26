@@ -134,8 +134,8 @@ export class Server {
         this.fastify.post("/:version/rpc", this.rpcHttp.bind(this))
         this.fastify.post("/", this.rpcHttp.bind(this))
 
-        this.fastify.register(async () => {
-            this.fastify.route({
+        this.fastify.register(async (fastify) => {
+            fastify.route({
                 method: "GET",
                 url: "/:version/rpc",
                 handler: async (request, reply) => {
