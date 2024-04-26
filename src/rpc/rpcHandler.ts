@@ -71,7 +71,9 @@ import {
     type PublicClient,
     type Transaction,
     type TransactionReceipt,
-    type Transport
+    type Transport,
+    encodeEventTopics,
+    zeroAddress
 } from "viem"
 import * as chains from "viem/chains"
 import { z } from "zod"
@@ -648,6 +650,14 @@ export class RpcHandler implements IRpcEndpoint {
             return null
         }
 
+        const userOperationRevertReasonTopicEvent = encodeEventTopics({
+            abi: EntryPointV06Abi,
+            eventName: "UserOperationRevertReason"
+        })[0]
+
+        let entryPoint: Address = zeroAddress
+        let revertReason = undefined
+
         let startIndex = -1
         let endIndex = -1
         logs.forEach((log, index) => {
@@ -656,9 +666,18 @@ export class RpcHandler implements IRpcEndpoint {
                 if (log.topics[1] === userOperationEvent.topics[1]) {
                     // it's our userOpHash. save as end of logs array
                     endIndex = index
+                    entryPoint = log.address
                 } else if (endIndex === -1) {
                     // it's a different hash. remember it as beginning index, but only if we didn't find our end index yet.
                     startIndex = index
+                }
+            }
+
+            if (log?.topics[0] === userOperationRevertReasonTopicEvent) {
+                // process UserOperationRevertReason
+                if (log.topics[1] === userOperationEvent.topics[1]) {
+                    // it's our userOpHash. capture revert reason.
+                    revertReason = log.topics[4]
                 }
             }
         })
@@ -685,11 +704,14 @@ export class RpcHandler implements IRpcEndpoint {
 
         const userOperationReceipt: GetUserOperationReceiptResponseResult = {
             userOpHash: userOperationHash,
+            entryPoint,
             sender: userOperationEvent.args.sender,
             nonce: userOperationEvent.args.nonce,
+            paymaster: userOperationEvent.args.paymaster,
             actualGasUsed: userOperationEvent.args.actualGasUsed,
             actualGasCost: userOperationEvent.args.actualGasCost,
             success: userOperationEvent.args.success,
+            reason: revertReason,
             logs: logsParsing.data,
             receipt: receiptParsing.data
         }

@@ -445,11 +445,14 @@ const getUserOperationReceiptResponseSchema = z.object({
     result: z
         .object({
             userOpHash: hexData32Schema,
+            entryPoint: addressSchema,
             sender: addressSchema,
             nonce: hexNumberSchema,
+            paymaster: addressSchema.optional(),
             actualGasCost: hexNumberSchema,
             actualGasUsed: hexNumberSchema,
             success: z.boolean(),
+            reason: z.string().optional(), // revert reason
             logs: z.array(logSchema),
             receipt: receiptSchema
         })
