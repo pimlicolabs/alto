@@ -1,7 +1,7 @@
 import { FastifyReply } from "fastify"
 import * as WebSocket from "ws"
 
-class ReplyMiddleware {
+class RpcReply {
     private http: FastifyReply | null
     private websocket: WebSocket.WebSocket | null
 
@@ -34,15 +34,15 @@ class ReplyMiddleware {
     }
 
     static fromHttpReply(reply: FastifyReply) {
-        const replyMiddleware = new ReplyMiddleware(reply, null)
+        const rpcReply = new RpcReply(reply, null)
 
-        return replyMiddleware
+        return rpcReply
     }
 
     static fromSocket(socket: WebSocket.WebSocket) {
-        const replyMiddleware = new ReplyMiddleware(null, socket)
+        const rpcReply = new RpcReply(null, socket)
 
-        return replyMiddleware
+        return rpcReply
     }
 
     set rpcStatus(status: "failed" | "success") {
@@ -54,4 +54,4 @@ class ReplyMiddleware {
     }
 }
 
-export default ReplyMiddleware
+export default RpcReply

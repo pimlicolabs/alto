@@ -20,7 +20,7 @@ import { toHex } from "viem"
 import { fromZodError } from "zod-validation-error"
 import type { IRpcEndpoint } from "./rpcHandler"
 import websocket from "@fastify/websocket"
-import ReplyMiddleware from "../utils/reply-middleware"
+import RpcReply from "../utils/rpc-reply"
 import * as WebSocket from "ws"
 
 // jsonBigIntOverride.ts
@@ -197,19 +197,19 @@ export class Server {
             return
         }
 
-        await this.rpc(request, ReplyMiddleware.fromSocket(socket))
+        await this.rpc(request, RpcReply.fromSocket(socket))
     }
 
     private async rpcHttp(
         request: FastifyRequest,
         reply: FastifyReply
     ): Promise<void> {
-        await this.rpc(request, ReplyMiddleware.fromHttpReply(reply))
+        await this.rpc(request, RpcReply.fromHttpReply(reply))
     }
 
     private async rpc(
         request: FastifyRequest,
-        reply: ReplyMiddleware
+        reply: RpcReply
     ): Promise<void> {
         reply.rpcStatus = "failed" // default to failed
         let requestId: number | null = null
