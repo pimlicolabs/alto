@@ -19,9 +19,9 @@ import type { Registry } from "prom-client"
 import { toHex } from "viem"
 import { fromZodError } from "zod-validation-error"
 import type { IRpcEndpoint } from "./rpcHandler"
-import websocket from '@fastify/websocket'
+import websocket from "@fastify/websocket"
 import ReplyMiddleware from "../utils/reply-middleware"
-import * as WebSocket from 'ws';
+import * as WebSocket from "ws"
 
 // jsonBigIntOverride.ts
 const originalJsonStringify = JSON.stringify
@@ -94,7 +94,7 @@ export class Server {
 
         this.fastify.register(websocket, {
             options: {
-                maxPayload: 1048576, // maximum allowed messages size is 1 MiB
+                maxPayload: 1048576 // maximum allowed messages size is 1 MiB
             }
         })
 
@@ -136,14 +136,13 @@ export class Server {
         this.fastify.register(async () => {
             this.fastify.route({
                 method: "GET",
-                url: '/:version/rpc',
+                url: "/:version/rpc",
                 handler: async (request, reply) => {
-                    await reply.status(500).send('Not implemented')
+                    await reply.status(500).send("Not implemented")
                 },
                 wsHandler: async (socket: WebSocket.WebSocket, request) => {
-                    socket.on(
-                        'message',
-                        async (msgBuffer: Buffer) => this.rpcSocket(request, msgBuffer, socket)
+                    socket.on("message", async (msgBuffer: Buffer) =>
+                        this.rpcSocket(request, msgBuffer, socket)
                     )
                 }
             })
@@ -196,7 +195,7 @@ export class Server {
             )
             return
         }
- 
+
         await this.rpc(request, ReplyMiddleware.fromSocket(socket))
     }
 
@@ -239,7 +238,10 @@ export class Server {
             const contentTypeHeader = request.headers["content-type"]
 
             // Common browser websocket API does not allow setting custom headers
-            if (contentTypeHeader !== "application/json" && request.ws === false) {
+            if (
+                contentTypeHeader !== "application/json" &&
+                request.ws === false
+            ) {
                 throw new RpcError(
                     "invalid content-type, content-type must be application/json",
                     ValidationErrors.InvalidFields
