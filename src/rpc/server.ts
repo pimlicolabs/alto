@@ -82,6 +82,7 @@ export class Server {
         defaultApiVersion: ApiVersion,
         port: number,
         requestTimeout: number | undefined,
+        websocketMaxPayloadSize: number,
         logger: Logger,
         registry: Registry,
         metrics: Metrics
@@ -94,7 +95,7 @@ export class Server {
 
         this.fastify.register(websocket, {
             options: {
-                maxPayload: 1048576 // maximum allowed messages size is 1 MiB
+                maxPayload: websocketMaxPayloadSize
             }
         })
 

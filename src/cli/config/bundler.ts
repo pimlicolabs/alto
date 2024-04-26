@@ -95,7 +95,12 @@ export const compatibilityArgsSchema = z.object({
 
 export const serverArgsSchema = z.object({
     port: z.number().int().min(0),
-    timeout: z.number().int().min(0).optional()
+    timeout: z.number().int().min(0).optional(),
+    "websocket-max-payload-size": z
+        .number()
+        .int()
+        .min(1024)
+        .default(1024 * 1024), // 1 mb
 })
 
 export const rpcArgsSchema = z.object({
