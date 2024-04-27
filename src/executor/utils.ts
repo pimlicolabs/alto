@@ -203,7 +203,7 @@ export async function filterOpsAndEstimateGas(
 
             return { simulatedOps, gasLimit, resubmitAllOps: false }
         } catch (err: unknown) {
-            logger.debug({ err }, "error estimating gas")
+            logger.error({ err }, "error estimating gas")
             const e = parseViemError(err)
             if (e instanceof ContractFunctionRevertedError) {
                 const failedOpError = failedOpErrorSchema.safeParse(e.data)
