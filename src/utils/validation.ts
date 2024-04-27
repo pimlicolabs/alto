@@ -441,8 +441,8 @@ export async function calcOptimismPreVerificationGas(
             ...op
         }
 
-        selector = toFunctionSelector(EntryPointV06Abi[27])
-        paramData = encodeAbiParameters(EntryPointV06Abi[27].inputs, [
+        selector = toFunctionSelector(EntryPointV06Abi[28])
+        paramData = encodeAbiParameters(EntryPointV06Abi[28].inputs, [
             [randomDataUserOp],
             entryPoint
         ])
@@ -555,8 +555,8 @@ export async function calcArbitrumPreVerificationGas(
     let paramData: Hex
 
     if (isVersion06(op)) {
-        selector = toFunctionSelector(EntryPointV06Abi[27])
-        paramData = encodeAbiParameters(EntryPointV06Abi[27].inputs, [
+        selector = toFunctionSelector(EntryPointV06Abi[28])
+        paramData = encodeAbiParameters(EntryPointV06Abi[28].inputs, [
             [op],
             entryPoint
         ])
