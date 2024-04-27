@@ -28,7 +28,8 @@ import {
     type Chain,
     type Hex,
     type PublicClient,
-    type Transport
+    type Transport,
+    getAbiItem
 } from "viem"
 import * as chains from "viem/chains"
 import { isVersion06, toPackedUserOperation } from "./userop"
@@ -441,8 +442,13 @@ export async function calcOptimismPreVerificationGas(
             ...op
         }
 
-        selector = toFunctionSelector(EntryPointV06Abi[27])
-        paramData = encodeAbiParameters(EntryPointV06Abi[27].inputs, [
+        const handleOpsAbi = getAbiItem({
+            abi: EntryPointV06Abi,
+            name: "handleOps"
+        })
+
+        selector = toFunctionSelector(handleOpsAbi)
+        paramData = encodeAbiParameters(handleOpsAbi.inputs, [
             [randomDataUserOp],
             entryPoint
         ])
@@ -453,8 +459,13 @@ export async function calcOptimismPreVerificationGas(
         const randomDataUserOp: PackedUserOperation =
             packedUserOperationToRandomDataUserOp(packedUserOperation)
 
-        selector = toFunctionSelector(EntryPointV07Abi[28])
-        paramData = encodeAbiParameters(EntryPointV07Abi[28].inputs, [
+        const handleOpsAbi = getAbiItem({
+            abi: EntryPointV07Abi,
+            name: "handleOps"
+        })
+
+        selector = toFunctionSelector(handleOpsAbi)
+        paramData = encodeAbiParameters(handleOpsAbi.inputs, [
             [randomDataUserOp],
             entryPoint
         ])
@@ -555,11 +566,13 @@ export async function calcArbitrumPreVerificationGas(
     let paramData: Hex
 
     if (isVersion06(op)) {
-        selector = toFunctionSelector(EntryPointV06Abi[27])
-        paramData = encodeAbiParameters(EntryPointV06Abi[27].inputs, [
-            [op],
-            entryPoint
-        ])
+        const handleOpsAbi = getAbiItem({
+            abi: EntryPointV06Abi,
+            name: "handleOps"
+        })
+
+        selector = toFunctionSelector(handleOpsAbi)
+        paramData = encodeAbiParameters(handleOpsAbi.inputs, [[op], entryPoint])
     } else {
         const packedUserOperation: PackedUserOperation =
             toPackedUserOperation(op)
@@ -567,8 +580,13 @@ export async function calcArbitrumPreVerificationGas(
         const randomDataUserOp: PackedUserOperation =
             packedUserOperationToRandomDataUserOp(packedUserOperation)
 
-        selector = toFunctionSelector(EntryPointV07Abi[28])
-        paramData = encodeAbiParameters(EntryPointV07Abi[28].inputs, [
+        const handleOpsAbi = getAbiItem({
+            abi: EntryPointV07Abi,
+            name: "handleOps"
+        })
+
+        selector = toFunctionSelector(handleOpsAbi)
+        paramData = encodeAbiParameters(handleOpsAbi.inputs, [
             [randomDataUserOp],
             entryPoint
         ])
