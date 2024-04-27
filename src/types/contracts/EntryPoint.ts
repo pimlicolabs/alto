@@ -54,6 +54,27 @@ export const EntryPointV06Abi = [
     {
         inputs: [
             {
+                internalType: "uint256",
+                name: "opIndex",
+                type: "uint256"
+            },
+            {
+                internalType: "string",
+                name: "reason",
+                type: "string"
+            },
+            {
+                internalType: "bytes",
+                name: "inner",
+                type: "bytes"
+            }
+        ],
+        name: "FailedOpWithRevert",
+        type: "error"
+    },
+    {
+        inputs: [
+            {
                 internalType: "address",
                 name: "sender",
                 type: "address"
