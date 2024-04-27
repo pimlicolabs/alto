@@ -169,7 +169,12 @@ export const serverOptions: CliCommandOptions<IServerArgsInput> = {
         description: "Timeout for incoming requests (in ms)",
         type: "number",
         require: false
-    }
+    },
+    "websocket-max-payload-size": {
+        description: "Maximum payload size for websocket messages in bytes (default to 1MB)",
+        type: "number",
+        require: false
+    },
 }
 
 export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
