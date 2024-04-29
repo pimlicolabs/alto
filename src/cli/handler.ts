@@ -1,32 +1,32 @@
+import { SenderManager } from "@alto/executor"
 import {
-    type Logger,
+    GasPriceManager,
     createMetrics,
     initDebugLogger,
     initProductionLogger,
-    GasPriceManager
+    type Logger
 } from "@alto/utils"
 import { Registry } from "prom-client"
 import {
+    createPublicClient,
+    createWalletClient,
     type Chain,
     type PublicClient,
-    type Transport,
-    createPublicClient,
-    createWalletClient
+    type Transport
 } from "viem"
 import { fromZodError } from "zod-validation-error"
 import {
+    optionArgsSchema,
     type IBundlerArgs,
-    type IBundlerArgsInput,
-    bundlerArgsSchema
+    type IOptions,
+    type IOptionsInput
 } from "./config"
 import { customTransport } from "./customTransport"
-import { setupEntryPointPointSix } from "@entrypoint-0.6/cli"
-import { SenderManager } from "@alto/executor"
-import { setupEntryPointPointSeven } from "@entrypoint-0.7/cli"
+import { setupServer } from "./setupServer"
 
-const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
+const parseArgs = (args: IOptionsInput): IOptions => {
     // validate every arg, make type safe so if i add a new arg i have to validate it
-    const parsing = bundlerArgsSchema.safeParse(args)
+    const parsing = optionArgsSchema.safeParse(args)
     if (!parsing.success) {
         const error = fromZodError(parsing.error)
         throw new Error(error.message)
@@ -37,45 +37,54 @@ const parseArgs = (args: IBundlerArgsInput): IBundlerArgs => {
 
 const preFlightChecks = async (
     publicClient: PublicClient<Transport, Chain>,
-    args: IBundlerArgs
+    parsedArgs: IBundlerArgs
 ): Promise<void> => {
-    const entryPointCode = await publicClient.getBytecode({
-        address: args.entryPoint
-    })
-    if (entryPointCode === "0x") {
-        throw new Error(`entry point ${args.entryPoint} does not exist`)
+    for (const entrypoint of parsedArgs.entrypoints) {
+        const entryPointCode = await publicClient.getBytecode({
+            address: entrypoint
+        })
+        if (entryPointCode === "0x") {
+            throw new Error(`entry point ${entrypoint} does not exist`)
+        }
+    }
+
+    if (parsedArgs["entrypoint-simulation-contract"]) {
+        const simulations = parsedArgs["entrypoint-simulation-contract"]
+        const simulationsCode = await publicClient.getBytecode({
+            address: simulations
+        })
+        if (simulationsCode === undefined || simulationsCode === "0x") {
+            throw new Error(
+                `EntryPointSimulations contract ${simulations} does not exist`
+            )
+        }
     }
 }
 
-export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
+export async function bundlerHandler(args: IOptionsInput): Promise<void> {
     const parsedArgs = parseArgs(args)
-    if (parsedArgs.signerPrivateKeysExtra !== undefined) {
-        parsedArgs.signerPrivateKeys = [
-            ...parsedArgs.signerPrivateKeys,
-            ...parsedArgs.signerPrivateKeysExtra
-        ]
-    }
 
     let logger: Logger
-    if (parsedArgs.logEnvironment === "development") {
-        logger = initDebugLogger(parsedArgs.logLevel)
+    if (parsedArgs.json) {
+        logger = initProductionLogger(parsedArgs["log-level"])
     } else {
-        logger = initProductionLogger(parsedArgs.logLevel)
+        logger = initDebugLogger(parsedArgs["log-level"])
     }
+
     const rootLogger = logger.child(
         { module: "root" },
-        { level: parsedArgs.logLevel }
+        { level: parsedArgs["log-level"] }
     )
 
     const getChainId = async () => {
         const client = createPublicClient({
-            transport: customTransport(args.rpcUrl, {
+            transport: customTransport(args["rpc-url"], {
                 logger: logger.child(
                     { module: "public_client" },
                     {
                         level:
-                            parsedArgs.publicClientLogLevel ||
-                            parsedArgs.logLevel
+                            parsedArgs["public-client-log-level"] ||
+                            parsedArgs["log-level"]
                     }
                 )
             })
@@ -86,26 +95,26 @@ export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
 
     const chain: Chain = {
         id: chainId,
-        name: args.networkName,
-        network: args.networkName,
+        name: args["network-name"],
         nativeCurrency: {
             name: "ETH",
             symbol: "ETH",
             decimals: 18
         },
         rpcUrls: {
-            default: { http: [args.rpcUrl] },
-            public: { http: [args.rpcUrl] }
+            default: { http: [args["rpc-url"]] },
+            public: { http: [args["rpc-url"]] }
         }
     }
 
     const client = createPublicClient({
-        transport: customTransport(args.rpcUrl, {
+        transport: customTransport(args["rpc-url"], {
             logger: logger.child(
                 { module: "public_client" },
                 {
                     level:
-                        parsedArgs.publicClientLogLevel || parsedArgs.logLevel
+                        parsedArgs["public-client-log-level"] ||
+                        parsedArgs["log-level"]
                 }
             )
         }),
@@ -115,77 +124,69 @@ export async function bundlerHandler(args: IBundlerArgsInput): Promise<void> {
     const gasPriceManager = new GasPriceManager(
         chain,
         client,
-        parsedArgs.noEip1559Support,
+        parsedArgs["legacy-transactions"],
         logger.child(
             { module: "gas_price_manager" },
             {
-                level: parsedArgs.publicClientLogLevel || parsedArgs.logLevel
+                level:
+                    parsedArgs["public-client-log-level"] ||
+                    parsedArgs["log-level"]
             }
         ),
-        parsedArgs.gasPriceTimeValidityInSeconds
+        parsedArgs["gas-price-expiry"]
     )
 
     const registry = new Registry()
     registry.setDefaultLabels({
         network: chain.name,
-        chainId,
-        entrypoint_version: parsedArgs.entryPointVersion
+        chainId
     })
     const metrics = createMetrics(registry)
 
     await preFlightChecks(client, parsedArgs)
 
     const walletClient = createWalletClient({
-        transport: customTransport(parsedArgs.executionRpcUrl ?? args.rpcUrl, {
-            logger: logger.child(
-                { module: "wallet_client" },
-                {
-                    level:
-                        parsedArgs.walletClientLogLevel || parsedArgs.logLevel
-                }
-            )
-        }),
+        transport: customTransport(
+            parsedArgs["send-transaction-rpc-url"] ?? args["rpc-url"],
+            {
+                logger: logger.child(
+                    { module: "wallet_client" },
+                    {
+                        level:
+                            parsedArgs["wallet-client-log-level"] ||
+                            parsedArgs["log-level"]
+                    }
+                )
+            }
+        ),
         chain
     })
 
     const senderManager = new SenderManager(
-        parsedArgs.signerPrivateKeys,
-        parsedArgs.utilityPrivateKey,
+        parsedArgs["executor-private-keys"],
+        parsedArgs["utility-private-key"],
         logger.child(
             { module: "executor" },
-            { level: parsedArgs.executorLogLevel || parsedArgs.logLevel }
+            {
+                level:
+                    parsedArgs["executor-log-level"] || parsedArgs["log-level"]
+            }
         ),
         metrics,
-        parsedArgs.noEip1559Support,
-        parsedArgs.apiVersion,
+        parsedArgs["legacy-transactions"],
         gasPriceManager,
-        parsedArgs.maxSigners
+        parsedArgs["max-executors"]
     )
 
-    if (parsedArgs.entryPointVersion === "0.6") {
-        await setupEntryPointPointSix({
-            client,
-            walletClient,
-            parsedArgs,
-            logger,
-            rootLogger,
-            registry,
-            metrics,
-            senderManager,
-            gasPriceManager
-        })
-    }
-    if (parsedArgs.entryPointVersion === "0.7") {
-        await setupEntryPointPointSeven({
-            client,
-            walletClient,
-            parsedArgs,
-            logger,
-            rootLogger,
-            registry,
-            metrics,
-            senderManager,
-            gasPriceManager
-        })
-    }
+    await setupServer({
+        client,
+        walletClient,
+        parsedArgs,
+        logger,
+        rootLogger,
+        registry,
+        metrics,
+        senderManager,
+        gasPriceManager
+    })
 }

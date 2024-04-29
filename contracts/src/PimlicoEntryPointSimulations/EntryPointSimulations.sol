@@ -14,17 +14,32 @@ import "./IEntryPointSimulations.sol";
  */
 contract EntryPointSimulations is EntryPoint, IEntryPointSimulations {
     // solhint-disable-next-line var-name-mixedcase
-    AggregatorStakeInfo private NOT_AGGREGATED = AggregatorStakeInfo(address(0), StakeInfo(0, 0));
+    AggregatorStakeInfo private NOT_AGGREGATED =
+        AggregatorStakeInfo(address(0), StakeInfo(0, 0));
 
     SenderCreator private _senderCreator;
 
     function initSenderCreator() internal virtual {
         //this is the address of the first contract created with CREATE by this address.
-        address createdObj = address(uint160(uint256(keccak256(abi.encodePacked(hex"d694", address(this), hex"01")))));
+        address createdObj = address(
+            uint160(
+                uint256(
+                    keccak256(
+                        abi.encodePacked(hex"d694", address(this), hex"01")
+                    )
+                )
+            )
+        );
         _senderCreator = SenderCreator(createdObj);
     }
 
-    function senderCreator() internal view virtual override returns (SenderCreator) {
+    function senderCreator()
+        internal
+        view
+        virtual
+        override
+        returns (SenderCreator)
+    {
         // return the same senderCreator as real EntryPoint.
         // this call is slightly (100) more expensive than EntryPoint's access to immutable member
         return _senderCreator;
@@ -41,11 +56,7 @@ contract EntryPointSimulations is EntryPoint, IEntryPointSimulations {
     /// @inheritdoc IEntryPointSimulations
     function simulateValidation(
         PackedUserOperation calldata userOp
-    )
-    external
-    returns (
-        ValidationResult memory
-    ){
+    ) external returns (ValidationResult memory) {
         UserOpInfo memory outOpInfo;
 
         _simulationOnlyValidations(userOp);
@@ -69,7 +80,7 @@ contract EntryPointSimulations is EntryPoint, IEntryPointSimulations {
         {
             bytes calldata initCode = userOp.initCode;
             address factory = initCode.length >= 20
-                ? address(bytes20(initCode[0 : 20]))
+                ? address(bytes20(initCode[0:20]))
                 : address(0);
             factoryInfo = _getStakeInfo(factory);
         }
@@ -84,49 +95,49 @@ contract EntryPointSimulations is EntryPoint, IEntryPointSimulations {
         );
 
         AggregatorStakeInfo memory aggregatorInfo = NOT_AGGREGATED;
-        if (uint160(aggregator) != SIG_VALIDATION_SUCCESS && uint160(aggregator) != SIG_VALIDATION_FAILED) {
+        if (
+            uint160(aggregator) != SIG_VALIDATION_SUCCESS &&
+            uint160(aggregator) != SIG_VALIDATION_FAILED
+        ) {
             aggregatorInfo = AggregatorStakeInfo(
                 aggregator,
                 _getStakeInfo(aggregator)
             );
         }
-        return ValidationResult(
-            returnInfo,
-            senderInfo,
-            factoryInfo,
-            paymasterInfo,
-            aggregatorInfo
-        );
+        return
+            ValidationResult(
+                returnInfo,
+                senderInfo,
+                factoryInfo,
+                paymasterInfo,
+                aggregatorInfo
+            );
     }
 
     function simulateCallData(
         PackedUserOperation calldata op,
         address target,
         bytes calldata targetCallData
-    ) external {
+    ) external returns (TargetCallResult memory) {
         UserOpInfo memory opInfo;
         _simulationOnlyValidations(op);
         _validatePrepayment(0, op, opInfo);
 
         bool targetSuccess;
         bytes memory targetResult;
+        uint256 usedGas;
         if (target != address(0)) {
+            uint256 remainingGas = gasleft();
             (targetSuccess, targetResult) = target.call(targetCallData);
+            usedGas = remainingGas - gasleft();
         }
-        revert TargetCallResult(
-            targetSuccess,
-            targetResult
-        );
+        return TargetCallResult(usedGas, targetSuccess, targetResult);
     }
 
     /// @inheritdoc IEntryPointSimulations
     function simulateHandleOp(
         PackedUserOperation calldata op
-    )
-    external nonReentrant
-    returns (
-        ExecutionResult memory
-    ){
+    ) external nonReentrant returns (ExecutionResult memory) {
         UserOpInfo memory opInfo;
         _simulationOnlyValidations(op);
         (
@@ -136,21 +147,20 @@ contract EntryPointSimulations is EntryPoint, IEntryPointSimulations {
 
         uint256 paid = _executeUserOp(0, op, opInfo);
 
-        return ExecutionResult(
-            opInfo.preOpGas,
-            paid,
-            validationData,
-            paymasterValidationData,
-            false,
-            "0x"
-        );
+        return
+            ExecutionResult(
+                opInfo.preOpGas,
+                paid,
+                validationData,
+                paymasterValidationData,
+                false,
+                "0x"
+            );
     }
 
     function _simulationOnlyValidations(
         PackedUserOperation calldata userOp
-    )
-    internal
-    {
+    ) internal {
         //initialize senderCreator(). we can't rely on constructor
         initSenderCreator();
 
@@ -182,7 +192,7 @@ contract EntryPointSimulations is EntryPoint, IEntryPointSimulations {
             return ("AA20 account not deployed");
         }
         if (paymasterAndData.length >= 20) {
-            address paymaster = address(bytes20(paymasterAndData[0 : 20]));
+            address paymaster = address(bytes20(paymasterAndData[0:20]));
             if (paymaster.code.length == 0) {
                 // It would revert anyway. but give a meaningful message.
                 return ("AA30 paymaster not deployed");
@@ -195,10 +205,12 @@ contract EntryPointSimulations is EntryPoint, IEntryPointSimulations {
     //make sure depositTo cost is more than normal EntryPoint's cost,
     // to mitigate DoS vector on the bundler
     // empiric test showed that without this wrapper, simulation depositTo costs less..
-    function depositTo(address account) public override(IStakeManager, StakeManager) payable {
-        unchecked{
-        // silly code, to waste some gas to make sure depositTo is always little more
-        // expensive than on-chain call
+    function depositTo(
+        address account
+    ) public payable override(IStakeManager, StakeManager) {
+        unchecked {
+            // silly code, to waste some gas to make sure depositTo is always little more
+            // expensive than on-chain call
             uint256 x = 1;
             while (x < 5) {
                 x++;

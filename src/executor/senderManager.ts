@@ -1,21 +1,20 @@
-import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
 import {
-    type Address,
     CallEngineAbi,
+    type Address,
     type HexData,
     type HexData32
-} from "@entrypoint-0.6/types"
-import type { ApiVersion } from "@entrypoint-0.6/types"
+} from "@alto/types"
+import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
 import { Semaphore } from "async-mutex"
 import {
+    formatEther,
+    getContract,
     type Account,
     type Chain,
     type PublicClient,
     type TransactionReceipt,
     type Transport,
-    type WalletClient,
-    formatEther,
-    getContract
+    type WalletClient
 } from "viem"
 
 const waitForTransactionReceipt = async (
@@ -31,22 +30,20 @@ const waitForTransactionReceipt = async (
 
 export class SenderManager {
     wallets: Account[]
-    utilityAccount: Account
+    utilityAccount: Account | undefined
     availableWallets: Account[]
     private logger: Logger
     private metrics: Metrics
-    private noEip1559Support: boolean
+    private legacyTransactions: boolean
     private semaphore: Semaphore
-    private apiVersion: ApiVersion
     private gasPriceManager: GasPriceManager
 
     constructor(
         wallets: Account[],
-        utilityAccount: Account,
+        utilityAccount: Account | undefined,
         logger: Logger,
         metrics: Metrics,
-        noEip1559Support: boolean,
-        apiVersion: ApiVersion,
+        legacyTransactions: boolean,
         gasPriceManager: GasPriceManager,
         maxSigners?: number
     ) {
@@ -61,51 +58,23 @@ export class SenderManager {
         this.utilityAccount = utilityAccount
         this.logger = logger
         this.metrics = metrics
-        this.noEip1559Support = noEip1559Support
+        this.legacyTransactions = legacyTransactions
         metrics.walletsAvailable.set(this.availableWallets.length)
         metrics.walletsTotal.set(this.wallets.length)
         this.semaphore = new Semaphore(this.availableWallets.length)
-        this.apiVersion = apiVersion
         this.gasPriceManager = gasPriceManager
-    }
-
-    async validateWallets(
-        publicClient: PublicClient,
-        minBalance: bigint
-    ): Promise<void> {
-        const promises = this.availableWallets.map(async (wallet) => {
-            const balance = await publicClient.getBalance({
-                address: wallet.address
-            })
-
-            if (balance < minBalance) {
-                this.logger.error(
-                    {
-                        balance,
-                        requiredBalance: minBalance,
-                        executor: wallet.address
-                    },
-                    "wallet has insufficient balance"
-                )
-                throw new Error(
-                    `wallet ${
-                        wallet.address
-                    } has insufficient balance ${formatEther(
-                        balance
-                    )} < ${formatEther(minBalance)}`
-                )
-            }
-        })
-
-        await Promise.all(promises)
     }
 
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: <explanation>
     async validateAndRefillWallets(
         publicClient: PublicClient,
         walletClient: WalletClient<Transport, Chain>,
-        minBalance: bigint
+        minBalance?: bigint
     ): Promise<void> {
+        if (!(minBalance && this.utilityAccount)) {
+            return
+        }
+
         const utilityWalletBalance = await publicClient.getBalance({
             address: this.utilityAccount.address
         })
@@ -137,7 +106,12 @@ export class SenderManager {
                 "balances missing"
             )
             this.logger.error(
-                { utilityWalletBalance, totalBalanceMissing },
+                {
+                    minBalance,
+                    utilityWalletBalance,
+                    totalBalanceMissing,
+                    utilityAccount: this.utilityAccount.address
+                },
                 "utility wallet has insufficient balance to refill wallets"
             )
             throw new Error(
@@ -181,8 +155,10 @@ export class SenderManager {
                 const callEngine = getContract({
                     abi: CallEngineAbi,
                     address: refillAddress,
-                    publicClient,
-                    walletClient
+                    client: {
+                        public: publicClient,
+                        wallet: walletClient
+                    }
                 })
                 const tx = await callEngine.write.execute([instructions], {
                     account: this.utilityAccount,
@@ -210,13 +186,13 @@ export class SenderManager {
                         // @ts-ignore
                         to: address,
                         value: missingBalance,
-                        maxFeePerGas: this.noEip1559Support
+                        maxFeePerGas: this.legacyTransactions
                             ? undefined
                             : maxFeePerGas,
-                        maxPriorityFeePerGas: this.noEip1559Support
+                        maxPriorityFeePerGas: this.legacyTransactions
                             ? undefined
                             : maxPriorityFeePerGas,
-                        gasPrice: this.noEip1559Support
+                        gasPrice: this.legacyTransactions
                             ? maxFeePerGas
                             : undefined
                     })
@@ -239,10 +215,7 @@ export class SenderManager {
         )
         await this.semaphore.waitForUnlock()
         await this.semaphore.acquire()
-        const wallet =
-            this.apiVersion === "v1"
-                ? this.availableWallets.shift()
-                : this.availableWallets.pop()
+        const wallet = this.availableWallets.shift()
 
         // should never happen because of semaphore
         if (!wallet) {
@@ -262,10 +235,7 @@ export class SenderManager {
     }
 
     pushWallet(wallet: Account): void {
-        // push to the end of the queue
-        this.apiVersion === "v1"
-            ? this.availableWallets.push(wallet)
-            : this.availableWallets.unshift(wallet)
+        this.availableWallets.push(wallet)
         this.semaphore.release()
         this.logger.trace(
             { executor: wallet.address },

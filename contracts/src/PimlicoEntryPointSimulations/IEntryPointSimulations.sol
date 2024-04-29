@@ -5,8 +5,11 @@ import "@account-abstraction/interfaces/PackedUserOperation.sol";
 import "@account-abstraction/interfaces/EntryPoint.sol";
 
 interface IEntryPointSimulations is IEntryPoint {
-
-    error TargetCallResult(bool targetSuccess, bytes targetResult);
+    struct TargetCallResult {
+        uint256 gasUsed;
+        bool success;
+        bytes returnData;
+    }
 
     // Return value of simulateHandleOp.
     struct ExecutionResult {
@@ -45,11 +48,7 @@ interface IEntryPointSimulations is IEntryPoint {
      */
     function simulateValidation(
         PackedUserOperation calldata userOp
-    )
-    external
-    returns (
-        ValidationResult memory
-    );
+    ) external returns (ValidationResult memory);
 
     /**
      * Simulate full execution of a UserOperation (including both validation and target execution)
@@ -63,9 +62,5 @@ interface IEntryPointSimulations is IEntryPoint {
      */
     function simulateHandleOp(
         PackedUserOperation calldata op
-    )
-    external
-    returns (
-        ExecutionResult memory
-    );
+    ) external returns (ExecutionResult memory);
 }

@@ -6,7 +6,14 @@ import {
     UrlRequiredError,
     createTransport
 } from "viem"
-import { type RpcRequest, rpc } from "viem/utils"
+import { rpc } from "viem/utils"
+
+export type RpcRequest = {
+    jsonrpc?: "2.0" | undefined
+    method: string
+    params?: any | undefined
+    id?: number | undefined
+}
 
 export function customTransport(
     /** URL of the JSON-RPC API. Defaults to the chain's public RPC URL. */
