@@ -73,7 +73,9 @@ import {
     type TransactionReceipt,
     type Transport,
     encodeEventTopics,
-    zeroAddress
+    zeroAddress,
+    decodeEventLog,
+    parseAbi
 } from "viem"
 import * as chains from "viem/chains"
 import { z } from "zod"
@@ -650,9 +652,12 @@ export class RpcHandler implements IRpcEndpoint {
             return null
         }
 
+        const userOperationRevertReasonAbi = parseAbi([
+            "event UserOperationRevertReason(bytes32 indexed userOpHash, address indexed sender, uint256 nonce, bytes revertReason)"
+        ])
+
         const userOperationRevertReasonTopicEvent = encodeEventTopics({
-            abi: EntryPointV06Abi,
-            eventName: "UserOperationRevertReason"
+            abi: userOperationRevertReasonAbi
         })[0]
 
         let entryPoint: Address = zeroAddress
@@ -677,7 +682,13 @@ export class RpcHandler implements IRpcEndpoint {
                 // process UserOperationRevertReason
                 if (log.topics[1] === userOperationEvent.topics[1]) {
                     // it's our userOpHash. capture revert reason.
-                    revertReason = log.topics[4]
+                    const decodedLog = decodeEventLog({
+                        abi: userOperationRevertReasonAbi,
+                        data: log.data,
+                        topics: log.topics
+                    })
+
+                    revertReason = decodedLog.args.revertReason
                 }
             }
         })
