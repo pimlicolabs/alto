@@ -83,6 +83,7 @@ export class Server {
         port: number,
         requestTimeout: number | undefined,
         websocketMaxPayloadSize: number,
+        websocketEnabled: boolean,
         logger: Logger,
         registry: Registry,
         metrics: Metrics
@@ -134,20 +135,22 @@ export class Server {
         this.fastify.post("/:version/rpc", this.rpcHttp.bind(this))
         this.fastify.post("/", this.rpcHttp.bind(this))
 
-        this.fastify.register(async (fastify) => {
-            fastify.route({
-                method: "GET",
-                url: "/:version/rpc",
-                handler: async (request, reply) => {
-                    await reply.status(404).send("GET request to /${version}/rpc is not supported, use POST isntead")
-                },
-                wsHandler: async (socket: WebSocket.WebSocket, request) => {
-                    socket.on("message", async (msgBuffer: Buffer) =>
-                        this.rpcSocket(request, msgBuffer, socket)
-                    )
-                }
+        if (websocketEnabled) {
+            this.fastify.register(async (fastify) => {
+                fastify.route({
+                    method: "GET",
+                    url: "/:version/rpc",
+                    handler: async (request, reply) => {
+                        await reply.status(404).send("GET request to /${version}/rpc is not supported, use POST isntead")
+                    },
+                    wsHandler: async (socket: WebSocket.WebSocket, request) => {
+                        socket.on("message", async (msgBuffer: Buffer) =>
+                            this.rpcSocket(request, msgBuffer, socket)
+                        )
+                    }
+                })
             })
-        })
+        }
 
         this.fastify.get("/health", this.healthCheck.bind(this))
         this.fastify.get("/metrics", this.serveMetrics.bind(this))
