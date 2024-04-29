@@ -713,12 +713,15 @@ export class RpcHandler implements IRpcEndpoint {
             throw err
         }
 
+        let paymaster: Address | undefined = userOperationEvent.args.paymaster
+        paymaster = paymaster === zeroAddress ? undefined : paymaster
+
         const userOperationReceipt: GetUserOperationReceiptResponseResult = {
             userOpHash: userOperationHash,
             entryPoint,
             sender: userOperationEvent.args.sender,
             nonce: userOperationEvent.args.nonce,
-            paymaster: userOperationEvent.args.paymaster,
+            paymaster,
             actualGasUsed: userOperationEvent.args.actualGasUsed,
             actualGasCost: userOperationEvent.args.actualGasCost,
             success: userOperationEvent.args.success,
