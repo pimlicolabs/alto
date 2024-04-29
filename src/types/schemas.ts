@@ -452,7 +452,7 @@ const getUserOperationReceiptResponseSchema = z.object({
             actualGasCost: hexNumberSchema,
             actualGasUsed: hexNumberSchema,
             success: z.boolean(),
-            reason: z.hexDataSchema().optional(), // revert reason
+            reason: hexDataSchema.optional(), // revert reason
             logs: z.array(logSchema),
             receipt: receiptSchema
         })
