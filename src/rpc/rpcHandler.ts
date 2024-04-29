@@ -71,7 +71,11 @@ import {
     type PublicClient,
     type Transaction,
     type TransactionReceipt,
-    type Transport
+    type Transport,
+    encodeEventTopics,
+    zeroAddress,
+    decodeEventLog,
+    parseAbi
 } from "viem"
 import * as chains from "viem/chains"
 import { z } from "zod"
@@ -648,6 +652,17 @@ export class RpcHandler implements IRpcEndpoint {
             return null
         }
 
+        const userOperationRevertReasonAbi = parseAbi([
+            "event UserOperationRevertReason(bytes32 indexed userOpHash, address indexed sender, uint256 nonce, bytes revertReason)"
+        ])
+
+        const userOperationRevertReasonTopicEvent = encodeEventTopics({
+            abi: userOperationRevertReasonAbi
+        })[0]
+
+        let entryPoint: Address = zeroAddress
+        let revertReason = undefined
+
         let startIndex = -1
         let endIndex = -1
         logs.forEach((log, index) => {
@@ -656,9 +671,24 @@ export class RpcHandler implements IRpcEndpoint {
                 if (log.topics[1] === userOperationEvent.topics[1]) {
                     // it's our userOpHash. save as end of logs array
                     endIndex = index
+                    entryPoint = log.address
                 } else if (endIndex === -1) {
                     // it's a different hash. remember it as beginning index, but only if we didn't find our end index yet.
                     startIndex = index
+                }
+            }
+
+            if (log?.topics[0] === userOperationRevertReasonTopicEvent) {
+                // process UserOperationRevertReason
+                if (log.topics[1] === userOperationEvent.topics[1]) {
+                    // it's our userOpHash. capture revert reason.
+                    const decodedLog = decodeEventLog({
+                        abi: userOperationRevertReasonAbi,
+                        data: log.data,
+                        topics: log.topics
+                    })
+
+                    revertReason = decodedLog.args.revertReason
                 }
             }
         })
@@ -683,13 +713,19 @@ export class RpcHandler implements IRpcEndpoint {
             throw err
         }
 
+        let paymaster: Address | undefined = userOperationEvent.args.paymaster
+        paymaster = paymaster === zeroAddress ? undefined : paymaster
+
         const userOperationReceipt: GetUserOperationReceiptResponseResult = {
             userOpHash: userOperationHash,
+            entryPoint,
             sender: userOperationEvent.args.sender,
             nonce: userOperationEvent.args.nonce,
+            paymaster,
             actualGasUsed: userOperationEvent.args.actualGasUsed,
             actualGasCost: userOperationEvent.args.actualGasCost,
             success: userOperationEvent.args.success,
+            reason: revertReason,
             logs: logsParsing.data,
             receipt: receiptParsing.data
         }
