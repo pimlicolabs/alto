@@ -96,6 +96,7 @@ export const compatibilityArgsSchema = z.object({
 export const serverArgsSchema = z.object({
     port: z.number().int().min(0),
     timeout: z.number().int().min(0).optional(),
+    "websocket": z.boolean().default(false),
     "websocket-max-payload-size": z
         .number()
         .int()

@@ -343,6 +343,7 @@ const getServer = ({
         parsedArgs.port,
         parsedArgs.timeout,
         parsedArgs["websocket-max-payload-size"],
+        parsedArgs["websocket"],
         logger.child(
             { module: "rpc" },
             { level: parsedArgs["rpc-log-level"] || parsedArgs["log-level"] }

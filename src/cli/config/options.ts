@@ -175,6 +175,11 @@ export const serverOptions: CliCommandOptions<IServerArgsInput> = {
         type: "number",
         require: false
     },
+    "websocket": {
+        description: "Enable websocket server",
+        type: "boolean",
+        require: false,
+    }
 }
 
 export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
