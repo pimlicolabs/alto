@@ -141,7 +141,9 @@ export class Server {
                     method: "GET",
                     url: "/:version/rpc",
                     handler: async (request, reply) => {
-                        await reply.status(404).send("GET request to /${version}/rpc is not supported, use POST isntead")
+                        const version = (request.params as any).version;
+
+                        await reply.status(404).send(`GET request to /${version}/rpc is not supported, use POST isntead`)
                     },
                     wsHandler: async (socket: WebSocket.WebSocket, request) => {
                         socket.on("message", async (msgBuffer: Buffer) =>
