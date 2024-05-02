@@ -1,4 +1,4 @@
-import { type Hash, type Hex, getAddress } from "viem"
+import { type Hash, type Hex, getAddress, maxUint256 } from "viem"
 import { z } from "zod"
 import type { MempoolUserOperation } from "./mempool"
 
@@ -18,6 +18,15 @@ export const hexNumberSchema = z
     .or(z.number())
     .or(z.bigint())
     .transform((val) => BigInt(val))
+export const hexNumberU256Schema = z
+    .string()
+    .regex(hexDataPattern)
+    .or(z.number())
+    .or(z.bigint())
+    .transform((val) => BigInt(val))
+    .refine((val) => val <= maxUint256, {
+        message: "not a valid uint256"
+    })
 const hexDataSchema = z
     .string()
     .regex(hexDataPattern, { message: "not valid hex data" })
@@ -35,14 +44,14 @@ export type HexData32 = z.infer<typeof hexData32Schema>
 const userOperationV06Schema = z
     .object({
         sender: addressSchema,
-        nonce: hexNumberSchema,
+        nonce: hexNumberU256Schema,
         initCode: hexDataSchema,
         callData: hexDataSchema,
-        callGasLimit: hexNumberSchema,
-        verificationGasLimit: hexNumberSchema,
-        preVerificationGas: hexNumberSchema,
-        maxPriorityFeePerGas: hexNumberSchema,
-        maxFeePerGas: hexNumberSchema,
+        callGasLimit: hexNumberU256Schema,
+        verificationGasLimit: hexNumberU256Schema,
+        preVerificationGas: hexNumberU256Schema,
+        maxPriorityFeePerGas: hexNumberU256Schema,
+        maxFeePerGas: hexNumberU256Schema,
         paymasterAndData: hexDataSchema,
         signature: hexDataSchema
     })
@@ -54,7 +63,7 @@ const userOperationV06Schema = z
 const userOperationV07Schema = z
     .object({
         sender: addressSchema,
-        nonce: hexNumberSchema,
+        nonce: hexNumberU256Schema,
         factory: addressSchema
             .nullable()
             .optional()
@@ -64,20 +73,20 @@ const userOperationV07Schema = z
             .optional()
             .transform((val) => val ?? null),
         callData: hexDataSchema,
-        callGasLimit: hexNumberSchema,
-        verificationGasLimit: hexNumberSchema,
-        preVerificationGas: hexNumberSchema,
-        maxFeePerGas: hexNumberSchema,
-        maxPriorityFeePerGas: hexNumberSchema,
+        callGasLimit: hexNumberU256Schema,
+        verificationGasLimit: hexNumberU256Schema,
+        preVerificationGas: hexNumberU256Schema,
+        maxFeePerGas: hexNumberU256Schema,
+        maxPriorityFeePerGas: hexNumberU256Schema,
         paymaster: addressSchema
             .nullable()
             .optional()
             .transform((val) => val ?? null),
-        paymasterVerificationGasLimit: hexNumberSchema
+        paymasterVerificationGasLimit: hexNumberU256Schema
             .nullable()
             .optional()
             .transform((val) => val ?? null),
-        paymasterPostOpGasLimit: hexNumberSchema
+        paymasterPostOpGasLimit: hexNumberU256Schema
             .nullable()
             .optional()
             .transform((val) => val ?? null),
@@ -93,14 +102,14 @@ const userOperationV07Schema = z
 const partialUserOperationV06Schema = z
     .object({
         sender: addressSchema,
-        nonce: hexNumberSchema,
+        nonce: hexNumberU256Schema,
         initCode: hexDataSchema,
         callData: hexDataSchema,
-        callGasLimit: hexNumberSchema.default(1n),
-        verificationGasLimit: hexNumberSchema.default(1n),
-        preVerificationGas: hexNumberSchema.default(1n),
-        maxPriorityFeePerGas: hexNumberSchema.default(1n),
-        maxFeePerGas: hexNumberSchema.default(1n),
+        callGasLimit: hexNumberU256Schema.default(1n),
+        verificationGasLimit: hexNumberU256Schema.default(1n),
+        preVerificationGas: hexNumberU256Schema.default(1n),
+        maxPriorityFeePerGas: hexNumberU256Schema.default(1n),
+        maxFeePerGas: hexNumberU256Schema.default(1n),
         paymasterAndData: hexDataSchema,
         signature: hexDataSchema
     })
@@ -112,7 +121,7 @@ const partialUserOperationV06Schema = z
 const partialUserOperationV07Schema = z
     .object({
         sender: addressSchema,
-        nonce: hexNumberSchema,
+        nonce: hexNumberU256Schema,
         factory: addressSchema
             .nullable()
             .optional()
@@ -122,20 +131,20 @@ const partialUserOperationV07Schema = z
             .optional()
             .transform((val) => val ?? null),
         callData: hexDataSchema,
-        callGasLimit: hexNumberSchema.default(1n),
-        verificationGasLimit: hexNumberSchema.default(1n),
-        preVerificationGas: hexNumberSchema.default(1n),
-        maxFeePerGas: hexNumberSchema.default(1n),
-        maxPriorityFeePerGas: hexNumberSchema.default(1n),
+        callGasLimit: hexNumberU256Schema.default(1n),
+        verificationGasLimit: hexNumberU256Schema.default(1n),
+        preVerificationGas: hexNumberU256Schema.default(1n),
+        maxFeePerGas: hexNumberU256Schema.default(1n),
+        maxPriorityFeePerGas: hexNumberU256Schema.default(1n),
         paymaster: addressSchema
             .nullable()
             .optional()
             .transform((val) => val ?? null),
-        paymasterVerificationGasLimit: hexNumberSchema
+        paymasterVerificationGasLimit: hexNumberU256Schema
             .nullable()
             .optional()
             .transform((val) => val ?? null),
-        paymasterPostOpGasLimit: hexNumberSchema
+        paymasterPostOpGasLimit: hexNumberU256Schema
             .nullable()
             .optional()
             .transform((val) => val ?? null),
