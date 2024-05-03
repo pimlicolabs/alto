@@ -1,4 +1,4 @@
-import { type Hash, type Hex, getAddress } from "viem"
+import { type Hash, type Hex, getAddress, maxUint256 } from "viem"
 import { z } from "zod"
 import type { MempoolUserOperation } from "./mempool"
 
@@ -18,6 +18,9 @@ export const hexNumberSchema = z
     .or(z.number())
     .or(z.bigint())
     .transform((val) => BigInt(val))
+    .refine((val) => val <= maxUint256, {
+        message: "not a valid uint256"
+    })
 const hexDataSchema = z
     .string()
     .regex(hexDataPattern, { message: "not valid hex data" })
