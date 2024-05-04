@@ -77,6 +77,7 @@ const getValidator = ({
             ),
             metrics,
             gasPriceManager,
+            parsedArgs["chain-type"],
             parsedArgs["entrypoint-simulation-contract"],
             parsedArgs.tenderly,
             parsedArgs["balance-override"]
@@ -90,6 +91,7 @@ const getValidator = ({
         ),
         metrics,
         gasPriceManager,
+        parsedArgs["chain-type"],
         parsedArgs["entrypoint-simulation-contract"],
         parsedArgs.tenderly,
         parsedArgs["balance-override"],
@@ -319,6 +321,7 @@ const getRpcHandler = ({
         parsedArgs["legacy-transactions"],
         gasPriceManager,
         parsedArgs["gas-price-multipliers"],
+        parsedArgs["chain-type"],
         parsedArgs["dangerous-skip-user-operation-validation"]
     )
 }
@@ -343,7 +346,7 @@ const getServer = ({
         parsedArgs.port,
         parsedArgs.timeout,
         parsedArgs["websocket-max-payload-size"],
-        parsedArgs["websocket"],
+        parsedArgs.websocket,
         logger.child(
             { module: "rpc" },
             { level: parsedArgs["rpc-log-level"] || parsedArgs["log-level"] }
