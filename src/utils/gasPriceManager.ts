@@ -461,13 +461,13 @@ export class GasPriceManager {
         return gasPrice
     }
 
-    public async getMinBaseFeePerGas() {
+    public async getMaxBaseFeePerGas() {
         if (this.queueBaseFeePerGas.length === 0) {
             await this.getBaseFee()
         }
 
         return this.queueBaseFeePerGas.reduce(
-            (acc: bigint, cur) => minBigInt(cur.baseFeePerGas, acc),
+            (acc: bigint, cur) => maxBigInt(cur.baseFeePerGas, acc),
             this.queueBaseFeePerGas[0].baseFeePerGas
         )
     }

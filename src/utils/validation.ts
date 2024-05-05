@@ -519,7 +519,7 @@ export async function calcOptimismPreVerificationGas(
 
     let baseFeePerGas = 0n
     if (verify) {
-        baseFeePerGas = await gasPriceManager.getMinBaseFeePerGas()
+        baseFeePerGas = await gasPriceManager.getMaxBaseFeePerGas()
     } else {
         baseFeePerGas = await gasPriceManager.getBaseFee()
     }
