@@ -1,7 +1,6 @@
 import {
     EntryPointV06Abi,
     EntryPointV07Abi,
-    RpcError,
     type Address,
     type PackedUserOperation,
     type UserOperation,
@@ -34,7 +33,7 @@ import {
 import * as chains from "viem/chains"
 import { isVersion06, toPackedUserOperation } from "./userop"
 import { minBigInt } from "./bigInt"
-import { GasPriceManager } from "./gasPriceManager"
+import type { GasPriceManager } from "./gasPriceManager"
 
 export interface GasOverheads {
     /**
