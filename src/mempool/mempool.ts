@@ -22,6 +22,7 @@ import type { HexData32 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
     getAddressFromInitCodeOrPaymasterAndData,
+    getNonceKeyAndValue,
     getUserOperationHash,
     isVersion06,
     isVersion07
@@ -319,7 +320,7 @@ export class MemoryMempool {
             paymasters: Set<`0x${string}`>
             factories: Set<`0x${string}`>
         },
-        senders: Set<string>,
+        senderNonceKeys: Set<string>,
         storageMap: StorageMap
     ): Promise<{
         skip: boolean
@@ -330,7 +331,7 @@ export class MemoryMempool {
             paymasters: Set<`0x${string}`>
             factories: Set<`0x${string}`>
         }
-        senders: Set<string>
+        senderNonceKeys: Set<string>
         storageMap: StorageMap
     }> {
         const op = deriveUserOperation(opInfo.mempoolUserOperation)
@@ -340,7 +341,7 @@ export class MemoryMempool {
                 paymasterDeposit,
                 stakedEntityCount,
                 knownEntities,
-                senders,
+                senderNonceKeys,
                 storageMap
             }
         }
@@ -372,7 +373,7 @@ export class MemoryMempool {
                 paymasterDeposit,
                 stakedEntityCount,
                 knownEntities,
-                senders,
+                senderNonceKeys,
                 storageMap
             }
         }
@@ -394,7 +395,7 @@ export class MemoryMempool {
                 paymasterDeposit,
                 stakedEntityCount,
                 knownEntities,
-                senders,
+                senderNonceKeys,
                 storageMap
             }
         }
@@ -416,25 +417,28 @@ export class MemoryMempool {
                 paymasterDeposit,
                 stakedEntityCount,
                 knownEntities,
-                senders,
+                senderNonceKeys,
                 storageMap
             }
         }
 
-        if (senders.has(op.sender)) {
+        const [nonceKey,] = getNonceKeyAndValue(op.nonce)
+
+        const senderNonceKey = `${op.sender}:${nonceKey}`
+        if (senderNonceKeys.has(senderNonceKey)) {
             this.logger.trace(
                 {
                     sender: op.sender,
                     opHash: opInfo.userOperationHash
                 },
-                "Sender skipped because already included in bundle"
+                "UserOp skipped because senderNonceKey already included in bundle"
             )
             return {
                 skip: true,
                 paymasterDeposit,
                 stakedEntityCount,
                 knownEntities,
-                senders,
+                senderNonceKeys,
                 storageMap
             }
         }
@@ -462,7 +466,7 @@ export class MemoryMempool {
                 paymasterDeposit,
                 stakedEntityCount,
                 knownEntities,
-                senders,
+                senderNonceKeys,
                 storageMap
             }
         }
@@ -483,7 +487,7 @@ export class MemoryMempool {
                     paymasterDeposit,
                     stakedEntityCount,
                     knownEntities,
-                    senders,
+                    senderNonceKeys,
                     storageMap
                 }
             }
@@ -517,7 +521,7 @@ export class MemoryMempool {
                     paymasterDeposit,
                     stakedEntityCount,
                     knownEntities,
-                    senders,
+                    senderNonceKeys,
                     storageMap
                 }
             }
@@ -530,14 +534,14 @@ export class MemoryMempool {
             stakedEntityCount[factory] = (stakedEntityCount[factory] ?? 0) + 1
         }
 
-        senders.add(op.sender)
+        senderNonceKeys.add(senderNonceKey)
 
         return {
             skip: false,
             paymasterDeposit,
             stakedEntityCount,
             knownEntities,
-            senders,
+            senderNonceKeys,
             storageMap
         }
     }
@@ -547,6 +551,24 @@ export class MemoryMempool {
         minOps?: number
     ): Promise<UserOperationInfo[]> {
         const outstandingUserOperations = this.store.dumpOutstanding().slice()
+
+        // Sort userops before the execution
+        // Decide the order of the userops based on the sender and nonce
+        // If sender is the same, sort by nonce key
+        outstandingUserOperations.sort((a, b) => {
+            const aUserOp = deriveUserOperation(a.mempoolUserOperation);
+            const bUserOp = deriveUserOperation(b.mempoolUserOperation);
+
+            if (aUserOp.sender === bUserOp.sender) {
+                const [aNonceKey,] = getNonceKeyAndValue(aUserOp.nonce);
+                const [bNonceKey,] = getNonceKeyAndValue(bUserOp.nonce);
+
+                return Number(aNonceKey - bNonceKey);
+            }
+
+            return -1;
+        })
+
         let opsTaken = 0
         let gasUsed = 0n
         const result: UserOperationInfo[] = []
@@ -555,8 +577,8 @@ export class MemoryMempool {
         let paymasterDeposit: { [paymaster: string]: bigint } = {}
         // throttled paymasters and factories are allowed only small UserOps per bundle.
         let stakedEntityCount: { [addr: string]: number } = {}
-        // each sender is allowed only once per bundle
-        let senders = new Set<string>()
+        // each sender:nonceKey is allowed only once per bundle
+        let senderNonceKeys = new Set<string>()
         let knownEntities = this.getKnownEntities()
 
         let storageMap: StorageMap = {}
@@ -575,13 +597,13 @@ export class MemoryMempool {
                 paymasterDeposit,
                 stakedEntityCount,
                 knownEntities,
-                senders,
+                senderNonceKeys,
                 storageMap
             )
             paymasterDeposit = skipResult.paymasterDeposit
             stakedEntityCount = skipResult.stakedEntityCount
             knownEntities = skipResult.knownEntities
-            senders = skipResult.senders
+            senderNonceKeys = skipResult.senderNonceKeys
             storageMap = skipResult.storageMap
 
             if (skipResult.skip) {
