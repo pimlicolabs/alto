@@ -508,7 +508,7 @@ export async function calcOptimismPreVerificationGas(
         serializedTx
     ])
 
-    if (op.maxFeePerGas <= 1 || op.maxPriorityFeePerGas <= 1) {
+    if (op.maxFeePerGas <= 1n || op.maxPriorityFeePerGas <= 1n) {
         // if user didn't provide gasPrice values, fetch current going price rate
         const gasPrices = await gasPriceManager.getGasPrice()
         op.maxPriorityFeePerGas = gasPrices.maxPriorityFeePerGas
