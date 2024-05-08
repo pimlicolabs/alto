@@ -1,5 +1,6 @@
 import type { SenderManager } from "@alto/executor"
 import type {
+    ChainStack,
     InterfaceValidator,
     UserOperationV06,
     UserOperationV07,
@@ -69,6 +70,7 @@ export class SafeValidator
         logger: Logger,
         metrics: Metrics,
         gasPriceManager: GasPriceManager,
+        chainStack: ChainStack,
         entryPointSimulationsAddress?: Address,
         usingTenderly = false,
         balanceOverrideEnabled = false
@@ -78,6 +80,7 @@ export class SafeValidator
             logger,
             metrics,
             gasPriceManager,
+            chainStack,
             entryPointSimulationsAddress,
             usingTenderly,
             balanceOverrideEnabled

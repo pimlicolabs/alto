@@ -77,6 +77,7 @@ const getValidator = ({
             ),
             metrics,
             gasPriceManager,
+            parsedArgs.stack,
             parsedArgs["entrypoint-simulation-contract"],
             parsedArgs.tenderly,
             parsedArgs["balance-override"]
@@ -320,6 +321,7 @@ const getRpcHandler = ({
         parsedArgs["legacy-transactions"],
         gasPriceManager,
         parsedArgs["gas-price-multipliers"],
+        parsedArgs.stack,
         parsedArgs["dangerous-skip-user-operation-validation"]
     )
 }
