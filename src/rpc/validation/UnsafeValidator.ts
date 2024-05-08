@@ -495,7 +495,9 @@ export class UnsafeValidator implements InterfaceValidator {
             userOperation,
             entryPoint,
             this.chainId,
-            this.chainType
+            this.chainType,
+            this.gasPriceManager,
+            true
         )
 
         if (preVerificationGas > userOperation.preVerificationGas) {
