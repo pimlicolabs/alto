@@ -3,6 +3,7 @@ import type { CliCommand, CliCommandOptions } from "../util"
 import type {
     IBundleCompressionArgsInput,
     IBundlerArgsInput,
+    IChainArgs,
     ICompatibilityArgsInput,
     IDebugArgsInput,
     ILogArgsInput,
@@ -171,14 +172,15 @@ export const serverOptions: CliCommandOptions<IServerArgsInput> = {
         require: false
     },
     "websocket-max-payload-size": {
-        description: "Maximum payload size for websocket messages in bytes (default to 1MB)",
+        description:
+            "Maximum payload size for websocket messages in bytes (default to 1MB)",
         type: "number",
         require: false
     },
-    "websocket": {
+    websocket: {
         description: "Enable websocket server",
         type: "boolean",
-        require: false,
+        require: false
     }
 }
 
@@ -317,6 +319,17 @@ export const debugOptions: CliCommandOptions<IDebugArgsInput> = {
         type: "boolean",
         require: true,
         default: false
+    }
+}
+
+export const chainOptions: CliCommandOptions<IChainArgs> = {
+    stack: {
+        description:
+            "Set if a chain is based on a specific stack (e.g. Arbitrum, Optimism)",
+        type: "string",
+        require: false,
+        default: "none",
+        choices: ["optimisn", "arbitrum", "none"]
     }
 }
 

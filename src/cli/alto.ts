@@ -6,6 +6,7 @@ import {
     bundleCompressionOptions,
     bundlerCommand,
     bundlerOptions,
+    chainOptions,
     compatibilityOptions,
     debugOptions,
     logOptions,
@@ -36,7 +37,7 @@ export const yarg = yargs(
     (hideBin as (args: string[]) => string[])(process.argv)
 )
 
-const topBanner = `🏔️ Alto: TypeScript ERC-4337 Bundler.
+const topBanner = `🏔 Alto: TypeScript ERC-4337 Bundler.
   * by Pimlico, 2024`
 const bottomBanner = `📖 For more information, check the our docs:
   * https://docs.pimlico.io/
@@ -68,6 +69,8 @@ export function getAltoCli(): yargs.Argv {
         .group(Object.keys(logOptions), "Logging Options:")
         .options(debugOptions)
         .group(Object.keys(debugOptions), "Debug Options:")
+        .options(chainOptions)
+        .group(Object.keys(chainOptions), "Chain Options:")
         // blank scriptName so that help text doesn't display the cli name before each command
         .scriptName("")
         .demandCommand(1)
@@ -112,6 +115,6 @@ alto.fail((msg, err) => {
             : msg || "Unknown error"
 
     // eslint-disable-next-line no-console
-    console.error(` ✖ ${errorMessage}\n`)
+    console.error(` × ${errorMessage}\n`)
     process.exit(1)
 }).parse()

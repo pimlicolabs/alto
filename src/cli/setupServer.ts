@@ -90,6 +90,7 @@ const getValidator = ({
         ),
         metrics,
         gasPriceManager,
+        parsedArgs.stack,
         parsedArgs["entrypoint-simulation-contract"],
         parsedArgs.tenderly,
         parsedArgs["balance-override"],

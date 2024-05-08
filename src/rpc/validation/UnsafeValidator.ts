@@ -1,4 +1,5 @@
 import type {
+    ChainStack,
     InterfaceValidator,
     StateOverrides,
     UserOperationV06,
@@ -137,12 +138,14 @@ export class UnsafeValidator implements InterfaceValidator {
     chainId: number
     gasPriceManager: GasPriceManager
     entryPointSimulationsAddress?: Address
+    chainStack: ChainStack
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
         logger: Logger,
         metrics: Metrics,
         gasPriceManager: GasPriceManager,
+        chainStack: ChainStack,
         entryPointSimulationsAddress?: Address,
         usingTenderly = false,
         balanceOverrideEnabled = false,
@@ -151,6 +154,7 @@ export class UnsafeValidator implements InterfaceValidator {
         this.publicClient = publicClient
         this.logger = logger
         this.metrics = metrics
+        this.chainStack = chainStack
         this.usingTenderly = usingTenderly
         this.balanceOverrideEnabled = balanceOverrideEnabled
         this.expirationCheck = expirationCheck
@@ -490,7 +494,8 @@ export class UnsafeValidator implements InterfaceValidator {
             this.publicClient,
             userOperation,
             entryPoint,
-            this.chainId
+            this.chainId,
+            this.chainStack
         )
 
         if (preVerificationGas > userOperation.preVerificationGas) {

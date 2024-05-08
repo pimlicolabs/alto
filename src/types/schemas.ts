@@ -1,6 +1,7 @@
 import { type Hash, type Hex, getAddress } from "viem"
 import { z } from "zod"
 import type { MempoolUserOperation } from "./mempool"
+import { chainArgsSchema } from "../cli/config"
 
 const hexDataPattern = /^0x[0-9A-Fa-f]*$/
 const addressPattern = /^0x[0-9,a-f,A-F]{40}$/
@@ -794,6 +795,8 @@ export type BundlerRequest = z.infer<typeof bundlerRequestSchema>
 export type JSONRPCRequest = z.infer<typeof jsonRpcSchema>
 // biome-ignore lint/style/useNamingConvention: <explanation>
 export type JSONRPCResponse = z.infer<typeof jsonRpcResultSchema>
+
+export type ChainStack = z.infer<typeof chainArgsSchema>["stack"]
 
 export {
     bundlerClearStateRequestSchema,

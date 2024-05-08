@@ -96,12 +96,12 @@ export const compatibilityArgsSchema = z.object({
 export const serverArgsSchema = z.object({
     port: z.number().int().min(0),
     timeout: z.number().int().min(0).optional(),
-    "websocket": z.boolean().default(false),
+    websocket: z.boolean().default(false),
     "websocket-max-payload-size": z
         .number()
         .int()
         .min(1024)
-        .default(1024 * 1024), // 1 mb
+        .default(1024 * 1024) // 1 mb
 })
 
 export const rpcArgsSchema = z.object({
@@ -137,6 +137,10 @@ export const debugArgsSchema = z.object({
     tenderly: z.boolean()
 })
 
+export const chainArgsSchema = z.object({
+    stack: z.enum(["optimism", "arbitrum", "none"])
+})
+
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>
 export type IBundlerArgsInput = z.input<typeof bundlerArgsSchema>
 
@@ -159,6 +163,7 @@ export type ILogArgsInput = z.input<typeof logArgsSchema>
 
 export type IDebugArgs = z.infer<typeof debugArgsSchema>
 export type IDebugArgsInput = z.input<typeof debugArgsSchema>
+export type IChainArgs = z.input<typeof chainArgsSchema>
 
 export const optionArgsSchema = z.object({
     ...bundlerArgsSchema.shape,
@@ -167,7 +172,8 @@ export const optionArgsSchema = z.object({
     ...serverArgsSchema.shape,
     ...rpcArgsSchema.shape,
     ...bundleCopmressionArgsSchema.shape,
-    ...debugArgsSchema.shape
+    ...debugArgsSchema.shape,
+    ...chainArgsSchema.shape
 })
 
 export type IOptions = z.infer<typeof optionArgsSchema>

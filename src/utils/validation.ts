@@ -6,7 +6,8 @@ import {
     type PackedUserOperation,
     type UserOperation,
     type UserOperationV06,
-    type UserOperationV07
+    type UserOperationV07,
+    ChainStack
 } from "@alto/types"
 import {
     ContractFunctionExecutionError,
@@ -280,6 +281,7 @@ export async function calcPreVerificationGas(
     userOperation: UserOperation,
     entryPoint: Address,
     chainId: number,
+    chainStack: ChainStack,
     overheads?: GasOverheads
 ): Promise<bigint> {
     let preVerificationGas = calcDefaultPreVerificationGas(
@@ -289,28 +291,14 @@ export async function calcPreVerificationGas(
 
     if (chainId === 59140 || chainId === 59142) {
         preVerificationGas *= 2n
-    } else if (
-        chainId === chains.optimism.id ||
-        chainId === chains.optimismSepolia.id ||
-        chainId === chains.optimismGoerli.id ||
-        chainId === chains.base.id ||
-        chainId === chains.baseGoerli.id ||
-        chainId === chains.baseSepolia.id ||
-        chainId === chains.opBNB.id ||
-        chainId === chains.opBNBTestnet.id ||
-        chainId === 957 // Lyra chain
-    ) {
+    } else if (chainStack === "optimism") {
         preVerificationGas = await calcOptimismPreVerificationGas(
             publicClient,
             userOperation,
             entryPoint,
             preVerificationGas
         )
-    } else if (
-        chainId === chains.arbitrum.id ||
-        chainId === chains.arbitrumNova.id ||
-        chainId === chains.arbitrumSepolia.id
-    ) {
+    } else if (chainStack === "arbitrum") {
         preVerificationGas = await calcArbitrumPreVerificationGas(
             publicClient,
             userOperation,
