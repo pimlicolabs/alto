@@ -1,7 +1,6 @@
 import {
     EntryPointV06Abi,
     EntryPointV07Abi,
-    RpcError,
     type Address,
     type PackedUserOperation,
     type UserOperation,
@@ -33,6 +32,8 @@ import {
 } from "viem"
 import * as chains from "viem/chains"
 import { isVersion06, toPackedUserOperation } from "./userop"
+import { minBigInt } from "./bigInt"
+import type { GasPriceManager } from "./gasPriceManager"
 
 export interface GasOverheads {
     /**
@@ -280,6 +281,8 @@ export async function calcPreVerificationGas(
     userOperation: UserOperation,
     entryPoint: Address,
     chainId: number,
+    gasPriceManager: GasPriceManager,
+    validate: boolean, // when calculating preVerificationGas for validation
     overheads?: GasOverheads
 ): Promise<bigint> {
     let preVerificationGas = calcDefaultPreVerificationGas(
@@ -304,7 +307,9 @@ export async function calcPreVerificationGas(
             publicClient,
             userOperation,
             entryPoint,
-            preVerificationGas
+            preVerificationGas,
+            gasPriceManager,
+            validate
         )
     } else if (
         chainId === chains.arbitrum.id ||
@@ -432,7 +437,9 @@ export async function calcOptimismPreVerificationGas(
     publicClient: PublicClient<Transport, Chain>,
     op: UserOperation,
     entryPoint: Address,
-    staticFee: bigint
+    staticFee: bigint,
+    gasPriceManager: GasPriceManager,
+    verify?: boolean
 ) {
     let selector: Hex
     let paramData: Hex
@@ -473,11 +480,6 @@ export async function calcOptimismPreVerificationGas(
 
     const data = concat([selector, paramData])
 
-    const latestBlock = await publicClient.getBlock()
-    if (latestBlock.baseFeePerGas === null) {
-        throw new RpcError("block does not have baseFeePerGas")
-    }
-
     const serializedTx = serializeTransaction(
         {
             to: entryPoint,
@@ -506,10 +508,24 @@ export async function calcOptimismPreVerificationGas(
         serializedTx
     ])
 
-    const l2MaxFee = op.maxFeePerGas
-    const l2PriorityFee = latestBlock.baseFeePerGas + op.maxPriorityFeePerGas
+    if (op.maxFeePerGas <= 1n || op.maxPriorityFeePerGas <= 1n) {
+        // if user didn't provide gasPrice values, fetch current going price rate
+        const gasPrices = await gasPriceManager.getGasPrice()
+        op.maxPriorityFeePerGas = gasPrices.maxPriorityFeePerGas
+        op.maxFeePerGas = gasPrices.maxFeePerGas
+    }
 
-    const l2price = l2MaxFee < l2PriorityFee ? l2MaxFee : l2PriorityFee
+    const l2MaxFee = op.maxFeePerGas
+
+    let baseFeePerGas = 0n
+    if (verify) {
+        baseFeePerGas = await gasPriceManager.getMaxBaseFeePerGas()
+    } else {
+        baseFeePerGas = await gasPriceManager.getBaseFee()
+    }
+    const l2PriorityFee = baseFeePerGas + op.maxPriorityFeePerGas
+
+    const l2price = minBigInt(l2MaxFee, l2PriorityFee)
 
     return staticFee + l1Fee / l2price
 }

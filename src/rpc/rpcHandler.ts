@@ -329,7 +329,9 @@ export class RpcHandler implements IRpcEndpoint {
                 this.publicClient,
                 userOperation,
                 entryPoint,
-                this.chainId
+                this.chainId,
+                this.gasPriceManager,
+                false
             )) *
                 110n) /
             100n
