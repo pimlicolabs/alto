@@ -9,7 +9,8 @@ import type {
     PackedUserOperation,
     StateOverrides,
     UserOperationV06,
-    GasPriceMultipliers
+    GasPriceMultipliers,
+    ChainType
 } from "@alto/types"
 import {
     EntryPointV06Abi,
@@ -121,6 +122,7 @@ export class RpcHandler implements IRpcEndpoint {
     logger: Logger
     metrics: Metrics
     chainId: number
+    chainType: ChainType
     enableDebugEndpoints: boolean
     executorManager: ExecutorManager
     reputationManager: InterfaceReputationManager
@@ -149,6 +151,7 @@ export class RpcHandler implements IRpcEndpoint {
         legacyTransactions: boolean,
         gasPriceManager: GasPriceManager,
         gasPriceMultipliers: GasPriceMultipliers,
+        chainType: ChainType,
         dangerousSkipUserOperationValidation = false
     ) {
         this.entryPoints = entryPoints
@@ -171,6 +174,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.dangerousSkipUserOperationValidation =
             dangerousSkipUserOperationValidation
         this.gasPriceMultipliers = gasPriceMultipliers
+        this.chainType = chainType
         this.gasPriceManager = gasPriceManager
     }
 
@@ -330,6 +334,7 @@ export class RpcHandler implements IRpcEndpoint {
                 userOperation,
                 entryPoint,
                 this.chainId,
+                this.chainType,
                 this.gasPriceManager,
                 false
             )) *

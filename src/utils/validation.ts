@@ -1,34 +1,35 @@
 import {
+    type Address,
+    type ChainType,
     EntryPointV06Abi,
     EntryPointV07Abi,
-    type Address,
     type PackedUserOperation,
     type UserOperation,
     type UserOperationV06,
     type UserOperationV07
 } from "@alto/types"
 import {
+    type Chain,
     ContractFunctionExecutionError,
     ContractFunctionRevertedError,
     EstimateGasExecutionError,
     FeeCapTooLowError,
+    type Hex,
     InsufficientFundsError,
     IntrinsicGasTooLowError,
     NonceTooLowError,
+    type PublicClient,
     TransactionExecutionError,
+    type Transport,
     bytesToHex,
     concat,
     encodeAbiParameters,
+    getAbiItem,
     getContract,
     serializeTransaction,
     toBytes,
     toFunctionSelector,
-    toHex,
-    type Chain,
-    type Hex,
-    type PublicClient,
-    type Transport,
-    getAbiItem
+    toHex
 } from "viem"
 import * as chains from "viem/chains"
 import { isVersion06, toPackedUserOperation } from "./userop"
@@ -281,6 +282,7 @@ export async function calcPreVerificationGas(
     userOperation: UserOperation,
     entryPoint: Address,
     chainId: number,
+    chainType: ChainType,
     gasPriceManager: GasPriceManager,
     validate: boolean, // when calculating preVerificationGas for validation
     overheads?: GasOverheads
@@ -290,19 +292,10 @@ export async function calcPreVerificationGas(
         overheads
     )
 
-    if (chainId === 59140 || chainId === 59142) {
+    if (chainId === 59140) {
+        // linea sepolia
         preVerificationGas *= 2n
-    } else if (
-        chainId === chains.optimism.id ||
-        chainId === chains.optimismSepolia.id ||
-        chainId === chains.optimismGoerli.id ||
-        chainId === chains.base.id ||
-        chainId === chains.baseGoerli.id ||
-        chainId === chains.baseSepolia.id ||
-        chainId === chains.opBNB.id ||
-        chainId === chains.opBNBTestnet.id ||
-        chainId === 957 // Lyra chain
-    ) {
+    } else if (chainType === "op-stack") {
         preVerificationGas = await calcOptimismPreVerificationGas(
             publicClient,
             userOperation,
@@ -311,11 +304,7 @@ export async function calcPreVerificationGas(
             gasPriceManager,
             validate
         )
-    } else if (
-        chainId === chains.arbitrum.id ||
-        chainId === chains.arbitrumNova.id ||
-        chainId === chains.arbitrumSepolia.id
-    ) {
+    } else if (chainType === "arbitrum") {
         preVerificationGas = await calcArbitrumPreVerificationGas(
             publicClient,
             userOperation,

@@ -73,6 +73,7 @@ export const bundlerArgsSchema = z.object({
 })
 
 export const compatibilityArgsSchema = z.object({
+    "chain-type": z.enum(["default", "op-stack", "arbitrum"]),
     "legacy-transactions": z.boolean(),
     "api-version": z
         .string()
@@ -96,12 +97,12 @@ export const compatibilityArgsSchema = z.object({
 export const serverArgsSchema = z.object({
     port: z.number().int().min(0),
     timeout: z.number().int().min(0).optional(),
-    "websocket": z.boolean().default(false),
+    websocket: z.boolean().default(false),
     "websocket-max-payload-size": z
         .number()
         .int()
         .min(1024)
-        .default(1024 * 1024), // 1 mb
+        .default(1024 * 1024) // 1 mb
 })
 
 export const rpcArgsSchema = z.object({

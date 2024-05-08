@@ -1,4 +1,5 @@
 import type {
+    ChainType,
     InterfaceValidator,
     StateOverrides,
     UserOperationV06,
@@ -10,19 +11,19 @@ import type {
     ValidationResultWithAggregationV07
 } from "@alto/types"
 import {
+    type Address,
     EntryPointV06Abi,
     ExecutionErrors,
-    RpcError,
-    ValidationErrors,
-    entryPointErrorsSchema,
-    entryPointExecutionErrorSchemaV06,
-    entryPointExecutionErrorSchemaV07,
-    type Address,
     type ExecutionResult,
     type ReferencedCodeHashes,
+    RpcError,
     type StorageMap,
     type UserOperation,
-    type ValidationResultWithAggregation
+    ValidationErrors,
+    type ValidationResultWithAggregation,
+    entryPointErrorsSchema,
+    entryPointExecutionErrorSchemaV06,
+    entryPointExecutionErrorSchemaV07
 } from "@alto/types"
 import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
 import {
@@ -34,22 +35,22 @@ import {
 import * as sentry from "@sentry/node"
 import {
     BaseError,
+    type Chain,
     ContractFunctionExecutionError,
+    type PublicClient,
+    type Transport,
+    getContract,
     pad,
     slice,
     toHex,
-    zeroAddress,
-    type Chain,
-    type PublicClient,
-    type Transport,
-    getContract
+    zeroAddress
 } from "viem"
 import { fromZodError } from "zod-validation-error"
 import { simulateValidation } from "../EntryPointSimulationsV07"
 import {
+    type SimulateHandleOpResult,
     simulateHandleOp,
-    simulateHandleOpV06,
-    type SimulateHandleOpResult
+    simulateHandleOpV06
 } from "../gasEstimation"
 
 async function getSimulationResult(
@@ -137,12 +138,14 @@ export class UnsafeValidator implements InterfaceValidator {
     chainId: number
     gasPriceManager: GasPriceManager
     entryPointSimulationsAddress?: Address
+    chainType: ChainType
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
         logger: Logger,
         metrics: Metrics,
         gasPriceManager: GasPriceManager,
+        chainType: ChainType,
         entryPointSimulationsAddress?: Address,
         usingTenderly = false,
         balanceOverrideEnabled = false,
@@ -157,6 +160,7 @@ export class UnsafeValidator implements InterfaceValidator {
         this.chainId = publicClient.chain.id
         this.gasPriceManager = gasPriceManager
         this.entryPointSimulationsAddress = entryPointSimulationsAddress
+        this.chainType = chainType
     }
 
     async getExecutionResult(
@@ -491,6 +495,7 @@ export class UnsafeValidator implements InterfaceValidator {
             userOperation,
             entryPoint,
             this.chainId,
+            this.chainType,
             this.gasPriceManager,
             true
         )
