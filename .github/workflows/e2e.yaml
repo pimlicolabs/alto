@@ -18,7 +18,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Start tests
-      run: docker-compose -f "test/e2e/docker-compose.yml" up --abort-on-container-exit test_suite
+      run: docker-compose -f "test/e2e/docker-compose.yml" up --build --abort-on-container-exit test_suite
 
     - name: Stop containers
       if: always()
