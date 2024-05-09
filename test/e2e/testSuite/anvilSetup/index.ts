@@ -10,6 +10,7 @@ import {
     bundleBulkerAbi,
     bundleBulkerCreateBytecode,
     entryPointCreateBytecode,
+    entryPointSimulationCreateBytecode,
     entryPointV07CreateBytecode,
     perOpInflatorAbi,
     perOpInflatorCreateBytecode,
@@ -133,7 +134,7 @@ const setupBasicEnvironment = async () => {
         to: CREATE2_DEPLOYER_ADDRESS,
         data: concat([
             "0x3132333400000000000000000000000000000000000000000000000000000000",
-            simpleAccountFactoryCreateBytecode
+            entryPointSimulationCreateBytecode
         ]),
         chain: foundry
     })

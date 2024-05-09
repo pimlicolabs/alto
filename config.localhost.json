@@ -6,6 +6,7 @@
     "min-entity-unstake-delay": 1,
     "max-bundle-wait": 3,
     "max-bundle-size": 3,
+    "max-block-range": 500,
     "port": 3000,
     "executor-private-keys": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
     "utility-private-key": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
