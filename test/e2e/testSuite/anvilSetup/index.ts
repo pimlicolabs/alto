@@ -10,10 +10,12 @@ import {
     bundleBulkerAbi,
     bundleBulkerCreateBytecode,
     entryPointCreateBytecode,
+    entryPointV07CreateBytecode,
     perOpInflatorAbi,
     perOpInflatorCreateBytecode,
     simpleAccountFactoryCreateBytecode,
-    simpleInflatorCreateBytecode
+    simpleInflatorCreateBytecode,
+    simulateAccountFactoryV07CreateBytecode
 } from "../src/data"
 import {
     BUNDLE_BULKER_ADDRESS,
@@ -92,7 +94,7 @@ const setupCompressedEnvironment = async () => {
 }
 
 const setupBasicEnvironment = async () => {
-    // deploy entrypoint.
+    // deploy entrypoint v0.6
     await walletClient.sendTransaction({
         account: anvilAccount,
         to: CREATE2_DEPLOYER_ADDRESS,
@@ -103,7 +105,7 @@ const setupBasicEnvironment = async () => {
         chain: foundry
     })
 
-    // deploy simple account factory.
+    // deploy simple account factory v0.6
     await walletClient.sendTransaction({
         account: anvilAccount,
         to: CREATE2_DEPLOYER_ADDRESS,
@@ -113,8 +115,41 @@ const setupBasicEnvironment = async () => {
         ]),
         chain: foundry
     })
+
+    // deploy entrypoint v0.7
+    await walletClient.sendTransaction({
+        account: anvilAccount,
+        to: CREATE2_DEPLOYER_ADDRESS,
+        data: concat([
+            "0x90d8084deab30c2a37c45e8d47f49f2f7965183cb6990a98943ef94940681de3",
+            entryPointV07CreateBytecode
+        ]),
+        chain: foundry
+    })
+
+    // deploy entrypoint v0.7 simulation contract
+    await walletClient.sendTransaction({
+        account: anvilAccount,
+        to: CREATE2_DEPLOYER_ADDRESS,
+        data: concat([
+            "0x3132333400000000000000000000000000000000000000000000000000000000",
+            simpleAccountFactoryCreateBytecode
+        ]),
+        chain: foundry
+    })
+
+    // deploy simple account factory v0.7
+    await walletClient.sendTransaction({
+        account: anvilAccount,
+        to: CREATE2_DEPLOYER_ADDRESS,
+        data: concat([
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            simulateAccountFactoryV07CreateBytecode
+        ]),
+        chain: foundry
+    })
 }
-;(async () => {
-    await setupBasicEnvironment()
-    await setupCompressedEnvironment()
-})()
+    ; (async () => {
+        await setupBasicEnvironment()
+        await setupCompressedEnvironment()
+    })()
