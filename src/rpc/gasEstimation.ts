@@ -197,6 +197,12 @@ async function callPimlicoEntryPointSimulations(
         args: [entryPoint, entryPointSimulationsCallData]
     })
 
+    console.log('calling pimlico entrypoint simulations')
+    console.log('call data');
+    console.log(callData);
+    console.log('to')
+    console.log(entryPointSimulationsAddress);
+
     const result = (await publicClient.request({
         method: "eth_call",
         params: [
@@ -209,6 +215,9 @@ async function callPimlicoEntryPointSimulations(
             ...(stateOverride ? [stateOverride] : [])
         ]
     })) as Hex
+
+    console.log('result')
+    console.log(result)
 
     const returnBytes = decodeAbiParameters(
         [{ name: "ret", type: "bytes[]" }],
@@ -367,7 +376,7 @@ function getSimulateHandleOpResult(data: Hex): SimulateHandleOpResult {
 }
 
 export async function simulateHandleOpV07(
-    userOperation: UserOperationV07,
+    userOperations: UserOperationV07[],
     entryPoint: Address,
     publicClient: PublicClient,
     targetAddress: Address,
@@ -375,19 +384,51 @@ export async function simulateHandleOpV07(
     entryPointSimulationsAddress: Address,
     finalParam: StateOverrides | undefined = undefined
 ): Promise<SimulateHandleOpResult> {
-    const packedUserOperation = toPackedUserOperation(userOperation)
+    console.log('=== simulating handle op v07')
+    console.log('user operations')
+    console.log(userOperations);
+    const packedUserOperations = userOperations.map(toPackedUserOperation)
+
+    console.log('packedUserOperations')
+    console.log(packedUserOperations);
 
     const entryPointSimulationsSimulateHandleOpCallData = encodeFunctionData({
         abi: EntryPointV07SimulationsAbi,
-        functionName: "simulateHandleOp",
-        args: [packedUserOperation]
+        functionName: "simulateHandleOpLast",
+        args: [packedUserOperations]
     })
+
+    // const entryPointSimulationsSimulateHandleOpCallData = encodeFunctionData({
+    //     abi: EntryPointV07SimulationsAbi,
+    //     functionName: "simulateHandleOp",
+    //     args: [packedUserOperations[packedUserOperations.length - 1]]
+    // })
+
+    console.log('entryPointSimulationsSimulateHandleOpCallData')
+    console.log(entryPointSimulationsSimulateHandleOpCallData)
+
+    // const entryPointSimulationsSimulateTargetCallData = encodeFunctionData({
+    //     abi: EntryPointV07SimulationsAbi,
+    //     functionName: "simulateCallData",
+    //     args: [
+    //         packedUserOperations[packedUserOperations.length - 1],
+    //         targetAddress,
+    //         targetCallData
+    //     ]
+    // })
 
     const entryPointSimulationsSimulateTargetCallData = encodeFunctionData({
         abi: EntryPointV07SimulationsAbi,
-        functionName: "simulateCallData",
-        args: [packedUserOperation, targetAddress, targetCallData]
+        functionName: "simulateCallDataLast",
+        args: [
+            packedUserOperations,
+            packedUserOperations.map((packedUserOperation) => packedUserOperation.sender),
+            packedUserOperations.map((packedUserOperation) => packedUserOperation.callData),
+        ]
     })
+
+    console.log('entryPointSimulationsSimulateTargetCallData')
+    console.log(entryPointSimulationsSimulateTargetCallData)
 
     const cause = await callPimlicoEntryPointSimulations(
         publicClient,
@@ -399,6 +440,8 @@ export async function simulateHandleOpV07(
         entryPointSimulationsAddress,
         finalParam
     )
+
+    console.log(cause);
 
     try {
         const executionResult = getSimulateHandleOpResult(cause[0])
@@ -447,7 +490,7 @@ export type SimulateHandleOpResult<
 }
 
 export function simulateHandleOp(
-    userOperation: UserOperation,
+    userOperations: UserOperation[],
     entryPoint: Address,
     publicClient: PublicClient,
     replacedEntryPoint: boolean,
@@ -458,6 +501,8 @@ export function simulateHandleOp(
     entryPointSimulationsAddress?: Address
 ): Promise<SimulateHandleOpResult> {
     let finalStateOverride = undefined
+
+    const userOperation = userOperations[userOperations.length - 1]
 
     if (balanceOverrideEnabled) {
         finalStateOverride = getStateOverrides({
@@ -487,7 +532,7 @@ export function simulateHandleOp(
     }
 
     return simulateHandleOpV07(
-        userOperation,
+        userOperations,
         entryPoint,
         publicClient,
         userOperation.sender,

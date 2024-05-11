@@ -368,8 +368,42 @@ export class RpcHandler implements IRpcEndpoint {
         // maxFeePerGas to maxPriorityFeePerGas
         userOperation.maxPriorityFeePerGas = userOperation.maxFeePerGas
 
+        const [nonceKey, userOperationNonceValue] = getNonceKeyAndValue(
+            userOperation.nonce
+        )
+
+        const entryPointContract = getContract({
+            address: entryPoint,
+            abi: isVersion06(userOperation)
+                ? EntryPointV06Abi
+                : EntryPointV07Abi,
+            client: {
+                public: this.publicClient
+            }
+        })
+
+        const getNonceResult = await entryPointContract.read.getNonce(
+            [userOperation.sender, nonceKey],
+            {
+                blockTag: "latest"
+            }
+        )
+
+        const [_, currentNonceValue] = getNonceKeyAndValue(getNonceResult)
+        
+
+        let queuedUserOperations: UserOperation[] = [];
+        if (userOperationNonceValue > currentNonceValue) {
+            queuedUserOperations = this.mempool.getQueued(
+                userOperation.sender,
+                nonceKey,
+                currentNonceValue,
+                userOperationNonceValue
+            )
+        }
+
         const executionResult = await this.validator.getExecutionResult(
-            userOperation,
+            [...queuedUserOperations, userOperation],
             entryPoint,
             stateOverrides
         )
@@ -449,6 +483,7 @@ export class RpcHandler implements IRpcEndpoint {
         userOperation: UserOperation,
         entryPoint: Address
     ): Promise<SendUserOperationResponseResult> {
+        // TODO: "queued" status?
         let status: "added" | "queued" | "rejected" = "rejected"
         try {
             status = await this.addToMempoolIfValid(
@@ -977,7 +1012,19 @@ export class RpcHandler implements IRpcEndpoint {
                 ValidationErrors.InvalidFields
             )
         }
-        if (userOperationNonceValue === currentNonceValue) {
+        let queuedUserOperations: UserOperation[] = [];
+        if (userOperationNonceValue > currentNonceValue) {
+            queuedUserOperations = this.mempool.getQueued(
+                userOperation.sender,
+                nonceKey,
+                currentNonceValue,
+                userOperationNonceValue
+            )
+        }
+        if (
+            userOperationNonceValue === currentNonceValue || 
+            BigInt(queuedUserOperations.length) === userOperationNonceValue - currentNonceValue
+        ) {
             if (this.dangerousSkipUserOperationValidation) {
                 const success = this.mempool.add(userOperation, entryPoint)
                 if (!success) {
@@ -995,9 +1042,9 @@ export class RpcHandler implements IRpcEndpoint {
                 }
 
                 const validationResult =
-                    await this.validator.validateUserOperation(
+                    await this.validator.validateUserOperations(
                         apiVersion !== "v1",
-                        userOperation,
+                        [...queuedUserOperations, userOperation],
                         entryPoint
                     )
 

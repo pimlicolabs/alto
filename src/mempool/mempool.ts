@@ -229,6 +229,8 @@ export class MemoryMempool {
         return entities
     }
 
+    // TODO: add check for adding a userop with conflicting nonce
+    // In case of concurrent requests
     add(
         mempoolUserOperation: MempoolUserOperation,
         entryPoint: Address,
@@ -637,6 +639,39 @@ export class MemoryMempool {
         }
 
         return null
+    }
+
+    getQueued(
+        sender: Address,
+        nonceKey: bigint,
+        nonceValueStart: bigint,
+        nonceValueEnd: bigint
+    ): UserOperation[] {
+        console.log(sender, nonceKey, nonceValueStart, nonceValueEnd)
+        console.log(this.store.dumpOutstanding())
+
+        const outstanding = this.store
+            .dumpOutstanding()
+            .map((userOpInfo) => deriveUserOperation(userOpInfo.mempoolUserOperation))
+            .filter((userOperation: UserOperation) => {
+                const [opNonceKey,opNonceValue] = getNonceKeyAndValue(userOperation.nonce);
+
+                return (
+                    userOperation.sender === sender &&
+                    opNonceKey === nonceKey &&
+                    opNonceValue >= nonceValueStart &&
+                    opNonceValue < nonceValueEnd
+                );
+            })
+            
+        outstanding.sort((a, b) => {
+            const [,aNonceValue] = getNonceKeyAndValue(a.nonce);
+            const [,bNonceValue] = getNonceKeyAndValue(b.nonce);
+
+            return Number(aNonceValue - bNonceValue);
+        })
+
+        return outstanding;
     }
 
     clear(): void {

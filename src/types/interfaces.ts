@@ -58,9 +58,9 @@ export interface InterfaceValidator {
         userOperation: UserOperation,
         entryPoint: Address
     ): Promise<void>
-    validateUserOperation(
+    validateUserOperations(
         shouldCheckPrefund: boolean,
-        userOperation: UserOperation,
+        userOperations: UserOperation[],
         entryPoint: Address,
         referencedContracts?: ReferencedCodeHashes
     ): Promise<
