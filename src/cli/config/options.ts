@@ -109,6 +109,13 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
 
 export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
     {
+        "chain-type": {
+            description:
+                "Indicates weather the chain is a OP stack chain, arbitrum chain, or default EVM chain",
+            type: "string",
+            choices: ["default", "op-stack", "arbitrum"],
+            default: "default"
+        },
         "legacy-transactions": {
             description:
                 "Send a legacy transactions instead of an EIP-1559 transactions",
@@ -171,14 +178,15 @@ export const serverOptions: CliCommandOptions<IServerArgsInput> = {
         require: false
     },
     "websocket-max-payload-size": {
-        description: "Maximum payload size for websocket messages in bytes (default to 1MB)",
+        description:
+            "Maximum payload size for websocket messages in bytes (default to 1MB)",
         type: "number",
         require: false
     },
-    "websocket": {
+    websocket: {
         description: "Enable websocket server",
         type: "boolean",
-        require: false,
+        require: false
     }
 }
 

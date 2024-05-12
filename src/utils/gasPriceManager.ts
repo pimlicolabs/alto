@@ -33,6 +33,8 @@ export class GasPriceManager {
     private publicClient: PublicClient
     private legacyTransactions: boolean
     private logger: Logger
+    private queueBaseFeePerGas: { timestamp: number; baseFeePerGas: bigint }[] =
+        [] // Store pairs of [price, timestamp]
     private queueMaxFeePerGas: { timestamp: number; maxFeePerGas: bigint }[] =
         [] // Store pairs of [price, timestamp]
     private queueMaxPriorityFeePerGas: {
@@ -265,6 +267,7 @@ export class GasPriceManager {
     private async estimateGasPrice(): Promise<GasPriceParameters> {
         let maxFeePerGas: bigint | undefined
         let maxPriorityFeePerGas: bigint | undefined
+
         try {
             const fees = await this.publicClient.estimateFeesPerGas({
                 chain: this.chain
@@ -316,6 +319,21 @@ export class GasPriceManager {
         }
 
         return { maxFeePerGas, maxPriorityFeePerGas }
+    }
+
+    private saveBaseFeePerGas(gasPrice: bigint, timestamp: number) {
+        const queue = this.queueBaseFeePerGas
+        const last = queue.length > 0 ? queue[queue.length - 1] : null
+
+        if (!last || timestamp - last.timestamp >= 1000) {
+            if (queue.length >= this.maxQueueSize) {
+                queue.shift()
+            }
+            queue.push({ baseFeePerGas: gasPrice, timestamp })
+        } else if (gasPrice < last.baseFeePerGas) {
+            last.baseFeePerGas = gasPrice
+            last.timestamp = timestamp
+        }
     }
 
     private saveMaxFeePerGas(gasPrice: bigint, timestamp: number) {
@@ -418,6 +436,18 @@ export class GasPriceManager {
         }
     }
 
+    public async getBaseFee(): Promise<bigint> {
+        const latestBlock = await this.publicClient.getBlock()
+        if (latestBlock.baseFeePerGas === null) {
+            throw new RpcError("block does not have baseFeePerGas")
+        }
+
+        const baseFee = latestBlock.baseFeePerGas
+        this.saveBaseFeePerGas(baseFee, Date.now())
+
+        return baseFee
+    }
+
     public async getGasPrice(): Promise<GasPriceParameters> {
         const gasPrice = await this.innerGetGasPrice()
 
@@ -429,6 +459,17 @@ export class GasPriceManager {
             Date.now()
         )
         return gasPrice
+    }
+
+    public async getMaxBaseFeePerGas() {
+        if (this.queueBaseFeePerGas.length === 0) {
+            await this.getBaseFee()
+        }
+
+        return this.queueBaseFeePerGas.reduce(
+            (acc: bigint, cur) => maxBigInt(cur.baseFeePerGas, acc),
+            this.queueBaseFeePerGas[0].baseFeePerGas
+        )
     }
 
     private async getMinMaxFeePerGas() {

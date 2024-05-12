@@ -1,38 +1,40 @@
 import {
+    type Address,
+    type ChainType,
     EntryPointV06Abi,
     EntryPointV07Abi,
-    RpcError,
-    type Address,
     type PackedUserOperation,
     type UserOperation,
     type UserOperationV06,
     type UserOperationV07
 } from "@alto/types"
 import {
+    type Chain,
     ContractFunctionExecutionError,
     ContractFunctionRevertedError,
     EstimateGasExecutionError,
     FeeCapTooLowError,
+    type Hex,
     InsufficientFundsError,
     IntrinsicGasTooLowError,
     NonceTooLowError,
+    type PublicClient,
     TransactionExecutionError,
+    type Transport,
     bytesToHex,
     concat,
     encodeAbiParameters,
+    getAbiItem,
     getContract,
     serializeTransaction,
     toBytes,
     toFunctionSelector,
-    toHex,
-    type Chain,
-    type Hex,
-    type PublicClient,
-    type Transport,
-    getAbiItem
+    toHex
 } from "viem"
 import * as chains from "viem/chains"
 import { isVersion06, toPackedUserOperation } from "./userop"
+import { minBigInt } from "./bigInt"
+import type { GasPriceManager } from "./gasPriceManager"
 
 export interface GasOverheads {
     /**
@@ -280,6 +282,9 @@ export async function calcPreVerificationGas(
     userOperation: UserOperation,
     entryPoint: Address,
     chainId: number,
+    chainType: ChainType,
+    gasPriceManager: GasPriceManager,
+    validate: boolean, // when calculating preVerificationGas for validation
     overheads?: GasOverheads
 ): Promise<bigint> {
     let preVerificationGas = calcDefaultPreVerificationGas(
@@ -287,30 +292,19 @@ export async function calcPreVerificationGas(
         overheads
     )
 
-    if (chainId === 59140 || chainId === 59142) {
+    if (chainId === 59140) {
+        // linea sepolia
         preVerificationGas *= 2n
-    } else if (
-        chainId === chains.optimism.id ||
-        chainId === chains.optimismSepolia.id ||
-        chainId === chains.optimismGoerli.id ||
-        chainId === chains.base.id ||
-        chainId === chains.baseGoerli.id ||
-        chainId === chains.baseSepolia.id ||
-        chainId === chains.opBNB.id ||
-        chainId === chains.opBNBTestnet.id ||
-        chainId === 957 // Lyra chain
-    ) {
+    } else if (chainType === "op-stack") {
         preVerificationGas = await calcOptimismPreVerificationGas(
             publicClient,
             userOperation,
             entryPoint,
-            preVerificationGas
+            preVerificationGas,
+            gasPriceManager,
+            validate
         )
-    } else if (
-        chainId === chains.arbitrum.id ||
-        chainId === chains.arbitrumNova.id ||
-        chainId === chains.arbitrumSepolia.id
-    ) {
+    } else if (chainType === "arbitrum") {
         preVerificationGas = await calcArbitrumPreVerificationGas(
             publicClient,
             userOperation,
@@ -432,7 +426,9 @@ export async function calcOptimismPreVerificationGas(
     publicClient: PublicClient<Transport, Chain>,
     op: UserOperation,
     entryPoint: Address,
-    staticFee: bigint
+    staticFee: bigint,
+    gasPriceManager: GasPriceManager,
+    verify?: boolean
 ) {
     let selector: Hex
     let paramData: Hex
@@ -473,11 +469,6 @@ export async function calcOptimismPreVerificationGas(
 
     const data = concat([selector, paramData])
 
-    const latestBlock = await publicClient.getBlock()
-    if (latestBlock.baseFeePerGas === null) {
-        throw new RpcError("block does not have baseFeePerGas")
-    }
-
     const serializedTx = serializeTransaction(
         {
             to: entryPoint,
@@ -506,10 +497,24 @@ export async function calcOptimismPreVerificationGas(
         serializedTx
     ])
 
-    const l2MaxFee = op.maxFeePerGas
-    const l2PriorityFee = latestBlock.baseFeePerGas + op.maxPriorityFeePerGas
+    if (op.maxFeePerGas <= 1n || op.maxPriorityFeePerGas <= 1n) {
+        // if user didn't provide gasPrice values, fetch current going price rate
+        const gasPrices = await gasPriceManager.getGasPrice()
+        op.maxPriorityFeePerGas = gasPrices.maxPriorityFeePerGas
+        op.maxFeePerGas = gasPrices.maxFeePerGas
+    }
 
-    const l2price = l2MaxFee < l2PriorityFee ? l2MaxFee : l2PriorityFee
+    const l2MaxFee = op.maxFeePerGas
+
+    let baseFeePerGas = 0n
+    if (verify) {
+        baseFeePerGas = await gasPriceManager.getMaxBaseFeePerGas()
+    } else {
+        baseFeePerGas = await gasPriceManager.getBaseFee()
+    }
+    const l2PriorityFee = baseFeePerGas + op.maxPriorityFeePerGas
+
+    const l2price = minBigInt(l2MaxFee, l2PriorityFee)
 
     return staticFee + l1Fee / l2price
 }
