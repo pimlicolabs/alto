@@ -375,9 +375,6 @@ export class RpcHandler implements IRpcEndpoint {
         const currentNonceValue = await this.getNonceValue(userOperation, entryPoint)
         const [,userOperationNonceValue] = getNonceKeyAndValue(userOperation.nonce)
 
-        console.log("currentNonceValue", currentNonceValue)
-        console.log("userOperationNonceValue", userOperationNonceValue)
-
         let queuedUserOperations: UserOperation[] = [];
         if (userOperationNonceValue < currentNonceValue) {
             throw new RpcError(
@@ -398,8 +395,6 @@ export class RpcHandler implements IRpcEndpoint {
                 entryPoint,
                 currentNonceValue
             );
-
-            console.log(queuedUserOperations);
 
             if (userOperationNonceValue > currentNonceValue + BigInt(queuedUserOperations.length)) {
                 throw new RpcError(
