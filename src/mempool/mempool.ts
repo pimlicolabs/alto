@@ -51,6 +51,9 @@ export class MemoryMempool {
     private logger: Logger
     private validator: InterfaceValidator
     private safeMode: boolean
+    private parallelUserOpsMaxSize: number
+    private queuedUserOpsMaxSize: number
+    private onlyUniqueSendersPerBundle: boolean
 
     constructor(
         monitor: Monitor,
@@ -60,6 +63,9 @@ export class MemoryMempool {
         safeMode: boolean,
         logger: Logger,
         metrics: Metrics,
+        parallelUserOpsMaxSize: number,
+        queuedUserOpsMaxSize: number,
+        onlyUniqueSendersPerBundle: boolean,
         throttledEntityBundleCount?: number
     ) {
         this.reputationManager = reputationManager
@@ -69,6 +75,9 @@ export class MemoryMempool {
         this.safeMode = safeMode
         this.logger = logger
         this.store = new MemoryStore(logger, metrics)
+        this.parallelUserOpsMaxSize = parallelUserOpsMaxSize
+        this.queuedUserOpsMaxSize = queuedUserOpsMaxSize
+        this.onlyUniqueSendersPerBundle = onlyUniqueSendersPerBundle
         this.throttledEntityBundleCount = throttledEntityBundleCount ?? 4
     }
 
@@ -290,6 +299,35 @@ export class MemoryMempool {
             this.store.removeOutstanding(oldUserOp.userOperationHash)
         }
 
+        // Check if mempool already includes max amount of parallel user operations
+        const parallellUserOperationsCount = this.store
+            .dumpOutstanding()
+            .filter((userOpInfo) => {
+                const userOp = deriveUserOperation(userOpInfo.mempoolUserOperation)
+                return userOp.sender === op.sender
+            })
+            .length
+
+        if (parallellUserOperationsCount > this.parallelUserOpsMaxSize) {
+            return false;
+        }
+
+        // Check if mempool already includes max amount of queued user operations
+        const [nonceKey,] = getNonceKeyAndValue(op.nonce);
+        const queuedUserOperationsCount = this.store
+            .dumpOutstanding()
+            .filter((userOpInfo) => {
+                const userOp = deriveUserOperation(userOpInfo.mempoolUserOperation)
+                const [opNonceKey,] = getNonceKeyAndValue(userOp.nonce);
+
+                return (userOp.sender === op.sender && opNonceKey === nonceKey);
+            })
+            .length
+        
+        if (queuedUserOperationsCount > this.queuedUserOpsMaxSize) {
+            return false;
+        }
+
         const hash = getUserOperationHash(
             op,
             entryPoint,
@@ -322,7 +360,7 @@ export class MemoryMempool {
             paymasters: Set<`0x${string}`>
             factories: Set<`0x${string}`>
         },
-        senderNonceKeys: Set<string>,
+        senders: Set<string>,
         storageMap: StorageMap
     ): Promise<{
         skip: boolean
@@ -333,7 +371,7 @@ export class MemoryMempool {
             paymasters: Set<`0x${string}`>
             factories: Set<`0x${string}`>
         }
-        senderNonceKeys: Set<string>
+        senders: Set<string>
         storageMap: StorageMap
     }> {
         const op = deriveUserOperation(opInfo.mempoolUserOperation)
@@ -343,7 +381,7 @@ export class MemoryMempool {
                 paymasterDeposit,
                 stakedEntityCount,
                 knownEntities,
-                senderNonceKeys,
+                senders,
                 storageMap
             }
         }
@@ -375,7 +413,7 @@ export class MemoryMempool {
                 paymasterDeposit,
                 stakedEntityCount,
                 knownEntities,
-                senderNonceKeys,
+                senders,
                 storageMap
             }
         }
@@ -397,7 +435,7 @@ export class MemoryMempool {
                 paymasterDeposit,
                 stakedEntityCount,
                 knownEntities,
-                senderNonceKeys,
+                senders,
                 storageMap
             }
         }
@@ -419,28 +457,26 @@ export class MemoryMempool {
                 paymasterDeposit,
                 stakedEntityCount,
                 knownEntities,
-                senderNonceKeys,
+                senders,
                 storageMap
             }
         }
 
-        const [nonceKey,] = getNonceKeyAndValue(op.nonce)
 
-        const senderNonceKey = `${op.sender}:${nonceKey}`
-        if (senderNonceKeys.has(senderNonceKey)) {
+        if (senders.has(op.sender) && this.onlyUniqueSendersPerBundle) {
             this.logger.trace(
                 {
                     sender: op.sender,
                     opHash: opInfo.userOperationHash
                 },
-                "UserOp skipped because senderNonceKey already included in bundle"
+                "Sender skipped because already included in bundle"
             )
             return {
                 skip: true,
                 paymasterDeposit,
                 stakedEntityCount,
                 knownEntities,
-                senderNonceKeys,
+                senders,
                 storageMap
             }
         }
@@ -451,7 +487,7 @@ export class MemoryMempool {
             let queuedUserOperations: UserOperation[] = []
 
             if (!isUserOpV06) {
-                queuedUserOperations = await this.getQueued(op, opInfo.entryPoint)
+                queuedUserOperations = await this.getQueuedUserOperations(op, opInfo.entryPoint)
             }
 
             validationResult = await this.validator.validateUserOperation(
@@ -475,7 +511,7 @@ export class MemoryMempool {
                 paymasterDeposit,
                 stakedEntityCount,
                 knownEntities,
-                senderNonceKeys,
+                senders,
                 storageMap
             }
         }
@@ -496,7 +532,7 @@ export class MemoryMempool {
                     paymasterDeposit,
                     stakedEntityCount,
                     knownEntities,
-                    senderNonceKeys,
+                    senders,
                     storageMap
                 }
             }
@@ -530,7 +566,7 @@ export class MemoryMempool {
                     paymasterDeposit,
                     stakedEntityCount,
                     knownEntities,
-                    senderNonceKeys,
+                    senders,
                     storageMap
                 }
             }
@@ -543,14 +579,14 @@ export class MemoryMempool {
             stakedEntityCount[factory] = (stakedEntityCount[factory] ?? 0) + 1
         }
 
-        senderNonceKeys.add(senderNonceKey)
+        senders.add(op.sender)
 
         return {
             skip: false,
             paymasterDeposit,
             stakedEntityCount,
             knownEntities,
-            senderNonceKeys,
+            senders,
             storageMap
         }
     }
@@ -586,8 +622,8 @@ export class MemoryMempool {
         let paymasterDeposit: { [paymaster: string]: bigint } = {}
         // throttled paymasters and factories are allowed only small UserOps per bundle.
         let stakedEntityCount: { [addr: string]: number } = {}
-        // each sender:nonceKey is allowed only once per bundle
-        let senderNonceKeys = new Set<string>()
+        // each sender is allowed only once per bundle
+        let senders = new Set<string>()
         let knownEntities = this.getKnownEntities()
 
         let storageMap: StorageMap = {}
@@ -606,13 +642,13 @@ export class MemoryMempool {
                 paymasterDeposit,
                 stakedEntityCount,
                 knownEntities,
-                senderNonceKeys,
+                senders,
                 storageMap
             )
             paymasterDeposit = skipResult.paymasterDeposit
             stakedEntityCount = skipResult.stakedEntityCount
             knownEntities = skipResult.knownEntities
-            senderNonceKeys = skipResult.senderNonceKeys
+            senders = skipResult.senders
             storageMap = skipResult.storageMap
 
             if (skipResult.skip) {
@@ -648,7 +684,7 @@ export class MemoryMempool {
         return null
     }
 
-    async getQueued(
+    async getQueuedUserOperations(
         userOperation: UserOperation,
         entryPoint: Address,
         _currentNonceValue?: bigint

@@ -133,7 +133,10 @@ const getMempool = ({
                     parsedArgs["mempool-log-level"] || parsedArgs["log-level"]
             }
         ),
-        metrics
+        metrics,
+        parsedArgs["mempool-parallel-user-operations-max-size"],
+        parsedArgs["mempool-queued-user-operations-max-size"],
+        parsedArgs["executor-only-unique-senders-per-bundle"]
     )
 }
 
@@ -241,6 +244,7 @@ const getExecutorManager = ({
         metrics,
         parsedArgs["bundle-mode"],
         parsedArgs["max-bundle-wait"],
+        parsedArgs["executor-max-gas-limit-per-bundle"],
         gasPriceManager
     )
 }

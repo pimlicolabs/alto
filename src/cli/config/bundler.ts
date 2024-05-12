@@ -69,7 +69,12 @@ export const bundlerArgsSchema = z.object({
             (values) => values.length === 3,
             "Must contain 3 comma seperated items in format: slow,standard,fast"
         )
-        .transform(([slow, standard, fast]) => ({ slow, standard, fast }))
+        .transform(([slow, standard, fast]) => ({ slow, standard, fast })),
+
+    "mempool-parallel-user-operations-max-size": z.number().int().min(0).default(0),
+    "mempool-queued-user-operations-max-size": z.number().int().min(0).default(0),
+    "executor-only-unique-senders-per-bundle": z.boolean().default(true),
+    "executor-max-gas-limit-per-bundle": z.string().transform((val) => BigInt(val)).default("5000000"),
 })
 
 export const compatibilityArgsSchema = z.object({

@@ -393,7 +393,7 @@ export class RpcHandler implements IRpcEndpoint {
                 )
             }
 
-            queuedUserOperations = await this.mempool.getQueued(
+            queuedUserOperations = await this.mempool.getQueuedUserOperations(
                 userOperation,
                 entryPoint,
                 currentNonceValue
@@ -1003,7 +1003,7 @@ export class RpcHandler implements IRpcEndpoint {
 
         let queuedUserOperations: UserOperation[] = []
         if (userOperationNonceValue > currentNonceValue && isVersion07(userOperation)) {
-            queuedUserOperations = await this.mempool.getQueued(
+            queuedUserOperations = await this.mempool.getQueuedUserOperations(
                 userOperation,
                 entryPoint,
                 currentNonceValue
