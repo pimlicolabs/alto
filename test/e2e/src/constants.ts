@@ -1,7 +1,5 @@
-// biome-ignore format:
-export const ENTRYPOINT_ADDRESS_V06 = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789"
-// biome-ignore format:
-export const ENTRYPOINT_ADDRESS_V07 = "0x0000000071727De22E5E9d8BAf0edAc6f37da032"
+import { Hex } from "viem"
+
 // biome-ignore format:
 export const SIMPLE_ACCOUNT_FACTORY_V06 = "0x9406Cc6185a346906296840746125a0E44976454"
 // biome-ignore format:
