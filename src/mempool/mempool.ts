@@ -448,9 +448,16 @@ export class MemoryMempool {
         let validationResult: ValidationResult & { storageMap: StorageMap }
 
         try {
+            let queuedUserOperations: UserOperation[] = []
+
+            if (!isUserOpV06) {
+                queuedUserOperations = await this.getQueued(op, opInfo.entryPoint)
+            }
+
             validationResult = await this.validator.validateUserOperation(
                 false,
                 op,
+                queuedUserOperations,
                 opInfo.entryPoint,
                 opInfo.referencedContracts
             )
@@ -641,26 +648,51 @@ export class MemoryMempool {
         return null
     }
 
-    getQueued(
-        sender: Address,
-        nonceKey: bigint,
-        nonceValueStart: bigint,
-        nonceValueEnd: bigint
-    ): UserOperation[] {
-        console.log(sender, nonceKey, nonceValueStart, nonceValueEnd)
-        console.log(this.store.dumpOutstanding())
+    async getQueued(
+        userOperation: UserOperation,
+        entryPoint: Address,
+        _currentNonceValue?: bigint
+    ): Promise<UserOperation[]> {
+        const entryPointContract = getContract({
+            address: entryPoint,
+            abi: isVersion06(userOperation)
+                ? EntryPointV06Abi
+                : EntryPointV07Abi,
+            client: {
+                public: this.publicClient
+            }
+        })
+
+        const [nonceKey, userOperationNonceValue] = getNonceKeyAndValue(
+            userOperation.nonce
+        )
+
+        let currentNonceValue: bigint = BigInt(0);
+
+        if (_currentNonceValue) {
+            currentNonceValue = _currentNonceValue;
+        } else {
+            const getNonceResult = await entryPointContract.read.getNonce(
+                [userOperation.sender, nonceKey],
+                {
+                    blockTag: "latest"
+                }
+            )
+    
+            currentNonceValue = getNonceKeyAndValue(getNonceResult)[1]
+        }
 
         const outstanding = this.store
             .dumpOutstanding()
             .map((userOpInfo) => deriveUserOperation(userOpInfo.mempoolUserOperation))
-            .filter((userOperation: UserOperation) => {
-                const [opNonceKey,opNonceValue] = getNonceKeyAndValue(userOperation.nonce);
+            .filter((uo: UserOperation) => {
+                const [opNonceKey,opNonceValue] = getNonceKeyAndValue(uo.nonce);
 
                 return (
-                    userOperation.sender === sender &&
+                    uo.sender === userOperation.sender &&
                     opNonceKey === nonceKey &&
-                    opNonceValue >= nonceValueStart &&
-                    opNonceValue < nonceValueEnd
+                    opNonceValue >= currentNonceValue &&
+                    opNonceValue < userOperationNonceValue
                 );
             })
             

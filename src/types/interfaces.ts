@@ -13,6 +13,7 @@ export interface InterfaceValidator {
     getExecutionResult(
         userOperation: UserOperation,
         entryPoint: Address,
+        queuedUserOperations: UserOperation[],
         stateOverrides?: StateOverrides
     ): Promise<SimulateHandleOpResult<"execution">>
     getValidationResultV06(
@@ -30,6 +31,7 @@ export interface InterfaceValidator {
     >
     getValidationResultV07(
         userOperation: UserOperationV07,
+        queuedUserOperations: UserOperation[],
         entryPoint: Address,
         _codeHashes?: ReferencedCodeHashes
     ): Promise<
@@ -43,6 +45,7 @@ export interface InterfaceValidator {
     >
     getValidationResult(
         userOperation: UserOperation,
+        queuedUserOperations: UserOperation[],
         entryPoint: Address,
         _codeHashes?: ReferencedCodeHashes
     ): Promise<
@@ -58,9 +61,10 @@ export interface InterfaceValidator {
         userOperation: UserOperation,
         entryPoint: Address
     ): Promise<void>
-    validateUserOperations(
+    validateUserOperation(
         shouldCheckPrefund: boolean,
-        userOperations: UserOperation[],
+        userOperation: UserOperation,
+        queuedUserOperations: UserOperation[],
         entryPoint: Address,
         referencedContracts?: ReferencedCodeHashes
     ): Promise<

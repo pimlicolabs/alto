@@ -509,11 +509,13 @@ function getSimulateValidationResult(errorData: Hex): {
 }
 
 export async function simulateValidation(
-    userOperations: UserOperationV07[],
+    userOperation: UserOperationV07,
+    queuedUserOperations: UserOperationV07[],
     entryPoint: Address,
     publicClient: PublicClient,
     entryPointSimulationsAddress: Address
 ) {
+    const userOperations = [...queuedUserOperations, userOperation]
     const packedUserOperations = userOperations.map(uo => toPackedUserOperation(uo))
 
     const entryPointSimulationsCallData = encodeFunctionData({

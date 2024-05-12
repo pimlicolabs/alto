@@ -1,4 +1,3 @@
-import type { Metrics } from "@alto/utils"
 import {
     EntryPointV06Abi,
     ExecutionErrors,
@@ -19,22 +18,19 @@ import type {
     UserOperationV06,
     UserOperationV07
 } from "@alto/types"
-import type { Logger } from "@alto/utils"
 import { deepHexlify, isVersion06, toPackedUserOperation } from "@alto/utils"
-import type { Chain, Hex, RpcRequestErrorType, Transport } from "viem"
+import type { Hex, RpcRequestErrorType } from "viem"
 import {
     type Address,
     type PublicClient,
     decodeErrorResult,
     encodeFunctionData,
     toHex,
-    zeroAddress,
     decodeAbiParameters,
     decodeFunctionResult
 } from "viem"
 import { z } from "zod"
 import {
-    ExecuteSimulatorAbi,
     ExecuteSimulatorDeployedBytecode
 } from "./ExecuteSimulator"
 import { PimlicoEntryPointSimulationsAbi } from "@alto/types"
@@ -197,12 +193,6 @@ async function callPimlicoEntryPointSimulations(
         args: [entryPoint, entryPointSimulationsCallData]
     })
 
-    console.log('calling pimlico entrypoint simulations')
-    console.log('call data');
-    console.log(callData);
-    console.log('to')
-    console.log(entryPointSimulationsAddress);
-
     const result = (await publicClient.request({
         method: "eth_call",
         params: [
@@ -215,9 +205,6 @@ async function callPimlicoEntryPointSimulations(
             ...(stateOverride ? [stateOverride] : [])
         ]
     })) as Hex
-
-    console.log('result')
-    console.log(result)
 
     const returnBytes = decodeAbiParameters(
         [{ name: "ret", type: "bytes[]" }],
@@ -376,46 +363,22 @@ function getSimulateHandleOpResult(data: Hex): SimulateHandleOpResult {
 }
 
 export async function simulateHandleOpV07(
-    userOperations: UserOperationV07[],
+    userOperation: UserOperationV07,
+    queuedUserOperations: UserOperationV07[],
     entryPoint: Address,
     publicClient: PublicClient,
-    targetAddress: Address,
-    targetCallData: Hex,
     entryPointSimulationsAddress: Address,
     finalParam: StateOverrides | undefined = undefined
 ): Promise<SimulateHandleOpResult> {
-    console.log('=== simulating handle op v07')
-    console.log('user operations')
-    console.log(userOperations);
-    const packedUserOperations = userOperations.map(toPackedUserOperation)
+    const userOperations = [...queuedUserOperations, userOperation];
 
-    console.log('packedUserOperations')
-    console.log(packedUserOperations);
+    const packedUserOperations = userOperations.map(toPackedUserOperation)
 
     const entryPointSimulationsSimulateHandleOpCallData = encodeFunctionData({
         abi: EntryPointV07SimulationsAbi,
         functionName: "simulateHandleOpLast",
         args: [packedUserOperations]
     })
-
-    // const entryPointSimulationsSimulateHandleOpCallData = encodeFunctionData({
-    //     abi: EntryPointV07SimulationsAbi,
-    //     functionName: "simulateHandleOp",
-    //     args: [packedUserOperations[packedUserOperations.length - 1]]
-    // })
-
-    console.log('entryPointSimulationsSimulateHandleOpCallData')
-    console.log(entryPointSimulationsSimulateHandleOpCallData)
-
-    // const entryPointSimulationsSimulateTargetCallData = encodeFunctionData({
-    //     abi: EntryPointV07SimulationsAbi,
-    //     functionName: "simulateCallData",
-    //     args: [
-    //         packedUserOperations[packedUserOperations.length - 1],
-    //         targetAddress,
-    //         targetCallData
-    //     ]
-    // })
 
     const entryPointSimulationsSimulateTargetCallData = encodeFunctionData({
         abi: EntryPointV07SimulationsAbi,
@@ -427,9 +390,6 @@ export async function simulateHandleOpV07(
         ]
     })
 
-    console.log('entryPointSimulationsSimulateTargetCallData')
-    console.log(entryPointSimulationsSimulateTargetCallData)
-
     const cause = await callPimlicoEntryPointSimulations(
         publicClient,
         entryPoint,
@@ -440,8 +400,6 @@ export async function simulateHandleOpV07(
         entryPointSimulationsAddress,
         finalParam
     )
-
-    console.log(cause);
 
     try {
         const executionResult = getSimulateHandleOpResult(cause[0])
@@ -490,7 +448,8 @@ export type SimulateHandleOpResult<
 }
 
 export function simulateHandleOp(
-    userOperations: UserOperation[],
+    userOperation: UserOperation,
+    queuedUserOperations: UserOperation[],
     entryPoint: Address,
     publicClient: PublicClient,
     replacedEntryPoint: boolean,
@@ -501,8 +460,6 @@ export function simulateHandleOp(
     entryPointSimulationsAddress?: Address
 ): Promise<SimulateHandleOpResult> {
     let finalStateOverride = undefined
-
-    const userOperation = userOperations[userOperations.length - 1]
 
     if (balanceOverrideEnabled) {
         finalStateOverride = getStateOverrides({
@@ -532,252 +489,11 @@ export function simulateHandleOp(
     }
 
     return simulateHandleOpV07(
-        userOperations,
+        userOperation,
+        queuedUserOperations as UserOperationV07[],
         entryPoint,
         publicClient,
-        userOperation.sender,
-        userOperation.callData,
         entryPointSimulationsAddress,
         finalStateOverride
     )
-}
-
-function tooLow(error: string) {
-    return (
-        error === "AA40 over verificationGasLimit" ||
-        error === "AA41 too little verificationGas" ||
-        error === "AA51 prefund below actualGasCost" ||
-        error === "AA13 initCode failed or OOG" ||
-        error === "AA21 didn't pay prefund" ||
-        error === "AA23 reverted (or OOG)" ||
-        error === "AA33 reverted (or OOG)" ||
-        error === "return data out of bounds" ||
-        error === "validation OOG"
-    )
-}
-
-export async function estimateVerificationGasLimit(
-    userOperation: UserOperationV06,
-    entryPoint: Address,
-    publicClient: PublicClient,
-    logger: Logger,
-    metrics: Metrics,
-    balanceOverrideEnabled: boolean,
-    stateOverrides?: StateOverrides
-): Promise<bigint> {
-    userOperation.callGasLimit = 0n
-
-    let lower = 0n
-    let upper = 10_000_000n
-    let final: bigint | null = null
-
-    const cutoff = 20_000n
-
-    userOperation.verificationGasLimit = upper
-    userOperation.callGasLimit = 0n
-
-    let simulationCounter = 1
-    const initial = await simulateHandleOp(
-        userOperation,
-        entryPoint,
-        publicClient,
-        false,
-        zeroAddress,
-        "0x",
-        balanceOverrideEnabled,
-        stateOverrides
-    )
-
-    if (initial.result === "execution") {
-        const simulationResult = initial as SimulateHandleOpResult<"execution">
-        upper =
-            6n *
-            (simulationResult.data.executionResult.preOpGas -
-                userOperation.preVerificationGas)
-    } else {
-        throw new RpcError(
-            `UserOperation reverted during simulation with reason: ${initial.data}`,
-            ValidationErrors.SimulateValidation
-        )
-    }
-
-    // binary search
-    while (upper - lower > cutoff) {
-        const mid = (upper + lower) / 2n
-
-        userOperation.verificationGasLimit = mid
-        userOperation.callGasLimit = 0n
-
-        const error = await simulateHandleOp(
-            userOperation,
-            entryPoint,
-            publicClient,
-            false,
-            zeroAddress,
-            "0x",
-            balanceOverrideEnabled,
-            stateOverrides
-        )
-        simulationCounter++
-
-        if (error.result === "execution") {
-            upper = mid
-            final = mid
-            logger.debug(`Verification gas limit: ${mid}`)
-        } else if (tooLow(error.data as string)) {
-            logger.debug(`Verification gas limit: ${mid}, error: ${error.data}`)
-            lower = mid
-        } else {
-            logger.debug(`Verification gas limit: ${mid}, error: ${error.data}`)
-            throw new Error("Unexpected error")
-        }
-    }
-
-    if (final === null) {
-        throw new RpcError("Failed to estimate verification gas limit")
-    }
-
-    if (userOperation.paymasterAndData === "0x") {
-        final += 30_000n
-    }
-
-    logger.info(`Verification gas limit: ${final}`)
-
-    metrics.verificationGasLimitEstimationCount.observe(simulationCounter)
-
-    return final
-}
-
-function getCallExecuteResult(data: ExecutionResult) {
-    const callExecuteResult = decodeErrorResult({
-        abi: ExecuteSimulatorAbi,
-        data: data.targetResult
-    })
-
-    const success = callExecuteResult.args[0]
-    const revertData = callExecuteResult.args[1]
-    const gasUsed = callExecuteResult.args[2]
-
-    return {
-        success,
-        revertData,
-        gasUsed
-    }
-}
-
-export async function estimateCallGasLimit(
-    userOperation: UserOperation,
-    entryPoint: Address,
-    publicClient: PublicClient<Transport, Chain>,
-    logger: Logger,
-    metrics: Metrics,
-    balanceOverrideEnabled: boolean,
-    stateOverrides?: StateOverrides
-): Promise<bigint> {
-    const targetCallData = encodeFunctionData({
-        abi: ExecuteSimulatorAbi,
-        functionName: "callExecute",
-        args: [userOperation.sender, userOperation.callData, 2_000_000n]
-    })
-
-    userOperation.callGasLimit = 0n
-
-    const error = await simulateHandleOp(
-        userOperation,
-        entryPoint,
-        publicClient,
-        true,
-        entryPoint,
-        targetCallData,
-        balanceOverrideEnabled,
-        stateOverrides
-    )
-
-    if (error.result === "failed") {
-        throw new RpcError(
-            `UserOperation reverted during simulation with reason: ${error.data}`,
-            ExecutionErrors.UserOperationReverted
-        )
-    }
-
-    const result = getCallExecuteResult(
-        (error as SimulateHandleOpResult<"execution">).data.executionResult
-    )
-
-    let lower = 0n
-    let upper: bigint
-    let final: bigint | null = null
-
-    const cutoff = 10_000n
-
-    if (result.success) {
-        upper = 6n * result.gasUsed
-        final = 6n * result.gasUsed
-    } else {
-        try {
-            const reason = decodeErrorResult({
-                abi: EntryPointV06SimulationsAbi,
-                data: result.revertData
-            })
-            throw new RpcError(
-                `UserOperation reverted during execution phase with reason: ${reason.args[0]}`,
-                ExecutionErrors.UserOperationReverted
-            )
-        } catch (e) {
-            if (e instanceof RpcError) throw e
-            throw new RpcError(
-                "UserOperation reverted during execution phase",
-                ExecutionErrors.UserOperationReverted,
-                result.revertData
-            )
-        }
-    }
-
-    // binary search
-    while (upper - lower > cutoff) {
-        const mid = (upper + lower) / 2n
-
-        userOperation.callGasLimit = 0n
-        const targetCallData = encodeFunctionData({
-            abi: ExecuteSimulatorAbi,
-            functionName: "callExecute",
-            args: [userOperation.sender, userOperation.callData, mid]
-        })
-
-        const error = await simulateHandleOp(
-            userOperation,
-            entryPoint,
-            publicClient,
-            true,
-            entryPoint,
-            targetCallData,
-            balanceOverrideEnabled,
-            stateOverrides
-        )
-
-        if (error.result !== "execution") {
-            throw new Error("Unexpected error")
-        }
-
-        const result = getCallExecuteResult(
-            (error as SimulateHandleOpResult<"execution">).data.executionResult
-        )
-
-        if (result.success) {
-            upper = mid
-            final = mid
-            logger.debug(`Call gas limit: ${mid}`)
-        } else {
-            lower = mid
-            logger.debug(`Call gas limit: ${mid}, error: ${result.revertData}`)
-        }
-    }
-
-    if (final === null) {
-        throw new RpcError("Failed to estimate call gas limit")
-    }
-
-    logger.info(`Call gas limit estimate: ${final}`)
-
-    return final
 }

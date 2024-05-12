@@ -367,45 +367,53 @@ export class RpcHandler implements IRpcEndpoint {
         // Since we don't want our estimations to depend upon baseFee, we set
         // maxFeePerGas to maxPriorityFeePerGas
         userOperation.maxPriorityFeePerGas = userOperation.maxFeePerGas
-
-        const [nonceKey, userOperationNonceValue] = getNonceKeyAndValue(
-            userOperation.nonce
-        )
-
-        const entryPointContract = getContract({
-            address: entryPoint,
-            abi: isVersion06(userOperation)
-                ? EntryPointV06Abi
-                : EntryPointV07Abi,
-            client: {
-                public: this.publicClient
-            }
-        })
-
-        const getNonceResult = await entryPointContract.read.getNonce(
-            [userOperation.sender, nonceKey],
-            {
-                blockTag: "latest"
-            }
-        )
-
-        const [_, currentNonceValue] = getNonceKeyAndValue(getNonceResult)
         
 
+        // Check if the nonce is valid
+        // If the nonce is less than the current nonce, the user operation has already been executed
+        // If the nonce is greater than the current nonce, we may have missing user operations in the mempool
+        const currentNonceValue = await this.getNonceValue(userOperation, entryPoint)
+        const [,userOperationNonceValue] = getNonceKeyAndValue(userOperation.nonce)
+
+        console.log("currentNonceValue", currentNonceValue)
+        console.log("userOperationNonceValue", userOperationNonceValue)
+
         let queuedUserOperations: UserOperation[] = [];
-        if (userOperationNonceValue > currentNonceValue) {
-            queuedUserOperations = this.mempool.getQueued(
-                userOperation.sender,
-                nonceKey,
-                currentNonceValue,
-                userOperationNonceValue
+        if (userOperationNonceValue < currentNonceValue) {
+            throw new RpcError(
+                "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
+                ValidationErrors.InvalidFields
             )
+        } else if (userOperationNonceValue > currentNonceValue) {
+            // Nonce queues are supported only for v7 user operations
+            if (isVersion06(userOperation)) {
+                throw new RpcError(
+                    "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
+                    ValidationErrors.InvalidFields
+                )
+            }
+
+            queuedUserOperations = await this.mempool.getQueued(
+                userOperation,
+                entryPoint,
+                currentNonceValue
+            );
+
+            console.log(queuedUserOperations);
+
+            if (userOperationNonceValue > currentNonceValue + BigInt(queuedUserOperations.length)) {
+                throw new RpcError(
+                    "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
+                    ValidationErrors.InvalidFields
+                )
+            }
         }
 
         const executionResult = await this.validator.getExecutionResult(
-            [...queuedUserOperations, userOperation],
+            userOperation,
             entryPoint,
-            stateOverrides
+            queuedUserOperations,
+            stateOverrides,
         )
 
         let { verificationGasLimit, callGasLimit } =
@@ -977,28 +985,8 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
 
-        const entryPointContract = getContract({
-            address: entryPoint,
-            abi: isVersion06(userOperation)
-                ? EntryPointV06Abi
-                : EntryPointV07Abi,
-            client: {
-                public: this.publicClient
-            }
-        })
-
-        const [nonceKey, userOperationNonceValue] = getNonceKeyAndValue(
-            userOperation.nonce
-        )
-
-        const getNonceResult = await entryPointContract.read.getNonce(
-            [userOperation.sender, nonceKey],
-            {
-                blockTag: "latest"
-            }
-        )
-
-        const [_, currentNonceValue] = getNonceKeyAndValue(getNonceResult)
+        const currentNonceValue = await this.getNonceValue(userOperation, entryPoint)
+        const [,userOperationNonceValue] = getNonceKeyAndValue(userOperation.nonce)
 
         if (userOperationNonceValue < currentNonceValue) {
             throw new RpcError(
@@ -1012,18 +1000,18 @@ export class RpcHandler implements IRpcEndpoint {
                 ValidationErrors.InvalidFields
             )
         }
-        let queuedUserOperations: UserOperation[] = [];
-        if (userOperationNonceValue > currentNonceValue) {
-            queuedUserOperations = this.mempool.getQueued(
-                userOperation.sender,
-                nonceKey,
-                currentNonceValue,
-                userOperationNonceValue
+
+        let queuedUserOperations: UserOperation[] = []
+        if (userOperationNonceValue > currentNonceValue && isVersion07(userOperation)) {
+            queuedUserOperations = await this.mempool.getQueued(
+                userOperation,
+                entryPoint,
+                currentNonceValue
             )
         }
+
         if (
-            userOperationNonceValue === currentNonceValue || 
-            BigInt(queuedUserOperations.length) === userOperationNonceValue - currentNonceValue
+            userOperationNonceValue === currentNonceValue + BigInt(queuedUserOperations.length)
         ) {
             if (this.dangerousSkipUserOperationValidation) {
                 const success = this.mempool.add(userOperation, entryPoint)
@@ -1042,9 +1030,10 @@ export class RpcHandler implements IRpcEndpoint {
                 }
 
                 const validationResult =
-                    await this.validator.validateUserOperations(
+                    await this.validator.validateUserOperation(
                         apiVersion !== "v1",
-                        [...queuedUserOperations, userOperation],
+                        userOperation,
+                        queuedUserOperations,
                         entryPoint
                     )
 
@@ -1179,5 +1168,33 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
         return { inflatedOp, inflatorId }
+    }
+
+    async getNonceValue(
+        userOperation: UserOperation,
+        entryPoint: Address
+    ) {
+        const entryPointContract = getContract({
+            address: entryPoint,
+            abi: isVersion06(userOperation)
+                ? EntryPointV06Abi
+                : EntryPointV07Abi,
+            client: {
+                public: this.publicClient
+            }
+        })
+
+        const [nonceKey,] = getNonceKeyAndValue(userOperation.nonce)
+
+        const getNonceResult = await entryPointContract.read.getNonce(
+            [userOperation.sender, nonceKey],
+            {
+                blockTag: "latest"
+            }
+        )
+
+        const [_, currentNonceValue] = getNonceKeyAndValue(getNonceResult)
+
+        return currentNonceValue
     }
 }
