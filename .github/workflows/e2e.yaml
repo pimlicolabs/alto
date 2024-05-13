@@ -17,6 +17,9 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
+    - name: Install dependencies
+      uses: ./.github/actions/install-dependencies
+
     - name: Start Docker
       run: docker compose -f "test/e2e/docker-compose.yml" up -d
 
