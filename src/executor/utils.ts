@@ -265,6 +265,18 @@ export async function filterOpsAndEstimateGas(
                     }
                 }
             } else if (e instanceof EstimateGasExecutionError) {
+                if (e.cause instanceof FeeCapTooLowError) {
+                    logger.info(
+                        { error: e.shortMessage },
+                        "error estimating gas due to max fee < basefee"
+                    )
+                    return {
+                        simulatedOps: simulatedOps,
+                        gasLimit: 0n,
+                        resubmitAllOps: true
+                    }
+                }
+
                 try {
                     const errorHexData = e.details.split("Reverted ")[1] as Hex
                     const errorResult = decodeErrorResult({
@@ -311,18 +323,6 @@ export async function filterOpsAndEstimateGas(
                         simulatedOps: [],
                         gasLimit: 0n,
                         resubmitAllOps: false
-                    }
-                }
-            } else if (e instanceof EstimateGasExecutionError) {
-                if (e.cause instanceof FeeCapTooLowError) {
-                    logger.info(
-                        { error: e.shortMessage },
-                        "error estimating gas due to max fee < basefee"
-                    )
-                    return {
-                        simulatedOps: simulatedOps,
-                        gasLimit: 0n,
-                        resubmitAllOps: true
                     }
                 }
             } else {
