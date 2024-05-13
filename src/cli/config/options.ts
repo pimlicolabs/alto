@@ -109,7 +109,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description: "Maximum amount of parallel user ops to keep in the meempool (same sender, different nonce keys)",
         type: "number",
         require: false,
-        default: 0,
+        default: 10,
     },
     "mempool-max-queued-ops": {
         description: "Maximum amount of sequential user ops to keep in the mempool (same sender and nonce key, different nonce values)",
