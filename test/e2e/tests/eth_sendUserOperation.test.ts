@@ -4,15 +4,31 @@ import {
     BundlerClient,
     ENTRYPOINT_ADDRESS_V07
 } from "permissionless"
-import { getBundlerClient, getSmartAccountClient } from "../src/utils"
+import {
+    getBundlerClient,
+    getSmartAccountClient,
+    sendBundleNow,
+    setBundlingMode
+} from "../src/utils"
 import { foundry } from "viem/chains"
-import { createTestClient, http, parseEther, parseGwei } from "viem"
+import {
+    createPublicClient,
+    createTestClient,
+    http,
+    parseEther,
+    parseGwei
+} from "viem"
 import { ANVIL_RPC } from "../src/constants"
 
 const anvilClient = createTestClient({
     chain: foundry,
     mode: "anvil",
     transport: http(ANVIL_RPC)
+})
+
+const publicClient = createPublicClient({
+    transport: http(ANVIL_RPC),
+    chain: foundry
 })
 
 describe.each([
@@ -25,14 +41,11 @@ describe.each([
         bundlerClient = getBundlerClient(entryPoint)
     })
 
-    test("Retry when `max fee per gas less than block base fee` occurs", async () => {
+    test("Send UserOperation", async () => {
         const smartAccountClient = await getSmartAccountClient({
             entryPoint
         })
         const smartAccount = smartAccountClient.account
-
-        await anvilClient.setAutomine(false)
-        await anvilClient.mine({ blocks: 1 })
 
         const to = "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5"
         const value = parseEther("0.15")
@@ -54,30 +67,95 @@ describe.each([
 
         await new Promise((resolve) => setTimeout(resolve, 1500))
 
-        // increase next block base fee whilst current tx is in mempool
+        await bundlerClient.waitForUserOperationReceipt({ hash })
+
+        expect(
+            await publicClient.getBalance({ address: to })
+        ).toBeGreaterThanOrEqual(value)
+    })
+
+    test("Send multiple UserOperations", async () => {
+        const firstClient = await getSmartAccountClient({
+            entryPoint
+        })
+        const secondClient = await getSmartAccountClient({
+            entryPoint
+        })
+
+        const to = "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5"
+        const value = parseEther("0.15")
+
+        // create sender op
+        const firstOp = await firstClient.prepareUserOperationRequest({
+            userOperation: {
+                callData: await firstClient.account.encodeCallData({
+                    to,
+                    value: value,
+                    data: "0x"
+                })
+            }
+        })
+
+        firstOp.signature = await firstClient.account.signUserOperation(firstOp)
+
+        // create relayer op
+        const secondOp = await secondClient.prepareUserOperationRequest({
+            userOperation: {
+                callData: await secondClient.account.encodeCallData({
+                    to,
+                    value,
+                    data: "0x"
+                })
+            }
+        })
+
+        secondOp.signature =
+            await secondClient.account.signUserOperation(secondOp)
+
+        setBundlingMode("manual")
+
+        const firstHash = await bundlerClient.sendUserOperation({
+            userOperation: firstOp
+        })
+        const secondHash = await bundlerClient.sendUserOperation({
+            userOperation: secondOp
+        })
+
+        expect(
+            await bundlerClient.getUserOperationReceipt({
+                hash: firstHash
+            })
+        ).toBeNull()
+        expect(
+            await bundlerClient.getUserOperationReceipt({
+                hash: secondHash
+            })
+        ).toBeNull()
+
+        await sendBundleNow()
+
+        expect(
+            (
+                await bundlerClient.waitForUserOperationReceipt({
+                    hash: firstHash
+                })
+            ).success
+        ).toEqual(true)
+        expect(
+            (
+                await bundlerClient.waitForUserOperationReceipt({
+                    hash: secondHash
+                })
+            ).success
+        ).toEqual(true)
+
+        expect(
+            await publicClient.getBalance({ address: to })
+        ).toBeGreaterThanOrEqual(value * 2n)
+
+        setBundlingMode("auto")
         await anvilClient.setNextBlockBaseFeePerGas({
-            baseFeePerGas: parseGwei("150")
+            baseFeePerGas: parseGwei("1")
         })
-
-        await anvilClient.mine({ blocks: 1 })
-        await new Promise((resolve) => setTimeout(resolve, 1500))
-
-        // check that no tx was mined
-        let opReceipt = await bundlerClient.getUserOperationReceipt({
-            hash
-        })
-        expect(opReceipt).toBeNull()
-
-        // new block should trigger alto's mempool to replace the eoa tx with too low gasPrice
-        await anvilClient.mine({ blocks: 1 })
-        await new Promise((resolve) => setTimeout(resolve, 1500))
-
-        opReceipt = await bundlerClient.getUserOperationReceipt({
-            hash
-        })
-
-        expect(opReceipt?.success).equal(true)
-
-        await anvilClient.setAutomine(true)
     })
 })

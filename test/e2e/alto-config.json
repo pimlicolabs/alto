@@ -1,6 +1,7 @@
 {
     "network-name": "local",
     "log-environment": "production",
+    "enable-debug-endpoints": true,
     "entrypoints": "0x5ff137d4b0fdcd49dca30c7cf57e578a026d2789,0x0000000071727De22E5E9d8BAf0edAc6f37da032",
     "balance-override-enabled": "true",
     "entrypoint-simulation-contract": "0xb02456A0eC77837B22156CBA2FF53E662b326713",
@@ -14,7 +15,7 @@
     "max-block-range": 10000,
     "safe-mode": false,
     "port": 4337,
-    "log-level": "fatal",
+    "log-level": "info",
     "public-client-log-level": "error",
     "wallet-client-log-level": "error",
     "polling-interval": 100,

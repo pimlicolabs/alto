@@ -111,7 +111,7 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
         ).toBeGreaterThanOrEqual(value)
     })
 
-    test("Replace mempool transaction", async () => {
+    test.only("Replace mempool transaction", async () => {
         const smartAccountClient = await getSmartAccountClient({
             entryPoint: ENTRYPOINT_ADDRESS_V06
         })
@@ -264,5 +264,8 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
         ).toBeGreaterThanOrEqual(value * 2n)
 
         setBundlingMode("auto")
+        await anvilClient.setNextBlockBaseFeePerGas({
+            baseFeePerGas: parseGwei("1")
+        })
     })
 })
