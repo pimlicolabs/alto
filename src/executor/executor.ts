@@ -688,6 +688,26 @@ export class Executor {
                       }
                   )
         } catch (err: unknown) {
+            const e = parseViemError(err)
+            if (e instanceof InsufficientFundsError) {
+                childLogger.error(
+                    { error: e },
+                    "insufficient funds, not submitting transaction"
+                )
+                this.markWalletProcessed(wallet)
+                return opsWithHashToBundle.map((owh) => {
+                    return {
+                        status: "resubmit",
+                        info: {
+                            entryPoint,
+                            userOpHash: owh.userOperationHash,
+                            userOperation: owh.mempoolUserOperation,
+                            reason: InsufficientFundsError.name
+                        }
+                    }
+                })
+            }
+
             sentry.captureException(err)
             childLogger.error(
                 { error: JSON.stringify(err) },
