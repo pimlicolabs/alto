@@ -1,11 +1,15 @@
-import { test, describe, expect, beforeAll } from "vitest"
+import { test, describe, expect, beforeAll, beforeEach } from "vitest"
 import {
     ENTRYPOINT_ADDRESS_V06,
     BundlerClient,
     ENTRYPOINT_ADDRESS_V07,
     EstimateUserOperationGasError
 } from "permissionless"
-import { getBundlerClient, getSmartAccountClient } from "../src/utils"
+import {
+    beforeEachCleanUp,
+    getBundlerClient,
+    getSmartAccountClient
+} from "../src/utils"
 
 describe.each([
     { entryPoint: ENTRYPOINT_ADDRESS_V06, version: "v0.6" },
@@ -15,6 +19,10 @@ describe.each([
 
     beforeAll(async () => {
         bundlerClient = getBundlerClient(entryPoint)
+    })
+
+    beforeEach(async () => {
+        await beforeEachCleanUp()
     })
 
     test("Can estimate with empty gasLimit values", async () => {

@@ -6,7 +6,8 @@ import {
     createTestClient,
     createWalletClient,
     http,
-    parseEther
+    parseEther,
+    parseGwei
 } from "viem"
 import {
     generatePrivateKey,
@@ -157,5 +158,30 @@ export const sendBundleNow = async () => {
             params: [],
             id: 4337
         })
+    })
+}
+
+export const clearBundlerState = async () => {
+    await fetch(ALTO_RPC, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            jsonrpc: "2.0",
+            method: "debug_bundler_clearState",
+            params: [],
+            id: 4337
+        })
+    })
+}
+
+export const beforeEachCleanUp = async () => {
+    await clearBundlerState()
+    await setBundlingMode("auto")
+
+    await anvilClient.setAutomine(true)
+    await anvilClient.setNextBlockBaseFeePerGas({
+        baseFeePerGas: parseGwei("1")
     })
 }

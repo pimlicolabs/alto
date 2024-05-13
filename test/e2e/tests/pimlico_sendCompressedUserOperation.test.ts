@@ -1,6 +1,7 @@
-import { ENTRYPOINT_ADDRESS_V06_TYPE } from "permissionless/_types/types"
-import { describe, test, beforeAll, expect } from "vitest"
+import { describe, test, beforeAll, expect, beforeEach } from "vitest"
+import { ENTRYPOINT_ADDRESS_V06_TYPE } from "permissionless/types"
 import {
+    beforeEachCleanUp,
     getPimlicoBundlerClient,
     getSmartAccountClient,
     sendBundleNow,
@@ -74,6 +75,10 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
         pimlicoBundlerClient = getPimlicoBundlerClient(ENTRYPOINT_ADDRESS_V06)
     })
 
+    beforeEach(async () => {
+        await beforeEachCleanUp()
+    })
+
     test("Send compressed UserOperation", async () => {
         const smartAccountClient = await getSmartAccountClient({
             entryPoint: ENTRYPOINT_ADDRESS_V06
@@ -111,7 +116,7 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
         ).toBeGreaterThanOrEqual(value)
     })
 
-    test.only("Replace mempool transaction", async () => {
+    test("Replace mempool transaction", async () => {
         const smartAccountClient = await getSmartAccountClient({
             entryPoint: ENTRYPOINT_ADDRESS_V06
         })
@@ -148,7 +153,6 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
         await anvilClient.setNextBlockBaseFeePerGas({
             baseFeePerGas: parseGwei("150")
         })
-
         await anvilClient.mine({ blocks: 1 })
         await new Promise((resolve) => setTimeout(resolve, 1500))
 
@@ -170,8 +174,6 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
         expect(
             await publicClient.getBalance({ address: to })
         ).toBeGreaterThanOrEqual(value)
-
-        await anvilClient.setAutomine(true)
     })
 
     test("Send multiple compressedOps", async () => {
@@ -212,7 +214,7 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
         secondOp.signature =
             await secondClient.account.signUserOperation(secondOp)
 
-        setBundlingMode("manual")
+        await setBundlingMode("manual")
 
         const firstCompressedOp = await SIMPLE_INFLATOR_CONTRACT.read.compress([
             firstOp
@@ -262,10 +264,5 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
         expect(
             await publicClient.getBalance({ address: to })
         ).toBeGreaterThanOrEqual(value * 2n)
-
-        setBundlingMode("auto")
-        await anvilClient.setNextBlockBaseFeePerGas({
-            baseFeePerGas: parseGwei("1")
-        })
     })
 })

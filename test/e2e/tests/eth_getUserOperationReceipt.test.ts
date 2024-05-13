@@ -1,10 +1,14 @@
-import { test, describe, expect, beforeAll } from "vitest"
+import { test, describe, expect, beforeAll, beforeEach } from "vitest"
 import {
     ENTRYPOINT_ADDRESS_V06,
     BundlerClient,
     ENTRYPOINT_ADDRESS_V07
 } from "permissionless"
-import { getBundlerClient, getSmartAccountClient } from "../src/utils"
+import {
+    beforeEachCleanUp,
+    getBundlerClient,
+    getSmartAccountClient
+} from "../src/utils"
 import { Address, Hex } from "viem"
 import {
     deployRevertingContract,
@@ -25,6 +29,10 @@ describe.each([
         revertingContract = await deployRevertingContract()
         paymaster = await deployPaymaster(entryPoint)
         bundlerClient = getBundlerClient(entryPoint)
+    })
+
+    beforeEach(async () => {
+        await beforeEachCleanUp()
     })
 
     test("Returns revert bytes when UserOperation reverts", async () => {
