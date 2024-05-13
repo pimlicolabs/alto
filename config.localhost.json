@@ -13,7 +13,7 @@
     "entrypoints": "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789,0x0000000071727De22E5E9d8BAf0edAc6f37da032",
     "bundle-bulker-address": "0x09aeBCF1DF7d4D0FBf26073e79A6B250f458fFB8",
     "per-op-inflator-address": "0x79741195EA18e1ed7deD6C224e9037d673cE9484",
-    "entrypoint-simulation-contract": "0xb02456A0eC77837B22156CBA2FF53E662b326713",
+    "entrypoint-simulation-contract": "0xf93dA0397eAEB3dA615ab8869b10634fe92c4327",
     "enable-debug-endpoints": true,
     "safe-mode": false,
     "mempool-max-parallel-ops": 5,
