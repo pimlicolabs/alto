@@ -39,8 +39,7 @@ import {
     type Chain,
     type PublicClient,
     type Transport,
-    type WalletClient,
-    BaseError
+    type WalletClient
 } from "viem"
 import {
     createCompressedCalldata,
