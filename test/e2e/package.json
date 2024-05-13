@@ -4,7 +4,7 @@
     "private": true,
     "scripts": {
         "test": "vitest dev -c ./vitest.config.ts",
-        "test:ci": "CI=true && pnpm run setup && vitest -c ./vitest.config.ts --coverage"
+        "test:ci": "CI=true && vitest -c ./vitest.config.ts --coverage"
     },
     "dependencies": {
         "@types/node": "^18.16.3",
