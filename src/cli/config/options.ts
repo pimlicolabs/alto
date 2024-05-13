@@ -105,25 +105,25 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: "105,110,115"
     },
-    "mempool-parallel-user-operations-max-size": {
+    "mempool-max-parallel-ops": {
         description: "Maximum amount of parallel user ops to keep in the meempool (same sender, different nonce keys)",
         type: "number",
         require: false,
         default: 0,
     },
-    "mempool-queued-user-operations-max-size": {
+    "mempool-max-queued-ops": {
         description: "Maximum amount of sequential user ops to keep in the mempool (same sender and nonce key, different nonce values)",
         type: "number",
         require: false,
         default: 0,
     },
-    "executor-only-unique-senders-per-bundle": {
-        description: "Include user ops with the same sender in the signle bundle",
+    "enforce-unique-senders-per-bundle": {
+        description: "Include user ops with the same sender in the single bundle",
         type: "boolean",
         require: false,
         default: true,
     },
-    "executor-max-gas-limit-per-bundle": {
+    "max-gas-per-bundle": {
         description: "Maximum amount of gas per bundle",
         type: "string",
         require: false,

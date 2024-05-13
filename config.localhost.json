@@ -16,7 +16,7 @@
     "entrypoint-simulation-contract": "0xb02456A0eC77837B22156CBA2FF53E662b326713",
     "enable-debug-endpoints": true,
     "safe-mode": false,
-    "mempool-parallel-user-operations-max-size": 5,
-    "mempool-queued-user-operations-max-size": 5,
-    "executor-only-unique-senders-per-bundle": false
+    "mempool-max-parallel-ops": 5,
+    "mempool-max-queued-ops": 5,
+    "enforce-unique-senders-per-bundle": false
 }
