@@ -23,6 +23,7 @@ import {
 import { ANVIL_RPC } from "../src/constants"
 import { ENTRYPOINT_V06_ABI, ENTRYPOINT_V07_ABI } from "./utils/abi"
 import { getNonceKeyAndValue } from "./utils/userop"
+import { generatePrivateKey } from "viem/accounts"
 
 const anvilClient = createTestClient({
     chain: foundry,
@@ -36,7 +37,7 @@ const publicClient = createPublicClient({
 })
 
 describe.each([
-    // { entryPoint: ENTRYPOINT_ADDRESS_V06, version: "v0.6" },
+    { entryPoint: ENTRYPOINT_ADDRESS_V06, version: "v0.6" },
     { entryPoint: ENTRYPOINT_ADDRESS_V07, version: "v0.7" }
 ])("$version supports eth_sendUserOperation", ({ entryPoint, version }) => {
     let bundlerClient: BundlerClient<typeof entryPoint>
@@ -221,6 +222,8 @@ describe.each([
     test('Send parallel UserOperations', async () => {
         const nonceKeys = [10n, 12n, 4n, 1n]
 
+        await setBundlingMode("manual")
+
         const entryPointContract = getContract({
             address: entryPoint,
             abi: version === 'v0.6' ? ENTRYPOINT_V06_ABI : ENTRYPOINT_V07_ABI,
@@ -229,14 +232,33 @@ describe.each([
             }
         })
 
-        await setBundlingMode("manual")
+        const privateKey = generatePrivateKey();
+
+        // Needs to deploy user op first
+        const client = await getSmartAccountClient({
+            entryPoint,
+            privateKey
+        })
+
+        await client.sendUserOperation({
+            userOperation: {
+                callData: await client.account.encodeCallData({
+                    to: client.account.address,
+                    value: parseEther("0.01"),
+                    data: "0x"
+                })
+            }
+        })
+
+        await sendBundleNow()
 
         const buildUserOperation = async (nonceKey: bigint) => {
             const to = "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5"
             const value = parseEther("0.15")
 
             const client = await getSmartAccountClient({
-                entryPoint
+                entryPoint,
+                privateKey
             })
 
             const nonce = await entryPointContract.read.getNonce([
