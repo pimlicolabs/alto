@@ -112,7 +112,6 @@ describe.each([
         await anvilClient.setNextBlockBaseFeePerGas({
             baseFeePerGas: parseGwei("150")
         })
-        await anvilClient.mine({ blocks: 1 })
         await new Promise((resolve) => setTimeout(resolve, 2500))
 
         // check that no tx was mined

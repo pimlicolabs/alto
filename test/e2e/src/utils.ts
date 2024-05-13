@@ -181,7 +181,5 @@ export const beforeEachCleanUp = async () => {
     await setBundlingMode("auto")
 
     await anvilClient.setAutomine(true)
-    await anvilClient.setNextBlockBaseFeePerGas({
-        baseFeePerGas: parseGwei("1")
-    })
+    await anvilClient.mine({ blocks: 1 })
 }
