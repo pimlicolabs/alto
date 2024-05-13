@@ -1,34 +1,21 @@
-version: "2.4"
-
 services:
   anvil:
     image: ghcr.io/foundry-rs/foundry:nightly-156cb1396b7076c6f9cb56f3719f8c90f7f52064
     ports: [ "8545:8545" ]
-    entrypoint: [ "anvil", "--host", "0.0.0.0" ]
+    entrypoint: [ "anvil", "--host", "0.0.0.0", "--silent" ]
 
-  anvil_setup:
+  deploy-contracts:
     build:
-      context: ./testSuite
-      dockerfile: ./anvilSetup/Dockerfile
+      context: ./deploy-contracts
     environment:
-      - ANVIL_ENDPOINT=http://anvil:8545
-    depends_on:
-      anvil:
-        condition: service_started
+      - ANVIL_RPC=http://anvil:8545
 
   alto:
     build: ../../
-    ports: [ "3000:3000" ]
-    command: --config config.localhost.json --rpcUrl http://anvil:8545 --environment development
+    ports: [ "4337:4337" ]
+    command: --config alto-config.json
+    volumes:
+      - ./alto-config.json:/app/alto-config.json
     depends_on:
-      anvil_setup:
+      deploy-contracts:
         condition: service_completed_successfully
-
-  test_suite:
-    build: testSuite
-    environment:
-      - ALTO_ENDPOINT=http://alto:3000
-      - ANVIL_ENDPOINT=http://anvil:8545
-    depends_on:
-      alto:
-        condition: service_started

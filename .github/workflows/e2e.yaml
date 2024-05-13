@@ -9,7 +9,7 @@ on:
     - main
 
 jobs:
-  docker:
+  docker-e2e:
     timeout-minutes: 10
     runs-on: ubuntu-latest
 
@@ -17,9 +17,18 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
+    - name: Install dependencies
+      uses: ./.github/actions/install-dependencies
+
+    - name: Install test dependencies
+      run: cd test/e2e && pnpm install .
+
+    - name: Start Docker
+      run: docker compose -f "test/e2e/docker-compose.yml" up -d
+
     - name: Start tests
-      run: docker-compose -f "test/e2e/docker-compose.yml" up --abort-on-container-exit test_suite
+      run: cd test/e2e && pnpm run test:ci
 
     - name: Stop containers
       if: always()
-      run: docker-compose -f "test/e2e/docker-compose.yml" down
+      run: docker compose -f "test/e2e/docker-compose.yml" down
