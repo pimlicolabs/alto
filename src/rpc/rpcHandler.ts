@@ -486,7 +486,6 @@ export class RpcHandler implements IRpcEndpoint {
         userOperation: UserOperation,
         entryPoint: Address
     ): Promise<SendUserOperationResponseResult> {
-        // TODO: "queued" status?
         let status: "added" | "queued" | "rejected" = "rejected"
         try {
             status = await this.addToMempoolIfValid(
