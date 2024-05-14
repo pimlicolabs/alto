@@ -460,7 +460,8 @@ export class RpcHandler implements IRpcEndpoint {
                 preVerificationGas,
                 verificationGasLimit,
                 callGasLimit,
-                paymasterVerificationGasLimit,
+                paymasterVerificationGasLimit:
+                    paymasterVerificationGasLimit + 10_000n,
                 paymasterPostOpGasLimit
             }
         }
