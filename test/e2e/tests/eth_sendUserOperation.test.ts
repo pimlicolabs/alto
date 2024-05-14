@@ -91,7 +91,6 @@ describe.each([
 
         await anvilClient.setAutomine(false)
         await anvilClient.mine({ blocks: 1 })
-        // await setBundlingMode("manual")
 
         const to = "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5"
         const value = parseEther("0.15")
@@ -127,7 +126,8 @@ describe.each([
 
         // new block should trigger alto's mempool to replace the eoa tx with too low gasPrice
         await anvilClient.mine({ blocks: 1 })
-        await new Promise((resolve) => setTimeout(resolve, 1500))
+        await new Promise((resolve) => setTimeout(resolve, 5000))
+        await anvilClient.mine({ blocks: 1 })
 
         opReceipt = await bundlerClient.getUserOperationReceipt({
             hash
