@@ -22,6 +22,7 @@ import type { HexData32 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
     getAddressFromInitCodeOrPaymasterAndData,
+    getNonceKeyAndValue,
     getUserOperationHash,
     isVersion06,
     isVersion07
@@ -50,6 +51,9 @@ export class MemoryMempool {
     private logger: Logger
     private validator: InterfaceValidator
     private safeMode: boolean
+    private parallelUserOpsMaxSize: number
+    private queuedUserOpsMaxSize: number
+    private onlyUniqueSendersPerBundle: boolean
 
     constructor(
         monitor: Monitor,
@@ -59,6 +63,9 @@ export class MemoryMempool {
         safeMode: boolean,
         logger: Logger,
         metrics: Metrics,
+        parallelUserOpsMaxSize: number,
+        queuedUserOpsMaxSize: number,
+        onlyUniqueSendersPerBundle: boolean,
         throttledEntityBundleCount?: number
     ) {
         this.reputationManager = reputationManager
@@ -68,6 +75,9 @@ export class MemoryMempool {
         this.safeMode = safeMode
         this.logger = logger
         this.store = new MemoryStore(logger, metrics)
+        this.parallelUserOpsMaxSize = parallelUserOpsMaxSize
+        this.queuedUserOpsMaxSize = queuedUserOpsMaxSize
+        this.onlyUniqueSendersPerBundle = onlyUniqueSendersPerBundle
         this.throttledEntityBundleCount = throttledEntityBundleCount ?? 4
     }
 
@@ -228,6 +238,8 @@ export class MemoryMempool {
         return entities
     }
 
+    // TODO: add check for adding a userop with conflicting nonce
+    // In case of concurrent requests
     add(
         mempoolUserOperation: MempoolUserOperation,
         entryPoint: Address,
@@ -285,6 +297,35 @@ export class MemoryMempool {
             }
 
             this.store.removeOutstanding(oldUserOp.userOperationHash)
+        }
+
+        // Check if mempool already includes max amount of parallel user operations
+        const parallellUserOperationsCount = this.store
+            .dumpOutstanding()
+            .filter((userOpInfo) => {
+                const userOp = deriveUserOperation(userOpInfo.mempoolUserOperation)
+                return userOp.sender === op.sender
+            })
+            .length
+
+        if (parallellUserOperationsCount > this.parallelUserOpsMaxSize) {
+            return false;
+        }
+
+        // Check if mempool already includes max amount of queued user operations
+        const [nonceKey,] = getNonceKeyAndValue(op.nonce);
+        const queuedUserOperationsCount = this.store
+            .dumpOutstanding()
+            .filter((userOpInfo) => {
+                const userOp = deriveUserOperation(userOpInfo.mempoolUserOperation)
+                const [opNonceKey,] = getNonceKeyAndValue(userOp.nonce);
+
+                return (userOp.sender === op.sender && opNonceKey === nonceKey);
+            })
+            .length
+        
+        if (queuedUserOperationsCount > this.queuedUserOpsMaxSize) {
+            return false;
         }
 
         const hash = getUserOperationHash(
@@ -421,7 +462,8 @@ export class MemoryMempool {
             }
         }
 
-        if (senders.has(op.sender)) {
+
+        if (senders.has(op.sender) && this.onlyUniqueSendersPerBundle) {
             this.logger.trace(
                 {
                     sender: op.sender,
@@ -442,9 +484,16 @@ export class MemoryMempool {
         let validationResult: ValidationResult & { storageMap: StorageMap }
 
         try {
+            let queuedUserOperations: UserOperation[] = []
+
+            if (!isUserOpV06) {
+                queuedUserOperations = await this.getQueuedUserOperations(op, opInfo.entryPoint)
+            }
+
             validationResult = await this.validator.validateUserOperation(
                 false,
                 op,
+                queuedUserOperations,
                 opInfo.entryPoint,
                 opInfo.referencedContracts
             )
@@ -547,6 +596,26 @@ export class MemoryMempool {
         minOps?: number
     ): Promise<UserOperationInfo[]> {
         const outstandingUserOperations = this.store.dumpOutstanding().slice()
+
+        // Sort userops before the execution
+        // Decide the order of the userops based on the sender and nonce
+        // If sender is the same, sort by nonce key
+        outstandingUserOperations.sort((a, b) => {
+            const aUserOp = deriveUserOperation(a.mempoolUserOperation);
+            const bUserOp = deriveUserOperation(b.mempoolUserOperation);
+
+            if (aUserOp.sender === bUserOp.sender) {
+                const [aNonceKey,aNonceValue] = getNonceKeyAndValue(aUserOp.nonce);
+                const [bNonceKey,bNonceValue] = getNonceKeyAndValue(bUserOp.nonce);
+
+                if (aNonceKey === bNonceKey) return Number(aNonceValue - bNonceValue);
+                
+                return Number(aNonceKey - bNonceKey);
+            }
+
+            return 0;
+        })
+
         let opsTaken = 0
         let gasUsed = 0n
         const result: UserOperationInfo[] = []
@@ -615,6 +684,67 @@ export class MemoryMempool {
         }
 
         return null
+    }
+
+    // For a specfic user operation, get all the queued user operations
+    // They should be executed first, ordered by nonce value
+    // If cuurentNonceValue is not provided, it will be fetched from the chain
+    async getQueuedUserOperations(
+        userOperation: UserOperation,
+        entryPoint: Address,
+        _currentNonceValue?: bigint
+    ): Promise<UserOperation[]> {
+        const entryPointContract = getContract({
+            address: entryPoint,
+            abi: isVersion06(userOperation)
+                ? EntryPointV06Abi
+                : EntryPointV07Abi,
+            client: {
+                public: this.publicClient
+            }
+        })
+
+        const [nonceKey, userOperationNonceValue] = getNonceKeyAndValue(
+            userOperation.nonce
+        )
+
+        let currentNonceValue: bigint = BigInt(0);
+
+        if (_currentNonceValue) {
+            currentNonceValue = _currentNonceValue;
+        } else {
+            const getNonceResult = await entryPointContract.read.getNonce(
+                [userOperation.sender, nonceKey],
+                {
+                    blockTag: "latest"
+                }
+            )
+    
+            currentNonceValue = getNonceKeyAndValue(getNonceResult)[1]
+        }
+
+        const outstanding = this.store
+            .dumpOutstanding()
+            .map((userOpInfo) => deriveUserOperation(userOpInfo.mempoolUserOperation))
+            .filter((uo: UserOperation) => {
+                const [opNonceKey,opNonceValue] = getNonceKeyAndValue(uo.nonce);
+
+                return (
+                    uo.sender === userOperation.sender &&
+                    opNonceKey === nonceKey &&
+                    opNonceValue >= currentNonceValue &&
+                    opNonceValue < userOperationNonceValue
+                );
+            })
+            
+        outstanding.sort((a, b) => {
+            const [,aNonceValue] = getNonceKeyAndValue(a.nonce);
+            const [,bNonceValue] = getNonceKeyAndValue(b.nonce);
+
+            return Number(aNonceValue - bNonceValue);
+        })
+
+        return outstanding;
     }
 
     clear(): void {
