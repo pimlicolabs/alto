@@ -605,13 +605,15 @@ export class MemoryMempool {
             const bUserOp = deriveUserOperation(b.mempoolUserOperation);
 
             if (aUserOp.sender === bUserOp.sender) {
-                const [aNonceKey,] = getNonceKeyAndValue(aUserOp.nonce);
-                const [bNonceKey,] = getNonceKeyAndValue(bUserOp.nonce);
+                const [aNonceKey,aNonceValue] = getNonceKeyAndValue(aUserOp.nonce);
+                const [bNonceKey,bNonceValue] = getNonceKeyAndValue(bUserOp.nonce);
 
+                if (aNonceKey === bNonceKey) return Number(aNonceValue - bNonceValue);
+                
                 return Number(aNonceKey - bNonceKey);
             }
 
-            return -1;
+            return 0;
         })
 
         let opsTaken = 0
@@ -684,6 +686,9 @@ export class MemoryMempool {
         return null
     }
 
+    // For a specfic user operation, get all the queued user operations
+    // They should be executed first, ordered by nonce value
+    // If cuurentNonceValue is not provided, it will be fetched from the chain
     async getQueuedUserOperations(
         userOperation: UserOperation,
         entryPoint: Address,
