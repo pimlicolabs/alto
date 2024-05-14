@@ -315,8 +315,93 @@ describe.each([
         ).toEqual(sortedNonceKeys)
     })
 
-    // test('Send queued UserOperations', async () => {
-    //     // Doesn't work with v0.6 userops
-    //     if (version === 'v0.6') return;
-    // })
+    test('Send queued UserOperations', async () => {
+        // Doesn't work with v0.6 userops
+        if (version === 'v0.6') return;
+
+        await setBundlingMode("manual")
+
+        const entryPointContract = getContract({
+            address: entryPoint,
+            abi: version === 'v0.6' ? ENTRYPOINT_V06_ABI : ENTRYPOINT_V07_ABI,
+            client: {
+                public: publicClient
+            }
+        })
+
+        const privateKey = generatePrivateKey();
+
+        // Needs to deploy user op first
+        const client = await getSmartAccountClient({
+            entryPoint,
+            privateKey
+        })
+
+        await client.sendUserOperation({
+            userOperation: {
+                callData: await client.account.encodeCallData({
+                    to: client.account.address,
+                    value: parseEther("0.01"),
+                    data: "0x"
+                })
+            }
+        })
+
+        await sendBundleNow()
+
+        const nonceKey = 100n;
+        const nonceValueDiffs = [0n, 1n, 2n];
+
+        // Send 3 sequential user ops
+        const sendUserOperation = async (nonceValueDiff: bigint) => {
+            const to = "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5"
+            const value = parseEther("0.15")
+
+            const client = await getSmartAccountClient({
+                entryPoint,
+                privateKey
+            })
+
+            const nonce = await entryPointContract.read.getNonce([
+                client.account.address,
+                nonceKey
+            ]) as bigint;
+
+            const userOp = await client.prepareUserOperationRequest({
+                userOperation: {
+                    nonce: nonce + nonceValueDiff,
+                    callData: await client.account.encodeCallData({
+                        to,
+                        value,
+                        data: "0x"
+                    })
+                }
+            })
+
+            userOp.signature = await client.account.signUserOperation(userOp)
+
+            return bundlerClient.sendUserOperation({ userOperation: userOp });
+        }
+        const opHashes: Hex[] = [];
+
+        for (const nonceValueDiff of nonceValueDiffs) {
+            opHashes.push(await sendUserOperation(nonceValueDiff))
+        }
+
+        await sendBundleNow()
+
+        const receipts = await Promise.all(opHashes.map(async (hash) => {
+            const receipt = await bundlerClient.waitForUserOperationReceipt({ hash });
+
+            return receipt;
+        }))
+
+        expect(
+            receipts.every((receipt) => receipt.success)
+        ).toEqual(true)
+    
+        expect(
+            receipts.every((receipt) => receipt.receipt.transactionHash === receipts[0].receipt.transactionHash)
+        ).toEqual(true)
+    })
 })
