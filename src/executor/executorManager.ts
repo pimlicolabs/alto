@@ -55,6 +55,7 @@ export class ExecutorManager {
     private currentlyHandlingBlock = false
     private timer?: NodeJS.Timer
     private bundlerFrequency: number
+    private maxGasLimitPerBundle: bigint
     private gasPriceManager: GasPriceManager
 
     constructor(
@@ -69,6 +70,7 @@ export class ExecutorManager {
         metrics: Metrics,
         bundleMode: BundlingMode,
         bundlerFrequency: number,
+        maxGasLimitPerBundle: bigint,
         gasPriceManager: GasPriceManager
     ) {
         this.entryPoints = entryPoints
@@ -81,6 +83,7 @@ export class ExecutorManager {
         this.logger = logger
         this.metrics = metrics
         this.bundlerFrequency = bundlerFrequency
+        this.maxGasLimitPerBundle = maxGasLimitPerBundle
         this.gasPriceManager = gasPriceManager
 
         if (bundleMode === "auto") {
@@ -102,7 +105,7 @@ export class ExecutorManager {
     }
 
     async bundleNow(): Promise<Hash[]> {
-        const ops = await this.mempool.process(5_000_000n, 1)
+        const ops = await this.mempool.process(this.maxGasLimitPerBundle, 1)
         if (ops.length === 0) {
             throw new Error("no ops to bundle")
         }
