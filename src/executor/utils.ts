@@ -173,9 +173,11 @@ export async function filterOpsAndEstimateGas(
                     [opsToSend, wallet.address],
                     {
                         account: wallet,
-                        gas: fixedGasLimitForEstimation,
                         nonce: nonce,
                         blockTag,
+                        ...(fixedGasLimitForEstimation !== undefined && {
+                            gas: fixedGasLimitForEstimation
+                        }),
                         ...gasOptions
                     }
                 )
