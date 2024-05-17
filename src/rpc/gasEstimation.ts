@@ -138,6 +138,13 @@ export async function simulateHandleOpV06(
 
         const cause = causeParseResult.data
 
+        if (cause.data === "0x") {
+            throw new RpcError(
+                "AA23 reverted: UserOperation called non-existant contract, or reverted with 0x",
+                ValidationErrors.SimulateValidation
+            )
+        }
+
         const decodedError = decodeErrorResult({
             abi: [...EntryPointV06Abi, ...EntryPointV06SimulationsAbi],
             data: cause.data
