@@ -1,5 +1,3 @@
-import { Hex } from "viem"
-
 // biome-ignore format:
 export const SIMPLE_ACCOUNT_FACTORY_V06 = "0x9406Cc6185a346906296840746125a0E44976454"
 // biome-ignore format:
