@@ -71,7 +71,8 @@ export class ExecutorManager {
         bundleMode: BundlingMode,
         bundlerFrequency: number,
         maxGasLimitPerBundle: bigint,
-        gasPriceManager: GasPriceManager
+        gasPriceManager: GasPriceManager,
+        sendBundleDelay?: number
     ) {
         this.entryPoints = entryPoints
         this.reputationManager = reputationManager
@@ -86,7 +87,17 @@ export class ExecutorManager {
         this.maxGasLimitPerBundle = maxGasLimitPerBundle
         this.gasPriceManager = gasPriceManager
 
-        if (bundleMode === "auto") {
+        if (sendBundleDelay) {
+            publicClient.watchBlockNumber({
+                onBlockNumber: async (
+                    _blockNumber: bigint,
+                    _prevBlockNumber: bigint | undefined
+                ) => {
+                    await new Promise((r) => setTimeout(r, sendBundleDelay))
+                    await this.bundle()
+                }
+            })
+        } else if (bundleMode === "auto") {
             this.timer = setInterval(async () => {
                 await this.bundle()
             }, bundlerFrequency) as NodeJS.Timer

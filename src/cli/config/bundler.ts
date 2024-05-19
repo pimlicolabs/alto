@@ -74,7 +74,11 @@ export const bundlerArgsSchema = z.object({
     "mempool-max-parallel-ops": z.number().int().min(0).default(10),
     "mempool-max-queued-ops": z.number().int().min(0).default(0),
     "enforce-unique-senders-per-bundle": z.boolean().default(true),
-    "max-gas-per-bundle": z.string().transform((val) => BigInt(val)).default("5000000"),
+    "max-gas-per-bundle": z
+        .string()
+        .transform((val) => BigInt(val))
+        .default("5000000"),
+    "send-bundle-delay": z.number().optional()
 })
 
 export const compatibilityArgsSchema = z.object({

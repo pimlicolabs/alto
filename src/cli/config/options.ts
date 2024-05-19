@@ -106,29 +106,38 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         default: "105,110,115"
     },
     "mempool-max-parallel-ops": {
-        description: "Maximum amount of parallel user ops to keep in the meempool (same sender, different nonce keys)",
+        description:
+            "Maximum amount of parallel user ops to keep in the meempool (same sender, different nonce keys)",
         type: "number",
         require: false,
-        default: 10,
+        default: 10
     },
     "mempool-max-queued-ops": {
-        description: "Maximum amount of sequential user ops to keep in the mempool (same sender and nonce key, different nonce values)",
+        description:
+            "Maximum amount of sequential user ops to keep in the mempool (same sender and nonce key, different nonce values)",
         type: "number",
         require: false,
-        default: 0,
+        default: 0
     },
     "enforce-unique-senders-per-bundle": {
-        description: "Include user ops with the same sender in the single bundle",
+        description:
+            "Include user ops with the same sender in the single bundle",
         type: "boolean",
         require: false,
-        default: true,
+        default: true
     },
     "max-gas-per-bundle": {
         description: "Maximum amount of gas per bundle",
         type: "string",
         require: false,
-        default: "5000000",
+        default: "5000000"
     },
+    "send-bundle-delay": {
+        description:
+            "Delay in milliseconds to wait after a block is mined before building and sending a bundle",
+        type: "number",
+        require: false
+    }
 }
 
 export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
@@ -220,6 +229,12 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         type: "string",
         alias: "r",
         require: true
+    },
+    "wss-url": {
+        description: "Websocket RPC url to connect to",
+        type: "string",
+        alias: "w",
+        require: false
     },
     "send-transaction-rpc-url": {
         description: "RPC url to send transactions to (e.g. flashbots relay)",

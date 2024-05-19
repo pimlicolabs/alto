@@ -12,7 +12,8 @@ import {
     createWalletClient,
     type Chain,
     type PublicClient,
-    type Transport
+    type Transport,
+    webSocket
 } from "viem"
 import { fromZodError } from "zod-validation-error"
 import {
@@ -23,6 +24,7 @@ import {
 } from "./config"
 import { customTransport } from "./customTransport"
 import { setupServer } from "./setupServer"
+import { watchBlockNumber } from "viem/actions"
 
 const parseArgs = (args: IOptionsInput): IOptions => {
     // validate every arg, make type safe so if i add a new arg i have to validate it
@@ -107,7 +109,7 @@ export async function bundlerHandler(args: IOptionsInput): Promise<void> {
         }
     }
 
-    const client = createPublicClient({
+    let client = createPublicClient({
         transport: customTransport(args["rpc-url"], {
             logger: logger.child(
                 { module: "public_client" },
@@ -120,6 +122,18 @@ export async function bundlerHandler(args: IOptionsInput): Promise<void> {
         }),
         chain
     })
+
+    if (parsedArgs["wss-url"]) {
+        const wssClient = createPublicClient({
+            transport: webSocket(parsedArgs["wss-url"]),
+            chain
+        })
+
+        // User websocket when watching for new blocks
+        client = client.extend((_client) => ({
+            watchBlockNumber: (args) => watchBlockNumber(wssClient, args)
+        }))
+    }
 
     const gasPriceManager = new GasPriceManager(
         chain,
