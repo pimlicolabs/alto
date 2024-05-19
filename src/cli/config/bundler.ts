@@ -70,7 +70,6 @@ export const bundlerArgsSchema = z.object({
             "Must contain 3 comma seperated items in format: slow,standard,fast"
         )
         .transform(([slow, standard, fast]) => ({ slow, standard, fast })),
-
     "mempool-max-parallel-ops": z.number().int().min(0).default(10),
     "mempool-max-queued-ops": z.number().int().min(0).default(0),
     "enforce-unique-senders-per-bundle": z.boolean().default(true),
@@ -116,6 +115,7 @@ export const serverArgsSchema = z.object({
 
 export const rpcArgsSchema = z.object({
     "rpc-url": z.string().url(),
+    "wss-url": z.string().url(),
     "send-transaction-rpc-url": z.string().url().optional(),
     "polling-interval": z.number().int().min(0),
     "max-block-range": z.number().int().min(0).optional()
