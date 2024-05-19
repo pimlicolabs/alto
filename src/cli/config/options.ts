@@ -233,7 +233,6 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
     "wss-url": {
         description: "Websocket RPC url to connect to",
         type: "string",
-        alias: "w",
         require: false
     },
     "send-transaction-rpc-url": {
