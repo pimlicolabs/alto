@@ -125,4 +125,29 @@ describe.each([
             )
         }
     })
+
+    test("Empty paymaster data results in zero paymaster limits", async () => {
+        if (entryPoint === ENTRYPOINT_ADDRESS_V06) return;
+
+        const smartAccountClient = await getSmartAccountClient({
+            entryPoint
+        })
+
+        const op = await smartAccountClient.prepareUserOperationRequest({
+            userOperation: {
+                callData: await smartAccountClient.account.encodeCallData({
+                    to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
+                    data: "0x",
+                    value: 0n
+                })
+            }
+        })
+
+        const estimation = await bundlerClient.estimateUserOperationGas({
+            userOperation: op
+        })
+
+        expect(estimation.paymasterPostOpGasLimit).toBe(0n)
+        expect(estimation.paymasterVerificationGasLimit).toBe(0n)
+    })
 })
