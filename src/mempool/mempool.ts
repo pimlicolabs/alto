@@ -18,9 +18,10 @@ import {
     deriveUserOperation,
     EntryPointV07Abi
 } from "@alto/types"
-import type { HexData32 } from "@alto/types"
+import type { ChainType, HexData32 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
+    calcDefaultPreVerificationGas,
     getAddressFromInitCodeOrPaymasterAndData,
     getNonceKeyAndValue,
     getUserOperationHash,
@@ -54,6 +55,7 @@ export class MemoryMempool {
     private parallelUserOpsMaxSize: number
     private queuedUserOpsMaxSize: number
     private onlyUniqueSendersPerBundle: boolean
+    private chainType: ChainType
 
     constructor(
         monitor: Monitor,
@@ -66,6 +68,7 @@ export class MemoryMempool {
         parallelUserOpsMaxSize: number,
         queuedUserOpsMaxSize: number,
         onlyUniqueSendersPerBundle: boolean,
+        chainType: ChainType,
         throttledEntityBundleCount?: number
     ) {
         this.reputationManager = reputationManager
@@ -79,6 +82,7 @@ export class MemoryMempool {
         this.queuedUserOpsMaxSize = queuedUserOpsMaxSize
         this.onlyUniqueSendersPerBundle = onlyUniqueSendersPerBundle
         this.throttledEntityBundleCount = throttledEntityBundleCount ?? 4
+        this.chainType = chainType
     }
 
     replaceSubmitted(
@@ -641,13 +645,21 @@ export class MemoryMempool {
 
         for (const opInfo of outstandingUserOperations) {
             const op = deriveUserOperation(opInfo.mempoolUserOperation)
+
+            const preVerificationGas =
+                this.chainType === "op-stack"
+                    ? calcDefaultPreVerificationGas(op)
+                    : op.preVerificationGas
+
             gasUsed +=
                 op.callGasLimit +
                 op.verificationGasLimit * 3n +
-                op.preVerificationGas
+                preVerificationGas
+
             if (gasUsed > maxGasLimit && opsTaken >= (minOps || 0)) {
                 break
             }
+
             const skipResult = await this.shouldSkip(
                 opInfo,
                 paymasterDeposit,
@@ -656,6 +668,7 @@ export class MemoryMempool {
                 senders,
                 storageMap
             )
+
             paymasterDeposit = skipResult.paymasterDeposit
             stakedEntityCount = skipResult.stakedEntityCount
             knownEntities = skipResult.knownEntities

@@ -57,7 +57,6 @@ export class ExecutorManager {
     private bundlerFrequency: number
     private maxGasLimitPerBundle: bigint
     private gasPriceManager: GasPriceManager
-    private maxBundleSize: number
 
     constructor(
         executor: Executor,
@@ -73,7 +72,6 @@ export class ExecutorManager {
         bundlerFrequency: number,
         maxGasLimitPerBundle: bigint,
         gasPriceManager: GasPriceManager,
-        maxBundleSize: number,
         sendBundleDelay?: number
     ) {
         this.entryPoints = entryPoints
@@ -88,7 +86,6 @@ export class ExecutorManager {
         this.bundlerFrequency = bundlerFrequency
         this.maxGasLimitPerBundle = maxGasLimitPerBundle
         this.gasPriceManager = gasPriceManager
-        this.maxBundleSize = maxBundleSize
 
         if (sendBundleDelay) {
             publicClient.watchBlockNumber({

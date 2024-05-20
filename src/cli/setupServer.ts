@@ -136,7 +136,8 @@ const getMempool = ({
         metrics,
         parsedArgs["mempool-max-parallel-ops"],
         parsedArgs["mempool-max-queued-ops"],
-        parsedArgs["enforce-unique-senders-per-bundle"]
+        parsedArgs["enforce-unique-senders-per-bundle"],
+        parsedArgs["chain-type"]
     )
 }
 
@@ -246,7 +247,6 @@ const getExecutorManager = ({
         parsedArgs["max-bundle-wait"],
         parsedArgs["max-gas-per-bundle"],
         gasPriceManager,
-        parsedArgs["max-bundle-size"],
         parsedArgs["send-bundle-delay"]
     )
 }
