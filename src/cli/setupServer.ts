@@ -245,7 +245,8 @@ const getExecutorManager = ({
         parsedArgs["bundle-mode"],
         parsedArgs["max-bundle-wait"],
         parsedArgs["max-gas-per-bundle"],
-        gasPriceManager
+        gasPriceManager,
+        parsedArgs["send-bundle-delay"]
     )
 }
 
