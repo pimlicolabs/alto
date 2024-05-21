@@ -28,8 +28,7 @@ import {
     getContract,
     serializeTransaction,
     toBytes,
-    toFunctionSelector,
-    toHex
+    toFunctionSelector
 } from "viem"
 import * as chains from "viem/chains"
 import { isVersion06, toPackedUserOperation } from "./userop"
@@ -177,9 +176,43 @@ export function packUserOpV06(op: UserOperationV06): `0x${string}` {
     )
 }
 
-export function packedUserOperationToRandomDataUserOp(
-    packedUserOperation: PackedUserOperation
-) {
+export function removeZeroBytesFromUserOp<T extends UserOperation>(
+    userOpearation: T
+): T extends UserOperationV06 ? UserOperationV06 : PackedUserOperation {
+    if (isVersion06(userOpearation)) {
+        return {
+            sender: userOpearation.sender,
+            nonce: userOpearation.nonce,
+            initCode: userOpearation.initCode,
+            callData: userOpearation.callData,
+            callGasLimit: BigInt(
+                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            ),
+            verificationGasLimit: BigInt(
+                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            ),
+            preVerificationGas: BigInt(
+                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            ),
+            maxFeePerGas: BigInt(
+                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            ),
+            maxPriorityFeePerGas: BigInt(
+                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            ),
+            paymasterAndData: bytesToHex(
+                new Uint8Array(userOpearation.paymasterAndData.length).fill(255)
+            ),
+            signature: bytesToHex(
+                new Uint8Array(userOpearation.signature.length).fill(255)
+            )
+        } as T extends UserOperationV06 ? UserOperationV06 : PackedUserOperation
+    }
+
+    const packedUserOperation: PackedUserOperation = toPackedUserOperation(
+        userOpearation as UserOperationV07
+    )
+
     return {
         sender: packedUserOperation.sender,
         nonce: BigInt(
@@ -200,14 +233,10 @@ export function packedUserOperationToRandomDataUserOp(
         signature: bytesToHex(
             new Uint8Array(packedUserOperation.signature.length).fill(255)
         )
-    }
+    } as T extends UserOperationV06 ? UserOperationV06 : PackedUserOperation
 }
 
-export function packUserOpV07(op: UserOperationV07): `0x${string}` {
-    const packedUserOperation: PackedUserOperation = toPackedUserOperation(op)
-    const randomDataUserOp: PackedUserOperation =
-        packedUserOperationToRandomDataUserOp(packedUserOperation)
-
+export function packUserOpV07(op: PackedUserOperation): `0x${string}` {
     return encodeAbiParameters(
         [
             {
@@ -257,24 +286,17 @@ export function packUserOpV07(op: UserOperationV07): `0x${string}` {
             }
         ],
         [
-            randomDataUserOp.sender,
-            randomDataUserOp.nonce, // need non zero bytes to get better estimations for preVerificationGas
-            packedUserOperation.initCode,
-            packedUserOperation.callData,
-            randomDataUserOp.accountGasLimits, // need non zero bytes to get better estimations for preVerificationGas
-            randomDataUserOp.preVerificationGas, // need non zero bytes to get better estimations for preVerificationGas
-            randomDataUserOp.gasFees, // need non zero bytes to get better estimations for preVerificationGas
-            randomDataUserOp.paymasterAndData,
-            randomDataUserOp.signature
+            op.sender,
+            op.nonce, // need non zero bytes to get better estimations for preVerificationGas
+            op.initCode,
+            op.callData,
+            op.accountGasLimits, // need non zero bytes to get better estimations for preVerificationGas
+            op.preVerificationGas, // need non zero bytes to get better estimations for preVerificationGas
+            op.gasFees, // need non zero bytes to get better estimations for preVerificationGas
+            op.paymasterAndData,
+            op.signature
         ]
     )
-}
-
-export function packUserOp(op: UserOperation): `0x${string}` {
-    if (isVersion06(op)) {
-        return packUserOpV06(op)
-    }
-    return packUserOpV07(op)
 }
 
 export async function calcPreVerificationGas(
@@ -372,12 +394,24 @@ export function calcDefaultPreVerificationGas(
 ): bigint {
     const ov = { ...DefaultGasOverheads, ...(overheads ?? {}) }
 
-    const p = { ...userOperation }
-    p.preVerificationGas ?? 21000n // dummy value, just for calldata cost
-    p.signature =
-        p.signature === "0x" ? toHex(Buffer.alloc(ov.sigSize, 1)) : p.signature // dummy signature
+    const p: UserOperationV06 | PackedUserOperation =
+        removeZeroBytesFromUserOp(userOperation)
 
-    const packed = toBytes(packUserOp(p))
+    let packed: Uint8Array
+
+    if (isVersion06(userOperation)) {
+        packed = toBytes(packUserOpV06(p as UserOperationV06))
+    } else {
+        packed = toBytes(packUserOpV07(p as PackedUserOperation))
+    }
+
+    console.log(
+        {
+            packed: packed
+        },
+        "bytes"
+    )
+
     const lengthInWord = (packed.length + 31) / 32
     const callDataCost = packed
         .map((x) => (x === 0 ? ov.zeroByte : ov.nonZeroByte))
@@ -434,10 +468,7 @@ export async function calcOptimismPreVerificationGas(
     let paramData: Hex
 
     if (isVersion06(op)) {
-        const randomDataUserOp: UserOperation = {
-            ...op
-        }
-
+        const randomDataUserOp: UserOperation = removeZeroBytesFromUserOp(op)
         const handleOpsAbi = getAbiItem({
             abi: EntryPointV06Abi,
             name: "handleOps"
@@ -449,11 +480,8 @@ export async function calcOptimismPreVerificationGas(
             entryPoint
         ])
     } else {
-        const packedUserOperation: PackedUserOperation =
-            toPackedUserOperation(op)
-
         const randomDataUserOp: PackedUserOperation =
-            packedUserOperationToRandomDataUserOp(packedUserOperation)
+            removeZeroBytesFromUserOp(op)
 
         const handleOpsAbi = getAbiItem({
             abi: EntryPointV07Abi,
@@ -577,13 +605,13 @@ export async function calcArbitrumPreVerificationGas(
         })
 
         selector = toFunctionSelector(handleOpsAbi)
-        paramData = encodeAbiParameters(handleOpsAbi.inputs, [[op], entryPoint])
+        paramData = encodeAbiParameters(handleOpsAbi.inputs, [
+            [removeZeroBytesFromUserOp(op)],
+            entryPoint
+        ])
     } else {
-        const packedUserOperation: PackedUserOperation =
-            toPackedUserOperation(op)
-
         const randomDataUserOp: PackedUserOperation =
-            packedUserOperationToRandomDataUserOp(packedUserOperation)
+            removeZeroBytesFromUserOp(op)
 
         const handleOpsAbi = getAbiItem({
             abi: EntryPointV07Abi,
