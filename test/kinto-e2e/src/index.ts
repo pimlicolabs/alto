@@ -1,4 +1,5 @@
 import {
+    type Hash,
     createPublicClient,
     decodeEventLog,
     decodeFunctionData,
@@ -10,6 +11,10 @@ import {
 import { handleOpsAbi } from "./abi"
 import { createAnvil } from "@viem/anvil"
 import { createBundlerClient, type UserOperation } from "permissionless"
+
+const prettyPrintTxHash = (hash: Hash) => {
+    return `https://kintoscan.io/tx/${hash}`
+}
 
 const kintoMainnet = defineChain({
     id: 7887,
@@ -48,7 +53,11 @@ const main = async () => {
         fromBlock: latestBlock - 20_000n
     })
 
-    const opInfos: { blockNum: bigint; op: UserOperation<"v0.6"> }[] = []
+    const opInfos: {
+        txHash: Hash // Real txhash in which op was mined on mainnnet
+        blockNum: bigint
+        op: UserOperation
+    }[] = []
 
     userOperationEvents.reverse().map(async (opEvent) => {
         // only capture the latest 50 succesful ops
@@ -76,26 +85,54 @@ const main = async () => {
         }).args[0][0]
 
         opInfos.push({
+            txHash: opEvent.transactionHash,
             blockNum: opEvent.blockNumber,
             op: rawUserOperation
         })
     })
 
     // check historic ops against alto bundler
+    const failedOps: { opHash: Hash; txHash: Hash }[] = []
+
     for (const opInfo of opInfos) {
         const anvil = createAnvil({
             forkUrl: KINTO_RPC,
-            forkBlockNumber: opInfo.blockNum
+            forkBlockNumber: opInfo.blockNum - 1n
         })
 
         await anvil.start()
 
         // switch bundler rpc
 
+        // resend userOperation and that it gets mined
         const bundlerClient = createBundlerClient({
-            transport: http(ALTO_RPC),
+            transport: http(ALTO_RPC)
+        })
+
+        const hash = await bundlerClient.sendUserOperation({
+            userOperation: opInfo.op,
             entryPoint: KINTO_ENTRYPOINT
         })
+
+        const receipt = await bundlerClient.waitForUserOperationReceipt({
+            hash,
+            timeout: 15000
+        })
+
+        if (receipt?.success) {
+            failedOps.push({ opHash: hash, txHash: opInfo.txHash })
+        }
+    }
+
+    // if any ops failed, print them and exit with 1
+    if (failedOps.length > 0) {
+        for (const f of failedOps) {
+            // biome-ignore lint/suspicious/noConsoleLog:
+            console.log(
+                `FAILED: ${f.opHash} (txhash: ${prettyPrintTxHash(f.txHash)})`
+            )
+        }
+        process.exit(1)
     }
 }
 
