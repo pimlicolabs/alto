@@ -9,7 +9,7 @@ import {
 } from "viem"
 import { handleOpsAbi } from "./abi"
 import { createAnvil } from "@viem/anvil"
-import type { UserOperation } from "permissionless"
+import { createBundlerClient, type UserOperation } from "permissionless"
 
 const kintoMainnet = defineChain({
     id: 7887,
@@ -27,10 +27,11 @@ const kintoMainnet = defineChain({
     }
 })
 
+const KINTO_ENTRYPOINT = "0x2843C269D2a64eCfA63548E8B3Fc0FD23B7F70cb"
 const KINTO_RPC = "https://kinto-mainnet.calderachain.xyz/http"
+const ALTO_RPC = "http://0.0.0.0:4337"
 
 const main = async () => {
-    const entryPoint = "0x2843C269D2a64eCfA63548E8B3Fc0FD23B7F70cb"
     const publicClient = createPublicClient({
         transport: http(KINTO_RPC),
         chain: kintoMainnet
@@ -42,7 +43,7 @@ const main = async () => {
         "event UserOperationEvent(bytes32 indexed userOpHash, address indexed sender, address indexed paymaster, uint256 nonce, bool success, uint256 actualGasCost, uint256 actualGasUsed)"
 
     const userOperationEvents = await publicClient.getLogs({
-        address: entryPoint,
+        address: KINTO_ENTRYPOINT,
         event: parseAbiItem(userOperatinoEventAbi),
         fromBlock: latestBlock - 20_000n
     })
@@ -88,6 +89,13 @@ const main = async () => {
         })
 
         await anvil.start()
+
+        // switch bundler rpc
+
+        const bundlerClient = createBundlerClient({
+            transport: http(ALTO_RPC),
+            entryPoint: KINTO_ENTRYPOINT
+        })
     }
 }
 
