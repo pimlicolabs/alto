@@ -1,5 +1,5 @@
 import { describe, test, beforeAll, expect, beforeEach } from "vitest"
-import { ENTRYPOINT_ADDRESS_V06_TYPE } from "permissionless/types"
+import type { ENTRYPOINT_ADDRESS_V06_TYPE } from "permissionless/types"
 import {
     beforeEachCleanUp,
     getPimlicoBundlerClient,
@@ -18,7 +18,7 @@ import {
 } from "viem"
 import { ANVIL_RPC } from "../src/constants"
 import { foundry } from "viem/chains"
-import { PimlicoBundlerClient } from "permissionless/clients/pimlico"
+import type { PimlicoBundlerClient } from "permissionless/clients/pimlico"
 
 const publicClient = createPublicClient({
     transport: http(ANVIL_RPC),
@@ -71,7 +71,7 @@ const SIMPLE_INFLATOR_CONTRACT = getContract({
 describe("V0.6 pimlico_sendCompressedUserOperation", () => {
     let pimlicoBundlerClient: PimlicoBundlerClient<ENTRYPOINT_ADDRESS_V06_TYPE>
 
-    beforeAll(async () => {
+    beforeAll(() => {
         pimlicoBundlerClient = getPimlicoBundlerClient(ENTRYPOINT_ADDRESS_V06)
     })
 
@@ -109,7 +109,17 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
 
         await new Promise((resolve) => setTimeout(resolve, 1500))
 
-        await pimlicoBundlerClient.waitForUserOperationReceipt({ hash })
+        const receipt = await pimlicoBundlerClient.waitForUserOperationReceipt({
+            hash
+        })
+
+        const txReceipt = await publicClient.getTransaction({
+            hash: receipt.receipt.transactionHash
+        })
+
+        expect(txReceipt.to).toEqual(
+            "0x09aeBCF1DF7d4D0FBf26073e79A6B250f458fFB8"
+        )
 
         expect(
             await publicClient.getBalance({ address: to })
@@ -174,6 +184,14 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
         expect(
             await publicClient.getBalance({ address: to })
         ).toBeGreaterThanOrEqual(value)
+
+        const txReceipt = await publicClient.getTransaction({
+            // @ts-ignore: null check done above but ts doesnt recognize it
+            hash: opReceipt.receipt.transactionHash
+        })
+        expect(txReceipt.to).toEqual(
+            "0x09aeBCF1DF7d4D0FBf26073e79A6B250f458fFB8"
+        )
     })
 
     test("Send multiple compressedOps", async () => {
@@ -246,20 +264,31 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
 
         await sendBundleNow()
 
-        expect(
-            (
-                await pimlicoBundlerClient.waitForUserOperationReceipt({
-                    hash: firstHash
-                })
-            ).success
-        ).toEqual(true)
-        expect(
-            (
-                await pimlicoBundlerClient.waitForUserOperationReceipt({
-                    hash: secondHash
-                })
-            ).success
-        ).toEqual(true)
+        const firstReceipt =
+            await pimlicoBundlerClient.waitForUserOperationReceipt({
+                hash: firstHash
+            })
+
+        const secondReceipt =
+            await pimlicoBundlerClient.waitForUserOperationReceipt({
+                hash: secondHash
+            })
+
+        expect(firstReceipt.success).toEqual(true)
+        expect(secondReceipt.success).toEqual(true)
+
+        const firstTx = await publicClient.getTransaction({
+            hash: firstReceipt.receipt.transactionHash
+        })
+        const secondTx = await publicClient.getTransaction({
+            hash: firstReceipt.receipt.transactionHash
+        })
+
+        expect(firstTx.to).toEqual("0x09aeBCF1DF7d4D0FBf26073e79A6B250f458fFB8")
+
+        expect(secondTx.to).toEqual(
+            "0x09aeBCF1DF7d4D0FBf26073e79A6B250f458fFB8"
+        )
 
         expect(
             await publicClient.getBalance({ address: to })
