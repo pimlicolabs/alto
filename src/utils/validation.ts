@@ -405,13 +405,6 @@ export function calcDefaultPreVerificationGas(
         packed = toBytes(packUserOpV07(p as PackedUserOperation))
     }
 
-    console.log(
-        {
-            packed: packed
-        },
-        "bytes"
-    )
-
     const lengthInWord = (packed.length + 31) / 32
     const callDataCost = packed
         .map((x) => (x === 0 ? ov.zeroByte : ov.nonZeroByte))
