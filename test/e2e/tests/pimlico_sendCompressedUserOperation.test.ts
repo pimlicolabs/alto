@@ -119,7 +119,7 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
             hash: receipt.receipt.transactionHash
         })
 
-        expect(txReceipt.to).toEqual(
+        expect(getAddress(txReceipt.to || zeroAddress)).toEqual(
             "0x09aeBCF1DF7d4D0FBf26073e79A6B250f458fFB8"
         )
 
