@@ -979,7 +979,7 @@ export class RpcHandler implements IRpcEndpoint {
         }
         if (userOperationNonceValue === currentNonceValue) {
             if (this.dangerousSkipUserOperationValidation) {
-                const success = this.mempool.add(userOperation, entryPoint)
+                const success = this.mempool.add(op, entryPoint)
                 if (!success) {
                     throw new RpcError(
                         "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
@@ -1027,7 +1027,7 @@ export class RpcHandler implements IRpcEndpoint {
             }
         }
 
-        this.nonceQueuer.add(userOperation, entryPoint)
+        this.nonceQueuer.add(op, entryPoint)
         return "queued"
     }
 
