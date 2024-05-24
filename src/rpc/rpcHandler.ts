@@ -367,7 +367,7 @@ export class RpcHandler implements IRpcEndpoint {
         // Since we don't want our estimations to depend upon baseFee, we set
         // maxFeePerGas to maxPriorityFeePerGas
         userOperation.maxPriorityFeePerGas = userOperation.maxFeePerGas
-        
+
 
         // Check if the nonce is valid
         // If the nonce is less than the current nonce, the user operation has already been executed
@@ -381,7 +381,8 @@ export class RpcHandler implements IRpcEndpoint {
                 "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
                 ValidationErrors.InvalidFields
             )
-        } else if (userOperationNonceValue > currentNonceValue) {
+        }
+        if (userOperationNonceValue > currentNonceValue) {
             // Nonce queues are supported only for v7 user operations
             if (isVersion06(userOperation)) {
                 throw new RpcError(
@@ -1008,7 +1009,7 @@ export class RpcHandler implements IRpcEndpoint {
             userOperationNonceValue === currentNonceValue + BigInt(queuedUserOperations.length)
         ) {
             if (this.dangerousSkipUserOperationValidation) {
-                const success = this.mempool.add(userOperation, entryPoint)
+                const success = this.mempool.add(op, entryPoint)
                 if (!success) {
                     throw new RpcError(
                         "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
@@ -1057,7 +1058,7 @@ export class RpcHandler implements IRpcEndpoint {
             }
         }
 
-        this.nonceQueuer.add(userOperation, entryPoint)
+        this.nonceQueuer.add(op, entryPoint)
         return "queued"
     }
 
