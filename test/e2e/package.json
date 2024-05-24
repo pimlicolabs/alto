@@ -9,7 +9,6 @@
     "dependencies": {
         "@types/node": "^18.16.3",
         "alto": "workspace:alto",
-        "e2e": "link:",
         "permissionless": "^0.1.25",
         "ts-node": "^10.9.2",
         "viem": "^2.9.5",
