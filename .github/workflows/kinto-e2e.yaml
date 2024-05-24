@@ -1,6 +1,6 @@
 name: Run Kinto-E2E Tests
 env:
-  - KINTO_RPC: ${{ secrets.KINTO_RPC }}
+  KINTO_RPC: ${{ secrets.KINTO_RPC }}
 
 on:
   push:
