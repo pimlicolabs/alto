@@ -1,0 +1,32 @@
+name: Run Kinto-E2E Tests
+env:
+  - KINTO_RPC: ${{ secrets.KINTO_RPC }}
+
+on:
+  push:
+    branches:
+    - main
+  pull_request:
+    branches:
+    - main
+
+jobs:
+  kinto-e2e:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      uses: ./.github/actions/install-dependencies
+
+    - name: Install and build alto
+      run: pnpm install && pnpm build
+
+    - name: Install test dependencies
+      run: cd test/kinto-e2e && pnpm install .
+
+    - name: Start tests
+      run: cd test/kinto-e2e && pnpm run test
