@@ -11,10 +11,12 @@ import { ENTRYPOINT_ADDRESS_V06 } from "permissionless/utils"
 import {
     createPublicClient,
     createTestClient,
+    getAddress,
     getContract,
     http,
     parseEther,
-    parseGwei
+    parseGwei,
+    zeroAddress
 } from "viem"
 import { ANVIL_RPC } from "../src/constants"
 import { foundry } from "viem/chains"
@@ -189,7 +191,7 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
             // @ts-ignore: null check done above but ts doesnt recognize it
             hash: opReceipt.receipt.transactionHash
         })
-        expect(txReceipt.to).toEqual(
+        expect(getAddress(txReceipt.to || zeroAddress)).toEqual(
             "0x09aeBCF1DF7d4D0FBf26073e79A6B250f458fFB8"
         )
     })
@@ -284,9 +286,11 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
             hash: firstReceipt.receipt.transactionHash
         })
 
-        expect(firstTx.to).toEqual("0x09aeBCF1DF7d4D0FBf26073e79A6B250f458fFB8")
+        expect(getAddress(firstTx.to || zeroAddress)).toEqual(
+            "0x09aeBCF1DF7d4D0FBf26073e79A6B250f458fFB8"
+        )
 
-        expect(secondTx.to).toEqual(
+        expect(getAddress(secondTx.to || zeroAddress)).toEqual(
             "0x09aeBCF1DF7d4D0FBf26073e79A6B250f458fFB8"
         )
 
