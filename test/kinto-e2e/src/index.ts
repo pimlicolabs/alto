@@ -1,41 +1,104 @@
 import {
     type Hash,
+    type Address,
+    type Hex,
     createPublicClient,
     decodeEventLog,
     decodeFunctionData,
-    defineChain,
     http,
     parseAbi,
-    parseAbiItem
+    parseAbiItem,
+    getAddress
 } from "viem"
-import { handleOpsAbi } from "./abi"
-import { createAnvil } from "@viem/anvil"
-import { createBundlerClient, type UserOperation } from "permissionless"
+import { BundleBulkerAbi, handleOpsAbi } from "./abi"
+import { type Pool, createPool } from "@viem/anvil"
+import type { UserOperation } from "permissionless"
+import { createPimlicoBundlerClient } from "permissionless/clients/pimlico"
+import {
+    KINTO_RPC,
+    KINTO_ENTRYPOINT,
+    kintoMainnet,
+    prettyPrintTxHash,
+    sleep
+} from "./utils"
+import { startAlto } from "./setupAlto"
 
-const prettyPrintTxHash = (hash: Hash) => {
-    return `https://kintoscan.io/tx/${hash}`
+type CompressedOp = {
+    compressedBytes: Hex
+    inflator: Address
 }
 
-const kintoMainnet = defineChain({
-    id: 7887,
-    name: "Kinto Mainnet",
-    nativeCurrency: {
-        name: "ETH",
-        symbol: "ETH",
-        decimals: 18
-    },
-    rpcUrls: {
-        default: {
-            http: [],
-            webSocket: undefined
-        }
+type OpInfo = {
+    txHash: Hex
+    blockNum: bigint
+    op: UserOperation | CompressedOp
+}
+
+const runAgainstBlockHeight = async ({
+    anvilPool,
+    anvilId,
+    altoPort,
+    opInfo
+}: {
+    anvilPool: Pool
+    anvilId: number
+    altoPort: number
+    opInfo: OpInfo
+}) => {
+    const anvil = await anvilPool.start(anvilId, {
+        forkUrl: KINTO_RPC,
+        forkBlockNumber: opInfo.blockNum - 1n
+    })
+
+    const altoRpc = `http://localhost:${altoPort}`
+    const anvilRpc = `http://${anvil.host}:${anvil.port}`
+
+    // spin up new alto instance
+    const altoProcess = await startAlto(anvilRpc, altoPort.toString())
+
+    // resend userOperation and that it gets mined
+    const bundlerClient = createPimlicoBundlerClient({
+        transport: http(altoRpc)
+    })
+
+    let hash: Hex
+    if ("inflator" in opInfo.op) {
+        hash = await bundlerClient.sendCompressedUserOperation({
+            compressedUserOperation: opInfo.op.compressedBytes,
+            inflatorAddress: opInfo.op.inflator,
+            entryPoint: KINTO_ENTRYPOINT
+        })
+    } else {
+        hash = await bundlerClient.sendUserOperation({
+            userOperation: opInfo.op,
+            entryPoint: KINTO_ENTRYPOINT
+        })
     }
-})
 
-const KINTO_ENTRYPOINT = "0x2843C269D2a64eCfA63548E8B3Fc0FD23B7F70cb"
-const KINTO_RPC = "https://kinto-mainnet.calderachain.xyz/http"
-const ALTO_RPC = "http://0.0.0.0:4337"
+    await sleep(2500)
 
+    const receipt = await bundlerClient.waitForUserOperationReceipt({
+        hash,
+        timeout: 60_000
+    })
+
+    if (receipt?.success) {
+        // biome-ignore lint/suspicious/noConsoleLog: <explanation>
+        console.log(
+            `succesfully replayed and included userOperation from tx ${opInfo.txHash}`
+        )
+    } else {
+        return { opHash: hash, txHash: opInfo.txHash }
+    }
+
+    altoProcess.kill()
+    await anvil.stop()
+    await sleep(500)
+
+    return undefined
+}
+
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity:
 const main = async () => {
     const publicClient = createPublicClient({
         transport: http(KINTO_RPC),
@@ -50,79 +113,82 @@ const main = async () => {
     const userOperationEvents = await publicClient.getLogs({
         address: KINTO_ENTRYPOINT,
         event: parseAbiItem(userOperatinoEventAbi),
-        fromBlock: latestBlock - 20_000n
+        fromBlock: latestBlock - 10_000n
     })
 
     const opInfos: {
         txHash: Hash // Real txhash in which op was mined on mainnnet
         blockNum: bigint
-        op: UserOperation
+        op: UserOperation | CompressedOp
     }[] = []
 
-    userOperationEvents.reverse().map(async (opEvent) => {
-        // only capture the latest 50 succesful ops
-        if (opInfos.length === 50) {
-            return
+    for (const opEvent of userOperationEvents.reverse()) {
+        // only capture the latest 100 successful ops
+        if (opInfos.length === 100) {
+            break
         }
 
         const opInfo = decodeEventLog({
             abi: parseAbi([userOperatinoEventAbi]),
-            topics: [...opEvent.topics]
+            topics: [...opEvent.topics],
+            data: opEvent.data
         }).args
 
-        // we only want to simulate against succesful userOperations
-        if (!opInfo.success) {
-            return
+        // we only want to simulate against successful userOperations
+        if (!opInfo?.success) {
+            continue
         }
+
+        // biome-ignore lint/suspicious/noConsoleLog: <explanation>
+        console.log(`got op from txhash: ${opEvent.transactionHash}`)
 
         const rawTx = await publicClient.getTransaction({
             hash: opEvent.transactionHash
         })
 
-        const rawUserOperation = decodeFunctionData({
-            abi: handleOpsAbi,
-            data: rawTx.input
-        }).args[0][0]
+        let op: any
+        try {
+            op = decodeFunctionData({
+                abi: handleOpsAbi,
+                data: rawTx.input
+            }).args[0][0]
+        } catch {
+            const compressedBytes = decodeFunctionData({
+                abi: BundleBulkerAbi,
+                data: rawTx.input
+            }).args[0]
+
+            op = {
+                compressedBytes,
+                inflator: getAddress(
+                    "0x336a76a7A2a1e97CE20c420F39FC08c441234aa2"
+                )
+            }
+        }
 
         opInfos.push({
             txHash: opEvent.transactionHash,
             blockNum: opEvent.blockNumber,
-            op: rawUserOperation
+            op
         })
-    })
-
-    // check historic ops against alto bundler
-    const failedOps: { opHash: Hash; txHash: Hash }[] = []
-
-    for (const opInfo of opInfos) {
-        const anvil = createAnvil({
-            forkUrl: KINTO_RPC,
-            forkBlockNumber: opInfo.blockNum - 1n
-        })
-
-        await anvil.start()
-
-        // switch bundler rpc
-
-        // resend userOperation and that it gets mined
-        const bundlerClient = createBundlerClient({
-            transport: http(ALTO_RPC)
-        })
-
-        const hash = await bundlerClient.sendUserOperation({
-            userOperation: opInfo.op,
-            entryPoint: KINTO_ENTRYPOINT
-        })
-
-        const receipt = await bundlerClient.waitForUserOperationReceipt({
-            hash,
-            timeout: 15000
-        })
-
-        if (receipt?.success) {
-            failedOps.push({ opHash: hash, txHash: opInfo.txHash })
-        }
     }
+
+    const anvilPool = createPool()
+    let anvilIdCounter = 0
+    let altoPortCounter = 4337
+
+    const inputStream = opInfos.map((opInfo) =>
+        runAgainstBlockHeight({
+            anvilPool: anvilPool,
+            anvilId: anvilIdCounter++,
+            altoPort: altoPortCounter++,
+            opInfo
+        })
+    )
+
+    const failedOps = (await Promise.all(inputStream)).filter(
+        (res) => res !== undefined
+    ) as { opHash: Hash; txHash: Hash }[]
 
     // if any ops failed, print them and exit with 1
     if (failedOps.length > 0) {
@@ -134,6 +200,9 @@ const main = async () => {
         }
         process.exit(1)
     }
+
+    // biome-ignore lint/suspicious/noConsoleLog:
+    console.log("Succesfully Resimulated All UserOperations")
 }
 
 main()
