@@ -27,6 +27,7 @@ jobs:
     - name: Set up foundry
       uses: foundry-rs/foundry-toolchain@v1
       with:
+        cache: false
         version: nightly
 
     - name: Install and build alto
