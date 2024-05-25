@@ -102,6 +102,21 @@ const runAgainstBlockHeight = async ({
     return undefined
 }
 
+async function runPromiseChunks(
+    inputStream: Promise<any>[],
+    chunkSize: number
+) {
+    const results: any[] = []
+
+    for (let i = 0; i < inputStream.length; i += chunkSize) {
+        const chunk = inputStream.slice(i, i + chunkSize)
+        const chunkResults = await Promise.all(chunk)
+        results.push(...chunkResults)
+    }
+
+    return results
+}
+
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity:
 const main = async () => {
     const publicClient = createPublicClient({
@@ -127,8 +142,8 @@ const main = async () => {
     }[] = []
 
     for (const opEvent of userOperationEvents.reverse()) {
-        // only capture the latest 50 successful ops
-        if (opInfos.length === 50) {
+        // only capture the latest 100 successful ops
+        if (opInfos.length === 100) {
             break
         }
 
@@ -190,7 +205,7 @@ const main = async () => {
         })
     )
 
-    const failedOps = (await Promise.all(inputStream)).filter(
+    const failedOps = (await runPromiseChunks(inputStream, 20)).filter(
         (res) => res !== undefined
     ) as { opHash: Hash; txHash: Hash }[]
 
