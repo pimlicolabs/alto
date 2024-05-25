@@ -127,8 +127,8 @@ const main = async () => {
     }[] = []
 
     for (const opEvent of userOperationEvents.reverse()) {
-        // only capture the latest 100 successful ops
-        if (opInfos.length === 100) {
+        // only capture the latest 50 successful ops
+        if (opInfos.length === 50) {
             break
         }
 
