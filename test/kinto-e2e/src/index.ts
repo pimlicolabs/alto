@@ -50,7 +50,7 @@ const runAgainstBlockHeight = async ({
         forkBlockNumber: opInfo.blockNum - 1n
     })
 
-    const altoRpc = `http://localhost:${altoPort}`
+    const altoRpc = `http://127.0.0.1:${altoPort}`
     const anvilRpc = `http://${anvil.host}:${anvil.port}`
 
     // spin up new alto instance

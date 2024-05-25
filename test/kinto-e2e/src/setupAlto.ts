@@ -50,13 +50,13 @@ export const startAlto = async (rpc: string, altoPort: string) => {
     alto.stderr.on("data", (data) => console.log(data.toString()))
 
     await waitPort({
-        host: "localhost",
+        host: "127.0.0.1",
         port: Number.parseInt(altoPort),
         output: "silent"
     })
 
     while (
-        !(await fetch(`http://localhost:${altoPort}/health`)
+        !(await fetch(`http://127.0.0.1:${altoPort}/health`)
             .then((res) => res.ok)
             .catch(() => false))
     ) {
