@@ -50,6 +50,8 @@ const runAgainstBlockHeight = async ({
         forkBlockNumber: opInfo.blockNum - 1n
     })
 
+    anvil.on("message", (m) => console.log(m))
+
     const altoRpc = `http://127.0.0.1:${altoPort}`
     const anvilRpc = `http://${anvil.host}:${anvil.port}`
 
@@ -123,8 +125,8 @@ const main = async () => {
     }[] = []
 
     for (const opEvent of userOperationEvents.reverse()) {
-        // only capture the latest 5 successful ops
-        if (opInfos.length === 5) {
+        // only capture the latest 100 successful ops
+        if (opInfos.length === 1) {
             break
         }
 
@@ -179,7 +181,7 @@ const main = async () => {
 
     const inputStream = opInfos.map((opInfo) =>
         runAgainstBlockHeight({
-            anvilPool: anvilPool,
+            anvilPool,
             anvilId: anvilIdCounter++,
             altoPort: altoPortCounter++,
             opInfo
