@@ -50,8 +50,6 @@ const runAgainstBlockHeight = async ({
         forkBlockNumber: opInfo.blockNum - 1n
     })
 
-    anvil.on("message", (m) => console.log(m))
-
     const altoRpc = `http://127.0.0.1:${altoPort}`
     const anvilRpc = `http://${anvil.host}:${anvil.port}`
 
@@ -93,7 +91,11 @@ const runAgainstBlockHeight = async ({
         return { opHash: hash, txHash: opInfo.txHash }
     }
 
-    altoProcess.kill()
+    altoProcess.unref()
+    if (altoProcess.pid) {
+        process.kill(-altoProcess.pid, "SIGTERM")
+    }
+
     await anvil.stop()
     await sleep(500)
 
@@ -205,6 +207,7 @@ const main = async () => {
 
     // biome-ignore lint/suspicious/noConsoleLog:
     console.log("Succesfully Resimulated All UserOperations")
+    process.exit(0)
 }
 
 main()

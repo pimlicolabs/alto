@@ -40,7 +40,8 @@ export const startAlto = async (rpc: string, altoPort: string) => {
     ]
     const options = {
         cwd: "../../",
-        env: { ...process.env, COREPACK_ENABLE_STRICT: "0" }
+        env: { ...process.env, COREPACK_ENABLE_STRICT: "0" },
+        detached: true
     }
 
     const alto = spawn(command, args, options)
