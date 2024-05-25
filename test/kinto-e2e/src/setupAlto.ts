@@ -46,8 +46,8 @@ export const startAlto = async (rpc: string, altoPort: string) => {
     const alto = spawn(command, args, options)
 
     // [USE FOR DEBUGGING]
-    // alto.stdout.on("data", (data) => console.log(data.toString()))
-    // alto.stderr.on("data", (data) => console.log(data.toString()))
+    alto.stdout.on("data", (data) => console.log(data.toString()))
+    alto.stderr.on("data", (data) => console.log(data.toString()))
 
     await waitPort({
         host: "localhost",
