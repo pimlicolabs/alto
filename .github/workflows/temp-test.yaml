@@ -1,0 +1,16 @@
+name: ci
+
+on: [push]
+
+jobs:
+  tests:
+    name: Test install foundry
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
