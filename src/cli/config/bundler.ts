@@ -96,7 +96,10 @@ export const compatibilityArgsSchema = z.object({
     "balance-override": z.boolean(),
     "local-gas-limit-calculation": z.boolean(),
     "flush-stuck-transactions-during-startup": z.boolean(),
-    "paymaster-gas-limit-multiplier": z.number().optional(),
+    "paymaster-gas-limit-multiplier": z
+        .string()
+        .transform((val) => BigInt(val))
+        .optional(),
     "fixed-gas-limit-for-estimation": z
         .string()
         .transform((val) => BigInt(val))
