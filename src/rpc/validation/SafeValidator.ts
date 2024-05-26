@@ -72,6 +72,7 @@ export class SafeValidator
         gasPriceManager: GasPriceManager,
         chainType: ChainType,
         entryPointSimulationsAddress?: Address,
+        fixedGasLimitForEstimation?: bigint,
         usingTenderly = false,
         balanceOverrideEnabled = false
     ) {
@@ -82,6 +83,7 @@ export class SafeValidator
             gasPriceManager,
             chainType,
             entryPointSimulationsAddress,
+            fixedGasLimitForEstimation,
             usingTenderly,
             balanceOverrideEnabled
         )

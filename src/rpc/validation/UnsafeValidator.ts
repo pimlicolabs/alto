@@ -138,6 +138,7 @@ export class UnsafeValidator implements InterfaceValidator {
     chainId: number
     gasPriceManager: GasPriceManager
     entryPointSimulationsAddress?: Address
+    fixedGasLimitForEstimation?: bigint
     chainType: ChainType
 
     constructor(
@@ -147,6 +148,7 @@ export class UnsafeValidator implements InterfaceValidator {
         gasPriceManager: GasPriceManager,
         chainType: ChainType,
         entryPointSimulationsAddress?: Address,
+        fixedGasLimitForEstimation?: bigint,
         usingTenderly = false,
         balanceOverrideEnabled = false,
         expirationCheck = true
@@ -160,6 +162,7 @@ export class UnsafeValidator implements InterfaceValidator {
         this.chainId = publicClient.chain.id
         this.gasPriceManager = gasPriceManager
         this.entryPointSimulationsAddress = entryPointSimulationsAddress
+        this.fixedGasLimitForEstimation = fixedGasLimitForEstimation
         this.chainType = chainType
     }
 
@@ -180,7 +183,8 @@ export class UnsafeValidator implements InterfaceValidator {
             this.balanceOverrideEnabled,
             this.chainId,
             stateOverrides,
-            this.entryPointSimulationsAddress
+            this.entryPointSimulationsAddress,
+            this.fixedGasLimitForEstimation
         )
 
         if (error.result === "failed") {

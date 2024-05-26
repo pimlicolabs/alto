@@ -82,23 +82,24 @@ export async function simulateHandleOpV06(
     publicClient: PublicClient,
     targetAddress: Address,
     targetCallData: Hex,
-    finalParam: StateOverrides | undefined = undefined
+    finalParam: StateOverrides | undefined = undefined,
+    fixedGasLimitForEstimation?: bigint
 ): Promise<SimulateHandleOpResult> {
     try {
         await publicClient.request({
             method: "eth_call",
-            // @ts-ignore
             params: [
-                // @ts-ignore
                 {
                     to: entryPoint,
                     data: encodeFunctionData({
                         abi: EntryPointV06Abi,
                         functionName: "simulateHandleOp",
                         args: [userOperation, targetAddress, targetCallData]
-                    })
+                    }),
+                    ...(fixedGasLimitForEstimation !== undefined && {
+                        gas: `0x${fixedGasLimitForEstimation.toString(16)}`
+                    }),
                 },
-                // @ts-ignore
                 "latest",
                 // @ts-ignore
                 ...(finalParam ? [finalParam] : [])
@@ -198,7 +199,8 @@ async function callPimlicoEntryPointSimulations(
     entryPoint: Address,
     entryPointSimulationsCallData: Hex[],
     entryPointSimulationsAddress: Address,
-    stateOverride?: StateOverrides
+    stateOverride?: StateOverrides,
+    fixedGasLimitForEstimation?: bigint
 ) {
     const callData = encodeFunctionData({
         abi: PimlicoEntryPointSimulationsAbi,
@@ -211,7 +213,10 @@ async function callPimlicoEntryPointSimulations(
         params: [
             {
                 to: entryPointSimulationsAddress,
-                data: callData
+                data: callData,
+                ...(fixedGasLimitForEstimation !== undefined && {
+                    gas: `0x${fixedGasLimitForEstimation.toString(16)}`
+                })
             },
             "latest",
             // @ts-ignore
@@ -383,6 +388,7 @@ export async function simulateHandleOpV07(
     entryPointSimulationsAddress: Address,
     chainId: number,
     finalParam: StateOverrides | undefined = undefined
+    fixedGasLimitForEstimation?: bigint
 ): Promise<SimulateHandleOpResult> {
     const userOperations = [...queuedUserOperations, userOperation]
 
@@ -516,7 +522,8 @@ export async function simulateHandleOpV07(
             entryPointSimulationsSimulateTargetCallData
         ],
         entryPointSimulationsAddress,
-        finalParam
+        finalParam,
+        fixedGasLimitForEstimation
     )
 
     try {
@@ -576,7 +583,8 @@ export function simulateHandleOp(
     balanceOverrideEnabled: boolean,
     chainId: number,
     stateOverride: StateOverrides = {},
-    entryPointSimulationsAddress?: Address
+    entryPointSimulationsAddress?: Address,
+    fixedGasLimitForEstimation?: bigint
 ): Promise<SimulateHandleOpResult> {
     let finalStateOverride = undefined
 
@@ -596,7 +604,8 @@ export function simulateHandleOp(
             publicClient,
             targetAddress,
             targetCallData,
-            finalStateOverride
+            finalStateOverride,
+            fixedGasLimitForEstimation
         )
     }
 
@@ -615,5 +624,6 @@ export function simulateHandleOp(
         entryPointSimulationsAddress,
         chainId,
         finalStateOverride
+        fixedGasLimitForEstimation
     )
 }
