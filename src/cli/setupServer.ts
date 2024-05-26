@@ -326,6 +326,7 @@ const getRpcHandler = ({
         gasPriceManager,
         parsedArgs["gas-price-multipliers"],
         parsedArgs["chain-type"],
+        parsedArgs["paymaster-gas-limit-multiplier"],
         parsedArgs["dangerous-skip-user-operation-validation"]
     )
 }
