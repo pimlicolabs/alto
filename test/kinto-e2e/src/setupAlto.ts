@@ -56,17 +56,27 @@ export const startAlto = async (rpc: string, altoPort: string) => {
         output: "silent"
     })
 
-    while (
-        !(await fetch(`http://127.0.0.1:${altoPort}/health`)
-            .then((res) => res.ok)
-            .catch(() => false))
-    ) {
-        // biome-ignore lint/suspicious/noConsoleLog:
-        console.log("Waiting for alto setup...")
+    let timeoutCounter = 0
+
+    for (; timeoutCounter < 10; timeoutCounter++) {
         await sleep(500)
+
+        const isHealthy = await fetch(`http://127.0.0.1:${altoPort}/health`)
+            .then((res) => res.ok)
+            .catch(() => false)
+
+        if (isHealthy) {
+            break
+        }
     }
 
-    await sleep(500)
+    if (timeoutCounter === 10) {
+        // biome-ignore lint/suspicious/noConsoleLog:
+        console.log("Timed out whilst waiting for alto to startup")
+        process.exit(1)
+    }
+
+    await sleep(250)
 
     return alto
 }

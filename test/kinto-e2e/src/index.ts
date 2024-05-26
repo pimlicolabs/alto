@@ -28,7 +28,7 @@ type CompressedOp = {
     inflator: Address
 }
 
-type OpInfo = {
+type OpInfoType = {
     txHash: Hex
     blockNum: bigint
     op: UserOperation | CompressedOp
@@ -43,11 +43,12 @@ const runAgainstBlockHeight = async ({
     anvilPool: Pool
     anvilId: number
     altoPort: number
-    opInfo: OpInfo
+    opInfo: OpInfoType
 }) => {
     const anvil = await anvilPool.start(anvilId, {
         forkUrl: KINTO_RPC,
-        forkBlockNumber: opInfo.blockNum - 1n
+        forkBlockNumber: opInfo.blockNum - 1n,
+        startTimeout: 25000
     })
 
     const altoRpc = `http://127.0.0.1:${altoPort}`
@@ -117,7 +118,6 @@ async function runPromiseChunks(
     return results
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity:
 const main = async () => {
     const publicClient = createPublicClient({
         transport: http(KINTO_RPC),
@@ -135,11 +135,7 @@ const main = async () => {
         fromBlock: latestBlock - 10_000n
     })
 
-    const opInfos: {
-        txHash: Hash // Real txhash in which op was mined on mainnnet
-        blockNum: bigint
-        op: UserOperation | CompressedOp
-    }[] = []
+    const opInfos: OpInfoType[] = []
 
     for (const opEvent of userOperationEvents.reverse()) {
         // only capture the latest 100 successful ops
@@ -165,7 +161,7 @@ const main = async () => {
             hash: opEvent.transactionHash
         })
 
-        let op: any
+        let op: UserOperation | CompressedOp
         try {
             op = decodeFunctionData({
                 abi: handleOpsAbi,
