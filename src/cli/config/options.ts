@@ -193,7 +193,7 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
         "paymaster-gas-limit-multiplier": {
             description:
                 "Amount to multiply the paymaster gas limits fetched from simulations",
-            type: "number",
+            type: "string",
             require: false
         }
     }
