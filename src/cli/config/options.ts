@@ -99,29 +99,25 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         default: 10
     },
     "gas-price-multipliers": {
-        description:
-            "Amount to multiply the gas prices fetched using pimlico_getUserOperationGasPrice (format: slow,standard,fast)",
+        description: "Amount to multiply the gas prices fetched using pimlico_getUserOperationGasPrice (format: slow,standard,fast)",
         type: "string",
         require: false,
         default: "105,110,115"
     },
     "mempool-max-parallel-ops": {
-        description:
-            "Maximum amount of parallel user ops to keep in the meempool (same sender, different nonce keys)",
+        description: "Maximum amount of parallel user ops to keep in the meempool (same sender, different nonce keys)",
         type: "number",
         require: false,
         default: 10
     },
     "mempool-max-queued-ops": {
-        description:
-            "Maximum amount of sequential user ops to keep in the mempool (same sender and nonce key, different nonce values)",
+        description: "Maximum amount of sequential user ops to keep in the mempool (same sender and nonce key, different nonce values)",
         type: "number",
         require: false,
         default: 0
     },
     "enforce-unique-senders-per-bundle": {
-        description:
-            "Include user ops with the same sender in the single bundle",
+        description: "Include user ops with the same sender in the single bundle",
         type: "boolean",
         require: false,
         default: true
