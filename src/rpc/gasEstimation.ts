@@ -400,7 +400,7 @@ export async function simulateHandleOpV07(
         abi: EntryPointV07SimulationsAbi,
         functionName: "simulateCallDataLast",
         args: [
-            packedUserOperations,
+            packedUserOperations.map((uop) => uop.packedUserOperation),
             packedUserOperations.map(
                 (packedUserOperation) =>
                     packedUserOperation.userOperation.sender
