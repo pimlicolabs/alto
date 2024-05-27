@@ -131,7 +131,7 @@ export class RpcHandler implements IRpcEndpoint {
     dangerousSkipUserOperationValidation: boolean
     gasPriceManager: GasPriceManager
     gasPriceMultipliers: GasPriceMultipliers
-    paymasterGasLimitMultiplier: bigint | undefined
+    paymasterGasLimitMultiplier: bigint
 
     constructor(
         entryPoints: Address[],
@@ -153,7 +153,7 @@ export class RpcHandler implements IRpcEndpoint {
         gasPriceManager: GasPriceManager,
         gasPriceMultipliers: GasPriceMultipliers,
         chainType: ChainType,
-        paymasterGasLimitMultiplier: bigint | undefined,
+        paymasterGasLimitMultiplier: bigint,
         dangerousSkipUserOperationValidation = false
     ) {
         this.entryPoints = entryPoints
@@ -374,8 +374,13 @@ export class RpcHandler implements IRpcEndpoint {
         // Check if the nonce is valid
         // If the nonce is less than the current nonce, the user operation has already been executed
         // If the nonce is greater than the current nonce, we may have missing user operations in the mempool
-        const currentNonceValue = await this.getNonceValue(userOperation, entryPoint)
-        const [, userOperationNonceValue] = getNonceKeyAndValue(userOperation.nonce)
+        const currentNonceValue = await this.getNonceValue(
+            userOperation,
+            entryPoint
+        )
+        const [, userOperationNonceValue] = getNonceKeyAndValue(
+            userOperation.nonce
+        )
 
         let queuedUserOperations: UserOperation[] = []
         if (userOperationNonceValue < currentNonceValue) {
@@ -399,7 +404,10 @@ export class RpcHandler implements IRpcEndpoint {
                 currentNonceValue
             )
 
-            if (userOperationNonceValue > currentNonceValue + BigInt(queuedUserOperations.length)) {
+            if (
+                userOperationNonceValue >
+                currentNonceValue + BigInt(queuedUserOperations.length)
+            ) {
                 throw new RpcError(
                     "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
                     ValidationErrors.InvalidFields
@@ -439,15 +447,13 @@ export class RpcHandler implements IRpcEndpoint {
                 executionResult.data.executionResult.paymasterPostOpGasLimit ||
                 1n
 
-            if (this.paymasterGasLimitMultiplier) {
-                const multiplier = this.paymasterGasLimitMultiplier
+            const multiplier = this.paymasterGasLimitMultiplier
 
-                paymasterVerificationGasLimit =
-                    (paymasterVerificationGasLimit * multiplier) / 100n
+            paymasterVerificationGasLimit =
+                (paymasterVerificationGasLimit * multiplier) / 100n
 
-                paymasterPostOpGasLimit =
-                    (paymasterPostOpGasLimit * multiplier) / 100n
-            }
+            paymasterPostOpGasLimit =
+                (paymasterPostOpGasLimit * multiplier) / 100n
         }
 
         if (
@@ -1014,7 +1020,10 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         let queuedUserOperations: UserOperation[] = []
-        if (userOperationNonceValue > currentNonceValue && isVersion07(userOperation)) {
+        if (
+            userOperationNonceValue > currentNonceValue &&
+            isVersion07(userOperation)
+        ) {
             queuedUserOperations = await this.mempool.getQueuedUserOperations(
                 userOperation,
                 entryPoint,
@@ -1023,7 +1032,8 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         if (
-            userOperationNonceValue === currentNonceValue + BigInt(queuedUserOperations.length)
+            userOperationNonceValue ===
+            currentNonceValue + BigInt(queuedUserOperations.length)
         ) {
             if (this.dangerousSkipUserOperationValidation) {
                 const success = this.mempool.add(op, entryPoint)
@@ -1182,10 +1192,7 @@ export class RpcHandler implements IRpcEndpoint {
         return { inflatedOp, inflatorId }
     }
 
-    async getNonceValue(
-        userOperation: UserOperation,
-        entryPoint: Address
-    ) {
+    async getNonceValue(userOperation: UserOperation, entryPoint: Address) {
         const entryPointContract = getContract({
             address: entryPoint,
             abi: isVersion06(userOperation)

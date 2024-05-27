@@ -74,7 +74,10 @@ export const bundlerArgsSchema = z.object({
     "mempool-max-parallel-ops": z.number().int().min(0).default(10),
     "mempool-max-queued-ops": z.number().int().min(0).default(0),
     "enforce-unique-senders-per-bundle": z.boolean().default(true),
-    "max-gas-per-bundle": z.string().transform((val) => BigInt(val)).default("5000000")
+    "max-gas-per-bundle": z
+        .string()
+        .transform((val) => BigInt(val))
+        .default("5000000")
 })
 
 export const compatibilityArgsSchema = z.object({
@@ -95,8 +98,7 @@ export const compatibilityArgsSchema = z.object({
     "flush-stuck-transactions-during-startup": z.boolean(),
     "paymaster-gas-limit-multiplier": z
         .string()
-        .transform((val) => BigInt(val))
-        .optional(),
+        .transform((val) => BigInt(val)),
     "fixed-gas-limit-for-estimation": z
         .string()
         .transform((val) => BigInt(val))
