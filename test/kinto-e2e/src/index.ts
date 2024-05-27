@@ -1,5 +1,4 @@
 import {
-    type Hash,
     type Address,
     type Hex,
     createPublicClient,
@@ -29,12 +28,13 @@ type CompressedOp = {
 }
 
 type OpInfoType = {
+    opHash: Hex
     txHash: Hex
     blockNum: bigint
-    op: UserOperation | CompressedOp
+    opParams: UserOperation | CompressedOp
 }
 
-const runAgainstBlockHeight = async ({
+const canReplayUserOperation = async ({
     anvilPool,
     anvilId,
     altoPort,
@@ -45,9 +45,11 @@ const runAgainstBlockHeight = async ({
     altoPort: number
     opInfo: OpInfoType
 }) => {
+    const { blockNum, opParams } = opInfo
+
     const anvil = await anvilPool.start(anvilId, {
         forkUrl: KINTO_RPC,
-        forkBlockNumber: opInfo.blockNum - 1n,
+        forkBlockNumber: blockNum - 1n,
         startTimeout: 25000
     })
 
@@ -63,15 +65,15 @@ const runAgainstBlockHeight = async ({
     })
 
     let hash: Hex
-    if ("inflator" in opInfo.op) {
+    if ("inflator" in opParams) {
         hash = await bundlerClient.sendCompressedUserOperation({
-            compressedUserOperation: opInfo.op.compressedBytes,
-            inflatorAddress: opInfo.op.inflator,
+            compressedUserOperation: opParams.compressedBytes,
+            inflatorAddress: opParams.inflator,
             entryPoint: KINTO_ENTRYPOINT
         })
     } else {
         hash = await bundlerClient.sendUserOperation({
-            userOperation: opInfo.op,
+            userOperation: opParams,
             entryPoint: KINTO_ENTRYPOINT
         })
     }
@@ -83,13 +85,8 @@ const runAgainstBlockHeight = async ({
         timeout: 60_000
     })
 
-    if (receipt?.success) {
-        // biome-ignore lint/suspicious/noConsoleLog: <explanation>
-        console.log(
-            `succesfully replayed and included userOperation from tx ${opInfo.txHash}`
-        )
-    } else {
-        return { opHash: hash, txHash: opInfo.txHash }
+    if (!receipt?.success) {
+        return false
     }
 
     altoProcess.unref()
@@ -100,22 +97,7 @@ const runAgainstBlockHeight = async ({
     await anvil.stop()
     await sleep(500)
 
-    return undefined
-}
-
-async function runPromiseChunks(
-    inputStream: Promise<any>[],
-    chunkSize: number
-) {
-    const results: any[] = []
-
-    for (let i = 0; i < inputStream.length; i += chunkSize) {
-        const chunk = inputStream.slice(i, i + chunkSize)
-        const chunkResults = await Promise.all(chunk)
-        results.push(...chunkResults)
-    }
-
-    return results
+    return true
 }
 
 const main = async () => {
@@ -124,93 +106,145 @@ const main = async () => {
         chain: kintoMainnet
     })
 
-    const latestBlock = await publicClient.getBlockNumber()
+    let latestBlock: bigint
+    if (process.env.LATEST_BLOCK) {
+        latestBlock = BigInt(process.env.LATEST_BLOCK)
+    } else {
+        latestBlock = await publicClient.getBlockNumber()
+    }
 
-    const userOperatinoEventAbi =
+    // biome-ignore lint/suspicious/noConsoleLog:
+    console.log(`Using Latest Block: ${latestBlock}`)
+
+    const userOperationEventAbi =
         "event UserOperationEvent(bytes32 indexed userOpHash, address indexed sender, address indexed paymaster, uint256 nonce, bool success, uint256 actualGasCost, uint256 actualGasUsed)"
 
-    const userOperationEvents = await publicClient.getLogs({
+    let userOperationEvents = await publicClient.getLogs({
         address: KINTO_ENTRYPOINT,
-        event: parseAbiItem(userOperatinoEventAbi),
+        event: parseAbiItem(userOperationEventAbi),
         fromBlock: latestBlock - 10_000n
     })
+    userOperationEvents = userOperationEvents.reverse()
 
-    const opInfos: OpInfoType[] = []
+    const failedOps: OpInfoType[] = []
 
-    for (const opEvent of userOperationEvents.reverse()) {
-        // only capture the latest 50 successful ops
-        if (opInfos.length === 50) {
+    const chunkSize = 50
+    const totalOps = 500
+    let processed = 0
+
+    while (userOperationEvents.length > 0) {
+        const startTime = performance.now()
+
+        if (processed >= totalOps) {
             break
         }
 
-        const opInfo = decodeEventLog({
-            abi: parseAbi([userOperatinoEventAbi]),
-            topics: [...opEvent.topics],
-            data: opEvent.data
-        }).args
+        const opEventsToProcess = userOperationEvents.splice(0, chunkSize)
+        const opInfo = await Promise.all(
+            opEventsToProcess.map(async (opEvent) => {
+                const decodedReceipt = decodeEventLog({
+                    abi: parseAbi([userOperationEventAbi]),
+                    topics: [...opEvent.topics],
+                    data: opEvent.data
+                }).args
 
-        // we only want to simulate against successful userOperations
-        if (!opInfo?.success) {
-            continue
+                if (!decodedReceipt.success) {
+                    return undefined
+                }
+
+                const rawTx = await publicClient.getTransaction({
+                    hash: opEvent.transactionHash
+                })
+
+                let opParams: UserOperation | CompressedOp
+                try {
+                    opParams = decodeFunctionData({
+                        abi: handleOpsAbi,
+                        data: rawTx.input
+                    }).args[0][0]
+                } catch {
+                    const compressedBytes = decodeFunctionData({
+                        abi: BundleBulkerAbi,
+                        data: rawTx.input
+                    }).args[0]
+                    opParams = {
+                        compressedBytes,
+                        inflator: getAddress(
+                            "0x336a76a7A2a1e97CE20c420F39FC08c441234aa2"
+                        )
+                    }
+                }
+
+                return {
+                    opParams,
+                    blockNum: opEvent.blockNumber,
+                    opHash: decodedReceipt.userOpHash,
+                    txHash: opEvent.transactionHash
+                }
+            })
+        )
+
+        // Filter out any ops that returned 'success=false'
+        const filteredOpInfo = opInfo.filter(
+            (info) => info !== undefined
+        ) as OpInfoType[]
+
+        const anvilPool = createPool()
+        let anvilIdCounter = 0
+        let altoPortCounter = 4337
+
+        const inputStream = filteredOpInfo.map(async (opInfo) => {
+            try {
+                const canReplay = await canReplayUserOperation({
+                    anvilPool,
+                    anvilId: anvilIdCounter++,
+                    altoPort: altoPortCounter++,
+                    opInfo
+                })
+
+                if (canReplay) {
+                    return undefined
+                }
+            } catch {
+                return opInfo
+            }
+            return opInfo
+        })
+
+        const failedOpsInChunk = (await Promise.all(inputStream)).filter(
+            (res) => res !== undefined
+        ) as OpInfoType[]
+
+        if (failedOpsInChunk.length > 0) {
+            // biome-ignore lint/suspicious/noConsoleLog:
+            console.log(
+                `Found ${failedOpsInChunk.length} failed operations in the current chunk.`
+            )
         }
+
+        failedOps.push(...failedOpsInChunk)
+
+        processed += chunkSize
+
+        const endTime = performance.now()
+        const elapsedTime = (endTime - startTime) / 1000
 
         // biome-ignore lint/suspicious/noConsoleLog: <explanation>
-        console.log(`got op from txhash: ${opEvent.transactionHash}`)
-
-        const rawTx = await publicClient.getTransaction({
-            hash: opEvent.transactionHash
-        })
-
-        let op: UserOperation | CompressedOp
-        try {
-            op = decodeFunctionData({
-                abi: handleOpsAbi,
-                data: rawTx.input
-            }).args[0][0]
-        } catch {
-            const compressedBytes = decodeFunctionData({
-                abi: BundleBulkerAbi,
-                data: rawTx.input
-            }).args[0]
-
-            op = {
-                compressedBytes,
-                inflator: getAddress(
-                    "0x336a76a7A2a1e97CE20c420F39FC08c441234aa2"
-                )
-            }
-        }
-
-        opInfos.push({
-            txHash: opEvent.transactionHash,
-            blockNum: opEvent.blockNumber,
-            op
-        })
+        console.log(
+            `Processed ${processed}/${totalOps} operations. (processed in ${elapsedTime.toFixed(
+                2
+            )}s)`
+        )
     }
-
-    const anvilPool = createPool()
-    let anvilIdCounter = 0
-    let altoPortCounter = 4337
-
-    const inputStream = opInfos.map((opInfo) =>
-        runAgainstBlockHeight({
-            anvilPool,
-            anvilId: anvilIdCounter++,
-            altoPort: altoPortCounter++,
-            opInfo
-        })
-    )
-
-    const failedOps = (await runPromiseChunks(inputStream, 20)).filter(
-        (res) => res !== undefined
-    ) as { opHash: Hash; txHash: Hash }[]
 
     // if any ops failed, print them and exit with 1
     if (failedOps.length > 0) {
         for (const f of failedOps) {
             // biome-ignore lint/suspicious/noConsoleLog:
             console.log(
-                `FAILED: ${f.opHash} (txhash: ${prettyPrintTxHash(f.txHash)})`
+                `FAILED OP: ${f.opHash} (txhash: ${prettyPrintTxHash(
+                    f.txHash
+                )})`
             )
         }
         process.exit(1)
