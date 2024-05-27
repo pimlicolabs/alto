@@ -18,7 +18,12 @@ import type {
     UserOperationV06,
     UserOperationV07
 } from "@alto/types"
-import { deepHexlify, isVersion06, toPackedUserOperation } from "@alto/utils"
+import {
+    deepHexlify,
+    getUserOperationHash,
+    isVersion06,
+    toPackedUserOperation
+} from "@alto/utils"
 import type { Hex, RpcRequestErrorType } from "viem"
 import {
     type Address,
@@ -27,12 +32,11 @@ import {
     encodeFunctionData,
     toHex,
     decodeAbiParameters,
-    decodeFunctionResult
+    decodeFunctionResult,
+    decodeFunctionData
 } from "viem"
 import { z } from "zod"
-import {
-    ExecuteSimulatorDeployedBytecode
-} from "./ExecuteSimulator"
+import { ExecuteSimulatorDeployedBytecode } from "./ExecuteSimulator"
 import { PimlicoEntryPointSimulationsAbi } from "@alto/types"
 
 function getStateOverrides({
@@ -375,16 +379,21 @@ export async function simulateHandleOpV07(
     entryPoint: Address,
     publicClient: PublicClient,
     entryPointSimulationsAddress: Address,
+    chainId: number,
     finalParam: StateOverrides | undefined = undefined
 ): Promise<SimulateHandleOpResult> {
-    const userOperations = [...queuedUserOperations, userOperation];
+    const userOperations = [...queuedUserOperations, userOperation]
 
-    const packedUserOperations = userOperations.map(toPackedUserOperation)
+    const packedUserOperations = userOperations.map((uop) => ({
+        packedUserOperation: toPackedUserOperation(uop),
+        userOperation: uop,
+        userOperationHash: getUserOperationHash(uop, entryPoint, chainId)
+    }))
 
     const entryPointSimulationsSimulateHandleOpCallData = encodeFunctionData({
         abi: EntryPointV07SimulationsAbi,
         functionName: "simulateHandleOpLast",
-        args: [packedUserOperations]
+        args: [packedUserOperations.map((uop) => uop.packedUserOperation)]
     })
 
     const entryPointSimulationsSimulateTargetCallData = encodeFunctionData({
@@ -392,8 +401,101 @@ export async function simulateHandleOpV07(
         functionName: "simulateCallDataLast",
         args: [
             packedUserOperations,
-            packedUserOperations.map((packedUserOperation) => packedUserOperation.sender),
-            packedUserOperations.map((packedUserOperation) => packedUserOperation.callData),
+            packedUserOperations.map(
+                (packedUserOperation) =>
+                    packedUserOperation.userOperation.sender
+            ),
+            packedUserOperations.map((packedUserOperation) => {
+                try {
+                    const executeUserOpAbi = [
+                        {
+                            inputs: [
+                                {
+                                    components: [
+                                        {
+                                            internalType: "address",
+                                            name: "sender",
+                                            type: "address"
+                                        },
+                                        {
+                                            internalType: "uint256",
+                                            name: "nonce",
+                                            type: "uint256"
+                                        },
+                                        {
+                                            internalType: "bytes",
+                                            name: "initCode",
+                                            type: "bytes"
+                                        },
+                                        {
+                                            internalType: "bytes",
+                                            name: "callData",
+                                            type: "bytes"
+                                        },
+                                        {
+                                            internalType: "bytes32",
+                                            name: "accountGasLimits",
+                                            type: "bytes32"
+                                        },
+                                        {
+                                            internalType: "uint256",
+                                            name: "preVerificationGas",
+                                            type: "uint256"
+                                        },
+                                        {
+                                            internalType: "bytes32",
+                                            name: "gasFees",
+                                            type: "bytes32"
+                                        },
+                                        {
+                                            internalType: "bytes",
+                                            name: "paymasterAndData",
+                                            type: "bytes"
+                                        },
+                                        {
+                                            internalType: "bytes",
+                                            name: "signature",
+                                            type: "bytes"
+                                        }
+                                    ],
+                                    internalType: "struct PackedUserOperation",
+                                    name: "userOp",
+                                    type: "tuple"
+                                },
+                                {
+                                    internalType: "bytes32",
+                                    name: "userOpHash",
+                                    type: "bytes32"
+                                }
+                            ],
+                            name: "executeUserOp",
+                            outputs: [],
+                            stateMutability: "nonpayable",
+                            type: "function"
+                        }
+                    ]
+
+                    decodeFunctionData({
+                        abi: executeUserOpAbi,
+                        data: packedUserOperation.userOperation.callData
+                    })
+                    const callData = encodeFunctionData({
+                        abi: executeUserOpAbi,
+                        functionName: "executeUserOp",
+                        args: [
+                            packedUserOperation,
+                            getUserOperationHash(
+                                packedUserOperation.userOperation,
+                                entryPoint,
+                                chainId
+                            )
+                        ]
+                    })
+                    return callData
+                } catch {
+                    return packedUserOperation.userOperation.callData
+                }
+            })
         ]
     })
 
@@ -463,6 +565,7 @@ export function simulateHandleOp(
     targetAddress: Address,
     targetCallData: Hex,
     balanceOverrideEnabled: boolean,
+    chainId: number,
     stateOverride: StateOverrides = {},
     entryPointSimulationsAddress?: Address
 ): Promise<SimulateHandleOpResult> {
@@ -501,6 +604,7 @@ export function simulateHandleOp(
         entryPoint,
         publicClient,
         entryPointSimulationsAddress,
+        chainId,
         finalStateOverride
     )
 }

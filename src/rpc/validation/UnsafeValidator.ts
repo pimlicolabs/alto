@@ -167,7 +167,7 @@ export class UnsafeValidator implements InterfaceValidator {
         userOperation: UserOperation,
         entryPoint: Address,
         queuedUserOperations: UserOperation[],
-        stateOverrides?: StateOverrides,
+        stateOverrides?: StateOverrides
     ): Promise<SimulateHandleOpResult<"execution">> {
         const error = await simulateHandleOp(
             userOperation,
@@ -178,6 +178,7 @@ export class UnsafeValidator implements InterfaceValidator {
             zeroAddress,
             "0x",
             this.balanceOverrideEnabled,
+            this.chainId,
             stateOverrides,
             this.entryPointSimulationsAddress
         )
@@ -477,7 +478,6 @@ export class UnsafeValidator implements InterfaceValidator {
             referencedContracts?: ReferencedCodeHashes
         }
     > {
-
         if (isVersion06(userOperation)) {
             return this.getValidationResultV06(
                 userOperation,
