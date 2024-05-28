@@ -24,7 +24,7 @@ import {
     isVersion06,
     toPackedUserOperation
 } from "@alto/utils"
-import type { Hex, RpcRequestErrorType } from "viem"
+import type { AbiFunction, Hex, RpcRequestErrorType } from "viem"
 import {
     type Address,
     type PublicClient,
@@ -33,7 +33,9 @@ import {
     toHex,
     decodeAbiParameters,
     decodeFunctionResult,
-    decodeFunctionData
+    toFunctionSelector,
+    toBytes,
+    slice
 } from "viem"
 import { z } from "zod"
 import { ExecuteSimulatorDeployedBytecode } from "./ExecuteSimulator"
@@ -406,84 +408,92 @@ export async function simulateHandleOpV07(
                     packedUserOperation.userOperation.sender
             ),
             packedUserOperations.map((packedUserOperation) => {
-                try {
-                    const executeUserOpAbi = [
-                        {
-                            inputs: [
-                                {
-                                    components: [
-                                        {
-                                            internalType: "address",
-                                            name: "sender",
-                                            type: "address"
-                                        },
-                                        {
-                                            internalType: "uint256",
-                                            name: "nonce",
-                                            type: "uint256"
-                                        },
-                                        {
-                                            internalType: "bytes",
-                                            name: "initCode",
-                                            type: "bytes"
-                                        },
-                                        {
-                                            internalType: "bytes",
-                                            name: "callData",
-                                            type: "bytes"
-                                        },
-                                        {
-                                            internalType: "bytes32",
-                                            name: "accountGasLimits",
-                                            type: "bytes32"
-                                        },
-                                        {
-                                            internalType: "uint256",
-                                            name: "preVerificationGas",
-                                            type: "uint256"
-                                        },
-                                        {
-                                            internalType: "bytes32",
-                                            name: "gasFees",
-                                            type: "bytes32"
-                                        },
-                                        {
-                                            internalType: "bytes",
-                                            name: "paymasterAndData",
-                                            type: "bytes"
-                                        },
-                                        {
-                                            internalType: "bytes",
-                                            name: "signature",
-                                            type: "bytes"
-                                        }
-                                    ],
-                                    internalType: "struct PackedUserOperation",
-                                    name: "userOp",
-                                    type: "tuple"
-                                },
-                                {
-                                    internalType: "bytes32",
-                                    name: "userOpHash",
-                                    type: "bytes32"
-                                }
-                            ],
-                            name: "executeUserOp",
-                            outputs: [],
-                            stateMutability: "nonpayable",
-                            type: "function"
-                        }
-                    ]
+                const executeUserOpAbi: AbiFunction[] = [
+                    {
+                        inputs: [
+                            {
+                                components: [
+                                    {
+                                        internalType: "address",
+                                        name: "sender",
+                                        type: "address"
+                                    },
+                                    {
+                                        internalType: "uint256",
+                                        name: "nonce",
+                                        type: "uint256"
+                                    },
+                                    {
+                                        internalType: "bytes",
+                                        name: "initCode",
+                                        type: "bytes"
+                                    },
+                                    {
+                                        internalType: "bytes",
+                                        name: "callData",
+                                        type: "bytes"
+                                    },
+                                    {
+                                        internalType: "bytes32",
+                                        name: "accountGasLimits",
+                                        type: "bytes32"
+                                    },
+                                    {
+                                        internalType: "uint256",
+                                        name: "preVerificationGas",
+                                        type: "uint256"
+                                    },
+                                    {
+                                        internalType: "bytes32",
+                                        name: "gasFees",
+                                        type: "bytes32"
+                                    },
+                                    {
+                                        internalType: "bytes",
+                                        name: "paymasterAndData",
+                                        type: "bytes"
+                                    },
+                                    {
+                                        internalType: "bytes",
+                                        name: "signature",
+                                        type: "bytes"
+                                    }
+                                ],
+                                internalType: "struct PackedUserOperation",
+                                name: "userOp",
+                                type: "tuple"
+                            },
+                            {
+                                internalType: "bytes32",
+                                name: "userOpHash",
+                                type: "bytes32"
+                            }
+                        ],
+                        name: "executeUserOp",
+                        outputs: [],
+                        stateMutability: "nonpayable",
+                        type: "function"
+                    }
+                ]
 
-                    decodeFunctionData({
-                        abi: executeUserOpAbi,
-                        data: packedUserOperation.userOperation.callData
-                    })
-                    const callData = encodeFunctionData({
+                const executeUserOpMethodSig = toFunctionSelector(
+                    executeUserOpAbi[0]
+                )
+
+                const callDataMethodSig = toHex(
+                    slice(
+                        toBytes(packedUserOperation.userOperation.callData),
+                        0,
+                        4
+                    )
+                )
+
+                if (executeUserOpMethodSig === callDataMethodSig) {
+                    return encodeFunctionData({
                         abi: executeUserOpAbi,
                         functionName: "executeUserOp",
                         args: [
-                            packedUserOperation,
+                            packedUserOperation.packedUserOperation,
                             getUserOperationHash(
                                 packedUserOperation.userOperation,
                                 entryPoint,
@@ -491,10 +501,9 @@ export async function simulateHandleOpV07(
                             )
                         ]
                     })
-                    return callData
-                } catch {
-                    return packedUserOperation.userOperation.callData
                 }
+
+                return packedUserOperation.userOperation.callData
             })
         ]
     })
