@@ -39,7 +39,8 @@ import {
     hexToBytes,
     numberToHex,
     formatTransactionRequest,
-    RpcRequestError
+    RpcRequestError,
+    hexToBigInt
 } from "viem"
 
 export function simulatedOpsToResults(
@@ -203,10 +204,12 @@ export async function filterOpsAndEstimateGas(
                     ...gasOptions
                 })
 
-                gasLimit = await publicClient.request({
+                const rpcResponse = await publicClient.request({
                     method: "eth_estimateGas",
                     params: [tx, blockTag]
                 })
+
+                gasLimit = hexToBigInt(rpcResponse)
             }
 
             return { simulatedOps, gasLimit, resubmitAllOps: false }

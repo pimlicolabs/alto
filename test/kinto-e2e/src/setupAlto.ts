@@ -5,7 +5,11 @@ import waitPort from "wait-port"
 import { sleep } from "./utils"
 
 // skip docker wait times, just start locally
-export const startAlto = async (rpc: string, altoPort: string) => {
+export const startAlto = async (
+    rpc: string,
+    altoPort: string,
+    print?: boolean
+) => {
     const anvil = createTestClient({
         transport: http(rpc),
         mode: "anvil"
@@ -46,9 +50,12 @@ export const startAlto = async (rpc: string, altoPort: string) => {
 
     const alto = spawn(command, args, options)
 
+    if (print) {
+        alto.stdout.on("data", (data) => console.log(data.toString()))
+        alto.stderr.on("data", (data) => console.log(data.toString()))
+    }
+
     // [USE FOR DEBUGGING]
-    //alto.stdout.on("data", (data) => console.log(data.toString()))
-    //alto.stderr.on("data", (data) => console.log(data.toString()))
 
     await waitPort({
         host: "127.0.0.1",

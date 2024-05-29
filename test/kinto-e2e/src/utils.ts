@@ -1,7 +1,26 @@
-import { defineChain, type Hash } from "viem"
+import type { UserOperation } from "permissionless"
+import { defineChain, type Hex, type Hash, type Address } from "viem"
 
 export const prettyPrintTxHash = (hash: Hash) => {
     return `https://kintoscan.io/tx/${hash}`
+}
+
+export type CompressedOp = {
+    compressedBytes: Hex
+    inflator: Address
+}
+
+export type OpInfoType = {
+    opHash: Hex
+    txHash: Hex
+    blockNum: bigint
+    opParams: UserOperation | CompressedOp
+}
+
+export const isCompressed = (
+    op: UserOperation | CompressedOp
+): op is CompressedOp => {
+    return "inflator" in op
 }
 
 export const kintoMainnet = defineChain({
