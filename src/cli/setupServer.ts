@@ -79,6 +79,7 @@ const getValidator = ({
             gasPriceManager,
             parsedArgs["chain-type"],
             parsedArgs["entrypoint-simulation-contract"],
+            parsedArgs["fixed-gas-limit-for-estimation"],
             parsedArgs.tenderly,
             parsedArgs["balance-override"]
         )
@@ -93,6 +94,7 @@ const getValidator = ({
         gasPriceManager,
         parsedArgs["chain-type"],
         parsedArgs["entrypoint-simulation-contract"],
+        parsedArgs["fixed-gas-limit-for-estimation"],
         parsedArgs.tenderly,
         parsedArgs["balance-override"],
         parsedArgs["expiration-check"]
