@@ -48,11 +48,7 @@ const canReplayUserOperation = async ({
     const anvilRpc = `http://${anvil.host}:${anvil.port}`
 
     // spin up new alto instance
-    const altoProcess = await startAlto(
-        anvilRpc,
-        altoPort.toString(),
-        "inflator" in opInfo.opParams
-    )
+    const altoProcess = await startAlto(anvilRpc, altoPort.toString())
 
     // resend userOperation and that it gets mined
     const bundlerClient = createPimlicoBundlerClient({
