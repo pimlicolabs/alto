@@ -61,7 +61,6 @@ const canReplayUserOperation = async ({
 
     let hash: Hex
     if (isCompressed(opParams)) {
-        console.log("sending compressed UserOperation")
         hash = await bundlerClient.sendCompressedUserOperation({
             compressedUserOperation: opParams.compressedBytes,
             inflatorAddress: opParams.inflator,
