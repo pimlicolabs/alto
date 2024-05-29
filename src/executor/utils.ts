@@ -275,8 +275,11 @@ export async function filterOpsAndEstimateGas(
                         resubmitAllOps: false
                     }
                 }
-            } else if (e instanceof EstimateGasExecutionError) {
-                if (e.cause instanceof FeeCapTooLowError) {
+            } else if (
+                e instanceof EstimateGasExecutionError ||
+                err instanceof RpcRequestError
+            ) {
+                if (e?.cause instanceof FeeCapTooLowError) {
                     logger.info(
                         { error: e.shortMessage },
                         "error estimating gas due to max fee < basefee"
@@ -289,7 +292,13 @@ export async function filterOpsAndEstimateGas(
                 }
 
                 try {
-                    const errorHexData = e.details.split("Reverted ")[1] as Hex
+                    let errorHexData: Hex
+
+                    if (err instanceof RpcRequestError) {
+                        errorHexData = (err.cause as unknown as any).data
+                    } else {
+                        errorHexData = e?.details.split("Reverted ")[1] as Hex
+                    }
                     const errorResult = decodeErrorResult({
                         abi: isUserOpV06 ? EntryPointV06Abi : EntryPointV07Abi,
                         data: errorHexData
@@ -330,57 +339,6 @@ export async function filterOpsAndEstimateGas(
                         { error: JSON.stringify(err) },
                         "failed to parse error result"
                     )
-                    return {
-                        simulatedOps: [],
-                        gasLimit: 0n,
-                        resubmitAllOps: false
-                    }
-                }
-            } else if (err instanceof RpcRequestError) {
-                try {
-                    const errorHexData = (err.cause as unknown as any).data
-
-                    const errorResult = decodeErrorResult({
-                        abi: isUserOpV06 ? EntryPointV06Abi : EntryPointV07Abi,
-                        data: errorHexData
-                    })
-                    logger.debug(
-                        {
-                            errorName: errorResult.errorName,
-                            args: errorResult.args,
-                            userOpHashes: simulatedOps
-                                .filter((op) => op.reason === undefined)
-                                .map((op) => op.owh.userOperationHash)
-                        },
-                        "user op in batch invalid"
-                    )
-
-                    if (errorResult.errorName !== "FailedOp") {
-                        logger.error(
-                            {
-                                errorName: errorResult.errorName,
-                                args: errorResult.args
-                            },
-                            "unexpected error result"
-                        )
-                        return {
-                            simulatedOps: [],
-                            gasLimit: 0n,
-                            resubmitAllOps: false
-                        }
-                    }
-
-                    const failingOp = simulatedOps.filter(
-                        (op) => op.reason === undefined
-                    )[Number(errorResult.args[0])]
-
-                    failingOp.reason = errorResult.args[1]
-                } catch (e: unknown) {
-                    logger.error(
-                        { error: JSON.stringify(e) },
-                        "failed to parse error result"
-                    )
-
                     return {
                         simulatedOps: [],
                         gasLimit: 0n,
