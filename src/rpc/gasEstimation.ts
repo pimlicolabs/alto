@@ -387,7 +387,7 @@ export async function simulateHandleOpV07(
     publicClient: PublicClient,
     entryPointSimulationsAddress: Address,
     chainId: number,
-    finalParam: StateOverrides | undefined = undefined
+    finalParam: StateOverrides | undefined = undefined,
     fixedGasLimitForEstimation?: bigint
 ): Promise<SimulateHandleOpResult> {
     const userOperations = [...queuedUserOperations, userOperation]
@@ -605,7 +605,8 @@ export function simulateHandleOp(
             targetAddress,
             targetCallData,
             finalStateOverride,
-            fixedGasLimitForEstimation
+            // Enable fixed gas limit for estimation only for Vanguard testnet and Vanar mainnet
+            chainId === 2040 || chainId ===78600 ? fixedGasLimitForEstimation : undefined
         )
     }
 
@@ -623,7 +624,8 @@ export function simulateHandleOp(
         publicClient,
         entryPointSimulationsAddress,
         chainId,
-        finalStateOverride
-        fixedGasLimitForEstimation
+        finalStateOverride,
+        // Enable fixed gas limit for estimation only for Vanguard testnet and Vanar mainnet
+        chainId === 2040 || chainId ===78600 ? fixedGasLimitForEstimation : undefined
     )
 }
