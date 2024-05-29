@@ -3,10 +3,10 @@ name: Run E2E Tests
 on:
   push:
     branches:
-    - main
+    - kinto-production
   pull_request:
     branches:
-    - main
+    - kinto-production
 
 jobs:
   docker:
