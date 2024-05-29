@@ -1,5 +1,4 @@
 import {
-    type Address,
     type Hex,
     createPublicClient,
     decodeEventLog,
@@ -7,9 +6,10 @@ import {
     http,
     parseAbi,
     parseAbiItem,
-    getAddress
+    slice,
+    hexToNumber
 } from "viem"
-import { BundleBulkerAbi, handleOpsAbi } from "./abi"
+import { handleOpsAbi } from "./abi"
 import { type Pool, createPool } from "@viem/anvil"
 import type { UserOperation } from "permissionless"
 import { createPimlicoBundlerClient } from "permissionless/clients/pimlico"
@@ -18,21 +18,12 @@ import {
     KINTO_ENTRYPOINT,
     kintoMainnet,
     prettyPrintTxHash,
-    sleep
+    sleep,
+    type OpInfoType,
+    type CompressedOp,
+    isCompressed
 } from "./utils"
 import { startAlto } from "./setupAlto"
-
-type CompressedOp = {
-    compressedBytes: Hex
-    inflator: Address
-}
-
-type OpInfoType = {
-    opHash: Hex
-    txHash: Hex
-    blockNum: bigint
-    opParams: UserOperation | CompressedOp
-}
 
 const canReplayUserOperation = async ({
     anvilPool,
@@ -65,7 +56,7 @@ const canReplayUserOperation = async ({
     })
 
     let hash: Hex
-    if ("inflator" in opParams) {
+    if (isCompressed(opParams)) {
         hash = await bundlerClient.sendCompressedUserOperation({
             compressedUserOperation: opParams.compressedBytes,
             inflatorAddress: opParams.inflator,
@@ -122,7 +113,8 @@ const main = async () => {
     let userOperationEvents = await publicClient.getLogs({
         address: KINTO_ENTRYPOINT,
         event: parseAbiItem(userOperationEventAbi),
-        fromBlock: latestBlock - 10_000n
+        fromBlock: latestBlock - 10_000n,
+        toBlock: latestBlock
     })
     userOperationEvents = userOperationEvents.reverse()
 
@@ -163,15 +155,24 @@ const main = async () => {
                         data: rawTx.input
                     }).args[0][0]
                 } catch {
-                    const compressedBytes = decodeFunctionData({
-                        abi: BundleBulkerAbi,
-                        data: rawTx.input
-                    }).args[0]
+                    // Extract first compressedUserOperation (compressedBytes)
+                    // slice of 9 bytes:
+                    // - 4 Bytes BundleBulker Payload (PerOpInflator Id)
+                    // - 1 Bytes PerOpInflator Payload (number of ops)
+                    // - 4 Bytes PerOpInflator Payload (inflator id)
+                    const bytes = slice(rawTx.input, 9, undefined)
+
+                    const compressedLength = hexToNumber(slice(bytes, 0, 2))
+
+                    const compressedBytes = slice(
+                        bytes,
+                        2,
+                        2 + compressedLength
+                    )
+
                     opParams = {
                         compressedBytes,
-                        inflator: getAddress(
-                            "0x336a76a7A2a1e97CE20c420F39FC08c441234aa2"
-                        )
+                        inflator: "0x336a76a7A2a1e97CE20c420F39FC08c441234aa2"
                     }
                 }
 
@@ -229,7 +230,7 @@ const main = async () => {
         const endTime = performance.now()
         const elapsedTime = (endTime - startTime) / 1000
 
-        // biome-ignore lint/suspicious/noConsoleLog: <explanation>
+        // biome-ignore lint/suspicious/noConsoleLog:
         console.log(
             `Processed ${processed}/${totalOps} operations. (processed in ${elapsedTime.toFixed(
                 2
@@ -240,11 +241,15 @@ const main = async () => {
     // if any ops failed, print them and exit with 1
     if (failedOps.length > 0) {
         for (const f of failedOps) {
+            let opType = "uncompressed"
+            if (isCompressed(f.opParams)) {
+                opType = "compressed"
+            }
             // biome-ignore lint/suspicious/noConsoleLog:
             console.log(
-                `FAILED OP: ${f.opHash} (txhash: ${prettyPrintTxHash(
-                    f.txHash
-                )})`
+                `[${opType}] FAILED OP: ${
+                    f.opHash
+                } (txhash: ${prettyPrintTxHash(f.txHash)})`
             )
         }
         process.exit(1)
