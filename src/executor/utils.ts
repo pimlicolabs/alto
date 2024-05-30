@@ -16,6 +16,7 @@ import {
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
+    getRevertErrorData,
     isVersion06,
     parseViemError,
     toPackedUserOperation,
@@ -39,7 +40,6 @@ import {
     hexToBytes,
     numberToHex
 } from "viem"
-import { getRevertErrorData } from "viem/_types/actions/public/call"
 
 export function simulatedOpsToResults(
     simulatedOps: {
