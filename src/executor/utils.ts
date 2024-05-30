@@ -40,7 +40,9 @@ import {
     numberToHex,
     formatTransactionRequest,
     RpcRequestError,
-    hexToBigInt
+    hexToBigInt,
+    BaseError,
+    RpcError
 } from "viem"
 
 export function simulatedOpsToResults(
@@ -195,27 +197,22 @@ export async function filterOpsAndEstimateGas(
                                 .mempoolUserOperation as CompressedUserOperation
                     )
 
-                const tx = formatTransactionRequest({
+                gasLimit = await publicClient.estimateGas({
                     to: bundleBulker,
-                    from: wallet.address,
+                    account: wallet,
                     data: createCompressedCalldata(opsToSend, perOpInflatorId),
                     gas: fixedGasLimitForEstimation,
                     nonce: nonce,
+                    blockTag,
                     ...gasOptions
                 })
-
-                const rpcResponse = await publicClient.request({
-                    method: "eth_estimateGas",
-                    params: [tx, blockTag]
-                })
-
-                gasLimit = hexToBigInt(rpcResponse)
             }
 
             return { simulatedOps, gasLimit, resubmitAllOps: false }
         } catch (err: unknown) {
             logger.error({ err }, "error estimating gas")
             const e = parseViemError(err)
+
             if (e instanceof ContractFunctionRevertedError) {
                 const failedOpError = failedOpErrorSchema.safeParse(e.data)
                 const failedOpWithRevertError =
@@ -277,7 +274,7 @@ export async function filterOpsAndEstimateGas(
                 }
             } else if (
                 e instanceof EstimateGasExecutionError ||
-                err instanceof RpcRequestError
+                e === undefined
             ) {
                 if (e?.cause instanceof FeeCapTooLowError) {
                     logger.info(
@@ -292,10 +289,17 @@ export async function filterOpsAndEstimateGas(
                 }
 
                 try {
-                    let errorHexData: Hex
+                    let errorHexData: Hex = "0x"
 
-                    if (err instanceof RpcRequestError) {
-                        errorHexData = (err.cause as unknown as any).data
+                    if (e === undefined && err instanceof BaseError) {
+                        // if undefined, unwrap till we get inner RpcRequestError type
+                        const s = err.walk(
+                            (error) => error instanceof RpcRequestError
+                        )
+
+                        if (s instanceof RpcRequestError) {
+                            errorHexData = (s?.cause as unknown as any).data
+                        }
                     } else {
                         errorHexData = e?.details.split("Reverted ")[1] as Hex
                     }
