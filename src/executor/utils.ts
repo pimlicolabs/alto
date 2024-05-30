@@ -16,6 +16,7 @@ import {
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
+    getRevertErrorData,
     isVersion06,
     parseViemError,
     toPackedUserOperation,
@@ -173,9 +174,11 @@ export async function filterOpsAndEstimateGas(
                     [opsToSend, wallet.address],
                     {
                         account: wallet,
-                        gas: fixedGasLimitForEstimation,
                         nonce: nonce,
                         blockTag,
+                        ...(fixedGasLimitForEstimation !== undefined && {
+                            gas: fixedGasLimitForEstimation
+                        }),
                         ...gasOptions
                     }
                 )
@@ -205,6 +208,7 @@ export async function filterOpsAndEstimateGas(
         } catch (err: unknown) {
             logger.error({ err }, "error estimating gas")
             const e = parseViemError(err)
+
             if (e instanceof ContractFunctionRevertedError) {
                 const failedOpError = failedOpErrorSchema.safeParse(e.data)
                 const failedOpWithRevertError =
@@ -264,9 +268,30 @@ export async function filterOpsAndEstimateGas(
                         resubmitAllOps: false
                     }
                 }
-            } else if (e instanceof EstimateGasExecutionError) {
+            } else if (
+                e instanceof EstimateGasExecutionError ||
+                err instanceof EstimateGasExecutionError
+            ) {
+                if (e?.cause instanceof FeeCapTooLowError) {
+                    logger.info(
+                        { error: e.shortMessage },
+                        "error estimating gas due to max fee < basefee"
+                    )
+                    return {
+                        simulatedOps: simulatedOps,
+                        gasLimit: 0n,
+                        resubmitAllOps: true
+                    }
+                }
+
                 try {
-                    const errorHexData = e.details.split("Reverted ")[1] as Hex
+                    let errorHexData: Hex = "0x"
+
+                    if (err instanceof EstimateGasExecutionError) {
+                        errorHexData = getRevertErrorData(err) as Hex
+                    } else {
+                        errorHexData = e?.details.split("Reverted ")[1] as Hex
+                    }
                     const errorResult = decodeErrorResult({
                         abi: isUserOpV06 ? EntryPointV06Abi : EntryPointV07Abi,
                         data: errorHexData
@@ -302,7 +327,7 @@ export async function filterOpsAndEstimateGas(
                     )[Number(errorResult.args[0])]
 
                     failingOp.reason = errorResult.args[1]
-                } catch (_e: unknown) {
+                } catch (e: unknown) {
                     logger.error(
                         { error: JSON.stringify(err) },
                         "failed to parse error result"
@@ -311,18 +336,6 @@ export async function filterOpsAndEstimateGas(
                         simulatedOps: [],
                         gasLimit: 0n,
                         resubmitAllOps: false
-                    }
-                }
-            } else if (e instanceof EstimateGasExecutionError) {
-                if (e.cause instanceof FeeCapTooLowError) {
-                    logger.info(
-                        { error: e.shortMessage },
-                        "error estimating gas due to max fee < basefee"
-                    )
-                    return {
-                        simulatedOps: simulatedOps,
-                        gasLimit: 0n,
-                        resubmitAllOps: true
                     }
                 }
             } else {
