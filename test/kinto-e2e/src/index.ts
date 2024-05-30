@@ -121,7 +121,7 @@ const main = async () => {
     const failedOps: OpInfoType[] = []
 
     const chunkSize = 25
-    const totalOps = 800
+    const totalOps = 200
     let processed = 0
 
     while (userOperationEvents.length > 0) {
