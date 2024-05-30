@@ -37,13 +37,9 @@ import {
     concat,
     decodeErrorResult,
     hexToBytes,
-    numberToHex,
-    formatTransactionRequest,
-    RpcRequestError,
-    hexToBigInt,
-    BaseError,
-    RpcError
+    numberToHex
 } from "viem"
+import { getRevertErrorData } from "viem/_types/actions/public/call"
 
 export function simulatedOpsToResults(
     simulatedOps: {
@@ -274,7 +270,7 @@ export async function filterOpsAndEstimateGas(
                 }
             } else if (
                 e instanceof EstimateGasExecutionError ||
-                e === undefined
+                err instanceof EstimateGasExecutionError
             ) {
                 if (e?.cause instanceof FeeCapTooLowError) {
                     logger.info(
@@ -291,15 +287,8 @@ export async function filterOpsAndEstimateGas(
                 try {
                     let errorHexData: Hex = "0x"
 
-                    if (e === undefined && err instanceof BaseError) {
-                        // if undefined, unwrap till we get inner RpcRequestError type
-                        const s = err.walk(
-                            (error) => error instanceof RpcRequestError
-                        )
-
-                        if (s instanceof RpcRequestError) {
-                            errorHexData = (s?.cause as unknown as any).data
-                        }
+                    if (err instanceof EstimateGasExecutionError) {
+                        errorHexData = getRevertErrorData(err) as Hex
                     } else {
                         errorHexData = e?.details.split("Reverted ")[1] as Hex
                     }
@@ -338,7 +327,7 @@ export async function filterOpsAndEstimateGas(
                     )[Number(errorResult.args[0])]
 
                     failingOp.reason = errorResult.args[1]
-                } catch (_e: unknown) {
+                } catch (e: unknown) {
                     logger.error(
                         { error: JSON.stringify(err) },
                         "failed to parse error result"
