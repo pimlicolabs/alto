@@ -120,7 +120,7 @@ const main = async () => {
 
     const failedOps: OpInfoType[] = []
 
-    const chunkSize = 50
+    const chunkSize = 25
     const totalOps = 200
     let processed = 0
 
@@ -194,12 +194,22 @@ const main = async () => {
         let anvilIdCounter = 0
         let altoPortCounter = 4337
 
-        const inputStream = filteredOpInfo.map(async (opInfo) => {
+        const portNumbers = Array.from(
+            { length: filteredOpInfo.length },
+            () => ({
+                anvilId: anvilIdCounter++,
+                altoPort: altoPortCounter++
+            })
+        )
+
+        const inputStream = filteredOpInfo.map(async (opInfo, index) => {
             try {
+                const { anvilId, altoPort } = portNumbers[index]
+
                 const canReplay = await canReplayUserOperation({
                     anvilPool,
-                    anvilId: anvilIdCounter++,
-                    altoPort: altoPortCounter++,
+                    anvilId,
+                    altoPort,
                     opInfo
                 })
 
