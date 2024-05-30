@@ -1,0 +1,35 @@
+name: Run Kinto-E2E Tests
+env:
+  KINTO_RPC: ${{ secrets.KINTO_RPC }}
+
+on:
+  push:
+    branches:
+    - kinto-production
+  pull_request:
+    branches:
+    - kinto-production
+
+jobs:
+  kinto-e2e:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Set up foundry
+      uses: foundry-rs/foundry-toolchain@v1
+
+    - name: Install dependencies
+      uses: ./.github/actions/install-dependencies
+
+    - name: Install and build alto
+      run: pnpm install && pnpm build
+
+    - name: Install test dependencies
+      run: cd test/kinto-e2e && pnpm install .
+
+    - name: Start tests
+      run: cd test/kinto-e2e && pnpm run test
