@@ -5,10 +5,10 @@ env:
 on:
   push:
     branches:
-    - main
+    - kinto-production
   pull_request:
     branches:
-    - main
+    - kinto-production
 
 jobs:
   kinto-e2e:
