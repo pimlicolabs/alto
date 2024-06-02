@@ -84,6 +84,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: true,
         default: true
     },
+    "gas-price-bump": {
+        description: "Amount to multiply the gas prices fetched from the node",
+        type: "string",
+        require: false,
+        default: "100"
+    },
     "gas-price-floor-percent": {
         description:
             "The minimum percentage of incoming user operation gas prices compared to the gas price used by the bundler to submit bundles",

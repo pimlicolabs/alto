@@ -42,12 +42,14 @@ export class GasPriceManager {
         maxPriorityFeePerGas: bigint
     }[] = [] // Store pairs of [price, timestamp]
     private maxQueueSize
+    private gasBumpMultiplier: bigint
 
     constructor(
         chain: Chain,
         publicClient: PublicClient,
         legacyTransactions: boolean,
         logger: Logger,
+        gasBumpMultiplier: bigint,
         gasPriceTimeValidityInSeconds = 10
     ) {
         this.maxQueueSize = gasPriceTimeValidityInSeconds
@@ -55,6 +57,7 @@ export class GasPriceManager {
         this.publicClient = publicClient
         this.legacyTransactions = legacyTransactions
         this.logger = logger
+        this.gasBumpMultiplier = gasBumpMultiplier
     }
 
     private getDefaultGasFee(
@@ -87,40 +90,10 @@ export class GasPriceManager {
         }
     }
 
-    private getBumpAmount(chainId: number) {
-        if (chainId === chains.sepolia.id) {
-            return 120n
-        }
-
-        if (chainId === chains.celo.id) {
-            return 150n
-        }
-
-        if (
-            chainId === chains.arbitrum.id ||
-            chainId === chains.scroll.id ||
-            chainId === chains.scrollSepolia.id ||
-            chainId === chains.arbitrumGoerli.id ||
-            chainId === chains.mainnet.id ||
-            chainId === chains.mantle.id ||
-            chainId === 22222 ||
-            chainId === chains.sepolia.id ||
-            chainId === chains.base.id ||
-            chainId === chains.dfk.id ||
-            chainId === chains.celoAlfajores.id ||
-            chainId === chains.avalanche.id ||
-            chainId === chains.linea.id
-        ) {
-            return 111n
-        }
-
-        return 100n
-    }
-
     private bumpTheGasPrice(
         gasPriceParameters: GasPriceParameters
     ): GasPriceParameters {
-        const bumpAmount = this.getBumpAmount(this.chain.id)
+        const bumpAmount = this.gasBumpMultiplier
 
         const maxPriorityFeePerGas = maxBigInt(
             gasPriceParameters.maxPriorityFeePerGas,

@@ -133,6 +133,7 @@ export async function bundlerHandler(args: IOptionsInput): Promise<void> {
                     parsedArgs["log-level"]
             }
         ),
+        parsedArgs["gas-price-bump"],
         parsedArgs["gas-price-expiry"]
     )
 

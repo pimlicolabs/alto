@@ -60,6 +60,10 @@ export const bundlerArgsSchema = z.object({
     "max-bundle-wait": z.number().int().min(0),
     "max-bundle-size": z.number().int().min(0),
 
+    "gas-price-bump": z
+        .string()
+        .transform((val) => BigInt(val))
+        .default("100"),
     "gas-price-floor-percent": z.number().int().min(0),
     "gas-price-expiry": z.number().int().min(0),
     "gas-price-multipliers": z
