@@ -88,7 +88,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description: "Amount to multiply the gas prices fetched from the node",
         type: "string",
         require: false,
-        default: 100
+        default: "100"
     },
     "gas-price-floor-percent": {
         description:
