@@ -29,7 +29,7 @@ jobs:
       run: pnpm install && pnpm build
 
     - name: Install test dependencies
-      run: cd test/kinto-e2e && pnpm install .
+      run: cd packages/tests-kinto-e2e && pnpm install .
 
     - name: Start tests
-      run: cd test/kinto-e2e && pnpm run test
+      run: cd packages/tests-kinto-e2e && pnpm run test

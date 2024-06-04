@@ -1,0 +1,20 @@
+name: Main
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    uses: ./.github/workflows/verify.yaml
+    secrets: inherit
+
+  test:
+    name: Test E2W
+    uses: ./.github/workflows/tests-e2e.yaml
+    secrets: inherit
