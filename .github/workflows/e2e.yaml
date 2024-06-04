@@ -24,11 +24,11 @@ jobs:
         run: cd packages/tests-e2e && pnpm install .
 
       - name: Start Docker
-        run: docker compose -f "test/e2e/docker-compose.yml" up -d
+        run: docker compose -f "packages/tests-e2e/docker-compose.yml" up -d
 
       - name: Start tests
         run: cd packages/test-e2e && pnpm run test:ci
 
       - name: Stop containers
         if: always()
-        run: docker compose -f "test/e2e/docker-compose.yml" down
+        run: docker compose -f "packages/tests-e2e/docker-compose.yml" down
