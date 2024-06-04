@@ -32,6 +32,6 @@ jobs:
         run: pnpm run build
 
       - name: Publish alto to npm
-        run: cd packages/alto && npm publish --tag $(git branch --show-current | tr -cs '[:alnum:]-' '-' | tr '[:upper:]' '[:lower:]' | sed 's/-$//')
+        run: cd packages/alto && npm publish --access public --tag $(git branch --show-current | tr -cs '[:alnum:]-' '-' | tr '[:upper:]' '[:lower:]' | sed 's/-$//')
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_ORG_PIMLICO_TOKEN }}

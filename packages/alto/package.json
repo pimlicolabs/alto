@@ -6,7 +6,6 @@
     "type": "git",
     "url": "git+https://github.com/pimlicolabs/alto.git"
   },
-  "private": false,
   "author": "Pimlico",
   "license": "GPL-3.0-or-later",
   "main": "lib/index.js",
