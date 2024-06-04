@@ -27,7 +27,7 @@ jobs:
         run: docker compose -f "packages/tests-e2e/docker-compose.yml" up -d
 
       - name: Start tests
-        run: cd packages/test-e2e && pnpm run test:ci
+        run: cd packages/tests-e2e && pnpm run test:ci
 
       - name: Stop containers
         if: always()
