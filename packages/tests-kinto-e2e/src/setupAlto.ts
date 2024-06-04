@@ -28,7 +28,7 @@ export const startAlto = async (rpc: string, altoPort: string) => {
         "start",
         "run",
         "--config",
-        "./test/kinto-e2e/kinto-alto-config.json",
+        "./packages/tests-kinto-e2e/kinto-alto-config.json",
         "--rpc-url",
         rpc,
         "--utility-private-key",
