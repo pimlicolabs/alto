@@ -9,10 +9,6 @@ import { Hex, createTestClient, http } from "viem"
 import { foundry } from "viem/chains"
 import { ANVIL_RPC } from "../src/constants"
 
-import { bundler } from "@pimlico/alto"
-
-bundler()
-
 const anvilClient = createTestClient({
     chain: foundry,
     mode: "anvil",
