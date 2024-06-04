@@ -1,5 +1,5 @@
 {
-    "name": "alto",
+    "name": "@pimlico/alto",
     "version": "0.0.1",
     "description": "A performant and modular ERC-4337 Bundler written in Typescript",
     "repository": "https://github.com/pimlicolabs/alto.git",
@@ -20,6 +20,12 @@
         "test": "test -d test && mocha test/**/*.test.ts --exit || echo 'No test folder found. Skipping tests.'",
         "lint": "eslint src/**/*.ts",
         "lint:fix": "eslint src/**/*.ts --fix"
+    },
+    "exports": {
+        "." : {
+            "import": "./lib/index.js",
+            "require": "./lib/index.js"
+        }
     },
     "dependencies": {
         "@fastify/websocket": "^10.0.1",
@@ -46,6 +52,7 @@
         "pino-http": "^8.4.0",
         "pino-pretty": "^10.0.0",
         "prom-client": "^14.2.0",
+        "prool": "^0.0.4",
         "viem": "^2.9.5",
         "yargs": "^17.7.1",
         "zod": "^3.21.4",
