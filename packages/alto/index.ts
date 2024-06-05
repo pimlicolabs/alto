@@ -68,48 +68,48 @@ export const bundler = defineInstance((parameters: AltoParameters) => {
         name: "alto",
         port: args.port ?? 4337,
         start: async ({ emitter, port = args.port, status }) => {
-            const { promise, resolve, reject } = Promise.withResolvers<void>()
+            return new Promise<void>((resolve, reject) => {
+                const commandArgs = toArgs({
+                    ...args,
+                    port,
+                    entrypoints: args.entrypoints.join(",")
+                })
 
-            const commandArgs = toArgs({
-                ...args,
-                port,
-                entrypoints: args.entrypoints.join(",")
-            })
+                process = execa(path, commandArgs, {
+                    cleanup: true,
+                    reject: false
+                })
 
-            process = execa(path, commandArgs, {
-                cleanup: true,
-                reject: false
-            })
-
-            process.stdout.on("data", (data) => {
-                const message = data.toString()
-                emitter.emit("message", message)
-                emitter.emit("stdout", message)
-                if (message.includes("Listening on")) {
-                    emitter.emit("listening")
-                    resolve()
-                }
-            })
-            process.stderr.on("data", async (data) => {
-                const message = data.toString()
-                emitter.emit("message", message)
-                emitter.emit("stderr", message)
-                await stop()
-                reject(new Error(`Failed to start anvil: ${data.toString()}`))
-            })
-            process.on("close", () => process.removeAllListeners())
-            process.on("exit", (code, signal) => {
-                emitter.emit("exit", code, signal)
-
-                if (!code) {
-                    process.removeAllListeners()
-                    if (status === "starting") {
-                        reject(new Error("Failed to start anvil: exited."))
+                process.stdout.on("data", (data) => {
+                    const message = data.toString()
+                    emitter.emit("message", message)
+                    emitter.emit("stdout", message)
+                    if (message.includes("Listening on")) {
+                        emitter.emit("listening")
+                        resolve()
                     }
-                }
-            })
+                })
+                process.stderr.on("data", async (data) => {
+                    const message = data.toString()
+                    emitter.emit("message", message)
+                    emitter.emit("stderr", message)
+                    await stop()
+                    reject(
+                        new Error(`Failed to start anvil: ${data.toString()}`)
+                    )
+                })
+                process.on("close", () => process.removeAllListeners())
+                process.on("exit", (code, signal) => {
+                    emitter.emit("exit", code, signal)
 
-            return promise
+                    if (!code) {
+                        process.removeAllListeners()
+                        if (status === "starting") {
+                            reject(new Error("Failed to start anvil: exited."))
+                        }
+                    }
+                })
+            })
         },
         stop: async () => {}
     }
