@@ -1,7 +1,7 @@
 import { test, describe, expect, beforeAll, beforeEach } from "vitest"
 import {
     ENTRYPOINT_ADDRESS_V06,
-    BundlerClient,
+    type BundlerClient,
     ENTRYPOINT_ADDRESS_V07
 } from "permissionless"
 import {
@@ -9,13 +9,15 @@ import {
     getBundlerClient,
     getSmartAccountClient
 } from "../src/utils"
-import { Address, Hex } from "viem"
+import type { Address, Hex } from "viem"
 import {
     deployRevertingContract,
     decodeRevert,
     getRevertCall
 } from "../src/revertingContract"
 import { deployPaymaster } from "../src/testPaymaster"
+import { bundler } from "@pimlico/alto"
+import { createServer } from "prool"
 
 describe.each([
     { entryPoint: ENTRYPOINT_ADDRESS_V06, version: "v0.6" },
@@ -29,6 +31,21 @@ describe.each([
         revertingContract = await deployRevertingContract()
         paymaster = await deployPaymaster(entryPoint)
         bundlerClient = getBundlerClient(entryPoint)
+
+        const bundlerInstance = bundler({
+            rpcUrl: "http://127.0.0.1:8545",
+            entrypoints: [ENTRYPOINT_ADDRESS_V06, ENTRYPOINT_ADDRESS_V07],
+            executorPrivateKey:
+                "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+        })
+
+        bundlerInstance.on("message", console.log)
+
+        const bundlerServer = createServer({
+            instance: bundlerInstance
+        })
+
+        await bundlerServer.start()
     })
 
     beforeEach(async () => {

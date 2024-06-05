@@ -9,6 +9,7 @@
     "dependencies": {
         "@types/node": "^18.16.3",
         "permissionless": "^0.1.25",
+        "prool": "^0.0.4",
         "ts-node": "^10.9.2",
         "viem": "^2.9.5",
         "vitest": "^1.6.0",

@@ -101,6 +101,9 @@ importers:
       dotenv:
         specifier: ^16.0.3
         version: 16.4.5
+      execa:
+        specifier: ^9.1.0
+        version: 9.1.0
       fastify:
         specifier: ^4.25.2
         version: 4.27.0
@@ -168,6 +171,9 @@ importers:
       permissionless:
         specifier: ^0.1.25
         version: 0.1.30(viem@2.13.5)
+      prool:
+        specifier: ^0.0.4
+        version: 0.0.4
       ts-node:
         specifier: ^10.9.2
         version: 10.9.2(@swc/core@1.3.105)(@types/node@18.16.3)(typescript@5.3.3)
