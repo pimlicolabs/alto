@@ -1,0 +1,40 @@
+{
+  // This file is used to compile the for cjs and esm (see package.json build scripts). It should exclude all test files.
+  "extends": "./tsconfig.base.json",
+  "include": [
+    "./index.ts",
+    "./alto"
+  ],
+  "exclude": [
+    "./**/*.test.ts",
+    "./lib/*",
+    "./node_modules/*"
+  ],
+  "compilerOptions": {
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./lib",
+    "baseUrl": ".",
+    "paths": {
+        "@alto/cli": [
+            "./cli"
+        ],
+        "@alto/executor": [
+            "./executor"
+        ],
+        "@alto/mempool": [
+            "./mempool"
+        ],
+        "@alto/rpc": [
+            "./rpc"
+        ],
+        "@alto/types": [
+            "./types"
+        ],
+        "@alto/utils": [
+            "./utils"
+        ]
+    }
+  }
+}

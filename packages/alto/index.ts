@@ -1,5 +1,5 @@
 import { type ResultPromise, execa } from "execa"
-import { defineInstance } from "prool"
+import { type DefineInstanceReturnType, defineInstance } from "prool"
 
 export type AltoParameters = {
     rpcUrl: string
@@ -57,17 +57,30 @@ export function toArgs(options: {
     })
 }
 
-export const bundler = defineInstance((parameters: AltoParameters) => {
+export const bundler: DefineInstanceReturnType<
+    { args: AltoParameters },
+    AltoParameters
+> = defineInstance((parameters: AltoParameters) => {
     const { path = "./alto", ...args } = parameters
 
     let process: ResultPromise<{ cleanup: true; reject: false }>
 
+    async function stop() {
+        const killed = process.kill()
+        if (!killed) {
+            throw new Error("Failed to stop anvil")
+        }
+        return new Promise((resolve) => process.on("close", resolve))
+    }
+
     return {
-        _internal: {},
+        _internal: {
+            args
+        },
         host: args.host || "localhost",
         name: "alto",
         port: args.port ?? 4337,
-        start: async ({ emitter, port = args.port, status }) => {
+        start: async ({ port = args.port }, { emitter }) => {
             return new Promise<void>((resolve, reject) => {
                 const commandArgs = toArgs({
                     ...args,
@@ -104,13 +117,14 @@ export const bundler = defineInstance((parameters: AltoParameters) => {
 
                     if (!code) {
                         process.removeAllListeners()
-                        if (status === "starting") {
-                            reject(new Error("Failed to start anvil: exited."))
-                        }
+                        reject(new Error("Failed to start anvil: exited."))
                     }
                 })
             })
         },
-        stop: async () => {}
+        stop: async () => {
+            process.removeAllListeners()
+            await stop()
+        }
     }
 })

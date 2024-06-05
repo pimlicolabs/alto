@@ -9,6 +9,8 @@ packages/alto/lib
 test/spec-tests/bundler-spec-tests
 test/build
 .DS_Store
+tsconfig.*.tsbuildinfo
+tsconfig.tsbuildinfo
 
 .nx/cache
 .vscode/

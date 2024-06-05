@@ -16,6 +16,7 @@
         "declaration": true,
         "declarationMap": true,
         "moduleResolution": "node",
+        "baseUrl": ".",
         "paths": {
             "@alto/cli": [
                 "./cli"
@@ -48,6 +49,7 @@
     ],
     "exclude": [
         "./**/*.test.ts",
+        "./index.ts",
         "./lib/*",
         "./node_modules/*"
     ],

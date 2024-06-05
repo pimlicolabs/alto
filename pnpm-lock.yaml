@@ -126,8 +126,8 @@ importers:
         specifier: ^14.2.0
         version: 14.2.0
       prool:
-        specifier: ^0.0.4
-        version: 0.0.4
+        specifier: ^0.0.8
+        version: 0.0.8
       viem:
         specifier: ^2.9.5
         version: 2.13.5(typescript@5.3.3)(zod@3.23.8)
@@ -4670,6 +4670,18 @@ packages:
 
   /prool@0.0.4:
     resolution: {integrity: sha512-9jRsEPMn1Y+MLOrIws1gcGoCB3yo6LlBkmIt9ENCYp+wf0j678khnm6UzJeTPg1vqipsHXUx9eFpng7UaZawcQ==}
+    engines: {node: '>=22'}
+    dependencies:
+      eventemitter3: 5.0.1
+      execa: 9.1.0
+      get-port: 7.1.0
+      http-proxy: 1.18.1
+    transitivePeerDependencies:
+      - debug
+    dev: false
+
+  /prool@0.0.8:
+    resolution: {integrity: sha512-Dhy0HxSncqVLX4rcOgqpUUSPVnLE5IwcSXuIR4udRk0jSrPg85qhtmE5xglHHomZrvmlxAIqc/W2K015b3Oulw==}
     engines: {node: '>=22'}
     dependencies:
       eventemitter3: 5.0.1

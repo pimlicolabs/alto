@@ -13,6 +13,7 @@
         "clean": "rm -rf ./packages/alto/lib ./src/*.tsbuildinfo",
         "clean-modules": "rm -rf ./packages/alto/node_modules node_modules",
         "build": "pnpm -r run build",
+        "build:package": "pnpm -r run build:package",
         "start": "pnpm run --filter @pimlico/alto start",
         "dev": "pnpm -r run dev",
         "test": "pnpm -r --workspace-concurrency 1 test --verbose=true",
