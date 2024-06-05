@@ -57,7 +57,7 @@ export function toArgs(options: {
     })
 }
 
-export const bundler: DefineInstanceReturnType<
+export const alto: DefineInstanceReturnType<
     { args: AltoParameters },
     AltoParameters
 > = defineInstance((parameters: AltoParameters) => {
