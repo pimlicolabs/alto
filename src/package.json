@@ -18,10 +18,10 @@
         "*.js"
     ],
     "exports": {
-      ".": {
-        "import": "./esm/index.js",
-        "require": "./esm/index.js"
-      }
+        ".": {
+            "import": "./esm/index.js",
+            "require": "./esm/index.js"
+        }
     },
     "scripts": {
         "build": "tsc -p ./tsconfig.json && tsc-alias -p tsconfig.json",
@@ -32,6 +32,7 @@
         "lint:fix": "eslint src/**/*.ts --fix"
     },
     "dependencies": {
+        "@fastify/cors": "^9.0.1",
         "@fastify/websocket": "^10.0.1",
         "@opentelemetry/api": "^1.7.0",
         "@opentelemetry/core": "^1.19.0",
@@ -50,7 +51,6 @@
         "async-mutex": "^0.4.0",
         "dotenv": "^16.0.3",
         "fastify": "^4.25.2",
-        "fastify-cors": "3.0.3",
         "opentelemetry-instrumentation-fetch-node": "^1.1.2",
         "pino": "^8.15.0",
         "pino-http": "^8.4.0",
