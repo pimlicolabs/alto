@@ -610,6 +610,7 @@ export class Executor {
                     error: {
                         entryPoint,
                         userOpHash: owh.userOperationHash,
+                        userOperation: owh.mempoolUserOperation,
                         reason: "INTERNAL FAILURE"
                     }
                 }
@@ -625,6 +626,7 @@ export class Executor {
                     error: {
                         entryPoint,
                         userOpHash: op.owh.userOperationHash,
+                        userOperation: op.owh.mempoolUserOperation,
                         reason: op.reason as string
                     }
                 }
@@ -720,6 +722,7 @@ export class Executor {
                     error: {
                         entryPoint,
                         userOpHash: owh.userOperationHash,
+                        userOperation: owh.mempoolUserOperation,
                         reason: "INTERNAL FAILURE"
                     }
                 }
@@ -892,6 +895,7 @@ export class Executor {
                             entryPoint,
                             this.walletClient.chain.id
                         ),
+                        userOperation: compressedOp,
                         reason: "INTERNAL FAILURE"
                     }
                 }
@@ -910,6 +914,7 @@ export class Executor {
                     error: {
                         entryPoint,
                         userOpHash: simulatedOp.owh.userOperationHash,
+                        userOperation: simulatedOp.owh.mempoolUserOperation,
                         reason: simulatedOp.reason as string
                     }
                 }
@@ -957,6 +962,7 @@ export class Executor {
                     error: {
                         entryPoint,
                         userOpHash: op.userOperationHash,
+                        userOperation: op.mempoolUserOperation,
                         reason: "INTERNAL FAILURE"
                     }
                 }

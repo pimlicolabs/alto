@@ -222,6 +222,11 @@ export class ExecutorManager {
                 })
                 this.logger.warn(
                     {
+                        userOperation: JSON.stringify(
+                            result.error.userOperation,
+                            (_k, v) =>
+                                typeof v === "bigint" ? v.toString() : v
+                        ),
                         userOpHash: result.error.userOpHash,
                         reason: result.error.reason
                     },

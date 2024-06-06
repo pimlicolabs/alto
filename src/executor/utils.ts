@@ -68,6 +68,7 @@ export function simulatedOpsToResults(
             status: "failure",
             error: {
                 entryPoint: transactionInfo.entryPoint,
+                userOperation: sop.owh.mempoolUserOperation,
                 userOpHash: sop.owh.userOperationHash,
                 reason: sop.reason as string
             }
@@ -307,7 +308,10 @@ export async function filterOpsAndEstimateGas(
                         "user op in batch invalid"
                     )
 
-                    if (errorResult.errorName !== "FailedOp") {
+                    if (
+                        errorResult.errorName !== "FailedOpWithRevert" &&
+                        errorResult.errorName !== "FailedOp"
+                    ) {
                         logger.error(
                             {
                                 errorName: errorResult.errorName,
