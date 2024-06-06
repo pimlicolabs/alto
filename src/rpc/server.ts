@@ -22,6 +22,7 @@ import type { IRpcEndpoint } from "./rpcHandler"
 import websocket from "@fastify/websocket"
 import RpcReply from "../utils/rpc-reply"
 import type * as WebSocket from "ws"
+import cors from "@fastify/cors"
 
 // jsonBigIntOverride.ts
 const originalJsonStringify = JSON.stringify
@@ -100,7 +101,7 @@ export class Server {
             }
         })
 
-        this.fastify.register(require("fastify-cors"), {
+        this.fastify.register(cors, {
             origin: "*",
             methods: ["POST", "GET", "OPTIONS"]
         })

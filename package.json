@@ -13,13 +13,17 @@
         "clean": "rm -rf ./src/lib ./src/*.tsbuildinfo",
         "clean-modules": "rm -rf ./src/node_modules node_modules",
         "build": "pnpm -r run build",
+        "build:esm": "pnpm -r run build:esm",
         "start": "node src/lib/cli/alto.js run",
         "dev": "pnpm -r run dev",
         "test": "pnpm -r --workspace-concurrency 1 test --verbose=true",
         "test:spec": "./test/spec-tests/run-spec-tests.sh",
         "lint": "biome check .",
         "lint:fix": "pnpm run lint --apply",
-        "format": "biome format . --write"
+        "format": "biome format . --write",
+        "changeset": "changeset",
+        "changeset:release": "pnpm run build && changeset publish",
+        "changeset:version": "changeset version && pnpm install --lockfile-only"
     },
     "devDependencies": {
         "@biomejs/biome": "^1.5.1",
@@ -31,7 +35,10 @@
         "nyc": "^15.1.0",
         "rome": "^12.1.3",
         "ts-node": "^10.9.2",
-        "typescript": "^5.3.3"
+        "typescript": "^5.3.3",
+        "@changesets/changelog-git": "^0.1.14",
+        "@changesets/changelog-github": "^0.4.8",
+        "@changesets/cli": "^2.26.2"
     },
     "private": true,
     "engines": {

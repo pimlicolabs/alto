@@ -1,5 +1,5 @@
 {
-    "name": "alto",
+    "name": "@pimlico/alto",
     "version": "0.0.1",
     "description": "A performant and modular ERC-4337 Bundler written in Typescript",
     "repository": "https://github.com/pimlicolabs/alto.git",
@@ -8,20 +8,31 @@
     "main": "lib/index.js",
     "types": "lib/index.d.ts",
     "files": [
+        "esm/**/*.d.ts",
+        "esm/**/*.js",
+        "esm/**/*.js.map",
         "lib/**/*.d.ts",
         "lib/**/*.js",
         "lib/**/*.js.map",
         "*.d.ts",
         "*.js"
     ],
+    "exports": {
+        ".": {
+            "import": "./esm/index.js",
+            "require": "./esm/index.js"
+        }
+    },
     "scripts": {
         "build": "tsc -p ./tsconfig.json && tsc-alias -p tsconfig.json",
+        "build:esm": "tsc -p ./tsconfig.esm.json && tsc-alias -p tsconfig.esm.json",
         "dev": "nodemon --exec DOTENV_CONFIG_PATH=$(pwd)/../.env ts-node -r tsconfig-paths/register cli/alto.ts run",
         "test": "test -d test && mocha test/**/*.test.ts --exit || echo 'No test folder found. Skipping tests.'",
         "lint": "eslint src/**/*.ts",
         "lint:fix": "eslint src/**/*.ts --fix"
     },
     "dependencies": {
+        "@fastify/cors": "^9.0.1",
         "@fastify/websocket": "^10.0.1",
         "@opentelemetry/api": "^1.7.0",
         "@opentelemetry/core": "^1.19.0",
@@ -40,7 +51,6 @@
         "async-mutex": "^0.4.0",
         "dotenv": "^16.0.3",
         "fastify": "^4.25.2",
-        "fastify-cors": "3.0.3",
         "opentelemetry-instrumentation-fetch-node": "^1.1.2",
         "pino": "^8.15.0",
         "pino-http": "^8.4.0",
