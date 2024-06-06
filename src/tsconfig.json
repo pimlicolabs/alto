@@ -2,7 +2,7 @@
     "compilerOptions": {
         "outDir": "lib",
         "target": "esnext",
-        "module": "commonjs",
+        "module": "ESNext",
         "esModuleInterop": true,
         "forceConsistentCasingInFileNames": true,
         "strict": true,
