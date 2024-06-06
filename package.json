@@ -6,14 +6,14 @@
     "author": "Pimlico",
     "license": "GPL-3.0-or-later",
     "bin": {
-        "alto": "./src/lib/cli/alto.js"
+        "alto": "./src/lib/index.js"
     },
     "scripts": {
         "prepare": "pnpm run build",
         "clean": "rm -rf ./src/lib ./src/*.tsbuildinfo",
         "clean-modules": "rm -rf ./src/node_modules node_modules",
         "build": "pnpm -r run build",
-        "start": "node src/lib/cli/alto.js run",
+        "start": "node src/lib/index.js run",
         "dev": "pnpm -r run dev",
         "test": "pnpm -r --workspace-concurrency 1 test --verbose=true",
         "test:spec": "./test/spec-tests/run-spec-tests.sh",
