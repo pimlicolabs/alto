@@ -1,4 +1,3 @@
-import util from "node:util"
 import type { Metrics, Logger, GasPriceManager } from "@alto/utils"
 import type {
     InterfaceReputationManager,
