@@ -16,6 +16,10 @@ jobs:
       - name: Install dependencies
         uses: ./.github/actions/install-dependencies
 
+
+      - name: Install test dependencies
+        run: pnpm install
+
       - name: Setup .npmrc file
         uses: actions/setup-node@v3
         with:
