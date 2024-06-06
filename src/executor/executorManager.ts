@@ -222,6 +222,7 @@ export class ExecutorManager {
                 })
                 this.logger.warn(
                     {
+                        userOperation: result.error.userOperation,
                         userOpHash: result.error.userOpHash,
                         reason: result.error.reason
                     },
