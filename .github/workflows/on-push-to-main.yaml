@@ -31,8 +31,11 @@ jobs:
           # This makes Actions fetch all Git history so that Changesets can generate changelogs with the correct commits
           fetch-depth: 0
 
-      - name: Install dependencies
+      - name: Install core dependencies
         uses: ./.github/actions/install-dependencies
+
+      - name: Install dependencies
+        run: pnpm install
 
       - name: Create Version Pull Request
         uses: changesets/action@v1
@@ -53,8 +56,11 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@v3
 
-      - name: Install dependencies
+      - name: Install core dependencies
         uses: ./.github/actions/install-dependencies
+
+      - name: Install dependencies
+        run: pnpm install
 
       - name: Publish to NPM
         uses: changesets/action@v1
