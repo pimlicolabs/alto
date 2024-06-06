@@ -17,13 +17,14 @@
     ],
     "exports": {
       ".": {
-        "import": "./lib/index.js",
-        "require": "./lib/index.js"
+        "import": "./esm/index.js",
+        "require": "./esm/index.js"
       }
     },
     "scripts": {
         "build": "tsc -p ./tsconfig.json && tsc-alias -p tsconfig.json",
-        "dev": "nodemon --exec DOTENV_CONFIG_PATH=$(pwd)/../.env ts-node -r tsconfig-paths/register index.ts run",
+        "build:esm": "tsc -p ./tsconfig.esm.json && tsc-alias -p tsconfig.esm.json",
+        "dev": "nodemon --exec DOTENV_CONFIG_PATH=$(pwd)/../.env ts-node -r tsconfig-paths/register cli/alto.ts run",
         "test": "test -d test && mocha test/**/*.test.ts --exit || echo 'No test folder found. Skipping tests.'",
         "lint": "eslint src/**/*.ts",
         "lint:fix": "eslint src/**/*.ts --fix"
