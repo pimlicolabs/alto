@@ -1,3 +1,4 @@
+import util from "node:util"
 import type { Metrics, Logger, GasPriceManager } from "@alto/utils"
 import type {
     InterfaceReputationManager,
@@ -222,7 +223,7 @@ export class ExecutorManager {
                 })
                 this.logger.warn(
                     {
-                        userOperation: result.error.userOperation,
+                        userOperation: util.inspect(result.error.userOperation),
                         userOpHash: result.error.userOpHash,
                         reason: result.error.reason
                     },
