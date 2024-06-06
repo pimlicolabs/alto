@@ -49,7 +49,6 @@
     ],
     "exclude": [
         "./**/*.test.ts",
-        "./index.ts",
         "./lib/*",
         "./node_modules/*"
     ],
