@@ -45,7 +45,7 @@ jobs:
 
   release:
     name: Release
-    needs: verify
+    needs: [build, test]
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
