@@ -8,6 +8,9 @@
     "main": "lib/index.js",
     "types": "lib/index.d.ts",
     "files": [
+        "esm/**/*.d.ts",
+        "esm/**/*.js",
+        "esm/**/*.js.map",
         "lib/**/*.d.ts",
         "lib/**/*.js",
         "lib/**/*.js.map",
