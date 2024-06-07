@@ -1,5 +1,6 @@
 {
     "name": "deploy-contracts",
+    "private": true,
     "scripts": {
         "start": "wait-port anvil:8545 && ts-node index.ts"
     },
