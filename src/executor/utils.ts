@@ -207,7 +207,7 @@ export async function filterOpsAndEstimateGas(
 
             return { simulatedOps, gasLimit, resubmitAllOps: false }
         } catch (err: unknown) {
-            logger.error({ err }, "error estimating gas")
+            logger.error({ err, blockTag }, "error estimating gas")
             const e = parseViemError(err)
 
             if (e instanceof ContractFunctionRevertedError) {
@@ -345,7 +345,7 @@ export async function filterOpsAndEstimateGas(
             } else {
                 sentry.captureException(err)
                 logger.error(
-                    { error: JSON.stringify(err) },
+                    { error: JSON.stringify(err), blockTag },
                     "error estimating gas"
                 )
                 return { simulatedOps: [], gasLimit: 0n, resubmitAllOps: false }
