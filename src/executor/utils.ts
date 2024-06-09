@@ -127,7 +127,7 @@ export async function filterOpsAndEstimateGas(
     nonce: number,
     maxFeePerGas: bigint,
     maxPriorityFeePerGas: bigint,
-    blockTag: "latest" | "pending",
+    blockTag: "latest" | "pending" | undefined,
     onlyPre1559: boolean,
     fixedGasLimitForEstimation: bigint | undefined,
     reputationManager: InterfaceReputationManager,
@@ -176,7 +176,7 @@ export async function filterOpsAndEstimateGas(
                     {
                         account: wallet,
                         nonce: nonce,
-                        blockTag,
+                        blockTag: blockTag,
                         ...(fixedGasLimitForEstimation !== undefined && {
                             gas: fixedGasLimitForEstimation
                         }),
@@ -200,14 +200,14 @@ export async function filterOpsAndEstimateGas(
                     data: createCompressedCalldata(opsToSend, perOpInflatorId),
                     gas: fixedGasLimitForEstimation,
                     nonce: nonce,
-                    blockTag,
+                    blockTag: blockTag,
                     ...gasOptions
                 })
             }
 
             return { simulatedOps, gasLimit, resubmitAllOps: false }
         } catch (err: unknown) {
-            logger.error({ err }, "error estimating gas")
+            logger.error({ err, blockTag }, "error estimating gas")
             const e = parseViemError(err)
 
             if (e instanceof ContractFunctionRevertedError) {
@@ -345,7 +345,7 @@ export async function filterOpsAndEstimateGas(
             } else {
                 sentry.captureException(err)
                 logger.error(
-                    { error: JSON.stringify(err) },
+                    { error: JSON.stringify(err), blockTag },
                     "error estimating gas"
                 )
                 return { simulatedOps: [], gasLimit: 0n, resubmitAllOps: false }

@@ -124,7 +124,8 @@ export const rpcArgsSchema = z.object({
     "rpc-url": z.string().url(),
     "send-transaction-rpc-url": z.string().url().optional(),
     "polling-interval": z.number().int().min(0),
-    "max-block-range": z.number().int().min(0).optional()
+    "max-block-range": z.number().int().min(0).optional(),
+    "block-tag-support-disabled": z.boolean().optional().default(false)
 })
 
 export const bundleCopmressionArgsSchema = z.object({
