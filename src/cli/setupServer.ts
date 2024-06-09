@@ -184,9 +184,12 @@ const getExecutor = ({
     compressionHandler: CompressionHandler | null
     gasPriceManager: GasPriceManager
 }): Executor => {
-    logger.error("executor initialized", {
-        disableBlockTagSupport: parsedArgs["block-tag-support-disabled"]
-    })
+    logger.error(
+        {
+            disableBlockTagSupport: parsedArgs["block-tag-support-disabled"]
+        },
+        "executor initialized"
+    )
 
     return new Executor(
         client,
