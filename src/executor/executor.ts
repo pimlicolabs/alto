@@ -150,10 +150,6 @@ export class Executor {
         this.disableBlockTagSupport = disableBlockTagSupport
         this.entryPoints = entryPoints
 
-        logger.error("executor initialized", {
-            disableBlockTagSupport
-        })
-
         this.mutex = new Mutex()
     }
 
