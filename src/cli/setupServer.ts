@@ -203,6 +203,7 @@ const getExecutor = ({
         !parsedArgs.tenderly,
         parsedArgs["legacy-transactions"],
         parsedArgs["fixed-gas-limit-for-estimation"],
+        parsedArgs["block-tag-support-disabled"],
         parsedArgs["local-gas-limit-calculation"]
     )
 }
