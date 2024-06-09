@@ -252,6 +252,13 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         description: "Max block range for getLogs calls",
         type: "number",
         require: false
+    },
+    "block-tag-support-disabled": {
+        description:
+            "Disable sending block tag when sending eth_estimateGas call",
+        type: "boolean",
+        require: false,
+        default: false
     }
 }
 

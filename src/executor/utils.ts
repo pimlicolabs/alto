@@ -127,7 +127,7 @@ export async function filterOpsAndEstimateGas(
     nonce: number,
     maxFeePerGas: bigint,
     maxPriorityFeePerGas: bigint,
-    blockTag: "latest" | "pending",
+    blockTag: "latest" | "pending" | undefined,
     onlyPre1559: boolean,
     fixedGasLimitForEstimation: bigint | undefined,
     reputationManager: InterfaceReputationManager,
@@ -176,7 +176,7 @@ export async function filterOpsAndEstimateGas(
                     {
                         account: wallet,
                         nonce: nonce,
-                        blockTag,
+                        blockTag: blockTag,
                         ...(fixedGasLimitForEstimation !== undefined && {
                             gas: fixedGasLimitForEstimation
                         }),
@@ -200,7 +200,7 @@ export async function filterOpsAndEstimateGas(
                     data: createCompressedCalldata(opsToSend, perOpInflatorId),
                     gas: fixedGasLimitForEstimation,
                     nonce: nonce,
-                    blockTag,
+                    blockTag: blockTag,
                     ...gasOptions
                 })
             }
