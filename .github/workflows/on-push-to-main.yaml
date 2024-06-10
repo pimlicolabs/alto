@@ -62,6 +62,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Build
+        run: |
+          pnpm run build && pnpm run build:esm && jq '. + {type: "module"}' ./src/package.json > ./src/package.tmp.json && mv ./src/package.tmp.json ./src/package.json
+
       - name: Publish to NPM
         uses: changesets/action@v1
         with:
