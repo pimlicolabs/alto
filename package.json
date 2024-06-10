@@ -22,7 +22,7 @@
         "lint:fix": "pnpm run lint --apply",
         "format": "biome format . --write",
         "changeset": "changeset",
-        "changeset:release": "pnpm run build && changeset publish",
+        "changeset:release": "pnpm run build && pnpm run build:esm && changeset publish",
         "changeset:version": "changeset version && pnpm install --lockfile-only"
     },
     "devDependencies": {
