@@ -1,5 +1,13 @@
 # @pimlico/alto
 
+## 0.0.4
+
+### Patch Changes
+
+- 51dc53e2f67b4dec7957f2595912269353d77755: Fixed bug in eth_getUserOperationByHash when querying entrypoint 0.7 user operation hash
+- 51dc53e2f67b4dec7957f2595912269353d77755: Fixed bugs of safe validator for entryPoint 0.7
+- 51dc53e2f67b4dec7957f2595912269353d77755: Added a debug flag to deploy simulations contract at startup
+
 ## 0.0.3
 
 ### Patch Changes
