@@ -4,10 +4,10 @@ import {
     type HexData32,
     type UserOperation,
     type UserOperationV07,
-    type PackedUserOperation,
-    EntryPointV07Abi
+    EntryPointV07Abi,
+    type PackedUserOperation
 } from "@alto/types"
-import * as sentry from "@sentry/node"
+import { captureException } from "@sentry/node"
 import {
     type Address,
     type Hex,
@@ -25,7 +25,7 @@ import { areAddressesEqual } from "./helpers"
 
 // Type predicate check if the UserOperation is V06.
 export function isVersion06(
-    operation: UserOperation | PackedUserOperation
+    operation: UserOperation
 ): operation is UserOperationV06 {
     return "initCode" in operation && "paymasterAndData" in operation
 }
@@ -228,7 +228,7 @@ export const transactionIncluded = async (
                             }
                             return undefined
                         } catch (_e) {
-                            sentry.captureException(_e)
+                            captureException(_e)
                             return undefined
                         }
                     }
