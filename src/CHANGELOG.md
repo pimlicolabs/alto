@@ -4,7 +4,7 @@
 
 ### Patch Changes
 
-- db91de843ffacfb00fe92dcc690c4c2ffc8fcb2d: Added block-tag-support-disabled-flag
+- db91de843ffacfb00fe92dcc690c4c2ffc8fcb2d: Added block-tag-support-disabled flag
 
 ## 0.0.2
 
