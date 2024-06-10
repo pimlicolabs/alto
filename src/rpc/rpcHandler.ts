@@ -565,7 +565,6 @@ export class RpcHandler implements IRpcEndpoint {
         })
 
         if (filterResult.length === 0) {
-            this.logger.error("fileredResult.length == 0")
             return null
         }
 
@@ -573,7 +572,6 @@ export class RpcHandler implements IRpcEndpoint {
         const txHash = userOperationEvent.transactionHash
         if (txHash === null) {
             // transaction pending
-            this.logger.error("transaction pending")
             return null
         }
 
@@ -594,7 +592,6 @@ export class RpcHandler implements IRpcEndpoint {
         const tx = await getTransaction(txHash)
 
         if (!tx.to) {
-            this.logger.error("tx.to doesn't exist")
             return null
         }
 
@@ -621,22 +618,11 @@ export class RpcHandler implements IRpcEndpoint {
             }
 
             if (slice(tx.input, 0, 4) === "0x765e827f") {
-                this.logger.info(`tx.data: ${tx.input}`)
-                this.logger.info(
-                    JSON.stringify(
-                        `foundOp: ${JSON.stringify(foundOp, (_k, v) =>
-                            typeof v === "bigint" ? v.toString() : v
-                        )}`
-                    )
-                )
                 op = toUnpackedUserOperation(foundOp as PackedUserOperation)
             } else {
                 op = foundOp as UserOperationV06
             }
-        } catch (e) {
-            this.logger.error(
-                `failed to get UserOperaiton due to ${JSON.stringify(e)}`
-            )
+        } catch {
             return null
         }
 

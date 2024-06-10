@@ -100,11 +100,6 @@ export class UnsafeValidator implements InterfaceValidator {
     ): Promise<
         ValidationResult | ValidationResultWithAggregation | ExecutionResult
     > {
-        this.logger.info(
-            `errorResult: ${JSON.stringify(errorResult, (_k, v) =>
-                typeof v === "bigint" ? v.toString() : v
-            )}`
-        )
         const entryPointExecutionErrorSchema = isVersion06
             ? entryPointExecutionErrorSchemaV06
             : entryPointExecutionErrorSchemaV07
