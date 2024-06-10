@@ -182,7 +182,7 @@ export class ReputationManager implements InterfaceReputationManager {
     private inclusionRateFactor: bigint
     private entries: {
         [entryPoint: Address]: { [address: Address]: ReputationEntry }
-    }
+    } = {}
     private whitelist: Set<Address> = new Set()
     private blackList: Set<Address> = new Set()
     private bundlerReputationParams: ReputationParams
@@ -206,7 +206,6 @@ export class ReputationManager implements InterfaceReputationManager {
         this.minStake = minStake
         this.minUnstakeDelay = minUnstakeDelay
         this.logger = logger
-        this.entries = {}
         this.maxMempoolUserOperationsPerNewUnstakedEntity =
             maxMempoolUserOperationsPerNewUnstakedEntity ?? 10n
         this.inclusionRateFactor = inclusionRateFactor ?? 10n

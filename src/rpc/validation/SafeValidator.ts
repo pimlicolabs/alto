@@ -536,12 +536,14 @@ export class SafeValidator
         const simulateValidationResult = getSimulateValidationResult(resultData)
 
         if (simulateValidationResult.status === "failed") {
-            throw new RpcError(
-                `UserOperation reverted with reason: ${
-                    simulateValidationResult.data as string
-                }`,
-                ValidationErrors.SimulateValidation
-            )
+            let errorCode = ValidationErrors.SimulateValidation
+            const errorMessage = simulateValidationResult.data as string
+
+            if (errorMessage.includes("AA24")) {
+                errorCode = ValidationErrors.InvalidSignature
+            }
+
+            throw new RpcError(errorMessage, errorCode)
         }
 
         const validationResult =

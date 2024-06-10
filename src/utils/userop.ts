@@ -25,7 +25,7 @@ import { areAddressesEqual } from "./helpers"
 
 // Type predicate check if the UserOperation is V06.
 export function isVersion06(
-    operation: UserOperation
+    operation: UserOperation | PackedUserOperation
 ): operation is UserOperationV06 {
     return "initCode" in operation && "paymasterAndData" in operation
 }
