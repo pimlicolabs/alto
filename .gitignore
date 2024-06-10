@@ -5,6 +5,7 @@ node_modules
 dist
 .nyc_output
 src/lib
+src/esm
 **/.nyc_output
 test/spec-tests/bundler-spec-tests
 test/build

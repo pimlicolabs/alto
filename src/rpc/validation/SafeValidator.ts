@@ -1,23 +1,7 @@
-import type { GasPriceManager, Metrics } from "@alto/utils"
 import type { SenderManager } from "@alto/executor"
-import {
-    type Address,
-    CodeHashGetterAbi,
-    CodeHashGetterBytecode,
-    EntryPointV06Abi,
-    type ReferencedCodeHashes,
-    RpcError,
-    type StakeInfo,
-    type StorageMap,
-    type UserOperation,
-    ValidationErrors,
-    type ValidationResultWithAggregation,
-    EntryPointV07SimulationsAbi,
-    PimlicoEntryPointSimulationsAbi,
-    PimlicoEntryPointSimulationsBytecode,
-    EntryPointV07Abi
-} from "@alto/types"
 import type {
+    ChainType,
+    InterfaceValidator,
     UserOperationV06,
     UserOperationV07,
     ValidationResult,
@@ -26,8 +10,24 @@ import type {
     ValidationResultWithAggregationV06,
     ValidationResultWithAggregationV07
 } from "@alto/types"
-import type { InterfaceValidator } from "@alto/types"
-import type { Logger } from "@alto/utils"
+import {
+    CodeHashGetterAbi,
+    CodeHashGetterBytecode,
+    EntryPointV06Abi,
+    EntryPointV07Abi,
+    EntryPointV07SimulationsAbi,
+    PimlicoEntryPointSimulationsAbi,
+    PimlicoEntryPointSimulationsBytecode,
+    RpcError,
+    ValidationErrors,
+    type Address,
+    type ReferencedCodeHashes,
+    type StakeInfo,
+    type StorageMap,
+    type UserOperation,
+    type ValidationResultWithAggregation
+} from "@alto/types"
+import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
 import {
     calcVerificationGasAndCallGasLimit,
     getAddressFromInitCodeOrPaymasterAndData,
@@ -36,28 +36,27 @@ import {
     toPackedUserOperation
 } from "@alto/utils"
 import {
-    type Account,
-    type Chain,
-    type ExecutionRevertedError,
-    type Hex,
-    type PublicClient,
-    type Transport,
+    decodeAbiParameters,
     decodeErrorResult,
     encodeDeployData,
     encodeFunctionData,
     zeroAddress,
-    decodeAbiParameters
+    type Chain,
+    type ExecutionRevertedError,
+    type Hex,
+    type PublicClient,
+    type Transport
 } from "viem"
+import { parseFailedOpWithRevert } from "../EntryPointSimulationsV07"
 import {
+    bundlerCollectorTracer,
     type BundlerTracerResult,
-    type ExitInfo,
-    bundlerCollectorTracer
+    type ExitInfo
 } from "./BundlerCollectorTracerV06"
 import { tracerResultParserV06 } from "./TracerResultParserV06"
 import { tracerResultParserV07 } from "./TracerResultParserV07"
 import { UnsafeValidator } from "./UnsafeValidator"
 import { debug_traceCall } from "./tracer"
-import { parseFailedOpWithRevert } from "../EntryPointSimulationsV07"
 
 export class SafeValidator
     extends UnsafeValidator
@@ -70,9 +69,10 @@ export class SafeValidator
         senderManager: SenderManager,
         logger: Logger,
         metrics: Metrics,
-        utilityWallet: Account,
         gasPriceManager: GasPriceManager,
+        chainType: ChainType,
         entryPointSimulationsAddress?: Address,
+        fixedGasLimitForEstimation?: bigint,
         usingTenderly = false,
         balanceOverrideEnabled = false
     ) {
@@ -80,9 +80,10 @@ export class SafeValidator
             publicClient,
             logger,
             metrics,
-            utilityWallet,
             gasPriceManager,
+            chainType,
             entryPointSimulationsAddress,
+            fixedGasLimitForEstimation,
             usingTenderly,
             balanceOverrideEnabled
         )
@@ -92,6 +93,7 @@ export class SafeValidator
     async validateUserOperation(
         shouldCheckPrefund: boolean,
         userOperation: UserOperation,
+        queuedUserOperations: UserOperation[],
         entryPoint: Address,
         referencedContracts?: ReferencedCodeHashes
     ): Promise<
@@ -103,6 +105,7 @@ export class SafeValidator
         try {
             const validationResult = await this.getValidationResult(
                 userOperation,
+                queuedUserOperations,
                 entryPoint,
                 referencedContracts
             )
@@ -110,7 +113,7 @@ export class SafeValidator
             if (shouldCheckPrefund) {
                 const prefund = validationResult.returnInfo.prefund
 
-                const [verificationGasLimit, callGasLimit] =
+                const { verificationGasLimit, callGasLimit } =
                     calcVerificationGasAndCallGasLimit(
                         userOperation,
                         {
@@ -192,6 +195,7 @@ export class SafeValidator
 
     async getValidationResultV07(
         userOperation: UserOperationV07,
+        queuedUserOperations: UserOperationV07[],
         entryPoint: Address,
         preCodeHashes?: ReferencedCodeHashes
     ): Promise<
@@ -201,7 +205,11 @@ export class SafeValidator
         }
     > {
         if (this.usingTenderly) {
-            return super.getValidationResultV07(userOperation, entryPoint)
+            return super.getValidationResultV07(
+                userOperation,
+                queuedUserOperations,
+                entryPoint
+            )
         }
 
         if (preCodeHashes && preCodeHashes.addresses.length > 0) {

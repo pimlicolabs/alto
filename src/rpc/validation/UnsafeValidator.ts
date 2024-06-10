@@ -1,4 +1,15 @@
-import type { GasPriceManager, Metrics } from "@alto/utils"
+import type {
+    ChainType,
+    InterfaceValidator,
+    StateOverrides,
+    UserOperationV06,
+    UserOperationV07,
+    ValidationResult,
+    ValidationResultV06,
+    ValidationResultV07,
+    ValidationResultWithAggregationV06,
+    ValidationResultWithAggregationV07
+} from "@alto/types"
 import {
     type Address,
     EntryPointV06Abi,
@@ -14,37 +25,33 @@ import {
     entryPointExecutionErrorSchemaV06,
     entryPointExecutionErrorSchemaV07
 } from "@alto/types"
-import type {
-    UserOperationV06,
-    UserOperationV07,
-    ValidationResult,
-    ValidationResultV06,
-    ValidationResultV07,
-    ValidationResultWithAggregationV06,
-    ValidationResultWithAggregationV07
-} from "@alto/types"
-import type { InterfaceValidator } from "@alto/types"
-import type { StateOverrides } from "@alto/types"
-import type { Logger } from "@alto/utils"
-import { calcPreVerificationGas, isVersion06, isVersion07 } from "@alto/utils"
-import { calcVerificationGasAndCallGasLimit } from "@alto/utils"
+import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
+import {
+    calcPreVerificationGas,
+    calcVerificationGasAndCallGasLimit,
+    isVersion06,
+    isVersion07
+} from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
-    type Account,
     BaseError,
     type Chain,
     ContractFunctionExecutionError,
     type PublicClient,
     type Transport,
     getContract,
-    zeroAddress,
     pad,
+    slice,
     toHex,
-    slice
+    zeroAddress
 } from "viem"
 import { fromZodError } from "zod-validation-error"
-import { SimulateHandleOpResult, simulateHandleOp } from "../gasEstimation"
 import { simulateValidation } from "../EntryPointSimulationsV07"
+import {
+    type SimulateHandleOpResult,
+    simulateHandleOp,
+    simulateHandleOpV06
+} from "../gasEstimation"
 
 async function getSimulationResult(
     isVersion06: boolean,
@@ -125,51 +132,59 @@ export class UnsafeValidator implements InterfaceValidator {
     publicClient: PublicClient<Transport, Chain>
     logger: Logger
     metrics: Metrics
-    utilityWallet: Account
     usingTenderly: boolean
     balanceOverrideEnabled: boolean
-    disableExpirationCheck: boolean
+    expirationCheck: boolean
     chainId: number
     gasPriceManager: GasPriceManager
     entryPointSimulationsAddress?: Address
+    fixedGasLimitForEstimation?: bigint
+    chainType: ChainType
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
         logger: Logger,
         metrics: Metrics,
-        utilityWallet: Account,
         gasPriceManager: GasPriceManager,
+        chainType: ChainType,
         entryPointSimulationsAddress?: Address,
+        fixedGasLimitForEstimation?: bigint,
         usingTenderly = false,
         balanceOverrideEnabled = false,
-        disableExpirationCheck = false
+        expirationCheck = true
     ) {
         this.publicClient = publicClient
         this.logger = logger
         this.metrics = metrics
-        this.utilityWallet = utilityWallet
         this.usingTenderly = usingTenderly
         this.balanceOverrideEnabled = balanceOverrideEnabled
-        this.disableExpirationCheck = disableExpirationCheck
+        this.expirationCheck = expirationCheck
         this.chainId = publicClient.chain.id
         this.gasPriceManager = gasPriceManager
         this.entryPointSimulationsAddress = entryPointSimulationsAddress
+        this.fixedGasLimitForEstimation = fixedGasLimitForEstimation
+        this.chainType = chainType
     }
 
     async getExecutionResult(
         userOperation: UserOperation,
         entryPoint: Address,
+        queuedUserOperations: UserOperation[],
         stateOverrides?: StateOverrides
     ): Promise<SimulateHandleOpResult<"execution">> {
         const error = await simulateHandleOp(
             userOperation,
+            queuedUserOperations,
             entryPoint,
             this.publicClient,
             false,
             zeroAddress,
             "0x",
+            this.balanceOverrideEnabled,
+            this.chainId,
             stateOverrides,
-            this.entryPointSimulationsAddress
+            this.entryPointSimulationsAddress,
+            this.fixedGasLimitForEstimation
         )
 
         if (error.result === "failed") {
@@ -200,7 +215,7 @@ export class UnsafeValidator implements InterfaceValidator {
             }
         })
 
-        const errorResult = await entryPointContract.simulate
+        const simulateValidationPromise = entryPointContract.simulate
             .simulateValidation([userOperation])
             .catch((e) => {
                 if (e instanceof Error) {
@@ -209,10 +224,22 @@ export class UnsafeValidator implements InterfaceValidator {
                 throw e
             })
 
+        const runtimeValidationPromise = simulateHandleOpV06(
+            userOperation,
+            entryPoint,
+            this.publicClient,
+            zeroAddress,
+            "0x"
+        )
+
+        const [simulateValidationResult, runtimeValidation] = await Promise.all(
+            [simulateValidationPromise, runtimeValidationPromise]
+        )
+
         const validationResult = {
             ...((await getSimulationResult(
                 isVersion06(userOperation),
-                errorResult,
+                simulateValidationResult,
                 this.logger,
                 "validation",
                 this.usingTenderly
@@ -222,7 +249,7 @@ export class UnsafeValidator implements InterfaceValidator {
 
         if (validationResult.returnInfo.sigFailed) {
             throw new RpcError(
-                "Invalid UserOp signature or  paymaster signature",
+                "Invalid UserOperation signature or paymaster signature",
                 ValidationErrors.InvalidSignature
             )
         }
@@ -237,7 +264,7 @@ export class UnsafeValidator implements InterfaceValidator {
 
         if (
             validationResult.returnInfo.validAfter > now - 5 &&
-            !this.disableExpirationCheck
+            this.expirationCheck
         ) {
             throw new RpcError(
                 "User operation is not valid yet",
@@ -247,11 +274,19 @@ export class UnsafeValidator implements InterfaceValidator {
 
         if (
             validationResult.returnInfo.validUntil < now + 30 &&
-            !this.disableExpirationCheck
+            this.expirationCheck
         ) {
             throw new RpcError(
                 "expires too soon",
                 ValidationErrors.ExpiresShortly
+            )
+        }
+
+        // validate runtime
+        if (runtimeValidation.result === "failed") {
+            throw new RpcError(
+                `UserOperation reverted during simulation with reason: ${runtimeValidation.data}`,
+                ValidationErrors.SimulateValidation
             )
         }
 
@@ -330,6 +365,7 @@ export class UnsafeValidator implements InterfaceValidator {
 
     async getValidationResultV07(
         userOperation: UserOperationV07,
+        queuedUserOperations: UserOperationV07[],
         entryPoint: Address,
         _codeHashes?: ReferencedCodeHashes
     ): Promise<
@@ -344,6 +380,7 @@ export class UnsafeValidator implements InterfaceValidator {
 
         const { simulateValidationResult } = await simulateValidation(
             userOperation,
+            queuedUserOperations,
             entryPoint,
             this.publicClient,
             this.entryPointSimulationsAddress
@@ -436,6 +473,7 @@ export class UnsafeValidator implements InterfaceValidator {
 
     getValidationResult(
         userOperation: UserOperation,
+        queuedUserOperations: UserOperation[],
         entryPoint: Address,
         _codeHashes?: ReferencedCodeHashes
     ): Promise<
@@ -453,6 +491,7 @@ export class UnsafeValidator implements InterfaceValidator {
         }
         return this.getValidationResultV07(
             userOperation,
+            queuedUserOperations as UserOperationV07[],
             entryPoint,
             _codeHashes
         )
@@ -466,7 +505,10 @@ export class UnsafeValidator implements InterfaceValidator {
             this.publicClient,
             userOperation,
             entryPoint,
-            this.chainId
+            this.chainId,
+            this.chainType,
+            this.gasPriceManager,
+            true
         )
 
         if (preVerificationGas > userOperation.preVerificationGas) {
@@ -480,6 +522,7 @@ export class UnsafeValidator implements InterfaceValidator {
     async validateUserOperation(
         shouldCheckPrefund: boolean,
         userOperation: UserOperation,
+        queuedUserOperations: UserOperation[],
         entryPoint: Address,
         _referencedContracts?: ReferencedCodeHashes
     ): Promise<
@@ -491,13 +534,14 @@ export class UnsafeValidator implements InterfaceValidator {
         try {
             const validationResult = await this.getValidationResult(
                 userOperation,
+                queuedUserOperations,
                 entryPoint
             )
 
             if (shouldCheckPrefund) {
                 const prefund = validationResult.returnInfo.prefund
 
-                const [verificationGasLimit, callGasLimit] =
+                const { verificationGasLimit, callGasLimit } =
                     calcVerificationGasAndCallGasLimit(
                         userOperation,
                         {

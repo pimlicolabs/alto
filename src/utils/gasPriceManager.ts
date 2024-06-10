@@ -1,12 +1,12 @@
+import {
+    RpcError,
+    gasStationResult,
+    type GasPriceParameters
+} from "@alto/types"
 import { maxBigInt, minBigInt, type Logger } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import { parseGwei, type Chain, type PublicClient } from "viem"
 import * as chains from "viem/chains"
-import {
-    gasStationResult,
-    type GasPriceParameters,
-    RpcError
-} from "@alto/types"
 
 enum ChainId {
     Goerli = 5,
@@ -31,8 +31,10 @@ function getGasStationUrl(chainId: ChainId.Polygon | ChainId.Mumbai): string {
 export class GasPriceManager {
     private chain: Chain
     private publicClient: PublicClient
-    private noEip1559Support: boolean
+    private legacyTransactions: boolean
     private logger: Logger
+    private queueBaseFeePerGas: { timestamp: number; baseFeePerGas: bigint }[] =
+        [] // Store pairs of [price, timestamp]
     private queueMaxFeePerGas: { timestamp: number; maxFeePerGas: bigint }[] =
         [] // Store pairs of [price, timestamp]
     private queueMaxPriorityFeePerGas: {
@@ -40,19 +42,22 @@ export class GasPriceManager {
         maxPriorityFeePerGas: bigint
     }[] = [] // Store pairs of [price, timestamp]
     private maxQueueSize
+    private gasBumpMultiplier: bigint
 
     constructor(
         chain: Chain,
         publicClient: PublicClient,
-        noEip1559Support: boolean,
+        legacyTransactions: boolean,
         logger: Logger,
+        gasBumpMultiplier: bigint,
         gasPriceTimeValidityInSeconds = 10
     ) {
         this.maxQueueSize = gasPriceTimeValidityInSeconds
         this.chain = chain
         this.publicClient = publicClient
-        this.noEip1559Support = noEip1559Support
+        this.legacyTransactions = legacyTransactions
         this.logger = logger
+        this.gasBumpMultiplier = gasBumpMultiplier
     }
 
     private getDefaultGasFee(
@@ -85,39 +90,10 @@ export class GasPriceManager {
         }
     }
 
-    private getBumpAmount(chainId: number) {
-        if (chainId === chains.sepolia.id) {
-            return 120n
-        }
-
-        if (chainId === chains.celo.id) {
-            return 150n
-        }
-
-        if (
-            chainId === chains.arbitrum.id ||
-            chainId === chains.scroll.id ||
-            chainId === chains.scrollSepolia.id ||
-            chainId === chains.arbitrumGoerli.id ||
-            chainId === chains.mainnet.id ||
-            chainId === chains.mantle.id ||
-            chainId === 22222 ||
-            chainId === chains.sepolia.id ||
-            chainId === chains.base.id ||
-            chainId === chains.dfk.id ||
-            chainId === chains.celoAlfajores.id ||
-            chainId === chains.avalanche.id
-        ) {
-            return 111n
-        }
-
-        return 100n
-    }
-
     private bumpTheGasPrice(
         gasPriceParameters: GasPriceParameters
     ): GasPriceParameters {
-        const bumpAmount = this.getBumpAmount(this.chain.id)
+        const bumpAmount = this.gasBumpMultiplier
 
         const maxPriorityFeePerGas = maxBigInt(
             gasPriceParameters.maxPriorityFeePerGas,
@@ -227,7 +203,7 @@ export class GasPriceManager {
         return currentBaseFeePerGas - baseFeePerGasDelta
     }
 
-    private async getNoEip1559SupportGasPrice(): Promise<GasPriceParameters> {
+    private async getLegacyTransactionGasPrice(): Promise<GasPriceParameters> {
         let gasPrice: bigint | undefined
         try {
             const gasInfo = await this.publicClient.estimateFeesPerGas({
@@ -264,6 +240,7 @@ export class GasPriceManager {
     private async estimateGasPrice(): Promise<GasPriceParameters> {
         let maxFeePerGas: bigint | undefined
         let maxPriorityFeePerGas: bigint | undefined
+
         try {
             const fees = await this.publicClient.estimateFeesPerGas({
                 chain: this.chain
@@ -315,6 +292,21 @@ export class GasPriceManager {
         }
 
         return { maxFeePerGas, maxPriorityFeePerGas }
+    }
+
+    private saveBaseFeePerGas(gasPrice: bigint, timestamp: number) {
+        const queue = this.queueBaseFeePerGas
+        const last = queue.length > 0 ? queue[queue.length - 1] : null
+
+        if (!last || timestamp - last.timestamp >= 1000) {
+            if (queue.length >= this.maxQueueSize) {
+                queue.shift()
+            }
+            queue.push({ baseFeePerGas: gasPrice, timestamp })
+        } else if (gasPrice < last.baseFeePerGas) {
+            last.baseFeePerGas = gasPrice
+            last.timestamp = timestamp
+        }
     }
 
     private saveMaxFeePerGas(gasPrice: bigint, timestamp: number) {
@@ -386,9 +378,9 @@ export class GasPriceManager {
             }
         }
 
-        if (this.noEip1559Support) {
+        if (this.legacyTransactions) {
             const gasPrice = this.bumpTheGasPrice(
-                await this.getNoEip1559SupportGasPrice()
+                await this.getLegacyTransactionGasPrice()
             )
             return {
                 maxFeePerGas: maxBigInt(gasPrice.maxFeePerGas, maxFeePerGas),
@@ -417,6 +409,18 @@ export class GasPriceManager {
         }
     }
 
+    public async getBaseFee(): Promise<bigint> {
+        const latestBlock = await this.publicClient.getBlock()
+        if (latestBlock.baseFeePerGas === null) {
+            throw new RpcError("block does not have baseFeePerGas")
+        }
+
+        const baseFee = latestBlock.baseFeePerGas
+        this.saveBaseFeePerGas(baseFee, Date.now())
+
+        return baseFee
+    }
+
     public async getGasPrice(): Promise<GasPriceParameters> {
         const gasPrice = await this.innerGetGasPrice()
 
@@ -428,6 +432,17 @@ export class GasPriceManager {
             Date.now()
         )
         return gasPrice
+    }
+
+    public async getMaxBaseFeePerGas() {
+        if (this.queueBaseFeePerGas.length === 0) {
+            await this.getBaseFee()
+        }
+
+        return this.queueBaseFeePerGas.reduce(
+            (acc: bigint, cur) => maxBigInt(cur.baseFeePerGas, acc),
+            this.queueBaseFeePerGas[0].baseFeePerGas
+        )
     }
 
     private async getMinMaxFeePerGas() {

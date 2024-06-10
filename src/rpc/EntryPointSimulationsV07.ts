@@ -510,16 +510,18 @@ function getSimulateValidationResult(errorData: Hex): {
 
 export async function simulateValidation(
     userOperation: UserOperationV07,
+    queuedUserOperations: UserOperationV07[],
     entryPoint: Address,
     publicClient: PublicClient,
     entryPointSimulationsAddress: Address
 ) {
-    const packedUserOperation = toPackedUserOperation(userOperation)
+    const userOperations = [...queuedUserOperations, userOperation]
+    const packedUserOperations = userOperations.map(uo => toPackedUserOperation(uo))
 
     const entryPointSimulationsCallData = encodeFunctionData({
         abi: EntryPointV07SimulationsAbi,
-        functionName: "simulateValidation",
-        args: [packedUserOperation]
+        functionName: "simulateValidationLast",
+        args: [packedUserOperations]
     })
 
     const errorResult = await callPimlicoEntryPointSimulations(

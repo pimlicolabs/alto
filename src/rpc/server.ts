@@ -1,13 +1,13 @@
-import type { Metrics } from "@alto/utils"
 import {
-    type JSONRPCResponse,
+    RpcError,
+    ValidationErrors,
     bundlerRequestSchema,
     jsonRpcSchema,
     altoVersions,
-    ApiVersion
+    type ApiVersion,
+    type JSONRPCResponse
 } from "@alto/types"
-import { RpcError, ValidationErrors } from "@alto/types"
-import type { Logger } from "@alto/utils"
+import type { Logger, Metrics } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import Fastify, {
     type FastifyBaseLogger,
@@ -19,6 +19,10 @@ import type { Registry } from "prom-client"
 import { toHex } from "viem"
 import { fromZodError } from "zod-validation-error"
 import type { IRpcEndpoint } from "./rpcHandler"
+import websocket from "@fastify/websocket"
+import RpcReply from "../utils/rpc-reply"
+import type * as WebSocket from "ws"
+import cors from "@fastify/cors"
 
 // jsonBigIntOverride.ts
 const originalJsonStringify = JSON.stringify
@@ -70,7 +74,6 @@ export class Server {
     private port: number
     private registry: Registry
     private metrics: Metrics
-    private environment: "production" | "staging" | "development"
     private apiVersions: ApiVersion[]
 
     constructor(
@@ -78,10 +81,11 @@ export class Server {
         apiVersions: ApiVersion[],
         port: number,
         requestTimeout: number | undefined,
+        websocketMaxPayloadSize: number,
+        websocketEnabled: boolean,
         logger: Logger,
         registry: Registry,
-        metrics: Metrics,
-        environment: "production" | "staging" | "development"
+        metrics: Metrics
     ) {
         this.fastify = Fastify({
             logger: logger as FastifyBaseLogger, // workaround for https://github.com/fastify/fastify/issues/4960
@@ -89,7 +93,13 @@ export class Server {
             disableRequestLogging: true
         })
 
-        this.fastify.register(require("fastify-cors"), {
+        this.fastify.register(websocket, {
+            options: {
+                maxPayload: websocketMaxPayloadSize
+            }
+        })
+
+        this.fastify.register(cors, {
             origin: "*",
             methods: ["POST", "GET", "OPTIONS"]
         })
@@ -107,22 +117,50 @@ export class Server {
                 route: request.routeOptions.url,
                 code: reply.statusCode,
                 method: request.method,
+                // biome-ignore lint/style/useNamingConvention: allow snake case
                 rpc_method: request.rpcMethod,
+                // biome-ignore lint/style/useNamingConvention: allow snake case
                 rpc_status: reply.rpcStatus
             }
 
             this.metrics.httpRequests.labels(labels).inc()
 
-            const durationMs = reply.getResponseTime()
+            const durationMs = reply.elapsedTime
             const durationSeconds = durationMs / 1000
             this.metrics.httpRequestsDuration
                 .labels(labels)
                 .observe(durationSeconds)
         })
 
-        this.fastify.post("/rpc", this.rpc.bind(this))
-        this.fastify.post("/:version/rpc", this.rpc.bind(this))
-        this.fastify.post("/", this.rpc.bind(this))
+        this.fastify.post("/rpc", this.rpcHttp.bind(this))
+        this.fastify.post("/:version/rpc", this.rpcHttp.bind(this))
+        this.fastify.post("/", this.rpcHttp.bind(this))
+
+        if (websocketEnabled) {
+            // biome-ignore lint/suspicious/useAwait: adhere to interface
+            this.fastify.register(async (fastify) => {
+                fastify.route({
+                    method: "GET",
+                    url: "/:version/rpc",
+                    handler: async (request, reply) => {
+                        const version = (request.params as any).version
+
+                        await reply
+                            .status(404)
+                            .send(
+                                `GET request to /${version}/rpc is not supported, use POST isntead`
+                            )
+                    },
+                    // biome-ignore lint/suspicious/useAwait: adhere to interface
+                    wsHandler: async (socket: WebSocket.WebSocket, request) => {
+                        socket.on("message", async (msgBuffer: Buffer) =>
+                            this.rpcSocket(request, msgBuffer, socket)
+                        )
+                    }
+                })
+            })
+        }
+
         this.fastify.get("/health", this.healthCheck.bind(this))
         this.fastify.get("/metrics", this.serveMetrics.bind(this))
 
@@ -130,7 +168,6 @@ export class Server {
         this.port = port
         this.registry = registry
         this.metrics = metrics
-        this.environment = environment
         this.apiVersions = apiVersions
     }
 
@@ -149,10 +186,39 @@ export class Server {
         await reply.status(200).send("OK")
     }
 
-    public async rpc(
+    private async rpcSocket(
+        request: FastifyRequest,
+        msgBuffer: Buffer,
+        socket: WebSocket.WebSocket
+    ): Promise<void> {
+        try {
+            request.body = JSON.parse(msgBuffer.toString())
+        } catch (err) {
+            socket.send(
+                JSON.stringify({
+                    jsonrpc: "2.0",
+                    id: null,
+                    error: {
+                        message: "invalid JSON-RPC request",
+                        data: msgBuffer.toString(),
+                        code: ValidationErrors.InvalidFields
+                    }
+                })
+            )
+            return
+        }
+
+        await this.rpc(request, RpcReply.fromSocket(socket))
+    }
+
+    private async rpcHttp(
         request: FastifyRequest,
         reply: FastifyReply
     ): Promise<void> {
+        await this.rpc(request, RpcReply.fromHttpReply(reply))
+    }
+
+    private async rpc(request: FastifyRequest, reply: RpcReply): Promise<void> {
         reply.rpcStatus = "failed" // default to failed
         let requestId: number | null = null
 
@@ -179,7 +245,12 @@ export class Server {
 
         try {
             const contentTypeHeader = request.headers["content-type"]
-            if (contentTypeHeader !== "application/json") {
+
+            // Common browser websocket API does not allow setting custom headers
+            if (
+                contentTypeHeader !== "application/json" &&
+                request.ws === false
+            ) {
                 throw new RpcError(
                     "invalid content-type, content-type must be application/json",
                     ValidationErrors.InvalidFields
@@ -189,7 +260,6 @@ export class Server {
                 { body: JSON.stringify(request.body) },
                 "received request"
             )
-            //const jsonRpcResponse = await this.innerRpc(request.body)
 
             const jsonRpcParsing = jsonRpcSchema.safeParse(request.body)
             if (!jsonRpcParsing.success) {
@@ -245,10 +315,6 @@ export class Server {
                 "sent reply"
             )
         } catch (err) {
-            if (this.environment === "development") {
-                console.error(err)
-            }
-
             if (err instanceof RpcError) {
                 const rpcError = {
                     jsonrpc: "2.0",
@@ -283,7 +349,10 @@ export class Server {
                 }
 
                 await reply.status(500).send(rpcError)
-                this.fastify.log.info(reply.raw, "error reply (non-rpc)")
+                this.fastify.log.error(
+                    { err },
+                    "error reply (unhandled error type)"
+                )
             }
         }
     }

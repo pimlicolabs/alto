@@ -4,8 +4,8 @@ import {
     type CompressedUserOperation,
     EntryPointV06Abi,
     EntryPointV07Abi,
-    FailedOp,
-    FailedOpWithRevert,
+    type FailedOp,
+    type FailedOpWithRevert,
     type TransactionInfo,
     type UserOperation,
     type UserOperationV07,
@@ -16,6 +16,7 @@ import {
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
+    getRevertErrorData,
     isVersion06,
     parseViemError,
     toPackedUserOperation,
@@ -67,6 +68,7 @@ export function simulatedOpsToResults(
             status: "failure",
             error: {
                 entryPoint: transactionInfo.entryPoint,
+                userOperation: sop.owh.mempoolUserOperation,
                 userOpHash: sop.owh.userOperationHash,
                 reason: sop.reason as string
             }
@@ -125,9 +127,9 @@ export async function filterOpsAndEstimateGas(
     nonce: number,
     maxFeePerGas: bigint,
     maxPriorityFeePerGas: bigint,
-    blockTag: "latest" | "pending",
+    blockTag: "latest" | "pending" | undefined,
     onlyPre1559: boolean,
-    customGasLimitForEstimation: bigint | undefined,
+    fixedGasLimitForEstimation: bigint | undefined,
     reputationManager: InterfaceReputationManager,
     logger: Logger
 ) {
@@ -173,9 +175,11 @@ export async function filterOpsAndEstimateGas(
                     [opsToSend, wallet.address],
                     {
                         account: wallet,
-                        gas: customGasLimitForEstimation,
                         nonce: nonce,
-                        blockTag,
+                        blockTag: blockTag,
+                        ...(fixedGasLimitForEstimation !== undefined && {
+                            gas: fixedGasLimitForEstimation
+                        }),
                         ...gasOptions
                     }
                 )
@@ -194,16 +198,18 @@ export async function filterOpsAndEstimateGas(
                     to: bundleBulker,
                     account: wallet,
                     data: createCompressedCalldata(opsToSend, perOpInflatorId),
-                    gas: customGasLimitForEstimation,
+                    gas: fixedGasLimitForEstimation,
                     nonce: nonce,
-                    blockTag,
+                    blockTag: blockTag,
                     ...gasOptions
                 })
             }
 
             return { simulatedOps, gasLimit, resubmitAllOps: false }
         } catch (err: unknown) {
+            logger.error({ err, blockTag }, "error estimating gas")
             const e = parseViemError(err)
+
             if (e instanceof ContractFunctionRevertedError) {
                 const failedOpError = failedOpErrorSchema.safeParse(e.data)
                 const failedOpWithRevertError =
@@ -263,9 +269,30 @@ export async function filterOpsAndEstimateGas(
                         resubmitAllOps: false
                     }
                 }
-            } else if (e instanceof EstimateGasExecutionError) {
+            } else if (
+                e instanceof EstimateGasExecutionError ||
+                err instanceof EstimateGasExecutionError
+            ) {
+                if (e?.cause instanceof FeeCapTooLowError) {
+                    logger.info(
+                        { error: e.shortMessage },
+                        "error estimating gas due to max fee < basefee"
+                    )
+                    return {
+                        simulatedOps: simulatedOps,
+                        gasLimit: 0n,
+                        resubmitAllOps: true
+                    }
+                }
+
                 try {
-                    const errorHexData = e.details.split("Reverted ")[1] as Hex
+                    let errorHexData: Hex = "0x"
+
+                    if (err instanceof EstimateGasExecutionError) {
+                        errorHexData = getRevertErrorData(err) as Hex
+                    } else {
+                        errorHexData = e?.details.split("Reverted ")[1] as Hex
+                    }
                     const errorResult = decodeErrorResult({
                         abi: isUserOpV06 ? EntryPointV06Abi : EntryPointV07Abi,
                         data: errorHexData
@@ -281,7 +308,10 @@ export async function filterOpsAndEstimateGas(
                         "user op in batch invalid"
                     )
 
-                    if (errorResult.errorName !== "FailedOp") {
+                    if (
+                        errorResult.errorName !== "FailedOpWithRevert" &&
+                        errorResult.errorName !== "FailedOp"
+                    ) {
                         logger.error(
                             {
                                 errorName: errorResult.errorName,
@@ -301,7 +331,7 @@ export async function filterOpsAndEstimateGas(
                     )[Number(errorResult.args[0])]
 
                     failingOp.reason = errorResult.args[1]
-                } catch (_e: unknown) {
+                } catch (e: unknown) {
                     logger.error(
                         { error: JSON.stringify(err) },
                         "failed to parse error result"
@@ -312,22 +342,10 @@ export async function filterOpsAndEstimateGas(
                         resubmitAllOps: false
                     }
                 }
-            } else if (e instanceof EstimateGasExecutionError) {
-                if (e.cause instanceof FeeCapTooLowError) {
-                    logger.info(
-                        { error: e.shortMessage },
-                        "error estimating gas due to max fee < basefee"
-                    )
-                    return {
-                        simulatedOps: simulatedOps,
-                        gasLimit: 0n,
-                        resubmitAllOps: true
-                    }
-                }
             } else {
                 sentry.captureException(err)
                 logger.error(
-                    { error: JSON.stringify(err) },
+                    { error: JSON.stringify(err), blockTag },
                     "error estimating gas"
                 )
                 return { simulatedOps: [], gasLimit: 0n, resubmitAllOps: false }

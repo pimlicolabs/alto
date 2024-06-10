@@ -1,5 +1,4 @@
-import type { GasPriceManager, Metrics } from "@alto/utils"
-import type { ExecutorManager, Executor } from "@alto/executor"
+import type { Executor, ExecutorManager } from "@alto/executor"
 import type {
     InterfaceReputationManager,
     MemoryMempool,
@@ -9,10 +8,13 @@ import type {
     ApiVersion,
     PackedUserOperation,
     StateOverrides,
-    UserOperationV06
+    UserOperationV06,
+    GasPriceMultipliers,
+    ChainType
 } from "@alto/types"
 import {
     EntryPointV06Abi,
+    EntryPointV07Abi,
     IOpInflatorAbi,
     RpcError,
     ValidationErrors,
@@ -34,7 +36,6 @@ import {
     type BundlingMode,
     type ChainIdResponseResult,
     type CompressedUserOperation,
-    type Environment,
     type EstimateUserOperationGasResponseResult,
     type GetUserOperationByHashResponseResult,
     type GetUserOperationReceiptResponseResult,
@@ -45,26 +46,26 @@ import {
     type PimlicoGetUserOperationStatusResponseResult,
     type SendUserOperationResponseResult,
     type SupportedEntryPointsResponseResult,
-    type UserOperation,
-    EntryPointV07Abi
+    type UserOperation
 } from "@alto/types"
-import type { Logger } from "@alto/utils"
+import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
 import {
     calcPreVerificationGas,
     calcVerificationGasAndCallGasLimit,
     getNonceKeyAndValue,
     getUserOperationHash,
-    maxBigInt,
-    type CompressionHandler,
     isVersion06,
+    isVersion07,
+    maxBigInt,
     toUnpackedUserOperation,
-    isVersion07
+    type CompressionHandler
 } from "@alto/utils"
 import {
     TransactionNotFoundError,
     TransactionReceiptNotFoundError,
     decodeFunctionData,
     getAbiItem,
+    getAddress,
     getContract,
     type Chain,
     type Hex,
@@ -72,15 +73,14 @@ import {
     type Transaction,
     type TransactionReceipt,
     type Transport,
-    getAddress
+    encodeEventTopics,
+    zeroAddress,
+    decodeEventLog,
+    parseAbi
 } from "viem"
 import * as chains from "viem/chains"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
-import {
-    estimateCallGasLimit,
-    estimateVerificationGasLimit
-} from "./gasEstimation"
 import type { NonceQueuer } from "./nonceQueuer"
 
 export interface IRpcEndpoint {
@@ -118,19 +118,20 @@ export class RpcHandler implements IRpcEndpoint {
     monitor: Monitor
     nonceQueuer: NonceQueuer
     usingTenderly: boolean
-    minimumGasPricePercent: number
-    noEthCallOverrideSupport: boolean
     rpcMaxBlockRange: number | undefined
     logger: Logger
     metrics: Metrics
     chainId: number
-    environment: Environment
+    chainType: ChainType
+    enableDebugEndpoints: boolean
     executorManager: ExecutorManager
     reputationManager: InterfaceReputationManager
     compressionHandler: CompressionHandler | null
-    noEip1559Support: boolean
+    legacyTransactions: boolean
     dangerousSkipUserOperationValidation: boolean
     gasPriceManager: GasPriceManager
+    gasPriceMultipliers: GasPriceMultipliers
+    paymasterGasLimitMultiplier: bigint
 
     constructor(
         entryPoints: Address[],
@@ -143,15 +144,16 @@ export class RpcHandler implements IRpcEndpoint {
         executorManager: ExecutorManager,
         reputationManager: InterfaceReputationManager,
         usingTenderly: boolean,
-        minimumGasPricePercent: number,
-        noEthCallOverrideSupport: boolean,
         rpcMaxBlockRange: number | undefined,
         logger: Logger,
         metrics: Metrics,
-        environment: Environment,
+        enableDebugEndpoints: boolean,
         compressionHandler: CompressionHandler | null,
-        noEip1559Support: boolean,
+        legacyTransactions: boolean,
         gasPriceManager: GasPriceManager,
+        gasPriceMultipliers: GasPriceMultipliers,
+        chainType: ChainType,
+        paymasterGasLimitMultiplier: bigint,
         dangerousSkipUserOperationValidation = false
     ) {
         this.entryPoints = entryPoints
@@ -162,20 +164,21 @@ export class RpcHandler implements IRpcEndpoint {
         this.monitor = monitor
         this.nonceQueuer = nonceQueuer
         this.usingTenderly = usingTenderly
-        this.minimumGasPricePercent = minimumGasPricePercent
-        this.noEthCallOverrideSupport = noEthCallOverrideSupport
         this.rpcMaxBlockRange = rpcMaxBlockRange
         this.logger = logger
         this.metrics = metrics
-        this.environment = environment
+        this.enableDebugEndpoints = enableDebugEndpoints
         this.chainId = publicClient.chain.id
         this.executorManager = executorManager
         this.reputationManager = reputationManager
         this.compressionHandler = compressionHandler
-        this.noEip1559Support = noEip1559Support
+        this.legacyTransactions = legacyTransactions
         this.dangerousSkipUserOperationValidation =
             dangerousSkipUserOperationValidation
+        this.gasPriceMultipliers = gasPriceMultipliers
+        this.chainType = chainType
         this.gasPriceManager = gasPriceManager
+        this.paymasterGasLimitMultiplier = paymasterGasLimitMultiplier
     }
 
     async handleMethod(
@@ -328,125 +331,147 @@ export class RpcHandler implements IRpcEndpoint {
                 "user operation max fee per gas must be larger than 0 during gas estimation"
             )
         }
-        const preVerificationGas = await calcPreVerificationGas(
-            this.publicClient,
+        const preVerificationGas =
+            ((await calcPreVerificationGas(
+                this.publicClient,
+                userOperation,
+                entryPoint,
+                this.chainId,
+                this.chainType,
+                this.gasPriceManager,
+                false
+            )) *
+                110n) /
+            100n
+
+        userOperation.preVerificationGas = 1_000_000n
+        userOperation.verificationGasLimit = 10_000_000n
+        userOperation.callGasLimit = 10_000_000n
+
+        if (this.chainId === chains.base.id) {
+            userOperation.verificationGasLimit = 5_000_000n
+        }
+
+        if (
+            this.chainId === chains.celoAlfajores.id ||
+            this.chainId === chains.celo.id
+        ) {
+            userOperation.verificationGasLimit = 1_000_000n
+            userOperation.callGasLimit = 1_000_000n
+        }
+
+        if (isVersion07(userOperation)) {
+            userOperation.paymasterPostOpGasLimit = 2_000_000n
+            userOperation.paymasterVerificationGasLimit = 5_000_000n
+        }
+
+        // This is necessary because entryPoint pays
+        // min(maxFeePerGas, baseFee + maxPriorityFeePerGas) for the verification
+        // Since we don't want our estimations to depend upon baseFee, we set
+        // maxFeePerGas to maxPriorityFeePerGas
+        userOperation.maxPriorityFeePerGas = userOperation.maxFeePerGas
+
+        // Check if the nonce is valid
+        // If the nonce is less than the current nonce, the user operation has already been executed
+        // If the nonce is greater than the current nonce, we may have missing user operations in the mempool
+        const currentNonceValue = await this.getNonceValue(
             userOperation,
-            entryPoint,
-            this.chainId
+            entryPoint
+        )
+        const [, userOperationNonceValue] = getNonceKeyAndValue(
+            userOperation.nonce
         )
 
-        let verificationGasLimit: bigint
-        let callGasLimit: bigint
-        let paymasterVerificationGasLimit: bigint = 0n
-        let paymasterPostOpGasLimit: bigint = 0n
-
-        if (this.noEthCallOverrideSupport) {
-            userOperation.preVerificationGas = 1_000_000n
-            userOperation.verificationGasLimit = 10_000_000n
-            userOperation.callGasLimit = 10_000_000n
-
-            if (this.chainId === chains.base.id) {
-                userOperation.verificationGasLimit = 5_000_000n
-            }
-
-            if (
-                this.chainId === chains.celoAlfajores.id ||
-                this.chainId === chains.celo.id
-            ) {
-                userOperation.verificationGasLimit = 1_000_000n
-                userOperation.callGasLimit = 1_000_000n
-            }
-
-            if (isVersion07(userOperation)) {
-                userOperation.paymasterPostOpGasLimit = 2_000_000n
-                userOperation.paymasterVerificationGasLimit = 5_000_000n
-            }
-
-            // This is necessary because entryPoint pays
-            // min(maxFeePerGas, baseFee + maxPriorityFeePerGas) for the verification
-            // Since we don't want our estimations to depend upon baseFee, we set
-            // maxFeePerGas to maxPriorityFeePerGas
-            userOperation.maxPriorityFeePerGas = userOperation.maxFeePerGas
-
-            const executionResult = await this.validator.getExecutionResult(
-                userOperation,
-                entryPoint,
-                stateOverrides
+        let queuedUserOperations: UserOperation[] = []
+        if (userOperationNonceValue < currentNonceValue) {
+            throw new RpcError(
+                "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
+                ValidationErrors.InvalidFields
             )
-            ;[verificationGasLimit, callGasLimit] =
-                calcVerificationGasAndCallGasLimit(
-                    userOperation,
-                    executionResult.data.executionResult,
-                    this.chainId,
-                    executionResult.data.callDataResult
-                )
-
-            if (
-                "paymasterVerificationGasLimit" in
-                    executionResult.data.executionResult &&
-                "paymasterPostOpGasLimit" in
-                    executionResult.data.executionResult
-            ) {
-                paymasterVerificationGasLimit =
-                    executionResult.data.executionResult
-                        .paymasterVerificationGasLimit
-                paymasterPostOpGasLimit =
-                    executionResult.data.executionResult.paymasterPostOpGasLimit
-            }
-
-            if (
-                this.chainId === chains.base.id ||
-                this.chainId === chains.baseSepolia.id
-            ) {
-                callGasLimit += 10_000n
-            }
-
-            if (
-                this.chainId === chains.base.id ||
-                this.chainId === chains.optimism.id
-            ) {
-                callGasLimit = maxBigInt(callGasLimit, 120_000n)
-            }
-
-            if (userOperation.callData === "0x") {
-                callGasLimit = 0n
-            }
-        } else {
-            if (isVersion07(userOperation)) {
-                throw new Error(
-                    "Unsupported version 0.7 without noEthCallOverrideSupport"
+        }
+        if (userOperationNonceValue > currentNonceValue) {
+            // Nonce queues are supported only for v7 user operations
+            if (isVersion06(userOperation)) {
+                throw new RpcError(
+                    "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
+                    ValidationErrors.InvalidFields
                 )
             }
 
-            userOperation.maxFeePerGas = 0n
-            userOperation.maxPriorityFeePerGas = 0n
-
-            const time = Date.now()
-
-            verificationGasLimit = await estimateVerificationGasLimit(
-                userOperation as UserOperationV06,
-                entryPoint,
-                this.publicClient,
-                this.logger,
-                this.metrics,
-                stateOverrides
-            )
-
-            userOperation.preVerificationGas = preVerificationGas
-            userOperation.verificationGasLimit = verificationGasLimit
-
-            this.metrics.verificationGasLimitEstimationTime.observe(
-                (Date.now() - time) / 1000
-            )
-
-            callGasLimit = await estimateCallGasLimit(
+            queuedUserOperations = await this.mempool.getQueuedUserOperations(
                 userOperation,
                 entryPoint,
-                this.publicClient,
-                this.logger,
-                this.metrics,
-                stateOverrides
+                currentNonceValue
             )
+
+            if (
+                userOperationNonceValue >
+                currentNonceValue + BigInt(queuedUserOperations.length)
+            ) {
+                throw new RpcError(
+                    "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
+                    ValidationErrors.InvalidFields
+                )
+            }
+        }
+
+        const executionResult = await this.validator.getExecutionResult(
+            userOperation,
+            entryPoint,
+            queuedUserOperations,
+            stateOverrides
+        )
+
+        let { verificationGasLimit, callGasLimit } =
+            calcVerificationGasAndCallGasLimit(
+                userOperation,
+                executionResult.data.executionResult,
+                this.chainId,
+                executionResult.data.callDataResult
+            )
+
+        let paymasterVerificationGasLimit = 0n
+        let paymasterPostOpGasLimit = 0n
+
+        if (
+            isVersion07(userOperation) &&
+            userOperation.paymaster !== null &&
+            "paymasterVerificationGasLimit" in
+                executionResult.data.executionResult &&
+            "paymasterPostOpGasLimit" in executionResult.data.executionResult
+        ) {
+            paymasterVerificationGasLimit =
+                executionResult.data.executionResult
+                    .paymasterVerificationGasLimit || 1n
+            paymasterPostOpGasLimit =
+                executionResult.data.executionResult.paymasterPostOpGasLimit ||
+                1n
+
+            const multiplier = this.paymasterGasLimitMultiplier
+
+            paymasterVerificationGasLimit =
+                (paymasterVerificationGasLimit * multiplier) / 100n
+
+            paymasterPostOpGasLimit =
+                (paymasterPostOpGasLimit * multiplier) / 100n
+        }
+
+        if (
+            this.chainId === chains.base.id ||
+            this.chainId === chains.baseSepolia.id
+        ) {
+            callGasLimit += 10_000n
+        }
+
+        if (
+            this.chainId === chains.base.id ||
+            this.chainId === chains.optimism.id
+        ) {
+            callGasLimit = maxBigInt(callGasLimit, 120_000n)
+        }
+
+        if (userOperation.callData === "0x") {
+            callGasLimit = 0n
         }
 
         if (isVersion07(userOperation)) {
@@ -690,6 +715,17 @@ export class RpcHandler implements IRpcEndpoint {
             return null
         }
 
+        const userOperationRevertReasonAbi = parseAbi([
+            "event UserOperationRevertReason(bytes32 indexed userOpHash, address indexed sender, uint256 nonce, bytes revertReason)"
+        ])
+
+        const userOperationRevertReasonTopicEvent = encodeEventTopics({
+            abi: userOperationRevertReasonAbi
+        })[0]
+
+        let entryPoint: Address = zeroAddress
+        let revertReason = undefined
+
         let startIndex = -1
         let endIndex = -1
         logs.forEach((log, index) => {
@@ -698,9 +734,24 @@ export class RpcHandler implements IRpcEndpoint {
                 if (log.topics[1] === userOperationEvent.topics[1]) {
                     // it's our userOpHash. save as end of logs array
                     endIndex = index
+                    entryPoint = log.address
                 } else if (endIndex === -1) {
                     // it's a different hash. remember it as beginning index, but only if we didn't find our end index yet.
                     startIndex = index
+                }
+            }
+
+            if (log?.topics[0] === userOperationRevertReasonTopicEvent) {
+                // process UserOperationRevertReason
+                if (log.topics[1] === userOperationEvent.topics[1]) {
+                    // it's our userOpHash. capture revert reason.
+                    const decodedLog = decodeEventLog({
+                        abi: userOperationRevertReasonAbi,
+                        data: log.data,
+                        topics: log.topics
+                    })
+
+                    revertReason = decodedLog.args.revertReason
                 }
             }
         })
@@ -725,13 +776,19 @@ export class RpcHandler implements IRpcEndpoint {
             throw err
         }
 
+        let paymaster: Address | undefined = userOperationEvent.args.paymaster
+        paymaster = paymaster === zeroAddress ? undefined : paymaster
+
         const userOperationReceipt: GetUserOperationReceiptResponseResult = {
             userOpHash: userOperationHash,
+            entryPoint,
             sender: userOperationEvent.args.sender,
             nonce: userOperationEvent.args.nonce,
+            paymaster,
             actualGasUsed: userOperationEvent.args.actualGasUsed,
             actualGasCost: userOperationEvent.args.actualGasCost,
             success: userOperationEvent.args.success,
+            reason: revertReason,
             logs: logsParsing.data,
             receipt: receiptParsing.data
         }
@@ -740,7 +797,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     debug_bundler_clearState(): BundlerClearStateResponseResult {
-        if (this.environment !== "development") {
+        if (!this.enableDebugEndpoints) {
             throw new RpcError(
                 "debug_bundler_clearState is only available in development environment"
             )
@@ -751,7 +808,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     debug_bundler_clearMempool(): BundlerClearMempoolResponseResult {
-        if (this.environment !== "development") {
+        if (!this.enableDebugEndpoints) {
             throw new RpcError(
                 "debug_bundler_clearMempool is only available in development environment"
             )
@@ -764,7 +821,7 @@ export class RpcHandler implements IRpcEndpoint {
     async debug_bundler_dumpMempool(
         entryPoint: Address
     ): Promise<BundlerDumpMempoolResponseResult> {
-        if (this.environment !== "development") {
+        if (!this.enableDebugEndpoints) {
             throw new RpcError(
                 "debug_bundler_dumpMempool is only available in development environment"
             )
@@ -784,7 +841,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
-        if (this.environment !== "development") {
+        if (!this.enableDebugEndpoints) {
             throw new RpcError(
                 "debug_bundler_sendBundleNow is only available in development environment"
             )
@@ -796,7 +853,7 @@ export class RpcHandler implements IRpcEndpoint {
     debug_bundler_setBundlingMode(
         bundlingMode: BundlingMode
     ): BundlerSetBundlingModeResponseResult {
-        if (this.environment !== "development") {
+        if (!this.enableDebugEndpoints) {
             throw new RpcError(
                 "debug_bundler_setBundlingMode is only available in development environment"
             )
@@ -808,7 +865,7 @@ export class RpcHandler implements IRpcEndpoint {
     debug_bundler_dumpReputation(
         entryPoint: Address
     ): BundlerDumpReputationsResponseResult {
-        if (this.environment !== "development") {
+        if (!this.enableDebugEndpoints) {
             throw new RpcError(
                 "debug_bundler_setRe is only available in development environment"
             )
@@ -827,7 +884,7 @@ export class RpcHandler implements IRpcEndpoint {
         address: Address,
         entryPoint: Address
     ): Promise<BundlerGetStakeStatusResponseResult> {
-        if (this.environment !== "development") {
+        if (!this.enableDebugEndpoints) {
             throw new RpcError(
                 "debug_bundler_getStakeStatus is only available in development environment"
             )
@@ -851,7 +908,7 @@ export class RpcHandler implements IRpcEndpoint {
     debug_bundler_setReputation(
         args: BundlerSetReputationsRequestParams
     ): BundlerSetBundlingModeResponseResult {
-        if (this.environment !== "development") {
+        if (!this.enableDebugEndpoints) {
             throw new RpcError(
                 "debug_bundler_setReputation is only available in development environment"
             )
@@ -868,21 +925,24 @@ export class RpcHandler implements IRpcEndpoint {
 
     async pimlico_getUserOperationGasPrice(): Promise<PimlicoGetUserOperationGasPriceResponseResult> {
         const gasPrice = await this.gasPriceManager.getGasPrice()
+
+        const { slow, standard, fast } = this.gasPriceMultipliers
+
         return {
             slow: {
-                maxFeePerGas: (gasPrice.maxFeePerGas * 105n) / 100n,
+                maxFeePerGas: (gasPrice.maxFeePerGas * slow) / 100n,
                 maxPriorityFeePerGas:
-                    (gasPrice.maxPriorityFeePerGas * 105n) / 100n
+                    (gasPrice.maxPriorityFeePerGas * slow) / 100n
             },
             standard: {
-                maxFeePerGas: (gasPrice.maxFeePerGas * 110n) / 100n,
+                maxFeePerGas: (gasPrice.maxFeePerGas * standard) / 100n,
                 maxPriorityFeePerGas:
-                    (gasPrice.maxPriorityFeePerGas * 110n) / 100n
+                    (gasPrice.maxPriorityFeePerGas * standard) / 100n
             },
             fast: {
-                maxFeePerGas: (gasPrice.maxFeePerGas * 115n) / 100n,
+                maxFeePerGas: (gasPrice.maxFeePerGas * fast) / 100n,
                 maxPriorityFeePerGas:
-                    (gasPrice.maxPriorityFeePerGas * 115n) / 100n
+                    (gasPrice.maxPriorityFeePerGas * fast) / 100n
             }
         }
     }
@@ -938,28 +998,13 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
 
-        const entryPointContract = getContract({
-            address: entryPoint,
-            abi: isVersion06(userOperation)
-                ? EntryPointV06Abi
-                : EntryPointV07Abi,
-            client: {
-                public: this.publicClient
-            }
-        })
-
-        const [nonceKey, userOperationNonceValue] = getNonceKeyAndValue(
+        const currentNonceValue = await this.getNonceValue(
+            userOperation,
+            entryPoint
+        )
+        const [, userOperationNonceValue] = getNonceKeyAndValue(
             userOperation.nonce
         )
-
-        const getNonceResult = await entryPointContract.read.getNonce(
-            [userOperation.sender, nonceKey],
-            {
-                blockTag: "latest"
-            }
-        )
-
-        const [_, currentNonceValue] = getNonceKeyAndValue(getNonceResult)
 
         if (userOperationNonceValue < currentNonceValue) {
             throw new RpcError(
@@ -973,9 +1018,25 @@ export class RpcHandler implements IRpcEndpoint {
                 ValidationErrors.InvalidFields
             )
         }
-        if (userOperationNonceValue === currentNonceValue) {
+
+        let queuedUserOperations: UserOperation[] = []
+        if (
+            userOperationNonceValue > currentNonceValue &&
+            isVersion07(userOperation)
+        ) {
+            queuedUserOperations = await this.mempool.getQueuedUserOperations(
+                userOperation,
+                entryPoint,
+                currentNonceValue
+            )
+        }
+
+        if (
+            userOperationNonceValue ===
+            currentNonceValue + BigInt(queuedUserOperations.length)
+        ) {
             if (this.dangerousSkipUserOperationValidation) {
-                const success = this.mempool.add(userOperation, entryPoint)
+                const success = this.mempool.add(op, entryPoint)
                 if (!success) {
                     throw new RpcError(
                         "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
@@ -994,6 +1055,7 @@ export class RpcHandler implements IRpcEndpoint {
                     await this.validator.validateUserOperation(
                         apiVersion !== "v1",
                         userOperation,
+                        queuedUserOperations,
                         entryPoint
                     )
 
@@ -1023,7 +1085,7 @@ export class RpcHandler implements IRpcEndpoint {
             }
         }
 
-        this.nonceQueuer.add(userOperation, entryPoint)
+        this.nonceQueuer.add(op, entryPoint)
         return "queued"
     }
 
@@ -1128,5 +1190,30 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
         return { inflatedOp, inflatorId }
+    }
+
+    async getNonceValue(userOperation: UserOperation, entryPoint: Address) {
+        const entryPointContract = getContract({
+            address: entryPoint,
+            abi: isVersion06(userOperation)
+                ? EntryPointV06Abi
+                : EntryPointV07Abi,
+            client: {
+                public: this.publicClient
+            }
+        })
+
+        const [nonceKey] = getNonceKeyAndValue(userOperation.nonce)
+
+        const getNonceResult = await entryPointContract.read.getNonce(
+            [userOperation.sender, nonceKey],
+            {
+                blockTag: "latest"
+            }
+        )
+
+        const [_, currentNonceValue] = getNonceKeyAndValue(getNonceResult)
+
+        return currentNonceValue
     }
 }

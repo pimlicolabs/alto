@@ -1,0 +1,75 @@
+name: Release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    uses: ./.github/workflows/build.yaml
+    secrets: inherit
+
+  test:
+    name: Test E2E
+    uses: ./.github/workflows/e2e.yaml
+    secrets: inherit
+
+  changesets:
+    name: Changesets
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v3
+        with:
+          # This makes Actions fetch all Git history so that Changesets can generate changelogs with the correct commits
+          fetch-depth: 0
+
+      - name: Install core dependencies
+        uses: ./.github/actions/install-dependencies
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Create Version Pull Request
+        uses: changesets/action@v1
+        with:
+          version: pnpm run changeset:version
+          commit: "chore: version package"
+          title: "chore: version package"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release:
+    name: Release
+    needs: [build, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v3
+
+      - name: Install core dependencies
+        uses: ./.github/actions/install-dependencies
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build
+        run: |
+          pnpm run build && pnpm run build:esm && jq '. + {type: "module"}' ./src/package.json > ./src/package.tmp.json && mv ./src/package.tmp.json ./src/package.json
+
+      - name: Publish to NPM
+        uses: changesets/action@v1
+        with:
+          publish: pnpm run changeset:release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_ORG_PIMLICO_TOKEN }}

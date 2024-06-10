@@ -90,11 +90,16 @@ export type BundleResult = Result<
         userOperation: UserOperationInfo
         transactionInfo: TransactionInfo
     },
-    { reason: string; userOpHash: HexData32; entryPoint: Address },
     {
         reason: string
         userOpHash: HexData32
-        userOperation: MempoolUserOperation
         entryPoint: Address
+        userOperation: MempoolUserOperation
+    },
+    {
+        reason: string
+        userOpHash: HexData32
+        entryPoint: Address
+        userOperation: MempoolUserOperation
     }
 >

@@ -23,7 +23,7 @@ jobs:
         node-version: ${{ matrix.node-version }}
 
     - name: Install pnpm
-      run: npm install -g pnpm
+      run: corepack install && corepack enable
 
     - name: Install dependencies
       run: pnpm install

@@ -1,52 +1,52 @@
-import type { Metrics, Logger, GasPriceManager } from "@alto/utils"
-import type { InterfaceReputationManager } from "@alto/mempool"
-import {
-    type Address,
-    type BundleResult,
-    type CompressedUserOperation,
-    EntryPointV06Abi,
-    type HexData32,
-    type TransactionInfo,
-    type UserOperation,
-    deriveUserOperation,
-    type UserOperationV06,
-    type UserOperationV07,
-    EntryPointV07Abi,
-    type UserOperationWithHash
-} from "@alto/types"
-import {
-    type CompressionHandler,
-    getUserOperationHash,
-    maxBigInt,
-    parseViemError,
-    isVersion06,
-    toPackedUserOperation
-} from "@alto/utils"
-import * as sentry from "@sentry/node"
-import { Mutex } from "async-mutex"
-import {
-    type Account,
-    type Chain,
-    FeeCapTooLowError,
-    InsufficientFundsError,
-    IntrinsicGasTooLowError,
-    NonceTooLowError,
-    type PublicClient,
-    type Transport,
-    type WalletClient,
-    encodeFunctionData,
-    getContract
-} from "viem"
 import type {
     DefaultFilterOpsAndEstimateGasParams,
     SenderManager
 } from "@alto/executor"
+import type { InterfaceReputationManager } from "@alto/mempool"
 import {
-    type CompressedFilterOpsAndEstimateGasParams,
+    EntryPointV06Abi,
+    EntryPointV07Abi,
+    deriveUserOperation,
+    type Address,
+    type BundleResult,
+    type CompressedUserOperation,
+    type HexData32,
+    type TransactionInfo,
+    type UserOperation,
+    type UserOperationV06,
+    type UserOperationV07,
+    type UserOperationWithHash
+} from "@alto/types"
+import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
+import {
+    getUserOperationHash,
+    isVersion06,
+    maxBigInt,
+    parseViemError,
+    toPackedUserOperation,
+    type CompressionHandler
+} from "@alto/utils"
+import * as sentry from "@sentry/node"
+import { Mutex } from "async-mutex"
+import {
+    FeeCapTooLowError,
+    InsufficientFundsError,
+    IntrinsicGasTooLowError,
+    NonceTooLowError,
+    encodeFunctionData,
+    getContract,
+    type Account,
+    type Chain,
+    type PublicClient,
+    type Transport,
+    type WalletClient
+} from "viem"
+import {
     createCompressedCalldata,
+    filterOpsAndEstimateGas,
     flushStuckTransaction,
     simulatedOpsToResults,
-    filterOpsAndEstimateGas
+    type CompressedFilterOpsAndEstimateGasParams
 } from "./utils"
 
 export interface GasEstimateResult {
@@ -110,12 +110,13 @@ export class Executor {
     logger: Logger
     metrics: Metrics
     simulateTransaction: boolean
-    noEip1559Support: boolean
-    customGasLimitForEstimation?: bigint
-    useUserOperationGasLimitsForSubmission: boolean
+    legacyTransactions: boolean
+    fixedGasLimitForEstimation?: bigint
+    localGasLimitCalculation: boolean
     reputationManager: InterfaceReputationManager
     compressionHandler: CompressionHandler | null
     gasPriceManager: GasPriceManager
+    disableBlockTagSupport: boolean
     mutex: Mutex
 
     constructor(
@@ -129,9 +130,10 @@ export class Executor {
         compressionHandler: CompressionHandler | null,
         gasPriceManager: GasPriceManager,
         simulateTransaction = false,
-        noEip1559Support = false,
-        customGasLimitForEstimation?: bigint,
-        useUserOperationGasLimitsForSubmission = false
+        legacyTransactions = false,
+        fixedGasLimitForEstimation?: bigint,
+        disableBlockTagSupport = false,
+        localGasLimitCalculation = false
     ) {
         this.publicClient = publicClient
         this.walletClient = walletClient
@@ -140,12 +142,12 @@ export class Executor {
         this.logger = logger
         this.metrics = metrics
         this.simulateTransaction = simulateTransaction
-        this.noEip1559Support = noEip1559Support
-        this.customGasLimitForEstimation = customGasLimitForEstimation
-        this.useUserOperationGasLimitsForSubmission =
-            useUserOperationGasLimitsForSubmission
+        this.legacyTransactions = legacyTransactions
+        this.fixedGasLimitForEstimation = fixedGasLimitForEstimation
+        this.localGasLimitCalculation = localGasLimitCalculation
         this.compressionHandler = compressionHandler
         this.gasPriceManager = gasPriceManager
+        this.disableBlockTagSupport = disableBlockTagSupport
         this.entryPoints = entryPoints
 
         this.mutex = new Mutex()
@@ -264,9 +266,9 @@ export class Executor {
             newRequest.nonce,
             newRequest.maxFeePerGas,
             newRequest.maxPriorityFeePerGas,
-            "latest",
-            this.noEip1559Support,
-            this.customGasLimitForEstimation,
+            this.disableBlockTagSupport ? undefined : "latest",
+            this.legacyTransactions,
+            this.fixedGasLimitForEstimation,
             this.reputationManager,
             this.logger
         )
@@ -315,7 +317,7 @@ export class Executor {
                 return opInfo
             })
 
-        newRequest.gas = this.useUserOperationGasLimitsForSubmission
+        newRequest.gas = this.localGasLimitCalculation
             ? opsToBundle.reduce((acc, opInfo) => {
                   const userOperation = deriveUserOperation(
                       opInfo.mempoolUserOperation
@@ -400,7 +402,7 @@ export class Executor {
             )
 
             const txHash = await this.walletClient.sendTransaction(
-                this.noEip1559Support
+                this.legacyTransactions
                     ? {
                           ...newRequest,
                           gasPrice: newRequest.maxFeePerGas,
@@ -481,12 +483,14 @@ export class Executor {
     async flushStuckTransactions(): Promise<void> {
         const gasPrice = await this.gasPriceManager.getGasPrice()
 
-        const wallets = Array.from(
-            new Set([
-                ...this.senderManager.wallets,
-                this.senderManager.utilityAccount
-            ])
-        )
+        const wallets = this.senderManager.utilityAccount
+            ? Array.from(
+                  new Set([
+                      ...this.senderManager.wallets,
+                      this.senderManager.utilityAccount
+                  ])
+              )
+            : Array.from(new Set(this.senderManager.wallets))
         const promises = wallets.map(async (wallet) => {
             for (const entryPoint of this.entryPoints) {
                 await flushStuckTransaction(
@@ -573,9 +577,9 @@ export class Executor {
                 nonce,
                 gasPriceParameters.maxFeePerGas,
                 gasPriceParameters.maxPriorityFeePerGas,
-                "pending",
-                this.noEip1559Support,
-                this.customGasLimitForEstimation,
+                this.disableBlockTagSupport ? undefined : "pending",
+                this.legacyTransactions,
+                this.fixedGasLimitForEstimation,
                 this.reputationManager,
                 childLogger
             )
@@ -609,6 +613,7 @@ export class Executor {
                     error: {
                         entryPoint,
                         userOpHash: owh.userOperationHash,
+                        userOperation: owh.mempoolUserOperation,
                         reason: "INTERNAL FAILURE"
                     }
                 }
@@ -624,6 +629,7 @@ export class Executor {
                     error: {
                         entryPoint,
                         userOpHash: op.owh.userOperationHash,
+                        userOperation: op.owh.mempoolUserOperation,
                         reason: op.reason as string
                     }
                 }
@@ -645,7 +651,7 @@ export class Executor {
 
         let txHash: HexData32
         try {
-            const gasOptions = this.noEip1559Support
+            const gasOptions = this.legacyTransactions
                 ? {
                       gasPrice: gasPriceParameters.maxFeePerGas
                   }
@@ -687,6 +693,26 @@ export class Executor {
                       }
                   )
         } catch (err: unknown) {
+            const e = parseViemError(err)
+            if (e instanceof InsufficientFundsError) {
+                childLogger.error(
+                    { error: e },
+                    "insufficient funds, not submitting transaction"
+                )
+                this.markWalletProcessed(wallet)
+                return opsWithHashToBundle.map((owh) => {
+                    return {
+                        status: "resubmit",
+                        info: {
+                            entryPoint,
+                            userOpHash: owh.userOperationHash,
+                            userOperation: owh.mempoolUserOperation,
+                            reason: InsufficientFundsError.name
+                        }
+                    }
+                })
+            }
+
             sentry.captureException(err)
             childLogger.error(
                 { error: JSON.stringify(err) },
@@ -699,6 +725,7 @@ export class Executor {
                     error: {
                         entryPoint,
                         userOpHash: owh.userOperationHash,
+                        userOperation: owh.mempoolUserOperation,
                         reason: "INTERNAL FAILURE"
                     }
                 }
@@ -830,9 +857,9 @@ export class Executor {
                 nonce,
                 gasPriceParameters.maxFeePerGas,
                 gasPriceParameters.maxPriorityFeePerGas,
-                "pending",
-                this.noEip1559Support,
-                this.customGasLimitForEstimation,
+                this.disableBlockTagSupport ? undefined : "pending",
+                this.legacyTransactions,
+                this.fixedGasLimitForEstimation,
                 this.reputationManager,
                 childLogger
             )
@@ -871,6 +898,7 @@ export class Executor {
                             entryPoint,
                             this.walletClient.chain.id
                         ),
+                        userOperation: compressedOp,
                         reason: "INTERNAL FAILURE"
                     }
                 }
@@ -889,6 +917,7 @@ export class Executor {
                     error: {
                         entryPoint,
                         userOpHash: simulatedOp.owh.userOperationHash,
+                        userOperation: simulatedOp.owh.mempoolUserOperation,
                         reason: simulatedOp.reason as string
                     }
                 }
@@ -901,7 +930,7 @@ export class Executor {
 
         let txHash: HexData32
         try {
-            const gasOptions = this.noEip1559Support
+            const gasOptions = this.legacyTransactions
                 ? {
                       gasPrice: gasPriceParameters.maxFeePerGas
                   }
@@ -936,6 +965,7 @@ export class Executor {
                     error: {
                         entryPoint,
                         userOpHash: op.userOperationHash,
+                        userOperation: op.mempoolUserOperation,
                         reason: "INTERNAL FAILURE"
                     }
                 }
