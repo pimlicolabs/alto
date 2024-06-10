@@ -151,6 +151,7 @@ export const debugArgsSchema = z.object({
     "enable-debug-endpoints": z.boolean(),
     "expiration-check": z.boolean(),
     "dangerous-skip-user-operation-validation": z.boolean(),
+    "deploy-simulations-contract": z.boolean(),
     tenderly: z.boolean()
 })
 

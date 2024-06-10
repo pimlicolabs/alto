@@ -446,7 +446,8 @@ export function tracerResultParserV07(
         "SELFDESTRUCT",
         "RANDOM",
         "PREVRANDAO",
-        "INVALID"
+        "INVALID",
+        "TSTORE"
     ])
 
     // eslint-disable-next-line @typescript-eslint/no-base-to-string

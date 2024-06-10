@@ -32,7 +32,7 @@ import {
     isVersion06,
     isVersion07
 } from "@alto/utils"
-import * as sentry from "@sentry/node"
+import { captureException } from "@sentry/node"
 import {
     BaseError,
     type Chain,
@@ -52,81 +52,6 @@ import {
     simulateHandleOp,
     simulateHandleOpV06
 } from "../gasEstimation"
-
-async function getSimulationResult(
-    isVersion06: boolean,
-    errorResult: unknown,
-    logger: Logger,
-    simulationType: "validation" | "execution",
-    usingTenderly = false
-): Promise<
-    ValidationResult | ValidationResultWithAggregation | ExecutionResult
-> {
-    const entryPointExecutionErrorSchema = isVersion06
-        ? entryPointExecutionErrorSchemaV06
-        : entryPointExecutionErrorSchemaV07
-
-    const entryPointErrorSchemaParsing = usingTenderly
-        ? entryPointErrorsSchema.safeParse(errorResult)
-        : entryPointExecutionErrorSchema.safeParse(errorResult)
-
-    if (!entryPointErrorSchemaParsing.success) {
-        try {
-            const err = fromZodError(entryPointErrorSchemaParsing.error)
-            logger.error(
-                { error: err.message },
-                "unexpected error during valiation"
-            )
-            logger.error(JSON.stringify(errorResult))
-            err.message = `User Operation simulation returned unexpected invalid response: ${err.message}`
-            throw err
-        } catch {
-            if (errorResult instanceof BaseError) {
-                const revertError = errorResult.walk(
-                    (err) => err instanceof ContractFunctionExecutionError
-                )
-                throw new RpcError(
-                    `UserOperation reverted during simulation with reason: ${
-                        // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
-                        (revertError?.cause as any)?.reason
-                    }`,
-                    ValidationErrors.SimulateValidation
-                )
-            }
-            sentry.captureException(errorResult)
-            throw new Error(
-                `User Operation simulation returned unexpected invalid response: ${errorResult}`
-            )
-        }
-    }
-
-    const errorData = entryPointErrorSchemaParsing.data
-
-    if (errorData.errorName === "FailedOp") {
-        const reason = errorData.args.reason
-        throw new RpcError(
-            `UserOperation reverted during simulation with reason: ${reason}`,
-            ValidationErrors.SimulateValidation
-        )
-    }
-
-    if (simulationType === "validation") {
-        if (
-            errorData.errorName !== "ValidationResult" &&
-            errorData.errorName !== "ValidationResultWithAggregation"
-        ) {
-            throw new Error(
-                "Unexpected error - errorName is not ValidationResult or ValidationResultWithAggregation"
-            )
-        }
-    } else if (errorData.errorName !== "ExecutionResult") {
-        throw new Error("Unexpected error - errorName is not ExecutionResult")
-    }
-
-    const simulationResult = errorData.args
-
-    return simulationResult
-}
 
 export class UnsafeValidator implements InterfaceValidator {
     publicClient: PublicClient<Transport, Chain>
@@ -164,6 +89,90 @@ export class UnsafeValidator implements InterfaceValidator {
         this.entryPointSimulationsAddress = entryPointSimulationsAddress
         this.fixedGasLimitForEstimation = fixedGasLimitForEstimation
         this.chainType = chainType
+    }
+
+    async getSimulationResult(
+        isVersion06: boolean,
+        errorResult: unknown,
+        logger: Logger,
+        simulationType: "validation" | "execution",
+        usingTenderly = false
+    ): Promise<
+        ValidationResult | ValidationResultWithAggregation | ExecutionResult
+    > {
+        this.logger.info(
+            `errorResult: ${JSON.stringify(errorResult, (_k, v) =>
+                typeof v === "bigint" ? v.toString() : v
+            )}`
+        )
+        const entryPointExecutionErrorSchema = isVersion06
+            ? entryPointExecutionErrorSchemaV06
+            : entryPointExecutionErrorSchemaV07
+
+        const entryPointErrorSchemaParsing = usingTenderly
+            ? entryPointErrorsSchema.safeParse(errorResult)
+            : entryPointExecutionErrorSchema.safeParse(errorResult)
+
+        if (!entryPointErrorSchemaParsing.success) {
+            try {
+                const err = fromZodError(entryPointErrorSchemaParsing.error)
+                logger.error(
+                    { error: err.message },
+                    "unexpected error during valiation"
+                )
+                logger.error(JSON.stringify(errorResult))
+                err.message = `User Operation simulation returned unexpected invalid response: ${err.message}`
+                throw err
+            } catch {
+                if (errorResult instanceof BaseError) {
+                    const revertError = errorResult.walk(
+                        (err) => err instanceof ContractFunctionExecutionError
+                    )
+                    throw new RpcError(
+                        `UserOperation reverted during simulation with reason: ${
+                            // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
+                            (revertError?.cause as any)?.reason
+                        }`,
+                        ValidationErrors.SimulateValidation
+                    )
+                }
+                captureException(errorResult)
+                throw new Error(
+                    `User Operation simulation returned unexpected invalid response: ${JSON.stringify(
+                        errorResult
+                    )}`
+                )
+            }
+        }
+
+        const errorData = entryPointErrorSchemaParsing.data
+
+        if (errorData.errorName === "FailedOp") {
+            const reason = errorData.args.reason
+            throw new RpcError(
+                `UserOperation reverted during simulation with reason: ${reason}`,
+                ValidationErrors.SimulateValidation
+            )
+        }
+
+        if (simulationType === "validation") {
+            if (
+                errorData.errorName !== "ValidationResult" &&
+                errorData.errorName !== "ValidationResultWithAggregation"
+            ) {
+                throw new Error(
+                    "Unexpected error - errorName is not ValidationResult or ValidationResultWithAggregation"
+                )
+            }
+        } else if (errorData.errorName !== "ExecutionResult") {
+            throw new Error(
+                "Unexpected error - errorName is not ExecutionResult"
+            )
+        }
+
+        const simulationResult = errorData.args
+
+        return simulationResult
     }
 
     async getExecutionResult(
@@ -237,7 +246,7 @@ export class UnsafeValidator implements InterfaceValidator {
         )
 
         const validationResult = {
-            ...((await getSimulationResult(
+            ...((await this.getSimulationResult(
                 isVersion06(userOperation),
                 simulateValidationResult,
                 this.logger,

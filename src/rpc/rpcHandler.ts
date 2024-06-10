@@ -518,6 +518,7 @@ export class RpcHandler implements IRpcEndpoint {
                 entryPoint,
                 this.chainId
             )
+
             return hash
         } catch (error) {
             status = "rejected"

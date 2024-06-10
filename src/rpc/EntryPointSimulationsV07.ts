@@ -16,7 +16,7 @@ import {
     type StateOverrides,
     type UserOperationV07,
     PimlicoEntryPointSimulationsAbi,
-    ValidationResultV07
+    type ValidationResultV07
 } from "@alto/types"
 import { deepHexlify, toPackedUserOperation } from "@alto/utils"
 
@@ -326,7 +326,7 @@ export async function simulateHandleOp(
     return getSimulateHandleOpResult(cause[0])
 }
 
-function getSimulateValidationResult(errorData: Hex): {
+export function getSimulateValidationResult(errorData: Hex): {
     status: "failed" | "validation"
     data: ValidationResultV07 | Hex | string
 } {
@@ -516,7 +516,9 @@ export async function simulateValidation(
     entryPointSimulationsAddress: Address
 ) {
     const userOperations = [...queuedUserOperations, userOperation]
-    const packedUserOperations = userOperations.map(uo => toPackedUserOperation(uo))
+    const packedUserOperations = userOperations.map((uo) =>
+        toPackedUserOperation(uo)
+    )
 
     const entryPointSimulationsCallData = encodeFunctionData({
         abi: EntryPointV07SimulationsAbi,
