@@ -303,29 +303,31 @@ export class MemoryMempool {
         const parallellUserOperationsCount = this.store
             .dumpOutstanding()
             .filter((userOpInfo) => {
-                const userOp = deriveUserOperation(userOpInfo.mempoolUserOperation)
+                const userOp = deriveUserOperation(
+                    userOpInfo.mempoolUserOperation
+                )
                 return userOp.sender === op.sender
-            })
-            .length
+            }).length
 
         if (parallellUserOperationsCount > this.parallelUserOpsMaxSize) {
-            return false;
+            return false
         }
 
         // Check if mempool already includes max amount of queued user operations
-        const [nonceKey,] = getNonceKeyAndValue(op.nonce);
+        const [nonceKey] = getNonceKeyAndValue(op.nonce)
         const queuedUserOperationsCount = this.store
             .dumpOutstanding()
             .filter((userOpInfo) => {
-                const userOp = deriveUserOperation(userOpInfo.mempoolUserOperation)
-                const [opNonceKey,] = getNonceKeyAndValue(userOp.nonce);
+                const userOp = deriveUserOperation(
+                    userOpInfo.mempoolUserOperation
+                )
+                const [opNonceKey] = getNonceKeyAndValue(userOp.nonce)
 
-                return (userOp.sender === op.sender && opNonceKey === nonceKey);
-            })
-            .length
-        
+                return userOp.sender === op.sender && opNonceKey === nonceKey
+            }).length
+
         if (queuedUserOperationsCount > this.queuedUserOpsMaxSize) {
-            return false;
+            return false
         }
 
         const hash = getUserOperationHash(
@@ -462,7 +464,6 @@ export class MemoryMempool {
             }
         }
 
-
         if (senders.has(op.sender) && this.onlyUniqueSendersPerBundle) {
             this.logger.trace(
                 {
@@ -487,7 +488,10 @@ export class MemoryMempool {
             let queuedUserOperations: UserOperation[] = []
 
             if (!isUserOpV06) {
-                queuedUserOperations = await this.getQueuedUserOperations(op, opInfo.entryPoint)
+                queuedUserOperations = await this.getQueuedUserOperations(
+                    op,
+                    opInfo.entryPoint
+                )
             }
 
             validationResult = await this.validator.validateUserOperation(
@@ -601,19 +605,24 @@ export class MemoryMempool {
         // Decide the order of the userops based on the sender and nonce
         // If sender is the same, sort by nonce key
         outstandingUserOperations.sort((a, b) => {
-            const aUserOp = deriveUserOperation(a.mempoolUserOperation);
-            const bUserOp = deriveUserOperation(b.mempoolUserOperation);
+            const aUserOp = deriveUserOperation(a.mempoolUserOperation)
+            const bUserOp = deriveUserOperation(b.mempoolUserOperation)
 
             if (aUserOp.sender === bUserOp.sender) {
-                const [aNonceKey,aNonceValue] = getNonceKeyAndValue(aUserOp.nonce);
-                const [bNonceKey,bNonceValue] = getNonceKeyAndValue(bUserOp.nonce);
+                const [aNonceKey, aNonceValue] = getNonceKeyAndValue(
+                    aUserOp.nonce
+                )
+                const [bNonceKey, bNonceValue] = getNonceKeyAndValue(
+                    bUserOp.nonce
+                )
 
-                if (aNonceKey === bNonceKey) return Number(aNonceValue - bNonceValue);
-                
-                return Number(aNonceKey - bNonceKey);
+                if (aNonceKey === bNonceKey)
+                    return Number(aNonceValue - bNonceValue)
+
+                return Number(aNonceKey - bNonceKey)
             }
 
-            return 0;
+            return 0
         })
 
         let opsTaken = 0
@@ -708,10 +717,10 @@ export class MemoryMempool {
             userOperation.nonce
         )
 
-        let currentNonceValue: bigint = BigInt(0);
+        let currentNonceValue: bigint = BigInt(0)
 
         if (_currentNonceValue) {
-            currentNonceValue = _currentNonceValue;
+            currentNonceValue = _currentNonceValue
         } else {
             const getNonceResult = await entryPointContract.read.getNonce(
                 [userOperation.sender, nonceKey],
@@ -719,32 +728,34 @@ export class MemoryMempool {
                     blockTag: "latest"
                 }
             )
-    
+
             currentNonceValue = getNonceKeyAndValue(getNonceResult)[1]
         }
 
         const outstanding = this.store
             .dumpOutstanding()
-            .map((userOpInfo) => deriveUserOperation(userOpInfo.mempoolUserOperation))
+            .map((userOpInfo) =>
+                deriveUserOperation(userOpInfo.mempoolUserOperation)
+            )
             .filter((uo: UserOperation) => {
-                const [opNonceKey,opNonceValue] = getNonceKeyAndValue(uo.nonce);
+                const [opNonceKey, opNonceValue] = getNonceKeyAndValue(uo.nonce)
 
                 return (
                     uo.sender === userOperation.sender &&
                     opNonceKey === nonceKey &&
                     opNonceValue >= currentNonceValue &&
                     opNonceValue < userOperationNonceValue
-                );
+                )
             })
-            
-        outstanding.sort((a, b) => {
-            const [,aNonceValue] = getNonceKeyAndValue(a.nonce);
-            const [,bNonceValue] = getNonceKeyAndValue(b.nonce);
 
-            return Number(aNonceValue - bNonceValue);
+        outstanding.sort((a, b) => {
+            const [, aNonceValue] = getNonceKeyAndValue(a.nonce)
+            const [, bNonceValue] = getNonceKeyAndValue(b.nonce)
+
+            return Number(aNonceValue - bNonceValue)
         })
 
-        return outstanding;
+        return outstanding
     }
 
     clear(): void {

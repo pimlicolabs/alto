@@ -12,7 +12,8 @@ import {
     createWalletClient,
     type Chain,
     type PublicClient,
-    type Transport
+    type Transport,
+    http
 } from "viem"
 import { fromZodError } from "zod-validation-error"
 import {
@@ -23,6 +24,7 @@ import {
 } from "./config"
 import { customTransport } from "./customTransport"
 import { setupServer } from "./setupServer"
+import { PimlicoEntryPointSimulationsDeployBytecode } from "../types/contracts"
 
 const parseArgs = (args: IOptionsInput): IOptions => {
     // validate every arg, make type safe so if i add a new arg i have to validate it
@@ -78,7 +80,7 @@ export async function bundlerHandler(args: IOptionsInput): Promise<void> {
 
     const getChainId = async () => {
         const client = createPublicClient({
-            transport: customTransport(args["rpc-url"], {
+            transport: customTransport(parsedArgs["rpc-url"], {
                 logger: logger.child(
                     { module: "public_client" },
                     {
@@ -120,6 +122,38 @@ export async function bundlerHandler(args: IOptionsInput): Promise<void> {
         }),
         chain
     })
+
+    // if flag is set, use utility wallet to deploy the simulations contract
+    if (parsedArgs["deploy-simulations-contract"]) {
+        if (!parsedArgs["utility-private-key"]) {
+            throw new Error(
+                "Cannot deploy entryPoint simulations without utility-private-key"
+            )
+        }
+
+        const walletClient = createWalletClient({
+            transport: http(args["rpc-url"]),
+            account: parsedArgs["utility-private-key"]
+        })
+
+        const deployHash = await walletClient.deployContract({
+            chain,
+            abi: [],
+            bytecode: PimlicoEntryPointSimulationsDeployBytecode
+        })
+
+        const receipt = await client.getTransactionReceipt({
+            hash: deployHash
+        })
+
+        const simulationsContract = receipt.contractAddress
+
+        if (simulationsContract === null) {
+            throw new Error("Failed to deploy simulationsContract")
+        }
+
+        parsedArgs["entrypoint-simulation-contract"] = simulationsContract
+    }
 
     const gasPriceManager = new GasPriceManager(
         chain,

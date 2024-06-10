@@ -283,6 +283,19 @@ export class Server {
                 const validationError = fromZodError(
                     bundlerRequestParsing.error
                 )
+
+                //
+                if (
+                    validationError.message.includes(
+                        "Missing/invalid userOpHash"
+                    )
+                ) {
+                    throw new RpcError(
+                        "Missing/invalid userOpHash",
+                        ValidationErrors.InvalidFields
+                    )
+                }
+
                 throw new RpcError(
                     validationError.message,
                     ValidationErrors.InvalidRequest

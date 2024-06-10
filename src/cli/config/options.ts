@@ -367,6 +367,13 @@ export const debugOptions: CliCommandOptions<IDebugArgsInput> = {
         require: true,
         default: false
     },
+    "deploy-simulations-contract": {
+        description:
+            "Should the bundler deploy the simulations contract on startup",
+        type: "boolean",
+        require: true,
+        default: false
+    },
     tenderly: {
         description: "RPC url follows the tenderly format",
         type: "boolean",

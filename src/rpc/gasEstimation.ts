@@ -98,7 +98,7 @@ export async function simulateHandleOpV06(
                     }),
                     ...(fixedGasLimitForEstimation !== undefined && {
                         gas: `0x${fixedGasLimitForEstimation.toString(16)}`
-                    }),
+                    })
                 },
                 "latest",
                 // @ts-ignore
@@ -606,7 +606,9 @@ export function simulateHandleOp(
             targetCallData,
             finalStateOverride,
             // Enable fixed gas limit for estimation only for Vanguard testnet and Vanar mainnet
-            chainId === 2040 || chainId ===78600 ? fixedGasLimitForEstimation : undefined
+            chainId === 2040 || chainId === 78600
+                ? fixedGasLimitForEstimation
+                : undefined
         )
     }
 
@@ -626,6 +628,8 @@ export function simulateHandleOp(
         chainId,
         finalStateOverride,
         // Enable fixed gas limit for estimation only for Vanguard testnet and Vanar mainnet
-        chainId === 2040 || chainId ===78600 ? fixedGasLimitForEstimation : undefined
+        chainId === 2040 || chainId === 78600
+            ? fixedGasLimitForEstimation
+            : undefined
     )
 }

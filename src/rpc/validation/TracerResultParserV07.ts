@@ -446,7 +446,9 @@ export function tracerResultParserV07(
         "SELFDESTRUCT",
         "RANDOM",
         "PREVRANDAO",
-        "INVALID"
+        "INVALID",
+        "TSTORE",
+        "TLOAD"
     ])
 
     // eslint-disable-next-line @typescript-eslint/no-base-to-string
@@ -533,7 +535,13 @@ export function tracerResultParserV07(
 
         // opcodes from [OP-011]
         for (const opcode of Object.keys(opcodes)) {
-            if (bannedOpCodes.has(opcode)) {
+            if (
+                bannedOpCodes.has(opcode) &&
+                !(
+                    (opcode === "BALANCE" || opcode === "SELFBALANCE") &&
+                    isStaked(entStakes)
+                )
+            ) {
                 throw new RpcError(
                     `${entityTitle} uses banned opcode: ${opcode}`,
                     ValidationErrors.OpcodeValidation

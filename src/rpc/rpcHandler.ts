@@ -10,7 +10,8 @@ import type {
     StateOverrides,
     UserOperationV06,
     GasPriceMultipliers,
-    ChainType
+    ChainType,
+    UserOperationV07
 } from "@alto/types"
 import {
     EntryPointV06Abi,
@@ -76,7 +77,9 @@ import {
     encodeEventTopics,
     zeroAddress,
     decodeEventLog,
-    parseAbi
+    parseAbi,
+    slice,
+    toFunctionSelector
 } from "viem"
 import * as chains from "viem/chains"
 import { z } from "zod"
@@ -518,6 +521,7 @@ export class RpcHandler implements IRpcEndpoint {
                 entryPoint,
                 this.chainId
             )
+
             return hash
         } catch (error) {
             status = "rejected"
@@ -592,31 +596,45 @@ export class RpcHandler implements IRpcEndpoint {
             return null
         }
 
-        let op: UserOperationV06 | PackedUserOperation | undefined = undefined
+        let op: UserOperationV06 | UserOperationV07
         try {
             const decoded = decodeFunctionData({
-                abi: EntryPointV06Abi,
+                abi: [...EntryPointV06Abi, ...EntryPointV07Abi],
                 data: tx.input
             })
+
             if (decoded.functionName !== "handleOps") {
                 return null
             }
+
             const ops = decoded.args[0]
-            op = ops.find(
+            const foundOp = ops.find(
                 (op: UserOperationV06 | PackedUserOperation) =>
                     op.sender === userOperationEvent.args.sender &&
                     op.nonce === userOperationEvent.args.nonce
             )
+
+            if (foundOp === undefined) {
+                return null
+            }
+
+            const handleOpsV07AbiItem = getAbiItem({
+                abi: EntryPointV07Abi,
+                name: "handleOps"
+            })
+            const handleOpsV07Selector = toFunctionSelector(handleOpsV07AbiItem)
+
+            if (slice(tx.input, 0, 4) === handleOpsV07Selector) {
+                op = toUnpackedUserOperation(foundOp as PackedUserOperation)
+            } else {
+                op = foundOp as UserOperationV06
+            }
         } catch {
             return null
         }
 
-        if (op === undefined) {
-            return null
-        }
-
         const result: GetUserOperationByHashResponseResult = {
-            userOperation: isVersion06(op) ? op : toUnpackedUserOperation(op),
+            userOperation: op,
             entryPoint: getAddress(tx.to),
             transactionHash: txHash,
             blockHash: tx.blockHash ?? "0x",
