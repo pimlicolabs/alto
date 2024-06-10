@@ -531,6 +531,9 @@ export class SafeValidator
         )
 
         const lastResult = tracerResult.calls.slice(-1)[0]
+        if (lastResult.type !== "REVERT") {
+            throw new Error("Invalid response. simulateCall must revert")
+        }
         const resultData = lastResult.data as Hex
 
         const simulateValidationResult = getSimulateValidationResult(resultData)

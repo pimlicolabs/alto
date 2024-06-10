@@ -78,7 +78,8 @@ import {
     zeroAddress,
     decodeEventLog,
     parseAbi,
-    slice
+    slice,
+    toFunctionSelector
 } from "viem"
 import * as chains from "viem/chains"
 import { z } from "zod"
@@ -617,7 +618,13 @@ export class RpcHandler implements IRpcEndpoint {
                 return null
             }
 
-            if (slice(tx.input, 0, 4) === "0x765e827f") {
+            const handleOpsV07AbiItem = getAbiItem({
+                abi: EntryPointV07Abi,
+                name: "handleOps"
+            })
+            const handleOpsV07Selector = toFunctionSelector(handleOpsV07AbiItem)
+
+            if (slice(tx.input, 0, 4) === handleOpsV07Selector) {
                 op = toUnpackedUserOperation(foundOp as PackedUserOperation)
             } else {
                 op = foundOp as UserOperationV06
