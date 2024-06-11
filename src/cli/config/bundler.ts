@@ -60,6 +60,10 @@ export const bundlerArgsSchema = z.object({
     "max-bundle-wait": z.number().int().min(0),
     "max-bundle-size": z.number().int().min(0),
 
+    "gas-price-bump": z
+        .string()
+        .transform((val) => BigInt(val))
+        .default("100"),
     "gas-price-floor-percent": z.number().int().min(0),
     "gas-price-expiry": z.number().int().min(0),
     "gas-price-multipliers": z
@@ -96,6 +100,9 @@ export const compatibilityArgsSchema = z.object({
     "balance-override": z.boolean(),
     "local-gas-limit-calculation": z.boolean(),
     "flush-stuck-transactions-during-startup": z.boolean(),
+    "paymaster-gas-limit-multiplier": z
+        .string()
+        .transform((val) => BigInt(val)),
     "fixed-gas-limit-for-estimation": z
         .string()
         .transform((val) => BigInt(val))
@@ -118,7 +125,8 @@ export const rpcArgsSchema = z.object({
     "wss-url": z.string().url().optional(),
     "send-transaction-rpc-url": z.string().url().optional(),
     "polling-interval": z.number().int().min(0),
-    "max-block-range": z.number().int().min(0).optional()
+    "max-block-range": z.number().int().min(0).optional(),
+    "block-tag-support-disabled": z.boolean().optional().default(false)
 })
 
 export const bundleCopmressionArgsSchema = z.object({
@@ -144,6 +152,7 @@ export const debugArgsSchema = z.object({
     "enable-debug-endpoints": z.boolean(),
     "expiration-check": z.boolean(),
     "dangerous-skip-user-operation-validation": z.boolean(),
+    "deploy-simulations-contract": z.boolean(),
     tenderly: z.boolean()
 })
 

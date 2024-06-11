@@ -258,7 +258,9 @@ export class ReputationManager implements InterfaceReputationManager {
     }
 
     clear(): void {
-        this.entries = {}
+        for (const entryPoint of Object.keys(this.entries)) {
+            this.entries[entryPoint as Address] = {}
+        }
         this.entityCount = {}
     }
 
@@ -339,6 +341,7 @@ export class ReputationManager implements InterfaceReputationManager {
                 aggregatorValidationResult.aggregatorInfo.stakeInfo
             )
         }
+
         return Promise.resolve()
     }
 
@@ -347,13 +350,14 @@ export class ReputationManager implements InterfaceReputationManager {
     }
 
     increaseSeen(entryPoint: Address, address: Address): void {
-        const entry = this.entries[entryPoint][address]
+        let entry = this.entries[entryPoint][address]
         if (!entry) {
             this.entries[entryPoint][address] = {
                 address,
                 opsSeen: 0n,
                 opsIncluded: 0n
             }
+            entry = this.entries[entryPoint][address]
         }
         entry.opsSeen++
     }
@@ -402,13 +406,14 @@ export class ReputationManager implements InterfaceReputationManager {
     }
 
     updateIncludedStatus(entryPoint: Address, address: Address): void {
-        const entry = this.entries[entryPoint][address]
+        let entry = this.entries[entryPoint][address]
         if (!entry) {
             this.entries[entryPoint][address] = {
                 address,
                 opsSeen: 0n,
                 opsIncluded: 0n
             }
+            entry = this.entries[entryPoint][address]
         }
         entry.opsIncluded++
     }

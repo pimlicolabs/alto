@@ -79,6 +79,7 @@ const getValidator = ({
             gasPriceManager,
             parsedArgs["chain-type"],
             parsedArgs["entrypoint-simulation-contract"],
+            parsedArgs["fixed-gas-limit-for-estimation"],
             parsedArgs.tenderly,
             parsedArgs["balance-override"]
         )
@@ -93,6 +94,7 @@ const getValidator = ({
         gasPriceManager,
         parsedArgs["chain-type"],
         parsedArgs["entrypoint-simulation-contract"],
+        parsedArgs["fixed-gas-limit-for-estimation"],
         parsedArgs.tenderly,
         parsedArgs["balance-override"],
         parsedArgs["expiration-check"]
@@ -202,6 +204,7 @@ const getExecutor = ({
         !parsedArgs.tenderly,
         parsedArgs["legacy-transactions"],
         parsedArgs["fixed-gas-limit-for-estimation"],
+        parsedArgs["block-tag-support-disabled"],
         parsedArgs["local-gas-limit-calculation"]
     )
 }
@@ -328,6 +331,7 @@ const getRpcHandler = ({
         gasPriceManager,
         parsedArgs["gas-price-multipliers"],
         parsedArgs["chain-type"],
+        parsedArgs["paymaster-gas-limit-multiplier"],
         parsedArgs["dangerous-skip-user-operation-validation"]
     )
 }

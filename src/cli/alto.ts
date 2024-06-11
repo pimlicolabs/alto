@@ -36,7 +36,7 @@ export const yarg = yargs(
     (hideBin as (args: string[]) => string[])(process.argv)
 )
 
-const topBanner = `🏔️ Alto: TypeScript ERC-4337 Bundler.
+const topBanner = `🏔 Alto: TypeScript ERC-4337 Bundler.
   * by Pimlico, 2024`
 const bottomBanner = `📖 For more information, check the our docs:
   * https://docs.pimlico.io/
@@ -112,6 +112,6 @@ alto.fail((msg, err) => {
             : msg || "Unknown error"
 
     // eslint-disable-next-line no-console
-    console.error(` ✖ ${errorMessage}\n`)
+    console.error(` × ${errorMessage}\n`)
     process.exit(1)
 }).parse()

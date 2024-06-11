@@ -116,6 +116,7 @@ export class Executor {
     reputationManager: InterfaceReputationManager
     compressionHandler: CompressionHandler | null
     gasPriceManager: GasPriceManager
+    disableBlockTagSupport: boolean
     mutex: Mutex
 
     constructor(
@@ -131,6 +132,7 @@ export class Executor {
         simulateTransaction = false,
         legacyTransactions = false,
         fixedGasLimitForEstimation?: bigint,
+        disableBlockTagSupport = false,
         localGasLimitCalculation = false
     ) {
         this.publicClient = publicClient
@@ -145,6 +147,7 @@ export class Executor {
         this.localGasLimitCalculation = localGasLimitCalculation
         this.compressionHandler = compressionHandler
         this.gasPriceManager = gasPriceManager
+        this.disableBlockTagSupport = disableBlockTagSupport
         this.entryPoints = entryPoints
 
         this.mutex = new Mutex()
@@ -263,7 +266,7 @@ export class Executor {
             newRequest.nonce,
             newRequest.maxFeePerGas,
             newRequest.maxPriorityFeePerGas,
-            "latest",
+            this.disableBlockTagSupport ? undefined : "latest",
             this.legacyTransactions,
             this.fixedGasLimitForEstimation,
             this.reputationManager,
@@ -574,7 +577,7 @@ export class Executor {
                 nonce,
                 gasPriceParameters.maxFeePerGas,
                 gasPriceParameters.maxPriorityFeePerGas,
-                "pending",
+                this.disableBlockTagSupport ? undefined : "pending",
                 this.legacyTransactions,
                 this.fixedGasLimitForEstimation,
                 this.reputationManager,
@@ -610,6 +613,7 @@ export class Executor {
                     error: {
                         entryPoint,
                         userOpHash: owh.userOperationHash,
+                        userOperation: owh.mempoolUserOperation,
                         reason: "INTERNAL FAILURE"
                     }
                 }
@@ -625,6 +629,7 @@ export class Executor {
                     error: {
                         entryPoint,
                         userOpHash: op.owh.userOperationHash,
+                        userOperation: op.owh.mempoolUserOperation,
                         reason: op.reason as string
                     }
                 }
@@ -720,6 +725,7 @@ export class Executor {
                     error: {
                         entryPoint,
                         userOpHash: owh.userOperationHash,
+                        userOperation: owh.mempoolUserOperation,
                         reason: "INTERNAL FAILURE"
                     }
                 }
@@ -851,7 +857,7 @@ export class Executor {
                 nonce,
                 gasPriceParameters.maxFeePerGas,
                 gasPriceParameters.maxPriorityFeePerGas,
-                "pending",
+                this.disableBlockTagSupport ? undefined : "pending",
                 this.legacyTransactions,
                 this.fixedGasLimitForEstimation,
                 this.reputationManager,
@@ -892,6 +898,7 @@ export class Executor {
                             entryPoint,
                             this.walletClient.chain.id
                         ),
+                        userOperation: compressedOp,
                         reason: "INTERNAL FAILURE"
                     }
                 }
@@ -910,6 +917,7 @@ export class Executor {
                     error: {
                         entryPoint,
                         userOpHash: simulatedOp.owh.userOperationHash,
+                        userOperation: simulatedOp.owh.mempoolUserOperation,
                         reason: simulatedOp.reason as string
                     }
                 }
@@ -957,6 +965,7 @@ export class Executor {
                     error: {
                         entryPoint,
                         userOpHash: op.userOperationHash,
+                        userOperation: op.mempoolUserOperation,
                         reason: "INTERNAL FAILURE"
                     }
                 }

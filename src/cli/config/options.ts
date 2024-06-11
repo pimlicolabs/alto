@@ -84,6 +84,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: true,
         default: true
     },
+    "gas-price-bump": {
+        description: "Amount to multiply the gas prices fetched from the node",
+        type: "string",
+        require: false,
+        default: "100"
+    },
     "gas-price-floor-percent": {
         description:
             "The minimum percentage of incoming user operation gas prices compared to the gas price used by the bundler to submit bundles",
@@ -195,6 +201,13 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             type: "string",
             require: false,
             default: "v1"
+        },
+        "paymaster-gas-limit-multiplier": {
+            description:
+                "Amount to multiply the paymaster gas limits fetched from simulations",
+            type: "string",
+            require: true,
+            default: "110"
         }
     }
 
@@ -250,6 +263,13 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         description: "Max block range for getLogs calls",
         type: "number",
         require: false
+    },
+    "block-tag-support-disabled": {
+        description:
+            "Disable sending block tag when sending eth_estimateGas call",
+        type: "boolean",
+        require: false,
+        default: false
     }
 }
 
@@ -354,6 +374,13 @@ export const debugOptions: CliCommandOptions<IDebugArgsInput> = {
     },
     "dangerous-skip-user-operation-validation": {
         description: "Skip user operation validation, use with caution",
+        type: "boolean",
+        require: true,
+        default: false
+    },
+    "deploy-simulations-contract": {
+        description:
+            "Should the bundler deploy the simulations contract on startup",
         type: "boolean",
         require: true,
         default: false

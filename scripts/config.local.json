@@ -1,0 +1,19 @@
+{
+    "network-name": "local",
+    "rpc-url": "http://127.0.0.1:8545",
+    "min-entity-stake": 1,
+    "min-executor-balance": "1000000000000000000",
+    "min-entity-unstake-delay": 1,
+    "max-bundle-wait": 3,
+    "max-bundle-size": 3,
+    "port": 3000,
+    "executor-private-keys": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+    "utility-private-key": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+    "entrypoints": "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789,0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+    "entrypoint-simulation-contract": "0x74Cb5e4eE81b86e70f9045036a1C5477de69eE87",
+    "enable-debug-endpoints": true,
+    "expiration-check": false,
+    "safe-mode": false,
+    "api-version": "v1,v2",
+    "public-client-log-level": "error"
+}
