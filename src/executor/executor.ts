@@ -645,9 +645,6 @@ export class Executor {
             entryPoint
         })
 
-        // sometimes the estimation rounds down, adding a fixed constant accounts for this
-        gasLimit += 10_000n
-
         if (isUserOpVersion06) {
             // https://github.com/eth-infinitism/account-abstraction/blob/fa61290d37d079e928d92d53a122efcc63822214/contracts/core/EntryPoint.sol#L236
             let innerHandleOpFloor = 0n
@@ -656,8 +653,11 @@ export class Executor {
                 innerHandleOpFloor +=
                     op.callGasLimit + op.verificationGasLimit + 5000n
             }
-            maxBigInt(gasLimit, innerHandleOpFloor)
+            gasLimit = maxBigInt(gasLimit, innerHandleOpFloor)
         }
+
+        // sometimes the estimation rounds down, adding a fixed constant accounts for this
+        gasLimit += 10_000n
 
         childLogger.debug({ gasLimit }, "got gas limit")
 
