@@ -659,7 +659,7 @@ export class Executor {
             maxBigInt(gasLimit, innerHandleOpFloor)
         }
 
-        childLogger.trace({ gasLimit }, "got gas limit")
+        childLogger.debug({ gasLimit }, "got gas limit")
 
         let txHash: HexData32
         try {
