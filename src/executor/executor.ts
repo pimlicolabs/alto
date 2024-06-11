@@ -653,7 +653,10 @@ export class Executor {
                 innerHandleOpFloor +=
                     op.callGasLimit + op.verificationGasLimit + 5000n
             }
-            gasLimit = maxBigInt(gasLimit, innerHandleOpFloor)
+
+            if (gasLimit < innerHandleOpFloor) {
+                gasLimit += innerHandleOpFloor
+            }
         }
 
         // sometimes the estimation rounds down, adding a fixed constant accounts for this
