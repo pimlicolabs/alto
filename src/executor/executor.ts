@@ -584,8 +584,6 @@ export class Executor {
                 childLogger
             )
 
-        gasLimit += 10_000n
-
         if (resubmitAllOps) {
             this.markWalletProcessed(wallet)
             return opsWithHashes.map((owh) => {
@@ -646,6 +644,20 @@ export class Executor {
             ),
             entryPoint
         })
+
+        // sometimes the estimation rounds down, adding a fixed constant accounts for this
+        gasLimit += 10_000n
+
+        if (isUserOpVersion06) {
+            // https://github.com/eth-infinitism/account-abstraction/blob/fa61290d37d079e928d92d53a122efcc63822214/contracts/core/EntryPoint.sol#L236
+            let innerHandleOpFloor = 0n
+            for (const owh of opsWithHashToBundle) {
+                const op = deriveUserOperation(owh.mempoolUserOperation)
+                innerHandleOpFloor +=
+                    op.callGasLimit + op.verificationGasLimit + 5000n
+            }
+            maxBigInt(gasLimit, innerHandleOpFloor)
+        }
 
         childLogger.trace({ gasLimit }, "got gas limit")
 
