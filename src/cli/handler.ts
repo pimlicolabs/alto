@@ -13,7 +13,7 @@ import {
     type Chain,
     type PublicClient,
     type Transport,
-    webSocket
+    webSocket,
     http
 } from "viem"
 import { fromZodError } from "zod-validation-error"
