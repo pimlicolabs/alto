@@ -8,6 +8,7 @@ import {
 import { mnemonicToAccount } from "viem/accounts"
 import { foundry } from "viem/chains"
 import {
+    MULTICALL3_BYTECODE,
     ENTRY_POINT_SIMULATIONS_CREATECALL,
     ENTRY_POINT_V06_CREATECALL,
     ENTRY_POINT_V07_CREATECALL,
