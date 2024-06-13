@@ -137,6 +137,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "string",
         require: false,
         default: "5000000"
+    },
+    "send-bundle-delay": {
+        description:
+            "Delay in milliseconds to wait after a block is mined before building and sending a bundle",
+        type: "number",
+        require: false
     }
 }
 
@@ -236,6 +242,11 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         type: "string",
         alias: "r",
         require: true
+    },
+    "wss-url": {
+        description: "Websocket RPC url to connect to",
+        type: "string",
+        require: false
     },
     "send-transaction-rpc-url": {
         description: "RPC url to send transactions to (e.g. flashbots relay)",
