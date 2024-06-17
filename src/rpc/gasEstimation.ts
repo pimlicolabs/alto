@@ -108,6 +108,7 @@ export async function simulateHandleOpV06(
                 ]
             })
         } else {
+            const block = await publicClient.getBlockNumber()
             await publicClient.request({
                 method: "eth_call",
                 params: [
@@ -122,7 +123,7 @@ export async function simulateHandleOpV06(
                             gas: `0x${fixedGasLimitForEstimation.toString(16)}`
                         })
                     },
-                    undefined,
+                    toHex(block),
                     // @ts-ignore
                     ...(finalParam ? [finalParam] : [])
                 ]
@@ -251,6 +252,7 @@ async function callPimlicoEntryPointSimulations(
             ]
         })) as Hex
     } else {
+        const block = await publicClient.getBlockNumber()
         result = (await publicClient.request({
             method: "eth_call",
             params: [
@@ -261,7 +263,7 @@ async function callPimlicoEntryPointSimulations(
                         gas: `0x${fixedGasLimitForEstimation.toString(16)}`
                     })
                 },
-                undefined,
+                toHex(block),
                 // @ts-ignore
                 stateOverride
             ]

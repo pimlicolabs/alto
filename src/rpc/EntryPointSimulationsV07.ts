@@ -271,6 +271,8 @@ async function callPimlicoEntryPointSimulations(
             ]
         })) as Hex
     } else {
+        const block = await publicClient.getBlockNumber()
+
         result = (await publicClient.request({
             method: "eth_call",
             params: [
@@ -278,7 +280,7 @@ async function callPimlicoEntryPointSimulations(
                     to: entryPointSimulationsAddress,
                     data: callData
                 },
-                undefined,
+                toHex(block),
                 // @ts-ignore
                 stateOverride
             ]
