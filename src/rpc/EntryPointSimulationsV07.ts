@@ -277,7 +277,10 @@ async function callPimlicoEntryPointSimulations(
                 {
                     to: entryPointSimulationsAddress,
                     data: callData
-                }
+                },
+                undefined,
+                // @ts-ignore
+                stateOverride
             ]
         })) as Hex
     }

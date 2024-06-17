@@ -121,7 +121,10 @@ export async function simulateHandleOpV06(
                         ...(fixedGasLimitForEstimation !== undefined && {
                             gas: `0x${fixedGasLimitForEstimation.toString(16)}`
                         })
-                    }
+                    },
+                    undefined,
+                    // @ts-ignore
+                    ...(finalParam ? [finalParam] : [])
                 ]
             })
         }
@@ -257,7 +260,10 @@ async function callPimlicoEntryPointSimulations(
                     ...(fixedGasLimitForEstimation !== undefined && {
                         gas: `0x${fixedGasLimitForEstimation.toString(16)}`
                     })
-                }
+                },
+                undefined,
+                // @ts-ignore
+                stateOverride
             ]
         })) as Hex
     }
