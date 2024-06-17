@@ -253,12 +253,12 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         type: "number",
         require: false
     },
-    "block-tag-support-disabled": {
+    "block-tag-support": {
         description:
             "Disable sending block tag when sending eth_estimateGas call",
         type: "boolean",
         require: false,
-        default: false
+        default: true
     }
 }
 

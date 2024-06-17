@@ -116,7 +116,7 @@ export class Executor {
     reputationManager: InterfaceReputationManager
     compressionHandler: CompressionHandler | null
     gasPriceManager: GasPriceManager
-    disableBlockTagSupport: boolean
+    blockTagSupport: boolean
     mutex: Mutex
 
     constructor(
@@ -132,7 +132,7 @@ export class Executor {
         simulateTransaction = false,
         legacyTransactions = false,
         fixedGasLimitForEstimation?: bigint,
-        disableBlockTagSupport = false,
+        blockTagSupport = true,
         localGasLimitCalculation = false
     ) {
         this.publicClient = publicClient
@@ -147,7 +147,7 @@ export class Executor {
         this.localGasLimitCalculation = localGasLimitCalculation
         this.compressionHandler = compressionHandler
         this.gasPriceManager = gasPriceManager
-        this.disableBlockTagSupport = disableBlockTagSupport
+        this.blockTagSupport = blockTagSupport
         this.entryPoints = entryPoints
 
         this.mutex = new Mutex()
@@ -266,7 +266,7 @@ export class Executor {
             newRequest.nonce,
             newRequest.maxFeePerGas,
             newRequest.maxPriorityFeePerGas,
-            this.disableBlockTagSupport ? undefined : "latest",
+            this.blockTagSupport ? "latest" : undefined,
             this.legacyTransactions,
             this.fixedGasLimitForEstimation,
             this.reputationManager,
@@ -577,7 +577,7 @@ export class Executor {
                 nonce,
                 gasPriceParameters.maxFeePerGas,
                 gasPriceParameters.maxPriorityFeePerGas,
-                this.disableBlockTagSupport ? undefined : "pending",
+                this.blockTagSupport ? "pending" : undefined,
                 this.legacyTransactions,
                 this.fixedGasLimitForEstimation,
                 this.reputationManager,
@@ -872,7 +872,7 @@ export class Executor {
                 nonce,
                 gasPriceParameters.maxFeePerGas,
                 gasPriceParameters.maxPriorityFeePerGas,
-                this.disableBlockTagSupport ? undefined : "pending",
+                this.blockTagSupport ? "pending" : undefined,
                 this.legacyTransactions,
                 this.fixedGasLimitForEstimation,
                 this.reputationManager,

@@ -82,6 +82,7 @@ export async function simulateHandleOpV06(
     publicClient: PublicClient,
     targetAddress: Address,
     targetCallData: Hex,
+    blockTagSupport: boolean,
     finalParam: StateOverrides | undefined = undefined,
     fixedGasLimitForEstimation?: bigint
 ): Promise<SimulateHandleOpResult> {
@@ -100,7 +101,9 @@ export async function simulateHandleOpV06(
                         gas: `0x${fixedGasLimitForEstimation.toString(16)}`
                     })
                 },
-                "latest",
+                blockTagSupport
+                    ? "latest"
+                    : toHex(await publicClient.getBlockNumber()),
                 // @ts-ignore
                 ...(finalParam ? [finalParam] : [])
             ]
@@ -199,6 +202,7 @@ async function callPimlicoEntryPointSimulations(
     entryPoint: Address,
     entryPointSimulationsCallData: Hex[],
     entryPointSimulationsAddress: Address,
+    blockTagSupport: boolean,
     stateOverride?: StateOverrides,
     fixedGasLimitForEstimation?: bigint
 ) {
@@ -218,7 +222,9 @@ async function callPimlicoEntryPointSimulations(
                     gas: `0x${fixedGasLimitForEstimation.toString(16)}`
                 })
             },
-            "latest",
+            blockTagSupport
+                ? "latest"
+                : toHex(await publicClient.getBlockNumber()),
             // @ts-ignore
             ...(stateOverride ? [stateOverride] : [])
         ]
@@ -387,6 +393,7 @@ export async function simulateHandleOpV07(
     publicClient: PublicClient,
     entryPointSimulationsAddress: Address,
     chainId: number,
+    blockTagSupport: boolean,
     finalParam: StateOverrides | undefined = undefined,
     fixedGasLimitForEstimation?: bigint
 ): Promise<SimulateHandleOpResult> {
@@ -522,6 +529,7 @@ export async function simulateHandleOpV07(
             entryPointSimulationsSimulateTargetCallData
         ],
         entryPointSimulationsAddress,
+        blockTagSupport,
         finalParam,
         fixedGasLimitForEstimation
     )
@@ -582,6 +590,7 @@ export function simulateHandleOp(
     targetCallData: Hex,
     balanceOverrideEnabled: boolean,
     chainId: number,
+    blockTagSupport: boolean,
     stateOverride: StateOverrides = {},
     entryPointSimulationsAddress?: Address,
     fixedGasLimitForEstimation?: bigint
@@ -604,6 +613,7 @@ export function simulateHandleOp(
             publicClient,
             targetAddress,
             targetCallData,
+            blockTagSupport,
             finalStateOverride,
             // Enable fixed gas limit for estimation only for Vanguard testnet and Vanar mainnet
             chainId === 2040 || chainId === 78600
@@ -626,6 +636,7 @@ export function simulateHandleOp(
         publicClient,
         entryPointSimulationsAddress,
         chainId,
+        blockTagSupport,
         finalStateOverride,
         // Enable fixed gas limit for estimation only for Vanguard testnet and Vanar mainnet
         chainId === 2040 || chainId === 78600
