@@ -87,48 +87,27 @@ export async function simulateHandleOpV06(
     fixedGasLimitForEstimation?: bigint
 ): Promise<SimulateHandleOpResult> {
     try {
-        if (blockTagSupport) {
-            await publicClient.request({
-                method: "eth_call",
-                params: [
-                    {
-                        to: entryPoint,
-                        data: encodeFunctionData({
-                            abi: EntryPointV06Abi,
-                            functionName: "simulateHandleOp",
-                            args: [userOperation, targetAddress, targetCallData]
-                        }),
-                        ...(fixedGasLimitForEstimation !== undefined && {
-                            gas: `0x${fixedGasLimitForEstimation.toString(16)}`
-                        })
-                    },
-                    "latest",
-                    // @ts-ignore
-                    ...(finalParam ? [finalParam] : [])
-                ]
-            })
-        } else {
-            const block = await publicClient.getBlockNumber()
-            await publicClient.request({
-                method: "eth_call",
-                params: [
-                    {
-                        to: entryPoint,
-                        data: encodeFunctionData({
-                            abi: EntryPointV06Abi,
-                            functionName: "simulateHandleOp",
-                            args: [userOperation, targetAddress, targetCallData]
-                        }),
-                        ...(fixedGasLimitForEstimation !== undefined && {
-                            gas: `0x${fixedGasLimitForEstimation.toString(16)}`
-                        })
-                    },
-                    toHex(block),
-                    // @ts-ignore
-                    ...(finalParam ? [finalParam] : [])
-                ]
-            })
-        }
+        await publicClient.request({
+            method: "eth_call",
+            params: [
+                {
+                    to: entryPoint,
+                    data: encodeFunctionData({
+                        abi: EntryPointV06Abi,
+                        functionName: "simulateHandleOp",
+                        args: [userOperation, targetAddress, targetCallData]
+                    }),
+                    ...(fixedGasLimitForEstimation !== undefined && {
+                        gas: `0x${fixedGasLimitForEstimation.toString(16)}`
+                    })
+                },
+                blockTagSupport
+                    ? "latest"
+                    : toHex(await publicClient.getBlockNumber()),
+                // @ts-ignore
+                ...(finalParam ? [finalParam] : [])
+            ]
+        })
     } catch (e) {
         const err = e as RpcRequestErrorType
 
@@ -233,42 +212,23 @@ async function callPimlicoEntryPointSimulations(
         args: [entryPoint, entryPointSimulationsCallData]
     })
 
-    let result: Hex
-
-    if (blockTagSupport) {
-        result = (await publicClient.request({
-            method: "eth_call",
-            params: [
-                {
-                    to: entryPointSimulationsAddress,
-                    data: callData,
-                    ...(fixedGasLimitForEstimation !== undefined && {
-                        gas: `0x${fixedGasLimitForEstimation.toString(16)}`
-                    })
-                },
-                "latest",
-                // @ts-ignore
-                stateOverride
-            ]
-        })) as Hex
-    } else {
-        const block = await publicClient.getBlockNumber()
-        result = (await publicClient.request({
-            method: "eth_call",
-            params: [
-                {
-                    to: entryPointSimulationsAddress,
-                    data: callData,
-                    ...(fixedGasLimitForEstimation !== undefined && {
-                        gas: `0x${fixedGasLimitForEstimation.toString(16)}`
-                    })
-                },
-                toHex(block),
-                // @ts-ignore
-                stateOverride
-            ]
-        })) as Hex
-    }
+    const result = (await publicClient.request({
+        method: "eth_call",
+        params: [
+            {
+                to: entryPointSimulationsAddress,
+                data: callData,
+                ...(fixedGasLimitForEstimation !== undefined && {
+                    gas: `0x${fixedGasLimitForEstimation.toString(16)}`
+                })
+            },
+            blockTagSupport
+                ? "latest"
+                : toHex(await publicClient.getBlockNumber()),
+            // @ts-ignore
+            ...(stateOverride ? [stateOverride] : [])
+        ]
+    })) as Hex
 
     const returnBytes = decodeAbiParameters(
         [{ name: "ret", type: "bytes[]" }],

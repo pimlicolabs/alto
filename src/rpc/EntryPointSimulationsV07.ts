@@ -255,37 +255,20 @@ async function callPimlicoEntryPointSimulations(
         args: [entryPoint, entryPointSimulationsCallData]
     })
 
-    let result: Hex
-
-    if (blockTagSupport) {
-        result = (await publicClient.request({
-            method: "eth_call",
-            params: [
-                {
-                    to: entryPointSimulationsAddress,
-                    data: callData
-                },
-                "latest",
-                // @ts-ignore
-                stateOverride
-            ]
-        })) as Hex
-    } else {
-        const block = await publicClient.getBlockNumber()
-
-        result = (await publicClient.request({
-            method: "eth_call",
-            params: [
-                {
-                    to: entryPointSimulationsAddress,
-                    data: callData
-                },
-                toHex(block),
-                // @ts-ignore
-                stateOverride
-            ]
-        })) as Hex
-    }
+    const result = (await publicClient.request({
+        method: "eth_call",
+        params: [
+            {
+                to: entryPointSimulationsAddress,
+                data: callData
+            },
+            blockTagSupport
+                ? "latest"
+                : toHex(await publicClient.getBlockNumber()),
+            // @ts-ignore
+            ...(stateOverride ? [stateOverride] : [])
+        ]
+    })) as Hex
 
     const returnBytes = decodeAbiParameters(
         [{ name: "ret", type: "bytes[]" }],
