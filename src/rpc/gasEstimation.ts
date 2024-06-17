@@ -82,29 +82,12 @@ export async function simulateHandleOpV06(
     publicClient: PublicClient,
     targetAddress: Address,
     targetCallData: Hex,
-    disabledBlockTagSupport: boolean,
+    blockTagSupport: boolean,
     finalParam: StateOverrides | undefined = undefined,
     fixedGasLimitForEstimation?: bigint
 ): Promise<SimulateHandleOpResult> {
     try {
-        if (disabledBlockTagSupport) {
-            await publicClient.request({
-                method: "eth_call",
-                params: [
-                    {
-                        to: entryPoint,
-                        data: encodeFunctionData({
-                            abi: EntryPointV06Abi,
-                            functionName: "simulateHandleOp",
-                            args: [userOperation, targetAddress, targetCallData]
-                        }),
-                        ...(fixedGasLimitForEstimation !== undefined && {
-                            gas: `0x${fixedGasLimitForEstimation.toString(16)}`
-                        })
-                    }
-                ]
-            })
-        } else {
+        if (blockTagSupport) {
             await publicClient.request({
                 method: "eth_call",
                 params: [
@@ -122,6 +105,23 @@ export async function simulateHandleOpV06(
                     "latest",
                     // @ts-ignore
                     ...(finalParam ? [finalParam] : [])
+                ]
+            })
+        } else {
+            await publicClient.request({
+                method: "eth_call",
+                params: [
+                    {
+                        to: entryPoint,
+                        data: encodeFunctionData({
+                            abi: EntryPointV06Abi,
+                            functionName: "simulateHandleOp",
+                            args: [userOperation, targetAddress, targetCallData]
+                        }),
+                        ...(fixedGasLimitForEstimation !== undefined && {
+                            gas: `0x${fixedGasLimitForEstimation.toString(16)}`
+                        })
+                    }
                 ]
             })
         }
@@ -425,7 +425,7 @@ export async function simulateHandleOpV07(
     publicClient: PublicClient,
     entryPointSimulationsAddress: Address,
     chainId: number,
-    disabledBlockTagSupport: boolean,
+    blockTagSupport: boolean,
     finalParam: StateOverrides | undefined = undefined,
     fixedGasLimitForEstimation?: bigint
 ): Promise<SimulateHandleOpResult> {
@@ -561,7 +561,7 @@ export async function simulateHandleOpV07(
             entryPointSimulationsSimulateTargetCallData
         ],
         entryPointSimulationsAddress,
-        disabledBlockTagSupport,
+        blockTagSupport,
         finalParam,
         fixedGasLimitForEstimation
     )
@@ -622,7 +622,7 @@ export function simulateHandleOp(
     targetCallData: Hex,
     balanceOverrideEnabled: boolean,
     chainId: number,
-    disabledBlockTagSupport: boolean,
+    blockTagSupport: boolean,
     stateOverride: StateOverrides = {},
     entryPointSimulationsAddress?: Address,
     fixedGasLimitForEstimation?: bigint
@@ -645,7 +645,7 @@ export function simulateHandleOp(
             publicClient,
             targetAddress,
             targetCallData,
-            disabledBlockTagSupport,
+            blockTagSupport,
             finalStateOverride,
             // Enable fixed gas limit for estimation only for Vanguard testnet and Vanar mainnet
             chainId === 2040 || chainId === 78600
@@ -668,7 +668,7 @@ export function simulateHandleOp(
         publicClient,
         entryPointSimulationsAddress,
         chainId,
-        disabledBlockTagSupport,
+        blockTagSupport,
         finalStateOverride,
         // Enable fixed gas limit for estimation only for Vanguard testnet and Vanar mainnet
         chainId === 2040 || chainId === 78600

@@ -132,7 +132,7 @@ export class Executor {
         simulateTransaction = false,
         legacyTransactions = false,
         fixedGasLimitForEstimation?: bigint,
-        blockTagSupport = false,
+        blockTagSupport = true,
         localGasLimitCalculation = false
     ) {
         this.publicClient = publicClient
@@ -577,7 +577,7 @@ export class Executor {
                 nonce,
                 gasPriceParameters.maxFeePerGas,
                 gasPriceParameters.maxPriorityFeePerGas,
-                this.blockTagSupport ? "latest" : undefined,
+                this.blockTagSupport ? "pending" : undefined,
                 this.legacyTransactions,
                 this.fixedGasLimitForEstimation,
                 this.reputationManager,

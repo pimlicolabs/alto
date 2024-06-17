@@ -298,7 +298,7 @@ export async function simulateHandleOp(
     targetAddress: Address,
     targetCallData: Hex,
     entryPointSimulationsAddress: Address,
-    disabledBlockTagSupport: boolean,
+    blockTagSupport: boolean,
     stateOverride: StateOverrides = {}
 ) {
     const finalParam = getStateOverrides({
@@ -330,7 +330,7 @@ export async function simulateHandleOp(
             entryPointSimulationsSimulateTargetCallData
         ],
         entryPointSimulationsAddress,
-        disabledBlockTagSupport,
+        blockTagSupport,
         finalParam
     )
 
