@@ -65,7 +65,7 @@ export class UnsafeValidator implements InterfaceValidator {
     entryPointSimulationsAddress?: Address
     fixedGasLimitForEstimation?: bigint
     chainType: ChainType
-    disableBlockTagSupport: boolean
+    blockTagSupport: boolean
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
@@ -73,7 +73,7 @@ export class UnsafeValidator implements InterfaceValidator {
         metrics: Metrics,
         gasPriceManager: GasPriceManager,
         chainType: ChainType,
-        disableBlockTagSupport: boolean,
+        blockTagSupport: boolean,
         entryPointSimulationsAddress?: Address,
         fixedGasLimitForEstimation?: bigint,
         usingTenderly = false,
@@ -91,7 +91,7 @@ export class UnsafeValidator implements InterfaceValidator {
         this.entryPointSimulationsAddress = entryPointSimulationsAddress
         this.fixedGasLimitForEstimation = fixedGasLimitForEstimation
         this.chainType = chainType
-        this.disableBlockTagSupport = disableBlockTagSupport
+        this.blockTagSupport = blockTagSupport
     }
 
     async getSimulationResult(
@@ -189,7 +189,7 @@ export class UnsafeValidator implements InterfaceValidator {
             "0x",
             this.balanceOverrideEnabled,
             this.chainId,
-            this.disableBlockTagSupport,
+            this.blockTagSupport,
             stateOverrides,
             this.entryPointSimulationsAddress,
             this.fixedGasLimitForEstimation
@@ -238,7 +238,7 @@ export class UnsafeValidator implements InterfaceValidator {
             this.publicClient,
             zeroAddress,
             "0x",
-            this.disableBlockTagSupport
+            this.blockTagSupport
         )
 
         const [simulateValidationResult, runtimeValidation] = await Promise.all(
@@ -393,7 +393,7 @@ export class UnsafeValidator implements InterfaceValidator {
             entryPoint,
             this.publicClient,
             this.entryPointSimulationsAddress,
-            this.disableBlockTagSupport
+            this.blockTagSupport
         )
 
         if (simulateValidationResult.status === "failed") {

@@ -246,7 +246,7 @@ async function callPimlicoEntryPointSimulations(
     entryPoint: Address,
     entryPointSimulationsCallData: Hex[],
     entryPointSimulationsAddress: Address,
-    disableBlockTagSupport: boolean,
+    blockTagSupport: boolean,
     stateOverride?: StateOverrides
 ) {
     const callData = encodeFunctionData({
@@ -257,17 +257,7 @@ async function callPimlicoEntryPointSimulations(
 
     let result: Hex
 
-    if (disableBlockTagSupport) {
-        result = (await publicClient.request({
-            method: "eth_call",
-            params: [
-                {
-                    to: entryPointSimulationsAddress,
-                    data: callData
-                }
-            ]
-        })) as Hex
-    } else {
+    if (blockTagSupport) {
         result = (await publicClient.request({
             method: "eth_call",
             params: [
@@ -278,6 +268,16 @@ async function callPimlicoEntryPointSimulations(
                 "latest",
                 // @ts-ignore
                 stateOverride
+            ]
+        })) as Hex
+    } else {
+        result = (await publicClient.request({
+            method: "eth_call",
+            params: [
+                {
+                    to: entryPointSimulationsAddress,
+                    data: callData
+                }
             ]
         })) as Hex
     }
@@ -531,7 +531,7 @@ export async function simulateValidation(
     entryPoint: Address,
     publicClient: PublicClient,
     entryPointSimulationsAddress: Address,
-    disableBlockTagSupport: boolean
+    blockTagSupport: boolean
 ) {
     const userOperations = [...queuedUserOperations, userOperation]
     const packedUserOperations = userOperations.map((uo) =>
@@ -549,7 +549,7 @@ export async function simulateValidation(
         entryPoint,
         [entryPointSimulationsCallData],
         entryPointSimulationsAddress,
-        disableBlockTagSupport
+        blockTagSupport
     )
 
     return {

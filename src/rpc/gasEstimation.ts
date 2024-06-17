@@ -219,7 +219,7 @@ async function callPimlicoEntryPointSimulations(
     entryPoint: Address,
     entryPointSimulationsCallData: Hex[],
     entryPointSimulationsAddress: Address,
-    disableBlockTagSupport: boolean,
+    blockTagSupport: boolean,
     stateOverride?: StateOverrides,
     fixedGasLimitForEstimation?: bigint
 ) {
@@ -231,20 +231,7 @@ async function callPimlicoEntryPointSimulations(
 
     let result: Hex
 
-    if (disableBlockTagSupport) {
-        result = (await publicClient.request({
-            method: "eth_call",
-            params: [
-                {
-                    to: entryPointSimulationsAddress,
-                    data: callData,
-                    ...(fixedGasLimitForEstimation !== undefined && {
-                        gas: `0x${fixedGasLimitForEstimation.toString(16)}`
-                    })
-                }
-            ]
-        })) as Hex
-    } else {
+    if (blockTagSupport) {
         result = (await publicClient.request({
             method: "eth_call",
             params: [
@@ -258,6 +245,19 @@ async function callPimlicoEntryPointSimulations(
                 "latest",
                 // @ts-ignore
                 stateOverride
+            ]
+        })) as Hex
+    } else {
+        result = (await publicClient.request({
+            method: "eth_call",
+            params: [
+                {
+                    to: entryPointSimulationsAddress,
+                    data: callData,
+                    ...(fixedGasLimitForEstimation !== undefined && {
+                        gas: `0x${fixedGasLimitForEstimation.toString(16)}`
+                    })
+                }
             ]
         })) as Hex
     }

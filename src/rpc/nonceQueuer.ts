@@ -36,18 +36,18 @@ export class NonceQueuer {
     mempool: MemoryMempool
     publicClient: PublicClient<Transport, Chain>
     logger: Logger
-    disableBlockTagSupport: boolean
+    blockTagSupport: boolean
 
     constructor(
         mempool: MemoryMempool,
         publicClient: PublicClient<Transport, Chain>,
         logger: Logger,
-        disableBlockTagSupport: boolean
+        blockTagSupport: boolean
     ) {
         this.mempool = mempool
         this.publicClient = publicClient
         this.logger = logger
-        this.disableBlockTagSupport = disableBlockTagSupport
+        this.blockTagSupport = blockTagSupport
 
         setInterval(() => {
             this.process()
@@ -146,7 +146,7 @@ export class NonceQueuer {
                         args: [userOperation.sender, qop.nonceKey]
                     }
                 }),
-                blockTag: this.disableBlockTagSupport ? undefined : "latest"
+                blockTag: this.blockTagSupport ? "latest" : undefined
             })
         } catch (error) {
             this.logger.error(
