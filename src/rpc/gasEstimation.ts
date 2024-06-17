@@ -82,29 +82,49 @@ export async function simulateHandleOpV06(
     publicClient: PublicClient,
     targetAddress: Address,
     targetCallData: Hex,
+    disabledBlockTagSupport: boolean,
     finalParam: StateOverrides | undefined = undefined,
     fixedGasLimitForEstimation?: bigint
 ): Promise<SimulateHandleOpResult> {
     try {
-        await publicClient.request({
-            method: "eth_call",
-            params: [
-                {
-                    to: entryPoint,
-                    data: encodeFunctionData({
-                        abi: EntryPointV06Abi,
-                        functionName: "simulateHandleOp",
-                        args: [userOperation, targetAddress, targetCallData]
-                    }),
-                    ...(fixedGasLimitForEstimation !== undefined && {
-                        gas: `0x${fixedGasLimitForEstimation.toString(16)}`
-                    })
-                },
-                "latest",
-                // @ts-ignore
-                ...(finalParam ? [finalParam] : [])
-            ]
-        })
+        if (disabledBlockTagSupport) {
+            await publicClient.request({
+                method: "eth_call",
+                params: [
+                    {
+                        to: entryPoint,
+                        data: encodeFunctionData({
+                            abi: EntryPointV06Abi,
+                            functionName: "simulateHandleOp",
+                            args: [userOperation, targetAddress, targetCallData]
+                        }),
+                        ...(fixedGasLimitForEstimation !== undefined && {
+                            gas: `0x${fixedGasLimitForEstimation.toString(16)}`
+                        })
+                    }
+                ]
+            })
+        } else {
+            await publicClient.request({
+                method: "eth_call",
+                params: [
+                    {
+                        to: entryPoint,
+                        data: encodeFunctionData({
+                            abi: EntryPointV06Abi,
+                            functionName: "simulateHandleOp",
+                            args: [userOperation, targetAddress, targetCallData]
+                        }),
+                        ...(fixedGasLimitForEstimation !== undefined && {
+                            gas: `0x${fixedGasLimitForEstimation.toString(16)}`
+                        })
+                    },
+                    "latest",
+                    // @ts-ignore
+                    ...(finalParam ? [finalParam] : [])
+                ]
+            })
+        }
     } catch (e) {
         const err = e as RpcRequestErrorType
 
@@ -199,6 +219,7 @@ async function callPimlicoEntryPointSimulations(
     entryPoint: Address,
     entryPointSimulationsCallData: Hex[],
     entryPointSimulationsAddress: Address,
+    disableBlockTagSupport: boolean,
     stateOverride?: StateOverrides,
     fixedGasLimitForEstimation?: bigint
 ) {
@@ -208,21 +229,38 @@ async function callPimlicoEntryPointSimulations(
         args: [entryPoint, entryPointSimulationsCallData]
     })
 
-    const result = (await publicClient.request({
-        method: "eth_call",
-        params: [
-            {
-                to: entryPointSimulationsAddress,
-                data: callData,
-                ...(fixedGasLimitForEstimation !== undefined && {
-                    gas: `0x${fixedGasLimitForEstimation.toString(16)}`
-                })
-            },
-            "latest",
-            // @ts-ignore
-            ...(stateOverride ? [stateOverride] : [])
-        ]
-    })) as Hex
+    let result: Hex
+
+    if (disableBlockTagSupport) {
+        result = (await publicClient.request({
+            method: "eth_call",
+            params: [
+                {
+                    to: entryPointSimulationsAddress,
+                    data: callData,
+                    ...(fixedGasLimitForEstimation !== undefined && {
+                        gas: `0x${fixedGasLimitForEstimation.toString(16)}`
+                    })
+                }
+            ]
+        })) as Hex
+    } else {
+        result = (await publicClient.request({
+            method: "eth_call",
+            params: [
+                {
+                    to: entryPointSimulationsAddress,
+                    data: callData,
+                    ...(fixedGasLimitForEstimation !== undefined && {
+                        gas: `0x${fixedGasLimitForEstimation.toString(16)}`
+                    })
+                },
+                "latest",
+                // @ts-ignore
+                stateOverride
+            ]
+        })) as Hex
+    }
 
     const returnBytes = decodeAbiParameters(
         [{ name: "ret", type: "bytes[]" }],
@@ -387,6 +425,7 @@ export async function simulateHandleOpV07(
     publicClient: PublicClient,
     entryPointSimulationsAddress: Address,
     chainId: number,
+    disabledBlockTagSupport: boolean,
     finalParam: StateOverrides | undefined = undefined,
     fixedGasLimitForEstimation?: bigint
 ): Promise<SimulateHandleOpResult> {
@@ -522,6 +561,7 @@ export async function simulateHandleOpV07(
             entryPointSimulationsSimulateTargetCallData
         ],
         entryPointSimulationsAddress,
+        disabledBlockTagSupport,
         finalParam,
         fixedGasLimitForEstimation
     )
@@ -582,6 +622,7 @@ export function simulateHandleOp(
     targetCallData: Hex,
     balanceOverrideEnabled: boolean,
     chainId: number,
+    disabledBlockTagSupport: boolean,
     stateOverride: StateOverrides = {},
     entryPointSimulationsAddress?: Address,
     fixedGasLimitForEstimation?: bigint
@@ -604,6 +645,7 @@ export function simulateHandleOp(
             publicClient,
             targetAddress,
             targetCallData,
+            disabledBlockTagSupport,
             finalStateOverride,
             // Enable fixed gas limit for estimation only for Vanguard testnet and Vanar mainnet
             chainId === 2040 || chainId === 78600
@@ -626,6 +668,7 @@ export function simulateHandleOp(
         publicClient,
         entryPointSimulationsAddress,
         chainId,
+        disabledBlockTagSupport,
         finalStateOverride,
         // Enable fixed gas limit for estimation only for Vanguard testnet and Vanar mainnet
         chainId === 2040 || chainId === 78600

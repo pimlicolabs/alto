@@ -78,6 +78,7 @@ const getValidator = ({
             metrics,
             gasPriceManager,
             parsedArgs["chain-type"],
+            parsedArgs["block-tag-support-disabled"],
             parsedArgs["entrypoint-simulation-contract"],
             parsedArgs["fixed-gas-limit-for-estimation"],
             parsedArgs.tenderly,
@@ -93,6 +94,7 @@ const getValidator = ({
         metrics,
         gasPriceManager,
         parsedArgs["chain-type"],
+        parsedArgs["block-tag-support-disabled"],
         parsedArgs["entrypoint-simulation-contract"],
         parsedArgs["fixed-gas-limit-for-estimation"],
         parsedArgs.tenderly,
@@ -273,7 +275,8 @@ const getNonceQueuer = ({
                     parsedArgs["nonce-queuer-log-level"] ||
                     parsedArgs["log-level"]
             }
-        )
+        ),
+        parsedArgs["block-tag-support-disabled"]
     )
 }
 

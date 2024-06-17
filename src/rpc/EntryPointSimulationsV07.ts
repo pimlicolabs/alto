@@ -246,6 +246,7 @@ async function callPimlicoEntryPointSimulations(
     entryPoint: Address,
     entryPointSimulationsCallData: Hex[],
     entryPointSimulationsAddress: Address,
+    disableBlockTagSupport: boolean,
     stateOverride?: StateOverrides
 ) {
     const callData = encodeFunctionData({
@@ -254,18 +255,32 @@ async function callPimlicoEntryPointSimulations(
         args: [entryPoint, entryPointSimulationsCallData]
     })
 
-    const result = (await publicClient.request({
-        method: "eth_call",
-        params: [
-            {
-                to: entryPointSimulationsAddress,
-                data: callData
-            },
-            "latest",
-            // @ts-ignore
-            stateOverride
-        ]
-    })) as Hex
+    let result: Hex
+
+    if (disableBlockTagSupport) {
+        result = (await publicClient.request({
+            method: "eth_call",
+            params: [
+                {
+                    to: entryPointSimulationsAddress,
+                    data: callData
+                }
+            ]
+        })) as Hex
+    } else {
+        result = (await publicClient.request({
+            method: "eth_call",
+            params: [
+                {
+                    to: entryPointSimulationsAddress,
+                    data: callData
+                },
+                "latest",
+                // @ts-ignore
+                stateOverride
+            ]
+        })) as Hex
+    }
 
     const returnBytes = decodeAbiParameters(
         [{ name: "ret", type: "bytes[]" }],
@@ -283,6 +298,7 @@ export async function simulateHandleOp(
     targetAddress: Address,
     targetCallData: Hex,
     entryPointSimulationsAddress: Address,
+    disabledBlockTagSupport: boolean,
     stateOverride: StateOverrides = {}
 ) {
     const finalParam = getStateOverrides({
@@ -314,6 +330,7 @@ export async function simulateHandleOp(
             entryPointSimulationsSimulateTargetCallData
         ],
         entryPointSimulationsAddress,
+        disabledBlockTagSupport,
         finalParam
     )
 
@@ -513,7 +530,8 @@ export async function simulateValidation(
     queuedUserOperations: UserOperationV07[],
     entryPoint: Address,
     publicClient: PublicClient,
-    entryPointSimulationsAddress: Address
+    entryPointSimulationsAddress: Address,
+    disableBlockTagSupport: boolean
 ) {
     const userOperations = [...queuedUserOperations, userOperation]
     const packedUserOperations = userOperations.map((uo) =>
@@ -530,7 +548,8 @@ export async function simulateValidation(
         publicClient,
         entryPoint,
         [entryPointSimulationsCallData],
-        entryPointSimulationsAddress
+        entryPointSimulationsAddress,
+        disableBlockTagSupport
     )
 
     return {

@@ -65,6 +65,7 @@ export class UnsafeValidator implements InterfaceValidator {
     entryPointSimulationsAddress?: Address
     fixedGasLimitForEstimation?: bigint
     chainType: ChainType
+    disableBlockTagSupport: boolean
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
@@ -72,6 +73,7 @@ export class UnsafeValidator implements InterfaceValidator {
         metrics: Metrics,
         gasPriceManager: GasPriceManager,
         chainType: ChainType,
+        disableBlockTagSupport: boolean,
         entryPointSimulationsAddress?: Address,
         fixedGasLimitForEstimation?: bigint,
         usingTenderly = false,
@@ -89,6 +91,7 @@ export class UnsafeValidator implements InterfaceValidator {
         this.entryPointSimulationsAddress = entryPointSimulationsAddress
         this.fixedGasLimitForEstimation = fixedGasLimitForEstimation
         this.chainType = chainType
+        this.disableBlockTagSupport = disableBlockTagSupport
     }
 
     async getSimulationResult(
@@ -186,6 +189,7 @@ export class UnsafeValidator implements InterfaceValidator {
             "0x",
             this.balanceOverrideEnabled,
             this.chainId,
+            this.disableBlockTagSupport,
             stateOverrides,
             this.entryPointSimulationsAddress,
             this.fixedGasLimitForEstimation
@@ -233,7 +237,8 @@ export class UnsafeValidator implements InterfaceValidator {
             entryPoint,
             this.publicClient,
             zeroAddress,
-            "0x"
+            "0x",
+            this.disableBlockTagSupport
         )
 
         const [simulateValidationResult, runtimeValidation] = await Promise.all(
@@ -387,7 +392,8 @@ export class UnsafeValidator implements InterfaceValidator {
             queuedUserOperations,
             entryPoint,
             this.publicClient,
-            this.entryPointSimulationsAddress
+            this.entryPointSimulationsAddress,
+            this.disableBlockTagSupport
         )
 
         if (simulateValidationResult.status === "failed") {
