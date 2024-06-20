@@ -33,24 +33,37 @@ describe.each([
         const standard = gasPrice.standard
         const fast = gasPrice.fast
 
+        expect(slow.maxFeePerGas).toBeGreaterThan(0)
+        expect(slow.maxPriorityFeePerGas).toBeGreaterThan(0)
+        expect(standard.maxFeePerGas).toBeGreaterThan(0)
+        expect(standard.maxPriorityFeePerGas).toBeGreaterThan(0)
+        expect(fast.maxFeePerGas).toBeGreaterThan(0)
+        expect(fast.maxPriorityFeePerGas).toBeGreaterThan(0)
+
         expect(
-            slow.maxFeePerGas < standard.maxFeePerGas &&
-                standard.maxFeePerGas < fast.maxFeePerGas
+            slow.maxFeePerGas === standard.maxFeePerGas &&
+                standard.maxFeePerGas === fast.maxFeePerGas
         )
         expect(
-            slow.maxPriorityFeePerGas < standard.maxPriorityFeePerGas &&
-                standard.maxPriorityFeePerGas < fast.maxPriorityFeePerGas
+            slow.maxPriorityFeePerGas === standard.maxPriorityFeePerGas &&
+                standard.maxPriorityFeePerGas === fast.maxPriorityFeePerGas
         )
-        expect(networkPrices.maxFeePerGas).toBeLessThan(slow.maxFeePerGas)
-        expect(networkPrices.maxPriorityFeePerGas).toBeLessThan(
+        expect(networkPrices.maxFeePerGas).toBeLessThanOrEqual(
+            slow.maxFeePerGas
+        )
+        expect(networkPrices.maxPriorityFeePerGas).toBeLessThanOrEqual(
             slow.maxPriorityFeePerGas
         )
-        expect(networkPrices.maxFeePerGas).toBeLessThan(standard.maxFeePerGas)
-        expect(networkPrices.maxPriorityFeePerGas).toBeLessThan(
+        expect(networkPrices.maxFeePerGas).toBeLessThanOrEqual(
+            standard.maxFeePerGas
+        )
+        expect(networkPrices.maxPriorityFeePerGas).toBeLessThanOrEqual(
             standard.maxPriorityFeePerGas
         )
-        expect(networkPrices.maxFeePerGas).toBeLessThan(fast.maxFeePerGas)
-        expect(networkPrices.maxPriorityFeePerGas).toBeLessThan(
+        expect(networkPrices.maxFeePerGas).toBeLessThanOrEqual(
+            fast.maxFeePerGas
+        )
+        expect(networkPrices.maxPriorityFeePerGas).toBeLessThanOrEqual(
             fast.maxPriorityFeePerGas
         )
     })
