@@ -109,7 +109,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
             "Amount to multiply the gas prices fetched using pimlico_getUserOperationGasPrice (format: slow,standard,fast)",
         type: "string",
         require: false,
-        default: "105,110,115"
+        default: "100,100,100"
     },
     "mempool-max-parallel-ops": {
         description:
