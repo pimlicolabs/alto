@@ -225,7 +225,7 @@ export async function bundlerHandler(args: IOptionsInput): Promise<void> {
             logger
         )
 
-        utilityWalletMonitor.start()
+        await utilityWalletMonitor.start()
     }
 
     await setupServer({

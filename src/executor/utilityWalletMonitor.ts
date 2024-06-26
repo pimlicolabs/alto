@@ -30,7 +30,7 @@ export class UtilityWalletMonitor {
             })
 
             this.metrics.utilityWalletBalance.set(
-                Number.parseInt(formatEther(balance))
+                Number.parseFloat(formatEther(balance))
             )
         } catch (error) {
             this.logger.error(
@@ -40,10 +40,13 @@ export class UtilityWalletMonitor {
         }
     }
 
-    public start() {
+    public async start() {
         if (this.timer) {
             throw new Error("UtilityWalletMonitor already started")
         }
+
+        await this.updateMetrics()
+
         this.timer = setInterval(
             this.updateMetrics.bind(this),
             this.monitorInterval
