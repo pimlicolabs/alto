@@ -13,7 +13,8 @@ import {
     type Chain,
     type PublicClient,
     type Transport,
-    http
+    http,
+    formatEther
 } from "viem"
 import { fromZodError } from "zod-validation-error"
 import {
@@ -227,6 +228,8 @@ export async function bundlerHandler(args: IOptionsInput): Promise<void> {
 
         await utilityWalletMonitor.start()
     }
+
+    metrics.executorWalletsMinBalance.set(Number.parseFloat(formatEther(parsedArgs["min-executor-balance"] || 0n)))
 
     await setupServer({
         client,

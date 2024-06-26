@@ -162,6 +162,13 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
+    const executorWalletsMinBalance = new Gauge({
+        name: "alto_executor_wallets_min_balance",
+        help: "Minimum balance of the executor wallets",
+        labelNames: [] as const,
+        registers
+    })
+
     return {
         httpRequests,
         httpRequestsDuration,
@@ -180,6 +187,7 @@ export function createMetrics(registry: Registry, register = true) {
         verificationGasLimitEstimationCount,
         replacedTransactions,
         userOperationsResubmitted,
-        utilityWalletBalance
+        utilityWalletBalance,
+        executorWalletsMinBalance
     }
 }
