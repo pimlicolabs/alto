@@ -36,6 +36,16 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         alias: "u",
         require: false
     },
+    "utility-wallet-monitor": {
+        description: "Either to enable utility wallet monitor or not",
+        type: "boolean",
+        default: true
+    },
+    "utility-wallet-monitor-interval": {
+        description: "Interval for checking utility wallet balance",
+        type: "number",
+        default: 15 * 1000 // 15 seconds
+    },
     "max-executors": {
         description:
             "Maximum number of executor accounts to use from the list of executor private keys",
