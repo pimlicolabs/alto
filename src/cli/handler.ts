@@ -223,13 +223,20 @@ export async function bundlerHandler(args: IOptionsInput): Promise<void> {
             parsedArgs["utility-wallet-monitor-interval"],
             utilityWalletAddress,
             metrics,
-            logger
+            logger.child(
+                { module: "utility_wallet_monitor" },
+                {
+                    level: parsedArgs["log-level"]
+                }
+            )
         )
 
         await utilityWalletMonitor.start()
     }
 
-    metrics.executorWalletsMinBalance.set(Number.parseFloat(formatEther(parsedArgs["min-executor-balance"] || 0n)))
+    metrics.executorWalletsMinBalance.set(
+        Number.parseFloat(formatEther(parsedArgs["min-executor-balance"] || 0n))
+    )
 
     await setupServer({
         client,
