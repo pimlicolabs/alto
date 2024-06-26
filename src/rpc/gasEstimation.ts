@@ -615,10 +615,7 @@ export function simulateHandleOp(
             targetCallData,
             blockTagSupport,
             finalStateOverride,
-            // Enable fixed gas limit for estimation only for Vanguard testnet and Vanar mainnet
-            chainId === 2040 || chainId === 78600
-                ? fixedGasLimitForEstimation
-                : undefined
+            fixedGasLimitForEstimation
         )
     }
 
@@ -638,9 +635,6 @@ export function simulateHandleOp(
         chainId,
         blockTagSupport,
         finalStateOverride,
-        // Enable fixed gas limit for estimation only for Vanguard testnet and Vanar mainnet
-        chainId === 2040 || chainId === 78600
-            ? fixedGasLimitForEstimation
-            : undefined
+        fixedGasLimitForEstimation
     )
 }
