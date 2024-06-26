@@ -29,6 +29,8 @@ export const bundlerArgsSchema = z.object({
     "utility-private-key": hexData32Schema
         .transform((val) => privateKeyToAccount(val) satisfies Account)
         .optional(),
+    "utility-wallet-monitor": z.boolean(),
+    "utility-wallet-monitor-interval": z.number(),
     "executor-private-keys": z.union([
         z
             .array(hexData32Schema)
