@@ -1,5 +1,11 @@
 # @pimlico/alto
 
+## 0.0.5
+
+### Patch Changes
+
+- c1775902ead108325c2c3bef81535a53ba092311: Fixed bug where gas estimate is too low leading to the bundling tx reverting onchain due to AA95
+
 ## 0.0.4
 
 ### Patch Changes
