@@ -1054,10 +1054,10 @@ export class RpcHandler implements IRpcEndpoint {
             currentNonceValue + BigInt(queuedUserOperations.length)
         ) {
             if (this.dangerousSkipUserOperationValidation) {
-                const success = this.mempool.add(op, entryPoint)
+                const [success, errorReason] = this.mempool.add(op, entryPoint)
                 if (!success) {
                     throw new RpcError(
-                        "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
+                        `UserOperation reverted during simulation with reason: ${errorReason}`,
                         ValidationErrors.InvalidFields
                     )
                 }
@@ -1087,7 +1087,7 @@ export class RpcHandler implements IRpcEndpoint {
                     userOperation
                 )
 
-                const success = this.mempool.add(
+                const [success, errorReason] = this.mempool.add(
                     op,
                     entryPoint,
                     validationResult.referencedContracts
@@ -1095,7 +1095,7 @@ export class RpcHandler implements IRpcEndpoint {
 
                 if (!success) {
                     throw new RpcError(
-                        "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
+                        `UserOperation reverted during simulation with reason: ${errorReason}`,
                         ValidationErrors.InvalidFields
                     )
                 }

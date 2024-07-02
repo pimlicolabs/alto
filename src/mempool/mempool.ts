@@ -244,7 +244,7 @@ export class MemoryMempool {
         mempoolUserOperation: MempoolUserOperation,
         entryPoint: Address,
         referencedContracts?: ReferencedCodeHashes
-    ) {
+    ): [boolean, string] {
         const op = deriveUserOperation(mempoolUserOperation)
 
         const outstandingOps = [...this.store.dumpOutstanding()]
@@ -265,7 +265,10 @@ export class MemoryMempool {
                 )
             })
         ) {
-            return false
+            return [
+                false,
+                "AA25 invalid account nonce: User operation is already in mempool and getting processed with same nonce and sender"
+            ]
         }
 
         this.reputationManager.updateUserOperationSeenStatus(op, entryPoint)
@@ -293,14 +296,17 @@ export class MemoryMempool {
                     oldMaxPriorityFeePerGas + incrementMaxPriorityFeePerGas ||
                 newMaxFeePerGas < oldMaxFeePerGas + incrementMaxFeePerGas
             ) {
-                return false
+                return [
+                    false,
+                    "AA25 invalid account nonce: User operation already present in mempool, bump the gas price by minimum 10%"
+                ]
             }
 
             this.store.removeOutstanding(oldUserOp.userOperationHash)
         }
 
         // Check if mempool already includes max amount of parallel user operations
-        const parallellUserOperationsCount = this.store
+        const parallelUserOperationsCount = this.store
             .dumpOutstanding()
             .filter((userOpInfo) => {
                 const userOp = deriveUserOperation(
@@ -309,8 +315,11 @@ export class MemoryMempool {
                 return userOp.sender === op.sender
             }).length
 
-        if (parallellUserOperationsCount > this.parallelUserOpsMaxSize) {
-            return false
+        if (parallelUserOperationsCount > this.parallelUserOpsMaxSize) {
+            return [
+                false,
+                "AA25 invalid account nonce: Maximum number of parallel user operations for that is allowed for this sender reached"
+            ]
         }
 
         // Check if mempool already includes max amount of queued user operations
@@ -327,7 +336,10 @@ export class MemoryMempool {
             }).length
 
         if (queuedUserOperationsCount > this.queuedUserOpsMaxSize) {
-            return false
+            return [
+                false,
+                "AA25 invalid account nonce: Maximum number of queued user operations reached for this sender and nonce key"
+            ]
         }
 
         const hash = getUserOperationHash(
@@ -349,7 +361,7 @@ export class MemoryMempool {
             transactionHash: null
         })
 
-        return true
+        return [true, ""]
     }
 
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: <explanation>
