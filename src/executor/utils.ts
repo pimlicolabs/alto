@@ -150,6 +150,9 @@ export async function filterOpsAndEstimateGas(
               )
             : true
 
+    let fixedEstimationGasLimit: bigint | undefined = fixedGasLimitForEstimation
+    let aa95RetriesLeft = 3
+
     while (simulatedOps.filter((op) => op.reason === undefined).length > 0) {
         try {
             const gasOptions = onlyPre1559
@@ -177,8 +180,8 @@ export async function filterOpsAndEstimateGas(
                         account: wallet,
                         nonce: nonce,
                         blockTag: blockTag,
-                        ...(fixedGasLimitForEstimation !== undefined && {
-                            gas: fixedGasLimitForEstimation
+                        ...(fixedEstimationGasLimit !== undefined && {
+                            gas: fixedEstimationGasLimit
                         }),
                         ...gasOptions
                     }
@@ -198,7 +201,9 @@ export async function filterOpsAndEstimateGas(
                     to: bundleBulker,
                     account: wallet,
                     data: createCompressedCalldata(opsToSend, perOpInflatorId),
-                    gas: fixedGasLimitForEstimation,
+                    ...(fixedEstimationGasLimit !== undefined && {
+                        gas: fixedEstimationGasLimit
+                    }),
                     nonce: nonce,
                     blockTag: blockTag,
                     ...gasOptions
@@ -226,6 +231,17 @@ export async function filterOpsAndEstimateGas(
                 }
 
                 if (errorData) {
+                    if (
+                        errorData.reason.indexOf("AA95 out of gas") !== -1 &&
+                        aa95RetriesLeft > 0
+                    ) {
+                        aa95RetriesLeft--
+                        fixedEstimationGasLimit = fixedEstimationGasLimit
+                            ? (fixedEstimationGasLimit * 110n) / 100n
+                            : BigInt(30_000_000)
+                        continue
+                    }
+
                     logger.debug(
                         {
                             errorData,
