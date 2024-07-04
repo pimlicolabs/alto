@@ -153,12 +153,14 @@ const getMempool = ({
 
 const getEventManager = ({
     endpoint,
-    chainId
+    chainId,
+    logger
 }: {
     endpoint?: string
     chainId: number
+    logger: Logger
 }) => {
-    return new EventManager(endpoint, chainId)
+    return new EventManager(endpoint, chainId, logger)
 }
 
 const getCompressionHandler = async ({
@@ -437,7 +439,8 @@ export const setupServer = async ({
     })
     const eventManager = getEventManager({
         endpoint: parsedArgs["event-consumer-endpoint"],
-        chainId: client.chain.id
+        chainId: client.chain.id,
+        logger
     })
 
     await senderManager.validateAndRefillWallets(
