@@ -25,7 +25,8 @@ import {
     entryPointExecutionErrorSchemaV06,
     entryPointExecutionErrorSchemaV07
 } from "@alto/types"
-import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
+import type { Logger, Metrics } from "@alto/utils"
+import type { GasPriceManager } from "@alto/handlers"
 import {
     calcPreVerificationGas,
     calcVerificationGasAndCallGasLimit,

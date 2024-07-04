@@ -1,8 +1,8 @@
 // biome-ignore lint/nursery/noNodejsModules: <explanation>
-import { type ChildProcess, exec } from "child_process"
+import { type ChildProcess, exec } from "node:child_process"
 import type { HexData, HexData32, UserOperationV06 } from "@alto/types"
 import { entryPointExecutionErrorSchemaV06 } from "@alto/types"
-import * as sentry from "@sentry/node"
+import { captureException } from "@sentry/node"
 import { type Abi, parseAbiParameters } from "abitype"
 import {
     http,
@@ -172,12 +172,12 @@ export const parseSenderAddressError = (e: Error): Address => {
     const entryPointExecutionErrorSchemaParsing =
         entryPointExecutionErrorSchemaV06.safeParse(e)
     if (!entryPointExecutionErrorSchemaParsing.success) {
-        sentry.captureException(e)
+        captureException(e)
         throw fromZodError(entryPointExecutionErrorSchemaParsing.error)
     }
     const errorData = entryPointExecutionErrorSchemaParsing.data
     if (errorData.errorName !== "SenderAddressResult") {
-        sentry.captureException(e)
+        captureException(e)
         throw e
     }
     return errorData.args.sender

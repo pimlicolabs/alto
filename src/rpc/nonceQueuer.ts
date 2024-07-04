@@ -20,6 +20,7 @@ import {
     getContract
 } from "viem"
 import type { MemoryMempool } from "@alto/mempool"
+import type { EventManager } from "@alto/handlers"
 
 type QueuedUserOperation = {
     entryPoint: Address
@@ -37,17 +38,20 @@ export class NonceQueuer {
     publicClient: PublicClient<Transport, Chain>
     logger: Logger
     blockTagSupport: boolean
+    eventManager: EventManager
 
     constructor(
         mempool: MemoryMempool,
         publicClient: PublicClient<Transport, Chain>,
         logger: Logger,
-        blockTagSupport: boolean
+        blockTagSupport: boolean,
+        eventManager: EventManager
     ) {
         this.mempool = mempool
         this.publicClient = publicClient
         this.logger = logger
         this.blockTagSupport = blockTagSupport
+        this.eventManager = eventManager
 
         setInterval(() => {
             this.process()
@@ -91,18 +95,21 @@ export class NonceQueuer {
     add(mempoolUserOperation: MempoolUserOperation, entryPoint: Address) {
         const userOperation = deriveUserOperation(mempoolUserOperation)
         const [nonceKey, nonceValue] = getNonceKeyAndValue(userOperation.nonce)
+
+        const hash = getUserOperationHash(
+            deriveUserOperation(mempoolUserOperation),
+            entryPoint,
+            this.publicClient.chain.id
+        )
         this.queuedUserOperations.push({
             entryPoint,
-            userOperationHash: getUserOperationHash(
-                deriveUserOperation(mempoolUserOperation),
-                entryPoint,
-                this.publicClient.chain.id
-            ),
+            userOperationHash: hash,
             mempoolUserOperation: mempoolUserOperation,
             nonceKey: nonceKey,
             nonceValue: nonceValue,
             addedAt: Date.now()
         })
+        this.eventManager.emitEvent(hash, { status: "queued" })
     }
 
     resubmitUserOperation(

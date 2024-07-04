@@ -20,6 +20,7 @@ import {
 } from "@alto/types"
 import type { HexData32 } from "@alto/types"
 import type { Logger } from "@alto/utils"
+import type { EventManager } from "@alto/handlers"
 import {
     getAddressFromInitCodeOrPaymasterAndData,
     getNonceKeyAndValue,
@@ -54,6 +55,7 @@ export class MemoryMempool {
     private parallelUserOpsMaxSize: number
     private queuedUserOpsMaxSize: number
     private onlyUniqueSendersPerBundle: boolean
+    private eventManager: EventManager
 
     constructor(
         monitor: Monitor,
@@ -66,6 +68,7 @@ export class MemoryMempool {
         parallelUserOpsMaxSize: number,
         queuedUserOpsMaxSize: number,
         onlyUniqueSendersPerBundle: boolean,
+        eventManager: EventManager,
         throttledEntityBundleCount?: number
     ) {
         this.reputationManager = reputationManager
@@ -79,6 +82,7 @@ export class MemoryMempool {
         this.queuedUserOpsMaxSize = queuedUserOpsMaxSize
         this.onlyUniqueSendersPerBundle = onlyUniqueSendersPerBundle
         this.throttledEntityBundleCount = throttledEntityBundleCount ?? 4
+        this.eventManager = eventManager
     }
 
     replaceSubmitted(
@@ -246,34 +250,42 @@ export class MemoryMempool {
         referencedContracts?: ReferencedCodeHashes
     ): [boolean, string] {
         const op = deriveUserOperation(mempoolUserOperation)
+        const opHash = getUserOperationHash(
+            op,
+            entryPoint,
+            this.publicClient.chain.id
+        )
 
         const outstandingOps = [...this.store.dumpOutstanding()]
 
         const processedOrSubmittedOps = [
             ...this.store.dumpProcessing(),
-            ...this.store.dumpSubmitted().map((sop) => sop.userOperation)
+            ...this.store
+                .dumpSubmitted()
+                .map(({ userOperation }) => userOperation)
         ]
 
         if (
-            processedOrSubmittedOps.find((uo) => {
-                const userOperation = deriveUserOperation(
-                    uo.mempoolUserOperation
-                )
+            processedOrSubmittedOps.find(({ mempoolUserOperation }) => {
+                const userOperation = deriveUserOperation(mempoolUserOperation)
                 return (
                     userOperation.sender === op.sender &&
                     userOperation.nonce === op.nonce
                 )
             })
         ) {
-            return [
-                false,
+            const reason =
                 "AA25 invalid account nonce: User operation is already in mempool and getting processed with same nonce and sender"
-            ]
+            this.eventManager.emitEvent(opHash, {
+                status: "failed_validation",
+                reason
+            })
+            return [false, reason]
         }
 
         this.reputationManager.updateUserOperationSeenStatus(op, entryPoint)
-        const oldUserOp = outstandingOps.find((uo) => {
-            const userOperation = deriveUserOperation(uo.mempoolUserOperation)
+        const oldUserOp = outstandingOps.find(({ mempoolUserOperation }) => {
+            const userOperation = deriveUserOperation(mempoolUserOperation)
             return (
                 userOperation.sender === op.sender &&
                 userOperation.nonce === op.nonce
@@ -296,10 +308,13 @@ export class MemoryMempool {
                     oldMaxPriorityFeePerGas + incrementMaxPriorityFeePerGas ||
                 newMaxFeePerGas < oldMaxFeePerGas + incrementMaxFeePerGas
             ) {
-                return [
-                    false,
+                const reason =
                     "AA25 invalid account nonce: User operation already present in mempool, bump the gas price by minimum 10%"
-                ]
+                this.eventManager.emitEvent(opHash, {
+                    status: "failed_validation",
+                    reason
+                })
+                return [false, reason]
             }
 
             this.store.removeOutstanding(oldUserOp.userOperationHash)
@@ -316,10 +331,13 @@ export class MemoryMempool {
             }).length
 
         if (parallelUserOperationsCount > this.parallelUserOpsMaxSize) {
-            return [
-                false,
+            const reason =
                 "AA25 invalid account nonce: Maximum number of parallel user operations for that is allowed for this sender reached"
-            ]
+            this.eventManager.emitEvent(opHash, {
+                status: "failed_validation",
+                reason
+            })
+            return [false, reason]
         }
 
         // Check if mempool already includes max amount of queued user operations
@@ -336,31 +354,29 @@ export class MemoryMempool {
             }).length
 
         if (queuedUserOperationsCount > this.queuedUserOpsMaxSize) {
-            return [
-                false,
+            const reason =
                 "AA25 invalid account nonce: Maximum number of queued user operations reached for this sender and nonce key"
-            ]
+            this.eventManager.emitEvent(opHash, {
+                status: "failed_validation",
+                reason
+            })
+            return [false, reason]
         }
-
-        const hash = getUserOperationHash(
-            op,
-            entryPoint,
-            this.publicClient.chain.id
-        )
 
         this.store.addOutstanding({
             mempoolUserOperation,
             entryPoint: entryPoint,
-            userOperationHash: hash,
+            userOperationHash: opHash,
             firstSubmitted: oldUserOp ? oldUserOp.firstSubmitted : Date.now(),
             lastReplaced: Date.now(),
             referencedContracts
         })
-        this.monitor.setUserOperationStatus(hash, {
+        this.monitor.setUserOperationStatus(opHash, {
             status: "not_submitted",
             transactionHash: null
         })
 
+        this.eventManager.emitEvent(opHash, { status: "added_to_mempool" })
         return [true, ""]
     }
 
@@ -628,8 +644,9 @@ export class MemoryMempool {
                     bUserOp.nonce
                 )
 
-                if (aNonceKey === bNonceKey)
+                if (aNonceKey === bNonceKey) {
                     return Number(aNonceValue - bNonceValue)
+                }
 
                 return Number(aNonceKey - bNonceKey)
             }

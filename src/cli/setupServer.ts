@@ -1,6 +1,11 @@
 import type { SenderManager } from "@alto/executor"
 import { Executor, ExecutorManager } from "@alto/executor"
 import {
+    type GasPriceManager,
+    CompressionHandler,
+    EventManager
+} from "@alto/handlers"
+import {
     MemoryMempool,
     Monitor,
     NullReputationManager,
@@ -15,8 +20,7 @@ import {
     UnsafeValidator
 } from "@alto/rpc"
 import type { InterfaceValidator } from "@alto/types"
-import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
-import { CompressionHandler } from "@alto/utils"
+import type { Logger, Metrics } from "@alto/utils"
 import type { Registry } from "prom-client"
 import type { Chain, PublicClient, Transport, WalletClient } from "viem"
 import type { IBundleCompressionArgs, IOptions } from "./config"
@@ -114,7 +118,8 @@ const getMempool = ({
     client,
     parsedArgs,
     logger,
-    metrics
+    metrics,
+    eventManager
 }: {
     monitor: Monitor
     reputationManager: InterfaceReputationManager
@@ -123,6 +128,7 @@ const getMempool = ({
     parsedArgs: IOptions
     logger: Logger
     metrics: Metrics
+    eventManager: EventManager
 }): MemoryMempool => {
     return new MemoryMempool(
         monitor,
@@ -140,8 +146,17 @@ const getMempool = ({
         metrics,
         parsedArgs["mempool-max-parallel-ops"],
         parsedArgs["mempool-max-queued-ops"],
-        parsedArgs["enforce-unique-senders-per-bundle"]
+        parsedArgs["enforce-unique-senders-per-bundle"],
+        eventManager
     )
+}
+
+const getEventManager = ({
+    endpoint
+}: {
+    endpoint?: string
+}) => {
+    return new EventManager(endpoint)
 }
 
 const getCompressionHandler = async ({
@@ -174,7 +189,8 @@ const getExecutor = ({
     logger,
     metrics,
     compressionHandler,
-    gasPriceManager
+    gasPriceManager,
+    eventManager
 }: {
     client: PublicClient<Transport, Chain>
     walletClient: WalletClient<Transport, Chain>
@@ -185,6 +201,7 @@ const getExecutor = ({
     metrics: Metrics
     compressionHandler: CompressionHandler | null
     gasPriceManager: GasPriceManager
+    eventManager: EventManager
 }): Executor => {
     return new Executor(
         client,
@@ -202,6 +219,7 @@ const getExecutor = ({
         metrics,
         compressionHandler,
         gasPriceManager,
+        eventManager,
         !parsedArgs.tenderly,
         parsedArgs["legacy-transactions"],
         parsedArgs["fixed-gas-limit-for-estimation"],
@@ -219,7 +237,8 @@ const getExecutorManager = ({
     parsedArgs,
     logger,
     metrics,
-    gasPriceManager
+    gasPriceManager,
+    eventManager
 }: {
     executor: Executor
     mempool: MemoryMempool
@@ -230,6 +249,7 @@ const getExecutorManager = ({
     logger: Logger
     metrics: Metrics
     gasPriceManager: GasPriceManager
+    eventManager: EventManager
 }) => {
     return new ExecutorManager(
         executor,
@@ -250,7 +270,8 @@ const getExecutorManager = ({
         parsedArgs["bundle-mode"],
         parsedArgs["max-bundle-wait"],
         parsedArgs["max-gas-per-bundle"],
-        gasPriceManager
+        gasPriceManager,
+        eventManager
     )
 }
 
@@ -258,12 +279,14 @@ const getNonceQueuer = ({
     mempool,
     client,
     parsedArgs,
-    logger
+    logger,
+    eventManager
 }: {
     mempool: MemoryMempool
     client: PublicClient<Transport, Chain>
     parsedArgs: IOptions
     logger: Logger
+    eventManager: EventManager
 }) => {
     return new NonceQueuer(
         mempool,
@@ -276,7 +299,8 @@ const getNonceQueuer = ({
                     parsedArgs["log-level"]
             }
         ),
-        parsedArgs["block-tag-support"]
+        parsedArgs["block-tag-support"],
+        eventManager
     )
 }
 
@@ -293,7 +317,8 @@ const getRpcHandler = ({
     logger,
     metrics,
     compressionHandler,
-    gasPriceManager
+    gasPriceManager,
+    eventManager
 }: {
     client: PublicClient<Transport, Chain>
     validator: InterfaceValidator
@@ -307,6 +332,7 @@ const getRpcHandler = ({
     logger: Logger
     metrics: Metrics
     compressionHandler: CompressionHandler | null
+    eventManager: EventManager
     gasPriceManager: GasPriceManager
 }) => {
     return new RpcHandler(
@@ -333,6 +359,7 @@ const getRpcHandler = ({
         parsedArgs["gas-price-multipliers"],
         parsedArgs["chain-type"],
         parsedArgs["paymaster-gas-limit-multiplier"],
+        eventManager,
         parsedArgs["dangerous-skip-user-operation-validation"]
     )
 }
@@ -402,6 +429,14 @@ export const setupServer = async ({
         logger
     })
 
+    const compressionHandler = await getCompressionHandler({
+        client,
+        parsedArgs
+    })
+    const eventManager = getEventManager({
+        endpoint: parsedArgs["event-consumer-endpoint"]
+    })
+
     await senderManager.validateAndRefillWallets(
         client,
         walletClient,
@@ -424,12 +459,8 @@ export const setupServer = async ({
         client,
         parsedArgs,
         logger,
-        metrics
-    })
-
-    const compressionHandler = await getCompressionHandler({
-        client,
-        parsedArgs
+        metrics,
+        eventManager
     })
 
     const executor = getExecutor({
@@ -441,7 +472,8 @@ export const setupServer = async ({
         logger,
         metrics,
         compressionHandler,
-        gasPriceManager
+        gasPriceManager,
+        eventManager
     })
 
     const executorManager = getExecutorManager({
@@ -453,10 +485,17 @@ export const setupServer = async ({
         parsedArgs,
         logger,
         metrics,
-        gasPriceManager
+        gasPriceManager,
+        eventManager
     })
 
-    const nonceQueuer = getNonceQueuer({ mempool, client, parsedArgs, logger })
+    const nonceQueuer = getNonceQueuer({
+        mempool,
+        client,
+        parsedArgs,
+        logger,
+        eventManager
+    })
 
     const rpcEndpoint = getRpcHandler({
         client,
@@ -471,7 +510,8 @@ export const setupServer = async ({
         logger,
         metrics,
         compressionHandler,
-        gasPriceManager
+        gasPriceManager,
+        eventManager
     })
 
     if (parsedArgs["flush-stuck-transactions-during-startup"]) {

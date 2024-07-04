@@ -795,6 +795,43 @@ export type JSONRPCRequest = z.infer<typeof jsonRpcSchema>
 // biome-ignore lint/style/useNamingConvention: <explanation>
 export type JSONRPCResponse = z.infer<typeof jsonRpcResultSchema>
 
+const OpEventType = z.discriminatedUnion("status", [
+    z.object({ status: z.literal("added_to_mempool") }),
+    z.object({ status: z.literal("received") }),
+    z.object({
+        status: z.literal("failed_validation"),
+        reason: z.string()
+    }),
+    z.object({
+        status: z.literal("dropped_from_mempool"),
+        reason: z.string()
+    }),
+    z.object({ status: z.literal("queued") }),
+    z.object({ status: z.literal("not_found") }),
+    z.object({ status: z.literal("not_submitted") }),
+    z.object({
+        status: z.literal("resubmitted"),
+        oldHash: hexData32Schema,
+        newHash: hexData32Schema
+    }),
+    z.object({
+        status: z.literal("submitted"),
+        transactionHash: hexData32Schema
+    }),
+    z.object({ status: z.literal("rejected") }),
+    z.object({ status: z.literal("reverted") }),
+    z.object({
+        status: z.literal("included"),
+        transactionHash: hexData32Schema
+    }),
+    z.object({
+        status: z.literal("failed_validation_onchain"),
+        transactionHash: hexData32Schema
+    })
+])
+
+export type OpEventType = z.infer<typeof OpEventType>
+
 export {
     bundlerClearStateRequestSchema,
     bundlerClearMempoolRequestSchema,
