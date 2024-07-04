@@ -807,11 +807,17 @@ const OpEventType = z.union([
     }),
     z.object({
         event: z.literal("failed_validation"),
-        data: z.object({ reason: z.string() })
+        data: z.object({
+            reason: z.string().optional(),
+            aaError: z.string().optional()
+        })
     }),
     z.object({
         event: z.literal("dropped_from_mempool"),
-        data: z.object({ reason: z.string() })
+        data: z.object({
+            reason: z.string().optional(),
+            aaError: z.string().optional()
+        })
     }),
     z.object({
         event: z.literal("submitted"),

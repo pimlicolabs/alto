@@ -4,8 +4,11 @@ import type { OpEventType } from "../types/schemas"
 
 export class EventManager {
     private redis: Redis | undefined
+    private chainId: number
 
-    constructor(endpoint: string | undefined) {
+    constructor(endpoint: string | undefined, chainId: number) {
+        this.chainId = chainId
+
         if (endpoint) {
             this.redis = new Redis(endpoint)
             return
@@ -24,11 +27,16 @@ export class EventManager {
         }
 
         const response = {
-            ...event,
-            timestamp: timestamp ?? Date.now()
+            userOperationHash,
+            timestamp: timestamp ?? Date.now(),
+            chainId: this.chainId,
+            ...event
         }
 
         // log to redis here
-        await this.redis.lpush(userOperationHash, JSON.stringify(response))
+        await this.redis.lpush(
+            "UserOperationStatusEventsQueue",
+            JSON.stringify(response)
+        )
     }
 }

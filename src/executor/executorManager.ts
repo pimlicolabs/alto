@@ -428,7 +428,7 @@ export class ExecutorManager {
                                 transactionHash: status.hash
                             }
                         },
-                        Number(status.transactionStatuses.blockTimeStamp)
+                        Number(status.transactionStatuses.blockTimeStamp) * 100
                     )
                     this.monitor.setUserOperationStatus(userOperationHash, {
                         status: "included",
