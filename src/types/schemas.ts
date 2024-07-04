@@ -807,25 +807,20 @@ const OpEventType = z.discriminatedUnion("status", [
         reason: z.string()
     }),
     z.object({ status: z.literal("queued") }),
-    z.object({ status: z.literal("not_found") }),
-    z.object({ status: z.literal("not_submitted") }),
-    z.object({
-        status: z.literal("resubmitted"),
-        oldHash: hexData32Schema,
-        newHash: hexData32Schema
-    }),
     z.object({
         status: z.literal("submitted"),
         transactionHash: hexData32Schema
     }),
-    z.object({ status: z.literal("rejected") }),
-    z.object({ status: z.literal("reverted") }),
     z.object({
         status: z.literal("included"),
         transactionHash: hexData32Schema
     }),
     z.object({
         status: z.literal("failed_validation_onchain"),
+        transactionHash: hexData32Schema
+    }),
+    z.object({
+        status: z.literal("reverted_onchain"),
         transactionHash: hexData32Schema
     })
 ])
