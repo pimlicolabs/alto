@@ -795,33 +795,39 @@ export type JSONRPCRequest = z.infer<typeof jsonRpcSchema>
 // biome-ignore lint/style/useNamingConvention: <explanation>
 export type JSONRPCResponse = z.infer<typeof jsonRpcResultSchema>
 
-const OpEventType = z.discriminatedUnion("status", [
-    z.object({ status: z.literal("added_to_mempool") }),
-    z.object({ status: z.literal("received") }),
+const OpEventType = z.union([
     z.object({
-        status: z.literal("failed_validation"),
-        reason: z.string()
+        event: z.literal("added_to_mempool")
     }),
     z.object({
-        status: z.literal("dropped_from_mempool"),
-        reason: z.string()
-    }),
-    z.object({ status: z.literal("queued") }),
-    z.object({
-        status: z.literal("submitted"),
-        transactionHash: hexData32Schema
+        event: z.literal("received")
     }),
     z.object({
-        status: z.literal("included"),
-        transactionHash: hexData32Schema
+        event: z.literal("queued")
     }),
     z.object({
-        status: z.literal("failed_validation_onchain"),
-        transactionHash: hexData32Schema
+        event: z.literal("failed_validation"),
+        data: z.object({ reason: z.string() })
     }),
     z.object({
-        status: z.literal("reverted_onchain"),
-        transactionHash: hexData32Schema
+        event: z.literal("dropped_from_mempool"),
+        data: z.object({ reason: z.string() })
+    }),
+    z.object({
+        event: z.literal("submitted"),
+        data: z.object({ transactionHash: hexData32Schema })
+    }),
+    z.object({
+        event: z.literal("included"),
+        data: z.object({ transactionHash: hexData32Schema })
+    }),
+    z.object({
+        event: z.literal("failed_validation_onchain"),
+        data: z.object({ transactionHash: hexData32Schema })
+    }),
+    z.object({
+        event: z.literal("reverted_onchain"),
+        data: z.object({ transactionHash: hexData32Schema })
     })
 ])
 

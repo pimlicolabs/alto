@@ -24,7 +24,7 @@ export class EventManager {
         }
 
         const response = {
-            event,
+            ...event,
             timestamp: timestamp ?? Date.now()
         }
 

@@ -423,8 +423,10 @@ export class ExecutorManager {
                     this.eventManager.emitEvent(
                         userOperationHash,
                         {
-                            status: "included",
-                            transactionHash: status.hash
+                            event: "included",
+                            data: {
+                                transactionHash: status.hash
+                            }
                         },
                         Number(status.transactionStatuses.blockTimeStamp)
                     )
@@ -454,8 +456,10 @@ export class ExecutorManager {
                     transactionHash: status.hash
                 })
                 this.eventManager.emitEvent(userOperationHash, {
-                    status: "failed_validation_onchain",
-                    transactionHash: status.hash
+                    event: "failed_validation_onchain",
+                    data: {
+                        transactionHash: status.hash
+                    }
                 })
                 this.logger.info(
                     {

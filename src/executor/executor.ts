@@ -616,8 +616,10 @@ export class Executor {
             return opsWithHashes.map(
                 ({ userOperationHash, mempoolUserOperation }) => {
                     this.eventManager.emitEvent(userOperationHash, {
-                        status: "dropped_from_mempool",
-                        reason: "INTERNAL FAILURE"
+                        event: "dropped_from_mempool",
+                        data: {
+                            reason: "INTERNAL FAILURE"
+                        }
                     })
 
                     return {
@@ -638,8 +640,10 @@ export class Executor {
             this.markWalletProcessed(wallet)
             return simulatedOps.map(({ reason, owh }) => {
                 this.eventManager.emitEvent(owh.userOperationHash, {
-                    status: "dropped_from_mempool",
-                    reason: reason as string
+                    event: "dropped_from_mempool",
+                    data: {
+                        reason: reason as string
+                    }
                 })
 
                 return {
@@ -716,8 +720,10 @@ export class Executor {
 
             opsWithHashToBundle.map(({ userOperationHash }) => {
                 this.eventManager.emitEvent(userOperationHash, {
-                    status: "submitted",
-                    transactionHash
+                    event: "submitted",
+                    data: {
+                        transactionHash
+                    }
                 })
             })
         } catch (err: unknown) {
@@ -749,8 +755,10 @@ export class Executor {
             this.markWalletProcessed(wallet)
             return opsWithHashes.map((owh) => {
                 this.eventManager.emitEvent(owh.userOperationHash, {
-                    status: "dropped_from_mempool",
-                    reason: "INTERNAL FAILURE"
+                    event: "dropped_from_mempool",
+                    data: {
+                        reason: "INTERNAL FAILURE"
+                    }
                 })
 
                 return {
@@ -929,8 +937,10 @@ export class Executor {
                 )
 
                 this.eventManager.emitEvent(userOpHash, {
-                    status: "dropped_from_mempool",
-                    reason: "INTERNAL FAILURE"
+                    event: "dropped_from_mempool",
+                    data: {
+                        reason: "INTERNAL FAILURE"
+                    }
                 })
 
                 return {
@@ -953,8 +963,10 @@ export class Executor {
             this.markWalletProcessed(wallet)
             return simulatedOps.map(({ reason, owh }) => {
                 this.eventManager.emitEvent(owh.userOperationHash, {
-                    status: "dropped_from_mempool",
-                    reason: reason as string
+                    event: "dropped_from_mempool",
+                    data: {
+                        reason: reason as string
+                    }
                 })
 
                 return {
@@ -1007,8 +1019,10 @@ export class Executor {
 
             opsToBundle.map(({ userOperationHash }) => {
                 this.eventManager.emitEvent(userOperationHash, {
-                    status: "submitted",
-                    transactionHash
+                    event: "submitted",
+                    data: {
+                        transactionHash
+                    }
                 })
             })
         } catch (err: unknown) {
@@ -1021,8 +1035,10 @@ export class Executor {
             return opsToBundle.map(
                 ({ userOperationHash, mempoolUserOperation }) => {
                     this.eventManager.emitEvent(userOperationHash, {
-                        status: "dropped_from_mempool",
-                        reason: "INTERNAL FAILURE"
+                        event: "dropped_from_mempool",
+                        data: {
+                            reason: "INTERNAL FAILURE"
+                        }
                     })
 
                     return {
