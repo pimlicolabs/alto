@@ -522,7 +522,7 @@ export class RpcHandler implements IRpcEndpoint {
             entryPoint,
             this.chainId
         )
-        this.eventManager.emitEvent(hash, { event: "received" })
+        this.eventManager.emitEvent(hash, { eventType: "received" })
 
         let status: "added" | "queued" | "rejected" = "rejected"
         try {
@@ -955,7 +955,7 @@ export class RpcHandler implements IRpcEndpoint {
             const reason =
                 "maxPriorityFeePerGas must equal maxFeePerGas on chains that don't support EIP-1559"
             this.eventManager.emitEvent(opHash, {
-                event: "failed_validation",
+                eventType: "failed_validation",
                 data: {
                     reason
                 }
@@ -973,7 +973,7 @@ export class RpcHandler implements IRpcEndpoint {
         if (userOperation.verificationGasLimit < 10000n) {
             const reason = "verificationGasLimit must be at least 10000"
             this.eventManager.emitEvent(opHash, {
-                event: "failed_validation",
+                eventType: "failed_validation",
                 data: {
                     reason
                 }
@@ -989,7 +989,7 @@ export class RpcHandler implements IRpcEndpoint {
         ) {
             const reason = "user operation gas limits must be larger than 0"
             this.eventManager.emitEvent(opHash, {
-                event: "failed_validation",
+                eventType: "failed_validation",
                 data: {
                     reason
                 }
@@ -1009,7 +1009,7 @@ export class RpcHandler implements IRpcEndpoint {
             const reason =
                 "UserOperation failed validation with reason: AA25 invalid account nonce"
             this.eventManager.emitEvent(opHash, {
-                event: "failed_validation",
+                eventType: "failed_validation",
                 data: {
                     reason
                 }
@@ -1020,7 +1020,7 @@ export class RpcHandler implements IRpcEndpoint {
             const reason =
                 "UserOperation failed validaiton with reason: AA25 invalid account nonce"
             this.eventManager.emitEvent(opHash, {
-                event: "failed_validation",
+                eventType: "failed_validation",
                 data: {
                     reason
                 }
@@ -1121,7 +1121,7 @@ export class RpcHandler implements IRpcEndpoint {
 
             this.eventManager.emitEvent(
                 hash,
-                { event: "received" },
+                { eventType: "received" },
                 receivedTimestamp
             )
 

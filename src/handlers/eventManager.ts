@@ -32,7 +32,7 @@ export class EventManager {
 
         const response = {
             userOperationHash,
-            timestamp: timestamp ?? Date.now(),
+            eventTimestamp: timestamp ?? Date.now(),
             chainId: this.chainId,
             ...event
         }

@@ -616,7 +616,7 @@ export class Executor {
             return opsWithHashes.map(
                 ({ userOperationHash, mempoolUserOperation }) => {
                     this.eventManager.emitEvent(userOperationHash, {
-                        event: "dropped_from_mempool",
+                        eventType: "dropped",
                         data: {
                             reason: "INTERNAL FAILURE"
                         }
@@ -640,7 +640,7 @@ export class Executor {
             this.markWalletProcessed(wallet)
             return simulatedOps.map(({ reason, owh }) => {
                 this.eventManager.emitEvent(owh.userOperationHash, {
-                    event: "dropped_from_mempool",
+                    eventType: "dropped",
                     data: {
                         reason: reason as string
                     }
@@ -720,7 +720,7 @@ export class Executor {
 
             opsWithHashToBundle.map(({ userOperationHash }) => {
                 this.eventManager.emitEvent(userOperationHash, {
-                    event: "submitted",
+                    eventType: "submitted",
                     data: {
                         transactionHash
                     }
@@ -755,7 +755,7 @@ export class Executor {
             this.markWalletProcessed(wallet)
             return opsWithHashes.map((owh) => {
                 this.eventManager.emitEvent(owh.userOperationHash, {
-                    event: "dropped_from_mempool",
+                    eventType: "dropped",
                     data: {
                         reason: "INTERNAL FAILURE"
                     }
@@ -937,7 +937,7 @@ export class Executor {
                 )
 
                 this.eventManager.emitEvent(userOpHash, {
-                    event: "dropped_from_mempool",
+                    eventType: "dropped",
                     data: {
                         reason: "INTERNAL FAILURE"
                     }
@@ -963,7 +963,7 @@ export class Executor {
             this.markWalletProcessed(wallet)
             return simulatedOps.map(({ reason, owh }) => {
                 this.eventManager.emitEvent(owh.userOperationHash, {
-                    event: "dropped_from_mempool",
+                    eventType: "dropped",
                     data: {
                         reason: reason as string
                     }
@@ -1019,7 +1019,7 @@ export class Executor {
 
             opsToBundle.map(({ userOperationHash }) => {
                 this.eventManager.emitEvent(userOperationHash, {
-                    event: "submitted",
+                    eventType: "submitted",
                     data: {
                         transactionHash
                     }
@@ -1035,7 +1035,7 @@ export class Executor {
             return opsToBundle.map(
                 ({ userOperationHash, mempoolUserOperation }) => {
                     this.eventManager.emitEvent(userOperationHash, {
-                        event: "dropped_from_mempool",
+                        eventType: "dropped",
                         data: {
                             reason: "INTERNAL FAILURE"
                         }

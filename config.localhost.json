@@ -16,5 +16,6 @@
     "safe-mode": false,
     "mempool-max-parallel-ops": 5,
     "mempool-max-queued-ops": 5,
-    "enforce-unique-senders-per-bundle": false
+    "enforce-unique-senders-per-bundle": false,
+    "event-consumer-endpoint": "127.0.0.1:6379"
 }
