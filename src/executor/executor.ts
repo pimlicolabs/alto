@@ -422,6 +422,18 @@ export class Executor {
                     : newRequest
             )
 
+            opsToBundle.map((opToBundle) => {
+                const op = deriveUserOperation(opToBundle.mempoolUserOperation)
+                const chainId = this.publicClient.chain?.id
+                const opHash = getUserOperationHash(
+                    op,
+                    opToBundle.entryPoint,
+                    chainId as number
+                )
+
+                this.eventManager.emitSubmitted(opHash, txHash)
+            })
+
             const newTxInfo: TransactionInfo = {
                 ...transactionInfo,
                 transactionRequest: newRequest,
