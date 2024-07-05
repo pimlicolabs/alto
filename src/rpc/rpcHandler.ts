@@ -994,13 +994,13 @@ export class RpcHandler implements IRpcEndpoint {
         if (userOperationNonceValue < currentNonceValue) {
             const reason =
                 "UserOperation failed validation with reason: AA25 invalid account nonce"
-            this.eventManager.emitFailedValidation(opHash, reason)
+            this.eventManager.emitFailedValidation(opHash, reason, "AA25")
             throw new RpcError(reason, ValidationErrors.InvalidFields)
         }
         if (userOperationNonceValue > currentNonceValue + 10n) {
             const reason =
                 "UserOperation failed validaiton with reason: AA25 invalid account nonce"
-            this.eventManager.emitFailedValidation(opHash, reason)
+            this.eventManager.emitFailedValidation(opHash, reason, "AA25")
             throw new RpcError(reason, ValidationErrors.InvalidFields)
         }
 
@@ -1023,7 +1023,11 @@ export class RpcHandler implements IRpcEndpoint {
             if (this.dangerousSkipUserOperationValidation) {
                 const [success, errorReason] = this.mempool.add(op, entryPoint)
                 if (!success) {
-                    this.eventManager.emitFailedValidation(opHash, errorReason)
+                    this.eventManager.emitFailedValidation(
+                        opHash,
+                        errorReason,
+                        getAAError(errorReason)
+                    )
                     throw new RpcError(
                         `UserOperation reverted during simulation with reason: ${errorReason}`,
                         ValidationErrors.InvalidFields
