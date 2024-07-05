@@ -797,10 +797,10 @@ export type JSONRPCResponse = z.infer<typeof jsonRpcResultSchema>
 
 const OpEventType = z.union([
     z.object({
-        eventType: z.literal("added_to_mempool")
+        eventType: z.literal("received")
     }),
     z.object({
-        eventType: z.literal("received")
+        eventType: z.literal("added_to_mempool")
     }),
     z.object({
         eventType: z.literal("queued")
@@ -824,15 +824,15 @@ const OpEventType = z.union([
         data: z.object({ transactionHash: hexData32Schema })
     }),
     z.object({
-        eventType: z.literal("included"),
+        eventType: z.literal("included_onchain"),
         data: z.object({ transactionHash: hexData32Schema })
     }),
     z.object({
-        eventType: z.literal("failed_validation_onchain"),
+        eventType: z.literal("frontran_onchain"),
         data: z.object({ transactionHash: hexData32Schema })
     }),
     z.object({
-        eventType: z.literal("reverted_onchain"),
+        eventType: z.literal("failed_onchain"),
         data: z.object({ transactionHash: hexData32Schema })
     })
 ])
