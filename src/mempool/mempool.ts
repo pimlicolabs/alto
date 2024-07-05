@@ -276,12 +276,6 @@ export class MemoryMempool {
         ) {
             const reason =
                 "AA25 invalid account nonce: User operation is already in mempool and getting processed with same nonce and sender"
-            this.eventManager.emitEvent(opHash, {
-                eventType: "failed_validation",
-                data: {
-                    reason
-                }
-            })
             return [false, reason]
         }
 
@@ -312,12 +306,6 @@ export class MemoryMempool {
             ) {
                 const reason =
                     "AA25 invalid account nonce: User operation already present in mempool, bump the gas price by minimum 10%"
-                this.eventManager.emitEvent(opHash, {
-                    eventType: "failed_validation",
-                    data: {
-                        reason
-                    }
-                })
                 return [false, reason]
             }
 
@@ -337,12 +325,6 @@ export class MemoryMempool {
         if (parallelUserOperationsCount > this.parallelUserOpsMaxSize) {
             const reason =
                 "AA25 invalid account nonce: Maximum number of parallel user operations for that is allowed for this sender reached"
-            this.eventManager.emitEvent(opHash, {
-                eventType: "failed_validation",
-                data: {
-                    reason
-                }
-            })
             return [false, reason]
         }
 
@@ -362,12 +344,6 @@ export class MemoryMempool {
         if (queuedUserOperationsCount > this.queuedUserOpsMaxSize) {
             const reason =
                 "AA25 invalid account nonce: Maximum number of queued user operations reached for this sender and nonce key"
-            this.eventManager.emitEvent(opHash, {
-                eventType: "failed_validation",
-                data: {
-                    reason
-                }
-            })
             return [false, reason]
         }
 
@@ -384,7 +360,7 @@ export class MemoryMempool {
             transactionHash: null
         })
 
-        this.eventManager.emitEvent(opHash, { eventType: "added_to_mempool" })
+        this.eventManager.emitAddedToMempool(opHash)
         return [true, ""]
     }
 

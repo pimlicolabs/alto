@@ -18,7 +18,7 @@ import {
     type CompressedUserOperation,
     type UserOperationInfo
 } from "@alto/types"
-import { transactionIncluded } from "@alto/utils"
+import { getAAError, transactionIncluded } from "@alto/utils"
 import type {
     Address,
     Block,
@@ -221,6 +221,11 @@ export class ExecutorManager {
             if (result.status === "failure") {
                 const { userOpHash, reason } = result.error
                 this.mempool.removeProcessing(userOpHash)
+                this.eventManager.emitDropped(
+                    userOpHash,
+                    reason,
+                    getAAError(reason)
+                )
                 this.monitor.setUserOperationStatus(userOpHash, {
                     status: "rejected",
                     transactionHash: null
@@ -420,15 +425,10 @@ export class ExecutorManager {
                             .accountDeployed
                     )
                     this.mempool.removeSubmitted(userOperationHash)
-                    this.eventManager.emitEvent(
+                    this.eventManager.emitIncludedOnChain(
                         userOperationHash,
-                        {
-                            eventType: "included_onchain",
-                            data: {
-                                transactionHash: status.hash
-                            }
-                        },
-                        Number(status.transactionStatuses.blockTimeStamp) * 100
+                        status.hash,
+                        Number(status.transactionStatuses.blockTimeStamp) * 1000
                     )
                     this.monitor.setUserOperationStatus(userOperationHash, {
                         status: "included",
@@ -455,12 +455,10 @@ export class ExecutorManager {
                     status: "rejected",
                     transactionHash: status.hash
                 })
-                this.eventManager.emitEvent(userOperationHash, {
-                    eventType: "failed_onchain",
-                    data: {
-                        transactionHash: status.hash
-                    }
-                })
+                this.eventManager.emitFailedOnChain(
+                    userOperationHash,
+                    status.hash
+                )
                 this.logger.info(
                     {
                         userOpHash: userOperationHash,

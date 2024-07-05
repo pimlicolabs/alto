@@ -615,13 +615,6 @@ export class Executor {
             this.markWalletProcessed(wallet)
             return opsWithHashes.map(
                 ({ userOperationHash, mempoolUserOperation }) => {
-                    this.eventManager.emitEvent(userOperationHash, {
-                        eventType: "dropped",
-                        data: {
-                            reason: "INTERNAL FAILURE"
-                        }
-                    })
-
                     return {
                         status: "failure",
                         error: {
@@ -639,13 +632,6 @@ export class Executor {
             childLogger.warn("all ops failed simulation")
             this.markWalletProcessed(wallet)
             return simulatedOps.map(({ reason, owh }) => {
-                this.eventManager.emitEvent(owh.userOperationHash, {
-                    eventType: "dropped",
-                    data: {
-                        reason: reason as string
-                    }
-                })
-
                 return {
                     status: "failure",
                     error: {
@@ -719,12 +705,10 @@ export class Executor {
             )
 
             opsWithHashToBundle.map(({ userOperationHash }) => {
-                this.eventManager.emitEvent(userOperationHash, {
-                    eventType: "submitted",
-                    data: {
-                        transactionHash
-                    }
-                })
+                this.eventManager.emitSubmitted(
+                    userOperationHash,
+                    transactionHash
+                )
             })
         } catch (err: unknown) {
             const e = parseViemError(err)
@@ -754,13 +738,6 @@ export class Executor {
             )
             this.markWalletProcessed(wallet)
             return opsWithHashes.map((owh) => {
-                this.eventManager.emitEvent(owh.userOperationHash, {
-                    eventType: "dropped",
-                    data: {
-                        reason: "INTERNAL FAILURE"
-                    }
-                })
-
                 return {
                     status: "failure",
                     error: {
@@ -936,13 +913,6 @@ export class Executor {
                     this.walletClient.chain.id
                 )
 
-                this.eventManager.emitEvent(userOpHash, {
-                    eventType: "dropped",
-                    data: {
-                        reason: "INTERNAL FAILURE"
-                    }
-                })
-
                 return {
                     status: "failure",
                     error: {
@@ -962,13 +932,6 @@ export class Executor {
             childLogger.warn("some ops failed simulation")
             this.markWalletProcessed(wallet)
             return simulatedOps.map(({ reason, owh }) => {
-                this.eventManager.emitEvent(owh.userOperationHash, {
-                    eventType: "dropped",
-                    data: {
-                        reason: reason as string
-                    }
-                })
-
                 return {
                     status: "failure",
                     error: {
@@ -1018,12 +981,10 @@ export class Executor {
             })
 
             opsToBundle.map(({ userOperationHash }) => {
-                this.eventManager.emitEvent(userOperationHash, {
-                    eventType: "submitted",
-                    data: {
-                        transactionHash
-                    }
-                })
+                this.eventManager.emitSubmitted(
+                    userOperationHash,
+                    transactionHash
+                )
             })
         } catch (err: unknown) {
             captureException(err)
@@ -1034,13 +995,6 @@ export class Executor {
             this.markWalletProcessed(wallet)
             return opsToBundle.map(
                 ({ userOperationHash, mempoolUserOperation }) => {
-                    this.eventManager.emitEvent(userOperationHash, {
-                        eventType: "dropped",
-                        data: {
-                            reason: "INTERNAL FAILURE"
-                        }
-                    })
-
                     return {
                         status: "failure",
                         error: {

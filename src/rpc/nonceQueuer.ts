@@ -109,7 +109,8 @@ export class NonceQueuer {
             nonceValue: nonceValue,
             addedAt: Date.now()
         })
-        this.eventManager.emitEvent(hash, { eventType: "queued" })
+
+        this.eventManager.emitQueued(hash)
     }
 
     resubmitUserOperation(

@@ -58,6 +58,7 @@ import type {
 import {
     calcPreVerificationGas,
     calcVerificationGasAndCallGasLimit,
+    getAAError,
     getNonceKeyAndValue,
     getUserOperationHash,
     isVersion06,
@@ -522,7 +523,7 @@ export class RpcHandler implements IRpcEndpoint {
             entryPoint,
             this.chainId
         )
-        this.eventManager.emitEvent(hash, { eventType: "received" })
+        this.eventManager.emitReceived(hash)
 
         let status: "added" | "queued" | "rejected" = "rejected"
         try {
@@ -954,12 +955,7 @@ export class RpcHandler implements IRpcEndpoint {
         ) {
             const reason =
                 "maxPriorityFeePerGas must equal maxFeePerGas on chains that don't support EIP-1559"
-            this.eventManager.emitEvent(opHash, {
-                eventType: "failed_validation",
-                data: {
-                    reason
-                }
-            })
+            this.eventManager.emitFailedValidation(opHash, reason)
             throw new RpcError(reason)
         }
 
@@ -972,12 +968,7 @@ export class RpcHandler implements IRpcEndpoint {
 
         if (userOperation.verificationGasLimit < 10000n) {
             const reason = "verificationGasLimit must be at least 10000"
-            this.eventManager.emitEvent(opHash, {
-                eventType: "failed_validation",
-                data: {
-                    reason
-                }
-            })
+            this.eventManager.emitFailedValidation(opHash, reason)
             throw new RpcError(reason)
         }
 
@@ -988,12 +979,7 @@ export class RpcHandler implements IRpcEndpoint {
             userOperation.verificationGasLimit === 0n
         ) {
             const reason = "user operation gas limits must be larger than 0"
-            this.eventManager.emitEvent(opHash, {
-                eventType: "failed_validation",
-                data: {
-                    reason
-                }
-            })
+            this.eventManager.emitFailedValidation(opHash, reason)
             throw new RpcError(reason)
         }
 
@@ -1008,23 +994,13 @@ export class RpcHandler implements IRpcEndpoint {
         if (userOperationNonceValue < currentNonceValue) {
             const reason =
                 "UserOperation failed validation with reason: AA25 invalid account nonce"
-            this.eventManager.emitEvent(opHash, {
-                eventType: "failed_validation",
-                data: {
-                    reason
-                }
-            })
+            this.eventManager.emitFailedValidation(opHash, reason)
             throw new RpcError(reason, ValidationErrors.InvalidFields)
         }
         if (userOperationNonceValue > currentNonceValue + 10n) {
             const reason =
                 "UserOperation failed validaiton with reason: AA25 invalid account nonce"
-            this.eventManager.emitEvent(opHash, {
-                eventType: "failed_validation",
-                data: {
-                    reason
-                }
-            })
+            this.eventManager.emitFailedValidation(opHash, reason)
             throw new RpcError(reason, ValidationErrors.InvalidFields)
         }
 
@@ -1047,6 +1023,7 @@ export class RpcHandler implements IRpcEndpoint {
             if (this.dangerousSkipUserOperationValidation) {
                 const [success, errorReason] = this.mempool.add(op, entryPoint)
                 if (!success) {
+                    this.eventManager.emitFailedValidation(opHash, errorReason)
                     throw new RpcError(
                         `UserOperation reverted during simulation with reason: ${errorReason}`,
                         ValidationErrors.InvalidFields
@@ -1085,6 +1062,11 @@ export class RpcHandler implements IRpcEndpoint {
                 )
 
                 if (!success) {
+                    this.eventManager.emitFailedValidation(
+                        opHash,
+                        errorReason,
+                        getAAError(errorReason)
+                    )
                     throw new RpcError(
                         `UserOperation reverted during simulation with reason: ${errorReason}`,
                         ValidationErrors.InvalidFields
@@ -1119,11 +1101,7 @@ export class RpcHandler implements IRpcEndpoint {
                 this.chainId
             )
 
-            this.eventManager.emitEvent(
-                hash,
-                { eventType: "received" },
-                receivedTimestamp
-            )
+            this.eventManager.emitReceived(hash, receivedTimestamp)
 
             const compressedUserOp: CompressedUserOperation = {
                 compressedCalldata,
