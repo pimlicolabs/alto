@@ -169,6 +169,13 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
+    const emittedEvents = new Counter({
+        name: "emitted_events",
+        help: "Total number of emitted UserOperation status events",
+        labelNames: ["event_type"] as const,
+        registers
+    })
+
     return {
         httpRequests,
         httpRequestsDuration,
@@ -188,6 +195,7 @@ export function createMetrics(registry: Registry, register = true) {
         replacedTransactions,
         userOperationsResubmitted,
         utilityWalletBalance,
-        executorWalletsMinBalance
+        executorWalletsMinBalance,
+        emittedEvents
     }
 }

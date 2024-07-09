@@ -1,18 +1,25 @@
+// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
+import * as sentry from "@sentry/node"
 import Redis from "ioredis"
 import type { Hex } from "viem"
 import type { OpEventType } from "../types/schemas"
-// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
-import * as sentry from "@sentry/node"
-import type { Logger } from "@alto/utils"
+import type { Logger, Metrics } from "@alto/utils"
 
 export class EventManager {
     private redis: Redis | undefined
     private chainId: number
     private logger: Logger
+    private metrics: Metrics
 
-    constructor(endpoint: string | undefined, chainId: number, logger: Logger) {
+    constructor(
+        endpoint: string | undefined,
+        chainId: number,
+        logger: Logger,
+        metrics: Metrics
+    ) {
         this.chainId = chainId
         this.logger = logger
+        this.metrics = metrics
 
         if (endpoint) {
             this.redis = new Redis(endpoint)
@@ -24,6 +31,7 @@ export class EventManager {
 
     // emits when the userOperation was mined onchain but failed
     async emitFailedOnChain(userOperationHash: Hex, transactionHash: Hex) {
+        this.metrics.emittedEvents.labels("failed_onchain").inc()
         await this.emitEvent({
             userOperationHash,
             event: {
@@ -35,6 +43,7 @@ export class EventManager {
 
     // emits when the userOperation has been included onchain but bundled by a frontrunner
     async emitFrontranOnChain(userOperationHash: Hex, transactionHash: Hex) {
+        this.metrics.emittedEvents.labels("frontran_onchain").inc()
         await this.emitEvent({
             userOperationHash,
             event: {
@@ -50,6 +59,7 @@ export class EventManager {
         transactionHash: Hex,
         timestamp: number
     ) {
+        this.metrics.emittedEvents.labels("included_onchain").inc()
         await this.emitEvent({
             userOperationHash,
             event: {
@@ -62,6 +72,7 @@ export class EventManager {
 
     // emits when the userOperation is placed in the nonce queue
     async emitQueued(userOperationHash: Hex) {
+        this.metrics.emittedEvents.labels("queued").inc()
         await this.emitEvent({
             userOperationHash,
             event: {
@@ -72,6 +83,7 @@ export class EventManager {
 
     // emits when the userOperation is first seen
     async emitReceived(userOperationHash: Hex, timestamp?: number) {
+        this.metrics.emittedEvents.labels("received").inc()
         await this.emitEvent({
             userOperationHash,
             event: {
@@ -87,6 +99,7 @@ export class EventManager {
         reason?: string,
         aaError?: string
     ) {
+        this.metrics.emittedEvents.labels("failed_validation").inc()
         await this.emitEvent({
             userOperationHash,
             event: {
@@ -101,6 +114,7 @@ export class EventManager {
 
     // emits when the userOperation has been submitted to the network
     async emitSubmitted(userOperationHash: Hex, transactionHash: Hex) {
+        this.metrics.emittedEvents.labels("submitted").inc()
         await this.emitEvent({
             userOperationHash,
             event: {
@@ -116,6 +130,7 @@ export class EventManager {
         reason?: string,
         aaError?: string
     ) {
+        this.metrics.emittedEvents.labels("dropped").inc()
         await this.emitEvent({
             userOperationHash,
             event: {
@@ -130,6 +145,7 @@ export class EventManager {
 
     // emits when the userOperation was added to the internal mempool
     async emitAddedToMempool(userOperationHash: Hex) {
+        this.metrics.emittedEvents.labels("added_to_mempool").inc()
         await this.emitEvent({
             userOperationHash,
             event: {
