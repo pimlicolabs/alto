@@ -31,7 +31,6 @@ export class EventManager {
 
     // emits when the userOperation was mined onchain but failed
     async emitFailedOnChain(userOperationHash: Hex, transactionHash: Hex) {
-        this.metrics.emittedEvents.labels("failed_onchain").inc()
         await this.emitEvent({
             userOperationHash,
             event: {
@@ -43,7 +42,6 @@ export class EventManager {
 
     // emits when the userOperation has been included onchain but bundled by a frontrunner
     async emitFrontranOnChain(userOperationHash: Hex, transactionHash: Hex) {
-        this.metrics.emittedEvents.labels("frontran_onchain").inc()
         await this.emitEvent({
             userOperationHash,
             event: {
@@ -59,7 +57,6 @@ export class EventManager {
         transactionHash: Hex,
         timestamp: number
     ) {
-        this.metrics.emittedEvents.labels("included_onchain").inc()
         await this.emitEvent({
             userOperationHash,
             event: {
@@ -72,7 +69,6 @@ export class EventManager {
 
     // emits when the userOperation is placed in the nonce queue
     async emitQueued(userOperationHash: Hex) {
-        this.metrics.emittedEvents.labels("queued").inc()
         await this.emitEvent({
             userOperationHash,
             event: {
@@ -83,7 +79,6 @@ export class EventManager {
 
     // emits when the userOperation is first seen
     async emitReceived(userOperationHash: Hex, timestamp?: number) {
-        this.metrics.emittedEvents.labels("received").inc()
         await this.emitEvent({
             userOperationHash,
             event: {
@@ -99,7 +94,6 @@ export class EventManager {
         reason?: string,
         aaError?: string
     ) {
-        this.metrics.emittedEvents.labels("failed_validation").inc()
         await this.emitEvent({
             userOperationHash,
             event: {
@@ -114,7 +108,6 @@ export class EventManager {
 
     // emits when the userOperation has been submitted to the network
     async emitSubmitted(userOperationHash: Hex, transactionHash: Hex) {
-        this.metrics.emittedEvents.labels("submitted").inc()
         await this.emitEvent({
             userOperationHash,
             event: {
@@ -130,7 +123,6 @@ export class EventManager {
         reason?: string,
         aaError?: string
     ) {
-        this.metrics.emittedEvents.labels("dropped").inc()
         await this.emitEvent({
             userOperationHash,
             event: {
@@ -145,7 +137,6 @@ export class EventManager {
 
     // emits when the userOperation was added to the internal mempool
     async emitAddedToMempool(userOperationHash: Hex) {
-        this.metrics.emittedEvents.labels("added_to_mempool").inc()
         await this.emitEvent({
             userOperationHash,
             event: {
@@ -180,6 +171,11 @@ export class EventManager {
                 "UserOperationStatusEventsQueue",
                 JSON.stringify(entry)
             )
+
+            this.metrics.emittedEvents
+                // biome-ignore lint/style/useNamingConvention: event_type
+                .labels({ event_type: event.eventType })
+                .inc()
         } catch (e) {
             this.logger.error(
                 "Failed to send userOperation status event due to ",
