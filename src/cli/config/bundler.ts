@@ -136,7 +136,7 @@ export const bundleCopmressionArgsSchema = z.object({
 })
 
 export const logArgsSchema = z.object({
-    "event-consumer-endpoint": z.string().optional(),
+    "redis-queue-endpoint": z.string().optional(),
     json: z.boolean(),
     "network-name": z.string(),
     "log-level": logLevel,

@@ -438,7 +438,7 @@ export const setupServer = async ({
         parsedArgs
     })
     const eventManager = getEventManager({
-        endpoint: parsedArgs["event-consumer-endpoint"],
+        endpoint: parsedArgs["redis-queue-endpoint"],
         chainId: client.chain.id,
         logger
     })
