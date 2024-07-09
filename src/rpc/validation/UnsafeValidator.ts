@@ -33,7 +33,8 @@ import {
     isVersion06,
     isVersion07
 } from "@alto/utils"
-import { captureException } from "@sentry/node"
+// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
+import * as sentry from "@sentry/node"
 import {
     BaseError,
     type Chain,
@@ -135,7 +136,7 @@ export class UnsafeValidator implements InterfaceValidator {
                         ValidationErrors.SimulateValidation
                     )
                 }
-                captureException(errorResult)
+                sentry.captureException(errorResult)
                 throw new Error(
                     `User Operation simulation returned unexpected invalid response: ${JSON.stringify(
                         errorResult

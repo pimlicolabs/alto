@@ -7,7 +7,8 @@ import {
     EntryPointV07Abi,
     type PackedUserOperation
 } from "@alto/types"
-import { captureException } from "@sentry/node"
+// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
+import * as sentry from "@sentry/node"
 import {
     type Address,
     type Hex,
@@ -233,7 +234,7 @@ export const transactionIncluded = async (
                             }
                             return undefined
                         } catch (_e) {
-                            captureException(_e)
+                            sentry.captureException(_e)
                             return undefined
                         }
                     }

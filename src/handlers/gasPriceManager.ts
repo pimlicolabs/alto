@@ -4,7 +4,8 @@ import {
     type GasPriceParameters
 } from "@alto/types"
 import { maxBigInt, minBigInt, type Logger } from "@alto/utils"
-import { captureException } from "@sentry/node"
+// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
+import * as sentry from "@sentry/node"
 import { parseGwei, type Chain, type PublicClient } from "viem"
 import {
     celo,
@@ -216,7 +217,7 @@ export class GasPriceManager {
             })
             gasPrice = gasInfo.gasPrice
         } catch (e) {
-            captureException(e)
+            sentry.captureException(e)
             this.logger.error(
                 "failed to fetch legacy gasPrices from estimateFeesPerGas",
                 { error: e }
@@ -230,7 +231,7 @@ export class GasPriceManager {
                 gasPrice = await this.publicClient.getGasPrice()
             } catch (e) {
                 this.logger.error("failed to get fallback gasPrice")
-                captureException(e)
+                sentry.captureException(e)
                 throw e
             }
         }
@@ -252,7 +253,7 @@ export class GasPriceManager {
             maxFeePerGas = fees.maxFeePerGas
             maxPriorityFeePerGas = fees.maxPriorityFeePerGas
         } catch (e) {
-            captureException(e)
+            sentry.captureException(e)
             this.logger.error(
                 "failed to fetch eip-1559 gasPrices from estimateFeesPerGas",
                 { error: e }
@@ -273,7 +274,7 @@ export class GasPriceManager {
                     )
             } catch (e) {
                 this.logger.error("failed to get fallback maxPriorityFeePerGas")
-                captureException(e)
+                sentry.captureException(e)
                 throw e
             }
         }
@@ -286,7 +287,7 @@ export class GasPriceManager {
                     maxPriorityFeePerGas
             } catch (e) {
                 this.logger.error("failed to get fallback maxFeePerGas")
-                captureException(e)
+                sentry.captureException(e)
                 throw e
             }
         }

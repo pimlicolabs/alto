@@ -1,3 +1,5 @@
+// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
+import * as sentry from "@sentry/node"
 import type { InterfaceReputationManager } from "@alto/mempool"
 import {
     type BundleResult,
@@ -22,7 +24,6 @@ import {
     toPackedUserOperation,
     transactionIncluded
 } from "@alto/utils"
-import * as sentry from "@sentry/node"
 import {
     type Account,
     type Address,

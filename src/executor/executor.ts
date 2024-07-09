@@ -31,7 +31,8 @@ import {
     parseViemError,
     toPackedUserOperation
 } from "@alto/utils"
-import { captureException } from "@sentry/node"
+// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
+import * as sentry from "@sentry/node"
 import { Mutex } from "async-mutex"
 import {
     FeeCapTooLowError,
@@ -461,7 +462,7 @@ export class Executor {
         } catch (err: unknown) {
             const e = parseViemError(err)
             if (!e) {
-                captureException(err)
+                sentry.captureException(err)
                 childLogger.error(
                     { error: err },
                     "unknown error replacing transaction"
@@ -743,7 +744,7 @@ export class Executor {
                 })
             }
 
-            captureException(err)
+            sentry.captureException(err)
             childLogger.error(
                 { error: JSON.stringify(err) },
                 "error submitting bundle transaction"
@@ -999,7 +1000,7 @@ export class Executor {
                 )
             })
         } catch (err: unknown) {
-            captureException(err)
+            sentry.captureException(err)
             childLogger.error(
                 { error: JSON.stringify(err) },
                 "error submitting bundle transaction"

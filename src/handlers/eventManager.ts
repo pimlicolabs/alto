@@ -1,7 +1,8 @@
 import Redis from "ioredis"
 import type { Hex } from "viem"
 import type { OpEventType } from "../types/schemas"
-import { captureException } from "@sentry/node"
+// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
+import * as sentry from "@sentry/node"
 import type { Logger } from "@alto/utils"
 
 export class EventManager {
@@ -168,7 +169,7 @@ export class EventManager {
                 "Failed to send userOperation status event due to ",
                 JSON.stringify(e)
             )
-            captureException(e)
+            sentry.captureException(e)
         }
     }
 }
