@@ -166,22 +166,28 @@ export class EventManager {
         }
 
         // log to redis here
+        let lpushStatus: string
         try {
             await this.redis.lpush(
                 "UserOperationStatusEventsQueue",
                 JSON.stringify(entry)
             )
-
-            this.metrics.emittedEvents
-                // biome-ignore lint/style/useNamingConvention: event_type
-                .labels({ event_type: event.eventType })
-                .inc()
+            lpushStatus = "success"
         } catch (e) {
             this.logger.error(
                 "Failed to send userOperation status event due to ",
                 JSON.stringify(e)
             )
             sentry.captureException(e)
+            lpushStatus = "failed"
         }
+
+        this.metrics.emittedOpEvents
+            .labels({
+                // biome-ignore lint/style/useNamingConvention: event_type
+                event_type: event.eventType,
+                status: lpushStatus
+            })
+            .inc()
     }
 }
