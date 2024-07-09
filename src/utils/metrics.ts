@@ -170,7 +170,7 @@ export function createMetrics(registry: Registry, register = true) {
     })
 
     const emittedEvents = new Counter({
-        name: "emitted_events",
+        name: "alto_emitted_user_operation_events",
         help: "Total number of emitted UserOperation status events",
         labelNames: ["event_type"] as const,
         registers
