@@ -821,19 +821,19 @@ const OpEventType = z.union([
     }),
     z.object({
         eventType: z.literal("submitted"),
-        data: z.object({ transactionHash: hexData32Schema })
+        transactionHash: hexData32Schema
     }),
     z.object({
         eventType: z.literal("included_onchain"),
-        data: z.object({ transactionHash: hexData32Schema })
+        transactionHash: hexData32Schema
     }),
     z.object({
         eventType: z.literal("frontran_onchain"),
-        data: z.object({ transactionHash: hexData32Schema })
+        transactionHash: hexData32Schema
     }),
     z.object({
         eventType: z.literal("failed_onchain"),
-        data: z.object({ transactionHash: hexData32Schema })
+        transactionHash: hexData32Schema
     })
 ])
 

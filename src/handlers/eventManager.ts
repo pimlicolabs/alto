@@ -27,9 +27,7 @@ export class EventManager {
             userOperationHash,
             event: {
                 eventType: "failed_onchain",
-                data: {
-                    transactionHash
-                }
+                transactionHash
             }
         })
     }
@@ -40,9 +38,7 @@ export class EventManager {
             userOperationHash,
             event: {
                 eventType: "frontran_onchain",
-                data: {
-                    transactionHash
-                }
+                transactionHash
             }
         })
     }
@@ -57,9 +53,7 @@ export class EventManager {
             userOperationHash,
             event: {
                 eventType: "included_onchain",
-                data: {
-                    transactionHash
-                }
+                transactionHash
             },
             timestamp
         })
@@ -110,9 +104,7 @@ export class EventManager {
             userOperationHash,
             event: {
                 eventType: "submitted",
-                data: {
-                    transactionHash
-                }
+                transactionHash
             }
         })
     }
