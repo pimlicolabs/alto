@@ -274,9 +274,10 @@ export class MemoryMempool {
                 )
             })
         ) {
-            const reason =
+            return [
+                false,
                 "AA25 invalid account nonce: User operation is already in mempool and getting processed with same nonce and sender"
-            return [false, reason]
+            ]
         }
 
         this.reputationManager.updateUserOperationSeenStatus(op, entryPoint)
@@ -304,9 +305,10 @@ export class MemoryMempool {
                     oldMaxPriorityFeePerGas + incrementMaxPriorityFeePerGas ||
                 newMaxFeePerGas < oldMaxFeePerGas + incrementMaxFeePerGas
             ) {
-                const reason =
+                return [
+                    false,
                     "AA25 invalid account nonce: User operation already present in mempool, bump the gas price by minimum 10%"
-                return [false, reason]
+                ]
             }
 
             this.store.removeOutstanding(oldUserOp.userOperationHash)
@@ -323,9 +325,10 @@ export class MemoryMempool {
             }).length
 
         if (parallelUserOperationsCount > this.parallelUserOpsMaxSize) {
-            const reason =
+            return [
+                false,
                 "AA25 invalid account nonce: Maximum number of parallel user operations for that is allowed for this sender reached"
-            return [false, reason]
+            ]
         }
 
         // Check if mempool already includes max amount of queued user operations
@@ -342,9 +345,10 @@ export class MemoryMempool {
             }).length
 
         if (queuedUserOperationsCount > this.queuedUserOpsMaxSize) {
-            const reason =
+            return [
+                false,
                 "AA25 invalid account nonce: Maximum number of queued user operations reached for this sender and nonce key"
-            return [false, reason]
+            ]
         }
 
         this.store.addOutstanding({
