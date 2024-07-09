@@ -1,3 +1,5 @@
+// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
+import * as sentry from "@sentry/node"
 import type { InterfaceReputationManager } from "@alto/mempool"
 import {
     type BundleResult,
@@ -22,7 +24,6 @@ import {
     toPackedUserOperation,
     transactionIncluded
 } from "@alto/utils"
-import * as sentry from "@sentry/node"
 import {
     type Account,
     type Address,
@@ -48,15 +49,15 @@ export function simulatedOpsToResults(
     }[],
     transactionInfo: TransactionInfo
 ): BundleResult[] {
-    return simulatedOps.map((sop) => {
-        if (sop.reason === undefined) {
+    return simulatedOps.map(({ reason, owh }) => {
+        if (reason === undefined) {
             return {
                 status: "success",
                 value: {
                     userOperation: {
                         entryPoint: transactionInfo.entryPoint,
-                        mempoolUserOperation: sop.owh.mempoolUserOperation,
-                        userOperationHash: sop.owh.userOperationHash,
+                        mempoolUserOperation: owh.mempoolUserOperation,
+                        userOperationHash: owh.userOperationHash,
                         lastReplaced: Date.now(),
                         firstSubmitted: Date.now()
                     },
@@ -68,9 +69,9 @@ export function simulatedOpsToResults(
             status: "failure",
             error: {
                 entryPoint: transactionInfo.entryPoint,
-                userOperation: sop.owh.mempoolUserOperation,
-                userOpHash: sop.owh.userOperationHash,
-                reason: sop.reason as string
+                userOperation: owh.mempoolUserOperation,
+                userOpHash: owh.userOperationHash,
+                reason: reason as string
             }
         }
     })

@@ -30,10 +30,10 @@ import {
     toBytes,
     toFunctionSelector
 } from "viem"
-import * as chains from "viem/chains"
+import { baseGoerli, baseSepolia, base } from "viem/chains"
 import { isVersion06, toPackedUserOperation } from "./userop"
 import { minBigInt } from "./bigInt"
-import type { GasPriceManager } from "./gasPriceManager"
+import type { GasPriceManager } from "@alto/handlers"
 
 export interface GasOverheads {
     /**
@@ -371,9 +371,9 @@ export function calcVerificationGasAndCallGasLimit(
         50000n
 
     if (
-        chainId === chains.baseGoerli.id ||
-        chainId === chains.baseSepolia.id ||
-        chainId === chains.base.id
+        chainId === baseGoerli.id ||
+        chainId === baseSepolia.id ||
+        chainId === base.id
     ) {
         callGasLimit = (110n * callGasLimit) / 100n
     }

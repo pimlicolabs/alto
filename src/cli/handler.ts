@@ -1,6 +1,5 @@
 import { SenderManager } from "@alto/executor"
 import {
-    GasPriceManager,
     createMetrics,
     initDebugLogger,
     initProductionLogger,
@@ -27,6 +26,7 @@ import { customTransport } from "./customTransport"
 import { setupServer } from "./setupServer"
 import { PimlicoEntryPointSimulationsDeployBytecode } from "../types/contracts"
 import { UtilityWalletMonitor } from "../executor/utilityWalletMonitor"
+import { GasPriceManager } from "@alto/handlers"
 
 const parseArgs = (args: IOptionsInput): IOptions => {
     // validate every arg, make type safe so if i add a new arg i have to validate it

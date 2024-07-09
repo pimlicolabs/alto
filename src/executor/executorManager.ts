@@ -1,4 +1,5 @@
-import type { Metrics, Logger, GasPriceManager } from "@alto/utils"
+import type { Metrics, Logger } from "@alto/utils"
+import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
     MemoryMempool,
@@ -17,7 +18,7 @@ import {
     type CompressedUserOperation,
     type UserOperationInfo
 } from "@alto/types"
-import { transactionIncluded } from "@alto/utils"
+import { getAAError, transactionIncluded } from "@alto/utils"
 import type {
     Address,
     Block,
@@ -57,6 +58,7 @@ export class ExecutorManager {
     private bundlerFrequency: number
     private maxGasLimitPerBundle: bigint
     private gasPriceManager: GasPriceManager
+    private eventManager: EventManager
 
     constructor(
         executor: Executor,
@@ -71,7 +73,8 @@ export class ExecutorManager {
         bundleMode: BundlingMode,
         bundlerFrequency: number,
         maxGasLimitPerBundle: bigint,
-        gasPriceManager: GasPriceManager
+        gasPriceManager: GasPriceManager,
+        eventManager: EventManager
     ) {
         this.entryPoints = entryPoints
         this.reputationManager = reputationManager
@@ -85,6 +88,7 @@ export class ExecutorManager {
         this.bundlerFrequency = bundlerFrequency
         this.maxGasLimitPerBundle = maxGasLimitPerBundle
         this.gasPriceManager = gasPriceManager
+        this.eventManager = eventManager
 
         if (bundleMode === "auto") {
             this.timer = setInterval(async () => {
@@ -215,8 +219,14 @@ export class ExecutorManager {
                     .inc()
             }
             if (result.status === "failure") {
-                this.mempool.removeProcessing(result.error.userOpHash)
-                this.monitor.setUserOperationStatus(result.error.userOpHash, {
+                const { userOpHash, reason } = result.error
+                this.mempool.removeProcessing(userOpHash)
+                this.eventManager.emitDropped(
+                    userOpHash,
+                    reason,
+                    getAAError(reason)
+                )
+                this.monitor.setUserOperationStatus(userOpHash, {
                     status: "rejected",
                     transactionHash: null
                 })
@@ -227,8 +237,8 @@ export class ExecutorManager {
                             (_k, v) =>
                                 typeof v === "bigint" ? v.toString() : v
                         ),
-                        userOpHash: result.error.userOpHash,
-                        reason: result.error.reason
+                        userOpHash,
+                        reason
                     },
                     "user operation rejected"
                 )
@@ -348,20 +358,23 @@ export class ExecutorManager {
         entryPoint: Address,
         transactionInfo: TransactionInfo
     ) {
-        const hashesToCheck = [
-            transactionInfo.transactionHash,
-            ...transactionInfo.previousTransactionHashes
-        ]
+        const {
+            transactionHash,
+            previousTransactionHashes,
+            userOperationInfos,
+            isVersion06
+        } = transactionInfo
+        const hashesToCheck = [transactionHash, ...previousTransactionHashes]
 
-        const opInfos = transactionInfo.userOperationInfos
+        const opInfos = userOperationInfos
         // const opHashes = transactionInfo.userOperationInfos.map((opInfo) => opInfo.userOperationHash)
 
         const transactionStatuses = await Promise.all(
             hashesToCheck.map(async (hash) => {
                 return {
-                    hash: hash,
+                    hash,
                     transactionStatuses: await transactionIncluded(
-                        transactionInfo.isVersion06,
+                        isVersion06,
                         hash,
                         this.publicClient,
                         entryPoint
@@ -371,10 +384,10 @@ export class ExecutorManager {
         )
 
         const status = transactionStatuses.find(
-            (status) =>
-                status.transactionStatuses.status === "included" ||
-                status.transactionStatuses.status === "failed" ||
-                status.transactionStatuses.status === "reverted"
+            ({ transactionStatuses }) =>
+                transactionStatuses.status === "included" ||
+                transactionStatuses.status === "failed" ||
+                transactionStatuses.status === "reverted"
         )
 
         if (!status) {
@@ -395,44 +408,60 @@ export class ExecutorManager {
             .labels({ status: status.transactionStatuses.status })
             .inc(opInfos.length)
         if (status.transactionStatuses.status === "included") {
-            opInfos.map((info) => {
-                this.metrics.userOperationInclusionDuration.observe(
-                    (Date.now() - info.firstSubmitted) / 1000
-                )
-                this.reputationManager.updateUserOperationIncludedStatus(
-                    deriveUserOperation(info.mempoolUserOperation),
-                    info.entryPoint,
-                    status.transactionStatuses[info.userOperationHash]
-                        .accountDeployed
-                )
-                this.mempool.removeSubmitted(info.userOperationHash)
-                this.monitor.setUserOperationStatus(info.userOperationHash, {
-                    status: "included",
-                    transactionHash: status.hash
-                })
-                this.logger.info(
-                    {
-                        userOpHash: info.userOperationHash,
+            opInfos.map(
+                ({
+                    mempoolUserOperation,
+                    userOperationHash,
+                    entryPoint,
+                    firstSubmitted
+                }) => {
+                    this.metrics.userOperationInclusionDuration.observe(
+                        (Date.now() - firstSubmitted) / 1000
+                    )
+                    this.reputationManager.updateUserOperationIncludedStatus(
+                        deriveUserOperation(mempoolUserOperation),
+                        entryPoint,
+                        status.transactionStatuses[userOperationHash]
+                            .accountDeployed
+                    )
+                    this.mempool.removeSubmitted(userOperationHash)
+                    this.eventManager.emitIncludedOnChain(
+                        userOperationHash,
+                        status.hash,
+                        Number(status.transactionStatuses.blockTimeStamp) * 1000
+                    )
+                    this.monitor.setUserOperationStatus(userOperationHash, {
+                        status: "included",
                         transactionHash: status.hash
-                    },
-                    "user op included"
-                )
-            })
+                    })
+                    this.logger.info(
+                        {
+                            userOpHash: userOperationHash,
+                            transactionHash: status.hash
+                        },
+                        "user op included"
+                    )
+                }
+            )
 
             this.executor.markWalletProcessed(transactionInfo.executor)
         } else if (
             status.transactionStatuses.status === "failed" ||
             status.transactionStatuses.status === "reverted"
         ) {
-            opInfos.map((info) => {
-                this.mempool.removeSubmitted(info.userOperationHash)
-                this.monitor.setUserOperationStatus(info.userOperationHash, {
+            opInfos.map(({ userOperationHash }) => {
+                this.mempool.removeSubmitted(userOperationHash)
+                this.monitor.setUserOperationStatus(userOperationHash, {
                     status: "rejected",
                     transactionHash: status.hash
                 })
+                this.eventManager.emitFailedOnChain(
+                    userOperationHash,
+                    status.hash
+                )
                 this.logger.info(
                     {
-                        userOpHash: info.userOperationHash,
+                        userOpHash: userOperationHash,
                         transactionHash: status.hash
                     },
                     "user op rejected"

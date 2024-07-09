@@ -136,6 +136,7 @@ export const bundleCopmressionArgsSchema = z.object({
 })
 
 export const logArgsSchema = z.object({
+    "redis-queue-endpoint": z.string().optional(),
     json: z.boolean(),
     "network-name": z.string(),
     "log-level": logLevel,

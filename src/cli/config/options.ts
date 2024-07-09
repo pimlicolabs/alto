@@ -287,6 +287,11 @@ export const bundleCompressionOptions: CliCommandOptions<IBundleCompressionArgsI
     }
 
 export const logOptions: CliCommandOptions<ILogArgsInput> = {
+    "redis-queue-endpoint": {
+        description: "redis queue endpoint",
+        type: "string",
+        require: false
+    },
     json: {
         description: "Log in JSON format",
         type: "boolean",
