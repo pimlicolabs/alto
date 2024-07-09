@@ -154,13 +154,15 @@ const getMempool = ({
 const getEventManager = ({
     endpoint,
     chainId,
-    logger
+    logger,
+    metrics
 }: {
     endpoint?: string
     chainId: number
     logger: Logger
+    metrics: Metrics
 }) => {
-    return new EventManager(endpoint, chainId, logger)
+    return new EventManager(endpoint, chainId, logger, metrics)
 }
 
 const getCompressionHandler = async ({
@@ -440,7 +442,8 @@ export const setupServer = async ({
     const eventManager = getEventManager({
         endpoint: parsedArgs["redis-queue-endpoint"],
         chainId: client.chain.id,
-        logger
+        logger,
+        metrics
     })
 
     await senderManager.validateAndRefillWallets(
