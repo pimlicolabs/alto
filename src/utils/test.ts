@@ -1,8 +1,8 @@
-// biome-ignore lint/nursery/noNodejsModules: <explanation>
-import { type ChildProcess, exec } from "child_process"
+// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
+import * as sentry from "@sentry/node"
+import { type ChildProcess, exec } from "node:child_process"
 import type { HexData, HexData32, UserOperationV06 } from "@alto/types"
 import { entryPointExecutionErrorSchemaV06 } from "@alto/types"
-import * as sentry from "@sentry/node"
 import { type Abi, parseAbiParameters } from "abitype"
 import {
     http,

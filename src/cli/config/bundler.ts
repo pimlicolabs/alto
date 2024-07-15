@@ -29,6 +29,8 @@ export const bundlerArgsSchema = z.object({
     "utility-private-key": hexData32Schema
         .transform((val) => privateKeyToAccount(val) satisfies Account)
         .optional(),
+    "utility-wallet-monitor": z.boolean(),
+    "utility-wallet-monitor-interval": z.number(),
     "executor-private-keys": z.union([
         z
             .array(hexData32Schema)
@@ -126,7 +128,7 @@ export const rpcArgsSchema = z.object({
     "send-transaction-rpc-url": z.string().url().optional(),
     "polling-interval": z.number().int().min(0),
     "max-block-range": z.number().int().min(0).optional(),
-    "block-tag-support-disabled": z.boolean().optional().default(false)
+    "block-tag-support": z.boolean().optional().default(true)
 })
 
 export const bundleCopmressionArgsSchema = z.object({
@@ -135,6 +137,7 @@ export const bundleCopmressionArgsSchema = z.object({
 })
 
 export const logArgsSchema = z.object({
+    "redis-queue-endpoint": z.string().optional(),
     json: z.boolean(),
     "network-name": z.string(),
     "log-level": logLevel,

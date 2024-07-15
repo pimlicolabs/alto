@@ -36,6 +36,16 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         alias: "u",
         require: false
     },
+    "utility-wallet-monitor": {
+        description: "Either to enable utility wallet monitor or not",
+        type: "boolean",
+        default: true
+    },
+    "utility-wallet-monitor-interval": {
+        description: "Interval for checking utility wallet balance",
+        type: "number",
+        default: 15 * 1000 // 15 seconds
+    },
     "max-executors": {
         description:
             "Maximum number of executor accounts to use from the list of executor private keys",
@@ -109,7 +119,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
             "Amount to multiply the gas prices fetched using pimlico_getUserOperationGasPrice (format: slow,standard,fast)",
         type: "string",
         require: false,
-        default: "105,110,115"
+        default: "100,100,100"
     },
     "mempool-max-parallel-ops": {
         description:
@@ -264,12 +274,12 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         type: "number",
         require: false
     },
-    "block-tag-support-disabled": {
+    "block-tag-support": {
         description:
             "Disable sending block tag when sending eth_estimateGas call",
         type: "boolean",
         require: false,
-        default: false
+        default: true
     }
 }
 
@@ -288,6 +298,11 @@ export const bundleCompressionOptions: CliCommandOptions<IBundleCompressionArgsI
     }
 
 export const logOptions: CliCommandOptions<ILogArgsInput> = {
+    "redis-queue-endpoint": {
+        description: "redis queue endpoint",
+        type: "string",
+        require: false
+    },
     json: {
         description: "Log in JSON format",
         type: "boolean",

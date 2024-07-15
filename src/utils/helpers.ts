@@ -16,3 +16,10 @@ export function getRevertErrorData(err: unknown) {
     const error = err.walk() as RawContractError
     return typeof error?.data === "object" ? error.data?.data : error.data
 }
+
+// biome-ignore lint/style/useNamingConvention:
+export function getAAError(errorMsg: string) {
+    const uppercase = errorMsg.toUpperCase()
+    const match = uppercase.match(/AA\d{2}/)
+    return match ? match[0] : undefined
+}

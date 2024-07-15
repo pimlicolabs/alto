@@ -24,7 +24,8 @@ import {
     type ValidationResultWithAggregation,
     PimlicoEntryPointSimulationsAbi
 } from "@alto/types"
-import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
+import type { Logger, Metrics } from "@alto/utils"
+import type { GasPriceManager } from "@alto/handlers"
 import {
     calcVerificationGasAndCallGasLimit,
     getAddressFromInitCodeOrPaymasterAndData,
@@ -68,6 +69,7 @@ export class SafeValidator
         metrics: Metrics,
         gasPriceManager: GasPriceManager,
         chainType: ChainType,
+        blockTagSupport: boolean,
         entryPointSimulationsAddress?: Address,
         fixedGasLimitForEstimation?: bigint,
         usingTenderly = false,
@@ -79,6 +81,7 @@ export class SafeValidator
             metrics,
             gasPriceManager,
             chainType,
+            blockTagSupport,
             entryPointSimulationsAddress,
             fixedGasLimitForEstimation,
             usingTenderly,

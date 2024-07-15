@@ -8,7 +8,7 @@ Alto is a Typescript implementation of the [ERC-4337 bundler specification](http
 
 ## Getting started
 
-For a full explanation of Alto, please visit our [docs page](https://docs.pimlico.io/reference/bundler)
+For a full explanation of Alto, please visit our [docs page](https://docs.pimlico.io/infra/bundler)
 
 #### Run an instance of Alto with the following commands:
 ```bash

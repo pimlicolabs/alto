@@ -1,6 +1,5 @@
 import { SenderManager } from "@alto/executor"
 import {
-    GasPriceManager,
     createMetrics,
     initDebugLogger,
     initProductionLogger,
@@ -14,7 +13,8 @@ import {
     type PublicClient,
     type Transport,
     webSocket,
-    http
+    http,
+    formatEther
 } from "viem"
 import { fromZodError } from "zod-validation-error"
 import {
@@ -27,6 +27,8 @@ import { customTransport } from "./customTransport"
 import { setupServer } from "./setupServer"
 import { watchBlockNumber } from "viem/actions"
 import { PimlicoEntryPointSimulationsDeployBytecode } from "../types/contracts"
+import { UtilityWalletMonitor } from "../executor/utilityWalletMonitor"
+import { GasPriceManager } from "@alto/handlers"
 
 const parseArgs = (args: IOptionsInput): IOptions => {
     // validate every arg, make type safe so if i add a new arg i have to validate it
@@ -225,6 +227,29 @@ export async function bundlerHandler(args: IOptionsInput): Promise<void> {
         parsedArgs["legacy-transactions"],
         gasPriceManager,
         parsedArgs["max-executors"]
+    )
+
+    const utilityWalletAddress = parsedArgs["utility-private-key"]?.address
+
+    if (utilityWalletAddress && parsedArgs["utility-wallet-monitor"]) {
+        const utilityWalletMonitor = new UtilityWalletMonitor(
+            client,
+            parsedArgs["utility-wallet-monitor-interval"],
+            utilityWalletAddress,
+            metrics,
+            logger.child(
+                { module: "utility_wallet_monitor" },
+                {
+                    level: parsedArgs["log-level"]
+                }
+            )
+        )
+
+        await utilityWalletMonitor.start()
+    }
+
+    metrics.executorWalletsMinBalance.set(
+        Number.parseFloat(formatEther(parsedArgs["min-executor-balance"] || 0n))
     )
 
     await setupServer({

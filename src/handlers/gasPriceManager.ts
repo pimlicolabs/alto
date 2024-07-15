@@ -4,9 +4,17 @@ import {
     type GasPriceParameters
 } from "@alto/types"
 import { maxBigInt, minBigInt, type Logger } from "@alto/utils"
+// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
 import * as sentry from "@sentry/node"
 import { parseGwei, type Chain, type PublicClient } from "viem"
-import * as chains from "viem/chains"
+import {
+    celo,
+    celoAlfajores,
+    dfk,
+    avalanche,
+    polygon,
+    polygonMumbai
+} from "viem/chains"
 
 enum ChainId {
     Goerli = 5,
@@ -109,10 +117,7 @@ export class GasPriceManager {
             maxPriorityFeePerGas: (maxPriorityFeePerGas * bumpAmount) / 100n
         }
 
-        if (
-            this.chain.id === chains.celo.id ||
-            this.chain.id === chains.celoAlfajores.id
-        ) {
+        if (this.chain.id === celo.id || this.chain.id === celoAlfajores.id) {
             const maxFee = maxBigInt(
                 result.maxFeePerGas,
                 result.maxPriorityFeePerGas
@@ -123,7 +128,7 @@ export class GasPriceManager {
             }
         }
 
-        if (this.chain.id === chains.dfk.id) {
+        if (this.chain.id === dfk.id) {
             const maxFeePerGas = maxBigInt(5_000_000_000n, result.maxFeePerGas)
             const maxPriorityFeePerGas = maxBigInt(
                 5_000_000_000n,
@@ -137,7 +142,7 @@ export class GasPriceManager {
         }
 
         // set a minimum maxPriorityFee & maxFee to 1.5gwei on avalanche (because eth_maxPriorityFeePerGas returns 0)
-        if (this.chain.id === chains.avalanche.id) {
+        if (this.chain.id === avalanche.id) {
             const maxFeePerGas = maxBigInt(
                 parseGwei("1.5"),
                 result.maxFeePerGas
@@ -355,8 +360,8 @@ export class GasPriceManager {
         let maxPriorityFeePerGas = 0n
 
         if (
-            this.chain.id === chains.polygon.id ||
-            this.chain.id === chains.polygonMumbai.id
+            this.chain.id === polygon.id ||
+            this.chain.id === polygonMumbai.id
         ) {
             const polygonEstimate = await this.getPolygonGasPriceParameters()
             if (polygonEstimate) {

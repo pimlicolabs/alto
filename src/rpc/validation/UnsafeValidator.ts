@@ -25,14 +25,16 @@ import {
     entryPointExecutionErrorSchemaV06,
     entryPointExecutionErrorSchemaV07
 } from "@alto/types"
-import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
+import type { Logger, Metrics } from "@alto/utils"
+import type { GasPriceManager } from "@alto/handlers"
 import {
     calcPreVerificationGas,
     calcVerificationGasAndCallGasLimit,
     isVersion06,
     isVersion07
 } from "@alto/utils"
-import { captureException } from "@sentry/node"
+// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
+import * as sentry from "@sentry/node"
 import {
     BaseError,
     type Chain,
@@ -65,6 +67,7 @@ export class UnsafeValidator implements InterfaceValidator {
     entryPointSimulationsAddress?: Address
     fixedGasLimitForEstimation?: bigint
     chainType: ChainType
+    blockTagSupport: boolean
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
@@ -72,6 +75,7 @@ export class UnsafeValidator implements InterfaceValidator {
         metrics: Metrics,
         gasPriceManager: GasPriceManager,
         chainType: ChainType,
+        blockTagSupport: boolean,
         entryPointSimulationsAddress?: Address,
         fixedGasLimitForEstimation?: bigint,
         usingTenderly = false,
@@ -89,6 +93,7 @@ export class UnsafeValidator implements InterfaceValidator {
         this.entryPointSimulationsAddress = entryPointSimulationsAddress
         this.fixedGasLimitForEstimation = fixedGasLimitForEstimation
         this.chainType = chainType
+        this.blockTagSupport = blockTagSupport
     }
 
     async getSimulationResult(
@@ -131,7 +136,7 @@ export class UnsafeValidator implements InterfaceValidator {
                         ValidationErrors.SimulateValidation
                     )
                 }
-                captureException(errorResult)
+                sentry.captureException(errorResult)
                 throw new Error(
                     `User Operation simulation returned unexpected invalid response: ${JSON.stringify(
                         errorResult
@@ -186,6 +191,7 @@ export class UnsafeValidator implements InterfaceValidator {
             "0x",
             this.balanceOverrideEnabled,
             this.chainId,
+            this.blockTagSupport,
             stateOverrides,
             this.entryPointSimulationsAddress,
             this.fixedGasLimitForEstimation
@@ -233,7 +239,8 @@ export class UnsafeValidator implements InterfaceValidator {
             entryPoint,
             this.publicClient,
             zeroAddress,
-            "0x"
+            "0x",
+            this.blockTagSupport
         )
 
         const [simulateValidationResult, runtimeValidation] = await Promise.all(
@@ -387,7 +394,8 @@ export class UnsafeValidator implements InterfaceValidator {
             queuedUserOperations,
             entryPoint,
             this.publicClient,
-            this.entryPointSimulationsAddress
+            this.entryPointSimulationsAddress,
+            this.blockTagSupport
         )
 
         if (simulateValidationResult.status === "failed") {
