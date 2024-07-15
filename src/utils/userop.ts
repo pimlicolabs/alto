@@ -196,14 +196,9 @@ export const transactionIncluded = async (
     [userOperationHash: HexData32]: {
         accountDeployed: boolean
     }
-    blockTimeStamp: bigint
 }> => {
     try {
         const rcp = await publicClient.getTransactionReceipt({ hash: txHash })
-        const block = await publicClient.getBlock({
-            blockHash: rcp.blockHash
-        })
-        const blockTimeStamp = block.timestamp
 
         if (rcp.status === "success") {
             // find if any logs are UserOperationEvent or AccountDeployed
@@ -283,23 +278,19 @@ export const transactionIncluded = async (
             if (success) {
                 return {
                     status: "included",
-                    blockTimeStamp,
                     ...r
                 }
             }
             return {
-                status: "reverted",
-                blockTimeStamp
+                status: "reverted"
             }
         }
         return {
-            status: "failed",
-            blockTimeStamp
+            status: "failed"
         }
     } catch (_e) {
         return {
-            status: "not_found",
-            blockTimeStamp: 0n
+            status: "not_found"
         }
     }
 }
