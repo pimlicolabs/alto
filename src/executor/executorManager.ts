@@ -428,7 +428,7 @@ export class ExecutorManager {
                     this.eventManager.emitIncludedOnChain(
                         userOperationHash,
                         status.hash,
-                        Number(status.transactionStatuses.blockTimeStamp) * 1000
+                        status.transactionStatuses.blockNumber as bigint
                     )
                     this.monitor.setUserOperationStatus(userOperationHash, {
                         status: "included",
@@ -457,7 +457,8 @@ export class ExecutorManager {
                 })
                 this.eventManager.emitFailedOnChain(
                     userOperationHash,
-                    status.hash
+                    status.hash,
+                    status.transactionStatuses.blockNumber as bigint
                 )
                 this.logger.info(
                     {

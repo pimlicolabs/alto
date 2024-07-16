@@ -30,23 +30,37 @@ export class EventManager {
     }
 
     // emits when the userOperation was mined onchain but failed
-    async emitFailedOnChain(userOperationHash: Hex, transactionHash: Hex) {
+    async emitFailedOnChain(
+        userOperationHash: Hex,
+        transactionHash: Hex,
+        blockNumber: bigint
+    ) {
         await this.emitEvent({
             userOperationHash,
             event: {
                 eventType: "failed_onchain",
-                transactionHash
+                transactionHash,
+                data: {
+                    blockNumber: Number(blockNumber)
+                }
             }
         })
     }
 
     // emits when the userOperation has been included onchain but bundled by a frontrunner
-    async emitFrontranOnChain(userOperationHash: Hex, transactionHash: Hex) {
+    async emitFrontranOnChain(
+        userOperationHash: Hex,
+        transactionHash: Hex,
+        blockNumber: bigint
+    ) {
         await this.emitEvent({
             userOperationHash,
             event: {
                 eventType: "frontran_onchain",
-                transactionHash
+                transactionHash,
+                data: {
+                    blockNumber: Number(blockNumber)
+                }
             }
         })
     }
@@ -55,15 +69,17 @@ export class EventManager {
     async emitIncludedOnChain(
         userOperationHash: Hex,
         transactionHash: Hex,
-        timestamp: number
+        blockNumber: bigint
     ) {
         await this.emitEvent({
             userOperationHash,
             event: {
                 eventType: "included_onchain",
-                transactionHash
-            },
-            timestamp
+                transactionHash,
+                data: {
+                    blockNumber: Number(blockNumber)
+                }
+            }
         })
     }
 
