@@ -457,7 +457,8 @@ export class ExecutorManager {
                 })
                 this.eventManager.emitFailedOnChain(
                     userOperationHash,
-                    status.hash
+                    status.hash,
+                    status.transactionStatuses.blockNumber as bigint
                 )
                 this.logger.info(
                     {
