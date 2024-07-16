@@ -41,7 +41,7 @@ export class EventManager {
                 eventType: "failed_onchain",
                 transactionHash,
                 data: {
-                    blockNumber
+                    blockNumber: Number(blockNumber)
                 }
             }
         })
@@ -59,7 +59,7 @@ export class EventManager {
                 eventType: "frontran_onchain",
                 transactionHash,
                 data: {
-                    blockNumber
+                    blockNumber: Number(blockNumber)
                 }
             }
         })
@@ -77,7 +77,7 @@ export class EventManager {
                 eventType: "included_onchain",
                 transactionHash,
                 data: {
-                    blockNumber
+                    blockNumber: Number(blockNumber)
                 }
             }
         })
