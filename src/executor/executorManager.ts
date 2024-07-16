@@ -427,7 +427,8 @@ export class ExecutorManager {
                     this.mempool.removeSubmitted(userOperationHash)
                     this.eventManager.emitIncludedOnChain(
                         userOperationHash,
-                        status.hash
+                        status.hash,
+                        status.transactionStatuses.blockNumber as bigint
                     )
                     this.monitor.setUserOperationStatus(userOperationHash, {
                         status: "included",

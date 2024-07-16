@@ -52,12 +52,19 @@ export class EventManager {
     }
 
     // emits when the userOperation is included onchain
-    async emitIncludedOnChain(userOperationHash: Hex, transactionHash: Hex) {
+    async emitIncludedOnChain(
+        userOperationHash: Hex,
+        transactionHash: Hex,
+        blockNumber: bigint
+    ) {
         await this.emitEvent({
             userOperationHash,
             event: {
                 eventType: "included_onchain",
-                transactionHash
+                transactionHash,
+                data: {
+                    blockNumber
+                }
             }
         })
     }
