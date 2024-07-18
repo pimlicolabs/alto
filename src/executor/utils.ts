@@ -21,8 +21,7 @@ import {
     getRevertErrorData,
     isVersion06,
     parseViemError,
-    toPackedUserOperation,
-    transactionIncluded
+    toPackedUserOperation
 } from "@alto/utils"
 import {
     type Account,
@@ -376,8 +375,7 @@ export async function flushStuckTransaction(
     walletClient: WalletClient<Transport, Chain, Account | undefined>,
     wallet: Account,
     gasPrice: bigint,
-    logger: Logger,
-    entryPoint: Address
+    logger: Logger
 ) {
     const latestNonce = await publicClient.getTransactionCount({
         address: wallet.address,
@@ -427,10 +425,6 @@ export async function flushStuckTransaction(
                 { txHash, nonce: nonceToFlush, wallet: wallet.address },
                 "flushed stuck transaction"
             )
-
-            // TODO: We don't know if the entrypoint is the V06 or V07. So we try and catch both.
-            await transactionIncluded(true, txHash, publicClient, entryPoint)
-            await transactionIncluded(false, txHash, publicClient, entryPoint)
         } catch (e) {
             sentry.captureException(e)
             logger.warn({ error: e }, "error flushing stuck transaction")

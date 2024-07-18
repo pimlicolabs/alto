@@ -18,7 +18,7 @@ import {
     type CompressedUserOperation,
     type UserOperationInfo
 } from "@alto/types"
-import { getAAError, transactionIncluded } from "@alto/utils"
+import { getAAError, getBundleStatus } from "@alto/utils"
 import type {
     Address,
     Block,
@@ -354,118 +354,130 @@ export class ExecutorManager {
         }
     }
 
+    // update the current status of the bundling transaction/s
     private async refreshTransactionStatus(
         entryPoint: Address,
         transactionInfo: TransactionInfo
     ) {
         const {
-            transactionHash,
+            transactionHash: currentTransactionHash,
+            userOperationInfos: opInfos,
             previousTransactionHashes,
-            userOperationInfos,
             isVersion06
         } = transactionInfo
-        const hashesToCheck = [transactionHash, ...previousTransactionHashes]
 
-        const opInfos = userOperationInfos
-        // const opHashes = transactionInfo.userOperationInfos.map((opInfo) => opInfo.userOperationHash)
+        const txHashesToCheck = [
+            currentTransactionHash,
+            ...previousTransactionHashes
+        ]
 
-        const transactionStatuses = await Promise.all(
-            hashesToCheck.map(async (hash) => {
-                return {
-                    hash,
-                    transactionStatuses: await transactionIncluded(
-                        isVersion06,
-                        hash,
-                        this.publicClient,
-                        entryPoint
-                    )
-                }
-            })
+        const transactionDetails = await Promise.all(
+            txHashesToCheck.map(async (transactionHash) => ({
+                transactionHash,
+                ...(await getBundleStatus(
+                    isVersion06,
+                    transactionHash,
+                    this.publicClient,
+                    entryPoint
+                ))
+            }))
         )
 
-        const status = transactionStatuses.find(
-            ({ transactionStatuses }) =>
-                transactionStatuses.status === "included" ||
-                transactionStatuses.status === "failed" ||
-                transactionStatuses.status === "reverted"
+        // first check if bundling txs returns status "mined", if not, check for reverted
+        const mined = transactionDetails.find(
+            ({ bundlingStatus }) => bundlingStatus.status === "mined"
         )
+        const reverted = transactionDetails.find(
+            ({ bundlingStatus }) => bundlingStatus.status === "reverted"
+        )
+        const finalizedTransaction = mined ?? reverted
 
-        if (!status) {
-            opInfos.map((info) => {
+        if (!finalizedTransaction) {
+            for (const { userOperationHash } of opInfos) {
                 this.logger.trace(
                     {
-                        userOpHash: info.userOperationHash,
-                        transactionHash: transactionInfo.transactionHash
+                        userOperationHash,
+                        currentTransactionHash
                     },
                     "user op still pending"
                 )
-            })
-
+            }
             return
         }
 
+        const { bundlingStatus, transactionHash, blockNumber } =
+            finalizedTransaction
+
         this.metrics.userOperationsOnChain
-            .labels({ status: status.transactionStatuses.status })
+            .labels({ status: bundlingStatus.status })
             .inc(opInfos.length)
-        if (status.transactionStatuses.status === "included") {
-            opInfos.map(
-                ({
-                    mempoolUserOperation,
-                    userOperationHash,
+
+        if (bundlingStatus.status === "mined") {
+            const { userOperationDetails } = bundlingStatus
+            opInfos.map((opInfo) => {
+                const {
+                    mempoolUserOperation: mUserOperation,
+                    userOperationHash: userOpHash,
                     entryPoint,
                     firstSubmitted
-                }) => {
-                    this.metrics.userOperationInclusionDuration.observe(
-                        (Date.now() - firstSubmitted) / 1000
-                    )
-                    this.reputationManager.updateUserOperationIncludedStatus(
-                        deriveUserOperation(mempoolUserOperation),
-                        entryPoint,
-                        status.transactionStatuses[userOperationHash]
-                            .accountDeployed
-                    )
-                    this.mempool.removeSubmitted(userOperationHash)
+                } = opInfo
+                const opDetails = userOperationDetails[userOpHash]
+
+                this.metrics.userOperationInclusionDuration.observe(
+                    (Date.now() - firstSubmitted) / 1000
+                )
+                this.mempool.removeSubmitted(userOpHash)
+                this.reputationManager.updateUserOperationIncludedStatus(
+                    deriveUserOperation(mUserOperation),
+                    entryPoint,
+                    opDetails.accountDeployed
+                )
+                if (opDetails.status === "succesful") {
                     this.eventManager.emitIncludedOnChain(
-                        userOperationHash,
-                        status.hash,
-                        status.transactionStatuses.blockNumber as bigint
+                        userOpHash,
+                        transactionHash,
+                        blockNumber as bigint
                     )
-                    this.monitor.setUserOperationStatus(userOperationHash, {
-                        status: "included",
-                        transactionHash: status.hash
-                    })
-                    this.logger.info(
-                        {
-                            userOpHash: userOperationHash,
-                            transactionHash: status.hash
-                        },
-                        "user op included"
+                } else {
+                    this.eventManager.emitExecutionRevertedOnChain(
+                        userOpHash,
+                        transactionHash,
+                        opDetails.revertReason || "0x",
+                        blockNumber as bigint
                     )
                 }
-            )
+                this.monitor.setUserOperationStatus(userOpHash, {
+                    status: "included",
+                    transactionHash
+                })
+                this.logger.info(
+                    {
+                        userOpHash,
+                        transactionHash
+                    },
+                    "user op included"
+                )
+            })
 
             this.executor.markWalletProcessed(transactionInfo.executor)
-        } else if (
-            status.transactionStatuses.status === "failed" ||
-            status.transactionStatuses.status === "reverted"
-        ) {
+        } else if (bundlingStatus.status === "reverted") {
             opInfos.map(({ userOperationHash }) => {
                 this.mempool.removeSubmitted(userOperationHash)
                 this.monitor.setUserOperationStatus(userOperationHash, {
                     status: "rejected",
-                    transactionHash: status.hash
+                    transactionHash
                 })
                 this.eventManager.emitFailedOnChain(
                     userOperationHash,
-                    status.hash,
-                    status.transactionStatuses.blockNumber as bigint
+                    transactionHash,
+                    blockNumber as bigint
                 )
                 this.logger.info(
                     {
                         userOpHash: userOperationHash,
-                        transactionHash: status.hash
+                        transactionHash
                     },
-                    "user op rejected"
+                    "user op failed onchain"
                 )
             })
 
