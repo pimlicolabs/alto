@@ -841,7 +841,17 @@ const OpEventType = z.union([
         eventType: z.literal("failed_onchain"),
         transactionHash: hexData32Schema,
         data: z.object({
-            blockNumber: z.number()
+            blockNumber: z.number(),
+            reason: z.string().optional(),
+            aaError: z.string().optional()
+        })
+    }),
+    z.object({
+        eventType: z.literal("execution_reverted_onchain"),
+        transactionHash: hexData32Schema,
+        data: z.object({
+            blockNumber: z.number(),
+            reason: z.string().optional()
         })
     })
 ])

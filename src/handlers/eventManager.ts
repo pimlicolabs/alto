@@ -29,7 +29,27 @@ export class EventManager {
         this.redis = undefined
     }
 
-    // emits when the userOperation was mined onchain but failed
+    // emits when the userOperation was mined onchain but reverted during the callphase
+    async emitExecutionRevertedOnChain(
+        userOperationHash: Hex,
+        transactionHash: Hex,
+        reason: Hex,
+        blockNumber: bigint
+    ) {
+        await this.emitEvent({
+            userOperationHash,
+            event: {
+                eventType: "execution_reverted_onchain",
+                transactionHash,
+                data: {
+                    blockNumber: Number(blockNumber),
+                    reason
+                }
+            }
+        })
+    }
+
+    // emits when the userOperation was mined onchain but failed EntryPoint validation
     async emitFailedOnChain(
         userOperationHash: Hex,
         transactionHash: Hex,
