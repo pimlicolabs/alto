@@ -194,7 +194,7 @@ type UserOperationDetailsType = {
 
 type BundlingStatus =
     | {
-          // The tx was successfully mined (all ops passed EntryPoint validation)
+          // The tx was successfully mined
           // The status of each userOperation is recorded in userOperaitonDetails
           status: "mined"
           userOperationDetails: Record<Hex, UserOperationDetailsType>
