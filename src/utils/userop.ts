@@ -196,7 +196,7 @@ type BundlingStatus =
     | {
           // The tx was successfully mined
           // The status of each userOperation is recorded in userOperaitonDetails
-          status: "mined"
+          status: "included"
           userOperationDetails: Record<Hex, UserOperationDetailsType>
       }
     | {
@@ -283,7 +283,7 @@ export const getBundleStatus = async (
 
         return {
             bundlingStatus: {
-                status: "mined",
+                status: "included",
                 userOperationDetails
             },
             blockNumber

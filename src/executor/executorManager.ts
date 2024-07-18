@@ -385,7 +385,7 @@ export class ExecutorManager {
 
         // first check if bundling txs returns status "mined", if not, check for reverted
         const mined = transactionDetails.find(
-            ({ bundlingStatus }) => bundlingStatus.status === "mined"
+            ({ bundlingStatus }) => bundlingStatus.status === "included"
         )
         const reverted = transactionDetails.find(
             ({ bundlingStatus }) => bundlingStatus.status === "reverted"
@@ -412,7 +412,7 @@ export class ExecutorManager {
             .labels({ status: bundlingStatus.status })
             .inc(opInfos.length)
 
-        if (bundlingStatus.status === "mined") {
+        if (bundlingStatus.status === "included") {
             const { userOperationDetails } = bundlingStatus
             opInfos.map((opInfo) => {
                 const {
