@@ -29,7 +29,7 @@ export class EventManager {
         this.redis = undefined
     }
 
-    // emits when the userOperation was mined onchain but failed EntryPoint validation
+    // emits when the userOperation was mined onchain but reverted during the callphase
     async emitExecutionRevertedOnChain(
         userOperationHash: Hex,
         transactionHash: Hex,
