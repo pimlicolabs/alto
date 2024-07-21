@@ -12,6 +12,7 @@ import {
     type Chain,
     type PublicClient,
     type Transport,
+    webSocket,
     http,
     formatEther
 } from "viem"
@@ -24,6 +25,7 @@ import {
 } from "./config"
 import { customTransport } from "./customTransport"
 import { setupServer } from "./setupServer"
+import { watchBlockNumber } from "viem/actions"
 import { PimlicoEntryPointSimulationsDeployBytecode } from "../types/contracts"
 import { UtilityWalletMonitor } from "../executor/utilityWalletMonitor"
 import { GasPriceManager } from "@alto/handlers"
@@ -111,7 +113,7 @@ export async function bundlerHandler(args: IOptionsInput): Promise<void> {
         }
     }
 
-    const client = createPublicClient({
+    let client = createPublicClient({
         transport: customTransport(args["rpc-url"], {
             logger: logger.child(
                 { module: "public_client" },
@@ -124,6 +126,18 @@ export async function bundlerHandler(args: IOptionsInput): Promise<void> {
         }),
         chain
     })
+
+    if (parsedArgs["wss-url"]) {
+        const wssClient = createPublicClient({
+            transport: webSocket(parsedArgs["wss-url"]),
+            chain
+        })
+
+        // User websocket when watching for new blocks
+        client = client.extend((_client) => ({
+            watchBlockNumber: (args) => watchBlockNumber(wssClient, args)
+        }))
+    }
 
     // if flag is set, use utility wallet to deploy the simulations contract
     if (parsedArgs["deploy-simulations-contract"]) {

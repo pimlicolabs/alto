@@ -74,7 +74,8 @@ export class ExecutorManager {
         bundlerFrequency: number,
         maxGasLimitPerBundle: bigint,
         gasPriceManager: GasPriceManager,
-        eventManager: EventManager
+        eventManager: EventManager,
+        sendBundleDelay?: number
     ) {
         this.entryPoints = entryPoints
         this.reputationManager = reputationManager
@@ -90,7 +91,17 @@ export class ExecutorManager {
         this.gasPriceManager = gasPriceManager
         this.eventManager = eventManager
 
-        if (bundleMode === "auto") {
+        if (sendBundleDelay) {
+            publicClient.watchBlockNumber({
+                onBlockNumber: async (
+                    _blockNumber: bigint,
+                    _prevBlockNumber: bigint | undefined
+                ) => {
+                    await new Promise((r) => setTimeout(r, sendBundleDelay))
+                    await this.bundle()
+                }
+            })
+        } else if (bundleMode === "auto") {
             this.timer = setInterval(async () => {
                 await this.bundle()
             }, bundlerFrequency) as NodeJS.Timer
@@ -269,7 +280,7 @@ export class ExecutorManager {
         const opsToBundle: UserOperationInfo[][] = []
 
         while (true) {
-            const ops = await this.mempool.process(5_000_000n, 1)
+            const ops = await this.mempool.process(this.maxGasLimitPerBundle, 1)
             if (ops?.length > 0) {
                 opsToBundle.push(ops)
             } else {
