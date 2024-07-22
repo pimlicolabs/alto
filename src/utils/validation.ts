@@ -1,38 +1,39 @@
 import {
+    type Address,
+    type ChainType,
     EntryPointV06Abi,
     EntryPointV07Abi,
-    RpcError,
-    type Address,
     type PackedUserOperation,
     type UserOperation,
     type UserOperationV06,
     type UserOperationV07
 } from "@alto/types"
 import {
+    type Chain,
     ContractFunctionExecutionError,
     ContractFunctionRevertedError,
     EstimateGasExecutionError,
     FeeCapTooLowError,
+    type Hex,
     InsufficientFundsError,
     IntrinsicGasTooLowError,
     NonceTooLowError,
+    type PublicClient,
     TransactionExecutionError,
+    type Transport,
     bytesToHex,
     concat,
     encodeAbiParameters,
+    getAbiItem,
     getContract,
     serializeTransaction,
     toBytes,
-    toFunctionSelector,
-    toHex,
-    type Chain,
-    type Hex,
-    type PublicClient,
-    type Transport,
-    getAbiItem
+    toFunctionSelector
 } from "viem"
-import * as chains from "viem/chains"
+import { baseGoerli, baseSepolia, base } from "viem/chains"
 import { isVersion06, toPackedUserOperation } from "./userop"
+import { minBigInt } from "./bigInt"
+import type { GasPriceManager } from "@alto/handlers"
 
 export interface GasOverheads {
     /**
@@ -175,9 +176,43 @@ export function packUserOpV06(op: UserOperationV06): `0x${string}` {
     )
 }
 
-export function packedUserOperationToRandomDataUserOp(
-    packedUserOperation: PackedUserOperation
-) {
+export function removeZeroBytesFromUserOp<T extends UserOperation>(
+    userOpearation: T
+): T extends UserOperationV06 ? UserOperationV06 : PackedUserOperation {
+    if (isVersion06(userOpearation)) {
+        return {
+            sender: userOpearation.sender,
+            nonce: userOpearation.nonce,
+            initCode: userOpearation.initCode,
+            callData: userOpearation.callData,
+            callGasLimit: BigInt(
+                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            ),
+            verificationGasLimit: BigInt(
+                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            ),
+            preVerificationGas: BigInt(
+                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            ),
+            maxFeePerGas: BigInt(
+                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            ),
+            maxPriorityFeePerGas: BigInt(
+                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+            ),
+            paymasterAndData: bytesToHex(
+                new Uint8Array(userOpearation.paymasterAndData.length).fill(255)
+            ),
+            signature: bytesToHex(
+                new Uint8Array(userOpearation.signature.length).fill(255)
+            )
+        } as T extends UserOperationV06 ? UserOperationV06 : PackedUserOperation
+    }
+
+    const packedUserOperation: PackedUserOperation = toPackedUserOperation(
+        userOpearation as UserOperationV07
+    )
+
     return {
         sender: packedUserOperation.sender,
         nonce: BigInt(
@@ -198,14 +233,10 @@ export function packedUserOperationToRandomDataUserOp(
         signature: bytesToHex(
             new Uint8Array(packedUserOperation.signature.length).fill(255)
         )
-    }
+    } as T extends UserOperationV06 ? UserOperationV06 : PackedUserOperation
 }
 
-export function packUserOpV07(op: UserOperationV07): `0x${string}` {
-    const packedUserOperation: PackedUserOperation = toPackedUserOperation(op)
-    const randomDataUserOp: PackedUserOperation =
-        packedUserOperationToRandomDataUserOp(packedUserOperation)
-
+export function packUserOpV07(op: PackedUserOperation): `0x${string}` {
     return encodeAbiParameters(
         [
             {
@@ -255,24 +286,17 @@ export function packUserOpV07(op: UserOperationV07): `0x${string}` {
             }
         ],
         [
-            randomDataUserOp.sender,
-            randomDataUserOp.nonce, // need non zero bytes to get better estimations for preVerificationGas
-            packedUserOperation.initCode,
-            packedUserOperation.callData,
-            randomDataUserOp.accountGasLimits, // need non zero bytes to get better estimations for preVerificationGas
-            randomDataUserOp.preVerificationGas, // need non zero bytes to get better estimations for preVerificationGas
-            randomDataUserOp.gasFees, // need non zero bytes to get better estimations for preVerificationGas
-            randomDataUserOp.paymasterAndData,
-            randomDataUserOp.signature
+            op.sender,
+            op.nonce, // need non zero bytes to get better estimations for preVerificationGas
+            op.initCode,
+            op.callData,
+            op.accountGasLimits, // need non zero bytes to get better estimations for preVerificationGas
+            op.preVerificationGas, // need non zero bytes to get better estimations for preVerificationGas
+            op.gasFees, // need non zero bytes to get better estimations for preVerificationGas
+            op.paymasterAndData,
+            op.signature
         ]
     )
-}
-
-export function packUserOp(op: UserOperation): `0x${string}` {
-    if (isVersion06(op)) {
-        return packUserOpV06(op)
-    }
-    return packUserOpV07(op)
 }
 
 export async function calcPreVerificationGas(
@@ -280,6 +304,9 @@ export async function calcPreVerificationGas(
     userOperation: UserOperation,
     entryPoint: Address,
     chainId: number,
+    chainType: ChainType,
+    gasPriceManager: GasPriceManager,
+    validate: boolean, // when calculating preVerificationGas for validation
     overheads?: GasOverheads
 ): Promise<bigint> {
     let preVerificationGas = calcDefaultPreVerificationGas(
@@ -287,30 +314,19 @@ export async function calcPreVerificationGas(
         overheads
     )
 
-    if (chainId === 59140 || chainId === 59142) {
+    if (chainId === 59140) {
+        // linea sepolia
         preVerificationGas *= 2n
-    } else if (
-        chainId === chains.optimism.id ||
-        chainId === chains.optimismSepolia.id ||
-        chainId === chains.optimismGoerli.id ||
-        chainId === chains.base.id ||
-        chainId === chains.baseGoerli.id ||
-        chainId === chains.baseSepolia.id ||
-        chainId === chains.opBNB.id ||
-        chainId === chains.opBNBTestnet.id ||
-        chainId === 957 // Lyra chain
-    ) {
+    } else if (chainType === "op-stack") {
         preVerificationGas = await calcOptimismPreVerificationGas(
             publicClient,
             userOperation,
             entryPoint,
-            preVerificationGas
+            preVerificationGas,
+            gasPriceManager,
+            validate
         )
-    } else if (
-        chainId === chains.arbitrum.id ||
-        chainId === chains.arbitrumNova.id ||
-        chainId === chains.arbitrumSepolia.id
-    ) {
+    } else if (chainType === "arbitrum") {
         preVerificationGas = await calcArbitrumPreVerificationGas(
             publicClient,
             userOperation,
@@ -355,9 +371,9 @@ export function calcVerificationGasAndCallGasLimit(
         50000n
 
     if (
-        chainId === chains.baseGoerli.id ||
-        chainId === chains.baseSepolia.id ||
-        chainId === chains.base.id
+        chainId === baseGoerli.id ||
+        chainId === baseSepolia.id ||
+        chainId === base.id
     ) {
         callGasLimit = (110n * callGasLimit) / 100n
     }
@@ -378,12 +394,17 @@ export function calcDefaultPreVerificationGas(
 ): bigint {
     const ov = { ...DefaultGasOverheads, ...(overheads ?? {}) }
 
-    const p = { ...userOperation }
-    p.preVerificationGas ?? 21000n // dummy value, just for calldata cost
-    p.signature =
-        p.signature === "0x" ? toHex(Buffer.alloc(ov.sigSize, 1)) : p.signature // dummy signature
+    const p: UserOperationV06 | PackedUserOperation =
+        removeZeroBytesFromUserOp(userOperation)
 
-    const packed = toBytes(packUserOp(p))
+    let packed: Uint8Array
+
+    if (isVersion06(userOperation)) {
+        packed = toBytes(packUserOpV06(p as UserOperationV06))
+    } else {
+        packed = toBytes(packUserOpV07(p as PackedUserOperation))
+    }
+
     const lengthInWord = (packed.length + 31) / 32
     const callDataCost = packed
         .map((x) => (x === 0 ? ov.zeroByte : ov.nonZeroByte))
@@ -432,16 +453,15 @@ export async function calcOptimismPreVerificationGas(
     publicClient: PublicClient<Transport, Chain>,
     op: UserOperation,
     entryPoint: Address,
-    staticFee: bigint
+    staticFee: bigint,
+    gasPriceManager: GasPriceManager,
+    verify?: boolean
 ) {
     let selector: Hex
     let paramData: Hex
 
     if (isVersion06(op)) {
-        const randomDataUserOp: UserOperation = {
-            ...op
-        }
-
+        const randomDataUserOp: UserOperation = removeZeroBytesFromUserOp(op)
         const handleOpsAbi = getAbiItem({
             abi: EntryPointV06Abi,
             name: "handleOps"
@@ -453,11 +473,8 @@ export async function calcOptimismPreVerificationGas(
             entryPoint
         ])
     } else {
-        const packedUserOperation: PackedUserOperation =
-            toPackedUserOperation(op)
-
         const randomDataUserOp: PackedUserOperation =
-            packedUserOperationToRandomDataUserOp(packedUserOperation)
+            removeZeroBytesFromUserOp(op)
 
         const handleOpsAbi = getAbiItem({
             abi: EntryPointV07Abi,
@@ -472,11 +489,6 @@ export async function calcOptimismPreVerificationGas(
     }
 
     const data = concat([selector, paramData])
-
-    const latestBlock = await publicClient.getBlock()
-    if (latestBlock.baseFeePerGas === null) {
-        throw new RpcError("block does not have baseFeePerGas")
-    }
 
     const serializedTx = serializeTransaction(
         {
@@ -506,10 +518,24 @@ export async function calcOptimismPreVerificationGas(
         serializedTx
     ])
 
-    const l2MaxFee = op.maxFeePerGas
-    const l2PriorityFee = latestBlock.baseFeePerGas + op.maxPriorityFeePerGas
+    if (op.maxFeePerGas <= 1n || op.maxPriorityFeePerGas <= 1n) {
+        // if user didn't provide gasPrice values, fetch current going price rate
+        const gasPrices = await gasPriceManager.getGasPrice()
+        op.maxPriorityFeePerGas = gasPrices.maxPriorityFeePerGas
+        op.maxFeePerGas = gasPrices.maxFeePerGas
+    }
 
-    const l2price = l2MaxFee < l2PriorityFee ? l2MaxFee : l2PriorityFee
+    const l2MaxFee = op.maxFeePerGas
+
+    let baseFeePerGas = 0n
+    if (verify) {
+        baseFeePerGas = await gasPriceManager.getMaxBaseFeePerGas()
+    } else {
+        baseFeePerGas = await gasPriceManager.getBaseFee()
+    }
+    const l2PriorityFee = baseFeePerGas + op.maxPriorityFeePerGas
+
+    const l2price = minBigInt(l2MaxFee, l2PriorityFee)
 
     return staticFee + l1Fee / l2price
 }
@@ -572,13 +598,13 @@ export async function calcArbitrumPreVerificationGas(
         })
 
         selector = toFunctionSelector(handleOpsAbi)
-        paramData = encodeAbiParameters(handleOpsAbi.inputs, [[op], entryPoint])
+        paramData = encodeAbiParameters(handleOpsAbi.inputs, [
+            [removeZeroBytesFromUserOp(op)],
+            entryPoint
+        ])
     } else {
-        const packedUserOperation: PackedUserOperation =
-            toPackedUserOperation(op)
-
         const randomDataUserOp: PackedUserOperation =
-            packedUserOperationToRandomDataUserOp(packedUserOperation)
+            removeZeroBytesFromUserOp(op)
 
         const handleOpsAbi = getAbiItem({
             abi: EntryPointV07Abi,

@@ -1,9 +1,0 @@
-{
-    "entryPoints": "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789",
-    "min-executor-balance": "1000000000000000000",
-    "min-entity-stake": 1,
-    "min-entity-unstake-delay": 1,
-    "max-bundle-wait": 3,
-    "max-bundle-size": 3,
-    "port": 3000
-}

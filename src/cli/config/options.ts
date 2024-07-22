@@ -36,6 +36,16 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         alias: "u",
         require: false
     },
+    "utility-wallet-monitor": {
+        description: "Either to enable utility wallet monitor or not",
+        type: "boolean",
+        default: true
+    },
+    "utility-wallet-monitor-interval": {
+        description: "Interval for checking utility wallet balance",
+        type: "number",
+        default: 15 * 1000 // 15 seconds
+    },
     "max-executors": {
         description:
             "Maximum number of executor accounts to use from the list of executor private keys",
@@ -84,6 +94,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: true,
         default: true
     },
+    "gas-price-bump": {
+        description: "Amount to multiply the gas prices fetched from the node",
+        type: "string",
+        require: false,
+        default: "100"
+    },
     "gas-price-floor-percent": {
         description:
             "The minimum percentage of incoming user operation gas prices compared to the gas price used by the bundler to submit bundles",
@@ -103,12 +119,46 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
             "Amount to multiply the gas prices fetched using pimlico_getUserOperationGasPrice (format: slow,standard,fast)",
         type: "string",
         require: false,
-        default: "105,110,115"
+        default: "100,100,100"
+    },
+    "mempool-max-parallel-ops": {
+        description:
+            "Maximum amount of parallel user ops to keep in the meempool (same sender, different nonce keys)",
+        type: "number",
+        require: false,
+        default: 10
+    },
+    "mempool-max-queued-ops": {
+        description:
+            "Maximum amount of sequential user ops to keep in the mempool (same sender and nonce key, different nonce values)",
+        type: "number",
+        require: false,
+        default: 0
+    },
+    "enforce-unique-senders-per-bundle": {
+        description:
+            "Include user ops with the same sender in the single bundle",
+        type: "boolean",
+        require: false,
+        default: true
+    },
+    "max-gas-per-bundle": {
+        description: "Maximum amount of gas per bundle",
+        type: "string",
+        require: false,
+        default: "5000000"
     }
 }
 
 export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
     {
+        "chain-type": {
+            description:
+                "Indicates weather the chain is a OP stack chain, arbitrum chain, or default EVM chain",
+            type: "string",
+            choices: ["default", "op-stack", "arbitrum"],
+            default: "default"
+        },
         "legacy-transactions": {
             description:
                 "Send a legacy transactions instead of an EIP-1559 transactions",
@@ -155,6 +205,13 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             type: "string",
             require: false,
             default: "v1"
+        },
+        "paymaster-gas-limit-multiplier": {
+            description:
+                "Amount to multiply the paymaster gas limits fetched from simulations",
+            type: "string",
+            require: true,
+            default: "110"
         }
     }
 
@@ -171,14 +228,15 @@ export const serverOptions: CliCommandOptions<IServerArgsInput> = {
         require: false
     },
     "websocket-max-payload-size": {
-        description: "Maximum payload size for websocket messages in bytes (default to 1MB)",
+        description:
+            "Maximum payload size for websocket messages in bytes (default to 1MB)",
         type: "number",
         require: false
     },
-    "websocket": {
+    websocket: {
         description: "Enable websocket server",
         type: "boolean",
-        require: false,
+        require: false
     }
 }
 
@@ -204,6 +262,13 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         description: "Max block range for getLogs calls",
         type: "number",
         require: false
+    },
+    "block-tag-support": {
+        description:
+            "Disable sending block tag when sending eth_estimateGas call",
+        type: "boolean",
+        require: false,
+        default: true
     }
 }
 
@@ -222,6 +287,11 @@ export const bundleCompressionOptions: CliCommandOptions<IBundleCompressionArgsI
     }
 
 export const logOptions: CliCommandOptions<ILogArgsInput> = {
+    "redis-queue-endpoint": {
+        description: "redis queue endpoint",
+        type: "string",
+        require: false
+    },
     json: {
         description: "Log in JSON format",
         type: "boolean",
@@ -308,6 +378,13 @@ export const debugOptions: CliCommandOptions<IDebugArgsInput> = {
     },
     "dangerous-skip-user-operation-validation": {
         description: "Skip user operation validation, use with caution",
+        type: "boolean",
+        require: true,
+        default: false
+    },
+    "deploy-simulations-contract": {
+        description:
+            "Should the bundler deploy the simulations contract on startup",
         type: "boolean",
         require: true,
         default: false

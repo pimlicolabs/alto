@@ -1,4 +1,5 @@
 import type {
+    ChainType,
     InterfaceValidator,
     StateOverrides,
     UserOperationV06,
@@ -10,122 +11,49 @@ import type {
     ValidationResultWithAggregationV07
 } from "@alto/types"
 import {
+    type Address,
     EntryPointV06Abi,
     ExecutionErrors,
-    RpcError,
-    ValidationErrors,
-    entryPointErrorsSchema,
-    entryPointExecutionErrorSchemaV06,
-    entryPointExecutionErrorSchemaV07,
-    type Address,
     type ExecutionResult,
     type ReferencedCodeHashes,
+    RpcError,
     type StorageMap,
     type UserOperation,
-    type ValidationResultWithAggregation
+    ValidationErrors,
+    type ValidationResultWithAggregation,
+    entryPointErrorsSchema,
+    entryPointExecutionErrorSchemaV06,
+    entryPointExecutionErrorSchemaV07
 } from "@alto/types"
-import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
+import type { Logger, Metrics } from "@alto/utils"
+import type { GasPriceManager } from "@alto/handlers"
 import {
     calcPreVerificationGas,
     calcVerificationGasAndCallGasLimit,
     isVersion06,
     isVersion07
 } from "@alto/utils"
+// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
 import * as sentry from "@sentry/node"
 import {
     BaseError,
+    type Chain,
     ContractFunctionExecutionError,
+    type PublicClient,
+    type Transport,
+    getContract,
     pad,
     slice,
     toHex,
-    zeroAddress,
-    type Chain,
-    type PublicClient,
-    type Transport,
-    getContract
+    zeroAddress
 } from "viem"
 import { fromZodError } from "zod-validation-error"
 import { simulateValidation } from "../EntryPointSimulationsV07"
 import {
+    type SimulateHandleOpResult,
     simulateHandleOp,
-    simulateHandleOpV06,
-    type SimulateHandleOpResult
+    simulateHandleOpV06
 } from "../gasEstimation"
-
-async function getSimulationResult(
-    isVersion06: boolean,
-    errorResult: unknown,
-    logger: Logger,
-    simulationType: "validation" | "execution",
-    usingTenderly = false
-): Promise<
-    ValidationResult | ValidationResultWithAggregation | ExecutionResult
-> {
-    const entryPointExecutionErrorSchema = isVersion06
-        ? entryPointExecutionErrorSchemaV06
-        : entryPointExecutionErrorSchemaV07
-
-    const entryPointErrorSchemaParsing = usingTenderly
-        ? entryPointErrorsSchema.safeParse(errorResult)
-        : entryPointExecutionErrorSchema.safeParse(errorResult)
-
-    if (!entryPointErrorSchemaParsing.success) {
-        try {
-            const err = fromZodError(entryPointErrorSchemaParsing.error)
-            logger.error(
-                { error: err.message },
-                "unexpected error during valiation"
-            )
-            logger.error(JSON.stringify(errorResult))
-            err.message = `User Operation simulation returned unexpected invalid response: ${err.message}`
-            throw err
-        } catch {
-            if (errorResult instanceof BaseError) {
-                const revertError = errorResult.walk(
-                    (err) => err instanceof ContractFunctionExecutionError
-                )
-                throw new RpcError(
-                    `UserOperation reverted during simulation with reason: ${
-                        // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
-                        (revertError?.cause as any)?.reason
-                    }`,
-                    ValidationErrors.SimulateValidation
-                )
-            }
-            sentry.captureException(errorResult)
-            throw new Error(
-                `User Operation simulation returned unexpected invalid response: ${errorResult}`
-            )
-        }
-    }
-
-    const errorData = entryPointErrorSchemaParsing.data
-
-    if (errorData.errorName === "FailedOp") {
-        const reason = errorData.args.reason
-        throw new RpcError(
-            `UserOperation reverted during simulation with reason: ${reason}`,
-            ValidationErrors.SimulateValidation
-        )
-    }
-
-    if (simulationType === "validation") {
-        if (
-            errorData.errorName !== "ValidationResult" &&
-            errorData.errorName !== "ValidationResultWithAggregation"
-        ) {
-            throw new Error(
-                "Unexpected error - errorName is not ValidationResult or ValidationResultWithAggregation"
-            )
-        }
-    } else if (errorData.errorName !== "ExecutionResult") {
-        throw new Error("Unexpected error - errorName is not ExecutionResult")
-    }
-
-    const simulationResult = errorData.args
-
-    return simulationResult
-}
 
 export class UnsafeValidator implements InterfaceValidator {
     publicClient: PublicClient<Transport, Chain>
@@ -137,13 +65,19 @@ export class UnsafeValidator implements InterfaceValidator {
     chainId: number
     gasPriceManager: GasPriceManager
     entryPointSimulationsAddress?: Address
+    fixedGasLimitForEstimation?: bigint
+    chainType: ChainType
+    blockTagSupport: boolean
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
         logger: Logger,
         metrics: Metrics,
         gasPriceManager: GasPriceManager,
+        chainType: ChainType,
+        blockTagSupport: boolean,
         entryPointSimulationsAddress?: Address,
+        fixedGasLimitForEstimation?: bigint,
         usingTenderly = false,
         balanceOverrideEnabled = false,
         expirationCheck = true
@@ -157,23 +91,110 @@ export class UnsafeValidator implements InterfaceValidator {
         this.chainId = publicClient.chain.id
         this.gasPriceManager = gasPriceManager
         this.entryPointSimulationsAddress = entryPointSimulationsAddress
+        this.fixedGasLimitForEstimation = fixedGasLimitForEstimation
+        this.chainType = chainType
+        this.blockTagSupport = blockTagSupport
+    }
+
+    async getSimulationResult(
+        isVersion06: boolean,
+        errorResult: unknown,
+        logger: Logger,
+        simulationType: "validation" | "execution",
+        usingTenderly = false
+    ): Promise<
+        ValidationResult | ValidationResultWithAggregation | ExecutionResult
+    > {
+        const entryPointExecutionErrorSchema = isVersion06
+            ? entryPointExecutionErrorSchemaV06
+            : entryPointExecutionErrorSchemaV07
+
+        const entryPointErrorSchemaParsing = usingTenderly
+            ? entryPointErrorsSchema.safeParse(errorResult)
+            : entryPointExecutionErrorSchema.safeParse(errorResult)
+
+        if (!entryPointErrorSchemaParsing.success) {
+            try {
+                const err = fromZodError(entryPointErrorSchemaParsing.error)
+                logger.error(
+                    { error: err.message },
+                    "unexpected error during valiation"
+                )
+                logger.error(JSON.stringify(errorResult))
+                err.message = `User Operation simulation returned unexpected invalid response: ${err.message}`
+                throw err
+            } catch {
+                if (errorResult instanceof BaseError) {
+                    const revertError = errorResult.walk(
+                        (err) => err instanceof ContractFunctionExecutionError
+                    )
+                    throw new RpcError(
+                        `UserOperation reverted during simulation with reason: ${
+                            // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
+                            (revertError?.cause as any)?.reason
+                        }`,
+                        ValidationErrors.SimulateValidation
+                    )
+                }
+                sentry.captureException(errorResult)
+                throw new Error(
+                    `User Operation simulation returned unexpected invalid response: ${JSON.stringify(
+                        errorResult
+                    )}`
+                )
+            }
+        }
+
+        const errorData = entryPointErrorSchemaParsing.data
+
+        if (errorData.errorName === "FailedOp") {
+            const reason = errorData.args.reason
+            throw new RpcError(
+                `UserOperation reverted during simulation with reason: ${reason}`,
+                ValidationErrors.SimulateValidation
+            )
+        }
+
+        if (simulationType === "validation") {
+            if (
+                errorData.errorName !== "ValidationResult" &&
+                errorData.errorName !== "ValidationResultWithAggregation"
+            ) {
+                throw new Error(
+                    "Unexpected error - errorName is not ValidationResult or ValidationResultWithAggregation"
+                )
+            }
+        } else if (errorData.errorName !== "ExecutionResult") {
+            throw new Error(
+                "Unexpected error - errorName is not ExecutionResult"
+            )
+        }
+
+        const simulationResult = errorData.args
+
+        return simulationResult
     }
 
     async getExecutionResult(
         userOperation: UserOperation,
         entryPoint: Address,
+        queuedUserOperations: UserOperation[],
         stateOverrides?: StateOverrides
     ): Promise<SimulateHandleOpResult<"execution">> {
         const error = await simulateHandleOp(
             userOperation,
+            queuedUserOperations,
             entryPoint,
             this.publicClient,
             false,
             zeroAddress,
             "0x",
             this.balanceOverrideEnabled,
+            this.chainId,
+            this.blockTagSupport,
             stateOverrides,
-            this.entryPointSimulationsAddress
+            this.entryPointSimulationsAddress,
+            this.fixedGasLimitForEstimation
         )
 
         if (error.result === "failed") {
@@ -218,7 +239,8 @@ export class UnsafeValidator implements InterfaceValidator {
             entryPoint,
             this.publicClient,
             zeroAddress,
-            "0x"
+            "0x",
+            this.blockTagSupport
         )
 
         const [simulateValidationResult, runtimeValidation] = await Promise.all(
@@ -226,7 +248,7 @@ export class UnsafeValidator implements InterfaceValidator {
         )
 
         const validationResult = {
-            ...((await getSimulationResult(
+            ...((await this.getSimulationResult(
                 isVersion06(userOperation),
                 simulateValidationResult,
                 this.logger,
@@ -354,6 +376,7 @@ export class UnsafeValidator implements InterfaceValidator {
 
     async getValidationResultV07(
         userOperation: UserOperationV07,
+        queuedUserOperations: UserOperationV07[],
         entryPoint: Address,
         _codeHashes?: ReferencedCodeHashes
     ): Promise<
@@ -368,9 +391,11 @@ export class UnsafeValidator implements InterfaceValidator {
 
         const { simulateValidationResult } = await simulateValidation(
             userOperation,
+            queuedUserOperations,
             entryPoint,
             this.publicClient,
-            this.entryPointSimulationsAddress
+            this.entryPointSimulationsAddress,
+            this.blockTagSupport
         )
 
         if (simulateValidationResult.status === "failed") {
@@ -460,6 +485,7 @@ export class UnsafeValidator implements InterfaceValidator {
 
     getValidationResult(
         userOperation: UserOperation,
+        queuedUserOperations: UserOperation[],
         entryPoint: Address,
         _codeHashes?: ReferencedCodeHashes
     ): Promise<
@@ -477,6 +503,7 @@ export class UnsafeValidator implements InterfaceValidator {
         }
         return this.getValidationResultV07(
             userOperation,
+            queuedUserOperations as UserOperationV07[],
             entryPoint,
             _codeHashes
         )
@@ -490,7 +517,10 @@ export class UnsafeValidator implements InterfaceValidator {
             this.publicClient,
             userOperation,
             entryPoint,
-            this.chainId
+            this.chainId,
+            this.chainType,
+            this.gasPriceManager,
+            true
         )
 
         if (preVerificationGas > userOperation.preVerificationGas) {
@@ -504,6 +534,7 @@ export class UnsafeValidator implements InterfaceValidator {
     async validateUserOperation(
         shouldCheckPrefund: boolean,
         userOperation: UserOperation,
+        queuedUserOperations: UserOperation[],
         entryPoint: Address,
         _referencedContracts?: ReferencedCodeHashes
     ): Promise<
@@ -515,6 +546,7 @@ export class UnsafeValidator implements InterfaceValidator {
         try {
             const validationResult = await this.getValidationResult(
                 userOperation,
+                queuedUserOperations,
                 entryPoint
             )
 

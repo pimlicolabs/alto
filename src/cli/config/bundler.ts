@@ -29,6 +29,8 @@ export const bundlerArgsSchema = z.object({
     "utility-private-key": hexData32Schema
         .transform((val) => privateKeyToAccount(val) satisfies Account)
         .optional(),
+    "utility-wallet-monitor": z.boolean(),
+    "utility-wallet-monitor-interval": z.number(),
     "executor-private-keys": z.union([
         z
             .array(hexData32Schema)
@@ -60,6 +62,10 @@ export const bundlerArgsSchema = z.object({
     "max-bundle-wait": z.number().int().min(0),
     "max-bundle-size": z.number().int().min(0),
 
+    "gas-price-bump": z
+        .string()
+        .transform((val) => BigInt(val))
+        .default("100"),
     "gas-price-floor-percent": z.number().int().min(0),
     "gas-price-expiry": z.number().int().min(0),
     "gas-price-multipliers": z
@@ -69,10 +75,19 @@ export const bundlerArgsSchema = z.object({
             (values) => values.length === 3,
             "Must contain 3 comma seperated items in format: slow,standard,fast"
         )
-        .transform(([slow, standard, fast]) => ({ slow, standard, fast }))
+        .transform(([slow, standard, fast]) => ({ slow, standard, fast })),
+
+    "mempool-max-parallel-ops": z.number().int().min(0).default(10),
+    "mempool-max-queued-ops": z.number().int().min(0).default(0),
+    "enforce-unique-senders-per-bundle": z.boolean().default(true),
+    "max-gas-per-bundle": z
+        .string()
+        .transform((val) => BigInt(val))
+        .default("5000000")
 })
 
 export const compatibilityArgsSchema = z.object({
+    "chain-type": z.enum(["default", "op-stack", "arbitrum"]),
     "legacy-transactions": z.boolean(),
     "api-version": z
         .string()
@@ -87,6 +102,9 @@ export const compatibilityArgsSchema = z.object({
     "balance-override": z.boolean(),
     "local-gas-limit-calculation": z.boolean(),
     "flush-stuck-transactions-during-startup": z.boolean(),
+    "paymaster-gas-limit-multiplier": z
+        .string()
+        .transform((val) => BigInt(val)),
     "fixed-gas-limit-for-estimation": z
         .string()
         .transform((val) => BigInt(val))
@@ -96,19 +114,20 @@ export const compatibilityArgsSchema = z.object({
 export const serverArgsSchema = z.object({
     port: z.number().int().min(0),
     timeout: z.number().int().min(0).optional(),
-    "websocket": z.boolean().default(false),
+    websocket: z.boolean().default(false),
     "websocket-max-payload-size": z
         .number()
         .int()
         .min(1024)
-        .default(1024 * 1024), // 1 mb
+        .default(1024 * 1024) // 1 mb
 })
 
 export const rpcArgsSchema = z.object({
     "rpc-url": z.string().url(),
     "send-transaction-rpc-url": z.string().url().optional(),
     "polling-interval": z.number().int().min(0),
-    "max-block-range": z.number().int().min(0).optional()
+    "max-block-range": z.number().int().min(0).optional(),
+    "block-tag-support": z.boolean().optional().default(true)
 })
 
 export const bundleCopmressionArgsSchema = z.object({
@@ -117,6 +136,7 @@ export const bundleCopmressionArgsSchema = z.object({
 })
 
 export const logArgsSchema = z.object({
+    "redis-queue-endpoint": z.string().optional(),
     json: z.boolean(),
     "network-name": z.string(),
     "log-level": logLevel,
@@ -134,6 +154,7 @@ export const debugArgsSchema = z.object({
     "enable-debug-endpoints": z.boolean(),
     "expiration-check": z.boolean(),
     "dangerous-skip-user-operation-validation": z.boolean(),
+    "deploy-simulations-contract": z.boolean(),
     tenderly: z.boolean()
 })
 

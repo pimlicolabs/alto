@@ -14,15 +14,13 @@
             "pnpm-lock.yaml",
             "src/lib",
             ".nyc_output",
-            "spec-tests",
-            "test"
+            "test/spec-tests"
         ]
     },
     "organizeImports": {
         "enabled": true
     },
     "linter": {
-        "ignore": ["**/**/*.test.ts"],
         "enabled": true,
         "rules": {
             "all": true,

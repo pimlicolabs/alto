@@ -21,7 +21,8 @@ import { fromZodError } from "zod-validation-error"
 import type { IRpcEndpoint } from "./rpcHandler"
 import websocket from "@fastify/websocket"
 import RpcReply from "../utils/rpc-reply"
-import * as WebSocket from "ws"
+import type * as WebSocket from "ws"
+import cors from "@fastify/cors"
 
 // jsonBigIntOverride.ts
 const originalJsonStringify = JSON.stringify
@@ -100,7 +101,7 @@ export class Server {
             }
         })
 
-        this.fastify.register(require("fastify-cors"), {
+        this.fastify.register(cors, {
             origin: "*",
             methods: ["POST", "GET", "OPTIONS"]
         })
@@ -118,7 +119,9 @@ export class Server {
                 route: request.routeOptions.url,
                 code: reply.statusCode,
                 method: request.method,
+                // biome-ignore lint/style/useNamingConvention: allow snake case
                 rpc_method: request.rpcMethod,
+                // biome-ignore lint/style/useNamingConvention: allow snake case
                 rpc_status: reply.rpcStatus
             }
 
@@ -136,15 +139,21 @@ export class Server {
         this.fastify.post("/", this.rpcHttp.bind(this))
 
         if (websocketEnabled) {
+            // biome-ignore lint/suspicious/useAwait: adhere to interface
             this.fastify.register(async (fastify) => {
                 fastify.route({
                     method: "GET",
                     url: "/:version/rpc",
                     handler: async (request, reply) => {
-                        const version = (request.params as any).version;
+                        const version = (request.params as any).version
 
-                        await reply.status(404).send(`GET request to /${version}/rpc is not supported, use POST isntead`)
+                        await reply
+                            .status(404)
+                            .send(
+                                `GET request to /${version}/rpc is not supported, use POST isntead`
+                            )
                     },
+                    // biome-ignore lint/suspicious/useAwait: adhere to interface
                     wsHandler: async (socket: WebSocket.WebSocket, request) => {
                         socket.on("message", async (msgBuffer: Buffer) =>
                             this.rpcSocket(request, msgBuffer, socket)
@@ -212,10 +221,7 @@ export class Server {
         await this.rpc(request, RpcReply.fromHttpReply(reply))
     }
 
-    private async rpc(
-        request: FastifyRequest,
-        reply: RpcReply
-    ): Promise<void> {
+    private async rpc(request: FastifyRequest, reply: RpcReply): Promise<void> {
         reply.rpcStatus = "failed" // default to failed
         let requestId: number | null = null
 
@@ -277,6 +283,19 @@ export class Server {
                 const validationError = fromZodError(
                     bundlerRequestParsing.error
                 )
+
+                //
+                if (
+                    validationError.message.includes(
+                        "Missing/invalid userOpHash"
+                    )
+                ) {
+                    throw new RpcError(
+                        "Missing/invalid userOpHash",
+                        ValidationErrors.InvalidFields
+                    )
+                }
+
                 throw new RpcError(
                     validationError.message,
                     ValidationErrors.InvalidRequest
@@ -346,7 +365,10 @@ export class Server {
                 }
 
                 await reply.status(500).send(rpcError)
-                this.fastify.log.error({ err }, "error reply (unhandled error type)");
+                this.fastify.log.error(
+                    { err },
+                    "error reply (unhandled error type)"
+                )
             }
         }
     }

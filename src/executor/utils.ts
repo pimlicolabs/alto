@@ -1,3 +1,5 @@
+// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
+import * as sentry from "@sentry/node"
 import type { InterfaceReputationManager } from "@alto/mempool"
 import {
     type BundleResult,
@@ -16,12 +18,11 @@ import {
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
+    getRevertErrorData,
     isVersion06,
     parseViemError,
-    toPackedUserOperation,
-    transactionIncluded
+    toPackedUserOperation
 } from "@alto/utils"
-import * as sentry from "@sentry/node"
 import {
     type Account,
     type Address,
@@ -47,15 +48,15 @@ export function simulatedOpsToResults(
     }[],
     transactionInfo: TransactionInfo
 ): BundleResult[] {
-    return simulatedOps.map((sop) => {
-        if (sop.reason === undefined) {
+    return simulatedOps.map(({ reason, owh }) => {
+        if (reason === undefined) {
             return {
                 status: "success",
                 value: {
                     userOperation: {
                         entryPoint: transactionInfo.entryPoint,
-                        mempoolUserOperation: sop.owh.mempoolUserOperation,
-                        userOperationHash: sop.owh.userOperationHash,
+                        mempoolUserOperation: owh.mempoolUserOperation,
+                        userOperationHash: owh.userOperationHash,
                         lastReplaced: Date.now(),
                         firstSubmitted: Date.now()
                     },
@@ -67,8 +68,9 @@ export function simulatedOpsToResults(
             status: "failure",
             error: {
                 entryPoint: transactionInfo.entryPoint,
-                userOpHash: sop.owh.userOperationHash,
-                reason: sop.reason as string
+                userOperation: owh.mempoolUserOperation,
+                userOpHash: owh.userOperationHash,
+                reason: reason as string
             }
         }
     })
@@ -125,7 +127,7 @@ export async function filterOpsAndEstimateGas(
     nonce: number,
     maxFeePerGas: bigint,
     maxPriorityFeePerGas: bigint,
-    blockTag: "latest" | "pending",
+    blockTag: "latest" | "pending" | undefined,
     onlyPre1559: boolean,
     fixedGasLimitForEstimation: bigint | undefined,
     reputationManager: InterfaceReputationManager,
@@ -147,6 +149,9 @@ export async function filterOpsAndEstimateGas(
                   simulatedOps[0].owh.mempoolUserOperation as UserOperation
               )
             : true
+
+    let fixedEstimationGasLimit: bigint | undefined = fixedGasLimitForEstimation
+    let aa95RetriesLeft = 3
 
     while (simulatedOps.filter((op) => op.reason === undefined).length > 0) {
         try {
@@ -173,9 +178,11 @@ export async function filterOpsAndEstimateGas(
                     [opsToSend, wallet.address],
                     {
                         account: wallet,
-                        gas: fixedGasLimitForEstimation,
                         nonce: nonce,
-                        blockTag,
+                        blockTag: blockTag,
+                        ...(fixedEstimationGasLimit !== undefined && {
+                            gas: fixedEstimationGasLimit
+                        }),
                         ...gasOptions
                     }
                 )
@@ -194,17 +201,20 @@ export async function filterOpsAndEstimateGas(
                     to: bundleBulker,
                     account: wallet,
                     data: createCompressedCalldata(opsToSend, perOpInflatorId),
-                    gas: fixedGasLimitForEstimation,
+                    ...(fixedEstimationGasLimit !== undefined && {
+                        gas: fixedEstimationGasLimit
+                    }),
                     nonce: nonce,
-                    blockTag,
+                    blockTag: blockTag,
                     ...gasOptions
                 })
             }
 
             return { simulatedOps, gasLimit, resubmitAllOps: false }
         } catch (err: unknown) {
-            logger.error({ err }, "error estimating gas")
+            logger.error({ err, blockTag }, "error estimating gas")
             const e = parseViemError(err)
+
             if (e instanceof ContractFunctionRevertedError) {
                 const failedOpError = failedOpErrorSchema.safeParse(e.data)
                 const failedOpWithRevertError =
@@ -221,6 +231,17 @@ export async function filterOpsAndEstimateGas(
                 }
 
                 if (errorData) {
+                    if (
+                        errorData.reason.indexOf("AA95 out of gas") !== -1 &&
+                        aa95RetriesLeft > 0
+                    ) {
+                        aa95RetriesLeft--
+                        fixedEstimationGasLimit = fixedEstimationGasLimit
+                            ? (fixedEstimationGasLimit * 110n) / 100n
+                            : BigInt(30_000_000)
+                        continue
+                    }
+
                     logger.debug(
                         {
                             errorData,
@@ -264,9 +285,30 @@ export async function filterOpsAndEstimateGas(
                         resubmitAllOps: false
                     }
                 }
-            } else if (e instanceof EstimateGasExecutionError) {
+            } else if (
+                e instanceof EstimateGasExecutionError ||
+                err instanceof EstimateGasExecutionError
+            ) {
+                if (e?.cause instanceof FeeCapTooLowError) {
+                    logger.info(
+                        { error: e.shortMessage },
+                        "error estimating gas due to max fee < basefee"
+                    )
+                    return {
+                        simulatedOps: simulatedOps,
+                        gasLimit: 0n,
+                        resubmitAllOps: true
+                    }
+                }
+
                 try {
-                    const errorHexData = e.details.split("Reverted ")[1] as Hex
+                    let errorHexData: Hex = "0x"
+
+                    if (err instanceof EstimateGasExecutionError) {
+                        errorHexData = getRevertErrorData(err) as Hex
+                    } else {
+                        errorHexData = e?.details.split("Reverted ")[1] as Hex
+                    }
                     const errorResult = decodeErrorResult({
                         abi: isUserOpV06 ? EntryPointV06Abi : EntryPointV07Abi,
                         data: errorHexData
@@ -282,7 +324,10 @@ export async function filterOpsAndEstimateGas(
                         "user op in batch invalid"
                     )
 
-                    if (errorResult.errorName !== "FailedOp") {
+                    if (
+                        errorResult.errorName !== "FailedOpWithRevert" &&
+                        errorResult.errorName !== "FailedOp"
+                    ) {
                         logger.error(
                             {
                                 errorName: errorResult.errorName,
@@ -302,7 +347,7 @@ export async function filterOpsAndEstimateGas(
                     )[Number(errorResult.args[0])]
 
                     failingOp.reason = errorResult.args[1]
-                } catch (_e: unknown) {
+                } catch (e: unknown) {
                     logger.error(
                         { error: JSON.stringify(err) },
                         "failed to parse error result"
@@ -313,22 +358,10 @@ export async function filterOpsAndEstimateGas(
                         resubmitAllOps: false
                     }
                 }
-            } else if (e instanceof EstimateGasExecutionError) {
-                if (e.cause instanceof FeeCapTooLowError) {
-                    logger.info(
-                        { error: e.shortMessage },
-                        "error estimating gas due to max fee < basefee"
-                    )
-                    return {
-                        simulatedOps: simulatedOps,
-                        gasLimit: 0n,
-                        resubmitAllOps: true
-                    }
-                }
             } else {
                 sentry.captureException(err)
                 logger.error(
-                    { error: JSON.stringify(err) },
+                    { error: JSON.stringify(err), blockTag },
                     "error estimating gas"
                 )
                 return { simulatedOps: [], gasLimit: 0n, resubmitAllOps: false }
@@ -342,8 +375,7 @@ export async function flushStuckTransaction(
     walletClient: WalletClient<Transport, Chain, Account | undefined>,
     wallet: Account,
     gasPrice: bigint,
-    logger: Logger,
-    entryPoint: Address
+    logger: Logger
 ) {
     const latestNonce = await publicClient.getTransactionCount({
         address: wallet.address,
@@ -393,10 +425,6 @@ export async function flushStuckTransaction(
                 { txHash, nonce: nonceToFlush, wallet: wallet.address },
                 "flushed stuck transaction"
             )
-
-            // TODO: We don't know if the entrypoint is the V06 or V07. So we try and catch both.
-            await transactionIncluded(true, txHash, publicClient, entryPoint)
-            await transactionIncluded(false, txHash, publicClient, entryPoint)
         } catch (e) {
             sentry.captureException(e)
             logger.warn({ error: e }, "error flushing stuck transaction")

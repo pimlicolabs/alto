@@ -4,9 +4,10 @@ import {
     type HexData32,
     type UserOperation,
     type UserOperationV07,
-    type PackedUserOperation,
-    EntryPointV07Abi
+    EntryPointV07Abi,
+    type PackedUserOperation
 } from "@alto/types"
+// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
 import * as sentry from "@sentry/node"
 import {
     type Address,
@@ -185,106 +186,114 @@ export function getAddressFromInitCodeOrPaymasterAndData(
     return null
 }
 
-export const transactionIncluded = async (
+type UserOperationDetailsType = {
+    accountDeployed: boolean
+    status: "succesful" | "calldata_phase_reverted"
+    revertReason?: Hex
+}
+
+type BundlingStatus =
+    | {
+          // The tx was successfully mined
+          // The status of each userOperation is recorded in userOperaitonDetails
+          status: "included"
+          userOperationDetails: Record<Hex, UserOperationDetailsType>
+      }
+    | {
+          // The tx reverted due to a op in the bundle failing EntryPoint validation
+          status: "reverted"
+      }
+    | {
+          // The tx could not be found (pending or invalid hash)
+          status: "not_found"
+      }
+
+// Return the status of the bundling transaction.
+export const getBundleStatus = async (
     isVersion06: boolean,
     txHash: HexData32,
     publicClient: PublicClient,
     entryPoint: Address
 ): Promise<{
-    status: "included" | "reverted" | "failed" | "not_found"
-    [userOperationHash: HexData32]: {
-        accountDeployed: boolean
-    }
+    bundlingStatus: BundlingStatus
+    blockNumber: bigint | undefined
 }> => {
     try {
-        const rcp = await publicClient.getTransactionReceipt({ hash: txHash })
+        const receipt = await publicClient.getTransactionReceipt({
+            hash: txHash
+        })
+        const blockNumber = receipt.blockNumber
 
-        if (rcp.status === "success") {
-            // find if any logs are UserOperationEvent or AccountDeployed
-            const r = rcp.logs
-                .map((l) => {
-                    if (areAddressesEqual(l.address, entryPoint)) {
-                        try {
-                            const log = decodeEventLog({
-                                abi: isVersion06
-                                    ? EntryPointV06Abi
-                                    : EntryPointV07Abi,
-                                data: l.data,
-                                topics: l.topics
-                            })
-                            if (log.eventName === "AccountDeployed") {
-                                return {
-                                    userOperationHash: log.args.userOpHash,
-                                    success: !!log.args.factory,
-                                    accountDeployed: true
+        if (receipt.status === "reverted") {
+            return {
+                bundlingStatus: {
+                    status: "reverted"
+                },
+                blockNumber
+            }
+        }
+
+        const userOperationDetails = receipt.logs
+            .filter((log) => areAddressesEqual(log.address, entryPoint))
+            .reduce((result: Record<Hex, UserOperationDetailsType>, log) => {
+                try {
+                    const { data, topics } = log
+                    const { eventName, args } = decodeEventLog({
+                        abi: isVersion06 ? EntryPointV06Abi : EntryPointV07Abi,
+                        data,
+                        topics
+                    })
+
+                    if (
+                        eventName === "AccountDeployed" ||
+                        eventName === "UserOperationRevertReason" ||
+                        eventName === "UserOperationEvent"
+                    ) {
+                        const opHash = args.userOpHash
+
+                        // create result entry if doesn't exist
+                        result[opHash] ??= {
+                            accountDeployed: false,
+                            status: "succesful"
+                        }
+
+                        switch (eventName) {
+                            case "AccountDeployed":
+                                result[opHash].accountDeployed = true
+                                break
+                            case "UserOperationRevertReason":
+                                result[opHash].revertReason = args.revertReason
+                                break
+                            case "UserOperationEvent":
+                                {
+                                    const status = args.success
+                                        ? "succesful"
+                                        : "calldata_phase_reverted"
+                                    result[opHash].status = status
                                 }
-                            }
-                            if (log.eventName === "UserOperationEvent") {
-                                return {
-                                    userOperationHash: log.args.userOpHash,
-                                    success: !!log.args.success,
-                                    accountDeployed: false
-                                }
-                            }
-                            return undefined
-                        } catch (_e) {
-                            sentry.captureException(_e)
-                            return undefined
+                                break
                         }
                     }
-                    return undefined
-                })
-                .reduce(
-                    (
-                        result: {
-                            [userOperationHash: HexData32]: {
-                                userOperationHash: HexData32
-                                accountDeployed: boolean
-                                success: boolean
-                            }
-                        },
-                        log
-                    ) => {
-                        if (log) {
-                            result[log.userOperationHash] = {
-                                userOperationHash: log.userOperationHash,
-                                accountDeployed:
-                                    log.accountDeployed ||
-                                    result[log.userOperationHash]
-                                        ?.accountDeployed,
-                                success:
-                                    log.success ||
-                                    result[log.userOperationHash]?.success
-                            }
-
-                            return result
-                        }
-                        return result
-                    },
-                    {}
-                )
-
-            const success = Object.values(r).reduce(
-                (x, v) => x || v.success,
-                false
-            )
-
-            if (success) {
-                return {
-                    status: "included",
-                    ...r
+                } catch (e) {
+                    sentry.captureException(e)
                 }
-            }
-            return {
-                status: "reverted"
-            }
-        }
+
+                return result
+            }, {})
+
         return {
-            status: "failed"
+            bundlingStatus: {
+                status: "included",
+                userOperationDetails
+            },
+            blockNumber
         }
-    } catch (_e) {
+    } catch {
         return {
-            status: "not_found"
+            bundlingStatus: {
+                status: "not_found"
+            },
+            blockNumber: undefined
         }
     }
 }

@@ -4,28 +4,34 @@ import type {
 } from "@alto/executor"
 import type { InterfaceReputationManager } from "@alto/mempool"
 import {
-    EntryPointV06Abi,
-    EntryPointV07Abi,
-    deriveUserOperation,
+    type TransactionInfo,
     type Address,
+    type UserOperation,
     type BundleResult,
     type CompressedUserOperation,
     type HexData32,
-    type TransactionInfo,
-    type UserOperation,
+    deriveUserOperation,
+    EntryPointV06Abi,
+    EntryPointV07Abi,
     type UserOperationV06,
     type UserOperationV07,
+    type PackedUserOperation,
     type UserOperationWithHash
 } from "@alto/types"
-import type { GasPriceManager, Logger, Metrics } from "@alto/utils"
+import type { Logger, Metrics } from "@alto/utils"
+import type {
+    GasPriceManager,
+    CompressionHandler,
+    EventManager
+} from "@alto/handlers"
 import {
     getUserOperationHash,
     isVersion06,
     maxBigInt,
     parseViemError,
-    toPackedUserOperation,
-    type CompressionHandler
+    toPackedUserOperation
 } from "@alto/utils"
+// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
 import * as sentry from "@sentry/node"
 import { Mutex } from "async-mutex"
 import {
@@ -116,7 +122,9 @@ export class Executor {
     reputationManager: InterfaceReputationManager
     compressionHandler: CompressionHandler | null
     gasPriceManager: GasPriceManager
+    blockTagSupport: boolean
     mutex: Mutex
+    eventManager: EventManager
 
     constructor(
         publicClient: PublicClient,
@@ -128,9 +136,11 @@ export class Executor {
         metrics: Metrics,
         compressionHandler: CompressionHandler | null,
         gasPriceManager: GasPriceManager,
+        eventManager: EventManager,
         simulateTransaction = false,
         legacyTransactions = false,
         fixedGasLimitForEstimation?: bigint,
+        blockTagSupport = true,
         localGasLimitCalculation = false
     ) {
         this.publicClient = publicClient
@@ -145,6 +155,8 @@ export class Executor {
         this.localGasLimitCalculation = localGasLimitCalculation
         this.compressionHandler = compressionHandler
         this.gasPriceManager = gasPriceManager
+        this.eventManager = eventManager
+        this.blockTagSupport = blockTagSupport
         this.entryPoints = entryPoints
 
         this.mutex = new Mutex()
@@ -263,7 +275,7 @@ export class Executor {
             newRequest.nonce,
             newRequest.maxFeePerGas,
             newRequest.maxPriorityFeePerGas,
-            "latest",
+            this.blockTagSupport ? "latest" : undefined,
             this.legacyTransactions,
             this.fixedGasLimitForEstimation,
             this.reputationManager,
@@ -411,6 +423,18 @@ export class Executor {
                     : newRequest
             )
 
+            opsToBundle.map((opToBundle) => {
+                const op = deriveUserOperation(opToBundle.mempoolUserOperation)
+                const chainId = this.publicClient.chain?.id
+                const opHash = getUserOperationHash(
+                    op,
+                    opToBundle.entryPoint,
+                    chainId as number
+                )
+
+                this.eventManager.emitSubmitted(opHash, txHash)
+            })
+
             const newTxInfo: TransactionInfo = {
                 ...transactionInfo,
                 transactionRequest: newRequest,
@@ -478,27 +502,24 @@ export class Executor {
     }
 
     async flushStuckTransactions(): Promise<void> {
-        const gasPrice = await this.gasPriceManager.getGasPrice()
+        const allWallets = new Set(this.senderManager.wallets)
 
-        const wallets = this.senderManager.utilityAccount
-            ? Array.from(
-                  new Set([
-                      ...this.senderManager.wallets,
-                      this.senderManager.utilityAccount
-                  ])
-              )
-            : Array.from(new Set(this.senderManager.wallets))
-        const promises = wallets.map(async (wallet) => {
-            for (const entryPoint of this.entryPoints) {
-                await flushStuckTransaction(
-                    this.publicClient,
-                    this.walletClient,
-                    wallet,
-                    gasPrice.maxFeePerGas * 5n,
-                    this.logger,
-                    entryPoint
-                )
-            }
+        const utilityWallet = this.senderManager.utilityAccount
+        if (utilityWallet) {
+            allWallets.add(utilityWallet)
+        }
+
+        const wallets = Array.from(allWallets)
+
+        const gasPrice = await this.gasPriceManager.getGasPrice()
+        const promises = wallets.map((wallet) => {
+            flushStuckTransaction(
+                this.publicClient,
+                this.walletClient,
+                wallet,
+                gasPrice.maxFeePerGas * 5n,
+                this.logger
+            )
         })
 
         await Promise.all(promises)
@@ -574,14 +595,12 @@ export class Executor {
                 nonce,
                 gasPriceParameters.maxFeePerGas,
                 gasPriceParameters.maxPriorityFeePerGas,
-                "pending",
+                this.blockTagSupport ? "pending" : undefined,
                 this.legacyTransactions,
                 this.fixedGasLimitForEstimation,
                 this.reputationManager,
                 childLogger
             )
-
-        gasLimit += 10_000n
 
         if (resubmitAllOps) {
             this.markWalletProcessed(wallet)
@@ -604,28 +623,32 @@ export class Executor {
                 "gas limit simulation encountered unexpected failure"
             )
             this.markWalletProcessed(wallet)
-            return opsWithHashes.map((owh) => {
-                return {
-                    status: "failure",
-                    error: {
-                        entryPoint,
-                        userOpHash: owh.userOperationHash,
-                        reason: "INTERNAL FAILURE"
+            return opsWithHashes.map(
+                ({ userOperationHash, mempoolUserOperation }) => {
+                    return {
+                        status: "failure",
+                        error: {
+                            entryPoint,
+                            userOpHash: userOperationHash,
+                            userOperation: mempoolUserOperation,
+                            reason: "INTERNAL FAILURE"
+                        }
                     }
                 }
-            })
+            )
         }
 
         if (simulatedOps.every((op) => op.reason !== undefined)) {
             childLogger.warn("all ops failed simulation")
             this.markWalletProcessed(wallet)
-            return simulatedOps.map((op) => {
+            return simulatedOps.map(({ reason, owh }) => {
                 return {
                     status: "failure",
                     error: {
                         entryPoint,
-                        userOpHash: op.owh.userOperationHash,
-                        reason: op.reason as string
+                        userOpHash: owh.userOperationHash,
+                        userOperation: owh.mempoolUserOperation,
+                        reason: reason as string
                     }
                 }
             })
@@ -642,52 +665,82 @@ export class Executor {
             entryPoint
         })
 
-        childLogger.trace({ gasLimit }, "got gas limit")
+        // https://github.com/eth-infinitism/account-abstraction/blob/fa61290d37d079e928d92d53a122efcc63822214/contracts/core/EntryPoint.sol#L236
+        let innerHandleOpFloor = 0n
+        for (const owh of opsWithHashToBundle) {
+            const op = deriveUserOperation(owh.mempoolUserOperation)
+            innerHandleOpFloor +=
+                op.callGasLimit + op.verificationGasLimit + 5000n
+        }
 
-        let txHash: HexData32
+        if (gasLimit < innerHandleOpFloor) {
+            gasLimit += innerHandleOpFloor
+        }
+
+        // sometimes the estimation rounds down, adding a fixed constant accounts for this
+        gasLimit += 10_000n
+
+        childLogger.debug({ gasLimit }, "got gas limit")
+
+        let transactionHash: HexData32
         try {
-            const gasOptions = this.legacyTransactions
-                ? {
-                      gasPrice: gasPriceParameters.maxFeePerGas
-                  }
+            const isLegacyTransaction = this.legacyTransactions
+
+            const gasOptions = isLegacyTransaction
+                ? { gasPrice: gasPriceParameters.maxFeePerGas }
                 : {
                       maxFeePerGas: gasPriceParameters.maxFeePerGas,
                       maxPriorityFeePerGas:
                           gasPriceParameters.maxPriorityFeePerGas
                   }
-            txHash = isUserOpVersion06
-                ? await ep.write.handleOps(
-                      [
-                          opsWithHashToBundle.map(
-                              (owh) =>
-                                  owh.mempoolUserOperation as UserOperationV06
-                          ),
-                          wallet.address
-                      ],
-                      {
-                          account: wallet,
-                          gas: gasLimit,
-                          nonce: nonce,
-                          ...gasOptions
-                      }
-                  )
-                : await ep.write.handleOps(
-                      [
-                          opsWithHashToBundle.map((owh) =>
-                              toPackedUserOperation(
-                                  owh.mempoolUserOperation as UserOperationV07
-                              )
-                          ),
-                          wallet.address
-                      ],
-                      {
-                          account: wallet,
-                          gas: gasLimit,
-                          nonce: nonce,
-                          ...gasOptions
-                      }
-                  )
+
+            const opts = {
+                account: wallet,
+                gas: gasLimit,
+                nonce: nonce,
+                ...gasOptions
+            }
+
+            const userOps = opsWithHashToBundle.map((owh) =>
+                isUserOpVersion06
+                    ? owh.mempoolUserOperation
+                    : toPackedUserOperation(
+                          owh.mempoolUserOperation as UserOperationV07
+                      )
+            ) as PackedUserOperation[]
+
+            transactionHash = await ep.write.handleOps(
+                [userOps, wallet.address],
+                opts
+            )
+
+            opsWithHashToBundle.map(({ userOperationHash }) => {
+                this.eventManager.emitSubmitted(
+                    userOperationHash,
+                    transactionHash
+                )
+            })
         } catch (err: unknown) {
+            const e = parseViemError(err)
+            if (e instanceof InsufficientFundsError) {
+                childLogger.error(
+                    { error: e },
+                    "insufficient funds, not submitting transaction"
+                )
+                this.markWalletProcessed(wallet)
+                return opsWithHashToBundle.map((owh) => {
+                    return {
+                        status: "resubmit",
+                        info: {
+                            entryPoint,
+                            userOpHash: owh.userOperationHash,
+                            userOperation: owh.mempoolUserOperation,
+                            reason: InsufficientFundsError.name
+                        }
+                    }
+                })
+            }
+
             sentry.captureException(err)
             childLogger.error(
                 { error: JSON.stringify(err) },
@@ -700,6 +753,7 @@ export class Executor {
                     error: {
                         entryPoint,
                         userOpHash: owh.userOperationHash,
+                        userOperation: owh.mempoolUserOperation,
                         reason: "INTERNAL FAILURE"
                     }
                 }
@@ -720,7 +774,7 @@ export class Executor {
             entryPoint,
             isVersion06: isUserOpVersion06,
             transactionType: "default",
-            transactionHash: txHash,
+            transactionHash: transactionHash,
             previousTransactionHashes: [],
             transactionRequest: {
                 account: wallet,
@@ -773,7 +827,7 @@ export class Executor {
                     ...transactionInfo.transactionRequest,
                     abi: undefined
                 },
-                txHash,
+                txHash: transactionHash,
                 opHashes: opsWithHashToBundle.map(
                     (owh) => owh.userOperationHash
                 )
@@ -831,7 +885,7 @@ export class Executor {
                 nonce,
                 gasPriceParameters.maxFeePerGas,
                 gasPriceParameters.maxPriorityFeePerGas,
-                "pending",
+                this.blockTagSupport ? "pending" : undefined,
                 this.legacyTransactions,
                 this.fixedGasLimitForEstimation,
                 this.reputationManager,
@@ -863,15 +917,18 @@ export class Executor {
             childLogger.warn("no ops to bundle")
             this.markWalletProcessed(wallet)
             return compressedOps.map((compressedOp) => {
+                const userOpHash = getUserOperationHash(
+                    compressedOp.inflatedOp,
+                    entryPoint,
+                    this.walletClient.chain.id
+                )
+
                 return {
                     status: "failure",
                     error: {
                         entryPoint,
-                        userOpHash: getUserOperationHash(
-                            compressedOp.inflatedOp,
-                            entryPoint,
-                            this.walletClient.chain.id
-                        ),
+                        userOpHash,
+                        userOperation: compressedOp,
                         reason: "INTERNAL FAILURE"
                     }
                 }
@@ -884,13 +941,14 @@ export class Executor {
         ) {
             childLogger.warn("some ops failed simulation")
             this.markWalletProcessed(wallet)
-            return simulatedOps.map((simulatedOp) => {
+            return simulatedOps.map(({ reason, owh }) => {
                 return {
                     status: "failure",
                     error: {
                         entryPoint,
-                        userOpHash: simulatedOp.owh.userOperationHash,
-                        reason: simulatedOp.reason as string
+                        userOpHash: owh.userOperationHash,
+                        userOperation: owh.mempoolUserOperation,
+                        reason: reason as string
                     }
                 }
             })
@@ -900,7 +958,7 @@ export class Executor {
             .filter((simulatedOp) => simulatedOp.reason === undefined)
             .map((simulatedOp) => simulatedOp.owh)
 
-        let txHash: HexData32
+        let transactionHash: HexData32
         try {
             const gasOptions = this.legacyTransactions
                 ? {
@@ -912,17 +970,31 @@ export class Executor {
                           gasPriceParameters.maxPriorityFeePerGas
                   }
 
+            const compressedOpsToBundle = opsToBundle.map(
+                ({ mempoolUserOperation }) => {
+                    const compressedOp = mempoolUserOperation
+                    return compressedOp as CompressedUserOperation
+                }
+            )
+
             // need to use sendTransaction to target BundleBulker's fallback
-            txHash = await this.walletClient.sendTransaction({
+            transactionHash = await this.walletClient.sendTransaction({
                 account: wallet,
                 to: compressionHandler.bundleBulkerAddress,
                 data: createCompressedCalldata(
-                    compressedOps,
+                    compressedOpsToBundle,
                     compressionHandler.perOpInflatorId
                 ),
                 gas: gasLimit,
                 nonce: nonce,
                 ...gasOptions
+            })
+
+            opsToBundle.map(({ userOperationHash }) => {
+                this.eventManager.emitSubmitted(
+                    userOperationHash,
+                    transactionHash
+                )
             })
         } catch (err: unknown) {
             sentry.captureException(err)
@@ -931,16 +1003,19 @@ export class Executor {
                 "error submitting bundle transaction"
             )
             this.markWalletProcessed(wallet)
-            return opsToBundle.map((op) => {
-                return {
-                    status: "failure",
-                    error: {
-                        entryPoint,
-                        userOpHash: op.userOperationHash,
-                        reason: "INTERNAL FAILURE"
+            return opsToBundle.map(
+                ({ userOperationHash, mempoolUserOperation }) => {
+                    return {
+                        status: "failure",
+                        error: {
+                            entryPoint,
+                            userOpHash: userOperationHash,
+                            userOperation: mempoolUserOperation,
+                            reason: "INTERNAL FAILURE"
+                        }
                     }
                 }
-            })
+            )
         }
 
         const userOperationInfos = opsToBundle.map((owh) => {
@@ -957,7 +1032,7 @@ export class Executor {
             entryPoint,
             isVersion06: true, //TODO: compressed bundles are always v06
             transactionType: "compressed",
-            transactionHash: txHash,
+            transactionHash,
             previousTransactionHashes: [],
             transactionRequest: {
                 to: compressionHandler.bundleBulkerAddress,
@@ -986,7 +1061,7 @@ export class Executor {
 
         childLogger.info(
             {
-                txHash,
+                txHash: transactionHash,
                 opHashes: opsToBundle.map((owh) => owh.userOperationHash)
             },
             "submitted bundle transaction"

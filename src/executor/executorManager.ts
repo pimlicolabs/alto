@@ -1,4 +1,5 @@
-import type { Metrics, Logger, GasPriceManager } from "@alto/utils"
+import type { Metrics, Logger } from "@alto/utils"
+import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
     MemoryMempool,
@@ -17,7 +18,7 @@ import {
     type CompressedUserOperation,
     type UserOperationInfo
 } from "@alto/types"
-import { transactionIncluded } from "@alto/utils"
+import { getAAError, getBundleStatus } from "@alto/utils"
 import type {
     Address,
     Block,
@@ -55,7 +56,9 @@ export class ExecutorManager {
     private currentlyHandlingBlock = false
     private timer?: NodeJS.Timer
     private bundlerFrequency: number
+    private maxGasLimitPerBundle: bigint
     private gasPriceManager: GasPriceManager
+    private eventManager: EventManager
 
     constructor(
         executor: Executor,
@@ -69,7 +72,9 @@ export class ExecutorManager {
         metrics: Metrics,
         bundleMode: BundlingMode,
         bundlerFrequency: number,
-        gasPriceManager: GasPriceManager
+        maxGasLimitPerBundle: bigint,
+        gasPriceManager: GasPriceManager,
+        eventManager: EventManager
     ) {
         this.entryPoints = entryPoints
         this.reputationManager = reputationManager
@@ -81,7 +86,9 @@ export class ExecutorManager {
         this.logger = logger
         this.metrics = metrics
         this.bundlerFrequency = bundlerFrequency
+        this.maxGasLimitPerBundle = maxGasLimitPerBundle
         this.gasPriceManager = gasPriceManager
+        this.eventManager = eventManager
 
         if (bundleMode === "auto") {
             this.timer = setInterval(async () => {
@@ -102,7 +109,7 @@ export class ExecutorManager {
     }
 
     async bundleNow(): Promise<Hash[]> {
-        const ops = await this.mempool.process(5_000_000n, 1)
+        const ops = await this.mempool.process(this.maxGasLimitPerBundle, 1)
         if (ops.length === 0) {
             throw new Error("no ops to bundle")
         }
@@ -212,15 +219,26 @@ export class ExecutorManager {
                     .inc()
             }
             if (result.status === "failure") {
-                this.mempool.removeProcessing(result.error.userOpHash)
-                this.monitor.setUserOperationStatus(result.error.userOpHash, {
+                const { userOpHash, reason } = result.error
+                this.mempool.removeProcessing(userOpHash)
+                this.eventManager.emitDropped(
+                    userOpHash,
+                    reason,
+                    getAAError(reason)
+                )
+                this.monitor.setUserOperationStatus(userOpHash, {
                     status: "rejected",
                     transactionHash: null
                 })
                 this.logger.warn(
                     {
-                        userOpHash: result.error.userOpHash,
-                        reason: result.error.reason
+                        userOperation: JSON.stringify(
+                            result.error.userOperation,
+                            (_k, v) =>
+                                typeof v === "bigint" ? v.toString() : v
+                        ),
+                        userOpHash,
+                        reason
                     },
                     "user operation rejected"
                 )
@@ -336,98 +354,130 @@ export class ExecutorManager {
         }
     }
 
+    // update the current status of the bundling transaction/s
     private async refreshTransactionStatus(
         entryPoint: Address,
         transactionInfo: TransactionInfo
     ) {
-        const hashesToCheck = [
-            transactionInfo.transactionHash,
-            ...transactionInfo.previousTransactionHashes
+        const {
+            transactionHash: currentTransactionHash,
+            userOperationInfos: opInfos,
+            previousTransactionHashes,
+            isVersion06
+        } = transactionInfo
+
+        const txHashesToCheck = [
+            currentTransactionHash,
+            ...previousTransactionHashes
         ]
 
-        const opInfos = transactionInfo.userOperationInfos
-        // const opHashes = transactionInfo.userOperationInfos.map((opInfo) => opInfo.userOperationHash)
-
-        const transactionStatuses = await Promise.all(
-            hashesToCheck.map(async (hash) => {
-                return {
-                    hash: hash,
-                    transactionStatuses: await transactionIncluded(
-                        transactionInfo.isVersion06,
-                        hash,
-                        this.publicClient,
-                        entryPoint
-                    )
-                }
-            })
+        const transactionDetails = await Promise.all(
+            txHashesToCheck.map(async (transactionHash) => ({
+                transactionHash,
+                ...(await getBundleStatus(
+                    isVersion06,
+                    transactionHash,
+                    this.publicClient,
+                    entryPoint
+                ))
+            }))
         )
 
-        const status = transactionStatuses.find(
-            (status) =>
-                status.transactionStatuses.status === "included" ||
-                status.transactionStatuses.status === "failed" ||
-                status.transactionStatuses.status === "reverted"
+        // first check if bundling txs returns status "mined", if not, check for reverted
+        const mined = transactionDetails.find(
+            ({ bundlingStatus }) => bundlingStatus.status === "included"
         )
+        const reverted = transactionDetails.find(
+            ({ bundlingStatus }) => bundlingStatus.status === "reverted"
+        )
+        const finalizedTransaction = mined ?? reverted
 
-        if (!status) {
-            opInfos.map((info) => {
+        if (!finalizedTransaction) {
+            for (const { userOperationHash } of opInfos) {
                 this.logger.trace(
                     {
-                        userOpHash: info.userOperationHash,
-                        transactionHash: transactionInfo.transactionHash
+                        userOperationHash,
+                        currentTransactionHash
                     },
                     "user op still pending"
                 )
-            })
-
+            }
             return
         }
 
+        const { bundlingStatus, transactionHash, blockNumber } =
+            finalizedTransaction
+
         this.metrics.userOperationsOnChain
-            .labels({ status: status.transactionStatuses.status })
+            .labels({ status: bundlingStatus.status })
             .inc(opInfos.length)
-        if (status.transactionStatuses.status === "included") {
-            opInfos.map((info) => {
+
+        if (bundlingStatus.status === "included") {
+            const { userOperationDetails } = bundlingStatus
+            opInfos.map((opInfo) => {
+                const {
+                    mempoolUserOperation: mUserOperation,
+                    userOperationHash: userOpHash,
+                    entryPoint,
+                    firstSubmitted
+                } = opInfo
+                const opDetails = userOperationDetails[userOpHash]
+
                 this.metrics.userOperationInclusionDuration.observe(
-                    (Date.now() - info.firstSubmitted) / 1000
+                    (Date.now() - firstSubmitted) / 1000
                 )
+                this.mempool.removeSubmitted(userOpHash)
                 this.reputationManager.updateUserOperationIncludedStatus(
-                    deriveUserOperation(info.mempoolUserOperation),
-                    info.entryPoint,
-                    status.transactionStatuses[info.userOperationHash]
-                        .accountDeployed
+                    deriveUserOperation(mUserOperation),
+                    entryPoint,
+                    opDetails.accountDeployed
                 )
-                this.mempool.removeSubmitted(info.userOperationHash)
-                this.monitor.setUserOperationStatus(info.userOperationHash, {
+                if (opDetails.status === "succesful") {
+                    this.eventManager.emitIncludedOnChain(
+                        userOpHash,
+                        transactionHash,
+                        blockNumber as bigint
+                    )
+                } else {
+                    this.eventManager.emitExecutionRevertedOnChain(
+                        userOpHash,
+                        transactionHash,
+                        opDetails.revertReason || "0x",
+                        blockNumber as bigint
+                    )
+                }
+                this.monitor.setUserOperationStatus(userOpHash, {
                     status: "included",
-                    transactionHash: status.hash
+                    transactionHash
                 })
                 this.logger.info(
                     {
-                        userOpHash: info.userOperationHash,
-                        transactionHash: status.hash
+                        userOpHash,
+                        transactionHash
                     },
                     "user op included"
                 )
             })
 
             this.executor.markWalletProcessed(transactionInfo.executor)
-        } else if (
-            status.transactionStatuses.status === "failed" ||
-            status.transactionStatuses.status === "reverted"
-        ) {
-            opInfos.map((info) => {
-                this.mempool.removeSubmitted(info.userOperationHash)
-                this.monitor.setUserOperationStatus(info.userOperationHash, {
+        } else if (bundlingStatus.status === "reverted") {
+            opInfos.map(({ userOperationHash }) => {
+                this.mempool.removeSubmitted(userOperationHash)
+                this.monitor.setUserOperationStatus(userOperationHash, {
                     status: "rejected",
-                    transactionHash: status.hash
+                    transactionHash
                 })
+                this.eventManager.emitFailedOnChain(
+                    userOperationHash,
+                    transactionHash,
+                    blockNumber as bigint
+                )
                 this.logger.info(
                     {
-                        userOpHash: info.userOperationHash,
-                        transactionHash: status.hash
+                        userOpHash: userOperationHash,
+                        transactionHash
                     },
-                    "user op rejected"
+                    "user op failed onchain"
                 )
             })
 
