@@ -66,6 +66,13 @@ export class GasPriceManager {
         this.legacyTransactions = legacyTransactions
         this.logger = logger
         this.gasBumpMultiplier = gasBumpMultiplier
+
+        // Update gas prices each second
+        // - maxFeePerGas and maxPriorityFeePerGas
+        setInterval(this.updateGasPrice.bind(this), 1000);
+
+        // - block base fee
+        setInterval(this.updateBaseFee.bind(this), 1000);
     }
 
     private getDefaultGasFee(
@@ -414,7 +421,7 @@ export class GasPriceManager {
         }
     }
 
-    public async getBaseFee(): Promise<bigint> {
+    private async updateBaseFee(): Promise<void> {
         const latestBlock = await this.publicClient.getBlock()
         if (latestBlock.baseFeePerGas === null) {
             throw new RpcError("block does not have baseFeePerGas")
@@ -423,10 +430,24 @@ export class GasPriceManager {
         const baseFee = latestBlock.baseFeePerGas
         this.saveBaseFeePerGas(baseFee, Date.now())
 
-        return baseFee
+        this.logger.debug({
+            baseFee
+        }, "Base fee update");
     }
 
-    public async getGasPrice(): Promise<GasPriceParameters> {
+    public async getBaseFee(): Promise<bigint> {
+        if (this.queueBaseFeePerGas.length === 0) {
+            await this.updateBaseFee()
+        }
+
+        const {
+            baseFeePerGas
+        } = this.queueBaseFeePerGas[this.queueBaseFeePerGas.length - 1];
+
+        return baseFeePerGas;
+    }
+
+    private async updateGasPrice(): Promise<void> {
         const gasPrice = await this.innerGetGasPrice()
 
         this.saveGasPrice(
@@ -436,7 +457,29 @@ export class GasPriceManager {
             },
             Date.now()
         )
-        return gasPrice
+
+        this.logger.debug({
+            ...gasPrice
+        }, "Gas price update");
+    }
+
+    public async getGasPrice(): Promise<GasPriceParameters> {
+        if (this.queueMaxFeePerGas.length === 0 || this.queueMaxPriorityFeePerGas.length === 0) {
+            await this.updateGasPrice();
+        }
+
+        const {
+            maxPriorityFeePerGas
+        } = this.queueMaxPriorityFeePerGas[this.queueMaxPriorityFeePerGas.length - 1];
+
+        const {
+            maxFeePerGas
+        } = this.queueMaxFeePerGas[this.queueMaxFeePerGas.length - 1];
+
+        return {
+            maxFeePerGas,
+            maxPriorityFeePerGas,
+        }
     }
 
     public async getMaxBaseFeePerGas() {
