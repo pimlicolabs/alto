@@ -10,7 +10,8 @@ import {
     SamplingDecision
 } from "@opentelemetry/sdk-trace-base"
 import { SemanticAttributes } from "@opentelemetry/semantic-conventions"
-import { FetchInstrumentation } from "opentelemetry-instrumentation-fetch-node"
+// import { FetchInstrumentation } from "opentelemetry-instrumentation-fetch-node"
+import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici"
 
 class CustomSampler implements Sampler {
     shouldSample(
@@ -45,7 +46,8 @@ const sdk = new NodeSDK({
         new HttpInstrumentation({
             requireParentforOutgoingSpans: true
         }),
-        new FetchInstrumentation({}),
+        new UndiciInstrumentation(),
+        // new FetchInstrumentation({}),
         new FastifyInstrumentation(),
         new PinoInstrumentation()
     ],
