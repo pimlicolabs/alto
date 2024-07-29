@@ -26,6 +26,7 @@ import { customTransport } from "./customTransport"
 import { setupServer } from "./setupServer"
 import { PimlicoEntryPointSimulationsDeployBytecode } from "../types/contracts"
 import { UtilityWalletMonitor } from "../executor/utilityWalletMonitor"
+import { ExecutorWalletsMonitor } from "../executor/executorWalletsMonitor"
 import { GasPriceManager } from "@alto/handlers"
 
 const parseArgs = (args: IOptionsInput): IOptions => {
@@ -240,6 +241,21 @@ export async function bundlerHandler(args: IOptionsInput): Promise<void> {
     metrics.executorWalletsMinBalance.set(
         Number.parseFloat(formatEther(parsedArgs["min-executor-balance"] || 0n))
     )
+
+    const executorWalletsMonitor = new ExecutorWalletsMonitor(
+        client,
+        parsedArgs["executor-wallets-monitor-interval"],
+        parsedArgs["executor-private-keys"].map(a => a.address),
+        metrics,
+        logger.child(
+            { module: "executor_wallet_monitor" },
+            {
+                level: parsedArgs["log-level"]
+            }
+        )
+    )
+
+    await executorWalletsMonitor.start()
 
     await setupServer({
         client,
