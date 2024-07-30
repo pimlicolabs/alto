@@ -222,7 +222,6 @@ export class Server {
     }
 
     private async rpc(request: FastifyRequest, reply: RpcReply): Promise<void> {
-        this.fastify.log.info({ headers: request.headers }, "req headers")
         reply.rpcStatus = "failed" // default to failed
         let requestId: number | null = null
 
