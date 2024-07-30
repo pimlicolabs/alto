@@ -2,7 +2,8 @@ import {
     type ApiVersion,
     addressSchema,
     commaSeperatedAddressPattern,
-    hexData32Schema
+    hexData32Schema,
+    bundlerRequestSchema
 } from "@alto/types"
 import type { Hex } from "viem"
 import { type Account, privateKeyToAccount } from "viem/accounts"
@@ -83,7 +84,20 @@ export const bundlerArgsSchema = z.object({
     "max-gas-per-bundle": z
         .string()
         .transform((val) => BigInt(val))
-        .default("5000000")
+        .default("5000000"),
+    "supported-rpc-methods": z
+        .string()
+        .transform((val: string) => val.split(","))
+        .refine((values) => {
+            return values.length > 0
+        }, "Must contain at least one method")
+        .refine((values) => {
+            const supportedMethods = bundlerRequestSchema.options
+                .map((s) => s.shape.method._def.value) as [string, ...string[]]
+
+            return values.every((value: string) => supportedMethods.includes(value))
+        }, "Unknown method"),
+    "refilling-wallets-enabled": z.boolean().default(true),
 })
 
 export const compatibilityArgsSchema = z.object({

@@ -396,7 +396,8 @@ const getServer = ({
             { level: parsedArgs["rpc-log-level"] || parsedArgs["log-level"] }
         ),
         registry,
-        metrics
+        metrics,
+        parsedArgs["supported-rpc-methods"]
     )
 }
 
@@ -446,19 +447,21 @@ export const setupServer = async ({
         metrics
     })
 
-    await senderManager.validateAndRefillWallets(
-        client,
-        walletClient,
-        parsedArgs["min-executor-balance"]
-    )
-
-    setInterval(async () => {
+    if (parsedArgs["refilling-wallets-enabled"]) {
         await senderManager.validateAndRefillWallets(
             client,
             walletClient,
             parsedArgs["min-executor-balance"]
         )
-    }, parsedArgs["executor-refill-interval"] * 1000)
+
+        setInterval(async () => {
+            await senderManager.validateAndRefillWallets(
+                client,
+                walletClient,
+                parsedArgs["min-executor-balance"]
+            )
+        }, parsedArgs["executor-refill-interval"] * 1000)   
+    }
 
     const monitor = getMonitor()
     const mempool = getMempool({

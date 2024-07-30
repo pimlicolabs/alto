@@ -1,3 +1,4 @@
+import { bundlerRequestSchema } from "@alto/types"
 import { bundlerHandler } from "../handler"
 import type { CliCommand, CliCommandOptions } from "../util"
 import type {
@@ -147,7 +148,19 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "string",
         require: false,
         default: "5000000"
-    }
+    },
+    "supported-rpc-methods": {
+        description: "Supported RPC methods split by commas",
+        type: "string",
+        require: false,
+        default: bundlerRequestSchema.options.map(s => s.shape.method._def.value).join(",")
+    },
+    "refilling-wallets-enabled": {
+        description: "Enable refilling wallets",
+        type: "boolean",
+        require: false,
+        default: true
+    },
 }
 
 export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
