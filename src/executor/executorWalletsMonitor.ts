@@ -24,7 +24,6 @@ export class ExecutorWalletsMonitor {
     }
 
     private async updateMetrics() {
-        console.log(this.executorWallets);
         try {
             await Promise.all(this.executorWallets.map(async (wallet) => {
                 const balance = await this.publicClient.getBalance({
