@@ -74,7 +74,10 @@ export class GasPriceManager {
         if (this.gasPriceRefreshIntervalInSeconds > 0) {
             setInterval(
                 () => {
-                    this.updateBaseFee()
+                    if (this.legacyTransactions === false) {
+                        this.updateBaseFee()
+                    }
+
                     this.updateGasPrice()
                 },
                 this.gasPriceRefreshIntervalInSeconds * 1000
@@ -85,7 +88,7 @@ export class GasPriceManager {
     public async init() {
         return Promise.all([
             this.updateGasPrice(),
-            this.updateBaseFee()
+            this.legacyTransactions === false ? this.updateBaseFee() : Promise.resolve()
         ])
     }
 
@@ -448,6 +451,10 @@ export class GasPriceManager {
     }
 
     public async getBaseFee(): Promise<bigint> {
+        if (this.legacyTransactions) {
+            throw new RpcError("baseFee is not available for legacy transactions")
+        }
+
         if (this.gasPriceRefreshIntervalInSeconds === 0) {
             return this.updateBaseFee()
         }
