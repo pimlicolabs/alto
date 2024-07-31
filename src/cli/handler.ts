@@ -170,8 +170,11 @@ export async function bundlerHandler(args: IOptionsInput): Promise<void> {
             }
         ),
         parsedArgs["gas-price-bump"],
-        parsedArgs["gas-price-expiry"]
+        parsedArgs["gas-price-expiry"],
+        parsedArgs["gas-price-refresh-interval"]
     )
+
+    await gasPriceManager.init()
 
     const registry = new Registry()
     registry.setDefaultLabels({

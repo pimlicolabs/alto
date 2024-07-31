@@ -76,7 +76,7 @@ export class Server {
     private metrics: Metrics
     private apiVersions: ApiVersion[]
     private defaultApiVersion: ApiVersion
-    private supportedRpcMethods: string[]
+    private supportedRpcMethods: string[] | null
 
     constructor(
         rpcEndpoint: IRpcEndpoint,
@@ -89,7 +89,7 @@ export class Server {
         logger: Logger,
         registry: Registry,
         metrics: Metrics,
-        supportedRpcMethods: string[]
+        supportedRpcMethods: string[] | null
     ) {
         this.fastify = Fastify({
             logger: logger as FastifyBaseLogger, // workaround for https://github.com/fastify/fastify/issues/4960
@@ -308,7 +308,7 @@ export class Server {
             const bundlerRequest = bundlerRequestParsing.data
             request.rpcMethod = bundlerRequest.method
 
-            if (!this.supportedRpcMethods.includes(bundlerRequest.method)) {
+            if (this.supportedRpcMethods !== null && !this.supportedRpcMethods.includes(bundlerRequest.method)) {
                 throw new RpcError(
                     `Method not supported: ${bundlerRequest.method}`,
                     ValidationErrors.InvalidRequest

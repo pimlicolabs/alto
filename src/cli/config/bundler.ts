@@ -77,6 +77,7 @@ export const bundlerArgsSchema = z.object({
             "Must contain 3 comma seperated items in format: slow,standard,fast"
         )
         .transform(([slow, standard, fast]) => ({ slow, standard, fast })),
+    "gas-price-refresh-interval": z.number().int().min(0),
 
     "mempool-max-parallel-ops": z.number().int().min(0).default(10),
     "mempool-max-queued-ops": z.number().int().min(0).default(0),
@@ -85,19 +86,28 @@ export const bundlerArgsSchema = z.object({
         .string()
         .transform((val) => BigInt(val))
         .default("5000000"),
-    "supported-rpc-methods": z
+    "rpc-methods": z
         .string()
-        .transform((val: string) => val.split(","))
+        .nullable()
+        .transform((val: string | null) => {
+            if (val === null) return null;
+
+            return val.split(",")
+        })
         .refine((values) => {
+            if (values === null) return true;
+
             return values.length > 0
-        }, "Must contain at least one method")
+        }, "Must contain at least one method if specified")
         .refine((values) => {
+            if (values === null) return true;
+
             const supportedMethods = bundlerRequestSchema.options
                 .map((s) => s.shape.method._def.value) as [string, ...string[]]
 
             return values.every((value: string) => supportedMethods.includes(value))
         }, "Unknown method"),
-    "refilling-wallets-enabled": z.boolean().default(true),
+    "refilling-wallets": z.boolean().default(true),
 })
 
 export const compatibilityArgsSchema = z.object({

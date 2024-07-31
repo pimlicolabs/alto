@@ -51,6 +51,7 @@ export class GasPriceManager {
     }[] = [] // Store pairs of [price, timestamp]
     private maxQueueSize
     private gasBumpMultiplier: bigint
+    private gasPriceRefreshIntervalInSeconds: number
 
     constructor(
         chain: Chain,
@@ -58,7 +59,8 @@ export class GasPriceManager {
         legacyTransactions: boolean,
         logger: Logger,
         gasBumpMultiplier: bigint,
-        gasPriceTimeValidityInSeconds = 10
+        gasPriceTimeValidityInSeconds: number,
+        gasPriceRefreshIntervalInSeconds: number
     ) {
         this.maxQueueSize = gasPriceTimeValidityInSeconds
         this.chain = chain
@@ -66,13 +68,25 @@ export class GasPriceManager {
         this.legacyTransactions = legacyTransactions
         this.logger = logger
         this.gasBumpMultiplier = gasBumpMultiplier
+        this.gasPriceRefreshIntervalInSeconds = gasPriceRefreshIntervalInSeconds
 
-        // Update gas prices each second
-        // - maxFeePerGas and maxPriorityFeePerGas
-        setInterval(this.updateGasPrice.bind(this), 1000);
+        // Periodically update gas prices if specified
+        if (this.gasPriceRefreshIntervalInSeconds > 0) {
+            setInterval(
+                () => {
+                    this.updateBaseFee()
+                    this.updateGasPrice()
+                },
+                this.gasPriceRefreshIntervalInSeconds * 1000
+            );
+        }
+    }
 
-        // - block base fee
-        setInterval(this.updateBaseFee.bind(this), 1000);
+    public async init() {
+        return Promise.all([
+            this.updateGasPrice(),
+            this.updateBaseFee()
+        ])
     }
 
     private getDefaultGasFee(
@@ -421,7 +435,7 @@ export class GasPriceManager {
         }
     }
 
-    private async updateBaseFee(): Promise<void> {
+    private async updateBaseFee(): Promise<bigint> {
         const latestBlock = await this.publicClient.getBlock()
         if (latestBlock.baseFeePerGas === null) {
             throw new RpcError("block does not have baseFeePerGas")
@@ -430,14 +444,12 @@ export class GasPriceManager {
         const baseFee = latestBlock.baseFeePerGas
         this.saveBaseFeePerGas(baseFee, Date.now())
 
-        this.logger.debug({
-            baseFee
-        }, "Base fee update");
+        return baseFee
     }
 
     public async getBaseFee(): Promise<bigint> {
-        if (this.queueBaseFeePerGas.length === 0) {
-            await this.updateBaseFee()
+        if (this.gasPriceRefreshIntervalInSeconds === 0) {
+            return this.updateBaseFee()
         }
 
         const {
@@ -447,7 +459,7 @@ export class GasPriceManager {
         return baseFeePerGas;
     }
 
-    private async updateGasPrice(): Promise<void> {
+    private async updateGasPrice(): Promise<GasPriceParameters> {
         const gasPrice = await this.innerGetGasPrice()
 
         this.saveGasPrice(
@@ -458,14 +470,15 @@ export class GasPriceManager {
             Date.now()
         )
 
-        this.logger.debug({
-            ...gasPrice
-        }, "Gas price update");
-    }
+        return gasPrice
+   }
 
     public async getGasPrice(): Promise<GasPriceParameters> {
-        if (this.queueMaxFeePerGas.length === 0 || this.queueMaxPriorityFeePerGas.length === 0) {
-            await this.updateGasPrice();
+        console.log(this.queueMaxFeePerGas.length)
+        console.log(this.queueMaxPriorityFeePerGas.length)
+
+        if (this.gasPriceRefreshIntervalInSeconds === 0) {
+            return this.updateGasPrice()
         }
 
         const {

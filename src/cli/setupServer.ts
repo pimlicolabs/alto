@@ -397,7 +397,7 @@ const getServer = ({
         ),
         registry,
         metrics,
-        parsedArgs["supported-rpc-methods"]
+        parsedArgs["rpc-methods"]
     )
 }
 
@@ -447,7 +447,7 @@ export const setupServer = async ({
         metrics
     })
 
-    if (parsedArgs["refilling-wallets-enabled"]) {
+    if (parsedArgs["refilling-wallets"]) {
         await senderManager.validateAndRefillWallets(
             client,
             walletClient,

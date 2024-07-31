@@ -1,4 +1,3 @@
-import { bundlerRequestSchema } from "@alto/types"
 import { bundlerHandler } from "../handler"
 import type { CliCommand, CliCommandOptions } from "../util"
 import type {
@@ -122,6 +121,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: "100,100,100"
     },
+    "gas-price-refresh-interval": {
+        description: "How to often to refresh the gas prices (seconds). If 0, then gas prices are refreshed on every request",
+        type: "number",
+        require: false,
+        default: 0
+    },
     "mempool-max-parallel-ops": {
         description:
             "Maximum amount of parallel user ops to keep in the meempool (same sender, different nonce keys)",
@@ -149,13 +154,13 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: "5000000"
     },
-    "supported-rpc-methods": {
+    "rpc-methods": {
         description: "Supported RPC methods split by commas",
         type: "string",
         require: false,
-        default: bundlerRequestSchema.options.map(s => s.shape.method._def.value).join(",")
+        default: null
     },
-    "refilling-wallets-enabled": {
+    "refilling-wallets": {
         description: "Enable refilling wallets",
         type: "boolean",
         require: false,
