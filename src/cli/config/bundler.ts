@@ -11,6 +11,9 @@ import { z } from "zod"
 
 const logLevel = z.enum(["trace", "debug", "info", "warn", "error", "fatal"])
 
+const rpcMethodNames = bundlerRequestSchema.options
+    .map((s) => s.shape.method._def.value) as [string, ...string[]]
+
 export const bundlerArgsSchema = z.object({
     entrypoints: z
         .string()
@@ -102,11 +105,8 @@ export const bundlerArgsSchema = z.object({
         .refine((values) => {
             if (values === null) return true;
 
-            const supportedMethods = bundlerRequestSchema.options
-                .map((s) => s.shape.method._def.value) as [string, ...string[]]
-
-            return values.every((value: string) => supportedMethods.includes(value))
-        }, "Unknown method"),
+            return values.every((value: string) => rpcMethodNames.includes(value))
+        }, `Unknown method specified, available methods: ${rpcMethodNames.join(",")}`),
     "refilling-wallets": z.boolean().default(true),
 })
 

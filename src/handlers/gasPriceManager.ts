@@ -474,9 +474,6 @@ export class GasPriceManager {
    }
 
     public async getGasPrice(): Promise<GasPriceParameters> {
-        console.log(this.queueMaxFeePerGas.length)
-        console.log(this.queueMaxPriorityFeePerGas.length)
-
         if (this.gasPriceRefreshIntervalInSeconds === 0) {
             return this.updateGasPrice()
         }
