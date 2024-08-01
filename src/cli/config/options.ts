@@ -121,6 +121,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: "100,100,100"
     },
+    "gas-price-refresh-interval": {
+        description: "How to often to refresh the gas prices (seconds). If 0, then gas prices are refreshed on every request",
+        type: "number",
+        require: false,
+        default: 0
+    },
     "mempool-max-parallel-ops": {
         description:
             "Maximum amount of parallel user ops to keep in the meempool (same sender, different nonce keys)",
@@ -147,7 +153,19 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "string",
         require: false,
         default: "5000000"
-    }
+    },
+    "rpc-methods": {
+        description: "Supported RPC methods split by commas",
+        type: "string",
+        require: false,
+        default: null
+    },
+    "refilling-wallets": {
+        description: "Enable refilling wallets",
+        type: "boolean",
+        require: false,
+        default: true
+    },
 }
 
 export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =

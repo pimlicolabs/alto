@@ -2,13 +2,17 @@ import {
     type ApiVersion,
     addressSchema,
     commaSeperatedAddressPattern,
-    hexData32Schema
+    hexData32Schema,
+    bundlerRequestSchema
 } from "@alto/types"
 import type { Hex } from "viem"
 import { type Account, privateKeyToAccount } from "viem/accounts"
 import { z } from "zod"
 
 const logLevel = z.enum(["trace", "debug", "info", "warn", "error", "fatal"])
+
+const rpcMethodNames = bundlerRequestSchema.options
+    .map((s) => s.shape.method._def.value) as [string, ...string[]]
 
 export const bundlerArgsSchema = z.object({
     entrypoints: z
@@ -76,6 +80,7 @@ export const bundlerArgsSchema = z.object({
             "Must contain 3 comma seperated items in format: slow,standard,fast"
         )
         .transform(([slow, standard, fast]) => ({ slow, standard, fast })),
+    "gas-price-refresh-interval": z.number().int().min(0),
 
     "mempool-max-parallel-ops": z.number().int().min(0).default(10),
     "mempool-max-queued-ops": z.number().int().min(0).default(0),
@@ -83,7 +88,26 @@ export const bundlerArgsSchema = z.object({
     "max-gas-per-bundle": z
         .string()
         .transform((val) => BigInt(val))
-        .default("5000000")
+        .default("5000000"),
+    "rpc-methods": z
+        .string()
+        .nullable()
+        .transform((val: string | null) => {
+            if (val === null) return null;
+
+            return val.split(",")
+        })
+        .refine((values) => {
+            if (values === null) return true;
+
+            return values.length > 0
+        }, "Must contain at least one method if specified")
+        .refine((values) => {
+            if (values === null) return true;
+
+            return values.every((value: string) => rpcMethodNames.includes(value))
+        }, `Unknown method specified, available methods: ${rpcMethodNames.join(",")}`),
+    "refilling-wallets": z.boolean().default(true),
 })
 
 export const compatibilityArgsSchema = z.object({
