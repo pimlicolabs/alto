@@ -88,6 +88,13 @@ export class SenderManager {
                     address: wallet.address
                 })
 
+                this.metrics.executorWalletsBalances.set(
+                    {
+                        wallet: wallet.address
+                    },
+                    Number.parseFloat(formatEther(balance))
+                )
+
                 if (balance < minBalance) {
                     const missingBalance = (minBalance * 6n) / 5n - balance
                     balancesMissing[wallet.address] = missingBalance
