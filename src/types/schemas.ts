@@ -439,7 +439,7 @@ const receiptSchema = z.object({
     logsBloom: z.string().regex(/^0x[0-9a-f]{512}$/),
     //root: hexData32Schema,
     status: hexNumberSchema.or(z.null()),
-    effectiveGasPrice: hexNumberSchema
+    effectiveGasPrice: hexNumberSchema.nullish()
     //type: hexNumberSchema
 })
 
