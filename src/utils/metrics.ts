@@ -163,7 +163,7 @@ export function createMetrics(registry: Registry, register = true) {
     })
 
     const executorWalletsBalances = new Gauge({
-        name: "alto_executor_wallets_balances",
+        name: "alto_executor_wallet_balance",
         help: "Balance of the executor wallet",
         labelNames: ["wallet"] as const,
         registers
