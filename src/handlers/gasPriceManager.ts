@@ -51,6 +51,7 @@ export class GasPriceManager {
     }[] = [] // Store pairs of [price, timestamp]
     private maxQueueSize
     private gasBumpMultiplier: bigint
+    private gasPriceRefreshIntervalInSeconds: number
 
     constructor(
         chain: Chain,
@@ -58,7 +59,8 @@ export class GasPriceManager {
         legacyTransactions: boolean,
         logger: Logger,
         gasBumpMultiplier: bigint,
-        gasPriceTimeValidityInSeconds = 10
+        gasPriceTimeValidityInSeconds: number,
+        gasPriceRefreshIntervalInSeconds: number
     ) {
         this.maxQueueSize = gasPriceTimeValidityInSeconds
         this.chain = chain
@@ -66,6 +68,28 @@ export class GasPriceManager {
         this.legacyTransactions = legacyTransactions
         this.logger = logger
         this.gasBumpMultiplier = gasBumpMultiplier
+        this.gasPriceRefreshIntervalInSeconds = gasPriceRefreshIntervalInSeconds
+
+        // Periodically update gas prices if specified
+        if (this.gasPriceRefreshIntervalInSeconds > 0) {
+            setInterval(
+                () => {
+                    if (this.legacyTransactions === false) {
+                        this.updateBaseFee()
+                    }
+
+                    this.updateGasPrice()
+                },
+                this.gasPriceRefreshIntervalInSeconds * 1000
+            );
+        }
+    }
+
+    public async init() {
+        return Promise.all([
+            this.updateGasPrice(),
+            this.legacyTransactions === false ? this.updateBaseFee() : Promise.resolve()
+        ])
     }
 
     private getDefaultGasFee(
@@ -414,7 +438,7 @@ export class GasPriceManager {
         }
     }
 
-    public async getBaseFee(): Promise<bigint> {
+    private async updateBaseFee(): Promise<bigint> {
         const latestBlock = await this.publicClient.getBlock()
         if (latestBlock.baseFeePerGas === null) {
             throw new RpcError("block does not have baseFeePerGas")
@@ -426,7 +450,23 @@ export class GasPriceManager {
         return baseFee
     }
 
-    public async getGasPrice(): Promise<GasPriceParameters> {
+    public async getBaseFee(): Promise<bigint> {
+        if (this.legacyTransactions) {
+            throw new RpcError("baseFee is not available for legacy transactions")
+        }
+
+        if (this.gasPriceRefreshIntervalInSeconds === 0) {
+            return this.updateBaseFee()
+        }
+
+        const {
+            baseFeePerGas
+        } = this.queueBaseFeePerGas[this.queueBaseFeePerGas.length - 1];
+
+        return baseFeePerGas;
+    }
+
+    private async updateGasPrice(): Promise<GasPriceParameters> {
         const gasPrice = await this.innerGetGasPrice()
 
         this.saveGasPrice(
@@ -436,7 +476,27 @@ export class GasPriceManager {
             },
             Date.now()
         )
+
         return gasPrice
+   }
+
+    public async getGasPrice(): Promise<GasPriceParameters> {
+        if (this.gasPriceRefreshIntervalInSeconds === 0) {
+            return this.updateGasPrice()
+        }
+
+        const {
+            maxPriorityFeePerGas
+        } = this.queueMaxPriorityFeePerGas[this.queueMaxPriorityFeePerGas.length - 1];
+
+        const {
+            maxFeePerGas
+        } = this.queueMaxFeePerGas[this.queueMaxFeePerGas.length - 1];
+
+        return {
+            maxFeePerGas,
+            maxPriorityFeePerGas,
+        }
     }
 
     public async getMaxBaseFeePerGas() {

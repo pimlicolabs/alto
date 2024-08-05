@@ -19,10 +19,10 @@ import {
 import type { Logger } from "@alto/utils"
 import {
     getRevertErrorData,
+    scaleBigIntByPercent,
     isVersion06,
     parseViemError,
-    toPackedUserOperation,
-    transactionIncluded
+    toPackedUserOperation
 } from "@alto/utils"
 import {
     type Account,
@@ -145,23 +145,20 @@ export async function filterOpsAndEstimateGas(
 
     // TODO compressed ops are not supported in V07
     const isUserOpV06 =
-        callContext.type === "default"
-            ? isVersion06(
-                  simulatedOps[0].owh.mempoolUserOperation as UserOperation
-              )
-            : true
+        callContext.type !== "default" || // All compressed ops are v6 by default
+        isVersion06(simulatedOps[0].owh.mempoolUserOperation as UserOperation)
+
+    const gasOptions = onlyPre1559
+        ? { gasPrice: maxFeePerGas }
+        : { maxFeePerGas, maxPriorityFeePerGas }
 
     let fixedEstimationGasLimit: bigint | undefined = fixedGasLimitForEstimation
-    let aa95RetriesLeft = 3
+    let retriesLeft = 5
 
     while (simulatedOps.filter((op) => op.reason === undefined).length > 0) {
         try {
-            const gasOptions = onlyPre1559
-                ? { gasPrice: maxFeePerGas }
-                : { maxFeePerGas, maxPriorityFeePerGas }
-
             if (callContext.type === "default") {
-                const ep = callContext.ep
+                const { ep } = callContext
 
                 const opsToSend = simulatedOps
                     .filter((op) => op.reason === undefined)
@@ -211,7 +208,7 @@ export async function filterOpsAndEstimateGas(
                 })
             }
 
-            return { simulatedOps, gasLimit, resubmitAllOps: false }
+            return { simulatedOps, gasLimit }
         } catch (err: unknown) {
             logger.error({ err, blockTag }, "error estimating gas")
             const e = parseViemError(err)
@@ -234,12 +231,13 @@ export async function filterOpsAndEstimateGas(
                 if (errorData) {
                     if (
                         errorData.reason.indexOf("AA95 out of gas") !== -1 &&
-                        aa95RetriesLeft > 0
+                        retriesLeft > 0
                     ) {
-                        aa95RetriesLeft--
-                        fixedEstimationGasLimit = fixedEstimationGasLimit
-                            ? (fixedEstimationGasLimit * 110n) / 100n
-                            : BigInt(30_000_000)
+                        retriesLeft--
+                        fixedEstimationGasLimit = scaleBigIntByPercent(
+                            fixedEstimationGasLimit || BigInt(30_000_000),
+                            110
+                        )
                         continue
                     }
 
@@ -282,24 +280,41 @@ export async function filterOpsAndEstimateGas(
                     )
                     return {
                         simulatedOps: [],
-                        gasLimit: 0n,
-                        resubmitAllOps: false
+                        gasLimit: 0n
                     }
                 }
             } else if (
                 e instanceof EstimateGasExecutionError ||
                 err instanceof EstimateGasExecutionError
             ) {
-                if (e?.cause instanceof FeeCapTooLowError) {
+                if (e?.cause instanceof FeeCapTooLowError && retriesLeft > 0) {
+                    retriesLeft--
+
                     logger.info(
                         { error: e.shortMessage },
                         "error estimating gas due to max fee < basefee"
                     )
-                    return {
-                        simulatedOps: simulatedOps,
-                        gasLimit: 0n,
-                        resubmitAllOps: true
+
+                    if ("gasPrice" in gasOptions) {
+                        gasOptions.gasPrice = scaleBigIntByPercent(
+                            gasOptions.gasPrice || maxFeePerGas,
+                            125
+                        )
                     }
+                    if ("maxFeePerGas" in gasOptions) {
+                        gasOptions.maxFeePerGas = scaleBigIntByPercent(
+                            gasOptions.maxFeePerGas || maxFeePerGas,
+                            125
+                        )
+                    }
+                    if ("maxPriorityFeePerGas" in gasOptions) {
+                        gasOptions.maxPriorityFeePerGas = scaleBigIntByPercent(
+                            gasOptions.maxPriorityFeePerGas ||
+                                maxPriorityFeePerGas,
+                            125
+                        )
+                    }
+                    continue
                 }
 
                 try {
@@ -338,8 +353,7 @@ export async function filterOpsAndEstimateGas(
                         )
                         return {
                             simulatedOps: [],
-                            gasLimit: 0n,
-                            resubmitAllOps: false
+                            gasLimit: 0n
                         }
                     }
 
@@ -355,8 +369,7 @@ export async function filterOpsAndEstimateGas(
                     )
                     return {
                         simulatedOps: [],
-                        gasLimit: 0n,
-                        resubmitAllOps: false
+                        gasLimit: 0n
                     }
                 }
             } else {
@@ -365,19 +378,18 @@ export async function filterOpsAndEstimateGas(
                     { error: JSON.stringify(err), blockTag },
                     "error estimating gas"
                 )
-                return { simulatedOps: [], gasLimit: 0n, resubmitAllOps: false }
+                return { simulatedOps: [], gasLimit: 0n }
             }
         }
     }
-    return { simulatedOps, gasLimit: 0n, resubmitAllOps: false }
+    return { simulatedOps, gasLimit: 0n }
 }
 export async function flushStuckTransaction(
     publicClient: PublicClient,
     walletClient: WalletClient<Transport, Chain, Account | undefined>,
     wallet: Account,
     gasPrice: bigint,
-    logger: Logger,
-    entryPoint: Address
+    logger: Logger
 ) {
     const latestNonce = await publicClient.getTransactionCount({
         address: wallet.address,
@@ -427,10 +439,6 @@ export async function flushStuckTransaction(
                 { txHash, nonce: nonceToFlush, wallet: wallet.address },
                 "flushed stuck transaction"
             )
-
-            // TODO: We don't know if the entrypoint is the V06 or V07. So we try and catch both.
-            await transactionIncluded(true, txHash, publicClient, entryPoint)
-            await transactionIncluded(false, txHash, publicClient, entryPoint)
         } catch (e) {
             sentry.captureException(e)
             logger.warn({ error: e }, "error flushing stuck transaction")

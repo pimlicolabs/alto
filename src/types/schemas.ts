@@ -1,4 +1,4 @@
-import { type Hash, type Hex, getAddress } from "viem"
+import { type Hash, type Hex, getAddress, maxUint256 } from "viem"
 import { z } from "zod"
 import type { MempoolUserOperation } from "./mempool"
 
@@ -18,6 +18,9 @@ export const hexNumberSchema = z
     .or(z.number())
     .or(z.bigint())
     .transform((val) => BigInt(val))
+    .refine((val) => val <= maxUint256, {
+        message: "not a valid uint256"
+    })
 const hexDataSchema = z
     .string()
     .regex(hexDataPattern, { message: "not valid hex data" })
@@ -825,15 +828,34 @@ const OpEventType = z.union([
     }),
     z.object({
         eventType: z.literal("included_onchain"),
-        transactionHash: hexData32Schema
+        transactionHash: hexData32Schema,
+        data: z.object({
+            blockNumber: z.number()
+        })
     }),
     z.object({
         eventType: z.literal("frontran_onchain"),
-        transactionHash: hexData32Schema
+        transactionHash: hexData32Schema,
+        data: z.object({
+            blockNumber: z.number()
+        })
     }),
     z.object({
         eventType: z.literal("failed_onchain"),
-        transactionHash: hexData32Schema
+        transactionHash: hexData32Schema,
+        data: z.object({
+            blockNumber: z.number(),
+            reason: z.string().optional(),
+            aaError: z.string().optional()
+        })
+    }),
+    z.object({
+        eventType: z.literal("execution_reverted_onchain"),
+        transactionHash: hexData32Schema,
+        data: z.object({
+            blockNumber: z.number(),
+            reason: z.string().optional()
+        })
     })
 ])
 

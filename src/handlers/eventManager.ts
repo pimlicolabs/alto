@@ -29,24 +29,58 @@ export class EventManager {
         this.redis = undefined
     }
 
-    // emits when the userOperation was mined onchain but failed
-    async emitFailedOnChain(userOperationHash: Hex, transactionHash: Hex) {
+    // emits when the userOperation was mined onchain but reverted during the callphase
+    async emitExecutionRevertedOnChain(
+        userOperationHash: Hex,
+        transactionHash: Hex,
+        reason: Hex,
+        blockNumber: bigint
+    ) {
+        await this.emitEvent({
+            userOperationHash,
+            event: {
+                eventType: "execution_reverted_onchain",
+                transactionHash,
+                data: {
+                    blockNumber: Number(blockNumber),
+                    reason
+                }
+            }
+        })
+    }
+
+    // emits when the userOperation was mined onchain but failed EntryPoint validation
+    async emitFailedOnChain(
+        userOperationHash: Hex,
+        transactionHash: Hex,
+        blockNumber: bigint
+    ) {
         await this.emitEvent({
             userOperationHash,
             event: {
                 eventType: "failed_onchain",
-                transactionHash
+                transactionHash,
+                data: {
+                    blockNumber: Number(blockNumber)
+                }
             }
         })
     }
 
     // emits when the userOperation has been included onchain but bundled by a frontrunner
-    async emitFrontranOnChain(userOperationHash: Hex, transactionHash: Hex) {
+    async emitFrontranOnChain(
+        userOperationHash: Hex,
+        transactionHash: Hex,
+        blockNumber: bigint
+    ) {
         await this.emitEvent({
             userOperationHash,
             event: {
                 eventType: "frontran_onchain",
-                transactionHash
+                transactionHash,
+                data: {
+                    blockNumber: Number(blockNumber)
+                }
             }
         })
     }
@@ -55,15 +89,17 @@ export class EventManager {
     async emitIncludedOnChain(
         userOperationHash: Hex,
         transactionHash: Hex,
-        timestamp: number
+        blockNumber: bigint
     ) {
         await this.emitEvent({
             userOperationHash,
             event: {
                 eventType: "included_onchain",
-                transactionHash
-            },
-            timestamp
+                transactionHash,
+                data: {
+                    blockNumber: Number(blockNumber)
+                }
+            }
         })
     }
 
