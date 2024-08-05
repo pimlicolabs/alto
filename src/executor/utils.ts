@@ -153,7 +153,7 @@ export async function filterOpsAndEstimateGas(
         : { maxFeePerGas, maxPriorityFeePerGas }
 
     let fixedEstimationGasLimit: bigint | undefined = fixedGasLimitForEstimation
-    let resubmitRetriesLeft = 5
+    let retriesLeft = 5
 
     while (simulatedOps.filter((op) => op.reason === undefined).length > 0) {
         try {
@@ -231,9 +231,9 @@ export async function filterOpsAndEstimateGas(
                 if (errorData) {
                     if (
                         errorData.reason.indexOf("AA95 out of gas") !== -1 &&
-                        resubmitRetriesLeft > 0
+                        retriesLeft > 0
                     ) {
-                        resubmitRetriesLeft--
+                        retriesLeft--
                         fixedEstimationGasLimit = scaleBigIntByPercent(
                             fixedEstimationGasLimit || BigInt(30_000_000),
                             110
@@ -287,11 +287,8 @@ export async function filterOpsAndEstimateGas(
                 e instanceof EstimateGasExecutionError ||
                 err instanceof EstimateGasExecutionError
             ) {
-                if (
-                    e?.cause instanceof FeeCapTooLowError &&
-                    resubmitRetriesLeft > 0
-                ) {
-                    resubmitRetriesLeft--
+                if (e?.cause instanceof FeeCapTooLowError && retriesLeft > 0) {
+                    retriesLeft--
 
                     logger.info(
                         { error: e.shortMessage },
