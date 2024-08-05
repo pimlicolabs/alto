@@ -713,9 +713,28 @@ export class RpcHandler implements IRpcEndpoint {
         ): Promise<TransactionReceipt> => {
             while (true) {
                 try {
-                    return await this.publicClient.getTransactionReceipt({
-                        hash: txHash
-                    })
+                    const transactionReceipt =
+                        await this.publicClient.getTransactionReceipt({
+                            hash: txHash
+                        })
+
+                    let effectiveGasPrice: bigint | undefined =
+                        transactionReceipt.effectiveGasPrice ??
+                        (transactionReceipt as any).gasPrice ??
+                        undefined
+
+                    if (effectiveGasPrice === undefined) {
+                        const tx = await this.publicClient.getTransaction({
+                            hash: txHash
+                        })
+                        effectiveGasPrice = tx.gasPrice ?? undefined
+                    }
+
+                    if (effectiveGasPrice) {
+                        transactionReceipt.effectiveGasPrice = effectiveGasPrice
+                    }
+
+                    return transactionReceipt
                 } catch (e) {
                     if (e instanceof TransactionReceiptNotFoundError) {
                         continue
