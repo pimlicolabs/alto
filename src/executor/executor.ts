@@ -586,37 +586,20 @@ export class Executor {
             type: "default"
         }
 
-        let { gasLimit, simulatedOps, resubmitAllOps } =
-            await filterOpsAndEstimateGas(
-                entryPoint,
-                callContext,
-                wallet,
-                opsWithHashes,
-                nonce,
-                gasPriceParameters.maxFeePerGas,
-                gasPriceParameters.maxPriorityFeePerGas,
-                this.blockTagSupport ? "pending" : undefined,
-                this.legacyTransactions,
-                this.fixedGasLimitForEstimation,
-                this.reputationManager,
-                childLogger
-            )
-
-        if (resubmitAllOps) {
-            this.markWalletProcessed(wallet)
-            return opsWithHashes.map((owh) => {
-                const bundleResult: BundleResult = {
-                    status: "resubmit",
-                    info: {
-                        entryPoint,
-                        userOpHash: owh.userOperationHash,
-                        userOperation: owh.mempoolUserOperation,
-                        reason: FeeCapTooLowError.name
-                    }
-                }
-                return bundleResult
-            })
-        }
+        let { gasLimit, simulatedOps } = await filterOpsAndEstimateGas(
+            entryPoint,
+            callContext,
+            wallet,
+            opsWithHashes,
+            nonce,
+            gasPriceParameters.maxFeePerGas,
+            gasPriceParameters.maxPriorityFeePerGas,
+            this.blockTagSupport ? "pending" : undefined,
+            this.legacyTransactions,
+            this.fixedGasLimitForEstimation,
+            this.reputationManager,
+            childLogger
+        )
 
         if (simulatedOps.length === 0) {
             childLogger.error(
@@ -867,51 +850,31 @@ export class Executor {
             type: "compressed"
         }
 
-        let { gasLimit, simulatedOps, resubmitAllOps } =
-            await filterOpsAndEstimateGas(
-                entryPoint,
-                callContext,
-                wallet,
-                compressedOps.map((compressedOp) => {
-                    return {
-                        mempoolUserOperation: compressedOp,
-                        userOperationHash: getUserOperationHash(
-                            compressedOp.inflatedOp,
-                            entryPoint,
-                            this.walletClient.chain.id
-                        )
-                    }
-                }),
-                nonce,
-                gasPriceParameters.maxFeePerGas,
-                gasPriceParameters.maxPriorityFeePerGas,
-                this.blockTagSupport ? "pending" : undefined,
-                this.legacyTransactions,
-                this.fixedGasLimitForEstimation,
-                this.reputationManager,
-                childLogger
-            )
+        let { gasLimit, simulatedOps } = await filterOpsAndEstimateGas(
+            entryPoint,
+            callContext,
+            wallet,
+            compressedOps.map((compressedOp) => {
+                return {
+                    mempoolUserOperation: compressedOp,
+                    userOperationHash: getUserOperationHash(
+                        compressedOp.inflatedOp,
+                        entryPoint,
+                        this.walletClient.chain.id
+                    )
+                }
+            }),
+            nonce,
+            gasPriceParameters.maxFeePerGas,
+            gasPriceParameters.maxPriorityFeePerGas,
+            this.blockTagSupport ? "pending" : undefined,
+            this.legacyTransactions,
+            this.fixedGasLimitForEstimation,
+            this.reputationManager,
+            childLogger
+        )
 
         gasLimit += 10_000n
-
-        if (resubmitAllOps) {
-            this.markWalletProcessed(wallet)
-            return compressedOps.map((compressedOp) => {
-                return {
-                    status: "resubmit",
-                    info: {
-                        entryPoint,
-                        userOpHash: getUserOperationHash(
-                            compressedOp.inflatedOp,
-                            entryPoint,
-                            this.walletClient.chain.id
-                        ),
-                        userOperation: compressedOp,
-                        reason: FeeCapTooLowError.name
-                    }
-                }
-            })
-        }
 
         if (simulatedOps.length === 0) {
             childLogger.warn("no ops to bundle")

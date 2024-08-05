@@ -7,3 +7,11 @@ export const minBigInt = (a: bigint, b: bigint) => {
 export const maxBigInt = (a: bigint, b: bigint) => {
     return a > b ? a : b
 }
+
+/// Increases a BigInt by a certain percentage.
+export const scaleBigIntByPercent = (
+    value: bigint,
+    percent: number
+): bigint => {
+    return value + (value * BigInt(percent)) / BigInt(100)
+}
