@@ -35,7 +35,6 @@ export const bundlerArgsSchema = z.object({
         .optional(),
     "utility-wallet-monitor": z.boolean(),
     "utility-wallet-monitor-interval": z.number(),
-    "executor-wallets-monitor-interval": z.number(),
     "executor-private-keys": z.union([
         z
             .array(hexData32Schema)

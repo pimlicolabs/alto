@@ -46,11 +46,6 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "number",
         default: 15 * 1000 // 15 seconds
     },
-    "executor-wallets-monitor-interval": {
-        description: "Interval for checking executor wallets balances",
-        type: "number",
-        default: 15 * 1000 // 15 seconds
-    },
     "max-executors": {
         description:
             "Maximum number of executor accounts to use from the list of executor private keys",
