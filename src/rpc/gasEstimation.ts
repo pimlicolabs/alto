@@ -138,6 +138,13 @@ export async function simulateHandleOpV06(
                         .string()
                         .transform((data) => data.replace("Reverted ", ""))
                         .pipe(hexDataSchema)
+                }),
+                z.object({
+                    code: z.number(),
+                    message: z
+                        .string()
+                        .regex(/VM Exception while processing transaction:.*/),
+                    data: hexDataSchema
                 })
             ])
             .safeParse(err.cause)

@@ -1,4 +1,4 @@
-import { decodeErrorResult } from "viem"
+import { type Hex, decodeErrorResult } from "viem"
 import { z } from "zod"
 import { RpcError } from "."
 import { EntryPointV06Abi } from "./contracts"
@@ -335,12 +335,21 @@ export const vmExecutionError = z.object({
         name: z.literal("RpcRequestError"),
         cause: z.object({
             data: z.string().transform((val) => {
-                const errorHexData = val.split("Reverted ")[1] as HexData
-                if (errorHexData === "0x" || errorHexData === undefined) {
+                const hexStringRegex = /0x([a-fA-F0-9]+)?/
+                const match = val.match(hexStringRegex)
+                if (!match) {
                     throw new RpcError(
                         `User operation reverted on-chain with unknown error (some chains don't return revert reason) ${val}`
                     )
                 }
+
+                const errorHexData = match[0] as Hex
+                if (errorHexData === "0x") {
+                    throw new RpcError(
+                        `User operation reverted on-chain with unknown error (some chains don't return revert reason) ${val}`
+                    )
+                }
+
                 const errorResult = decodeErrorResult({
                     abi: EntryPointV06Abi,
                     data: errorHexData
