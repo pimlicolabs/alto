@@ -267,7 +267,7 @@ export class Executor {
             }
         }
 
-        const result = await filterOpsAndEstimateGas(
+        let { simulatedOps, gasLimit } = await filterOpsAndEstimateGas(
             transactionInfo.entryPoint,
             callContext,
             transactionInfo.executor,
@@ -287,33 +287,33 @@ export class Executor {
             executor: transactionInfo.executor.address
         })
 
-        if (result.simulatedOps.length === 0) {
+        if (simulatedOps.length === 0) {
             childLogger.warn("no ops to bundle")
             this.markWalletProcessed(transactionInfo.executor)
             return { status: "failed" }
         }
 
         if (
-            result.simulatedOps.every(
+            simulatedOps.every(
                 (op) =>
                     op.reason === "AA25 invalid account nonce" ||
                     op.reason === "AA10 sender already constructed"
             )
         ) {
             childLogger.trace(
-                { reasons: result.simulatedOps.map((sop) => sop.reason) },
+                { reasons: simulatedOps.map((sop) => sop.reason) },
                 "all ops failed simulation with nonce error"
             )
             return { status: "potentially_already_included" }
         }
 
-        if (result.simulatedOps.every((op) => op.reason !== undefined)) {
+        if (simulatedOps.every((op) => op.reason !== undefined)) {
             childLogger.warn("all ops failed simulation")
             this.markWalletProcessed(transactionInfo.executor)
             return { status: "failed" }
         }
 
-        const opsToBundle = result.simulatedOps
+        const opsToBundle = simulatedOps
             .filter((op) => op.reason === undefined)
             .map((op) => {
                 const opInfo = transactionInfo.userOperationInfos.find(
@@ -326,19 +326,36 @@ export class Executor {
                 return opInfo
             })
 
-        newRequest.gas = this.localGasLimitCalculation
-            ? opsToBundle.reduce((acc, opInfo) => {
-                  const userOperation = deriveUserOperation(
-                      opInfo.mempoolUserOperation
-                  )
-                  return (
-                      acc +
-                      userOperation.preVerificationGas +
-                      3n * userOperation.verificationGasLimit +
-                      userOperation.callGasLimit
-                  )
-              }, 0n)
-            : result.gasLimit
+        if (this.localGasLimitCalculation) {
+            gasLimit = opsToBundle.reduce((acc, opInfo) => {
+                const userOperation = deriveUserOperation(
+                    opInfo.mempoolUserOperation
+                )
+                return (
+                    acc +
+                    userOperation.preVerificationGas +
+                    3n * userOperation.verificationGasLimit +
+                    userOperation.callGasLimit
+                )
+            }, 0n)
+        }
+
+        // https://github.com/eth-infinitism/account-abstraction/blob/fa61290d37d079e928d92d53a122efcc63822214/contracts/core/EntryPoint.sol#L236
+        let innerHandleOpFloor = 0n
+        for (const owh of opsToBundle) {
+            const op = deriveUserOperation(owh.mempoolUserOperation)
+            innerHandleOpFloor +=
+                op.callGasLimit + op.verificationGasLimit + 5000n
+        }
+
+        if (gasLimit < innerHandleOpFloor) {
+            gasLimit += innerHandleOpFloor
+        }
+
+        // sometimes the estimation rounds down, adding a fixed constant accounts for this
+        gasLimit += 10_000n
+
+        newRequest.gas = gasLimit
 
         // update calldata to include only ops that pass simulation
         if (transactionInfo.transactionType === "default") {
