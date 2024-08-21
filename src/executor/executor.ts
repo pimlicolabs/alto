@@ -758,7 +758,7 @@ export class Executor {
                             entryPoint,
                             userOpHash: owh.userOperationHash,
                             userOperation: owh.mempoolUserOperation,
-                            reason: InsufficientFundsError.name
+                            reason: "replacement transaction underpriced"
                         }
                     }
                 })
