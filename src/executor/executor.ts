@@ -741,6 +741,29 @@ export class Executor {
                 })
             }
 
+            if (
+                e?.details
+                    .toLowerCase()
+                    .includes("replacement transaction underpriced")
+            ) {
+                childLogger.error(
+                    { error: e },
+                    "replacement transaction underpriced"
+                )
+                this.markWalletProcessed(wallet)
+                return opsWithHashToBundle.map((owh) => {
+                    return {
+                        status: "resubmit",
+                        info: {
+                            entryPoint,
+                            userOpHash: owh.userOperationHash,
+                            userOperation: owh.mempoolUserOperation,
+                            reason: InsufficientFundsError.name
+                        }
+                    }
+                })
+            }
+
             sentry.captureException(err)
             childLogger.error(
                 { error: JSON.stringify(err) },
