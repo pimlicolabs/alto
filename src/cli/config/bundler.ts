@@ -11,8 +11,9 @@ import { z } from "zod"
 
 const logLevel = z.enum(["trace", "debug", "info", "warn", "error", "fatal"])
 
-const rpcMethodNames = bundlerRequestSchema.options
-    .map((s) => s.shape.method._def.value) as [string, ...string[]]
+const rpcMethodNames = bundlerRequestSchema.options.map(
+    (s) => s.shape.method._def.value
+) as [string, ...string[]]
 
 export const bundlerArgsSchema = z.object({
     entrypoints: z
@@ -93,21 +94,29 @@ export const bundlerArgsSchema = z.object({
         .string()
         .nullable()
         .transform((val: string | null) => {
-            if (val === null) return null;
+            if (val === null) return null
 
             return val.split(",")
         })
         .refine((values) => {
-            if (values === null) return true;
+            if (values === null) return true
 
             return values.length > 0
         }, "Must contain at least one method if specified")
-        .refine((values) => {
-            if (values === null) return true;
+        .refine(
+            (values) => {
+                if (values === null) return true
 
-            return values.every((value: string) => rpcMethodNames.includes(value))
-        }, `Unknown method specified, available methods: ${rpcMethodNames.join(",")}`),
+                return values.every((value: string) =>
+                    rpcMethodNames.includes(value)
+                )
+            },
+            `Unknown method specified, available methods: ${rpcMethodNames.join(
+                ","
+            )}`
+        ),
     "refilling-wallets": z.boolean().default(true),
+    "aa95-gas-multiplier": z.string().transform((val) => BigInt(val))
 })
 
 export const compatibilityArgsSchema = z.object({

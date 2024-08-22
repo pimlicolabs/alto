@@ -59,6 +59,7 @@ export class ExecutorManager {
     private maxGasLimitPerBundle: bigint
     private gasPriceManager: GasPriceManager
     private eventManager: EventManager
+    private aa95ResubmitMultiplier: bigint
 
     constructor(
         executor: Executor,
@@ -74,7 +75,8 @@ export class ExecutorManager {
         bundlerFrequency: number,
         maxGasLimitPerBundle: bigint,
         gasPriceManager: GasPriceManager,
-        eventManager: EventManager
+        eventManager: EventManager,
+        aa95ResubmitMultiplier: bigint
     ) {
         this.entryPoints = entryPoints
         this.reputationManager = reputationManager
@@ -89,6 +91,7 @@ export class ExecutorManager {
         this.maxGasLimitPerBundle = maxGasLimitPerBundle
         this.gasPriceManager = gasPriceManager
         this.eventManager = eventManager
+        this.aa95ResubmitMultiplier = aa95ResubmitMultiplier
 
         if (bundleMode === "auto") {
             this.timer = setInterval(async () => {
@@ -378,6 +381,7 @@ export class ExecutorManager {
                     isVersion06,
                     transactionHash,
                     this.publicClient,
+                    this.logger,
                     entryPoint
                 ))
             }))
@@ -460,7 +464,21 @@ export class ExecutorManager {
             })
 
             this.executor.markWalletProcessed(transactionInfo.executor)
-        } else if (bundlingStatus.status === "reverted") {
+        } else if (
+            bundlingStatus.status === "reverted" &&
+            bundlingStatus.isAA95
+        ) {
+            // resubmit with more gas when bundler encounters AA95
+            const multiplier = this.aa95ResubmitMultiplier
+            transactionInfo.transactionRequest.gas =
+                (transactionInfo.transactionRequest.gas * multiplier) / 100n
+            transactionInfo.transactionRequest.nonce += 1
+
+            opInfos.map(({ userOperationHash }) => {
+                this.mempool.removeSubmitted(userOperationHash)
+            })
+            await this.replaceTransaction(transactionInfo, "AA95")
+        } else {
             opInfos.map(({ userOperationHash }) => {
                 this.mempool.removeSubmitted(userOperationHash)
                 this.monitor.setUserOperationStatus(userOperationHash, {
