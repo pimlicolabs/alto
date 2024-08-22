@@ -378,6 +378,7 @@ export class ExecutorManager {
                     isVersion06,
                     transactionHash,
                     this.publicClient,
+                    this.logger,
                     entryPoint
                 ))
             }))

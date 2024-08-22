@@ -20,9 +20,13 @@ import {
     toHex,
     concat,
     slice,
-    pad
+    pad,
+    decodeErrorResult,
+    parseAbi
 } from "viem"
 import { areAddressesEqual } from "./helpers"
+import { join } from "node:path"
+import { Logger } from "pino"
 
 // Type predicate check if the UserOperation is V06.
 export function isVersion06(
@@ -202,6 +206,8 @@ type BundlingStatus =
     | {
           // The tx reverted due to a op in the bundle failing EntryPoint validation
           status: "reverted"
+          // biome-ignore lint/style/useNamingConvention: use double upper case for AA errors
+          isAA95: boolean
       }
     | {
           // The tx could not be found (pending or invalid hash)
@@ -213,6 +219,7 @@ export const getBundleStatus = async (
     isVersion06: boolean,
     txHash: HexData32,
     publicClient: PublicClient,
+    logger: Logger,
     entryPoint: Address
 ): Promise<{
     bundlingStatus: BundlingStatus
@@ -225,12 +232,37 @@ export const getBundleStatus = async (
         const blockNumber = receipt.blockNumber
 
         if (receipt.status === "reverted") {
-            return {
-                bundlingStatus: {
-                    status: "reverted"
-                },
-                blockNumber
+            const bundlingStatus: { status: "reverted"; isAA95: boolean } = {
+                status: "reverted",
+                isAA95: false
             }
+
+            if ("error" in receipt) {
+                const match = (receipt.error as any).match(/0x([a-fA-F0-9]+)?/)
+
+                if (match) {
+                    try {
+                        const revertReason = match[0] as Hex
+                        const decoded = decodeErrorResult({
+                            data: revertReason,
+                            abi: parseAbi([
+                                "error FailedOp(uint256 opIndex, string reason)"
+                            ])
+                        })
+
+                        if (decoded.args[1] === "AA95 out of gas") {
+                            bundlingStatus.isAA95 = true
+                        }
+                    } catch (e) {
+                        logger.error(
+                            "Failed to decode userOperation revert reason due to ",
+                            e
+                        )
+                    }
+                }
+            }
+
+            return { bundlingStatus, blockNumber }
         }
 
         const userOperationDetails = receipt.logs
