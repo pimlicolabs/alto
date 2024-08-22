@@ -25,8 +25,7 @@ import {
     parseAbi
 } from "viem"
 import { areAddressesEqual } from "./helpers"
-import { join } from "node:path"
-import { Logger } from "pino"
+import type { Logger } from "pino"
 
 // Type predicate check if the UserOperation is V06.
 export function isVersion06(

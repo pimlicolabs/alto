@@ -461,7 +461,16 @@ export class ExecutorManager {
             })
 
             this.executor.markWalletProcessed(transactionInfo.executor)
-        } else if (bundlingStatus.status === "reverted") {
+        } else if (
+            bundlingStatus.status === "reverted" &&
+            bundlingStatus.isAA95
+        ) {
+            // resubmit with 150% more gas when bundler encounters AA95
+            transactionInfo.transactionRequest.gas =
+                (transactionInfo.transactionRequest.gas * 150n) / 100n
+
+            await this.replaceTransaction(transactionInfo, "AA95")
+        } else {
             opInfos.map(({ userOperationHash }) => {
                 this.mempool.removeSubmitted(userOperationHash)
                 this.monitor.setUserOperationStatus(userOperationHash, {

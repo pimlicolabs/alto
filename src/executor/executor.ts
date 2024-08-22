@@ -355,7 +355,8 @@ export class Executor {
         // sometimes the estimation rounds down, adding a fixed constant accounts for this
         gasLimit += 10_000n
 
-        newRequest.gas = gasLimit
+        // ensures that we don't submit again with too low of a gas value
+        newRequest.gas = maxBigInt(newRequest.gas, gasLimit)
 
         // update calldata to include only ops that pass simulation
         if (transactionInfo.transactionType === "default") {
