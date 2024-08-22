@@ -122,7 +122,8 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         default: "100,100,100"
     },
     "gas-price-refresh-interval": {
-        description: "How to often to refresh the gas prices (seconds). If 0, then gas prices are refreshed on every request",
+        description:
+            "How to often to refresh the gas prices (seconds). If 0, then gas prices are refreshed on every request",
         type: "number",
         require: false,
         default: 0
@@ -166,6 +167,13 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: true
     },
+    "aa95-gas-multiplier": {
+        description:
+            "Amount to multiply the current gas limit by if the bundling tx fails due to AA95",
+        type: "string",
+        require: false,
+        default: "125"
+    }
 }
 
 export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =

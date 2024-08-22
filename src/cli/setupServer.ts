@@ -277,7 +277,8 @@ const getExecutorManager = ({
         parsedArgs["max-bundle-wait"],
         parsedArgs["max-gas-per-bundle"],
         gasPriceManager,
-        eventManager
+        eventManager,
+        parsedArgs["aa95-gas-multiplier"]
     )
 }
 
@@ -460,7 +461,7 @@ export const setupServer = async ({
                 walletClient,
                 parsedArgs["min-executor-balance"]
             )
-        }, parsedArgs["executor-refill-interval"] * 1000)   
+        }, parsedArgs["executor-refill-interval"] * 1000)
     }
 
     const monitor = getMonitor()
