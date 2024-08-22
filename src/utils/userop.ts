@@ -237,10 +237,12 @@ export const getBundleStatus = async (
             }
 
             if ("error" in receipt) {
-                const match = (receipt.error as any).match(/0x([a-fA-F0-9]+)?/)
+                try {
+                    const match = (receipt.error as any).match(
+                        /0x([a-fA-F0-9]+)?/
+                    )
 
-                if (match) {
-                    try {
+                    if (match) {
                         const revertReason = match[0] as Hex
                         const decoded = decodeErrorResult({
                             data: revertReason,
@@ -252,12 +254,12 @@ export const getBundleStatus = async (
                         if (decoded.args[1] === "AA95 out of gas") {
                             bundlingStatus.isAA95 = true
                         }
-                    } catch (e) {
-                        logger.error(
-                            "Failed to decode userOperation revert reason due to ",
-                            e
-                        )
                     }
+                } catch (e) {
+                    logger.error(
+                        "Failed to decode userOperation revert reason due to ",
+                        e
+                    )
                 }
             }
 
