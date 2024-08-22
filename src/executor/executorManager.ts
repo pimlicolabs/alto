@@ -468,6 +468,7 @@ export class ExecutorManager {
             // resubmit with 150% more gas when bundler encounters AA95
             transactionInfo.transactionRequest.gas =
                 (transactionInfo.transactionRequest.gas * 150n) / 100n
+            transactionInfo.transactionRequest.nonce += 1
 
             await this.replaceTransaction(transactionInfo, "AA95")
         } else {
