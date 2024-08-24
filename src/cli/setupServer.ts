@@ -59,15 +59,19 @@ const getValidator = ({
     logger,
     senderManager,
     metrics,
-    gasPriceManager
+    gasPriceManager,
+    walletClient
 }: {
     client: PublicClient<Transport, Chain>
     parsedArgs: IOptions
     logger: Logger
     senderManager: SenderManager
     metrics: Metrics
-    gasPriceManager: GasPriceManager
+    gasPriceManager: GasPriceManager,
+    walletClient: WalletClient<Transport, Chain>
 }): InterfaceValidator => {
+    const utilityWalletAddress = parsedArgs["utility-private-key"]?.address || "0x4337000c2828F5260d8921fD25829F606b9E8680"
+
     if (parsedArgs["safe-mode"]) {
         return new SafeValidator(
             client,
@@ -83,6 +87,7 @@ const getValidator = ({
             gasPriceManager,
             parsedArgs["chain-type"],
             parsedArgs["block-tag-support"],
+            utilityWalletAddress,
             parsedArgs["entrypoint-simulation-contract"],
             parsedArgs["fixed-gas-limit-for-estimation"],
             parsedArgs.tenderly,
@@ -99,6 +104,7 @@ const getValidator = ({
         gasPriceManager,
         parsedArgs["chain-type"],
         parsedArgs["block-tag-support"],
+        utilityWalletAddress,
         parsedArgs["entrypoint-simulation-contract"],
         parsedArgs["fixed-gas-limit-for-estimation"],
         parsedArgs.tenderly,
@@ -429,7 +435,8 @@ export const setupServer = async ({
         parsedArgs,
         senderManager,
         metrics,
-        gasPriceManager
+        gasPriceManager,
+        walletClient
     })
     const reputationManager = getReputationManager({
         client,

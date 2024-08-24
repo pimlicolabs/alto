@@ -83,6 +83,7 @@ export async function simulateHandleOpV06(
     targetAddress: Address,
     targetCallData: Hex,
     blockTagSupport: boolean,
+    utilityWalletAddress: Address,
     finalParam: StateOverrides | undefined = undefined,
     fixedGasLimitForEstimation?: bigint
 ): Promise<SimulateHandleOpResult> {
@@ -92,7 +93,7 @@ export async function simulateHandleOpV06(
             params: [
                 {
                     to: entryPoint,
-                    from: "0x4337433743374337433743374337433743374337",
+                    from: utilityWalletAddress,
                     data: encodeFunctionData({
                         abi: EntryPointV06Abi,
                         functionName: "simulateHandleOp",
@@ -211,6 +212,7 @@ async function callPimlicoEntryPointSimulations(
     entryPointSimulationsCallData: Hex[],
     entryPointSimulationsAddress: Address,
     blockTagSupport: boolean,
+    utilityWalletAddress: Address,
     stateOverride?: StateOverrides,
     fixedGasLimitForEstimation?: bigint
 ) {
@@ -225,7 +227,7 @@ async function callPimlicoEntryPointSimulations(
         params: [
             {
                 to: entryPointSimulationsAddress,
-                from: "0x4337433743374337433743374337433743374337",
+                from: utilityWalletAddress,
                 data: callData,
                 ...(fixedGasLimitForEstimation !== undefined && {
                     gas: `0x${fixedGasLimitForEstimation.toString(16)}`
@@ -404,6 +406,7 @@ export async function simulateHandleOpV07(
     chainId: number,
     blockTagSupport: boolean,
     finalParam: StateOverrides | undefined = undefined,
+    utilityWalletAddress: Address,
     fixedGasLimitForEstimation?: bigint
 ): Promise<SimulateHandleOpResult> {
     const userOperations = [...queuedUserOperations, userOperation]
@@ -539,6 +542,7 @@ export async function simulateHandleOpV07(
         ],
         entryPointSimulationsAddress,
         blockTagSupport,
+        utilityWalletAddress,
         finalParam,
         fixedGasLimitForEstimation
     )
@@ -600,6 +604,7 @@ export function simulateHandleOp(
     balanceOverrideEnabled: boolean,
     chainId: number,
     blockTagSupport: boolean,
+    utilityWalletAddress: Address,
     stateOverride: StateOverrides = {},
     entryPointSimulationsAddress?: Address,
     fixedGasLimitForEstimation?: bigint
@@ -623,6 +628,7 @@ export function simulateHandleOp(
             targetAddress,
             targetCallData,
             blockTagSupport,
+            utilityWalletAddress,
             finalStateOverride,
             fixedGasLimitForEstimation
         )
@@ -644,6 +650,7 @@ export function simulateHandleOp(
         chainId,
         blockTagSupport,
         finalStateOverride,
+        utilityWalletAddress,
         fixedGasLimitForEstimation
     )
 }
