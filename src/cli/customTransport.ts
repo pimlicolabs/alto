@@ -63,7 +63,11 @@ export function customTransport(
                         )
                         throw new RpcRequestError({
                             body,
-                            error,
+                            error: {
+                                ...error,
+                                // 24 Aug 2024, etherlink throws -32003 error code for eth_call
+                                code: (method === 'eth_call' && error.code === -32003) ? 3 : error.code,
+                            },
                             url: url
                         })
                     }
