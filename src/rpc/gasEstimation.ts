@@ -92,6 +92,7 @@ export async function simulateHandleOpV06(
             params: [
                 {
                     to: entryPoint,
+                    from: "0x4337433743374337433743374337433743374337",
                     data: encodeFunctionData({
                         abi: EntryPointV06Abi,
                         functionName: "simulateHandleOp",
@@ -224,6 +225,7 @@ async function callPimlicoEntryPointSimulations(
         params: [
             {
                 to: entryPointSimulationsAddress,
+                from: "0x4337433743374337433743374337433743374337",
                 data: callData,
                 ...(fixedGasLimitForEstimation !== undefined && {
                     gas: `0x${fixedGasLimitForEstimation.toString(16)}`
