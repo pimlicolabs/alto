@@ -247,6 +247,7 @@ async function callPimlicoEntryPointSimulations(
     entryPointSimulationsCallData: Hex[],
     entryPointSimulationsAddress: Address,
     blockTagSupport: boolean,
+    utilityWalletAddress: Address,
     stateOverride?: StateOverrides
 ) {
     const callData = encodeFunctionData({
@@ -260,6 +261,7 @@ async function callPimlicoEntryPointSimulations(
         params: [
             {
                 to: entryPointSimulationsAddress,
+                from: utilityWalletAddress,
                 data: callData
             },
             blockTagSupport
@@ -287,6 +289,7 @@ export async function simulateHandleOp(
     targetCallData: Hex,
     entryPointSimulationsAddress: Address,
     blockTagSupport: boolean,
+    utilityWalletAddress: Address,
     stateOverride: StateOverrides = {}
 ) {
     const finalParam = getStateOverrides({
@@ -319,6 +322,7 @@ export async function simulateHandleOp(
         ],
         entryPointSimulationsAddress,
         blockTagSupport,
+        utilityWalletAddress,
         finalParam
     )
 
@@ -519,7 +523,8 @@ export async function simulateValidation(
     entryPoint: Address,
     publicClient: PublicClient,
     entryPointSimulationsAddress: Address,
-    blockTagSupport: boolean
+    blockTagSupport: boolean,
+    utilityWalletAddress: Address
 ) {
     const userOperations = [...queuedUserOperations, userOperation]
     const packedUserOperations = userOperations.map((uo) =>
@@ -537,7 +542,8 @@ export async function simulateValidation(
         entryPoint,
         [entryPointSimulationsCallData],
         entryPointSimulationsAddress,
-        blockTagSupport
+        blockTagSupport,
+        utilityWalletAddress
     )
 
     return {
