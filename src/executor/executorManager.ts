@@ -158,6 +158,7 @@ export class ExecutorManager {
         const ops = mempoolOps
             .filter((op) => !isCompressedType(op))
             .map((op) => op as UserOperation)
+
         const compressedOps = mempoolOps
             .filter((op) => isCompressedType(op))
             .map((op) => op as CompressedUserOperation)
@@ -176,11 +177,23 @@ export class ExecutorManager {
             const isBundleSuccess = bundle.every(
                 (result) => result.status === "success"
             )
+            const isBundleResubmit = bundle.every(
+                (result) => result.status === "resubmit"
+            )
+            const isBundleFailed = bundle.every(
+                (result) => result.status === "failure"
+            )
             if (isBundleSuccess) {
                 this.metrics.bundlesSubmitted
                     .labels({ status: "success" })
                     .inc()
-            } else {
+            }
+            if (isBundleResubmit) {
+                this.metrics.bundlesSubmitted
+                    .labels({ status: "resubmit" })
+                    .inc()
+            }
+            if (isBundleFailed) {
                 this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
             }
         }
@@ -207,7 +220,7 @@ export class ExecutorManager {
                     res.userOperation.userOperationHash,
                     res.transactionInfo
                 )
-                // this.monitoredTransactions.set(result.transactionInfo.transactionHash, result.transactionInfo)
+
                 this.monitor.setUserOperationStatus(
                     res.userOperation.userOperationHash,
                     {
@@ -215,6 +228,7 @@ export class ExecutorManager {
                         transactionHash: res.transactionInfo.transactionHash
                     }
                 )
+
                 txHash = res.transactionInfo.transactionHash
                 this.startWatchingBlocks(this.handleBlock.bind(this))
                 this.metrics.userOperationsSubmitted
