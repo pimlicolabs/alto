@@ -574,6 +574,17 @@ export class ExecutorManager {
             }
         })
 
+        this.logger.debug(
+            {
+                filterResult: filterResult.length,
+                userOperationEvent:
+                    filterResult.length === 0
+                        ? undefined
+                        : filterResult[0].transactionHash
+            },
+            "filter result length"
+        )
+
         if (filterResult.length === 0) {
             return null
         }
