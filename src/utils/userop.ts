@@ -228,6 +228,7 @@ export const getBundleStatus = async (
         const receipt = await publicClient.getTransactionReceipt({
             hash: txHash
         })
+
         const blockNumber = receipt.blockNumber
 
         if (receipt.status === "reverted") {
@@ -239,6 +240,8 @@ export const getBundleStatus = async (
                 status: "reverted",
                 isAA95: false
             }
+
+            logger.info({ receipt }, "receipt")
 
             if ("error" in receipt) {
                 try {

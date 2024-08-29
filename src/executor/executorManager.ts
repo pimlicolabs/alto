@@ -557,7 +557,7 @@ export class ExecutorManager {
     }) {
         const unwatch = this.publicClient.watchBlockNumber({
             onBlockNumber: async (currentBlockNumber) => {
-                if (currentBlockNumber > blockNumber + 1n) {
+                if (currentBlockNumber > blockNumber + 2n) {
                     const userOperationReceipt =
                         await this.getUserOperationReceipt(userOperationHash)
 
