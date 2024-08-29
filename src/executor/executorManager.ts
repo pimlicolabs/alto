@@ -432,6 +432,15 @@ export class ExecutorManager {
                 transactionHash: `0x${string}`
             }
 
+        this.logger.debug(
+            {
+                bundlingStatus,
+                blockNumber,
+                transactionHash
+            },
+            "finalizedTransaction"
+        )
+
         this.metrics.userOperationsOnChain
             .labels({ status: bundlingStatus.status })
             .inc(opInfos.length)
@@ -551,6 +560,13 @@ export class ExecutorManager {
                 if (currentBlockNumber > blockNumber + 1n) {
                     const userOperationReceipt =
                         await this.getUserOperationReceipt(userOperationHash)
+
+                    this.logger.debug(
+                        {
+                            userOperationReceipt
+                        },
+                        "userOperationReceipt"
+                    )
 
                     if (userOperationReceipt) {
                         const transactionHash =
