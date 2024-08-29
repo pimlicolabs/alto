@@ -67,10 +67,12 @@ const getValidator = ({
     logger: Logger
     senderManager: SenderManager
     metrics: Metrics
-    gasPriceManager: GasPriceManager,
+    gasPriceManager: GasPriceManager
     walletClient: WalletClient<Transport, Chain>
 }): InterfaceValidator => {
-    const utilityWalletAddress = parsedArgs["utility-private-key"]?.address || "0x4337000c2828F5260d8921fD25829F606b9E8680"
+    const utilityWalletAddress =
+        parsedArgs["utility-private-key"]?.address ||
+        "0x4337000c2828F5260d8921fD25829F606b9E8680"
 
     if (parsedArgs["safe-mode"]) {
         return new SafeValidator(
@@ -284,7 +286,8 @@ const getExecutorManager = ({
         parsedArgs["max-gas-per-bundle"],
         gasPriceManager,
         eventManager,
-        parsedArgs["aa95-gas-multiplier"]
+        parsedArgs["aa95-gas-multiplier"],
+        parsedArgs["max-block-range"]
     )
 }
 

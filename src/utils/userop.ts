@@ -7,7 +7,6 @@ import {
     EntryPointV07Abi,
     type PackedUserOperation
 } from "@alto/types"
-// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
 import * as sentry from "@sentry/node"
 import {
     type Address,
@@ -195,7 +194,7 @@ type UserOperationDetailsType = {
     revertReason?: Hex
 }
 
-type BundlingStatus =
+export type BundlingStatus =
     | {
           // The tx was successfully mined
           // The status of each userOperation is recorded in userOperaitonDetails
@@ -231,7 +230,10 @@ export const getBundleStatus = async (
         const blockNumber = receipt.blockNumber
 
         if (receipt.status === "reverted") {
-            const bundlingStatus: { status: "reverted"; isAA95: boolean } = {
+            const bundlingStatus: {
+                status: "reverted"
+                isAA95: boolean
+            } = {
                 status: "reverted",
                 isAA95: false
             }
@@ -291,20 +293,21 @@ export const getBundleStatus = async (
                         }
 
                         switch (eventName) {
-                            case "AccountDeployed":
+                            case "AccountDeployed": {
                                 result[opHash].accountDeployed = true
                                 break
-                            case "UserOperationRevertReason":
+                            }
+                            case "UserOperationRevertReason": {
                                 result[opHash].revertReason = args.revertReason
                                 break
-                            case "UserOperationEvent":
-                                {
-                                    const status = args.success
-                                        ? "succesful"
-                                        : "calldata_phase_reverted"
-                                    result[opHash].status = status
-                                }
+                            }
+                            case "UserOperationEvent": {
+                                const status = args.success
+                                    ? "succesful"
+                                    : "calldata_phase_reverted"
+                                result[opHash].status = status
                                 break
+                            }
                         }
                     }
                 } catch (e) {

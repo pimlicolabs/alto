@@ -1,4 +1,4 @@
-import type { Metrics, Logger } from "@alto/utils"
+import type { Metrics, Logger, BundlingStatus } from "@alto/utils"
 import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
@@ -16,19 +16,32 @@ import {
     isCompressedType,
     type UserOperation,
     type CompressedUserOperation,
-    type UserOperationInfo
+    type UserOperationInfo,
+    EntryPointV06Abi,
+    logSchema,
+    receiptSchema,
+    type GetUserOperationReceiptResponseResult
 } from "@alto/types"
 import { getAAError, getBundleStatus } from "@alto/utils"
-import type {
-    Address,
-    Block,
-    Chain,
-    Hash,
-    PublicClient,
-    Transport,
-    WatchBlocksReturnType
+import {
+    decodeEventLog,
+    encodeEventTopics,
+    getAbiItem,
+    parseAbi,
+    type TransactionReceipt,
+    TransactionReceiptNotFoundError,
+    zeroAddress,
+    type Address,
+    type Block,
+    type Chain,
+    type Hash,
+    type PublicClient,
+    type Transport,
+    type WatchBlocksReturnType
 } from "viem"
 import type { Executor, ReplaceTransactionResult } from "./executor"
+import { z } from "zod"
+import { fromZodError } from "zod-validation-error"
 
 function getTransactionsFromUserOperationEntries(
     entries: SubmittedUserOperation[]
@@ -60,6 +73,7 @@ export class ExecutorManager {
     private gasPriceManager: GasPriceManager
     private eventManager: EventManager
     private aa95ResubmitMultiplier: bigint
+    rpcMaxBlockRange: number | undefined
 
     constructor(
         executor: Executor,
@@ -76,7 +90,8 @@ export class ExecutorManager {
         maxGasLimitPerBundle: bigint,
         gasPriceManager: GasPriceManager,
         eventManager: EventManager,
-        aa95ResubmitMultiplier: bigint
+        aa95ResubmitMultiplier: bigint,
+        rpcMaxBlockRange: number | undefined
     ) {
         this.entryPoints = entryPoints
         this.reputationManager = reputationManager
@@ -92,6 +107,7 @@ export class ExecutorManager {
         this.gasPriceManager = gasPriceManager
         this.eventManager = eventManager
         this.aa95ResubmitMultiplier = aa95ResubmitMultiplier
+        this.rpcMaxBlockRange = rpcMaxBlockRange
 
         if (bundleMode === "auto") {
             this.timer = setInterval(async () => {
@@ -424,7 +440,11 @@ export class ExecutorManager {
         }
 
         const { bundlingStatus, transactionHash, blockNumber } =
-            finalizedTransaction
+            finalizedTransaction as {
+                bundlingStatus: BundlingStatus
+                blockNumber: bigint // block number is undefined only if transaction is not found
+                transactionHash: `0x${string}`
+            }
 
         this.metrics.userOperationsOnChain
             .labels({ status: bundlingStatus.status })
@@ -493,28 +513,277 @@ export class ExecutorManager {
             })
             await this.replaceTransaction(transactionInfo, "AA95")
         } else {
-            opInfos.map(({ userOperationHash }) => {
-                this.mempool.removeSubmitted(userOperationHash)
-                this.monitor.setUserOperationStatus(userOperationHash, {
-                    status: "rejected",
-                    transactionHash
+            await Promise.all(
+                opInfos.map(({ userOperationHash }) => {
+                    this.checkFrontrun({
+                        userOperationHash,
+                        transactionHash,
+                        blockNumber
+                    })
                 })
-                this.eventManager.emitFailedOnChain(
-                    userOperationHash,
-                    transactionHash,
-                    blockNumber as bigint
-                )
-                this.logger.info(
-                    {
-                        userOpHash: userOperationHash,
-                        transactionHash
-                    },
-                    "user op failed onchain"
-                )
-            })
-
-            this.executor.markWalletProcessed(transactionInfo.executor)
+            )
         }
+    }
+
+    checkFrontrun({
+        userOperationHash,
+        transactionHash,
+        blockNumber
+    }: {
+        userOperationHash: HexData32
+        transactionHash: Hash
+        blockNumber: bigint
+    }) {
+        const unwatch = this.publicClient.watchBlockNumber({
+            onBlockNumber: async (currentBlockNumber) => {
+                if (currentBlockNumber > blockNumber + 1n) {
+                    const userOperationReceipt =
+                        await this.getUserOperationReceipt(userOperationHash)
+
+                    if (userOperationReceipt) {
+                        const transactionHash =
+                            userOperationReceipt.receipt.transactionHash
+                        const blockNumber =
+                            userOperationReceipt.receipt.blockNumber
+
+                        this.monitor.setUserOperationStatus(userOperationHash, {
+                            status: "included",
+                            transactionHash
+                        })
+
+                        this.eventManager.emitFrontranOnChain(
+                            userOperationHash,
+                            transactionHash,
+                            blockNumber
+                        )
+
+                        this.logger.info(
+                            {
+                                userOpHash: userOperationHash,
+                                transactionHash
+                            },
+                            "user op frontrun onchain"
+                        )
+                    } else {
+                        this.monitor.setUserOperationStatus(userOperationHash, {
+                            status: "rejected",
+                            transactionHash
+                        })
+                        this.eventManager.emitFailedOnChain(
+                            userOperationHash,
+                            transactionHash,
+                            blockNumber
+                        )
+                        this.logger.info(
+                            {
+                                userOpHash: userOperationHash,
+                                transactionHash
+                            },
+                            "user op failed onchain"
+                        )
+                    }
+                    unwatch()
+                }
+            }
+        })
+    }
+
+    async getUserOperationReceipt(userOperationHash: HexData32) {
+        const userOperationEventAbiItem = getAbiItem({
+            abi: EntryPointV06Abi,
+            name: "UserOperationEvent"
+        })
+
+        let fromBlock: bigint | undefined = undefined
+        let toBlock: "latest" | undefined = undefined
+        if (this.rpcMaxBlockRange !== undefined) {
+            const latestBlock = await this.publicClient.getBlockNumber()
+            fromBlock = latestBlock - BigInt(this.rpcMaxBlockRange)
+            if (fromBlock < 0n) {
+                fromBlock = 0n
+            }
+            toBlock = "latest"
+        }
+
+        const filterResult = await this.publicClient.getLogs({
+            address: this.entryPoints,
+            event: userOperationEventAbiItem,
+            fromBlock,
+            toBlock,
+            args: {
+                userOpHash: userOperationHash
+            }
+        })
+
+        this.logger.debug(
+            {
+                filterResult: filterResult.length,
+                userOperationEvent:
+                    filterResult.length === 0
+                        ? undefined
+                        : filterResult[0].transactionHash
+            },
+            "filter result length"
+        )
+
+        if (filterResult.length === 0) {
+            return null
+        }
+
+        const userOperationEvent = filterResult[0]
+        // throw if any of the members of userOperationEvent are undefined
+        if (
+            userOperationEvent.args.actualGasCost === undefined ||
+            userOperationEvent.args.sender === undefined ||
+            userOperationEvent.args.nonce === undefined ||
+            userOperationEvent.args.userOpHash === undefined ||
+            userOperationEvent.args.success === undefined ||
+            userOperationEvent.args.paymaster === undefined ||
+            userOperationEvent.args.actualGasUsed === undefined
+        ) {
+            throw new Error("userOperationEvent has undefined members")
+        }
+
+        const txHash = userOperationEvent.transactionHash
+        if (txHash === null) {
+            // transaction pending
+            return null
+        }
+
+        const getTransactionReceipt = async (
+            txHash: HexData32
+        ): Promise<TransactionReceipt> => {
+            while (true) {
+                try {
+                    const transactionReceipt =
+                        await this.publicClient.getTransactionReceipt({
+                            hash: txHash
+                        })
+
+                    let effectiveGasPrice: bigint | undefined =
+                        transactionReceipt.effectiveGasPrice ??
+                        (transactionReceipt as any).gasPrice ??
+                        undefined
+
+                    if (effectiveGasPrice === undefined) {
+                        const tx = await this.publicClient.getTransaction({
+                            hash: txHash
+                        })
+                        effectiveGasPrice = tx.gasPrice ?? undefined
+                    }
+
+                    if (effectiveGasPrice) {
+                        transactionReceipt.effectiveGasPrice = effectiveGasPrice
+                    }
+
+                    return transactionReceipt
+                } catch (e) {
+                    if (e instanceof TransactionReceiptNotFoundError) {
+                        continue
+                    }
+
+                    throw e
+                }
+            }
+        }
+
+        const receipt = await getTransactionReceipt(txHash)
+        const logs = receipt.logs
+
+        if (
+            logs.some(
+                (log) =>
+                    log.blockHash === null ||
+                    log.blockNumber === null ||
+                    log.transactionIndex === null ||
+                    log.transactionHash === null ||
+                    log.logIndex === null ||
+                    log.topics.length === 0
+            )
+        ) {
+            // transaction pending
+            return null
+        }
+
+        const userOperationRevertReasonAbi = parseAbi([
+            "event UserOperationRevertReason(bytes32 indexed userOpHash, address indexed sender, uint256 nonce, bytes revertReason)"
+        ])
+
+        const userOperationRevertReasonTopicEvent = encodeEventTopics({
+            abi: userOperationRevertReasonAbi
+        })[0]
+
+        let entryPoint: Address = zeroAddress
+        let revertReason = undefined
+
+        let startIndex = -1
+        let endIndex = -1
+        logs.forEach((log, index) => {
+            if (log?.topics[0] === userOperationEvent.topics[0]) {
+                // process UserOperationEvent
+                if (log.topics[1] === userOperationEvent.topics[1]) {
+                    // it's our userOpHash. save as end of logs array
+                    endIndex = index
+                    entryPoint = log.address
+                } else if (endIndex === -1) {
+                    // it's a different hash. remember it as beginning index, but only if we didn't find our end index yet.
+                    startIndex = index
+                }
+            }
+
+            if (log?.topics[0] === userOperationRevertReasonTopicEvent) {
+                // process UserOperationRevertReason
+                if (log.topics[1] === userOperationEvent.topics[1]) {
+                    // it's our userOpHash. capture revert reason.
+                    const decodedLog = decodeEventLog({
+                        abi: userOperationRevertReasonAbi,
+                        data: log.data,
+                        topics: log.topics
+                    })
+
+                    revertReason = decodedLog.args.revertReason
+                }
+            }
+        })
+        if (endIndex === -1) {
+            throw new Error("fatal: no UserOperationEvent in logs")
+        }
+
+        const filteredLogs = logs.slice(startIndex + 1, endIndex)
+
+        const logsParsing = z.array(logSchema).safeParse(filteredLogs)
+        if (!logsParsing.success) {
+            const err = fromZodError(logsParsing.error)
+            throw err
+        }
+
+        const receiptParsing = receiptSchema.safeParse({
+            ...receipt,
+            status: receipt.status === "success" ? 1 : 0
+        })
+        if (!receiptParsing.success) {
+            const err = fromZodError(receiptParsing.error)
+            throw err
+        }
+
+        let paymaster: Address | undefined = userOperationEvent.args.paymaster
+        paymaster = paymaster === zeroAddress ? undefined : paymaster
+
+        const userOperationReceipt: GetUserOperationReceiptResponseResult = {
+            userOpHash: userOperationHash,
+            entryPoint,
+            sender: userOperationEvent.args.sender,
+            nonce: userOperationEvent.args.nonce,
+            paymaster,
+            actualGasUsed: userOperationEvent.args.actualGasUsed,
+            actualGasCost: userOperationEvent.args.actualGasCost,
+            success: userOperationEvent.args.success,
+            reason: revertReason,
+            logs: logsParsing.data,
+            receipt: receiptParsing.data
+        }
+
+        return userOperationReceipt
     }
 
     async refreshUserOperationStatuses(): Promise<void> {

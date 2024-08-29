@@ -195,6 +195,7 @@ export async function simulateHandleOpV06(
             const parsedExecutionResult = executionResultSchema.parse(
                 decodedError.args
             )
+
             return {
                 result: "execution",
                 data: {
@@ -405,8 +406,8 @@ export async function simulateHandleOpV07(
     entryPointSimulationsAddress: Address,
     chainId: number,
     blockTagSupport: boolean,
-    finalParam: StateOverrides | undefined = undefined,
     utilityWalletAddress: Address,
+    finalParam: StateOverrides | undefined = undefined,
     fixedGasLimitForEstimation?: bigint
 ): Promise<SimulateHandleOpResult> {
     const userOperations = [...queuedUserOperations, userOperation]
@@ -649,8 +650,8 @@ export function simulateHandleOp(
         entryPointSimulationsAddress,
         chainId,
         blockTagSupport,
-        finalStateOverride,
         utilityWalletAddress,
+        finalStateOverride,
         fixedGasLimitForEstimation
     )
 }
