@@ -194,7 +194,7 @@ type UserOperationDetailsType = {
     revertReason?: Hex
 }
 
-type BundlingStatus =
+export type BundlingStatus =
     | {
           // The tx was successfully mined
           // The status of each userOperation is recorded in userOperaitonDetails
