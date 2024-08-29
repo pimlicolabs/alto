@@ -507,10 +507,7 @@ export class ExecutorManager {
                 this.mempool.removeSubmitted(userOperationHash)
             })
             await this.replaceTransaction(transactionInfo, "AA95")
-        } else if (
-            bundlingStatus.status === "reverted" &&
-            bundlingStatus.reason?.includes("AA25")
-        ) {
+        } else {
             await Promise.all(
                 opInfos.map(({ userOperationHash }) => {
                     this.checkFrontrun({
@@ -520,29 +517,6 @@ export class ExecutorManager {
                     })
                 })
             )
-        } else {
-            opInfos.map(({ userOperationHash }) => {
-                this.mempool.removeSubmitted(userOperationHash)
-
-                this.monitor.setUserOperationStatus(userOperationHash, {
-                    status: "rejected",
-                    transactionHash
-                })
-                this.eventManager.emitFailedOnChain(
-                    userOperationHash,
-                    transactionHash,
-                    blockNumber as bigint
-                )
-                this.logger.info(
-                    {
-                        userOpHash: userOperationHash,
-                        transactionHash
-                    },
-                    "user op failed onchain"
-                )
-            })
-
-            this.executor.markWalletProcessed(transactionInfo.executor)
         }
     }
 
@@ -557,7 +531,7 @@ export class ExecutorManager {
     }) {
         const unwatch = this.publicClient.watchBlockNumber({
             onBlockNumber: async (currentBlockNumber) => {
-                if (currentBlockNumber > blockNumber + 2n) {
+                if (currentBlockNumber > blockNumber + 1n) {
                     const userOperationReceipt =
                         await this.getUserOperationReceipt(userOperationHash)
 
@@ -607,7 +581,7 @@ export class ExecutorManager {
                                 userOpHash: userOperationHash,
                                 transactionHash
                             },
-                            "user op failed onchain - AA25"
+                            "user op failed onchain"
                         )
                     }
                     unwatch()

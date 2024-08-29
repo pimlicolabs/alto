@@ -206,7 +206,6 @@ export type BundlingStatus =
           status: "reverted"
           // biome-ignore lint/style/useNamingConvention: use double upper case for AA errors
           isAA95: boolean
-          reason?: string
       }
     | {
           // The tx could not be found (pending or invalid hash)
@@ -228,20 +227,16 @@ export const getBundleStatus = async (
         const receipt = await publicClient.getTransactionReceipt({
             hash: txHash
         })
-
         const blockNumber = receipt.blockNumber
 
         if (receipt.status === "reverted") {
             const bundlingStatus: {
                 status: "reverted"
                 isAA95: boolean
-                reason?: string
             } = {
                 status: "reverted",
                 isAA95: false
             }
-
-            logger.info({ receipt }, "receipt")
 
             if ("error" in receipt) {
                 try {
@@ -261,7 +256,6 @@ export const getBundleStatus = async (
                         if (decoded.args[1] === "AA95 out of gas") {
                             bundlingStatus.isAA95 = true
                         }
-                        bundlingStatus.reason = decoded.args[1]
                     }
                 } catch (e) {
                     logger.error(
