@@ -432,7 +432,7 @@ export class ExecutorManager {
                 transactionHash: `0x${string}`
             }
 
-        this.logger.debug(
+        this.logger.info(
             {
                 bundlingStatus,
                 blockNumber,
@@ -512,8 +512,8 @@ export class ExecutorManager {
             bundlingStatus.reason?.includes("AA25")
         ) {
             await Promise.all(
-                opInfos.map(async ({ userOperationHash }) => {
-                    await this.checkFrontrun({
+                opInfos.map(({ userOperationHash }) => {
+                    this.checkFrontrun({
                         userOperationHash,
                         transactionHash,
                         blockNumber
@@ -561,7 +561,7 @@ export class ExecutorManager {
                     const userOperationReceipt =
                         await this.getUserOperationReceipt(userOperationHash)
 
-                    this.logger.debug(
+                    this.logger.info(
                         {
                             userOperationReceipt
                         },
@@ -607,7 +607,7 @@ export class ExecutorManager {
                                 userOpHash: userOperationHash,
                                 transactionHash
                             },
-                            "user op failed onchain"
+                            "user op failed onchain - AA25"
                         )
                     }
                     unwatch()
