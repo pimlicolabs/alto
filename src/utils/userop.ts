@@ -7,7 +7,6 @@ import {
     EntryPointV07Abi,
     type PackedUserOperation
 } from "@alto/types"
-// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
 import * as sentry from "@sentry/node"
 import {
     type Address,
@@ -207,6 +206,7 @@ type BundlingStatus =
           status: "reverted"
           // biome-ignore lint/style/useNamingConvention: use double upper case for AA errors
           isAA95: boolean
+          reason?: string
       }
     | {
           // The tx could not be found (pending or invalid hash)
@@ -231,7 +231,11 @@ export const getBundleStatus = async (
         const blockNumber = receipt.blockNumber
 
         if (receipt.status === "reverted") {
-            const bundlingStatus: { status: "reverted"; isAA95: boolean } = {
+            const bundlingStatus: {
+                status: "reverted"
+                isAA95: boolean
+                reason?: string
+            } = {
                 status: "reverted",
                 isAA95: false
             }
@@ -254,6 +258,7 @@ export const getBundleStatus = async (
                         if (decoded.args[1] === "AA95 out of gas") {
                             bundlingStatus.isAA95 = true
                         }
+                        bundlingStatus.reason = decoded.args[1]
                     }
                 } catch (e) {
                     logger.error(
@@ -291,20 +296,21 @@ export const getBundleStatus = async (
                         }
 
                         switch (eventName) {
-                            case "AccountDeployed":
+                            case "AccountDeployed": {
                                 result[opHash].accountDeployed = true
                                 break
-                            case "UserOperationRevertReason":
+                            }
+                            case "UserOperationRevertReason": {
                                 result[opHash].revertReason = args.revertReason
                                 break
-                            case "UserOperationEvent":
-                                {
-                                    const status = args.success
-                                        ? "succesful"
-                                        : "calldata_phase_reverted"
-                                    result[opHash].status = status
-                                }
+                            }
+                            case "UserOperationEvent": {
+                                const status = args.success
+                                    ? "succesful"
+                                    : "calldata_phase_reverted"
+                                result[opHash].status = status
                                 break
+                            }
                         }
                     }
                 } catch (e) {

@@ -33,7 +33,6 @@ import {
     isVersion06,
     isVersion07
 } from "@alto/utils"
-// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
 import * as sentry from "@sentry/node"
 import {
     BaseError,
@@ -82,7 +81,7 @@ export class UnsafeValidator implements InterfaceValidator {
         fixedGasLimitForEstimation?: bigint,
         usingTenderly = false,
         balanceOverrideEnabled = false,
-        expirationCheck = true,
+        expirationCheck = true
     ) {
         this.publicClient = publicClient
         this.logger = logger
@@ -245,7 +244,7 @@ export class UnsafeValidator implements InterfaceValidator {
             zeroAddress,
             "0x",
             this.blockTagSupport,
-            this.utilityWalletAddress,
+            this.utilityWalletAddress
         )
 
         const [simulateValidationResult, runtimeValidation] = await Promise.all(
