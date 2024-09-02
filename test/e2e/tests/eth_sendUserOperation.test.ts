@@ -1,7 +1,7 @@
 import { test, describe, expect, beforeAll, beforeEach } from "vitest"
 import {
     ENTRYPOINT_ADDRESS_V06,
-    BundlerClient,
+    type BundlerClient,
     ENTRYPOINT_ADDRESS_V07
 } from "permissionless"
 import {
@@ -219,28 +219,27 @@ describe.each([
         ).toBeGreaterThanOrEqual(value * 2n)
     })
 
-    test('Send parallel UserOperations', async () => {
+    test("Send parallel UserOperations", async () => {
         const nonceKeys = [10n, 12n, 4n, 1n]
 
         await setBundlingMode("manual")
 
         const entryPointContract = getContract({
             address: entryPoint,
-            abi: version === 'v0.6' ? ENTRYPOINT_V06_ABI : ENTRYPOINT_V07_ABI,
+            abi: version === "v0.6" ? ENTRYPOINT_V06_ABI : ENTRYPOINT_V07_ABI,
             client: {
                 public: publicClient
             }
         })
 
-        const privateKey = generatePrivateKey();
+        const privateKey = generatePrivateKey()
 
         // Needs to deploy user op first
         const client = await getSmartAccountClient({
             entryPoint,
             privateKey
         })
-
-        await client.sendUserOperation({
+        const deploymentHash = await client.sendUserOperation({
             userOperation: {
                 callData: await client.account.encodeCallData({
                     to: client.account.address,
@@ -251,6 +250,7 @@ describe.each([
         })
 
         await sendBundleNow()
+        await client.waitForUserOperationReceipt({ hash: deploymentHash })
 
         const buildUserOperation = async (nonceKey: bigint) => {
             const to = "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5"
@@ -264,7 +264,7 @@ describe.each([
             const nonce = await entryPointContract.read.getNonce([
                 client.account.address,
                 nonceKey
-            ])    
+            ])
 
             const userOp = await client.prepareUserOperationRequest({
                 userOperation: {
@@ -279,57 +279,69 @@ describe.each([
 
             userOp.signature = await client.account.signUserOperation(userOp)
 
-            return userOp;
+            return userOp
         }
 
         const ops = await Promise.all(nonceKeys.map(buildUserOperation))
 
-        const opHashes = await Promise.all(ops.map(op => bundlerClient.sendUserOperation({ userOperation: op })));
+        const opHashes = await Promise.all(
+            ops.map((op) =>
+                bundlerClient.sendUserOperation({ userOperation: op })
+            )
+        )
 
         await sendBundleNow()
 
-        const receipts = await Promise.all(opHashes.map(async hash => {
-            const receipt = await bundlerClient.waitForUserOperationReceipt({ hash });
+        const receipts = await Promise.all(
+            opHashes.map(async (hash) => {
+                const receipt = await bundlerClient.waitForUserOperationReceipt(
+                    { hash }
+                )
 
-            return receipt;
-        }))
+                return receipt
+            })
+        )
+
+        expect(receipts.every((receipt) => receipt.success)).toEqual(true)
 
         expect(
-            receipts.every((receipt) => receipt.success)
-        ).toEqual(true)
-    
-        expect(
-            receipts.every((receipt) => receipt.receipt.transactionHash === receipts[0].receipt.transactionHash)
+            receipts.every(
+                (receipt) =>
+                    receipt.receipt.transactionHash ===
+                    receipts[0].receipt.transactionHash
+            )
         ).toEqual(true)
 
         // user ops whould be ordered by the nonce key
         const logs = await entryPointContract.getEvents.UserOperationEvent()
 
         // @ts-ignore
-        const bundleNonceKeys = logs.map((log) => getNonceKeyAndValue(log.args.nonce)[0])
+        const bundleNonceKeys = logs.map(
+            (log) => getNonceKeyAndValue(log.args.nonce)[0]
+        )
 
-        const sortedNonceKeys = [...nonceKeys].sort((a, b) => Number(a) - Number(b))
+        const sortedNonceKeys = [...nonceKeys].sort(
+            (a, b) => Number(a) - Number(b)
+        )
 
-        expect(
-            bundleNonceKeys
-        ).toEqual(sortedNonceKeys)
+        expect(bundleNonceKeys).toEqual(sortedNonceKeys)
     })
 
-    test('Send queued UserOperations', async () => {
+    test("Send queued UserOperations", async () => {
         // Doesn't work with v0.6 userops
-        if (version === 'v0.6') return;
+        if (version === "v0.6") return
 
         await setBundlingMode("manual")
 
         const entryPointContract = getContract({
             address: entryPoint,
-            abi: version === 'v0.6' ? ENTRYPOINT_V06_ABI : ENTRYPOINT_V07_ABI,
+            abi: version === "v0.6" ? ENTRYPOINT_V06_ABI : ENTRYPOINT_V07_ABI,
             client: {
                 public: publicClient
             }
         })
 
-        const privateKey = generatePrivateKey();
+        const privateKey = generatePrivateKey()
 
         // Needs to deploy user op first
         const client = await getSmartAccountClient({
@@ -349,8 +361,8 @@ describe.each([
 
         await sendBundleNow()
 
-        const nonceKey = 100n;
-        const nonceValueDiffs = [0n, 1n, 2n];
+        const nonceKey = 100n
+        const nonceValueDiffs = [0n, 1n, 2n]
 
         // Send 3 sequential user ops
         const sendUserOperation = async (nonceValueDiff: bigint) => {
@@ -362,10 +374,10 @@ describe.each([
                 privateKey
             })
 
-            const nonce = await entryPointContract.read.getNonce([
+            const nonce = (await entryPointContract.read.getNonce([
                 client.account.address,
                 nonceKey
-            ]) as bigint;
+            ])) as bigint
 
             const userOp = await client.prepareUserOperationRequest({
                 userOperation: {
@@ -380,9 +392,9 @@ describe.each([
 
             userOp.signature = await client.account.signUserOperation(userOp)
 
-            return bundlerClient.sendUserOperation({ userOperation: userOp });
+            return bundlerClient.sendUserOperation({ userOperation: userOp })
         }
-        const opHashes: Hex[] = [];
+        const opHashes: Hex[] = []
 
         for (const nonceValueDiff of nonceValueDiffs) {
             opHashes.push(await sendUserOperation(nonceValueDiff))
@@ -390,18 +402,24 @@ describe.each([
 
         await sendBundleNow()
 
-        const receipts = await Promise.all(opHashes.map(async (hash) => {
-            const receipt = await bundlerClient.waitForUserOperationReceipt({ hash });
+        const receipts = await Promise.all(
+            opHashes.map(async (hash) => {
+                const receipt = await bundlerClient.waitForUserOperationReceipt(
+                    { hash }
+                )
 
-            return receipt;
-        }))
+                return receipt
+            })
+        )
+
+        expect(receipts.every((receipt) => receipt.success)).toEqual(true)
 
         expect(
-            receipts.every((receipt) => receipt.success)
-        ).toEqual(true)
-    
-        expect(
-            receipts.every((receipt) => receipt.receipt.transactionHash === receipts[0].receipt.transactionHash)
+            receipts.every(
+                (receipt) =>
+                    receipt.receipt.transactionHash ===
+                    receipts[0].receipt.transactionHash
+            )
         ).toEqual(true)
     })
 })
