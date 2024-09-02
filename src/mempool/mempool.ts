@@ -288,6 +288,7 @@ export class MemoryMempool {
                 userOperation.nonce === op.nonce
             )
         })
+
         if (oldUserOp) {
             const oldOp = deriveUserOperation(oldUserOp.mempoolUserOperation)
             const oldMaxPriorityFeePerGas = oldOp.maxPriorityFeePerGas
@@ -351,52 +352,63 @@ export class MemoryMempool {
             ]
         }
 
-        // Check if mempool already includes userOperation with same sender and initCode. (solves userOperations dropped due to AA10)
+        // Check if mempool already includes userOperation with same sender and initCode/factoryData. (solves userOperations dropped due to AA10)
+        let conflictingOp: UserOperationInfo | undefined
+
         if (isVersion06(op) && op.initCode) {
-            const conflictingOp = this.store
-                .dumpOutstanding()
-                .find((userOpInfo) => {
-                    const userOp = deriveUserOperation(
-                        userOpInfo.mempoolUserOperation
-                    )
+            conflictingOp = this.store.dumpOutstanding().find((userOpInfo) => {
+                const userOp = deriveUserOperation(
+                    userOpInfo.mempoolUserOperation
+                )
 
-                    if (!isVersion06(userOp)) {
-                        return false
-                    }
+                if (!isVersion06(userOp)) {
+                    return false
+                }
 
-                    return userOp.sender === op.sender && userOp.initCode
-                })
-
-            if (conflictingOp) {
-                return [
-                    false,
-                    "AA10 sender already constructed: A conflicting userOperation with initCode for this sender is already in the mempool."
-                ]
-            }
+                return userOp.sender === op.sender && userOp.initCode
+            })
         }
 
-        // Check if mempool already includes userOperation with same sender and initCode. (solves userOperations dropped due to AA10)
         if (isVersion07(op) && op.factory) {
-            const conflictingOp = this.store
-                .dumpOutstanding()
-                .find((userOpInfo) => {
-                    const userOp = deriveUserOperation(
-                        userOpInfo.mempoolUserOperation
-                    )
+            conflictingOp = this.store.dumpOutstanding().find((userOpInfo) => {
+                const userOp = deriveUserOperation(
+                    userOpInfo.mempoolUserOperation
+                )
 
-                    if (!isVersion07(userOp)) {
-                        return false
-                    }
+                if (!isVersion07(userOp)) {
+                    return false
+                }
 
-                    return userOp.sender === op.sender && userOp.factory
-                })
+                return userOp.sender === op.sender && userOp.factory
+            })
+        }
 
-            if (conflictingOp) {
+        if (conflictingOp) {
+            const oldOp = deriveUserOperation(
+                conflictingOp.mempoolUserOperation
+            )
+            const oldMaxPriorityFeePerGas = oldOp.maxPriorityFeePerGas
+            const newMaxPriorityFeePerGas = op.maxPriorityFeePerGas
+            const oldMaxFeePerGas = oldOp.maxFeePerGas
+            const newMaxFeePerGas = op.maxFeePerGas
+
+            const incrementMaxPriorityFeePerGas =
+                (oldMaxPriorityFeePerGas * BigInt(10)) / BigInt(100)
+            const incrementMaxFeePerGas =
+                (oldMaxFeePerGas * BigInt(10)) / BigInt(100)
+
+            if (
+                newMaxPriorityFeePerGas <
+                    oldMaxPriorityFeePerGas + incrementMaxPriorityFeePerGas ||
+                newMaxFeePerGas < oldMaxFeePerGas + incrementMaxFeePerGas
+            ) {
                 return [
                     false,
-                    "Invalid userOperation: A conflicting userOperation with factoryData for this sender is already in the mempool."
+                    "AA10 sender already constructed: A conflicting userOperation with factoryData for this sender is already in the mempool."
                 ]
             }
+
+            this.store.removeOutstanding(conflictingOp.userOperationHash)
         }
 
         this.store.addOutstanding({
