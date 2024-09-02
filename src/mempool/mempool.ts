@@ -347,7 +347,7 @@ export class MemoryMempool {
         if (queuedUserOperationsCount > this.queuedUserOpsMaxSize) {
             return [
                 false,
-                "AA10 sender already constructed: Maximum number of queued user operations reached for this sender and nonce key"
+                "AA25 invalid account nonce: Maximum number of queued user operations reached for this sender and nonce key"
             ]
         }
 
