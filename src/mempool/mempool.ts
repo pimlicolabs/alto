@@ -351,6 +351,54 @@ export class MemoryMempool {
             ]
         }
 
+        // Check if mempool already includes userOperation with same sender and initCode. (solves userOperations dropped due to AA10)
+        if (isVersion06(op) && op.initCode) {
+            const conflictingOp = this.store
+                .dumpOutstanding()
+                .find((userOpInfo) => {
+                    const userOp = deriveUserOperation(
+                        userOpInfo.mempoolUserOperation
+                    )
+
+                    if (!isVersion06(userOp)) {
+                        return false
+                    }
+
+                    return userOp.sender === op.sender && userOp.initCode
+                })
+
+            if (conflictingOp) {
+                return [
+                    false,
+                    "Invalid userOperation: A conflicting userOperation with initCode for this sender is already in the mempool."
+                ]
+            }
+        }
+
+        // Check if mempool already includes userOperation with same sender and initCode. (solves userOperations dropped due to AA10)
+        if (isVersion07(op) && op.factory) {
+            const conflictingOp = this.store
+                .dumpOutstanding()
+                .find((userOpInfo) => {
+                    const userOp = deriveUserOperation(
+                        userOpInfo.mempoolUserOperation
+                    )
+
+                    if (!isVersion07(userOp)) {
+                        return false
+                    }
+
+                    return userOp.sender === op.sender && userOp.factory
+                })
+
+            if (conflictingOp) {
+                return [
+                    false,
+                    "Invalid userOperation: A conflicting userOperation with factoryData for this sender is already in the mempool."
+                ]
+            }
+        }
+
         this.store.addOutstanding({
             mempoolUserOperation,
             entryPoint: entryPoint,
