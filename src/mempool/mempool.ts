@@ -283,10 +283,42 @@ export class MemoryMempool {
         this.reputationManager.updateUserOperationSeenStatus(op, entryPoint)
         const oldUserOp = outstandingOps.find(({ mempoolUserOperation }) => {
             const userOperation = deriveUserOperation(mempoolUserOperation)
-            return (
-                userOperation.sender === op.sender &&
-                userOperation.nonce === op.nonce
-            )
+
+            const isSameSender = userOperation.sender === op.sender
+
+            if (isSameSender && userOperation.nonce === op.nonce) {
+                return true
+            }
+
+            // Check if there is already a userOperation with initCode + same sender (stops rejected ops due to AA10).
+            if (
+                isVersion06(userOperation) &&
+                isVersion06(op) &&
+                op.initCode &&
+                op.initCode !== "0x"
+            ) {
+                return (
+                    isSameSender &&
+                    userOperation.initCode &&
+                    userOperation.initCode !== "0x"
+                )
+            }
+
+            // Check if there is already a userOperation with factory + same sender (stops rejected ops due to AA10).
+            if (
+                isVersion07(userOperation) &&
+                isVersion07(op) &&
+                op.factory &&
+                op.factory !== "0x"
+            ) {
+                return (
+                    isSameSender &&
+                    userOperation.factory &&
+                    userOperation.factory !== "0x"
+                )
+            }
+
+            return false
         })
 
         if (oldUserOp) {
@@ -301,15 +333,20 @@ export class MemoryMempool {
             const incrementMaxFeePerGas =
                 (oldMaxFeePerGas * BigInt(10)) / BigInt(100)
 
+            let reason =
+                "AA10 sender already constructed: A conflicting userOperation with initCode for this sender is already in the mempool. bump the gas price by minimum 10%"
+
+            if (oldOp.nonce === op.nonce) {
+                reason =
+                    "AA25 invalid account nonce: User operation already present in mempool, bump the gas price by minimum 10%"
+            }
+
             if (
                 newMaxPriorityFeePerGas <
                     oldMaxPriorityFeePerGas + incrementMaxPriorityFeePerGas ||
                 newMaxFeePerGas < oldMaxFeePerGas + incrementMaxFeePerGas
             ) {
-                return [
-                    false,
-                    "AA25 invalid account nonce: User operation already present in mempool, bump the gas price by minimum 10%"
-                ]
+                return [false, reason]
             }
 
             this.store.removeOutstanding(oldUserOp.userOperationHash)
@@ -350,75 +387,6 @@ export class MemoryMempool {
                 false,
                 "AA25 invalid account nonce: Maximum number of queued user operations reached for this sender and nonce key"
             ]
-        }
-
-        // Check if mempool already includes userOperation with same sender and initCode/factoryData. (solves userOperations dropped due to AA10)
-        let conflictingOp: UserOperationInfo | undefined
-
-        if (isVersion06(op) && op.initCode && op.initCode !== "0x") {
-            conflictingOp = this.store.dumpOutstanding().find((userOpInfo) => {
-                const userOp = deriveUserOperation(
-                    userOpInfo.mempoolUserOperation
-                )
-
-                if (!isVersion06(userOp)) {
-                    return false
-                }
-
-                // Returns if we found a userOp from same sender + non empty initCode.
-                return (
-                    userOp.sender === op.sender &&
-                    userOp.initCode &&
-                    userOp.initCode !== "0x"
-                )
-            })
-        }
-
-        if (isVersion07(op) && op.factory && op.factory !== "0x") {
-            conflictingOp = this.store.dumpOutstanding().find((userOpInfo) => {
-                const userOp = deriveUserOperation(
-                    userOpInfo.mempoolUserOperation
-                )
-
-                if (!isVersion07(userOp)) {
-                    return false
-                }
-
-                // Returns if we found a userOp from same sender + non empty factory.
-                return (
-                    userOp.sender === op.sender &&
-                    userOp.factory &&
-                    userOp.factory !== "0x"
-                )
-            })
-        }
-
-        if (conflictingOp) {
-            const oldOp = deriveUserOperation(
-                conflictingOp.mempoolUserOperation
-            )
-            const oldMaxPriorityFeePerGas = oldOp.maxPriorityFeePerGas
-            const newMaxPriorityFeePerGas = op.maxPriorityFeePerGas
-            const oldMaxFeePerGas = oldOp.maxFeePerGas
-            const newMaxFeePerGas = op.maxFeePerGas
-
-            const incrementMaxPriorityFeePerGas =
-                (oldMaxPriorityFeePerGas * BigInt(10)) / BigInt(100)
-            const incrementMaxFeePerGas =
-                (oldMaxFeePerGas * BigInt(10)) / BigInt(100)
-
-            if (
-                newMaxPriorityFeePerGas <
-                    oldMaxPriorityFeePerGas + incrementMaxPriorityFeePerGas ||
-                newMaxFeePerGas < oldMaxFeePerGas + incrementMaxFeePerGas
-            ) {
-                return [
-                    false,
-                    "AA10 sender already constructed: A conflicting userOperation with factoryData for this sender is already in the mempool."
-                ]
-            }
-
-            this.store.removeOutstanding(conflictingOp.userOperationHash)
         }
 
         this.store.addOutstanding({
