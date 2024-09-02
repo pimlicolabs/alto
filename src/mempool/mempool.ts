@@ -355,7 +355,7 @@ export class MemoryMempool {
         // Check if mempool already includes userOperation with same sender and initCode/factoryData. (solves userOperations dropped due to AA10)
         let conflictingOp: UserOperationInfo | undefined
 
-        if (isVersion06(op) && op.initCode) {
+        if (isVersion06(op) && op.initCode && op.initCode !== "0x") {
             conflictingOp = this.store.dumpOutstanding().find((userOpInfo) => {
                 const userOp = deriveUserOperation(
                     userOpInfo.mempoolUserOperation
@@ -365,11 +365,16 @@ export class MemoryMempool {
                     return false
                 }
 
-                return userOp.sender === op.sender && userOp.initCode
+                // Returns if we found a userOp from same sender + non empty initCode.
+                return (
+                    userOp.sender === op.sender &&
+                    userOp.initCode &&
+                    userOp.initCode !== "0x"
+                )
             })
         }
 
-        if (isVersion07(op) && op.factory) {
+        if (isVersion07(op) && op.factory && op.factory !== "0x") {
             conflictingOp = this.store.dumpOutstanding().find((userOpInfo) => {
                 const userOp = deriveUserOperation(
                     userOpInfo.mempoolUserOperation
@@ -379,7 +384,12 @@ export class MemoryMempool {
                     return false
                 }
 
-                return userOp.sender === op.sender && userOp.factory
+                // Returns if we found a userOp from same sender + non empty factory.
+                return (
+                    userOp.sender === op.sender &&
+                    userOp.factory &&
+                    userOp.factory !== "0x"
+                )
             })
         }
 
