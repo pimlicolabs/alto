@@ -347,7 +347,7 @@ export class MemoryMempool {
         if (queuedUserOperationsCount > this.queuedUserOpsMaxSize) {
             return [
                 false,
-                "AA25 invalid account nonce: Maximum number of queued user operations reached for this sender and nonce key"
+                "AA10 sender already constructed: Maximum number of queued user operations reached for this sender and nonce key"
             ]
         }
 
@@ -370,7 +370,7 @@ export class MemoryMempool {
             if (conflictingOp) {
                 return [
                     false,
-                    "Invalid userOperation: A conflicting userOperation with initCode for this sender is already in the mempool."
+                    "AA10 sender already constructed: A conflicting userOperation with initCode for this sender is already in the mempool."
                 ]
             }
         }
