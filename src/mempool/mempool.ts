@@ -323,8 +323,26 @@ export class MemoryMempool {
             }
         )
 
+        const isOldUserOpProcessingOrSubmitted = processedOrSubmittedOps.some(
+            (op) => op.userOperationHash === oldUserOp?.userOperationHash
+        )
+
         if (oldUserOp) {
             const oldOp = deriveUserOperation(oldUserOp.mempoolUserOperation)
+
+            let reason =
+                "AA10 sender already constructed: A conflicting userOperation with initCode for this sender is already in the mempool. bump the gas price by minimum 10%"
+
+            if (oldOp.nonce === op.nonce) {
+                reason =
+                    "AA25 invalid account nonce: User operation already present in mempool, bump the gas price by minimum 10%"
+            }
+
+            // if oldOp is already in processing or submitted mempool, we can't replace it so early exit.
+            if (isOldUserOpProcessingOrSubmitted) {
+                return [false, reason]
+            }
+
             const oldMaxPriorityFeePerGas = oldOp.maxPriorityFeePerGas
             const newMaxPriorityFeePerGas = op.maxPriorityFeePerGas
             const oldMaxFeePerGas = oldOp.maxFeePerGas
@@ -334,14 +352,6 @@ export class MemoryMempool {
                 (oldMaxPriorityFeePerGas * BigInt(10)) / BigInt(100)
             const incrementMaxFeePerGas =
                 (oldMaxFeePerGas * BigInt(10)) / BigInt(100)
-
-            let reason =
-                "AA10 sender already constructed: A conflicting userOperation with initCode for this sender is already in the mempool. bump the gas price by minimum 10%"
-
-            if (oldOp.nonce === op.nonce) {
-                reason =
-                    "AA25 invalid account nonce: User operation already present in mempool, bump the gas price by minimum 10%"
-            }
 
             if (
                 newMaxPriorityFeePerGas <
