@@ -281,45 +281,47 @@ export class MemoryMempool {
         }
 
         this.reputationManager.updateUserOperationSeenStatus(op, entryPoint)
-        const oldUserOp = outstandingOps.find(({ mempoolUserOperation }) => {
-            const userOperation = deriveUserOperation(mempoolUserOperation)
+        const oldUserOp = [...outstandingOps, ...processedOrSubmittedOps].find(
+            ({ mempoolUserOperation }) => {
+                const userOperation = deriveUserOperation(mempoolUserOperation)
 
-            const isSameSender = userOperation.sender === op.sender
+                const isSameSender = userOperation.sender === op.sender
 
-            if (isSameSender && userOperation.nonce === op.nonce) {
-                return true
+                if (isSameSender && userOperation.nonce === op.nonce) {
+                    return true
+                }
+
+                // Check if there is already a userOperation with initCode + same sender (stops rejected ops due to AA10).
+                if (
+                    isVersion06(userOperation) &&
+                    isVersion06(op) &&
+                    op.initCode &&
+                    op.initCode !== "0x"
+                ) {
+                    return (
+                        isSameSender &&
+                        userOperation.initCode &&
+                        userOperation.initCode !== "0x"
+                    )
+                }
+
+                // Check if there is already a userOperation with factory + same sender (stops rejected ops due to AA10).
+                if (
+                    isVersion07(userOperation) &&
+                    isVersion07(op) &&
+                    op.factory &&
+                    op.factory !== "0x"
+                ) {
+                    return (
+                        isSameSender &&
+                        userOperation.factory &&
+                        userOperation.factory !== "0x"
+                    )
+                }
+
+                return false
             }
-
-            // Check if there is already a userOperation with initCode + same sender (stops rejected ops due to AA10).
-            if (
-                isVersion06(userOperation) &&
-                isVersion06(op) &&
-                op.initCode &&
-                op.initCode !== "0x"
-            ) {
-                return (
-                    isSameSender &&
-                    userOperation.initCode &&
-                    userOperation.initCode !== "0x"
-                )
-            }
-
-            // Check if there is already a userOperation with factory + same sender (stops rejected ops due to AA10).
-            if (
-                isVersion07(userOperation) &&
-                isVersion07(op) &&
-                op.factory &&
-                op.factory !== "0x"
-            ) {
-                return (
-                    isSameSender &&
-                    userOperation.factory &&
-                    userOperation.factory !== "0x"
-                )
-            }
-
-            return false
-        })
+        )
 
         if (oldUserOp) {
             const oldOp = deriveUserOperation(oldUserOp.mempoolUserOperation)
