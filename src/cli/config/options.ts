@@ -238,6 +238,12 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             type: "string",
             require: true,
             default: "110"
+        },
+        "use-gas-fees-during-estimation": {
+            description: "Use maxFeePerGas during estimation",
+            type: "boolean",
+            require: false,
+            default: true
         }
     }
 
