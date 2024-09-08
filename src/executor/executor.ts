@@ -125,6 +125,7 @@ export class Executor {
     blockTagSupport: boolean
     mutex: Mutex
     eventManager: EventManager
+    sendGasFees: boolean
 
     constructor(
         publicClient: PublicClient,
@@ -141,7 +142,8 @@ export class Executor {
         legacyTransactions = false,
         fixedGasLimitForEstimation?: bigint,
         blockTagSupport = true,
-        localGasLimitCalculation = false
+        localGasLimitCalculation = false,
+        sendGasFees = true
     ) {
         this.publicClient = publicClient
         this.walletClient = walletClient
@@ -158,6 +160,7 @@ export class Executor {
         this.eventManager = eventManager
         this.blockTagSupport = blockTagSupport
         this.entryPoints = entryPoints
+        this.sendGasFees = sendGasFees
 
         this.mutex = new Mutex()
     }
@@ -279,7 +282,8 @@ export class Executor {
             this.legacyTransactions,
             this.fixedGasLimitForEstimation,
             this.reputationManager,
-            this.logger
+            this.logger,
+            this.sendGasFees
         )
 
         const childLogger = this.logger.child({
@@ -616,7 +620,8 @@ export class Executor {
             this.legacyTransactions,
             this.fixedGasLimitForEstimation,
             this.reputationManager,
-            childLogger
+            childLogger,
+            this.sendGasFees
         )
 
         if (simulatedOps.length === 0) {
@@ -912,7 +917,8 @@ export class Executor {
             this.legacyTransactions,
             this.fixedGasLimitForEstimation,
             this.reputationManager,
-            childLogger
+            childLogger,
+            this.sendGasFees
         )
 
         gasLimit += 10_000n

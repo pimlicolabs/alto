@@ -132,7 +132,8 @@ export async function filterOpsAndEstimateGas(
     onlyPre1559: boolean,
     fixedGasLimitForEstimation: bigint | undefined,
     reputationManager: InterfaceReputationManager,
-    logger: Logger
+    logger: Logger,
+    sendGasFees: boolean
 ) {
     const simulatedOps: {
         owh: UserOperationWithHash
@@ -148,9 +149,11 @@ export async function filterOpsAndEstimateGas(
         callContext.type !== "default" || // All compressed ops are v6 by default
         isVersion06(simulatedOps[0].owh.mempoolUserOperation as UserOperation)
 
-    const gasOptions = onlyPre1559
-        ? { gasPrice: maxFeePerGas }
-        : { maxFeePerGas, maxPriorityFeePerGas }
+    const gasOptions = sendGasFees
+        ? onlyPre1559
+            ? { gasPrice: maxFeePerGas }
+            : { maxFeePerGas, maxPriorityFeePerGas }
+        : {}
 
     let fixedEstimationGasLimit: bigint | undefined = fixedGasLimitForEstimation
     let retriesLeft = 5
