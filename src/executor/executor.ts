@@ -73,39 +73,6 @@ export type ReplaceTransactionResult =
           status: "failed"
       }
 
-export class NullExecutor {
-    bundle(
-        _entryPoint: Address,
-        _ops: UserOperation[]
-    ): Promise<BundleResult[]> {
-        return Promise.resolve([])
-    }
-    bundleCompressed(
-        _entryPoint: Address,
-        _compressedOps: CompressedUserOperation[]
-    ): Promise<BundleResult[]> {
-        return Promise.resolve([])
-    }
-    replaceTransaction(
-        _entryPoint: Address,
-        _transactionInfo: TransactionInfo
-    ): Promise<ReplaceTransactionResult> {
-        return Promise.resolve({ status: "failed" })
-    }
-    replaceOps(_opHashes: HexData32[]): Promise<void> {
-        return Promise.resolve()
-    }
-    cancelOps(_entryPoint: Address, _ops: UserOperation[]): Promise<void> {
-        return Promise.resolve()
-    }
-    markWalletProcessed(_executor: Account): Promise<void> {
-        return Promise.resolve()
-    }
-    flushStuckTransactions(): Promise<void> {
-        return Promise.resolve()
-    }
-}
-
 export class Executor {
     // private unWatch: WatchBlocksReturnType | undefined
 

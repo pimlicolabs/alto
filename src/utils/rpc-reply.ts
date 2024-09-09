@@ -1,4 +1,4 @@
-import { FastifyReply } from "fastify"
+import type { FastifyReply } from "fastify"
 import * as WebSocket from "ws"
 
 class RpcReply {
@@ -25,10 +25,13 @@ class RpcReply {
         return this
     }
 
+    // biome-ignore lint/suspicious/useAwait:
     public async send(data: any) {
         if (this.http) {
             return this.http.status(this._status).send(data)
-        } else if (this.websocket) {
+        }
+
+        if (this.websocket) {
             return this.websocket.send(JSON.stringify(data))
         }
     }

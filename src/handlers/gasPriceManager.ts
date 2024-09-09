@@ -72,23 +72,22 @@ export class GasPriceManager {
 
         // Periodically update gas prices if specified
         if (this.gasPriceRefreshIntervalInSeconds > 0) {
-            setInterval(
-                () => {
-                    if (this.legacyTransactions === false) {
-                        this.updateBaseFee()
-                    }
+            setInterval(() => {
+                if (this.legacyTransactions === false) {
+                    this.updateBaseFee()
+                }
 
-                    this.updateGasPrice()
-                },
-                this.gasPriceRefreshIntervalInSeconds * 1000
-            );
+                this.updateGasPrice()
+            }, this.gasPriceRefreshIntervalInSeconds * 1000)
         }
     }
 
     public async init() {
         return Promise.all([
             this.updateGasPrice(),
-            this.legacyTransactions === false ? this.updateBaseFee() : Promise.resolve()
+            this.legacyTransactions === false
+                ? this.updateBaseFee()
+                : Promise.resolve()
         ])
     }
 
@@ -452,18 +451,19 @@ export class GasPriceManager {
 
     public async getBaseFee(): Promise<bigint> {
         if (this.legacyTransactions) {
-            throw new RpcError("baseFee is not available for legacy transactions")
+            throw new RpcError(
+                "baseFee is not available for legacy transactions"
+            )
         }
 
         if (this.gasPriceRefreshIntervalInSeconds === 0) {
             return this.updateBaseFee()
         }
 
-        const {
-            baseFeePerGas
-        } = this.queueBaseFeePerGas[this.queueBaseFeePerGas.length - 1];
+        const { baseFeePerGas } =
+            this.queueBaseFeePerGas[this.queueBaseFeePerGas.length - 1]
 
-        return baseFeePerGas;
+        return baseFeePerGas
     }
 
     private async updateGasPrice(): Promise<GasPriceParameters> {
@@ -478,24 +478,24 @@ export class GasPriceManager {
         )
 
         return gasPrice
-   }
+    }
 
     public async getGasPrice(): Promise<GasPriceParameters> {
         if (this.gasPriceRefreshIntervalInSeconds === 0) {
             return this.updateGasPrice()
         }
 
-        const {
-            maxPriorityFeePerGas
-        } = this.queueMaxPriorityFeePerGas[this.queueMaxPriorityFeePerGas.length - 1];
+        const { maxPriorityFeePerGas } =
+            this.queueMaxPriorityFeePerGas[
+                this.queueMaxPriorityFeePerGas.length - 1
+            ]
 
-        const {
-            maxFeePerGas
-        } = this.queueMaxFeePerGas[this.queueMaxFeePerGas.length - 1];
+        const { maxFeePerGas } =
+            this.queueMaxFeePerGas[this.queueMaxFeePerGas.length - 1]
 
         return {
             maxFeePerGas,
-            maxPriorityFeePerGas,
+            maxPriorityFeePerGas
         }
     }
 
