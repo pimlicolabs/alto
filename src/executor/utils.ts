@@ -177,7 +177,11 @@ export async function filterOpsAndEstimateGas(
                     {
                         account: wallet,
                         nonce: nonce,
-                        blockTag: blockTag
+                        blockTag: blockTag,
+                        ...(fixedEstimationGasLimit !== undefined && {
+                            gas: fixedEstimationGasLimit
+                        }),
+                        ...gasOptions
                     }
                 )
             } else {
@@ -195,7 +199,12 @@ export async function filterOpsAndEstimateGas(
                     to: bundleBulker,
                     account: wallet,
                     data: createCompressedCalldata(opsToSend, perOpInflatorId),
-                    blockTag: blockTag
+                    ...(fixedEstimationGasLimit !== undefined && {
+                        gas: fixedEstimationGasLimit
+                    }),
+                    nonce: nonce,
+                    blockTag: blockTag,
+                    ...gasOptions
                 })
             }
 
