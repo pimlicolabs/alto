@@ -562,38 +562,27 @@ export function toUnpackedUserOperation(
     }
 }
 
-/*
- function pack(
-        UserOperation calldata userOp
-    ) internal pure returns (bytes memory ret) {
-        address sender = getSender(userOp);
-        uint256 nonce = userOp.nonce;
-        bytes32 hashInitCode = calldataKeccak(userOp.initCode);
-        bytes32 hashCallData = calldataKeccak(userOp.callData);
-        uint256 callGasLimit = userOp.callGasLimit;
-        uint256 verificationGasLimit = userOp.verificationGasLimit;
-        uint256 preVerificationGas = userOp.preVerificationGas;
-        uint256 maxFeePerGas = userOp.maxFeePerGas;
-        uint256 maxPriorityFeePerGas = userOp.maxPriorityFeePerGas;
-        bytes32 hashPaymasterAndData = calldataKeccak(userOp.paymasterAndData);
+export const getRequiredPrefund = (userOperation: UserOperation) => {
+    if (isVersion06(userOperation)) {
+        const op = userOperation as UserOperationV06
+        const multiplier =
+            (op.paymasterAndData?.length ?? 0) > 2 ? BigInt(3) : BigInt(1)
+        const requiredGas =
+            op.callGasLimit +
+            op.verificationGasLimit * multiplier +
+            op.preVerificationGas
 
-        return abi.encode(
-            sender, nonce,
-            hashInitCode, hashCallData,
-            callGasLimit, verificationGasLimit, preVerificationGas,
-            maxFeePerGas, maxPriorityFeePerGas,
-            hashPaymasterAndData
-        );
+        return BigInt(requiredGas) * BigInt(op.maxFeePerGas)
     }
 
+    const op = userOperation as UserOperationV07
 
-    const encodedData = encodeAbiParameters(
-  [
-    { name: 'x', type: 'string' },
-    { name: 'y', type: 'uint' },
-    { name: 'z', type: 'bool' }
-  ],
-  ['wagmi', 420n, true]
-)
+    const requiredGas =
+        op.verificationGasLimit +
+        op.callGasLimit +
+        (op.paymasterVerificationGasLimit || 0n) +
+        (op.paymasterPostOpGasLimit || 0n) +
+        op.preVerificationGas
 
-*/
+    return requiredGas * op.maxFeePerGas
+}

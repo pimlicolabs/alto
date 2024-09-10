@@ -100,6 +100,13 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: "100"
     },
+    "burn-gas-fees": {
+        description:
+            "Bundle tx such that 1 wei is lost, this flag can be toggled if there is frontrunning on a chain",
+        type: "boolean",
+        require: false,
+        default: false
+    },
     "gas-price-floor-percent": {
         description:
             "The minimum percentage of incoming user operation gas prices compared to the gas price used by the bundler to submit bundles",
