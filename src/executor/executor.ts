@@ -93,7 +93,7 @@ export class Executor {
     blockTagSupport: boolean
     mutex: Mutex
     eventManager: EventManager
-    burnGasFees: boolean
+    frontrunProtection: boolean
 
     constructor(
         publicClient: PublicClient,
@@ -111,7 +111,7 @@ export class Executor {
         fixedGasLimitForEstimation?: bigint,
         blockTagSupport = true,
         localGasLimitCalculation = false,
-        burnGasFees = false
+        frontrunProtection = false
     ) {
         this.publicClient = publicClient
         this.walletClient = walletClient
@@ -128,7 +128,7 @@ export class Executor {
         this.eventManager = eventManager
         this.blockTagSupport = blockTagSupport
         this.entryPoints = entryPoints
-        this.burnGasFees = burnGasFees
+        this.frontrunProtection = frontrunProtection
 
         this.mutex = new Mutex()
     }
@@ -669,7 +669,7 @@ export class Executor {
                           gasPriceParameters.maxPriorityFeePerGas
                   }
 
-            if (this.burnGasFees) {
+            if (this.frontrunProtection) {
                 const gasPrice = totalBeneficiaryFees / gasLimit
                 if (isLegacyTransaction) {
                     gasOptions.gasPrice = gasPrice
