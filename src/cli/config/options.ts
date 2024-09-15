@@ -182,7 +182,7 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             description:
                 "Indicates weather the chain is a OP stack chain, arbitrum chain, or default EVM chain",
             type: "string",
-            choices: ["default", "op-stack", "arbitrum"],
+            choices: ["default", "op-stack", "arbitrum", "hedera"],
             default: "default"
         },
         "legacy-transactions": {
