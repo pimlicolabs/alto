@@ -1,7 +1,8 @@
 import {
     RpcError,
     gasStationResult,
-    type GasPriceParameters
+    type GasPriceParameters,
+    type ChainType
 } from "@alto/types"
 import { maxBigInt, minBigInt, type Logger } from "@alto/utils"
 // biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
@@ -52,6 +53,7 @@ export class GasPriceManager {
     private maxQueueSize
     private gasBumpMultiplier: bigint
     private gasPriceRefreshIntervalInSeconds: number
+    private chainType: ChainType
 
     constructor(
         chain: Chain,
@@ -60,7 +62,8 @@ export class GasPriceManager {
         logger: Logger,
         gasBumpMultiplier: bigint,
         gasPriceTimeValidityInSeconds: number,
-        gasPriceRefreshIntervalInSeconds: number
+        gasPriceRefreshIntervalInSeconds: number,
+        chainType: ChainType
     ) {
         this.maxQueueSize = gasPriceTimeValidityInSeconds
         this.chain = chain
@@ -69,26 +72,26 @@ export class GasPriceManager {
         this.logger = logger
         this.gasBumpMultiplier = gasBumpMultiplier
         this.gasPriceRefreshIntervalInSeconds = gasPriceRefreshIntervalInSeconds
+        this.chainType = chainType
 
         // Periodically update gas prices if specified
         if (this.gasPriceRefreshIntervalInSeconds > 0) {
-            setInterval(
-                () => {
-                    if (this.legacyTransactions === false) {
-                        this.updateBaseFee()
-                    }
+            setInterval(() => {
+                if (this.legacyTransactions === false) {
+                    this.updateBaseFee()
+                }
 
-                    this.updateGasPrice()
-                },
-                this.gasPriceRefreshIntervalInSeconds * 1000
-            );
+                this.updateGasPrice()
+            }, this.gasPriceRefreshIntervalInSeconds * 1000)
         }
     }
 
     public async init() {
         return Promise.all([
             this.updateGasPrice(),
-            this.legacyTransactions === false ? this.updateBaseFee() : Promise.resolve()
+            this.legacyTransactions === false
+                ? this.updateBaseFee()
+                : Promise.resolve()
         ])
     }
 
@@ -452,18 +455,19 @@ export class GasPriceManager {
 
     public async getBaseFee(): Promise<bigint> {
         if (this.legacyTransactions) {
-            throw new RpcError("baseFee is not available for legacy transactions")
+            throw new RpcError(
+                "baseFee is not available for legacy transactions"
+            )
         }
 
         if (this.gasPriceRefreshIntervalInSeconds === 0) {
             return this.updateBaseFee()
         }
 
-        const {
-            baseFeePerGas
-        } = this.queueBaseFeePerGas[this.queueBaseFeePerGas.length - 1];
+        const { baseFeePerGas } =
+            this.queueBaseFeePerGas[this.queueBaseFeePerGas.length - 1]
 
-        return baseFeePerGas;
+        return baseFeePerGas
     }
 
     private async updateGasPrice(): Promise<GasPriceParameters> {
@@ -478,24 +482,36 @@ export class GasPriceManager {
         )
 
         return gasPrice
-   }
+    }
 
+    // biome-ignore lint/suspicious/useAwait:
     public async getGasPrice(): Promise<GasPriceParameters> {
+        let maxPriorityFeePerGas: bigint
+        let maxFeePerGas: bigint
+
         if (this.gasPriceRefreshIntervalInSeconds === 0) {
-            return this.updateGasPrice()
+            const updatedGasPrice = await this.updateGasPrice()
+            maxPriorityFeePerGas = updatedGasPrice.maxPriorityFeePerGas
+            maxFeePerGas = updatedGasPrice.maxFeePerGas
+        } else {
+            maxPriorityFeePerGas =
+                this.queueMaxPriorityFeePerGas[
+                    this.queueMaxPriorityFeePerGas.length - 1
+                ].maxPriorityFeePerGas
+
+            maxFeePerGas =
+                this.queueMaxFeePerGas[this.queueMaxFeePerGas.length - 1]
+                    .maxFeePerGas
         }
 
-        const {
-            maxPriorityFeePerGas
-        } = this.queueMaxPriorityFeePerGas[this.queueMaxPriorityFeePerGas.length - 1];
-
-        const {
-            maxFeePerGas
-        } = this.queueMaxFeePerGas[this.queueMaxFeePerGas.length - 1];
+        if (this.chainType === "hedera") {
+            maxFeePerGas /= 10n ** 9n
+            maxPriorityFeePerGas /= 10n ** 9n
+        }
 
         return {
             maxFeePerGas,
-            maxPriorityFeePerGas,
+            maxPriorityFeePerGas
         }
     }
 

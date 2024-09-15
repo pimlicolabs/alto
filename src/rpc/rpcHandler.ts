@@ -737,25 +737,23 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async pimlico_getUserOperationGasPrice(): Promise<PimlicoGetUserOperationGasPriceResponseResult> {
-        const gasPrice = await this.gasPriceManager.getGasPrice()
+        const { maxFeePerGas, maxPriorityFeePerGas } =
+            await this.gasPriceManager.getGasPrice()
 
         const { slow, standard, fast } = this.gasPriceMultipliers
 
         return {
             slow: {
-                maxFeePerGas: (gasPrice.maxFeePerGas * slow) / 100n,
-                maxPriorityFeePerGas:
-                    (gasPrice.maxPriorityFeePerGas * slow) / 100n
+                maxFeePerGas: (maxFeePerGas * slow) / 100n,
+                maxPriorityFeePerGas: (maxPriorityFeePerGas * slow) / 100n
             },
             standard: {
-                maxFeePerGas: (gasPrice.maxFeePerGas * standard) / 100n,
-                maxPriorityFeePerGas:
-                    (gasPrice.maxPriorityFeePerGas * standard) / 100n
+                maxFeePerGas: (maxFeePerGas * standard) / 100n,
+                maxPriorityFeePerGas: (maxPriorityFeePerGas * standard) / 100n
             },
             fast: {
-                maxFeePerGas: (gasPrice.maxFeePerGas * fast) / 100n,
-                maxPriorityFeePerGas:
-                    (gasPrice.maxPriorityFeePerGas * fast) / 100n
+                maxFeePerGas: (maxFeePerGas * fast) / 100n,
+                maxPriorityFeePerGas: (maxPriorityFeePerGas * fast) / 100n
             }
         }
     }
