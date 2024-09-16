@@ -504,11 +504,6 @@ export class GasPriceManager {
                     .maxFeePerGas
         }
 
-        if (this.chainType === "hedera") {
-            maxFeePerGas /= 10n ** 9n
-            maxPriorityFeePerGas /= 10n ** 9n
-        }
-
         return {
             maxFeePerGas,
             maxPriorityFeePerGas
@@ -549,9 +544,13 @@ export class GasPriceManager {
     }
 
     public async validateGasPrice(gasPrice: GasPriceParameters) {
-        const lowestMaxFeePerGas = await this.getMinMaxFeePerGas()
-        const lowestMaxPriorityFeePerGas =
-            await this.getMinMaxPriorityFeePerGas()
+        let lowestMaxFeePerGas = await this.getMinMaxFeePerGas()
+        let lowestMaxPriorityFeePerGas = await this.getMinMaxPriorityFeePerGas()
+
+        if (this.chainType === "hedera") {
+            lowestMaxFeePerGas /= 10n ** 9n
+            lowestMaxPriorityFeePerGas /= 10n ** 9n
+        }
 
         if (gasPrice.maxFeePerGas < lowestMaxFeePerGas) {
             throw new RpcError(
