@@ -78,7 +78,14 @@ import {
     slice,
     toFunctionSelector
 } from "viem"
-import { base, celoAlfajores, celo, baseSepolia, optimism } from "viem/chains"
+import {
+    base,
+    celoAlfajores,
+    celo,
+    baseSepolia,
+    optimism,
+    hedera
+} from "viem/chains"
 import type { NonceQueuer } from "./nonceQueuer"
 
 export interface IRpcEndpoint {
@@ -367,6 +374,11 @@ export class RpcHandler implements IRpcEndpoint {
         if (this.chainId === celoAlfajores.id || this.chainId === celo.id) {
             userOperation.verificationGasLimit = 1_000_000n
             userOperation.callGasLimit = 1_000_000n
+        }
+
+        if (this.chainId === hedera.id) {
+            userOperation.verificationGasLimit = 3_500_000n
+            userOperation.callGasLimit = 5_000_000n
         }
 
         if (isVersion07(userOperation)) {
