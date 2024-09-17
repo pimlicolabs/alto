@@ -1,8 +1,9 @@
 {
     "name": "deploy-contracts",
     "private": true,
+    "type": "module",
     "scripts": {
-        "start": "wait-port anvil:8545 && ts-node index.ts"
+        "start": "wait-port anvil:8545 && node --no-warnings=ExperimentalWarning --loader ts-node/esm index.ts"
     },
     "dependencies": {
         "viem": "^2.9.5",
