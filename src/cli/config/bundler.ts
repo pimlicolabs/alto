@@ -141,7 +141,8 @@ export const compatibilityArgsSchema = z.object({
     "fixed-gas-limit-for-estimation": z
         .string()
         .transform((val) => BigInt(val))
-        .optional()
+        .optional(),
+    "use-gas-fees-during-estimation": z.boolean().default(true)
 })
 
 export const serverArgsSchema = z.object({

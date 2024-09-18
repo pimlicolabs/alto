@@ -238,7 +238,8 @@ const getExecutor = ({
         parsedArgs["legacy-transactions"],
         parsedArgs["fixed-gas-limit-for-estimation"],
         parsedArgs["block-tag-support"],
-        parsedArgs["local-gas-limit-calculation"]
+        parsedArgs["local-gas-limit-calculation"],
+        parsedArgs["use-gas-fees-during-estimation"]
     )
 }
 
