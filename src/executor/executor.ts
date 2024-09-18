@@ -154,7 +154,9 @@ export class Executor {
     ): Promise<ReplaceTransactionResult> {
         const newRequest = { ...transactionInfo.transactionRequest }
 
-        const gasPriceParameters = await this.gasPriceManager.getGasPrice()
+        const gasPriceParameters = await this.gasPriceManager.getGasPrice({
+            forceLatest: true
+        })
 
         newRequest.maxFeePerGas = maxBigInt(
             gasPriceParameters.maxFeePerGas,
@@ -496,7 +498,9 @@ export class Executor {
 
         const wallets = Array.from(allWallets)
 
-        const gasPrice = await this.gasPriceManager.getGasPrice()
+        const gasPrice = await this.gasPriceManager.getGasPrice({
+            forceLatest: true
+        })
         const promises = wallets.map((wallet) => {
             flushStuckTransaction(
                 this.publicClient,
@@ -557,7 +561,9 @@ export class Executor {
         })
         childLogger.debug("bundling user operation")
 
-        const gasPriceParameters = await this.gasPriceManager.getGasPrice()
+        const gasPriceParameters = await this.gasPriceManager.getGasPrice({
+            forceLatest: true
+        })
         childLogger.debug({ gasPriceParameters }, "got gas price")
 
         const nonce = await this.publicClient.getTransactionCount({
@@ -842,7 +848,9 @@ export class Executor {
         })
         childLogger.debug("bundling compressed user operation")
 
-        const gasPriceParameters = await this.gasPriceManager.getGasPrice()
+        const gasPriceParameters = await this.gasPriceManager.getGasPrice({
+            forceLatest: true
+        })
         childLogger.debug({ gasPriceParameters }, "got gas price")
 
         const nonce = await this.publicClient.getTransactionCount({
