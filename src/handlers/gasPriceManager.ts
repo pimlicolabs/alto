@@ -486,23 +486,17 @@ export class GasPriceManager {
 
     // biome-ignore lint/suspicious/useAwait:
     public async getGasPrice(): Promise<GasPriceParameters> {
-        let maxPriorityFeePerGas: bigint
-        let maxFeePerGas: bigint
-
         if (this.gasPriceRefreshIntervalInSeconds === 0) {
-            const updatedGasPrice = await this.updateGasPrice()
-            maxPriorityFeePerGas = updatedGasPrice.maxPriorityFeePerGas
-            maxFeePerGas = updatedGasPrice.maxFeePerGas
-        } else {
-            maxPriorityFeePerGas =
-                this.queueMaxPriorityFeePerGas[
-                    this.queueMaxPriorityFeePerGas.length - 1
-                ].maxPriorityFeePerGas
-
-            maxFeePerGas =
-                this.queueMaxFeePerGas[this.queueMaxFeePerGas.length - 1]
-                    .maxFeePerGas
+            return this.updateGasPrice()
         }
+
+        const { maxPriorityFeePerGas } =
+            this.queueMaxPriorityFeePerGas[
+                this.queueMaxPriorityFeePerGas.length - 1
+            ]
+
+        const { maxFeePerGas } =
+            this.queueMaxFeePerGas[this.queueMaxFeePerGas.length - 1]
 
         return {
             maxFeePerGas,
