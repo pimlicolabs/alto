@@ -100,9 +100,8 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: "100"
     },
-    "frontrun-protection": {
-        description:
-            "Bundle tx such that 1 wei is lost, this flag can be toggled if there is frontrunning on a chain",
+    "burn-beneficiary-fees": {
+        description: "Bundle tx such that all beneficiary fees are burnt",
         type: "boolean",
         default: false
     },

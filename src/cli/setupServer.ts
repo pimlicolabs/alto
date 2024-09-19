@@ -239,7 +239,7 @@ const getExecutor = ({
         parsedArgs["fixed-gas-limit-for-estimation"],
         parsedArgs["block-tag-support"],
         parsedArgs["local-gas-limit-calculation"],
-        parsedArgs["frontrun-protection"]
+        parsedArgs["burn-beneficiary-fees"]
     )
 }
 
