@@ -100,6 +100,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: "100"
     },
+    "no-profit-bundling": {
+        description:
+            "Bundle tx such that all beneficiary fees are spent on gas fees",
+        type: "boolean",
+        default: false
+    },
     "gas-price-floor-percent": {
         description:
             "The minimum percentage of incoming user operation gas prices compared to the gas price used by the bundler to submit bundles",

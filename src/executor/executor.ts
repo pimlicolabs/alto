@@ -25,6 +25,7 @@ import type {
     EventManager
 } from "@alto/handlers"
 import {
+    getRequiredPrefund,
     getUserOperationHash,
     isVersion06,
     maxBigInt,
@@ -92,6 +93,7 @@ export class Executor {
     blockTagSupport: boolean
     mutex: Mutex
     eventManager: EventManager
+    noProfitBundling: boolean // if true, bundle such that all beneficiary fees go towards tx gasFees
 
     constructor(
         publicClient: PublicClient,
@@ -108,7 +110,8 @@ export class Executor {
         legacyTransactions = false,
         fixedGasLimitForEstimation?: bigint,
         blockTagSupport = true,
-        localGasLimitCalculation = false
+        localGasLimitCalculation = false,
+        noProfitBundling = false
     ) {
         this.publicClient = publicClient
         this.walletClient = walletClient
@@ -125,6 +128,7 @@ export class Executor {
         this.eventManager = eventManager
         this.blockTagSupport = blockTagSupport
         this.entryPoints = entryPoints
+        this.noProfitBundling = noProfitBundling
 
         this.mutex = new Mutex()
     }
@@ -635,10 +639,13 @@ export class Executor {
 
         // https://github.com/eth-infinitism/account-abstraction/blob/fa61290d37d079e928d92d53a122efcc63822214/contracts/core/EntryPoint.sol#L236
         let innerHandleOpFloor = 0n
+        let totalBeneficiaryFees = 0n
         for (const owh of opsWithHashToBundle) {
             const op = deriveUserOperation(owh.mempoolUserOperation)
             innerHandleOpFloor +=
                 op.callGasLimit + op.verificationGasLimit + 5000n
+
+            totalBeneficiaryFees += getRequiredPrefund(op)
         }
 
         if (gasLimit < innerHandleOpFloor) {
@@ -661,6 +668,18 @@ export class Executor {
                       maxPriorityFeePerGas:
                           gasPriceParameters.maxPriorityFeePerGas
                   }
+
+            if (this.noProfitBundling) {
+                const gasPrice = totalBeneficiaryFees / gasLimit
+                if (isLegacyTransaction) {
+                    gasOptions.gasPrice = gasPrice
+                } else {
+                    gasOptions.maxFeePerGas = maxBigInt(
+                        gasPrice,
+                        gasOptions.maxFeePerGas || 0n
+                    )
+                }
+            }
 
             const opts = {
                 account: wallet,
