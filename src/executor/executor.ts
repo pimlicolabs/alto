@@ -93,7 +93,7 @@ export class Executor {
     blockTagSupport: boolean
     mutex: Mutex
     eventManager: EventManager
-    burnBeneficiaryFees: boolean
+    noProfitBundling: boolean // if true, bundle such that all beneficiary fees go towards tx gasFees
 
     constructor(
         publicClient: PublicClient,
@@ -111,7 +111,7 @@ export class Executor {
         fixedGasLimitForEstimation?: bigint,
         blockTagSupport = true,
         localGasLimitCalculation = false,
-        burnBeneficiaryFees = false
+        noProfitBundling = false
     ) {
         this.publicClient = publicClient
         this.walletClient = walletClient
@@ -128,7 +128,7 @@ export class Executor {
         this.eventManager = eventManager
         this.blockTagSupport = blockTagSupport
         this.entryPoints = entryPoints
-        this.burnBeneficiaryFees = burnBeneficiaryFees
+        this.noProfitBundling = noProfitBundling
 
         this.mutex = new Mutex()
     }
@@ -669,7 +669,7 @@ export class Executor {
                           gasPriceParameters.maxPriorityFeePerGas
                   }
 
-            if (this.burnBeneficiaryFees) {
+            if (this.noProfitBundling) {
                 const gasPrice = totalBeneficiaryFees / gasLimit
                 if (isLegacyTransaction) {
                     gasOptions.gasPrice = gasPrice

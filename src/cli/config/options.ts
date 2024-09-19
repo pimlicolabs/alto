@@ -100,8 +100,9 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: "100"
     },
-    "burn-beneficiary-fees": {
-        description: "Bundle tx such that all beneficiary fees are burnt",
+    "no-profit-bundling": {
+        description:
+            "Bundle tx such that all beneficiary fees are spent on gas fees",
         type: "boolean",
         default: false
     },

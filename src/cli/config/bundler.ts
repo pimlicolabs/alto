@@ -30,7 +30,7 @@ export const bundlerArgsSchema = z.object({
         (v) => (v === "" ? undefined : v),
         addressSchema.optional()
     ),
-    "burn-beneficiary-fees": z.boolean(),
+    "no-profit-bundling": z.boolean(),
     "safe-mode": z.boolean(),
     "utility-private-key": hexData32Schema
         .transform((val) => privateKeyToAccount(val) satisfies Account)
