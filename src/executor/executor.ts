@@ -674,7 +674,10 @@ export class Executor {
                 if (isLegacyTransaction) {
                     gasOptions.gasPrice = gasPrice
                 } else {
-                    gasOptions.maxFeePerGas = gasPrice
+                    gasOptions.maxFeePerGas = maxBigInt(
+                        gasPrice,
+                        gasOptions.maxFeePerGas || 0n
+                    )
                 }
             }
 

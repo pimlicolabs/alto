@@ -104,7 +104,6 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description:
             "Bundle tx such that 1 wei is lost, this flag can be toggled if there is frontrunning on a chain",
         type: "boolean",
-        require: false,
         default: false
     },
     "gas-price-floor-percent": {
