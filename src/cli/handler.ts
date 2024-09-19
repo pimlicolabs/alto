@@ -171,7 +171,8 @@ export async function bundlerHandler(args: IOptionsInput): Promise<void> {
         ),
         parsedArgs["gas-price-bump"],
         parsedArgs["gas-price-expiry"],
-        parsedArgs["gas-price-refresh-interval"]
+        parsedArgs["gas-price-refresh-interval"],
+        parsedArgs["chain-type"]
     )
 
     await gasPriceManager.init()
