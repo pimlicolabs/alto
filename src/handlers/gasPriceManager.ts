@@ -5,7 +5,6 @@ import {
     type ChainType
 } from "@alto/types"
 import { maxBigInt, minBigInt, type Logger } from "@alto/utils"
-// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
 import * as sentry from "@sentry/node"
 import { parseGwei, type Chain, type PublicClient } from "viem"
 import {
@@ -86,7 +85,7 @@ export class GasPriceManager {
         }
     }
 
-    public async init() {
+    public init() {
         return Promise.all([
             this.updateGasPrice(),
             this.legacyTransactions === false
@@ -453,7 +452,7 @@ export class GasPriceManager {
         return baseFee
     }
 
-    public async getBaseFee(): Promise<bigint> {
+    public getBaseFee() {
         if (this.legacyTransactions) {
             throw new RpcError(
                 "baseFee is not available for legacy transactions"
@@ -484,8 +483,7 @@ export class GasPriceManager {
         return gasPrice
     }
 
-    // biome-ignore lint/suspicious/useAwait:
-    public async getGasPrice(): Promise<GasPriceParameters> {
+    public getGasPrice() {
         if (this.gasPriceRefreshIntervalInSeconds === 0) {
             return this.updateGasPrice()
         }

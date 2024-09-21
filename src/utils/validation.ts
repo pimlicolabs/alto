@@ -514,8 +514,11 @@ export async function calcOptimismPreVerificationGas(
         }
     })
 
-    const { result: l1Fee } = await opGasPriceOracle.simulate.getL1Fee([
-        serializedTx
+    const [{ result: l1Fee }, baseFeePerGas] = await Promise.all([
+        opGasPriceOracle.simulate.getL1Fee([serializedTx]),
+        verify
+            ? gasPriceManager.getMaxBaseFeePerGas()
+            : gasPriceManager.getBaseFee()
     ])
 
     if (op.maxFeePerGas <= 1n || op.maxPriorityFeePerGas <= 1n) {
@@ -527,12 +530,6 @@ export async function calcOptimismPreVerificationGas(
 
     const l2MaxFee = op.maxFeePerGas
 
-    let baseFeePerGas = 0n
-    if (verify) {
-        baseFeePerGas = await gasPriceManager.getMaxBaseFeePerGas()
-    } else {
-        baseFeePerGas = await gasPriceManager.getBaseFee()
-    }
     const l2PriorityFee = baseFeePerGas + op.maxPriorityFeePerGas
 
     const l2price = minBigInt(l2MaxFee, l2PriorityFee)
