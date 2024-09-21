@@ -22,7 +22,7 @@ import {
     receiptSchema,
     type GetUserOperationReceiptResponseResult
 } from "@alto/types"
-import { getAAError, getBundleStatus } from "@alto/utils"
+import { getAAError, getBundleStatus, userOperationToJson } from "@alto/utils"
 import {
     decodeEventLog,
     encodeEventTopics,
@@ -265,10 +265,8 @@ export class ExecutorManager {
                 })
                 this.logger.warn(
                     {
-                        userOperation: JSON.stringify(
-                            result.error.userOperation,
-                            (_k, v) =>
-                                typeof v === "bigint" ? v.toString() : v
+                        userOperation: userOperationToJson(
+                            result.error.userOperation
                         ),
                         userOpHash,
                         reason

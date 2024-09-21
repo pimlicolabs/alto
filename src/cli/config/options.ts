@@ -179,6 +179,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "string",
         require: false,
         default: "125"
+    },
+    "instant-bundling": {
+        description:
+            "Send bundling tx as soon as userOperation passes mempool validation",
+        type: "boolean",
+        default: false
     }
 }
 

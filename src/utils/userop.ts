@@ -5,7 +5,8 @@ import {
     type UserOperation,
     type UserOperationV07,
     EntryPointV07Abi,
-    type PackedUserOperation
+    type PackedUserOperation,
+    type MempoolUserOperation
 } from "@alto/types"
 import * as sentry from "@sentry/node"
 import {
@@ -491,6 +492,12 @@ export const getUserOperationHashV07 = (
             ],
             [hash, entryPointAddress, BigInt(chainId)]
         )
+    )
+}
+
+export function userOperationToJson(userOperation: MempoolUserOperation) {
+    return JSON.stringify(userOperation, (_k, v) =>
+        typeof v === "bigint" ? v.toString() : v
     )
 }
 

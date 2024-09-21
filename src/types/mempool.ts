@@ -70,7 +70,7 @@ export type SubmittedUserOperation = {
 
 type Result<T, E, R> = Success<T> | Failure<E> | Resubmit<R>
 
-interface Success<T> {
+export interface Success<T> {
     status: "success"
     value: T
 }

@@ -377,6 +377,7 @@ const getRpcHandler = ({
         parsedArgs["chain-type"],
         parsedArgs["paymaster-gas-limit-multiplier"],
         eventManager,
+        parsedArgs["instant-bundling"],
         parsedArgs["dangerous-skip-user-operation-validation"]
     )
 }

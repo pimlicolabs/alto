@@ -11,7 +11,10 @@ import type {
     UserOperationV06,
     GasPriceMultipliers,
     ChainType,
-    UserOperationV07
+    UserOperationV07,
+    Success,
+    TransactionInfo,
+    UserOperationInfo
 } from "@alto/types"
 import {
     EntryPointV06Abi,
@@ -131,6 +134,7 @@ export class RpcHandler implements IRpcEndpoint {
     gasPriceMultipliers: GasPriceMultipliers
     paymasterGasLimitMultiplier: bigint
     eventManager: EventManager
+    instantBundlingMode: boolean
 
     constructor(
         entryPoints: Address[],
@@ -154,6 +158,7 @@ export class RpcHandler implements IRpcEndpoint {
         chainType: ChainType,
         paymasterGasLimitMultiplier: bigint,
         eventManager: EventManager,
+        instantBundlingMode: boolean,
         dangerousSkipUserOperationValidation = false
     ) {
         this.entryPoints = entryPoints
@@ -180,6 +185,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.gasPriceManager = gasPriceManager
         this.paymasterGasLimitMultiplier = paymasterGasLimitMultiplier
         this.eventManager = eventManager
+        this.instantBundlingMode = instantBundlingMode
     }
 
     async handleMethod(
@@ -821,6 +827,7 @@ export class RpcHandler implements IRpcEndpoint {
             this.eventManager.emitFailedValidation(opHash, reason, "AA25")
             throw new RpcError(reason, ValidationErrors.InvalidFields)
         }
+
         if (userOperationNonceValue > currentNonceValue + 10n) {
             const reason =
                 "UserOperation failed validaiton with reason: AA25 invalid account nonce"
@@ -841,71 +848,112 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         if (
-            userOperationNonceValue ===
+            userOperationNonceValue >
             currentNonceValue + BigInt(queuedUserOperations.length)
         ) {
-            if (this.dangerousSkipUserOperationValidation) {
-                const [success, errorReason] = this.mempool.add(op, entryPoint)
-                if (!success) {
-                    this.eventManager.emitFailedValidation(
-                        opHash,
-                        errorReason,
-                        getAAError(errorReason)
-                    )
-                    throw new RpcError(
-                        `UserOperation reverted during simulation with reason: ${errorReason}`,
-                        ValidationErrors.InvalidFields
-                    )
-                }
-            } else {
-                if (apiVersion !== "v1") {
-                    await this.validator.validatePreVerificationGas(
-                        userOperation,
-                        entryPoint
-                    )
-                }
-
-                const validationResult =
-                    await this.validator.validateUserOperation(
-                        apiVersion !== "v1",
-                        userOperation,
-                        queuedUserOperations,
-                        entryPoint
-                    )
-
-                await this.reputationManager.checkReputation(
-                    userOperation,
-                    entryPoint,
-                    validationResult
-                )
-
-                await this.mempool.checkEntityMultipleRoleViolation(
-                    userOperation
-                )
-
-                const [success, errorReason] = this.mempool.add(
-                    op,
-                    entryPoint,
-                    validationResult.referencedContracts
-                )
-
-                if (!success) {
-                    this.eventManager.emitFailedValidation(
-                        opHash,
-                        errorReason,
-                        getAAError(errorReason)
-                    )
-                    throw new RpcError(
-                        `UserOperation reverted during simulation with reason: ${errorReason}`,
-                        ValidationErrors.InvalidFields
-                    )
-                }
-                return "added"
-            }
+            this.nonceQueuer.add(op, entryPoint)
+            return "queued"
         }
 
-        this.nonceQueuer.add(op, entryPoint)
-        return "queued"
+        if (this.dangerousSkipUserOperationValidation) {
+            const [success, errorReason] = this.mempool.add(op, entryPoint)
+            if (!success) {
+                this.eventManager.emitFailedValidation(
+                    opHash,
+                    errorReason,
+                    getAAError(errorReason)
+                )
+                throw new RpcError(
+                    `UserOperation reverted during simulation with reason: ${errorReason}`,
+                    ValidationErrors.InvalidFields
+                )
+            }
+            return "added"
+        }
+
+        if (apiVersion !== "v1") {
+            await this.validator.validatePreVerificationGas(
+                userOperation,
+                entryPoint
+            )
+        }
+
+        const validationResult = await this.validator.validateUserOperation(
+            apiVersion !== "v1",
+            userOperation,
+            queuedUserOperations,
+            entryPoint
+        )
+
+        await this.reputationManager.checkReputation(
+            userOperation,
+            entryPoint,
+            validationResult
+        )
+
+        await this.mempool.checkEntityMultipleRoleViolation(userOperation)
+
+        if (this.instantBundlingMode) {
+            const result = (
+                await this.executor.bundle(entryPoint, [userOperation])
+            )[0]
+
+            const status = result.status === "success" ? "success" : "failed"
+            this.metrics.userOperationsSubmitted.labels({ status }).inc()
+            this.metrics.bundlesSubmitted
+                .labels({
+                    status
+                })
+                .inc()
+
+            if (result.status === "failure") {
+                const reason = result.error.reason
+
+                this.monitor.setUserOperationStatus(opHash, {
+                    status: "rejected",
+                    transactionHash: null
+                })
+                this.eventManager.emitDropped(
+                    opHash,
+                    reason,
+                    getAAError(reason)
+                )
+
+                throw new RpcError(
+                    `UserOperation reverted during simulation with reason: ${reason}`,
+                    ValidationErrors.InvalidFields
+                )
+            }
+
+            const res = result as Success<{
+                userOperation: UserOperationInfo
+                transactionInfo: TransactionInfo
+            }>
+            const transactionInfo = res.value.transactionInfo
+            this.mempool.markSubmitted(opHash, transactionInfo)
+
+            return "added"
+        }
+
+        const [success, errorReason] = this.mempool.add(
+            op,
+            entryPoint,
+            validationResult.referencedContracts
+        )
+
+        if (!success) {
+            this.eventManager.emitFailedValidation(
+                opHash,
+                errorReason,
+                getAAError(errorReason)
+            )
+            throw new RpcError(
+                `UserOperation reverted during simulation with reason: ${errorReason}`,
+                ValidationErrors.InvalidFields
+            )
+        }
+
+        return "added"
     }
 
     async pimlico_sendCompressedUserOperation(
