@@ -378,46 +378,27 @@ export class RpcHandler implements IRpcEndpoint {
         // Check if the nonce is valid
         // If the nonce is less than the current nonce, the user operation has already been executed
         // If the nonce is greater than the current nonce, we may have missing user operations in the mempool
-        const currentNonceValue = await this.getNonceValue(
-            userOperation,
-            entryPoint
-        )
-        const [, userOperationNonceValue] = getNonceKeyAndValue(
-            userOperation.nonce
-        )
+        const [userOperationNonceKey, userOperationNonceValue] =
+            getNonceKeyAndValue(userOperation.nonce)
 
-        let queuedUserOperations: UserOperation[] = []
-        if (userOperationNonceValue < currentNonceValue) {
-            throw new RpcError(
-                "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
-                ValidationErrors.InvalidFields
+        const queuedUserOperations: UserOperation[] = this.mempool
+            .dumpOutstanding()
+            .map((userOpInfo) =>
+                deriveUserOperation(userOpInfo.mempoolUserOperation)
             )
-        }
-        if (userOperationNonceValue > currentNonceValue) {
-            // Nonce queues are supported only for v7 user operations
-            if (isVersion06(userOperation)) {
-                throw new RpcError(
-                    "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
-                    ValidationErrors.InvalidFields
-                )
-            }
+            .filter((uo) => {
+                const [opNonceKey, opNonceValue] = getNonceKeyAndValue(uo.nonce)
 
-            queuedUserOperations = await this.mempool.getQueuedUserOperations(
-                userOperation,
-                entryPoint,
-                currentNonceValue
-            )
-
-            if (
-                userOperationNonceValue >
-                currentNonceValue + BigInt(queuedUserOperations.length)
-            ) {
-                throw new RpcError(
-                    "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
-                    ValidationErrors.InvalidFields
+                return (
+                    uo.sender === userOperation.sender &&
+                    opNonceKey === userOperationNonceKey &&
+                    // on chain nonce - 12
+                    // in mempool nonce - 11,     13, 15,       18
+                    // current user operation nonce - 16
+                    // need to pick 11, 13, 14, 15
+                    opNonceValue < userOperationNonceValue
                 )
-            }
-        }
+            })
 
         const executionResult = await this.validator.getExecutionResult(
             userOperation,
