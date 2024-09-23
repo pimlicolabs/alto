@@ -301,6 +301,14 @@ export class RpcHandler implements IRpcEndpoint {
                         ...request.params
                     )
                 }
+            case "pimlico_sendInstantBundle":
+                return {
+                    method,
+                    result: await this.pimlico_sendInstantBundle(
+                        apiVersion,
+                        ...request.params
+                    )
+                }
         }
     }
 
@@ -907,6 +915,12 @@ export class RpcHandler implements IRpcEndpoint {
         this.nonceQueuer.add(op, entryPoint)
         return "queued"
     }
+
+    async pimlico_sendInstantBundle(
+        apiVersion: ApiVersion,
+        userOperation: UserOperation,
+        entryPoint: Address
+    ) {}
 
     async pimlico_sendCompressedUserOperation(
         apiVersion: ApiVersion,
