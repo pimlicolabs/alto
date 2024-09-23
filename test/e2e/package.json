@@ -3,13 +3,14 @@
     "version": "0.0.0",
     "private": true,
     "scripts": {
-        "test": "vitest dev -c ./vitest.config.ts",
+        "test": "vitest dev -c ./vitest.config.ts pimlico_sendInstantUserOperation.test.ts",
         "test:ci": "CI=true && vitest -c ./vitest.config.ts"
     },
     "dependencies": {
-        "@types/node": "^18.16.3",
         "@pimlico/alto": "workspace:./src/",
-        "permissionless": "^0.1.25",
+        "@types/node": "^18.16.3",
+        "e2e": "link:",
+        "permissionless": "^0.2.1",
         "ts-node": "^10.9.2",
         "viem": "^2.9.5",
         "vitest": "^1.6.0",

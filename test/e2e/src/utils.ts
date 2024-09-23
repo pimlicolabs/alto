@@ -1,49 +1,32 @@
 import {
-    Chain,
-    Hex,
-    Transport,
+    type Hex,
+    type Transport,
+    type Chain,
     createPublicClient,
     createTestClient,
     createWalletClient,
-    getCreate2Address,
     http,
-    parseEther,
-    parseGwei
+    parseEther
 } from "viem"
 import {
     generatePrivateKey,
     mnemonicToAccount,
     privateKeyToAccount
 } from "viem/accounts"
+import { ALTO_RPC, ANVIL_RPC } from "./constants"
+import { foundry } from "viem/chains"
+import { createPimlicoClient } from "permissionless/clients/pimlico"
+import { toSimpleSmartAccount } from "permissionless/accounts"
 import {
-    ALTO_RPC,
-    ANVIL_RPC,
-    SIMPLE_ACCOUNT_FACTORY_V06,
-    SIMPLE_ACCOUNT_FACTORY_V07
-} from "./constants"
-import { anvil, foundry } from "viem/chains"
-import { EntryPoint } from "permissionless/types"
+    type EntryPointVersion,
+    type SmartAccount,
+    entryPoint06Address,
+    entryPoint07Address
+} from "viem/account-abstraction"
 import {
-    PimlicoBundlerClient,
-    PimlicoPaymasterClient,
-    createPimlicoBundlerClient
-} from "permissionless/clients/pimlico"
-import {
-    createSmartAccountClient,
-    SmartAccountClient,
-    getEntryPointVersion,
-    BundlerClient,
-    createBundlerClient
+    type SmartAccountClient,
+    createSmartAccountClient
 } from "permissionless"
-import {
-    SmartAccount,
-    signerToSimpleSmartAccount
-} from "permissionless/accounts"
-
-const publicClient = createPublicClient({
-    transport: http(ANVIL_RPC),
-    chain: foundry
-})
 
 const anvilClient = createTestClient({
     transport: http(ANVIL_RPC),
@@ -51,26 +34,9 @@ const anvilClient = createTestClient({
     mode: "anvil"
 })
 
-export type AAParamType<T extends EntryPoint> = {
-    entryPoint: T
-    paymasterClient?: PimlicoPaymasterClient<T>
+export type AAParamType = {
+    entryPointVersion: EntryPointVersion
     privateKey?: Hex
-}
-
-export const getFactoryAddress = (
-    entryPoint: EntryPoint,
-    accountType: "simple" | "safe"
-) => {
-    switch (accountType) {
-        case "simple":
-            return getEntryPointVersion(entryPoint) === "v0.6"
-                ? SIMPLE_ACCOUNT_FACTORY_V06
-                : SIMPLE_ACCOUNT_FACTORY_V07
-        case "safe":
-            break
-    }
-
-    throw new Error("Parameters not recongized")
 }
 
 export const getAnvilWalletClient = (addressIndex: number) => {
@@ -86,49 +52,77 @@ export const getAnvilWalletClient = (addressIndex: number) => {
     })
 }
 
-export const getBundlerClient = <T extends EntryPoint>(
-    entryPoint: T
-): BundlerClient<T, Chain> =>
-    createBundlerClient({
+export const getPimlicoClient = <EntryPointVersion extends "0.6" | "0.7">({
+    entryPointVersion
+}: {
+    entryPointVersion: EntryPointVersion
+}) =>
+    createPimlicoClient({
         chain: foundry,
-        entryPoint,
-        transport: http(ALTO_RPC)
-    }) as BundlerClient<T, Chain>
-
-export const getPimlicoBundlerClient = <T extends EntryPoint>(
-    entryPoint: T
-): PimlicoBundlerClient<T> =>
-    createPimlicoBundlerClient({
-        chain: foundry,
-        entryPoint,
+        entryPoint: {
+            address: (entryPointVersion === "0.6"
+                ? entryPoint06Address
+                : entryPoint07Address) as EntryPointVersion extends "0.6"
+                ? typeof entryPoint06Address
+                : typeof entryPoint07Address,
+            version: entryPointVersion
+        },
         transport: http(ALTO_RPC)
     })
 
-export const getSmartAccountClient = async <T extends EntryPoint>({
-    entryPoint,
+export const getPublicClient = (anvilRpc: string) => {
+    const transport = http(anvilRpc, {
+        //onFetchRequest: async (request) => {
+        //    console.log("fetching", await request.json())
+        //}
+    })
+
+    return createPublicClient({
+        chain: foundry,
+        transport: transport,
+        pollingInterval: 100
+    })
+}
+
+export const getSmartAccountClient = async <
+    EntryPointVersion extends "0.6" | "0.7"
+>({
+    entryPointVersion,
     privateKey = generatePrivateKey()
-}: AAParamType<T>): Promise<
-    SmartAccountClient<T, Transport, Chain, SmartAccount<T>>
+}: AAParamType): Promise<
+    SmartAccountClient<Transport, Chain, SmartAccount>
 > => {
-    const smartAccount = await signerToSimpleSmartAccount<T, Transport, Chain>(
-        publicClient,
-        {
-            entryPoint,
-            signer: privateKeyToAccount(privateKey),
-            factoryAddress: getFactoryAddress(entryPoint, "simple")
-        }
-    )
+    const account = await toSimpleSmartAccount<EntryPointVersion>({
+        client: getPublicClient(ANVIL_RPC),
+        entryPoint: {
+            address:
+                entryPointVersion === "0.6"
+                    ? entryPoint06Address
+                    : entryPoint07Address,
+            version: (entryPointVersion === "0.6"
+                ? "0.6"
+                : "0.7") as EntryPointVersion
+        },
+        owner: privateKeyToAccount(privateKey)
+    })
 
     await anvilClient.setBalance({
-        address: smartAccount.address,
+        address: account.address,
         value: parseEther("100")
     })
 
-    // @ts-ignore
     return createSmartAccountClient({
+        account,
         chain: foundry,
-        account: smartAccount,
-        bundlerTransport: http(ALTO_RPC)
+        bundlerTransport: http(ALTO_RPC),
+        userOperation: {
+            estimateFeesPerGas: async () =>
+                (
+                    await getPimlicoClient({
+                        entryPointVersion
+                    }).getUserOperationGasPrice()
+                ).fast
+        }
     })
 }
 

@@ -1,13 +1,11 @@
 import { describe, test, beforeAll, expect, beforeEach } from "vitest"
-import type { ENTRYPOINT_ADDRESS_V06_TYPE } from "permissionless/types"
 import {
     beforeEachCleanUp,
-    getPimlicoBundlerClient,
+    getPimlicoClient,
     getSmartAccountClient,
     sendBundleNow,
     setBundlingMode
 } from "../src/utils"
-import { ENTRYPOINT_ADDRESS_V06 } from "permissionless/utils"
 import {
     createPublicClient,
     createTestClient,
@@ -20,7 +18,11 @@ import {
 } from "viem"
 import { ANVIL_RPC } from "../src/constants"
 import { foundry } from "viem/chains"
-import type { PimlicoBundlerClient } from "permissionless/clients/pimlico"
+import type { PimlicoClient } from "permissionless/clients/pimlico"
+import {
+    UserOperationReceiptNotFoundError,
+    type UserOperation
+} from "viem/account-abstraction"
 
 const publicClient = createPublicClient({
     transport: http(ANVIL_RPC),
@@ -71,10 +73,12 @@ const SIMPLE_INFLATOR_CONTRACT = getContract({
 })
 
 describe("V0.6 pimlico_sendCompressedUserOperation", () => {
-    let pimlicoBundlerClient: PimlicoBundlerClient<ENTRYPOINT_ADDRESS_V06_TYPE>
+    let pimlicoBundlerClient: PimlicoClient
 
     beforeAll(() => {
-        pimlicoBundlerClient = getPimlicoBundlerClient(ENTRYPOINT_ADDRESS_V06)
+        pimlicoBundlerClient = getPimlicoClient({
+            entryPointVersion: "0.6"
+        })
     })
 
     beforeEach(async () => {
@@ -83,25 +87,25 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
 
     test("Send compressed UserOperation", async () => {
         const smartAccountClient = await getSmartAccountClient({
-            entryPoint: ENTRYPOINT_ADDRESS_V06
+            entryPointVersion: "0.6"
         })
-        const smartAccount = smartAccountClient.account
 
         const to = "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5"
         const value = parseEther("0.15")
 
-        const op = await smartAccountClient.prepareUserOperationRequest({
-            userOperation: {
-                callData: await smartAccount.encodeCallData({
+        const op = (await smartAccountClient.prepareUserOperation({
+            calls: [
+                {
                     to,
                     value,
                     data: "0x"
-                })
-            }
-        })
-        op.signature = await smartAccount.signUserOperation(op)
+                }
+            ]
+        })) as UserOperation<"0.6">
+        op.signature = await smartAccountClient.account.signUserOperation(op)
 
         const compressedUserOperation =
+            // @ts-ignore: we know that op is properly typed
             await SIMPLE_INFLATOR_CONTRACT.read.compress([op])
 
         const hash = await pimlicoBundlerClient.sendCompressedUserOperation({
@@ -130,7 +134,7 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
 
     test("Replace mempool transaction", async () => {
         const smartAccountClient = await getSmartAccountClient({
-            entryPoint: ENTRYPOINT_ADDRESS_V06
+            entryPointVersion: "0.6"
         })
         const smartAccount = smartAccountClient.account
 
@@ -140,18 +144,19 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
         const to = "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5"
         const value = parseEther("0.15")
 
-        const op = await smartAccountClient.prepareUserOperationRequest({
-            userOperation: {
-                callData: await smartAccount.encodeCallData({
+        const op = (await smartAccountClient.prepareUserOperation({
+            calls: [
+                {
                     to,
                     value,
                     data: "0x"
-                })
-            }
-        })
+                }
+            ]
+        })) as UserOperation<"0.6">
         op.signature = await smartAccount.signUserOperation(op)
 
         const compressedUserOperation =
+            // @ts-ignore: we know that op is properly typed
             await SIMPLE_INFLATOR_CONTRACT.read.compress([op])
 
         const hash = await pimlicoBundlerClient.sendCompressedUserOperation({
@@ -169,16 +174,17 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
         await new Promise((resolve) => setTimeout(resolve, 1500))
 
         // check that no tx was mined
-        let opReceipt = await pimlicoBundlerClient.getUserOperationReceipt({
-            hash
-        })
-        expect(opReceipt).toBeNull()
+        await expect(async () => {
+            await pimlicoBundlerClient.getUserOperationReceipt({
+                hash
+            })
+        }).rejects.toThrow(UserOperationReceiptNotFoundError)
 
         // new block should trigger alto's mempool to replace the eoa tx with too low gasPrice
         await anvilClient.mine({ blocks: 1 })
         await new Promise((resolve) => setTimeout(resolve, 1500))
 
-        opReceipt = await pimlicoBundlerClient.getUserOperationReceipt({
+        const opReceipt = await pimlicoBundlerClient.getUserOperationReceipt({
             hash
         })
 
@@ -198,38 +204,38 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
 
     test("Send multiple compressedOps", async () => {
         const firstClient = await getSmartAccountClient({
-            entryPoint: ENTRYPOINT_ADDRESS_V06
+            entryPointVersion: "0.6"
         })
         const secondClient = await getSmartAccountClient({
-            entryPoint: ENTRYPOINT_ADDRESS_V06
+            entryPointVersion: "0.6"
         })
 
         const to = "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5"
         const value = parseEther("0.15")
 
         // create sender op
-        const firstOp = await firstClient.prepareUserOperationRequest({
-            userOperation: {
-                callData: await firstClient.account.encodeCallData({
-                    to,
+        const firstOp = (await firstClient.prepareUserOperation({
+            calls: [
+                {
+                    to: "0x0000000000000000000000000000000000000000",
                     value: value,
                     data: "0x"
-                })
-            }
-        })
+                }
+            ]
+        })) as UserOperation<"0.6">
 
         firstOp.signature = await firstClient.account.signUserOperation(firstOp)
 
         // create relayer op
-        const secondOp = await secondClient.prepareUserOperationRequest({
-            userOperation: {
-                callData: await secondClient.account.encodeCallData({
+        const secondOp = (await secondClient.prepareUserOperation({
+            calls: [
+                {
                     to,
                     value,
                     data: "0x"
-                })
-            }
-        })
+                }
+            ]
+        })) as UserOperation<"0.6">
 
         secondOp.signature =
             await secondClient.account.signUserOperation(secondOp)
@@ -237,6 +243,7 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
         await setBundlingMode("manual")
 
         const firstCompressedOp = await SIMPLE_INFLATOR_CONTRACT.read.compress([
+            // @ts-ignore: we know that firstOp is properly typed
             firstOp
         ])
         const firstHash =
@@ -245,6 +252,7 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
                 inflatorAddress: SIMPLE_INFLATOR_CONTRACT.address
             })
         const secondCompressedOp = await SIMPLE_INFLATOR_CONTRACT.read.compress(
+            // @ts-ignore: we know that firstOp is properly typed
             [secondOp]
         )
         const secondHash =
@@ -253,16 +261,16 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
                 inflatorAddress: SIMPLE_INFLATOR_CONTRACT.address
             })
 
-        expect(
+        await expect(async () => {
             await pimlicoBundlerClient.getUserOperationReceipt({
                 hash: firstHash
             })
-        ).toBeNull()
-        expect(
+        }).rejects.toThrow(UserOperationReceiptNotFoundError)
+        await expect(async () => {
             await pimlicoBundlerClient.getUserOperationReceipt({
                 hash: secondHash
             })
-        ).toBeNull()
+        }).rejects.toThrow(UserOperationReceiptNotFoundError)
 
         await sendBundleNow()
 
