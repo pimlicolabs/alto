@@ -997,11 +997,7 @@ export class RpcHandler implements IRpcEndpoint {
             pollingInterval: 100
         })
 
-        const userOperationReceipt = parseUserOperationReceipt(
-            opHash,
-            receipt.logs,
-            receipt
-        )
+        const userOperationReceipt = parseUserOperationReceipt(opHash, receipt)
 
         return userOperationReceipt
     }

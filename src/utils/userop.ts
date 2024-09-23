@@ -27,7 +27,6 @@ import {
     parseAbi,
     encodeEventTopics,
     zeroAddress,
-    type Log,
     type TransactionReceipt,
     parseEventLogs
 } from "viem"
@@ -599,7 +598,6 @@ export const getRequiredPrefund = (userOperation: UserOperation) => {
 
 export function parseUserOperationReceipt(
     userOpHash: Hex,
-    logs: Log<bigint, number, false>[],
     receipt: TransactionReceipt
 ) {
     const userOperationRevertReasonAbi = parseAbi([
@@ -619,7 +617,7 @@ export function parseUserOperationReceipt(
 
     let startIndex = -1
     let endIndex = -1
-    logs.forEach((log, index) => {
+    receipt.logs.forEach((log, index) => {
         if (log?.topics[0] === userOperationEventTopic[0]) {
             // process UserOperationEvent
             if (log.topics[1] === userOpHash) {
@@ -651,7 +649,7 @@ export function parseUserOperationReceipt(
         throw new Error("fatal: no UserOperationEvent in logs")
     }
 
-    const filteredLogs = logs.slice(startIndex + 1, endIndex)
+    const filteredLogs = receipt.logs.slice(startIndex + 1, endIndex)
 
     const logsParsing = z.array(logSchema).safeParse(filteredLogs)
     if (!logsParsing.success) {
@@ -674,7 +672,7 @@ export function parseUserOperationReceipt(
         args: {
             userOpHash
         },
-        logs
+        logs: receipt.logs
     })[0]
 
     let paymaster: Address | undefined = userOperationEvent.args.paymaster

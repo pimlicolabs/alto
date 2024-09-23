@@ -702,7 +702,6 @@ export class ExecutorManager {
 
         const userOperationReceipt = parseUserOperationReceipt(
             userOperationHash,
-            logs,
             receipt
         )
 
