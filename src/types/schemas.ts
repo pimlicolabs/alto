@@ -344,7 +344,7 @@ const pimlicoSendCompressedUserOperationRequestSchema = z.object({
 })
 
 const pimlicoSendInstantBundleRequestSchema = z.object({
-    method: z.literal("pimlico_sendInstantBundle"),
+    method: z.literal("pimlico_sendInstantUserOperation"),
     params: z.tuple([userOperationSchema, addressSchema])
 })
 
@@ -579,7 +579,7 @@ const pimlicoSendCompressedUserOperationResponseSchema = z.object({
 })
 
 const pimlicoSendInstantBundleResponseSchema = z.object({
-    method: z.literal("pimlico_sendInstantBundle"),
+    method: z.literal("pimlico_sendInstantUserOperation"),
     result: userOperationReceiptSchema
 })
 
