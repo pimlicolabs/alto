@@ -307,10 +307,10 @@ export class RpcHandler implements IRpcEndpoint {
                         ...request.params
                     )
                 }
-            case "pimlico_sendInstantUserOperation":
+            case "pimlico_sendUserOperationNow":
                 return {
                     method,
-                    result: await this.pimlico_sendInstantUserOperation(
+                    result: await this.pimlico_sendUserOperationNow(
                         apiVersion,
                         ...request.params
                     )
@@ -936,14 +936,14 @@ export class RpcHandler implements IRpcEndpoint {
         return "queued"
     }
 
-    async pimlico_sendInstantUserOperation(
+    async pimlico_sendUserOperationNow(
         apiVersion: ApiVersion,
         userOperation: UserOperation,
         entryPoint: Address
     ) {
         if (!this.enableInstantBundlingEndpoint) {
             throw new RpcError(
-                "pimlico_sendInstantUserOperation endpoint is not enabled",
+                "pimlico_sendUserOperationNow endpoint is not enabled",
                 ValidationErrors.InvalidFields
             )
         }

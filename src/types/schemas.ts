@@ -343,8 +343,8 @@ const pimlicoSendCompressedUserOperationRequestSchema = z.object({
     params: z.tuple([hexDataSchema, addressSchema, addressSchema])
 })
 
-const pimlicoSendInstantBundleRequestSchema = z.object({
-    method: z.literal("pimlico_sendInstantUserOperation"),
+const pimlicoSendUserOperationNowRequestSchema = z.object({
+    method: z.literal("pimlico_sendUserOperationNow"),
     params: z.tuple([userOperationSchema, addressSchema])
 })
 
@@ -369,7 +369,7 @@ const bundlerRequestSchema = z.discriminatedUnion("method", [
     pimlicoGetUserOperationStatusRequestSchema,
     pimlicoGetUserOperationGasPriceRequestSchema,
     pimlicoSendCompressedUserOperationRequestSchema,
-    pimlicoSendInstantBundleRequestSchema
+    pimlicoSendUserOperationNowRequestSchema
 ])
 
 const chainIdResponseSchema = z.object({
@@ -578,8 +578,8 @@ const pimlicoSendCompressedUserOperationResponseSchema = z.object({
     result: hexData32Schema
 })
 
-const pimlicoSendInstantBundleResponseSchema = z.object({
-    method: z.literal("pimlico_sendInstantUserOperation"),
+const pimlicoSendUserOperationNowResponseSchema = z.object({
+    method: z.literal("pimlico_sendUserOperationNow"),
     result: userOperationReceiptSchema
 })
 
@@ -601,7 +601,7 @@ const bundlerResponseSchema = z.discriminatedUnion("method", [
     pimlicoGetUserOperationStatusResponseSchema,
     pimlicoGetUserOperationGasPriceResponseSchema,
     pimlicoSendCompressedUserOperationResponseSchema,
-    pimlicoSendInstantBundleResponseSchema
+    pimlicoSendUserOperationNowResponseSchema
 ])
 
 export type BundlingMode = z.infer<

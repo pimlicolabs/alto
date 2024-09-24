@@ -21,7 +21,7 @@ describe.each([
         entryPointVersion: "0.7" as EntryPointVersion
     }
 ])(
-    "$entryPointVersion supports pimlico_sendInstantUserOperation",
+    "$entryPointVersion supports pimlico_sendUserOperationNow",
     ({ entryPoint, entryPointVersion }) => {
         beforeEach(async () => {
             await beforeEachCleanUp()
@@ -50,7 +50,7 @@ describe.each([
 
             const receipt = (await bundlerClient.request({
                 // @ts-ignore
-                method: "pimlico_sendInstantUserOperation",
+                method: "pimlico_sendUserOperationNow",
                 params: [deepHexlify(op), entryPoint]
             })) as UserOperationReceipt
 

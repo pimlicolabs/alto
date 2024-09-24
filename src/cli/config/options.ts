@@ -182,7 +182,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
     },
     "enable-instant-bundling-endpoint": {
         description:
-            "Should the bundler enable the pimlico_sendInstantUserOperation endpoint",
+            "Should the bundler enable the pimlico_sendUserOperationNow endpoint",
         type: "boolean",
         default: false
     }
