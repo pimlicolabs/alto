@@ -1,21 +1,21 @@
 import { describe, test, beforeEach, expect } from "vitest"
 import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils"
 import {
+    entryPoint06Address,
     entryPoint07Address,
-    UserOperationExpiredError,
     type EntryPointVersion,
     type UserOperation,
-    UserOperationReceipt
+    type UserOperationReceipt
 } from "viem/account-abstraction"
 import { createClient, http, parseEther } from "viem"
 import { deepHexlify } from "permissionless"
 import { ALTO_RPC } from "../src/constants"
 
 describe.each([
-    //{
-    //    entryPoint: entryPoint06Address,
-    //    entryPointVersion: "0.6" as EntryPointVersion
-    //},
+    {
+        entryPoint: entryPoint06Address,
+        entryPointVersion: "0.6" as EntryPointVersion
+    },
     {
         entryPoint: entryPoint07Address,
         entryPointVersion: "0.7" as EntryPointVersion

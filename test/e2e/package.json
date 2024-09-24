@@ -3,7 +3,7 @@
     "version": "0.0.0",
     "private": true,
     "scripts": {
-        "test": "vitest dev -c ./vitest.config.ts pimlico_sendInstantUserOperation.test.ts",
+        "test": "vitest dev -c ./vitest.config.ts",
         "test:ci": "CI=true && vitest -c ./vitest.config.ts"
     },
     "dependencies": {
