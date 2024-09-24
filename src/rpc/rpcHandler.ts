@@ -987,13 +987,15 @@ export class RpcHandler implements IRpcEndpoint {
 
         const res = result as unknown as {
             status: "success"
-            userOperation: UserOperationInfo
-            transactionInfo: TransactionInfo
+            value: {
+                userOperation: UserOperationInfo
+                transactionInfo: TransactionInfo
+            }
         }
 
         // wait for receipt
         const receipt = await this.publicClient.waitForTransactionReceipt({
-            hash: res.transactionInfo.transactionHash,
+            hash: res.value.transactionInfo.transactionHash,
             pollingInterval: 100
         })
 

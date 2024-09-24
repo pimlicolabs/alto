@@ -23,7 +23,6 @@ import {
     type EntryPointVersion,
     entryPoint06Address,
     entryPoint07Address,
-    UserOperationNotFoundError,
     UserOperationReceiptNotFoundError
 } from "viem/account-abstraction"
 import { encodeNonce } from "permissionless/utils"
