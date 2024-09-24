@@ -11,7 +11,9 @@ import type {
     UserOperationV06,
     GasPriceMultipliers,
     ChainType,
-    UserOperationV07
+    UserOperationV07,
+    UserOperationInfo,
+    TransactionInfo
 } from "@alto/types"
 import {
     EntryPointV06Abi,
@@ -62,6 +64,7 @@ import {
     isVersion06,
     isVersion07,
     maxBigInt,
+    parseUserOperationReceipt,
     toUnpackedUserOperation
 } from "@alto/utils"
 import {
@@ -131,6 +134,7 @@ export class RpcHandler implements IRpcEndpoint {
     gasPriceMultipliers: GasPriceMultipliers
     paymasterGasLimitMultiplier: bigint
     eventManager: EventManager
+    enableInstantBundlingEndpoint: boolean
 
     constructor(
         entryPoints: Address[],
@@ -154,6 +158,7 @@ export class RpcHandler implements IRpcEndpoint {
         chainType: ChainType,
         paymasterGasLimitMultiplier: bigint,
         eventManager: EventManager,
+        enableInstantBundlingEndpoint: boolean,
         dangerousSkipUserOperationValidation = false
     ) {
         this.entryPoints = entryPoints
@@ -179,6 +184,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.chainType = chainType
         this.gasPriceManager = gasPriceManager
         this.paymasterGasLimitMultiplier = paymasterGasLimitMultiplier
+        this.enableInstantBundlingEndpoint = enableInstantBundlingEndpoint
         this.eventManager = eventManager
     }
 
@@ -301,6 +307,14 @@ export class RpcHandler implements IRpcEndpoint {
                         ...request.params
                     )
                 }
+            case "pimlico_sendUserOperationNow":
+                return {
+                    method,
+                    result: await this.pimlico_sendUserOperationNow(
+                        apiVersion,
+                        ...request.params
+                    )
+                }
         }
     }
 
@@ -319,6 +333,47 @@ export class RpcHandler implements IRpcEndpoint {
             throw new RpcError(
                 `${methodName} is only available in development environment`
             )
+        }
+    }
+
+    async preMempoolChecks(
+        opHash: Hex,
+        userOperation: UserOperation,
+        apiVersion: ApiVersion,
+        entryPoint: Address
+    ) {
+        if (
+            this.legacyTransactions &&
+            userOperation.maxFeePerGas !== userOperation.maxPriorityFeePerGas
+        ) {
+            const reason =
+                "maxPriorityFeePerGas must equal maxFeePerGas on chains that don't support EIP-1559"
+            this.eventManager.emitFailedValidation(opHash, reason)
+            throw new RpcError(reason)
+        }
+
+        if (apiVersion !== "v1") {
+            await this.gasPriceManager.validateGasPrice({
+                maxFeePerGas: userOperation.maxFeePerGas,
+                maxPriorityFeePerGas: userOperation.maxPriorityFeePerGas
+            })
+        }
+
+        if (userOperation.verificationGasLimit < 10000n) {
+            const reason = "verificationGasLimit must be at least 10000"
+            this.eventManager.emitFailedValidation(opHash, reason)
+            throw new RpcError(reason)
+        }
+
+        this.logger.trace({ userOperation, entryPoint }, "beginning validation")
+
+        if (
+            userOperation.preVerificationGas === 0n ||
+            userOperation.verificationGasLimit === 0n
+        ) {
+            const reason = "user operation gas limits must be larger than 0"
+            this.eventManager.emitFailedValidation(opHash, reason)
+            throw new RpcError(reason)
         }
     }
 
@@ -773,39 +828,12 @@ export class RpcHandler implements IRpcEndpoint {
             this.chainId
         )
 
-        if (
-            this.legacyTransactions &&
-            userOperation.maxFeePerGas !== userOperation.maxPriorityFeePerGas
-        ) {
-            const reason =
-                "maxPriorityFeePerGas must equal maxFeePerGas on chains that don't support EIP-1559"
-            this.eventManager.emitFailedValidation(opHash, reason)
-            throw new RpcError(reason)
-        }
-
-        if (apiVersion !== "v1") {
-            await this.gasPriceManager.validateGasPrice({
-                maxFeePerGas: userOperation.maxFeePerGas,
-                maxPriorityFeePerGas: userOperation.maxPriorityFeePerGas
-            })
-        }
-
-        if (userOperation.verificationGasLimit < 10000n) {
-            const reason = "verificationGasLimit must be at least 10000"
-            this.eventManager.emitFailedValidation(opHash, reason)
-            throw new RpcError(reason)
-        }
-
-        this.logger.trace({ userOperation, entryPoint }, "beginning validation")
-
-        if (
-            userOperation.preVerificationGas === 0n ||
-            userOperation.verificationGasLimit === 0n
-        ) {
-            const reason = "user operation gas limits must be larger than 0"
-            this.eventManager.emitFailedValidation(opHash, reason)
-            throw new RpcError(reason)
-        }
+        await this.preMempoolChecks(
+            opHash,
+            userOperation,
+            apiVersion,
+            entryPoint
+        )
 
         const currentNonceValue = await this.getNonceValue(
             userOperation,
@@ -906,6 +934,83 @@ export class RpcHandler implements IRpcEndpoint {
 
         this.nonceQueuer.add(op, entryPoint)
         return "queued"
+    }
+
+    async pimlico_sendUserOperationNow(
+        apiVersion: ApiVersion,
+        userOperation: UserOperation,
+        entryPoint: Address
+    ) {
+        if (!this.enableInstantBundlingEndpoint) {
+            throw new RpcError(
+                "pimlico_sendUserOperationNow endpoint is not enabled",
+                ValidationErrors.InvalidFields
+            )
+        }
+
+        this.ensureEntryPointIsSupported(entryPoint)
+
+        const opHash = getUserOperationHash(
+            userOperation,
+            entryPoint,
+            this.chainId
+        )
+
+        await this.preMempoolChecks(
+            opHash,
+            userOperation,
+            apiVersion,
+            entryPoint
+        )
+
+        const result = (
+            await this.executor.bundle(entryPoint, [userOperation])
+        )[0]
+
+        if (result.status === "failure") {
+            const { userOpHash, reason } = result.error
+            this.monitor.setUserOperationStatus(userOpHash, {
+                status: "rejected",
+                transactionHash: null
+            })
+            this.logger.warn(
+                {
+                    userOperation: JSON.stringify(
+                        result.error.userOperation,
+                        (_k, v) => (typeof v === "bigint" ? v.toString() : v)
+                    ),
+                    userOpHash,
+                    reason
+                },
+                "user operation rejected"
+            )
+            this.metrics.userOperationsSubmitted
+                .labels({ status: "failed" })
+                .inc()
+
+            const { error } = result
+            throw new RpcError(
+                `userOperation reverted during simulation with reason: ${error.reason}`
+            )
+        }
+
+        const res = result as unknown as {
+            status: "success"
+            value: {
+                userOperation: UserOperationInfo
+                transactionInfo: TransactionInfo
+            }
+        }
+
+        // wait for receipt
+        const receipt = await this.publicClient.waitForTransactionReceipt({
+            hash: res.value.transactionInfo.transactionHash,
+            pollingInterval: 100
+        })
+
+        const userOperationReceipt = parseUserOperationReceipt(opHash, receipt)
+
+        return userOperationReceipt
     }
 
     async pimlico_sendCompressedUserOperation(

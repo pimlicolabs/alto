@@ -1,13 +1,19 @@
-import { test, describe, expect, beforeAll, beforeEach } from "vitest"
-import { ENTRYPOINT_ADDRESS_V06, BundlerClient } from "permissionless"
+import { test, describe, expect, beforeEach } from "vitest"
 import {
     beforeEachCleanUp,
-    getBundlerClient,
+    getPimlicoClient,
     getSmartAccountClient
 } from "../src/utils"
-import { Hex, createTestClient, http } from "viem"
+import { createTestClient, http } from "viem"
 import { foundry } from "viem/chains"
 import { ANVIL_RPC } from "../src/constants"
+import {
+    type EntryPointVersion,
+    entryPoint06Address,
+    entryPoint07Address,
+    UserOperationNotFoundError,
+    UserOperationReceiptNotFoundError
+} from "viem/account-abstraction"
 
 const anvilClient = createTestClient({
     chain: foundry,
@@ -16,93 +22,90 @@ const anvilClient = createTestClient({
 })
 
 describe.each([
-    { entryPoint: ENTRYPOINT_ADDRESS_V06, version: "v0.6" }
-    //{ entryPoint: ENTRYPOINT_ADDRESS_V07, version: "v0.7" }
-])("$version supports eth_getUserOperationByHash", ({ entryPoint }) => {
-    let bundlerClient: BundlerClient<typeof entryPoint>
-
-    beforeAll(async () => {
-        bundlerClient = getBundlerClient(entryPoint)
-    })
-
-    beforeEach(async () => {
-        await beforeEachCleanUp()
-    })
-
-    test("Return null if hash not found", async () => {
-        const hash =
-            "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-        const response = await bundlerClient.getUserOperationByHash({ hash })
-
-        expect(response).toBeNull()
-    })
-
-    test("Pending UserOperation should return null", async () => {
-        const smartAccountClient = await getSmartAccountClient({
-            entryPoint
+    {
+        entryPoint: entryPoint06Address,
+        entryPointVersion: "0.6" as EntryPointVersion
+    },
+    {
+        entryPoint: entryPoint07Address,
+        entryPointVersion: "0.7" as EntryPointVersion
+    }
+])(
+    "$entryPointVersion supports eth_getUserOperationByHash",
+    ({ entryPoint, entryPointVersion }) => {
+        beforeEach(async () => {
+            await beforeEachCleanUp()
         })
-        const smartAccount = smartAccountClient.account
 
-        await anvilClient.setAutomine(false)
-        await anvilClient.mine({ blocks: 1 })
+        test("Return null if hash not found", async () => {
+            const bundlerClient = getPimlicoClient({
+                entryPointVersion
+            })
 
-        const op = await smartAccountClient.prepareUserOperationRequest({
-            userOperation: {
-                callData: await smartAccountClient.account.encodeCallData({
-                    to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
-                    data: "0x",
-                    value: 0n
+            const hash =
+                "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+
+            await expect(async () => {
+                await bundlerClient.getUserOperation({
+                    hash
                 })
-            }
-        })
-        op.signature = await smartAccount.signUserOperation(op)
-
-        const hash = await bundlerClient.sendUserOperation({
-            userOperation: op
+            }).rejects.toThrow(UserOperationNotFoundError)
         })
 
-        await new Promise((resolve) => setTimeout(resolve, 1500))
+        test("Pending UserOperation should return null", async () => {
+            const smartAccountClient = await getSmartAccountClient({
+                entryPointVersion
+            })
 
-        // check that no tx was mined
-        let opReceipt = await bundlerClient.getUserOperationByHash({
-            hash
-        })
-        expect(opReceipt).toBeNull()
+            await anvilClient.setAutomine(false)
+            await anvilClient.mine({ blocks: 1 })
 
-        await anvilClient.setAutomine(true)
-    })
+            const hash = await smartAccountClient.sendUserOperation({
+                calls: [
+                    {
+                        to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
+                        data: "0x",
+                        value: 0n
+                    }
+                ]
+            })
 
-    test("Return userOperation, entryPoint, blockNum, blockHash, txHash for mined tx", async () => {
-        const smartAccountClient = await getSmartAccountClient({
-            entryPoint
-        })
-        const smartAccount = smartAccountClient.account
+            await new Promise((resolve) => setTimeout(resolve, 1500))
 
-        let op = await smartAccountClient.prepareUserOperationRequest({
-            userOperation: {
-                callData: await smartAccountClient.account.encodeCallData({
-                    to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
-                    data: "0x",
-                    value: 0n
+            await expect(async () => {
+                await smartAccountClient.getUserOperationReceipt({
+                    hash
                 })
-            }
-        })
-        op.signature = await smartAccount.signUserOperation(op)
+            }).rejects.toThrow(UserOperationReceiptNotFoundError)
 
-        const hash = await bundlerClient.sendUserOperation({
-            userOperation: op
+            await anvilClient.setAutomine(true)
         })
 
-        await new Promise((resolve) => setTimeout(resolve, 1500))
+        test("Return userOperation, entryPoint, blockNum, blockHash, txHash for mined tx", async () => {
+            const smartAccountClient = await getSmartAccountClient({
+                entryPointVersion
+            })
 
-        const response = await bundlerClient.getUserOperationByHash({ hash })
+            const hash = await smartAccountClient.sendUserOperation({
+                calls: [
+                    {
+                        to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
+                        data: "0x",
+                        value: 0n
+                    }
+                ]
+            })
 
-        expect(response).not.toBeNull()
-        expect(response?.entryPoint).toBe(entryPoint)
-        expect(response?.blockHash).not.toBeUndefined()
-        expect(response?.transactionHash).not.toBeUndefined()
+            await new Promise((resolve) => setTimeout(resolve, 1500))
 
-        op.initCode = op.initCode.toLowerCase() as Hex
-        expect(response?.userOperation).toEqual(op)
-    })
-})
+            const response = await smartAccountClient.getUserOperation({
+                hash
+            })
+
+            expect(response).not.toBeNull()
+            expect(response?.entryPoint).toBe(entryPoint)
+            expect(response?.blockHash).not.toBeUndefined()
+            expect(response?.transactionHash).not.toBeUndefined()
+        })
+    }
+)

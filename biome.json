@@ -26,6 +26,9 @@
             "all": true,
             "suspicious": {
                 "noExplicitAny": "warn"
+            },
+            "style": {
+                "useNamingConvention": "off"
             }
         }
     },

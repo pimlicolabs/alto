@@ -343,6 +343,11 @@ const pimlicoSendCompressedUserOperationRequestSchema = z.object({
     params: z.tuple([hexDataSchema, addressSchema, addressSchema])
 })
 
+const pimlicoSendUserOperationNowRequestSchema = z.object({
+    method: z.literal("pimlico_sendUserOperationNow"),
+    params: z.tuple([userOperationSchema, addressSchema])
+})
+
 export const altoVersions = z.enum(["v1", "v2"])
 export type AltoVersions = z.infer<typeof altoVersions>
 
@@ -363,7 +368,8 @@ const bundlerRequestSchema = z.discriminatedUnion("method", [
     pimlicoGetStakeStatusRequestSchema,
     pimlicoGetUserOperationStatusRequestSchema,
     pimlicoGetUserOperationGasPriceRequestSchema,
-    pimlicoSendCompressedUserOperationRequestSchema
+    pimlicoSendCompressedUserOperationRequestSchema,
+    pimlicoSendUserOperationNowRequestSchema
 ])
 
 const chainIdResponseSchema = z.object({
@@ -443,23 +449,25 @@ const receiptSchema = z.object({
     //type: hexNumberSchema
 })
 
+const userOperationReceiptSchema = z
+    .object({
+        userOpHash: hexData32Schema,
+        entryPoint: addressSchema,
+        sender: addressSchema,
+        nonce: hexNumberSchema,
+        paymaster: addressSchema.optional(),
+        actualGasCost: hexNumberSchema,
+        actualGasUsed: hexNumberSchema,
+        success: z.boolean(),
+        reason: hexDataSchema.optional(), // revert reason
+        logs: z.array(logSchema),
+        receipt: receiptSchema
+    })
+    .or(z.null())
+
 const getUserOperationReceiptResponseSchema = z.object({
     method: z.literal("eth_getUserOperationReceipt"),
-    result: z
-        .object({
-            userOpHash: hexData32Schema,
-            entryPoint: addressSchema,
-            sender: addressSchema,
-            nonce: hexNumberSchema,
-            paymaster: addressSchema.optional(),
-            actualGasCost: hexNumberSchema,
-            actualGasUsed: hexNumberSchema,
-            success: z.boolean(),
-            reason: hexDataSchema.optional(), // revert reason
-            logs: z.array(logSchema),
-            receipt: receiptSchema
-        })
-        .or(z.null())
+    result: userOperationReceiptSchema
 })
 
 const bundlerClearStateResponseSchema = z.object({
@@ -570,6 +578,11 @@ const pimlicoSendCompressedUserOperationResponseSchema = z.object({
     result: hexData32Schema
 })
 
+const pimlicoSendUserOperationNowResponseSchema = z.object({
+    method: z.literal("pimlico_sendUserOperationNow"),
+    result: userOperationReceiptSchema
+})
+
 const bundlerResponseSchema = z.discriminatedUnion("method", [
     chainIdResponseSchema,
     supportedEntryPointsResponseSchema,
@@ -587,7 +600,8 @@ const bundlerResponseSchema = z.discriminatedUnion("method", [
     bundlerDumpReputationsResponseSchema,
     pimlicoGetUserOperationStatusResponseSchema,
     pimlicoGetUserOperationGasPriceResponseSchema,
-    pimlicoSendCompressedUserOperationResponseSchema
+    pimlicoSendCompressedUserOperationResponseSchema,
+    pimlicoSendUserOperationNowResponseSchema
 ])
 
 export type BundlingMode = z.infer<

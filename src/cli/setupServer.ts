@@ -59,8 +59,7 @@ const getValidator = ({
     logger,
     senderManager,
     metrics,
-    gasPriceManager,
-    walletClient
+    gasPriceManager
 }: {
     client: PublicClient<Transport, Chain>
     parsedArgs: IOptions
@@ -377,6 +376,7 @@ const getRpcHandler = ({
         parsedArgs["chain-type"],
         parsedArgs["paymaster-gas-limit-multiplier"],
         eventManager,
+        parsedArgs["enable-instant-bundling-endpoint"],
         parsedArgs["dangerous-skip-user-operation-validation"]
     )
 }

@@ -17,20 +17,17 @@ import {
     type UserOperation,
     type CompressedUserOperation,
     type UserOperationInfo,
-    EntryPointV06Abi,
-    logSchema,
-    receiptSchema,
-    type GetUserOperationReceiptResponseResult
+    EntryPointV06Abi
 } from "@alto/types"
-import { getAAError, getBundleStatus } from "@alto/utils"
 import {
-    decodeEventLog,
-    encodeEventTopics,
+    getAAError,
+    getBundleStatus,
+    parseUserOperationReceipt
+} from "@alto/utils"
+import {
     getAbiItem,
-    parseAbi,
     type TransactionReceipt,
     TransactionReceiptNotFoundError,
-    zeroAddress,
     type Address,
     type Block,
     type Chain,
@@ -40,8 +37,6 @@ import {
     type WatchBlocksReturnType
 } from "viem"
 import type { Executor, ReplaceTransactionResult } from "./executor"
-import { z } from "zod"
-import { fromZodError } from "zod-validation-error"
 
 function getTransactionsFromUserOperationEntries(
     entries: SubmittedUserOperation[]
@@ -705,83 +700,10 @@ export class ExecutorManager {
             return null
         }
 
-        const userOperationRevertReasonAbi = parseAbi([
-            "event UserOperationRevertReason(bytes32 indexed userOpHash, address indexed sender, uint256 nonce, bytes revertReason)"
-        ])
-
-        const userOperationRevertReasonTopicEvent = encodeEventTopics({
-            abi: userOperationRevertReasonAbi
-        })[0]
-
-        let entryPoint: Address = zeroAddress
-        let revertReason = undefined
-
-        let startIndex = -1
-        let endIndex = -1
-        logs.forEach((log, index) => {
-            if (log?.topics[0] === userOperationEvent.topics[0]) {
-                // process UserOperationEvent
-                if (log.topics[1] === userOperationEvent.topics[1]) {
-                    // it's our userOpHash. save as end of logs array
-                    endIndex = index
-                    entryPoint = log.address
-                } else if (endIndex === -1) {
-                    // it's a different hash. remember it as beginning index, but only if we didn't find our end index yet.
-                    startIndex = index
-                }
-            }
-
-            if (log?.topics[0] === userOperationRevertReasonTopicEvent) {
-                // process UserOperationRevertReason
-                if (log.topics[1] === userOperationEvent.topics[1]) {
-                    // it's our userOpHash. capture revert reason.
-                    const decodedLog = decodeEventLog({
-                        abi: userOperationRevertReasonAbi,
-                        data: log.data,
-                        topics: log.topics
-                    })
-
-                    revertReason = decodedLog.args.revertReason
-                }
-            }
-        })
-        if (endIndex === -1) {
-            throw new Error("fatal: no UserOperationEvent in logs")
-        }
-
-        const filteredLogs = logs.slice(startIndex + 1, endIndex)
-
-        const logsParsing = z.array(logSchema).safeParse(filteredLogs)
-        if (!logsParsing.success) {
-            const err = fromZodError(logsParsing.error)
-            throw err
-        }
-
-        const receiptParsing = receiptSchema.safeParse({
-            ...receipt,
-            status: receipt.status === "success" ? 1 : 0
-        })
-        if (!receiptParsing.success) {
-            const err = fromZodError(receiptParsing.error)
-            throw err
-        }
-
-        let paymaster: Address | undefined = userOperationEvent.args.paymaster
-        paymaster = paymaster === zeroAddress ? undefined : paymaster
-
-        const userOperationReceipt: GetUserOperationReceiptResponseResult = {
-            userOpHash: userOperationHash,
-            entryPoint,
-            sender: userOperationEvent.args.sender,
-            nonce: userOperationEvent.args.nonce,
-            paymaster,
-            actualGasUsed: userOperationEvent.args.actualGasUsed,
-            actualGasCost: userOperationEvent.args.actualGasCost,
-            success: userOperationEvent.args.success,
-            reason: revertReason,
-            logs: logsParsing.data,
-            receipt: receiptParsing.data
-        }
+        const userOperationReceipt = parseUserOperationReceipt(
+            userOperationHash,
+            receipt
+        )
 
         return userOperationReceipt
     }
