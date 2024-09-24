@@ -134,6 +134,7 @@ export class RpcHandler implements IRpcEndpoint {
     gasPriceMultipliers: GasPriceMultipliers
     paymasterGasLimitMultiplier: bigint
     eventManager: EventManager
+    enableInstantBundlingEndpoint: boolean
 
     constructor(
         entryPoints: Address[],
@@ -157,6 +158,7 @@ export class RpcHandler implements IRpcEndpoint {
         chainType: ChainType,
         paymasterGasLimitMultiplier: bigint,
         eventManager: EventManager,
+        enableInstantBundlingEndpoint: boolean,
         dangerousSkipUserOperationValidation = false
     ) {
         this.entryPoints = entryPoints
@@ -182,6 +184,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.chainType = chainType
         this.gasPriceManager = gasPriceManager
         this.paymasterGasLimitMultiplier = paymasterGasLimitMultiplier
+        this.enableInstantBundlingEndpoint = enableInstantBundlingEndpoint
         this.eventManager = eventManager
     }
 
@@ -939,6 +942,13 @@ export class RpcHandler implements IRpcEndpoint {
         userOperation: UserOperation,
         entryPoint: Address
     ) {
+        if (!this.enableInstantBundlingEndpoint) {
+            throw new RpcError(
+                "pimlico_sendInstantUserOperation endpoint is not enabled",
+                ValidationErrors.InvalidFields
+            )
+        }
+
         this.ensureEntryPointIsSupported(entryPoint)
 
         const opHash = getUserOperationHash(

@@ -179,6 +179,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "string",
         require: false,
         default: "125"
+    },
+    "enable-instant-bundling-endpoint": {
+        description:
+            "Should the bundler enable the pimlico_sendInstantUserOperation endpoint",
+        type: "boolean",
+        default: false
     }
 }
 
