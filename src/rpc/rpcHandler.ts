@@ -336,7 +336,6 @@ export class RpcHandler implements IRpcEndpoint {
         }
     }
 
-    // checks done before mempool goes through simulation
     async preMempoolChecks(
         opHash: Hex,
         userOperation: UserOperation,
