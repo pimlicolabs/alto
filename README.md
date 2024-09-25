@@ -1,6 +1,6 @@
 <p align="center"><a href="https://docs.pimlico/reference/bundler"><img width="1000" title="Alto" src='https://i.imgur.com/qgVAdjN.png' /></a></p>
 
-# ⛰️ Alto ⛰️ 
+# ⛰️ Alto ⛰️
 
 ![Node Version](https://img.shields.io/badge/node-20.x-green)
 
@@ -14,14 +14,16 @@ For a full explanation of Alto, please visit our [docs page](https://docs.pimlic
 ```bash
 pnpm install
 pnpm build
-./alto --entryPoint "0x5ff1...2789" --signerPrivateKeys "..." --utilityPrivateKey "..." --minBalance "0" --rpcUrl "http://localhost:8545" --networkName "local"
+./alto --entrypoints "0x5ff1...2789,0x0000...a032" --executor-private-keys "..." --utility-private-key "..." --min-balance "0" --rpc-url "http://localhost:8545" --network-name "local"
 ```
-To find a list of all options, run: 
+To find a list of all options, run:
 ```bash
 ./alto help
 ```
 
-A helper script for running Alto locally with an Anvil node can be found at [scripts/run-local-instance.sh](scripts/README.md)
+A helper script for running Alto locally with an Anvil node can be found at [scripts/run-local-instance.sh](scripts/README.md).
+
+A comprehensive guide for self-hosting Alto can be found [here](https://docs.pimlico.io/infra/bundler/self-host).
 
 #### Run the test suite with the following commands:
 ```bash
