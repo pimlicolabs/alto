@@ -3,7 +3,8 @@ import {
     createTestClient,
     createWalletClient,
     createPublicClient,
-    type Address
+    type Address,
+    type Hex
 } from "viem"
 import { mnemonicToAccount } from "viem/accounts"
 import { foundry } from "viem/chains"
@@ -37,24 +38,10 @@ const DETERMINISTIC_DEPLOYER = "0x4e59b44847b379578588920ca78fbf26c0b4956c"
 const SAFE_SINGLETON_FACTORY = "0x914d7Fec6aaC8cd542e72Bca78B30650d45643d7"
 const BICONOMY_SINGLETON_FACTORY = "0x988C135a1049Ce61730724afD342fb7C56CD2776"
 
-const verifyDeployed = async (addresses: Address[]) => {
-    const publicClient = createPublicClient({
-        chain: foundry,
-        transport: http("http://127.0.0.1:8545")
-    })
-
-    for (const address of addresses) {
-        const bytecode = await publicClient.getBytecode({
-            address
-        })
-
-        if (bytecode === undefined) {
-            // biome-ignore lint/suspicious/noConsoleLog: it is oke
-            console.log(`CONTRACT ${address} NOT DEPLOYED!!!`)
-            process.exit(1)
-        }
-    }
-}
+const publicClient = createPublicClient({
+    chain: foundry,
+    transport: http("http://127.0.0.1:8545")
+})
 
 const walletClient = createWalletClient({
     account: mnemonicToAccount(
@@ -69,208 +56,245 @@ const anvilClient = createTestClient({
     mode: "anvil"
 })
 
+const verifyDeployed = async (addresses: Address[]) => {
+    for (const address of addresses) {
+        const bytecode = await publicClient.getBytecode({
+            address
+        })
+
+        if (bytecode === undefined) {
+            // biome-ignore lint/suspicious/noConsoleLog: it is oke
+            console.log(`CONTRACT ${address} NOT DEPLOYED!!!`)
+            process.exit(1)
+        }
+    }
+}
+
 const main = async () => {
     // biome-ignore lint/suspicious/noConsoleLog: []
     console.log("========== DEPLOYING V0.7 CORE CONTRACTS ==========")
 
-    await walletClient
-        .sendTransaction({
+    const txs: Hex[] = []
+
+    txs.push(
+        await walletClient.sendTransaction({
             to: DETERMINISTIC_DEPLOYER,
             data: ENTRY_POINT_V07_CREATECALL,
             gas: 15_000_000n
         })
-        .then(() => console.log("Deployed EntryPoint V0.7"))
+    )
+    console.log("Deployed EntryPoint V0.7")
 
-    await walletClient
-        .sendTransaction({
+    txs.push(
+        await walletClient.sendTransaction({
             to: DETERMINISTIC_DEPLOYER,
             data: SIMPLE_ACCOUNT_FACTORY_V07_CREATECALL,
             gas: 15_000_000n
         })
-        .then(() => console.log("Deployed SimpleAccountFactory v0.7"))
+    )
+    console.log("Deployed SimpleAccountFactory v0.7")
 
-    await walletClient
-        .sendTransaction({
+    txs.push(
+        await walletClient.sendTransaction({
             to: DETERMINISTIC_DEPLOYER,
             data: ENTRY_POINT_SIMULATIONS_CREATECALL,
             gas: 15_000_000n
         })
-        .then(() => console.log("Deployed EntryPointSimulations"))
+    )
+    console.log("Deployed EntryPointSimulations")
 
     // biome-ignore lint/suspicious/noConsoleLog: []
     console.log("========== DEPLOYING V0.6 CORE CONTRACTS ==========")
 
-    await walletClient
-        .sendTransaction({
+    txs.push(
+        await walletClient.sendTransaction({
             to: DETERMINISTIC_DEPLOYER,
             data: ENTRY_POINT_V06_CREATECALL,
             gas: 15_000_000n
         })
-        .then(() => console.log("Deployed EntryPoint v0.6"))
+    )
+    console.log("Deployed EntryPoint v0.6")
 
-    await walletClient
-        .sendTransaction({
+    txs.push(
+        await walletClient.sendTransaction({
             to: DETERMINISTIC_DEPLOYER,
             data: SIMPLE_ACCOUNT_FACTORY_V06_CREATECALL,
             gas: 15_000_000n
         })
-        .then(() => console.log("Deployed SimpleAccountFactory v0.6"))
+    )
+    console.log("Deployed SimpleAccountFactory v0.6")
 
     // biome-ignore lint/suspicious/noConsoleLog: []
     console.log("========== DEPLOYING SAFE CONTRACTS ==========")
 
-    await walletClient
-        .sendTransaction({
+    txs.push(
+        await walletClient.sendTransaction({
             to: DETERMINISTIC_DEPLOYER,
             data: SAFE_V06_MODULE_SETUP_CREATECALL,
             gas: 15_000_000n
         })
-        .then(() => console.log("Deployed v0.6 Safe Module Setup"))
+    )
+    console.log("Deployed v0.6 Safe Module Setup")
 
-    await walletClient
-        .sendTransaction({
+    txs.push(
+        await walletClient.sendTransaction({
             to: DETERMINISTIC_DEPLOYER,
             data: SAFE_V06_MODULE_CREATECALL,
             gas: 15_000_000n
         })
-        .then(() => console.log("Deployed v0.6 Safe 4337 Module"))
+    )
+    console.log("Deployed v0.6 Safe 4337 Module")
 
-    await walletClient
-        .sendTransaction({
+    txs.push(
+        await walletClient.sendTransaction({
             to: DETERMINISTIC_DEPLOYER,
             data: SAFE_V07_MODULE_SETUP_CREATECALL,
             gas: 15_000_000n
         })
-        .then(() => console.log("Deployed v0.7 Safe Module Setup"))
+    )
+    console.log("Deployed v0.7 Safe Module Setup")
 
-    await walletClient
-        .sendTransaction({
+    txs.push(
+        await walletClient.sendTransaction({
             to: DETERMINISTIC_DEPLOYER,
             data: SAFE_V07_MODULE_CREATECALL,
             gas: 15_000_000n
         })
-        .then(() => console.log("Deployed v0.7 Safe 4337 Module"))
+    )
+    console.log("Deployed v0.7 Safe 4337 Module")
 
-    await anvilClient
-        .setCode({
-            address: SAFE_SINGLETON_FACTORY,
-            bytecode: SAFE_SINGLETON_FACTORY_BYTECODE
-        })
-        .then(() => console.log("Etched Safe Singleton Factory Bytecode"))
+    await anvilClient.setCode({
+        address: SAFE_SINGLETON_FACTORY,
+        bytecode: SAFE_SINGLETON_FACTORY_BYTECODE
+    })
+    console.log("Etched Safe Singleton Factory Bytecode")
 
-    await walletClient
-        .sendTransaction({
+    txs.push(
+        await walletClient.sendTransaction({
             to: SAFE_SINGLETON_FACTORY,
             data: SAFE_PROXY_FACTORY_CREATECALL,
             gas: 15_000_000n
         })
-        .then(() => console.log("Deployed Safe Proxy Factory"))
+    )
+    console.log("Deployed Safe Proxy Factory")
 
-    await walletClient
-        .sendTransaction({
+    txs.push(
+        await walletClient.sendTransaction({
             to: SAFE_SINGLETON_FACTORY,
             data: SAFE_SINGLETON_CREATECALL,
             gas: 15_000_000n
         })
-        .then(() => console.log("Deployed Safe Singleton"))
+    )
+    console.log("Deployed Safe Singleton")
 
-    await walletClient
-        .sendTransaction({
+    txs.push(
+        await walletClient.sendTransaction({
             to: SAFE_SINGLETON_FACTORY,
             data: SAFE_MULTI_SEND_CREATECALL,
             gas: 15_000_000n
         })
-        .then(() => console.log("Deployed Safe Multi Send"))
+    )
+    console.log("Deployed Safe Multi Send")
 
-    await walletClient
-        .sendTransaction({
+    txs.push(
+        await walletClient.sendTransaction({
             to: SAFE_SINGLETON_FACTORY,
             data: SAFE_MULTI_SEND_CALL_ONLY_CREATECALL,
             gas: 15_000_000n
         })
-        .then(() => console.log("Deployed Safe Multi Send Call Only"))
+    )
+    console.log("Deployed Safe Multi Send Call Only")
 
     // biome-ignore lint/suspicious/noConsoleLog: []
     console.log("========== DEPLOYING BICONOMY CONTRACTS ==========")
 
-    await anvilClient
-        .setCode({
-            address: BICONOMY_SINGLETON_FACTORY,
-            bytecode: BICONOMY_SINGLETON_FACTORY_BYTECODE
-        })
-        .then(() => console.log("Etched Biconomy Singleton Factory Bytecode"))
+    await anvilClient.setCode({
+        address: BICONOMY_SINGLETON_FACTORY,
+        bytecode: BICONOMY_SINGLETON_FACTORY_BYTECODE
+    })
+    console.log("Etched Biconomy Singleton Factory Bytecode")
 
-    await walletClient
-        .sendTransaction({
+    txs.push(
+        await walletClient.sendTransaction({
             to: BICONOMY_SINGLETON_FACTORY,
             data: BICONOMY_ECDSA_OWNERSHIP_REGISTRY_MOUDULE_CREATECALL,
             gas: 15_000_000n
         })
-        .then(() =>
-            console.log("Deployed Biconomy ECDSA Ownership Registry Module")
-        )
+    )
+    console.log("Deployed Biconomy ECDSA Ownership Registry Module")
 
-    await walletClient
-        .sendTransaction({
+    txs.push(
+        await walletClient.sendTransaction({
             to: BICONOMY_SINGLETON_FACTORY,
             data: BICONOMY_ACCOUNT_V2_LOGIC_CREATECALL,
             gas: 15_000_000n
         })
-        .then(() => console.log("Deployed Biconomy Account V0.2 Logic"))
+    )
+    console.log("Deployed Biconomy Account V0.2 Logic")
 
-    await walletClient
-        .sendTransaction({
+    txs.push(
+        await walletClient.sendTransaction({
             to: BICONOMY_SINGLETON_FACTORY,
             data: BICONOMY_FACTORY_CREATECALL,
             gas: 15_000_000n
         })
-        .then(() => console.log("Deployed Biconomy Factory"))
+    )
+    console.log("Deployed Biconomy Factory")
 
-    await walletClient
-        .sendTransaction({
+    txs.push(
+        await walletClient.sendTransaction({
             to: BICONOMY_SINGLETON_FACTORY,
             data: BICONOMY_DEFAULT_FALLBACK_HANDLER_CREATECALL,
             gas: 15_000_000n
         })
-        .then(() => console.log("Deployed Biconomy Default Fallback Handler"))
+    )
+    console.log("Deployed Biconomy Default Fallback Handler")
 
     // biome-ignore lint/suspicious/noConsoleLog: []
     console.log("========== DEPLOYING KERNEL CONTRACTS ==========")
 
-    await walletClient
-        .sendTransaction({
+    txs.push(
+        await walletClient.sendTransaction({
             to: DETERMINISTIC_DEPLOYER,
             data: KERNEL_ECDSA_VALIDATOR_CREATECALL,
             gas: 15_000_000n
         })
-        .then(() => console.log("Deployed ECDSA Validator"))
+    )
+    console.log("Deployed ECDSA Validator")
 
-    await walletClient
-        .sendTransaction({
+    txs.push(
+        await walletClient.sendTransaction({
             to: DETERMINISTIC_DEPLOYER,
             data: KERNEL_ACCOUNT_V2_2_LOGIC_CREATECALL,
             gas: 15_000_000n
         })
-        .then(() => console.log("Deployed Account V2 Logic"))
+    )
+    console.log("Deployed Account V2 Logic")
 
-    await walletClient
-        .sendTransaction({
+    txs.push(
+        await walletClient.sendTransaction({
             to: DETERMINISTIC_DEPLOYER,
             data: KERNEL_FACTORY_CREATECALL,
             gas: 15_000_000n
         })
-        .then(() => console.log("Deployed Kernel Factory"))
+    )
+    console.log("Deployed Kernel Factory")
 
     // biome-ignore lint/suspicious/noConsoleLog: []
     console.log("========== MISC ==========")
 
-    await anvilClient
-        .setCode({
-            address: "0xcA11bde05977b3631167028862bE2a173976CA11",
-            bytecode: MULTICALL3_BYTECODE
-        })
-        .then(() => console.log("Etched Multicall Factory Bytecode"))
+    await anvilClient.setCode({
+        address: "0xcA11bde05977b3631167028862bE2a173976CA11",
+        bytecode: MULTICALL3_BYTECODE
+    })
+    console.log("Etched Multicall Factory Bytecode")
 
+    console.log("Waiting for transactions...")
+    for (const hash of txs) {
+        await publicClient.waitForTransactionReceipt({ hash })
+    }
+
+    console.log("Verifying deployments...")
     await verifyDeployed([
         "0x4e59b44847b379578588920ca78fbf26c0b4956c",
         "0x914d7Fec6aaC8cd542e72Bca78B30650d45643d7",
@@ -297,6 +321,8 @@ const main = async () => {
         "0x5de4839a76cf55d0c90e2061ef4386d962E15ae3",
         "0xca11bde05977b3631167028862be2a173976ca11"
     ])
+
+    console.log("Done!")
 }
 
-main()
+main().then(() => process.exit(0))
