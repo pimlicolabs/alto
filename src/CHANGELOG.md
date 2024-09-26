@@ -1,5 +1,11 @@
 # @pimlico/alto
 
+## 0.0.6
+
+### Patch Changes
+
+- 9a7b8fcd614a0076f4da5091f31b453ae3ca3ebc: Fixed bug where fixed 5m gas limit was used for bundle transaction instead of `max-gas-limit-per-bundle`
+
 ## 0.0.5
 
 ### Patch Changes
