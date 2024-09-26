@@ -6,7 +6,7 @@ import {
 } from "@alto/types"
 import { maxBigInt, minBigInt, type Logger } from "@alto/utils"
 import * as sentry from "@sentry/node"
-import { parseGwei, type Chain, type PublicClient } from "viem"
+import { parseGwei, type Chain, type PublicClient, maxUint128 } from "viem"
 import {
     celo,
     celoAlfajores,
@@ -36,6 +36,77 @@ function getGasStationUrl(chainId: ChainId.Polygon | ChainId.Mumbai): string {
     }
 }
 
+class ArbitrumManager {
+    private queueL1BaseFee: { timestamp: number; baseFee: bigint }[]
+    private queueL2BaseFee: { timestamp: number; baseFee: bigint }[]
+
+    private maxQueueSize
+    private queueValidity = 15_000
+
+    constructor(maxQueueSize: number) {
+        this.maxQueueSize = maxQueueSize
+        this.queueL1BaseFee = []
+        this.queueL2BaseFee = []
+    }
+
+    public saveL1BaseFee(baseFee: bigint) {
+        const queue = this.queueL1BaseFee
+        const last = queue.length > 0 ? queue[queue.length - 1] : null
+        const timestamp = Date.now()
+
+        if (!last || timestamp - last.timestamp >= this.queueValidity) {
+            if (queue.length >= this.maxQueueSize) {
+                queue.shift()
+            }
+            queue.push({ baseFee, timestamp })
+        } else if (baseFee < last.baseFee) {
+            last.baseFee = baseFee
+            last.timestamp = timestamp
+        }
+    }
+
+    public saveL2BaseFee(baseFee: bigint) {
+        const queue = this.queueL2BaseFee
+        const last = queue.length > 0 ? queue[queue.length - 1] : null
+        const timestamp = Date.now()
+
+        if (!last || timestamp - last.timestamp >= this.queueValidity) {
+            if (queue.length >= this.maxQueueSize) {
+                queue.shift()
+            }
+            queue.push({ baseFee, timestamp })
+        } else if (baseFee < last.baseFee) {
+            last.baseFee = baseFee
+            last.timestamp = timestamp
+        }
+    }
+
+    public async getMinL1BaseFee() {
+        const queue = this.queueL1BaseFee
+
+        if (queue.length === 0) {
+            return 1n
+        }
+        return queue.reduce(
+            (acc: bigint, cur) => minBigInt(cur.baseFee, acc),
+            queue[0].baseFee
+        )
+    }
+
+    public async getMaxL2BaseFee() {
+        const queue = this.queueL2BaseFee
+
+        if (queue.length === 0) {
+            return maxUint128
+        }
+
+        return queue.reduce(
+            (acc: bigint, cur) => maxBigInt(cur.baseFee, acc),
+            queue[0].baseFee
+        )
+    }
+}
+
 export class GasPriceManager {
     private chain: Chain
     private publicClient: PublicClient
@@ -53,6 +124,7 @@ export class GasPriceManager {
     private gasBumpMultiplier: bigint
     private gasPriceRefreshIntervalInSeconds: number
     private chainType: ChainType
+    public arbitrumManager: ArbitrumManager
 
     constructor(
         chain: Chain,
@@ -83,6 +155,8 @@ export class GasPriceManager {
                 this.updateGasPrice()
             }, this.gasPriceRefreshIntervalInSeconds * 1000)
         }
+
+        this.arbitrumManager = new ArbitrumManager(this.maxQueueSize)
     }
 
     public init() {
