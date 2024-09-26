@@ -330,6 +330,7 @@ export async function calcPreVerificationGas(
         preVerificationGas = await calcArbitrumPreVerificationGas(
             publicClient,
             userOperation,
+            validate,
             entryPoint,
             preVerificationGas
         )
@@ -582,6 +583,7 @@ const getArbitrumL1FeeAbi = [
 export async function calcArbitrumPreVerificationGas(
     publicClient: PublicClient<Transport, Chain | undefined>,
     op: UserOperation,
+    validate: boolean,
     entryPoint: Address,
     staticFee: bigint
 ) {
@@ -649,7 +651,13 @@ export async function calcArbitrumPreVerificationGas(
         serializedTx
     ])
 
-    return result[0] + staticFee
+    let gasForL1 = result[0]
+
+    if (validate) {
+        gasForL1 = (gasForL1 * 80n) / 100n
+    }
+
+    return staticFee + gasForL1
 }
 
 export function parseViemError(err: unknown) {
