@@ -664,10 +664,10 @@ export async function calcArbitrumPreVerificationGas(
 
         const minL1BaseFeeEstimate =
             await gasPriceManager.arbitrumManager.getMinL1BaseFee()
-        const maxBaseFee =
+        const maxL2BaseFee =
             await gasPriceManager.arbitrumManager.getMaxL2BaseFee()
 
-        gasForL1 = (feesForL1 * minL1BaseFeeEstimate) / maxBaseFee
+        gasForL1 = (feesForL1 * minL1BaseFeeEstimate) / maxL2BaseFee
     }
 
     return staticFee + gasForL1
