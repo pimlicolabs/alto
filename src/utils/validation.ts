@@ -330,9 +330,10 @@ export async function calcPreVerificationGas(
         preVerificationGas = await calcArbitrumPreVerificationGas(
             publicClient,
             userOperation,
-            validate,
             entryPoint,
-            preVerificationGas
+            preVerificationGas,
+            gasPriceManager,
+            validate
         )
     }
 
@@ -583,9 +584,10 @@ const getArbitrumL1FeeAbi = [
 export async function calcArbitrumPreVerificationGas(
     publicClient: PublicClient<Transport, Chain | undefined>,
     op: UserOperation,
-    validate: boolean,
     entryPoint: Address,
-    staticFee: bigint
+    staticFee: bigint,
+    gasPriceManager: GasPriceManager,
+    validate: boolean
 ) {
     let selector: Hex
     let paramData: Hex
@@ -651,10 +653,21 @@ export async function calcArbitrumPreVerificationGas(
         serializedTx
     ])
 
-    let gasForL1 = result[0]
+    let [gasForL1, l2BaseFee, l1BaseFeeEstimate] = result
+
+    gasPriceManager.arbitrumManager.saveL1BaseFee(l1BaseFeeEstimate)
+    gasPriceManager.arbitrumManager.saveL2BaseFee(l2BaseFee)
 
     if (validate) {
-        gasForL1 = (gasForL1 * 80n) / 100n
+        // gasEstimateL1Component source: https://github.com/OffchainLabs/nitro/blob/5cd7d6913eb6b4dedb08f6ea49d7f9802d2cc5b9/execution/nodeInterface/NodeInterface.go#L515-L551
+        const feesForL1 = (gasForL1 * l2BaseFee) / l1BaseFeeEstimate
+
+        const minL1BaseFeeEstimate =
+            await gasPriceManager.arbitrumManager.getMinL1BaseFee()
+        const maxBaseFee =
+            await gasPriceManager.arbitrumManager.getMaxL2BaseFee()
+
+        gasForL1 = (feesForL1 * minL1BaseFeeEstimate) / maxBaseFee
     }
 
     return staticFee + gasForL1
