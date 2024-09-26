@@ -297,7 +297,7 @@ export class ExecutorManager {
         const opsToBundle: UserOperationInfo[][] = []
 
         while (true) {
-            const ops = await this.mempool.process(5_000_000n, 1)
+            const ops = await this.mempool.process(this.maxGasLimitPerBundle, 1)
             if (ops?.length > 0) {
                 opsToBundle.push(ops)
             } else {
