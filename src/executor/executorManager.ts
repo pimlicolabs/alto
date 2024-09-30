@@ -522,6 +522,7 @@ export class ExecutorManager {
             opInfos.map(({ userOperationHash }) => {
                 this.mempool.removeSubmitted(userOperationHash)
             })
+            this.executor.markWalletProcessed(transactionInfo.executor)
         }
     }
 
