@@ -441,11 +441,11 @@ export class ExecutorManager {
                 transactionHash: `0x${string}`
             }
 
-        this.metrics.userOperationsOnChain
-            .labels({ status: bundlingStatus.status })
-            .inc(opInfos.length)
-
         if (bundlingStatus.status === "included") {
+            this.metrics.userOperationsOnChain
+                .labels({ status: bundlingStatus.status })
+                .inc(opInfos.length)
+
             const { userOperationDetails } = bundlingStatus
             opInfos.map((opInfo) => {
                 const {
@@ -506,6 +506,7 @@ export class ExecutorManager {
             opInfos.map(({ userOperationHash }) => {
                 this.mempool.removeSubmitted(userOperationHash)
             })
+
             await this.replaceTransaction(transactionInfo, "AA95")
         } else {
             await Promise.all(
@@ -517,6 +518,10 @@ export class ExecutorManager {
                     })
                 })
             )
+
+            opInfos.map(({ userOperationHash }) => {
+                this.mempool.removeSubmitted(userOperationHash)
+            })
         }
     }
 
@@ -559,6 +564,10 @@ export class ExecutorManager {
                             },
                             "user op frontrun onchain"
                         )
+
+                        this.metrics.userOperationsOnChain
+                            .labels({ status: "included" })
+                            .inc(1)
                     } else {
                         this.monitor.setUserOperationStatus(userOperationHash, {
                             status: "rejected",
@@ -576,6 +585,10 @@ export class ExecutorManager {
                             },
                             "user op failed onchain"
                         )
+
+                        this.metrics.userOperationsOnChain
+                            .labels({ status: "reverted" })
+                            .inc(1)
                     }
                     unwatch()
                 }
