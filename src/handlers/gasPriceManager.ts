@@ -50,6 +50,10 @@ class ArbitrumManager {
     }
 
     public saveL1BaseFee(baseFee: bigint) {
+        if (baseFee === 0n) {
+            return
+        }
+
         const queue = this.queueL1BaseFee
         const last = queue.length > 0 ? queue[queue.length - 1] : null
         const timestamp = Date.now()
@@ -66,6 +70,10 @@ class ArbitrumManager {
     }
 
     public saveL2BaseFee(baseFee: bigint) {
+        if (baseFee === 0n) {
+            return
+        }
+
         const queue = this.queueL2BaseFee
         const last = queue.length > 0 ? queue[queue.length - 1] : null
         const timestamp = Date.now()
