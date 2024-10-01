@@ -93,6 +93,19 @@ class ArbitrumManager {
         )
     }
 
+    public async getMaxL1BaseFee() {
+        const queue = this.queueL1BaseFee
+
+        if (queue.length === 0) {
+            return maxUint128
+        }
+
+        return queue.reduce(
+            (acc: bigint, cur) => maxBigInt(cur.baseFee, acc),
+            queue[0].baseFee
+        )
+    }
+
     public async getMaxL2BaseFee() {
         const queue = this.queueL2BaseFee
 
