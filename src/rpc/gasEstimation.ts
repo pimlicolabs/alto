@@ -129,10 +129,10 @@ export async function simulateHandleOpV06(
             .union([
                 z.object({
                     code: z.literal(3),
-                    message: z.string().regex(/execution reverted.*/),
+                    message: z.string(),
                     data: hexDataSchema
                 }),
-                /* fuse rpcs return weird values, this accounts for that. */
+                /* Fuse RPCs return in this format. */
                 z.object({
                     code: z.number(),
                     message: z.string().regex(/VM execution error.*/),
