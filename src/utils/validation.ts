@@ -28,8 +28,7 @@ import {
     getContract,
     serializeTransaction,
     toBytes,
-    toFunctionSelector,
-    maxUint256
+    toFunctionSelector
 } from "viem"
 import { baseGoerli, baseSepolia, base } from "viem/chains"
 import { isVersion06, toPackedUserOperation } from "./userop"
