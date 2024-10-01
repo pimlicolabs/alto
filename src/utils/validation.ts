@@ -28,7 +28,8 @@ import {
     getContract,
     serializeTransaction,
     toBytes,
-    toFunctionSelector
+    toFunctionSelector,
+    maxUint256
 } from "viem"
 import { baseGoerli, baseSepolia, base } from "viem/chains"
 import { isVersion06, toPackedUserOperation } from "./userop"
@@ -660,7 +661,9 @@ export async function calcArbitrumPreVerificationGas(
 
     if (validate) {
         // gasEstimateL1Component source: https://github.com/OffchainLabs/nitro/blob/5cd7d6913eb6b4dedb08f6ea49d7f9802d2cc5b9/execution/nodeInterface/NodeInterface.go#L515-L551
-        const feesForL1 = (gasForL1 * l2BaseFee) / l1BaseFeeEstimate
+        const l1BaseFee =
+            l1BaseFeeEstimate === 0n ? maxUint256 : l1BaseFeeEstimate
+        const feesForL1 = (gasForL1 * l2BaseFee) / l1BaseFee
 
         const minL1BaseFeeEstimate =
             await gasPriceManager.arbitrumManager.getMinL1BaseFee()
