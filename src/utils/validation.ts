@@ -659,6 +659,11 @@ export async function calcArbitrumPreVerificationGas(
     gasPriceManager.arbitrumManager.saveL2BaseFee(l2BaseFee)
 
     if (validate) {
+        if (l1BaseFeeEstimate === 0n) {
+            l1BaseFeeEstimate =
+                await gasPriceManager.arbitrumManager.getMaxL1BaseFee()
+        }
+
         // gasEstimateL1Component source: https://github.com/OffchainLabs/nitro/blob/5cd7d6913eb6b4dedb08f6ea49d7f9802d2cc5b9/execution/nodeInterface/NodeInterface.go#L515-L551
         const feesForL1 = (gasForL1 * l2BaseFee) / l1BaseFeeEstimate
 

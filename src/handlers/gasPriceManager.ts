@@ -50,6 +50,10 @@ class ArbitrumManager {
     }
 
     public saveL1BaseFee(baseFee: bigint) {
+        if (baseFee === 0n) {
+            return
+        }
+
         const queue = this.queueL1BaseFee
         const last = queue.length > 0 ? queue[queue.length - 1] : null
         const timestamp = Date.now()
@@ -66,6 +70,10 @@ class ArbitrumManager {
     }
 
     public saveL2BaseFee(baseFee: bigint) {
+        if (baseFee === 0n) {
+            return
+        }
+
         const queue = this.queueL2BaseFee
         const last = queue.length > 0 ? queue[queue.length - 1] : null
         const timestamp = Date.now()
@@ -89,6 +97,19 @@ class ArbitrumManager {
         }
         return queue.reduce(
             (acc: bigint, cur) => minBigInt(cur.baseFee, acc),
+            queue[0].baseFee
+        )
+    }
+
+    public async getMaxL1BaseFee() {
+        const queue = this.queueL1BaseFee
+
+        if (queue.length === 0) {
+            return maxUint128
+        }
+
+        return queue.reduce(
+            (acc: bigint, cur) => maxBigInt(cur.baseFee, acc),
             queue[0].baseFee
         )
     }
