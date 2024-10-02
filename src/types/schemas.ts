@@ -1,4 +1,4 @@
-import { type Hash, type Hex, getAddress, maxUint256 } from "viem"
+import { type Hash, type Hex, getAddress, maxUint256, size } from "viem"
 import { z } from "zod"
 import type { MempoolUserOperation } from "./mempool"
 
@@ -266,6 +266,9 @@ const getUserOperationByHashRequestSchema = z.object({
             .string()
             .regex(hexData32Pattern, { message: "Missing/invalid userOpHash" })
             .transform((val) => val as Hex)
+            .refine((val) => size(val) === 32, {
+                message: "Invalid UserOperation Hash length: expected 32 bytes."
+            })
     ])
 })
 
@@ -276,6 +279,9 @@ const getUserOperationReceiptRequestSchema = z.object({
             .string()
             .regex(hexData32Pattern, { message: "Missing/invalid userOpHash" })
             .transform((val) => val as Hex)
+            .refine((val) => size(val) === 32, {
+                message: "Invalid UserOperation Hash length: expected 32 bytes."
+            })
     ])
 })
 
