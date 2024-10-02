@@ -1,10 +1,10 @@
-import { type Hash, type Hex, getAddress, maxUint256, size } from "viem"
+import { type Hash, type Hex, getAddress, maxUint256 } from "viem"
 import { z } from "zod"
 import type { MempoolUserOperation } from "./mempool"
 
 const hexDataPattern = /^0x[0-9A-Fa-f]*$/
 const addressPattern = /^0x[0-9,a-f,A-F]{40}$/
-export const hexData32Pattern = /^0x([0-9a-fA-F][0-9a-fA-F]){0,32}$/
+export const hexData32Pattern = /^0x([0-9a-fA-F][0-9a-fA-F]){32}$/
 export const commaSeperatedAddressPattern =
     /^(0x[0-9a-fA-F]{40})(,\s*(0x[0-9a-fA-F]{40}))*$/
 
@@ -266,9 +266,6 @@ const getUserOperationByHashRequestSchema = z.object({
             .string()
             .regex(hexData32Pattern, { message: "Missing/invalid userOpHash" })
             .transform((val) => val as Hex)
-            .refine((val) => size(val) === 32, {
-                message: "Invalid UserOperation Hash length: expected 32 bytes."
-            })
     ])
 })
 
@@ -279,9 +276,6 @@ const getUserOperationReceiptRequestSchema = z.object({
             .string()
             .regex(hexData32Pattern, { message: "Missing/invalid userOpHash" })
             .transform((val) => val as Hex)
-            .refine((val) => size(val) === 32, {
-                message: "Invalid UserOperation Hash length: expected 32 bytes."
-            })
     ])
 })
 
