@@ -61,12 +61,6 @@ export const customSerializer: SerializerFn = (input: AnyObject): AnyObject => {
 
 export const initDebugLogger = (level = "debug"): Logger => {
     const l = logger({
-        transport: {
-            target: "pino-pretty",
-            options: {
-                colorize: true
-            }
-        },
         formatters: {
             level: logLevel,
             log: customSerializer
