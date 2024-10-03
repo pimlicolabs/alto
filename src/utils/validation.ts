@@ -369,8 +369,8 @@ export function calcVerificationGasAndCallGasLimit(
 
     let callGasLimit =
         (calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n) +
-        21000n +
-        50000n
+        21_000n +
+        50_000n
 
     if (
         chainId === baseGoerli.id ||

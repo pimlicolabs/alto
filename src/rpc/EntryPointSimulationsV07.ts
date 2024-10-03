@@ -5,20 +5,237 @@ import {
     decodeErrorResult,
     encodeFunctionData,
     toHex,
-    decodeAbiParameters
+    decodeAbiParameters,
+    decodeFunctionResult,
+    toFunctionSelector,
+    slice
 } from "viem"
-import { ExecuteSimulatorDeployedBytecode } from "./ExecuteSimulator"
 import {
-    EntryPointV07Abi,
-    EntryPointV07SimulationsAbi,
-    ExecutionErrors,
-    ValidationErrors,
     type StateOverrides,
     type UserOperationV07,
+    type ValidationResultV07,
+    type ExecutionResult,
+    type TargetCallResult,
+    EntryPointV07Abi,
+    EntryPointV07SimulationsAbi,
     PimlicoEntryPointSimulationsAbi,
-    type ValidationResultV07
+    ValidationErrors,
+    ExecutionErrors,
+    targetCallResultSchema
 } from "@alto/types"
-import { deepHexlify, toPackedUserOperation } from "@alto/utils"
+import { getUserOperationHash, toPackedUserOperation } from "@alto/utils"
+import type { SimulateHandleOpResult } from "./gasEstimation"
+import { AccountExecuteAbi } from "../types/contracts/IAccountExecute"
+
+function getSimulateHandleOpResult(data: Hex): SimulateHandleOpResult {
+    try {
+        const decodedError = decodeErrorResult({
+            abi: EntryPointV07SimulationsAbi,
+            data: data
+        })
+
+        if (
+            decodedError &&
+            decodedError.errorName === "FailedOp" &&
+            decodedError.args
+        ) {
+            return {
+                result: "failed",
+                data: decodedError.args[1] as string,
+                code: ValidationErrors.SimulateValidation
+            } as const
+        }
+
+        if (
+            decodedError &&
+            decodedError.errorName === "FailedOpWithRevert" &&
+            decodedError.args
+        ) {
+            return {
+                result: "failed",
+                data: parseFailedOpWithRevert(decodedError.args?.[2] as Hex),
+                code: ValidationErrors.SimulateValidation
+            } as const
+        }
+    } catch {
+        // no error we go the result
+        const decodedResult: ExecutionResult = decodeFunctionResult({
+            abi: EntryPointV07SimulationsAbi,
+            functionName: "simulateHandleOp",
+            data
+        }) as unknown as ExecutionResult
+
+        return {
+            result: "execution",
+            data: {
+                executionResult: decodedResult
+            } as const
+        }
+    }
+    throw new Error("Unexpected error")
+}
+
+function encodeUserOperationCalldata({
+    op,
+    entryPoint,
+    chainId
+}: {
+    op: UserOperationV07
+    entryPoint: Address
+    chainId: number
+}) {
+    const packedOp = toPackedUserOperation(op)
+    const executeUserOpMethodSig = toFunctionSelector(AccountExecuteAbi[0])
+
+    const callDataMethodSig = slice(packedOp.callData, 0, 4)
+
+    if (executeUserOpMethodSig === callDataMethodSig) {
+        return encodeFunctionData({
+            abi: AccountExecuteAbi,
+            functionName: "executeUserOp",
+            args: [packedOp, getUserOperationHash(op, entryPoint, chainId)]
+        })
+    }
+
+    return packedOp.callData
+}
+
+function validateTargetCallDataResult(data: Hex):
+    | {
+          result: "success"
+          data: TargetCallResult
+      }
+    | {
+          result: "failed"
+          data: string
+          code: number
+      } {
+    try {
+        const targetCallResult = decodeFunctionResult({
+            abi: EntryPointV07SimulationsAbi,
+            functionName: "simulateCallData",
+            data: data
+        })
+
+        const parsedTargetCallResult =
+            targetCallResultSchema.parse(targetCallResult)
+
+        if (parsedTargetCallResult.success) {
+            return {
+                result: "success",
+                data: parsedTargetCallResult
+            } as const
+        }
+
+        return {
+            result: "failed",
+            data: parsedTargetCallResult.returnData,
+            code: ExecutionErrors.UserOperationReverted
+        } as const
+    } catch (_e) {
+        // no error we go the result
+        return {
+            result: "failed",
+            data: "Unknown error, could not parse target call data result.",
+            code: ExecutionErrors.UserOperationReverted
+        } as const
+    }
+}
+
+export async function simulateHandleOpV07(
+    userOperation: UserOperationV07,
+    queuedUserOperations: UserOperationV07[],
+    entryPoint: Address,
+    publicClient: PublicClient,
+    entryPointSimulationsAddress: Address,
+    chainId: number,
+    blockTagSupport: boolean,
+    utilityWalletAddress: Address,
+    finalParam: StateOverrides | undefined = undefined,
+    fixedGasLimitForEstimation?: bigint
+): Promise<SimulateHandleOpResult> {
+    const userOperations = [...queuedUserOperations, userOperation]
+    const packedUserOperations = userOperations.map((uop) => ({
+        packedUserOperation: toPackedUserOperation(uop),
+        userOperation: uop,
+        userOperationHash: getUserOperationHash(uop, entryPoint, chainId)
+    }))
+
+    const simulateHandleOpCallData = encodeFunctionData({
+        abi: EntryPointV07SimulationsAbi,
+        functionName: "simulateHandleOpLast",
+        args: [packedUserOperations.map((uop) => uop.packedUserOperation)]
+    })
+
+    const queuedOps = queuedUserOperations.map((op) => ({
+        op: toPackedUserOperation(op),
+        target: op.sender,
+        targetCallData: encodeUserOperationCalldata({
+            op,
+            entryPoint,
+            chainId
+        })
+    }))
+
+    const targetOp = {
+        op: toPackedUserOperation(userOperation),
+        target: userOperation.sender,
+        targetCallData: encodeUserOperationCalldata({
+            op: userOperation,
+            entryPoint,
+            chainId
+        })
+    }
+
+    const simulateTargetCallData = encodeFunctionData({
+        abi: EntryPointV07SimulationsAbi,
+        functionName: "simulateCallData",
+        args: [queuedOps, targetOp, entryPoint, 0n, 1_000n, 1_000_000n]
+    })
+
+    const cause = await callPimlicoEntryPointSimulations(
+        publicClient,
+        entryPoint,
+        [simulateHandleOpCallData, simulateTargetCallData],
+        entryPointSimulationsAddress,
+        blockTagSupport,
+        utilityWalletAddress,
+        finalParam,
+        fixedGasLimitForEstimation
+    )
+
+    try {
+        const executionResult = getSimulateHandleOpResult(cause[0])
+
+        if (executionResult.result === "failed") {
+            return executionResult
+        }
+
+        const targetCallValidationResult = validateTargetCallDataResult(
+            cause[1]
+        )
+
+        if (targetCallValidationResult.result === "failed") {
+            return targetCallValidationResult
+        }
+
+        return {
+            result: "execution",
+            data: {
+                callDataResult: targetCallValidationResult.data,
+                executionResult: (
+                    executionResult as SimulateHandleOpResult<"execution">
+                ).data.executionResult
+            }
+        }
+    } catch (e) {
+        return {
+            result: "failed",
+            data: "Unknown error, could not parse simulate handle op result.",
+            code: ValidationErrors.SimulateValidation
+        }
+    }
+}
 
 const panicCodes: { [key: number]: string } = {
     // from https://docs.soliditylang.org/en/v0.8.0/control-structures.html
@@ -68,187 +285,15 @@ export function parseFailedOpWithRevert(data: Hex) {
     return data
 }
 
-function getStateOverrides({
-    userOperation,
-    entryPoint,
-    replacedEntryPoint,
-    stateOverride = {}
-}: {
-    entryPoint: Address
-    replacedEntryPoint: boolean
-    stateOverride: StateOverrides
-    userOperation: UserOperationV07
-}) {
-    return replacedEntryPoint
-        ? {
-              ...stateOverride,
-              [userOperation.sender]: {
-                  balance: toHex(100000_000000000000000000n),
-                  ...(stateOverride
-                      ? deepHexlify(stateOverride?.[userOperation.sender])
-                      : [])
-              },
-              [entryPoint]: {
-                  code: ExecuteSimulatorDeployedBytecode
-              }
-          }
-        : {
-              ...stateOverride,
-              [userOperation.sender]: {
-                  balance: toHex(100000_000000000000000000n),
-                  ...(stateOverride
-                      ? deepHexlify(stateOverride?.[userOperation.sender])
-                      : [])
-              }
-          }
-}
-
-function validateTargetCallDataResult(data: Hex) {
-    const decodedDelegateAndError = decodeErrorResult({
-        abi: EntryPointV07Abi,
-        data: data
-    })
-
-    if (!decodedDelegateAndError?.args?.[1]) {
-        throw new Error("Unexpected error")
-    }
-
-    try {
-        const decodedError = decodeErrorResult({
-            abi: EntryPointV07SimulationsAbi,
-            data: decodedDelegateAndError.args[1] as Hex
-        })
-
-        if (decodedError?.args) {
-            const targetSuccess = decodedError?.args[0]
-            const targetResult = decodedError?.args[1]
-            if (!targetSuccess) {
-                return {
-                    result: "failed",
-                    data: parseFailedOpWithRevert(targetResult as Hex),
-                    code: ExecutionErrors.UserOperationReverted
-                } as const
-            }
-            return {
-                result: "success"
-            } as const
-        }
-        return {
-            result: "failed",
-            data: "Unknown error, could not parse target call data result.",
-            code: ExecutionErrors.UserOperationReverted
-        } as const
-    } catch (e) {
-        // no error we go the result
-        return {
-            result: "failed",
-            data: "Unknown error, could not parse target call data result.",
-            code: ExecutionErrors.UserOperationReverted
-        } as const
-    }
-}
-
-function getSimulateHandleOpResult(data: Hex) {
-    const decodedDelegateAndError = decodeErrorResult({
-        abi: EntryPointV07Abi,
-        data: data
-    })
-
-    if (!decodedDelegateAndError?.args?.[1]) {
-        throw new Error("Unexpected error")
-    }
-
-    try {
-        const decodedError = decodeErrorResult({
-            abi: EntryPointV07SimulationsAbi,
-            data: decodedDelegateAndError.args[1] as Hex
-        })
-
-        if (
-            decodedError &&
-            decodedError.errorName === "FailedOp" &&
-            decodedError.args
-        ) {
-            return {
-                result: "failed",
-                data: decodedError.args[1],
-                code: ValidationErrors.SimulateValidation
-            } as const
-        }
-
-        if (
-            decodedError &&
-            decodedError.errorName === "FailedOpWithRevert" &&
-            decodedError.args
-        ) {
-            return {
-                result: "failed",
-                data: parseFailedOpWithRevert(decodedError.args?.[2] as Hex),
-                code: ValidationErrors.SimulateValidation
-            } as const
-        }
-    } catch {
-        // no error we go the result
-        const decodedResult = decodeAbiParameters(
-            [
-                {
-                    components: [
-                        {
-                            internalType: "uint256",
-                            name: "preOpGas",
-                            type: "uint256"
-                        },
-                        {
-                            internalType: "uint256",
-                            name: "paid",
-                            type: "uint256"
-                        },
-                        {
-                            internalType: "uint256",
-                            name: "validationData",
-                            type: "uint256"
-                        },
-                        {
-                            internalType: "uint256",
-                            name: "paymasterValidationData",
-                            type: "uint256"
-                        },
-                        {
-                            internalType: "bool",
-                            name: "targetSuccess",
-                            type: "bool"
-                        },
-                        {
-                            internalType: "bytes",
-                            name: "targetResult",
-                            type: "bytes"
-                        }
-                    ],
-                    internalType:
-                        "struct IEntryPointSimulations.ExecutionResult",
-                    name: "",
-                    type: "tuple"
-                }
-            ],
-            decodedDelegateAndError.args[1] as Hex
-        )[0]
-
-        return {
-            result: "execution",
-            data: decodedResult
-        } as const
-    }
-    throw new Error("Unexpected error")
-}
-
-async function callPimlicoEntryPointSimulations(
+export async function callPimlicoEntryPointSimulations(
     publicClient: PublicClient,
     entryPoint: Address,
     entryPointSimulationsCallData: Hex[],
     entryPointSimulationsAddress: Address,
     blockTagSupport: boolean,
     utilityWalletAddress: Address,
-    stateOverride?: StateOverrides
+    stateOverride?: StateOverrides,
+    fixedGasLimitForEstimation?: bigint
 ) {
     const callData = encodeFunctionData({
         abi: PimlicoEntryPointSimulationsAbi,
@@ -262,7 +307,10 @@ async function callPimlicoEntryPointSimulations(
             {
                 to: entryPointSimulationsAddress,
                 from: utilityWalletAddress,
-                data: callData
+                data: callData,
+                ...(fixedGasLimitForEstimation !== undefined && {
+                    gas: `0x${fixedGasLimitForEstimation.toString(16)}`
+                })
             },
             blockTagSupport
                 ? "latest"
@@ -277,62 +325,17 @@ async function callPimlicoEntryPointSimulations(
         result
     )
 
-    return returnBytes[0]
-}
+    return returnBytes[0].map((data: Hex) => {
+        const decodedDelegateAndError = decodeErrorResult({
+            abi: EntryPointV07Abi,
+            data: data
+        })
 
-export async function simulateHandleOp(
-    userOperation: UserOperationV07,
-    entryPoint: Address,
-    publicClient: PublicClient,
-    replacedEntryPoint: boolean,
-    targetAddress: Address,
-    targetCallData: Hex,
-    entryPointSimulationsAddress: Address,
-    blockTagSupport: boolean,
-    utilityWalletAddress: Address,
-    stateOverride: StateOverrides = {}
-) {
-    const finalParam = getStateOverrides({
-        userOperation,
-        entryPoint,
-        replacedEntryPoint,
-        stateOverride
+        if (!decodedDelegateAndError?.args?.[1]) {
+            throw new Error("Unexpected error")
+        }
+        return decodedDelegateAndError.args[1] as Hex
     })
-
-    const packedUserOperation = toPackedUserOperation(userOperation)
-
-    const entryPointSimulationsSimulateHandleOpCallData = encodeFunctionData({
-        abi: EntryPointV07SimulationsAbi,
-        functionName: "simulateHandleOp",
-        args: [packedUserOperation]
-    })
-
-    const entryPointSimulationsSimulateTargetCallData = encodeFunctionData({
-        abi: EntryPointV07SimulationsAbi,
-        functionName: "simulateCallData",
-        args: [packedUserOperation, targetAddress, targetCallData]
-    })
-
-    const cause = await callPimlicoEntryPointSimulations(
-        publicClient,
-        entryPoint,
-        [
-            entryPointSimulationsSimulateHandleOpCallData,
-            entryPointSimulationsSimulateTargetCallData
-        ],
-        entryPointSimulationsAddress,
-        blockTagSupport,
-        utilityWalletAddress,
-        finalParam
-    )
-
-    const targetCallValidationResult = validateTargetCallDataResult(cause[1])
-
-    if (targetCallValidationResult.result === "failed") {
-        return targetCallValidationResult
-    }
-
-    return getSimulateHandleOpResult(cause[0])
 }
 
 export function getSimulateValidationResult(errorData: Hex): {
