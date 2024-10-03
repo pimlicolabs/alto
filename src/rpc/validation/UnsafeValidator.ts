@@ -47,12 +47,12 @@ import {
     zeroAddress
 } from "viem"
 import { fromZodError } from "zod-validation-error"
-import { simulateValidation } from "../EntryPointSimulationsV07"
+import { simulateValidation } from "../estimation/EntryPointSimulationsV07"
 import {
     type SimulateHandleOpResult,
     simulateHandleOp,
     simulateHandleOpV06
-} from "../gasEstimation"
+} from "../estimation/gasEstimation"
 
 export class UnsafeValidator implements InterfaceValidator {
     publicClient: PublicClient<Transport, Chain>

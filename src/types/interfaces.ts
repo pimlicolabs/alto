@@ -1,5 +1,5 @@
 import type { Address } from "viem"
-import type { SimulateHandleOpResult } from "../rpc/gasEstimation"
+import type { SimulateHandleOpResult } from "../rpc/estimation/gasEstimation"
 import type { ReferencedCodeHashes } from "./mempool"
 import type {
     StateOverrides,

@@ -44,7 +44,7 @@ import {
     type PublicClient,
     type Transport
 } from "viem"
-import { getSimulateValidationResult } from "../EntryPointSimulationsV07"
+import { getSimulateValidationResult } from "../estimation/EntryPointSimulationsV07"
 import {
     bundlerCollectorTracer,
     type BundlerTracerResult,

@@ -25,7 +25,7 @@ import {
 } from "@alto/types"
 import { getUserOperationHash, toPackedUserOperation } from "@alto/utils"
 import type { SimulateHandleOpResult } from "./gasEstimation"
-import { AccountExecuteAbi } from "../types/contracts/IAccountExecute"
+import { AccountExecuteAbi } from "../../types/contracts/IAccountExecute"
 
 function getSimulateHandleOpResult(data: Hex): SimulateHandleOpResult {
     try {

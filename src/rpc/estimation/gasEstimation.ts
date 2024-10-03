@@ -24,7 +24,7 @@ import {
     toHex
 } from "viem"
 import { z } from "zod"
-import { ExecuteSimulatorDeployedBytecode } from "./ExecuteSimulator"
+import { ExecuteSimulatorDeployedBytecode } from "../ExecuteSimulator"
 import { simulateHandleOpV07 } from "./EntryPointSimulationsV07"
 
 function getStateOverrides({
