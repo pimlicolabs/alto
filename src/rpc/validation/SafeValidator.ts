@@ -503,10 +503,6 @@ export class SafeValidator
         userOperation: UserOperationV07,
         entryPoint: Address
     ): Promise<[ValidationResultV07, BundlerTracerResult]> {
-        if (!this.entryPointSimulationsAddress) {
-            throw new Error("entryPointSimulationsAddress is not set")
-        }
-
         const packedUserOperation = toPackedUserOperation(userOperation)
 
         const entryPointSimulationsCallData = encodeFunctionData({
@@ -521,11 +517,15 @@ export class SafeValidator
             args: [entryPoint, [entryPointSimulationsCallData]]
         })
 
+        const entryPointSimulationsAddress =
+            this.gasEstimationHandler.gasEstimatorV07
+                .entryPointSimulationsAddress
+
         const tracerResult = await debug_traceCall(
             this.publicClient,
             {
                 from: zeroAddress,
-                to: this.entryPointSimulationsAddress,
+                to: entryPointSimulationsAddress,
                 data: callData
             },
             {

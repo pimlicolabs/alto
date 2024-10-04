@@ -47,10 +47,8 @@ import {
     zeroAddress
 } from "viem"
 import { fromZodError } from "zod-validation-error"
-import { simulateValidation } from "../estimation/gasEstimationsV07"
+import { GasEstimationHandler } from "../estimation/gasEstimationHandler"
 import type { SimulateHandleOpResult } from "../estimation/types"
-import { simulateHandleOp } from "../estimation/gasEstimation"
-import { simulateHandleOpV06 } from "../estimation/gasEstimationsV06"
 
 export class UnsafeValidator implements InterfaceValidator {
     publicClient: PublicClient<Transport, Chain>
@@ -61,13 +59,9 @@ export class UnsafeValidator implements InterfaceValidator {
     expirationCheck: boolean
     chainId: number
     gasPriceManager: GasPriceManager
-    entryPointSimulationsAddress?: Address
-    fixedGasLimitForEstimation?: bigint
     chainType: ChainType
-    blockTagSupport: boolean
-    utilityWalletAddress: Address
-    binarySearchToleranceDelta: bigint
-    binarySearchGasAllowance: bigint
+
+    gasEstimationHandler: GasEstimationHandler
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
@@ -93,13 +87,18 @@ export class UnsafeValidator implements InterfaceValidator {
         this.expirationCheck = expirationCheck
         this.chainId = publicClient.chain.id
         this.gasPriceManager = gasPriceManager
-        this.entryPointSimulationsAddress = entryPointSimulationsAddress
-        this.fixedGasLimitForEstimation = fixedGasLimitForEstimation
         this.chainType = chainType
-        this.blockTagSupport = blockTagSupport
-        this.utilityWalletAddress = utilityWalletAddress
-        this.binarySearchToleranceDelta = binarySearchToleranceDelta
-        this.binarySearchGasAllowance = binarySearchGasAllowance
+
+        this.gasEstimationHandler = new GasEstimationHandler(
+            binarySearchToleranceDelta,
+            binarySearchGasAllowance,
+            publicClient,
+            publicClient.chain.id,
+            blockTagSupport,
+            utilityWalletAddress,
+            entryPointSimulationsAddress,
+            fixedGasLimitForEstimation
+        )
     }
 
     async getSimulationResult(
@@ -187,24 +186,16 @@ export class UnsafeValidator implements InterfaceValidator {
         queuedUserOperations: UserOperation[],
         stateOverrides?: StateOverrides
     ): Promise<SimulateHandleOpResult<"execution">> {
-        const error = await simulateHandleOp(
+        const error = await this.gasEstimationHandler.simulateHandleOp({
             userOperation,
             queuedUserOperations,
-            this.binarySearchToleranceDelta,
-            this.binarySearchGasAllowance,
             entryPoint,
-            this.publicClient,
-            false,
-            zeroAddress,
-            "0x",
-            this.balanceOverrideEnabled,
-            this.chainId,
-            this.blockTagSupport,
-            this.utilityWalletAddress,
-            stateOverrides,
-            this.entryPointSimulationsAddress,
-            this.fixedGasLimitForEstimation
-        )
+            replacedEntryPoint: false,
+            targetAddress: zeroAddress,
+            targetCallData: "0x",
+            balanceOverrideEnabled: this.balanceOverrideEnabled,
+            stateOverrides
+        })
 
         if (error.result === "failed") {
             throw new RpcError(
@@ -243,15 +234,13 @@ export class UnsafeValidator implements InterfaceValidator {
                 throw e
             })
 
-        const runtimeValidationPromise = simulateHandleOpV06(
-            userOperation,
-            entryPoint,
-            this.publicClient,
-            zeroAddress,
-            "0x",
-            this.blockTagSupport,
-            this.utilityWalletAddress
-        )
+        const runtimeValidationPromise =
+            this.gasEstimationHandler.gasEstimatorV06.simulateHandleOpV06({
+                entryPoint,
+                userOperation,
+                targetAddress: zeroAddress,
+                targetCallData: "0x"
+            })
 
         const [simulateValidationResult, runtimeValidation] = await Promise.all(
             [simulateValidationPromise, runtimeValidationPromise]
@@ -395,19 +384,12 @@ export class UnsafeValidator implements InterfaceValidator {
             referencedContracts?: ReferencedCodeHashes
         }
     > {
-        if (!this.entryPointSimulationsAddress) {
-            throw new Error("entryPointSimulationsAddress is not set")
-        }
-
-        const { simulateValidationResult } = await simulateValidation(
-            userOperation,
-            queuedUserOperations,
-            entryPoint,
-            this.publicClient,
-            this.entryPointSimulationsAddress,
-            this.blockTagSupport,
-            this.utilityWalletAddress
-        )
+        const { simulateValidationResult } =
+            await this.gasEstimationHandler.gasEstimatorV07.simulateValidation({
+                entryPoint,
+                userOperation,
+                queuedUserOperations
+            })
 
         if (simulateValidationResult.status === "failed") {
             throw new RpcError(
