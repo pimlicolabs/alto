@@ -109,7 +109,7 @@ export class GasEstimationHandler {
         }
 
         if (isVersion06(userOperation)) {
-            this.gasEstimatorV06.simulateHandleOpV06({
+            return this.gasEstimatorV06.simulateHandleOpV06({
                 userOperation,
                 entryPoint,
                 targetAddress,
