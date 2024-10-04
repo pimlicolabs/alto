@@ -24,7 +24,10 @@ import {
     targetCallResultSchema
 } from "@alto/types"
 import { getUserOperationHash, toPackedUserOperation } from "@alto/utils"
-import type { SimulateHandleOpResult } from "./gasEstimation"
+import {
+    simulationValidationResultStruct,
+    type SimulateHandleOpResult
+} from "./types"
 import { AccountExecuteAbi } from "../../types/contracts/IAccountExecute"
 
 function getSimulateHandleOpResult(data: Hex): SimulateHandleOpResult {
@@ -117,29 +120,6 @@ function validateTargetCallDataResult(data: Hex):
           minGas: bigint
       } {
     try {
-        // check if the result is a SimulationOutOfGas error
-        const simulationOutOfGasSelector = toFunctionSelector(
-            "SimulationOutOfGas(uint256 optimalGas, uint256 minGas, uint256 maxGas)"
-        )
-
-        if (slice(data, 0, 4) === simulationOutOfGasSelector) {
-            const res = decodeErrorResult({
-                abi: EntryPointV07SimulationsAbi,
-                data: data
-            })
-
-            if (res.errorName === "SimulationOutOfGas") {
-                const [optimalGas, minGas, maxGas] = res.args
-
-                return {
-                    result: "retry",
-                    optimalGas,
-                    minGas,
-                    maxGas
-                } as const
-            }
-        }
-
         const targetCallResult = decodeFunctionResult({
             abi: EntryPointV07SimulationsAbi,
             functionName: "simulateCallData",
@@ -162,6 +142,29 @@ function validateTargetCallDataResult(data: Hex):
             code: ExecutionErrors.UserOperationReverted
         } as const
     } catch (_e) {
+        // Check if the result hit eth_call gasLimit.
+        const simulationOutOfGasSelector = toFunctionSelector(
+            "SimulationOutOfGas(uint256 optimalGas, uint256 minGas, uint256 maxGas)"
+        )
+
+        if (slice(data, 0, 4) === simulationOutOfGasSelector) {
+            const res = decodeErrorResult({
+                abi: EntryPointV07SimulationsAbi,
+                data: data
+            })
+
+            if (res.errorName === "SimulationOutOfGas") {
+                const [optimalGas, minGas, maxGas] = res.args
+
+                return {
+                    result: "retry",
+                    optimalGas,
+                    minGas,
+                    maxGas
+                } as const
+            }
+        }
+
         // no error we go the result
         return {
             result: "failed",
@@ -171,18 +174,17 @@ function validateTargetCallDataResult(data: Hex):
     }
 }
 
-export async function simulateHandleOpV07(
-    userOperation: UserOperationV07,
-    queuedUserOperations: UserOperationV07[],
-    entryPoint: Address,
-    publicClient: PublicClient,
-    entryPointSimulationsAddress: Address,
-    chainId: number,
-    blockTagSupport: boolean,
-    utilityWalletAddress: Address,
-    finalParam: StateOverrides | undefined = undefined,
-    fixedGasLimitForEstimation?: bigint
-): Promise<SimulateHandleOpResult> {
+function encodeSimulateHandleOpLast({
+    userOperation,
+    queuedUserOperations,
+    entryPoint,
+    chainId
+}: {
+    userOperation: UserOperationV07
+    queuedUserOperations: UserOperationV07[]
+    entryPoint: Address
+    chainId: number
+}): Hex {
     const userOperations = [...queuedUserOperations, userOperation]
     const packedUserOperations = userOperations.map((uop) => ({
         packedUserOperation: toPackedUserOperation(uop),
@@ -196,6 +198,20 @@ export async function simulateHandleOpV07(
         args: [packedUserOperations.map((uop) => uop.packedUserOperation)]
     })
 
+    return simulateHandleOpCallData
+}
+
+function encodeSimulateCallData({
+    userOperation,
+    queuedUserOperations,
+    entryPoint,
+    chainId
+}: {
+    userOperation: UserOperationV07
+    queuedUserOperations: UserOperationV07[]
+    entryPoint: Address
+    chainId: number
+}): Hex {
     const queuedOps = queuedUserOperations.map((op) => ({
         op: toPackedUserOperation(op),
         target: op.sender,
@@ -222,46 +238,119 @@ export async function simulateHandleOpV07(
         args: [queuedOps, targetOp, entryPoint, 0n, 1_000n, 1_000_000n]
     })
 
+    return simulateTargetCallData
+}
+
+// Try to get the calldata gas again if the initial simulation reverted due to hitting the eth_call gasLimit.
+async function retryGetCallDataGas(
+    targetOp: UserOperationV07,
+    queuedOps: UserOperationV07[],
+    entryPoint: Address,
+    chainId: number,
+    publicClient: PublicClient,
+    entryPointSimulationsAddress: Address,
+    blockTagSupport: boolean,
+    utilityWalletAddress: Address,
+    stateOverrides: StateOverrides | undefined = undefined,
+    fixedGasLimitForEstimation?: bigint
+): Promise<SimulateHandleOpResult> {
+    const simulateCallData = encodeSimulateCallData({
+        userOperation: targetOp,
+        queuedUserOperations: queuedOps,
+        entryPoint,
+        chainId
+    })
+
     const cause = await callPimlicoEntryPointSimulations(
         publicClient,
         entryPoint,
-        [simulateHandleOpCallData, simulateTargetCallData],
+        [simulateCallData],
         entryPointSimulationsAddress,
         blockTagSupport,
         utilityWalletAddress,
-        finalParam,
+        stateOverrides,
+        fixedGasLimitForEstimation
+    )
+
+    const simulateCallDataResult = validateTargetCallDataResult(cause[0])
+
+    process.exit(0)
+}
+
+export async function simulateHandleOpV07(
+    userOperation: UserOperationV07,
+    queuedUserOperations: UserOperationV07[],
+    entryPoint: Address,
+    publicClient: PublicClient,
+    entryPointSimulationsAddress: Address,
+    chainId: number,
+    blockTagSupport: boolean,
+    utilityWalletAddress: Address,
+    stateOverrides: StateOverrides | undefined = undefined,
+    fixedGasLimitForEstimation?: bigint
+): Promise<SimulateHandleOpResult> {
+    const simulateHandleOpLast = encodeSimulateHandleOpLast({
+        userOperation,
+        queuedUserOperations,
+        entryPoint,
+        chainId
+    })
+
+    const simulateCallData = encodeSimulateCallData({
+        userOperation,
+        queuedUserOperations,
+        entryPoint,
+        chainId
+    })
+
+    const cause = await callPimlicoEntryPointSimulations(
+        publicClient,
+        entryPoint,
+        [simulateHandleOpLast, simulateCallData],
+        entryPointSimulationsAddress,
+        blockTagSupport,
+        utilityWalletAddress,
+        stateOverrides,
         fixedGasLimitForEstimation
     )
 
     try {
-        const [simulateHandleOpResult, simulateTargetCallDataResult] = cause
+        const simulateHandleOpLastResult = getSimulateHandleOpResult(cause[0])
 
-        const executionResult = getSimulateHandleOpResult(
-            simulateHandleOpResult
-        )
-
-        if (executionResult.result === "failed") {
-            return executionResult
+        if (simulateHandleOpLastResult.result === "failed") {
+            return simulateHandleOpLastResult
         }
 
-        const targetCallValidationResult = validateTargetCallDataResult(
-            simulateTargetCallDataResult
-        )
+        const simulateCallDataResult = validateTargetCallDataResult(cause[1])
 
-        if (targetCallValidationResult.result === "failed") {
-            return targetCallValidationResult
+        if (simulateCallDataResult.result === "failed") {
+            return simulateCallDataResult
+        }
+
+        if (simulateCallDataResult.result === "retry") {
+            return await retryGetCallDataGas(
+                userOperation,
+                queuedUserOperations,
+                entryPoint,
+                publicClient,
+                entryPointSimulationsAddress,
+                blockTagSupport,
+                utilityWalletAddress,
+                stateOverrides,
+                fixedGasLimitForEstimation
+            )
         }
 
         return {
             result: "execution",
             data: {
-                callDataResult: targetCallValidationResult.data,
+                callDataResult: simulateCallDataResult.data,
                 executionResult: (
-                    executionResult as SimulateHandleOpResult<"execution">
+                    simulateHandleOpLastResult as SimulateHandleOpResult<"execution">
                 ).data.executionResult
             }
         }
-    } catch (e) {
+    } catch (_e) {
         return {
             result: "failed",
             data: "Unknown error, could not parse simulate handle op result.",
@@ -415,130 +504,7 @@ export function getSimulateValidationResult(errorData: Hex): {
         }
     } catch {
         const decodedResult = decodeAbiParameters(
-            [
-                {
-                    components: [
-                        {
-                            components: [
-                                {
-                                    internalType: "uint256",
-                                    name: "preOpGas",
-                                    type: "uint256"
-                                },
-                                {
-                                    internalType: "uint256",
-                                    name: "prefund",
-                                    type: "uint256"
-                                },
-                                {
-                                    internalType: "uint256",
-                                    name: "accountValidationData",
-                                    type: "uint256"
-                                },
-                                {
-                                    internalType: "uint256",
-                                    name: "paymasterValidationData",
-                                    type: "uint256"
-                                },
-                                {
-                                    internalType: "bytes",
-                                    name: "paymasterContext",
-                                    type: "bytes"
-                                }
-                            ],
-                            internalType: "struct IEntryPoint.ReturnInfo",
-                            name: "returnInfo",
-                            type: "tuple"
-                        },
-                        {
-                            components: [
-                                {
-                                    internalType: "uint256",
-                                    name: "stake",
-                                    type: "uint256"
-                                },
-                                {
-                                    internalType: "uint256",
-                                    name: "unstakeDelaySec",
-                                    type: "uint256"
-                                }
-                            ],
-                            internalType: "struct IStakeManager.StakeInfo",
-                            name: "senderInfo",
-                            type: "tuple"
-                        },
-                        {
-                            components: [
-                                {
-                                    internalType: "uint256",
-                                    name: "stake",
-                                    type: "uint256"
-                                },
-                                {
-                                    internalType: "uint256",
-                                    name: "unstakeDelaySec",
-                                    type: "uint256"
-                                }
-                            ],
-                            internalType: "struct IStakeManager.StakeInfo",
-                            name: "factoryInfo",
-                            type: "tuple"
-                        },
-                        {
-                            components: [
-                                {
-                                    internalType: "uint256",
-                                    name: "stake",
-                                    type: "uint256"
-                                },
-                                {
-                                    internalType: "uint256",
-                                    name: "unstakeDelaySec",
-                                    type: "uint256"
-                                }
-                            ],
-                            internalType: "struct IStakeManager.StakeInfo",
-                            name: "paymasterInfo",
-                            type: "tuple"
-                        },
-                        {
-                            components: [
-                                {
-                                    internalType: "address",
-                                    name: "aggregator",
-                                    type: "address"
-                                },
-                                {
-                                    components: [
-                                        {
-                                            internalType: "uint256",
-                                            name: "stake",
-                                            type: "uint256"
-                                        },
-                                        {
-                                            internalType: "uint256",
-                                            name: "unstakeDelaySec",
-                                            type: "uint256"
-                                        }
-                                    ],
-                                    internalType:
-                                        "struct IStakeManager.StakeInfo",
-                                    name: "stakeInfo",
-                                    type: "tuple"
-                                }
-                            ],
-                            internalType:
-                                "struct IEntryPoint.AggregatorStakeInfo",
-                            name: "aggregatorInfo",
-                            type: "tuple"
-                        }
-                    ],
-                    internalType:
-                        "struct IEntryPointSimulations.ValidationResult",
-                    name: "",
-                    type: "tuple"
-                }
-            ],
+            simulationValidationResultStruct,
             decodedDelegateAndError.args[1] as Hex
         )[0]
 

@@ -1,16 +1,8 @@
-import {
-    type ExecutionResult,
-    type UserOperation,
-    RpcError,
-    ValidationErrors
-} from "@alto/types"
-import type {
-    StateOverrides,
-    TargetCallResult,
-    UserOperationV07
-} from "@alto/types"
-import { deepHexlify, isVersion06 } from "@alto/utils"
+import { type UserOperation, RpcError, ValidationErrors } from "@alto/types"
+import type { StateOverrides, UserOperationV07 } from "@alto/types"
 import type { Hex } from "viem"
+import type { SimulateHandleOpResult } from "./types"
+import { deepHexlify, isVersion06 } from "@alto/utils"
 import { type Address, type PublicClient, toHex } from "viem"
 import { simulateHandleOpV07 } from "./gasEstimationsV07"
 import { simulateHandleOpV06 } from "./gasEstimationsV06"
@@ -51,19 +43,6 @@ function getStateOverrides({
                       : [])
               }
           }
-}
-
-export type SimulateHandleOpResult<
-    TypeResult extends "failed" | "execution" = "failed" | "execution"
-> = {
-    result: TypeResult
-    data: TypeResult extends "failed"
-        ? string
-        : {
-              callDataResult?: TargetCallResult
-              executionResult: ExecutionResult
-          }
-    code?: TypeResult extends "failed" ? number : undefined
 }
 
 export function simulateHandleOp(

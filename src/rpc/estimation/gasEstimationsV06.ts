@@ -16,7 +16,7 @@ import {
     toHex
 } from "viem"
 import { z } from "zod"
-import type { SimulateHandleOpResult } from "./gasEstimation"
+import type { SimulateHandleOpResult } from "./types"
 
 export async function simulateHandleOpV06(
     userOperation: UserOperationV06,
