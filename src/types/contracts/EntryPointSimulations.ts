@@ -414,6 +414,11 @@ export const EntryPointV07SimulationsAbi = [
                 name: "data",
                 type: "bytes",
                 internalType: "bytes"
+            },
+            {
+                name: "gas",
+                type: "uint256",
+                internalType: "uint256"
             }
         ],
         outputs: [
@@ -443,83 +448,16 @@ export const EntryPointV07SimulationsAbi = [
                 name: "data",
                 type: "bytes",
                 internalType: "bytes"
+            },
+            {
+                name: "gas",
+                type: "uint256",
+                internalType: "uint256"
             }
         ],
         outputs: [],
         stateMutability: "nonpayable"
     },
-    //{
-    //    name: "SimulationArgs",
-    //    inputs: [
-    //        {
-    //            components: [
-    //                {
-    //                    name: "op",
-    //                    type: "tuple",
-    //                    internalType: "struct PackedUserOperation",
-    //                    components: [
-    //                        {
-    //                            name: "sender",
-    //                            type: "address",
-    //                            internalType: "address"
-    //                        },
-    //                        {
-    //                            name: "nonce",
-    //                            type: "uint256",
-    //                            internalType: "uint256"
-    //                        },
-    //                        {
-    //                            name: "initCode",
-    //                            type: "bytes",
-    //                            internalType: "bytes"
-    //                        },
-    //                        {
-    //                            name: "callData",
-    //                            type: "bytes",
-    //                            internalType: "bytes"
-    //                        },
-    //                        {
-    //                            name: "accountGasLimits",
-    //                            type: "bytes32",
-    //                            internalType: "bytes32"
-    //                        },
-    //                        {
-    //                            name: "preVerificationGas",
-    //                            type: "uint256",
-    //                            internalType: "uint256"
-    //                        },
-    //                        {
-    //                            name: "gasFees",
-    //                            type: "bytes32",
-    //                            internalType: "bytes32"
-    //                        },
-    //                        {
-    //                            name: "paymasterAndData",
-    //                            type: "bytes",
-    //                            internalType: "bytes"
-    //                        },
-    //                        {
-    //                            name: "signature",
-    //                            type: "bytes",
-    //                            internalType: "bytes"
-    //                        }
-    //                    ]
-    //                },
-    //                {
-    //                    name: "target",
-    //                    type: "address",
-    //                    internalType: "address"
-    //                },
-    //                {
-    //                    name: "targetCallData",
-    //                    type: "bytes",
-    //                    internalType: "bytes"
-    //                }
-    //            ],
-    //            type: "tuple"
-    //        }
-    //    ]
-    //},
     {
         type: "function",
         name: "simulateCallData",
@@ -1215,187 +1153,6 @@ export const EntryPointV07SimulationsAbi = [
     },
     {
         type: "function",
-        name: "simulateValidationBulk",
-        inputs: [
-            {
-                name: "userOps",
-                type: "tuple[]",
-                internalType: "struct PackedUserOperation[]",
-                components: [
-                    {
-                        name: "sender",
-                        type: "address",
-                        internalType: "address"
-                    },
-                    {
-                        name: "nonce",
-                        type: "uint256",
-                        internalType: "uint256"
-                    },
-                    {
-                        name: "initCode",
-                        type: "bytes",
-                        internalType: "bytes"
-                    },
-                    {
-                        name: "callData",
-                        type: "bytes",
-                        internalType: "bytes"
-                    },
-                    {
-                        name: "accountGasLimits",
-                        type: "bytes32",
-                        internalType: "bytes32"
-                    },
-                    {
-                        name: "preVerificationGas",
-                        type: "uint256",
-                        internalType: "uint256"
-                    },
-                    {
-                        name: "gasFees",
-                        type: "bytes32",
-                        internalType: "bytes32"
-                    },
-                    {
-                        name: "paymasterAndData",
-                        type: "bytes",
-                        internalType: "bytes"
-                    },
-                    {
-                        name: "signature",
-                        type: "bytes",
-                        internalType: "bytes"
-                    }
-                ]
-            }
-        ],
-        outputs: [
-            {
-                name: "",
-                type: "tuple[]",
-                internalType:
-                    "struct IEntryPointSimulations.ValidationResult[]",
-                components: [
-                    {
-                        name: "returnInfo",
-                        type: "tuple",
-                        internalType: "struct IEntryPoint.ReturnInfo",
-                        components: [
-                            {
-                                name: "preOpGas",
-                                type: "uint256",
-                                internalType: "uint256"
-                            },
-                            {
-                                name: "prefund",
-                                type: "uint256",
-                                internalType: "uint256"
-                            },
-                            {
-                                name: "accountValidationData",
-                                type: "uint256",
-                                internalType: "uint256"
-                            },
-                            {
-                                name: "paymasterValidationData",
-                                type: "uint256",
-                                internalType: "uint256"
-                            },
-                            {
-                                name: "paymasterContext",
-                                type: "bytes",
-                                internalType: "bytes"
-                            }
-                        ]
-                    },
-                    {
-                        name: "senderInfo",
-                        type: "tuple",
-                        internalType: "struct IStakeManager.StakeInfo",
-                        components: [
-                            {
-                                name: "stake",
-                                type: "uint256",
-                                internalType: "uint256"
-                            },
-                            {
-                                name: "unstakeDelaySec",
-                                type: "uint256",
-                                internalType: "uint256"
-                            }
-                        ]
-                    },
-                    {
-                        name: "factoryInfo",
-                        type: "tuple",
-                        internalType: "struct IStakeManager.StakeInfo",
-                        components: [
-                            {
-                                name: "stake",
-                                type: "uint256",
-                                internalType: "uint256"
-                            },
-                            {
-                                name: "unstakeDelaySec",
-                                type: "uint256",
-                                internalType: "uint256"
-                            }
-                        ]
-                    },
-                    {
-                        name: "paymasterInfo",
-                        type: "tuple",
-                        internalType: "struct IStakeManager.StakeInfo",
-                        components: [
-                            {
-                                name: "stake",
-                                type: "uint256",
-                                internalType: "uint256"
-                            },
-                            {
-                                name: "unstakeDelaySec",
-                                type: "uint256",
-                                internalType: "uint256"
-                            }
-                        ]
-                    },
-                    {
-                        name: "aggregatorInfo",
-                        type: "tuple",
-                        internalType: "struct IEntryPoint.AggregatorStakeInfo",
-                        components: [
-                            {
-                                name: "aggregator",
-                                type: "address",
-                                internalType: "address"
-                            },
-                            {
-                                name: "stakeInfo",
-                                type: "tuple",
-                                internalType: "struct IStakeManager.StakeInfo",
-                                components: [
-                                    {
-                                        name: "stake",
-                                        type: "uint256",
-                                        internalType: "uint256"
-                                    },
-                                    {
-                                        name: "unstakeDelaySec",
-                                        type: "uint256",
-                                        internalType: "uint256"
-                                    }
-                                ]
-                            }
-                        ]
-                    }
-                ]
-            }
-        ],
-        stateMutability: "nonpayable"
-    },
-    {
-        type: "function",
         name: "simulateValidationLast",
         inputs: [
             {
@@ -1950,37 +1707,6 @@ export const EntryPointV07SimulationsAbi = [
     },
     {
         type: "error",
-        name: "OutOfGas",
-        inputs: [
-            {
-                name: "optimalGas",
-                type: "uint256",
-                internalType: "uint256"
-            },
-            {
-                name: "minGas",
-                type: "uint256",
-                internalType: "uint256"
-            },
-            {
-                name: "maxGas",
-                type: "uint256",
-                internalType: "uint256"
-            },
-            {
-                name: "success",
-                type: "bool",
-                internalType: "bool"
-            },
-            {
-                name: "result",
-                type: "bytes",
-                internalType: "bytes"
-            }
-        ]
-    },
-    {
-        type: "error",
         name: "PostOpReverted",
         inputs: [
             {
@@ -2014,6 +1740,27 @@ export const EntryPointV07SimulationsAbi = [
                 name: "aggregator",
                 type: "address",
                 internalType: "address"
+            }
+        ]
+    },
+    {
+        type: "error",
+        name: "SimulationOutOfGas",
+        inputs: [
+            {
+                name: "optimalGas",
+                type: "uint256",
+                internalType: "uint256"
+            },
+            {
+                name: "minGas",
+                type: "uint256",
+                internalType: "uint256"
+            },
+            {
+                name: "maxGas",
+                type: "uint256",
+                internalType: "uint256"
             }
         ]
     },

@@ -47,7 +47,7 @@ import {
     zeroAddress
 } from "viem"
 import { fromZodError } from "zod-validation-error"
-import { simulateValidation } from "../estimation/EntryPointSimulationsV07"
+import { simulateValidation } from "../estimation/gasEstimationsV07"
 import {
     type SimulateHandleOpResult,
     simulateHandleOp,

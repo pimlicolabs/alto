@@ -109,8 +109,37 @@ function validateTargetCallDataResult(data: Hex):
           result: "failed"
           data: string
           code: number
+      }
+    | {
+          result: "retry" // retry with new bounds if the initial simulation hit the eth_call gasLimit
+          optimalGas: bigint
+          maxGas: bigint
+          minGas: bigint
       } {
     try {
+        // check if the result is a SimulationOutOfGas error
+        const simulationOutOfGasSelector = toFunctionSelector(
+            "SimulationOutOfGas(uint256 optimalGas, uint256 minGas, uint256 maxGas)"
+        )
+
+        if (slice(data, 0, 4) === simulationOutOfGasSelector) {
+            const res = decodeErrorResult({
+                abi: EntryPointV07SimulationsAbi,
+                data: data
+            })
+
+            if (res.errorName === "SimulationOutOfGas") {
+                const [optimalGas, minGas, maxGas] = res.args
+
+                return {
+                    result: "retry",
+                    optimalGas,
+                    minGas,
+                    maxGas
+                } as const
+            }
+        }
+
         const targetCallResult = decodeFunctionResult({
             abi: EntryPointV07SimulationsAbi,
             functionName: "simulateCallData",
@@ -205,14 +234,18 @@ export async function simulateHandleOpV07(
     )
 
     try {
-        const executionResult = getSimulateHandleOpResult(cause[0])
+        const [simulateHandleOpResult, simulateTargetCallDataResult] = cause
+
+        const executionResult = getSimulateHandleOpResult(
+            simulateHandleOpResult
+        )
 
         if (executionResult.result === "failed") {
             return executionResult
         }
 
         const targetCallValidationResult = validateTargetCallDataResult(
-            cause[1]
+            simulateTargetCallDataResult
         )
 
         if (targetCallValidationResult.result === "failed") {
