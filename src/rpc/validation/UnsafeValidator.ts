@@ -48,11 +48,9 @@ import {
 } from "viem"
 import { fromZodError } from "zod-validation-error"
 import { simulateValidation } from "../estimation/gasEstimationsV07"
-import {
-    type SimulateHandleOpResult,
-    simulateHandleOp,
-    simulateHandleOpV06
-} from "../estimation/gasEstimation"
+import type { SimulateHandleOpResult } from "../estimation/types"
+import { simulateHandleOp } from "../estimation/gasEstimation"
+import { simulateHandleOpV06 } from "../estimation/gasEstimationsV06"
 
 export class UnsafeValidator implements InterfaceValidator {
     publicClient: PublicClient<Transport, Chain>
@@ -68,6 +66,8 @@ export class UnsafeValidator implements InterfaceValidator {
     chainType: ChainType
     blockTagSupport: boolean
     utilityWalletAddress: Address
+    toleranceDelta: bigint
+    binarySearchGasAllowance: bigint
 
     constructor(
         publicClient: PublicClient<Transport, Chain>,
@@ -77,6 +77,8 @@ export class UnsafeValidator implements InterfaceValidator {
         chainType: ChainType,
         blockTagSupport: boolean,
         utilityWalletAddress: Address,
+        toleranceDelta: bigint,
+        binarySearchGasAllowance: bigint,
         entryPointSimulationsAddress?: Address,
         fixedGasLimitForEstimation?: bigint,
         usingTenderly = false,
@@ -96,6 +98,8 @@ export class UnsafeValidator implements InterfaceValidator {
         this.chainType = chainType
         this.blockTagSupport = blockTagSupport
         this.utilityWalletAddress = utilityWalletAddress
+        this.toleranceDelta = toleranceDelta
+        this.binarySearchGasAllowance = binarySearchGasAllowance
     }
 
     async getSimulationResult(
@@ -186,6 +190,8 @@ export class UnsafeValidator implements InterfaceValidator {
         const error = await simulateHandleOp(
             userOperation,
             queuedUserOperations,
+            this.toleranceDelta,
+            this.binarySearchGasAllowance,
             entryPoint,
             this.publicClient,
             false,

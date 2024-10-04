@@ -5,6 +5,7 @@ import type {
     IBundlerArgsInput,
     ICompatibilityArgsInput,
     IDebugArgsInput,
+    IGasEstimationArgsInput,
     ILogArgsInput,
     IOptionsInput,
     IRpcArgsInput,
@@ -187,6 +188,22 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         default: false
     }
 }
+
+export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
+    {
+        "binary-search-tolerance-delta": {
+            description:
+                "Defines the threshold for when to stop the gas estimation binary search",
+            type: "string",
+            default: "1000"
+        },
+        "binary-search-gas-allowance": {
+            description:
+                "Added to the initial minimum gas to determine the upper bound of the binary search",
+            type: "string",
+            default: "1000000"
+        }
+    }
 
 export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
     {

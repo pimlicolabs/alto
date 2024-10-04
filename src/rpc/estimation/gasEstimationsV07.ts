@@ -205,12 +205,18 @@ function encodeSimulateCallData({
     userOperation,
     queuedUserOperations,
     entryPoint,
-    chainId
+    chainId,
+    toleranceDelta,
+    gasAllowance,
+    initialMinGas = 0n
 }: {
     userOperation: UserOperationV07
     queuedUserOperations: UserOperationV07[]
     entryPoint: Address
     chainId: number
+    initialMinGas?: bigint
+    toleranceDelta: bigint
+    gasAllowance: bigint
 }): Hex {
     const queuedOps = queuedUserOperations.map((op) => ({
         op: toPackedUserOperation(op),
@@ -235,7 +241,14 @@ function encodeSimulateCallData({
     const simulateTargetCallData = encodeFunctionData({
         abi: EntryPointV07SimulationsAbi,
         functionName: "simulateCallData",
-        args: [queuedOps, targetOp, entryPoint, 0n, 1_000n, 1_000_000n]
+        args: [
+            queuedOps,
+            targetOp,
+            entryPoint,
+            initialMinGas,
+            toleranceDelta,
+            gasAllowance
+        ]
     })
 
     return simulateTargetCallData
@@ -245,6 +258,8 @@ function encodeSimulateCallData({
 async function retryGetCallDataGas(
     targetOp: UserOperationV07,
     queuedOps: UserOperationV07[],
+    toleranceDelta: bigint,
+    binarySearchGasAllowance: bigint,
     entryPoint: Address,
     chainId: number,
     publicClient: PublicClient,
@@ -258,7 +273,9 @@ async function retryGetCallDataGas(
         userOperation: targetOp,
         queuedUserOperations: queuedOps,
         entryPoint,
-        chainId
+        chainId,
+        toleranceDelta,
+        gasAllowance: binarySearchGasAllowance
     })
 
     const cause = await callPimlicoEntryPointSimulations(
@@ -280,6 +297,8 @@ async function retryGetCallDataGas(
 export async function simulateHandleOpV07(
     userOperation: UserOperationV07,
     queuedUserOperations: UserOperationV07[],
+    toleranceDelta: bigint,
+    binarySearchGasAllowance: bigint,
     entryPoint: Address,
     publicClient: PublicClient,
     entryPointSimulationsAddress: Address,
@@ -300,7 +319,9 @@ export async function simulateHandleOpV07(
         userOperation,
         queuedUserOperations,
         entryPoint,
-        chainId
+        chainId,
+        toleranceDelta,
+        gasAllowance: binarySearchGasAllowance
     })
 
     const cause = await callPimlicoEntryPointSimulations(
@@ -331,7 +352,10 @@ export async function simulateHandleOpV07(
             return await retryGetCallDataGas(
                 userOperation,
                 queuedUserOperations,
+                toleranceDelta,
+                binarySearchGasAllowance,
                 entryPoint,
+                chainId,
                 publicClient,
                 entryPointSimulationsAddress,
                 blockTagSupport,

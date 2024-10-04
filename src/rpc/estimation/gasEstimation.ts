@@ -48,6 +48,8 @@ function getStateOverrides({
 export function simulateHandleOp(
     userOperation: UserOperation,
     queuedUserOperations: UserOperation[],
+    toleranceDelta: bigint,
+    binarySearchGasAllowance: bigint,
     entryPoint: Address,
     publicClient: PublicClient,
     replacedEntryPoint: boolean,
@@ -96,6 +98,8 @@ export function simulateHandleOp(
     return simulateHandleOpV07(
         userOperation,
         queuedUserOperations as UserOperationV07[],
+        toleranceDelta,
+        binarySearchGasAllowance,
         entryPoint,
         publicClient,
         entryPointSimulationsAddress,
