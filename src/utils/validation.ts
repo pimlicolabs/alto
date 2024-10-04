@@ -369,6 +369,10 @@ export function calcVerificationGasAndCallGasLimit(
 
     let callGasLimit = maxBigInt(calculatedCallGasLimit, 9000n)
 
+    if (isVersion06(userOperation)) {
+        callGasLimit += 21_000n + 50_000n
+    }
+
     if (
         chainId === baseGoerli.id ||
         chainId === baseSepolia.id ||
