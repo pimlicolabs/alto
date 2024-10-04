@@ -1002,6 +1002,8 @@ export class RpcHandler implements IRpcEndpoint {
             }
         }
 
+        this.executor.markWalletProcessed(res.value.transactionInfo.executor)
+
         // wait for receipt
         const receipt = await this.publicClient.waitForTransactionReceipt({
             hash: res.value.transactionInfo.transactionHash,
