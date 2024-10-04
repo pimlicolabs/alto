@@ -228,9 +228,21 @@ export class GasEstimatorV07 {
                 gasAllowance
             })
 
-            const cause = await this.callPimlicoEntryPointSimulations({
+            let cause = await this.callPimlicoEntryPointSimulations({
                 entryPoint,
                 entryPointSimulationsCallData: [simulateCallData]
+            })
+
+            cause = cause.map((data: Hex) => {
+                const decodedDelegateAndError = decodeErrorResult({
+                    abi: EntryPointV07Abi,
+                    data: data
+                })
+
+                if (!decodedDelegateAndError?.args?.[1]) {
+                    throw new Error("Unexpected error")
+                }
+                return decodedDelegateAndError.args[1] as Hex
             })
 
             const simulateCallDataResult = validateTargetCallDataResult(
@@ -290,13 +302,29 @@ export class GasEstimatorV07 {
             queuedUserOperations
         })
 
-        const cause = await this.callPimlicoEntryPointSimulations({
+        let cause = await this.callPimlicoEntryPointSimulations({
             entryPoint,
             entryPointSimulationsCallData: [
                 simulateHandleOpLast,
                 simulateCallData
             ],
             stateOverrides
+        })
+
+        cause = cause.map((data: Hex) => {
+            const decodedDelegateAndError = decodeErrorResult({
+                abi: EntryPointV07Abi,
+                data: data
+            })
+
+            const delegateAndRevertResponseBytes =
+                decodedDelegateAndError?.args?.[1]
+
+            if (!delegateAndRevertResponseBytes) {
+                throw new Error("Unexpected error")
+            }
+
+            return delegateAndRevertResponseBytes as Hex
         })
 
         try {
