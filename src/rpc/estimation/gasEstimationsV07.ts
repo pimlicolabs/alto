@@ -75,7 +75,7 @@ export class GasEstimatorV07 {
             toPackedUserOperation(uo)
         )
 
-        const entryPointSimulationsCallData = encodeFunctionData({
+        const simulateValidationLast = encodeFunctionData({
             abi: EntryPointV07SimulationsAbi,
             functionName: "simulateValidationLast",
             args: [packedUserOperations]
@@ -83,7 +83,7 @@ export class GasEstimatorV07 {
 
         const errorResult = await this.callPimlicoEntryPointSimulations({
             entryPoint,
-            entryPointSimulationsCallData: [entryPointSimulationsCallData]
+            entryPointSimulationsCallData: [simulateValidationLast]
         })
 
         return {
@@ -401,17 +401,7 @@ export class GasEstimatorV07 {
             result
         )
 
-        return returnBytes[0].map((data: Hex) => {
-            const decodedDelegateAndError = decodeErrorResult({
-                abi: EntryPointV07Abi,
-                data: data
-            })
-
-            if (!decodedDelegateAndError?.args?.[1]) {
-                throw new Error("Unexpected error")
-            }
-            return decodedDelegateAndError.args[1] as Hex
-        })
+        return returnBytes[0]
     }
 }
 
