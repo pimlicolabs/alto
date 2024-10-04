@@ -157,6 +157,16 @@ export async function bundlerHandler(args: IOptionsInput): Promise<void> {
         parsedArgs["entrypoint-simulation-contract"] = simulationsContract
     }
 
+    // TODO: THIS IS TEMPORARY, REMOVE AFTER THIS PR IS DEPLOYED + ENV VARS ARE SET
+    parsedArgs["entrypoint-simulation-contract"] =
+        "0xAE6035bEE0802C969265C8A3193CE8878c99A66A"
+
+    if (chainId === 19411) {
+        // geo-testnet
+        parsedArgs["entrypoint-simulation-contract"] =
+            "0x98F36cDFCE8cF2AB75d8E164b99060f9e41775Dd"
+    }
+
     const gasPriceManager = new GasPriceManager(
         chain,
         client,
