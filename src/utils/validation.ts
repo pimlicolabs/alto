@@ -367,11 +367,8 @@ export function calcVerificationGasAndCallGasLimit(
         callDataResult?.gasUsed ??
         executionResult.paid / gasPrice - executionResult.preOpGas
 
-    let callGasLimit = maxBigInt(calculatedCallGasLimit, 9000n)
-
-    if (isVersion06(userOperation)) {
-        callGasLimit += 21_000n + 50_000n
-    }
+    let callGasLimit =
+        maxBigInt(calculatedCallGasLimit, 9000n) + 21_000n + 50_000n
 
     if (
         chainId === baseGoerli.id ||
