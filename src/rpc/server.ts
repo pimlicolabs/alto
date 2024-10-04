@@ -121,9 +121,7 @@ export class Server {
                 route: request.routeOptions.url,
                 code: reply.statusCode,
                 method: request.method,
-                // biome-ignore lint/style/useNamingConvention: allow snake case
                 rpc_method: request.rpcMethod,
-                // biome-ignore lint/style/useNamingConvention: allow snake case
                 rpc_status: reply.rpcStatus
             }
 
@@ -308,7 +306,10 @@ export class Server {
             const bundlerRequest = bundlerRequestParsing.data
             request.rpcMethod = bundlerRequest.method
 
-            if (this.supportedRpcMethods !== null && !this.supportedRpcMethods.includes(bundlerRequest.method)) {
+            if (
+                this.supportedRpcMethods !== null &&
+                !this.supportedRpcMethods.includes(bundlerRequest.method)
+            ) {
                 throw new RpcError(
                     `Method not supported: ${bundlerRequest.method}`,
                     ValidationErrors.InvalidRequest

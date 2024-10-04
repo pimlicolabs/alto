@@ -65,6 +65,7 @@ import {
     isVersion07,
     maxBigInt,
     parseUserOperationReceipt,
+    scaleBigIntByPercent,
     toUnpackedUserOperation
 } from "@alto/utils"
 import {
@@ -398,22 +399,25 @@ export class RpcHandler implements IRpcEndpoint {
                 "user operation max fee per gas must be larger than 0 during gas estimation"
             )
         }
-        const preVerificationGas =
-            ((await calcPreVerificationGas(
-                this.publicClient,
-                userOperation,
-                entryPoint,
-                this.chainId,
-                this.chainType,
-                this.gasPriceManager,
-                false
-            )) *
-                110n) /
-            100n
 
-        userOperation.preVerificationGas = 1_000_000n
-        userOperation.verificationGasLimit = 10_000_000n
-        userOperation.callGasLimit = 10_000_000n
+        let preVerificationGas = await calcPreVerificationGas(
+            this.publicClient,
+            userOperation,
+            entryPoint,
+            this.chainId,
+            this.chainType,
+            this.gasPriceManager,
+            false
+        )
+        preVerificationGas = scaleBigIntByPercent(preVerificationGas, 110)
+
+        // biome-ignore lint/style/noParameterAssign: prepare userOperaiton for simulation
+        userOperation = {
+            ...userOperation,
+            preVerificationGas: 1_000_000n,
+            verificationGasLimit: 10_000_000n,
+            callGasLimit: 10_000_000n
+        }
 
         if (this.chainId === base.id) {
             userOperation.verificationGasLimit = 5_000_000n

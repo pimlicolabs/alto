@@ -1,5 +1,4 @@
 import type { Address } from "viem"
-import type { SimulateHandleOpResult } from "../rpc/gasEstimation"
 import type { ReferencedCodeHashes } from "./mempool"
 import type {
     StateOverrides,
@@ -8,6 +7,7 @@ import type {
     UserOperationV07
 } from "./schemas"
 import type * as validation from "./validation"
+import type { SimulateHandleOpResult } from "../rpc/estimation/types"
 
 export interface InterfaceValidator {
     getExecutionResult(

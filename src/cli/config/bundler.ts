@@ -193,6 +193,17 @@ export const debugArgsSchema = z.object({
     tenderly: z.boolean()
 })
 
+export const gasEstimationArgsSchema = z.object({
+    "binary-search-tolerance-delta": z
+        .string()
+        .transform((val) => BigInt(val))
+        .default("1000"),
+    "binary-search-gas-allowance": z
+        .string()
+        .transform((val) => BigInt(val))
+        .default("1000000")
+})
+
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>
 export type IBundlerArgsInput = z.input<typeof bundlerArgsSchema>
 
@@ -216,6 +227,9 @@ export type ILogArgsInput = z.input<typeof logArgsSchema>
 export type IDebugArgs = z.infer<typeof debugArgsSchema>
 export type IDebugArgsInput = z.input<typeof debugArgsSchema>
 
+export type IGasEstimationArgs = z.infer<typeof gasEstimationArgsSchema>
+export type IGasEstimationArgsInput = z.input<typeof gasEstimationArgsSchema>
+
 export const optionArgsSchema = z.object({
     ...bundlerArgsSchema.shape,
     ...compatibilityArgsSchema.shape,
@@ -223,7 +237,8 @@ export const optionArgsSchema = z.object({
     ...serverArgsSchema.shape,
     ...rpcArgsSchema.shape,
     ...bundleCopmressionArgsSchema.shape,
-    ...debugArgsSchema.shape
+    ...debugArgsSchema.shape,
+    ...gasEstimationArgsSchema.shape
 })
 
 export type IOptions = z.infer<typeof optionArgsSchema>

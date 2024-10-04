@@ -32,7 +32,7 @@ import {
 } from "viem"
 import { baseGoerli, baseSepolia, base } from "viem/chains"
 import { isVersion06, toPackedUserOperation } from "./userop"
-import { minBigInt } from "./bigInt"
+import { maxBigInt, minBigInt } from "./bigInt"
 import type { GasPriceManager } from "@alto/handlers"
 
 export interface GasOverheads {
@@ -368,9 +368,7 @@ export function calcVerificationGasAndCallGasLimit(
         executionResult.paid / gasPrice - executionResult.preOpGas
 
     let callGasLimit =
-        (calculatedCallGasLimit > 9000n ? calculatedCallGasLimit : 9000n) +
-        21000n +
-        50000n
+        maxBigInt(calculatedCallGasLimit, 9000n) + 21_000n + 50_000n
 
     if (
         chainId === baseGoerli.id ||

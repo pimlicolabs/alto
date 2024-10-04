@@ -44,7 +44,7 @@ import {
     type PublicClient,
     type Transport
 } from "viem"
-import { getSimulateValidationResult } from "../EntryPointSimulationsV07"
+import { getSimulateValidationResult } from "../estimation/gasEstimationsV07"
 import {
     bundlerCollectorTracer,
     type BundlerTracerResult,
@@ -71,6 +71,8 @@ export class SafeValidator
         chainType: ChainType,
         blockTagSupport: boolean,
         utilityWalletAddress: Address,
+        binarySearchToleranceDelta: bigint,
+        binarySearchGasAllowance: bigint,
         entryPointSimulationsAddress?: Address,
         fixedGasLimitForEstimation?: bigint,
         usingTenderly = false,
@@ -84,6 +86,8 @@ export class SafeValidator
             chainType,
             blockTagSupport,
             utilityWalletAddress,
+            binarySearchToleranceDelta,
+            binarySearchGasAllowance,
             entryPointSimulationsAddress,
             fixedGasLimitForEstimation,
             usingTenderly,
@@ -499,10 +503,6 @@ export class SafeValidator
         userOperation: UserOperationV07,
         entryPoint: Address
     ): Promise<[ValidationResultV07, BundlerTracerResult]> {
-        if (!this.entryPointSimulationsAddress) {
-            throw new Error("entryPointSimulationsAddress is not set")
-        }
-
         const packedUserOperation = toPackedUserOperation(userOperation)
 
         const entryPointSimulationsCallData = encodeFunctionData({
@@ -517,11 +517,15 @@ export class SafeValidator
             args: [entryPoint, [entryPointSimulationsCallData]]
         })
 
+        const entryPointSimulationsAddress =
+            this.gasEstimationHandler.gasEstimatorV07
+                .entryPointSimulationsAddress
+
         const tracerResult = await debug_traceCall(
             this.publicClient,
             {
                 from: zeroAddress,
-                to: this.entryPointSimulationsAddress,
+                to: entryPointSimulationsAddress,
                 data: callData
             },
             {
