@@ -66,7 +66,7 @@ export class UnsafeValidator implements InterfaceValidator {
     chainType: ChainType
     blockTagSupport: boolean
     utilityWalletAddress: Address
-    toleranceDelta: bigint
+    binarySearchToleranceDelta: bigint
     binarySearchGasAllowance: bigint
 
     constructor(
@@ -77,7 +77,7 @@ export class UnsafeValidator implements InterfaceValidator {
         chainType: ChainType,
         blockTagSupport: boolean,
         utilityWalletAddress: Address,
-        toleranceDelta: bigint,
+        binarySearchToleranceDelta: bigint,
         binarySearchGasAllowance: bigint,
         entryPointSimulationsAddress?: Address,
         fixedGasLimitForEstimation?: bigint,
@@ -98,7 +98,7 @@ export class UnsafeValidator implements InterfaceValidator {
         this.chainType = chainType
         this.blockTagSupport = blockTagSupport
         this.utilityWalletAddress = utilityWalletAddress
-        this.toleranceDelta = toleranceDelta
+        this.binarySearchToleranceDelta = binarySearchToleranceDelta
         this.binarySearchGasAllowance = binarySearchGasAllowance
     }
 
@@ -190,7 +190,7 @@ export class UnsafeValidator implements InterfaceValidator {
         const error = await simulateHandleOp(
             userOperation,
             queuedUserOperations,
-            this.toleranceDelta,
+            this.binarySearchToleranceDelta,
             this.binarySearchGasAllowance,
             entryPoint,
             this.publicClient,

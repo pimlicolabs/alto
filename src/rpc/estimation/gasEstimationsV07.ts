@@ -256,10 +256,12 @@ function encodeSimulateCallData({
 
 // Try to get the calldata gas again if the initial simulation reverted due to hitting the eth_call gasLimit.
 async function retryGetCallDataGas(
+    optimalGas: bigint,
+    minGas: bigint,
     targetOp: UserOperationV07,
     queuedOps: UserOperationV07[],
+    simulateHandleOpLastResult: SimulateHandleOpResult<"execution">,
     toleranceDelta: bigint,
-    binarySearchGasAllowance: bigint,
     entryPoint: Address,
     chainId: number,
     publicClient: PublicClient,
@@ -269,29 +271,65 @@ async function retryGetCallDataGas(
     stateOverrides: StateOverrides | undefined = undefined,
     fixedGasLimitForEstimation?: bigint
 ): Promise<SimulateHandleOpResult> {
-    const simulateCallData = encodeSimulateCallData({
-        userOperation: targetOp,
-        queuedUserOperations: queuedOps,
-        entryPoint,
-        chainId,
-        toleranceDelta,
-        gasAllowance: binarySearchGasAllowance
-    })
+    const maxRetries = 3
+    let retryCount = 0
+    let currentOptimalGas = optimalGas
+    let currentMinGas = minGas
 
-    const cause = await callPimlicoEntryPointSimulations(
-        publicClient,
-        entryPoint,
-        [simulateCallData],
-        entryPointSimulationsAddress,
-        blockTagSupport,
-        utilityWalletAddress,
-        stateOverrides,
-        fixedGasLimitForEstimation
-    )
+    while (retryCount < maxRetries) {
+        // OptimalGas represents the current lowest gasLimit, so we set the gasAllowance to search range minGas <-> optimalGas
+        const gasAllowance = currentOptimalGas - currentMinGas
 
-    const simulateCallDataResult = validateTargetCallDataResult(cause[0])
+        const simulateCallData = encodeSimulateCallData({
+            userOperation: targetOp,
+            queuedUserOperations: queuedOps,
+            entryPoint,
+            chainId,
+            initialMinGas: currentMinGas,
+            toleranceDelta,
+            gasAllowance
+        })
 
-    process.exit(0)
+        const cause = await callPimlicoEntryPointSimulations(
+            publicClient,
+            entryPoint,
+            [simulateCallData],
+            entryPointSimulationsAddress,
+            blockTagSupport,
+            utilityWalletAddress,
+            stateOverrides,
+            fixedGasLimitForEstimation
+        )
+
+        const simulateCallDataResult = validateTargetCallDataResult(cause[0])
+
+        if (simulateCallDataResult.result === "failed") {
+            return simulateCallDataResult
+        }
+
+        if (simulateCallDataResult.result === "retry") {
+            currentOptimalGas = simulateCallDataResult.optimalGas
+            currentMinGas = simulateCallDataResult.minGas
+            retryCount++
+            continue
+        }
+
+        // If we reach here, it means we have a successful result
+        return {
+            result: "execution",
+            data: {
+                callDataResult: simulateCallDataResult.data,
+                executionResult: simulateHandleOpLastResult.data.executionResult
+            }
+        }
+    }
+
+    // If we've exhausted all retries, return a failure result
+    return {
+        result: "failed",
+        data: "Max retries reached for getting call data gas",
+        code: ValidationErrors.SimulateValidation
+    }
 }
 
 export async function simulateHandleOpV07(
@@ -349,11 +387,14 @@ export async function simulateHandleOpV07(
         }
 
         if (simulateCallDataResult.result === "retry") {
+            const { optimalGas, minGas } = simulateCallDataResult
             return await retryGetCallDataGas(
+                optimalGas,
+                minGas,
                 userOperation,
                 queuedUserOperations,
+                simulateHandleOpLastResult as SimulateHandleOpResult<"execution">,
                 toleranceDelta,
-                binarySearchGasAllowance,
                 entryPoint,
                 chainId,
                 publicClient,

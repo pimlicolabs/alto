@@ -194,8 +194,14 @@ export const debugArgsSchema = z.object({
 })
 
 export const gasEstimationArgsSchema = z.object({
-    "binary-search-tolerance-delta": z.string().transform((val) => BigInt(val)),
-    "binary-search-gas-allowance": z.string().transform((val) => BigInt(val))
+    "binary-search-tolerance-delta": z
+        .string()
+        .transform((val) => BigInt(val))
+        .default("1000"),
+    "binary-search-gas-allowance": z
+        .string()
+        .transform((val) => BigInt(val))
+        .default("1000000")
 })
 
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>

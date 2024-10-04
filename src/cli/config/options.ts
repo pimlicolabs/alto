@@ -195,12 +195,14 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
             description:
                 "Defines the threshold for when to stop the gas estimation binary search",
             type: "string",
+            require: false,
             default: "1000"
         },
         "binary-search-gas-allowance": {
             description:
                 "Added to the initial minimum gas to determine the upper bound of the binary search",
             type: "string",
+            require: false,
             default: "1000000"
         }
     }
