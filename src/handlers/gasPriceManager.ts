@@ -28,11 +28,180 @@ const MIN_POLYGON_GAS_PRICE = parseGwei("31")
 const MIN_MUMBAI_GAS_PRICE = parseGwei("1")
 
 function getGasStationUrl(chainId: ChainId.Polygon | ChainId.Mumbai): string {
+    // biome-ignore lint/style/useDefaultSwitchClause: There are only two cases
     switch (chainId) {
         case ChainId.Polygon:
             return "https://gasstation.polygon.technology/v2"
         case ChainId.Mumbai:
             return "https://gasstation-testnet.polygon.technology/v2"
+    }
+}
+
+class MantleManager {
+    private queueTokenRatio: { timestamp: number; tokenRatio: bigint }[]
+    private queueScalar: { timestamp: number; scalar: bigint }[]
+    private queueRollupDataGasAndOverhead: {
+        timestamp: number
+        rollupDataGasAndOverhead: bigint
+    }[]
+    private queueL1GasPrice: { timestamp: number; l1GasPrice: bigint }[]
+
+    private maxQueueSize
+    private queueValidity = 15_000
+
+    constructor(maxQueueSize: number) {
+        this.maxQueueSize = maxQueueSize
+        this.queueTokenRatio = []
+        this.queueScalar = []
+        this.queueRollupDataGasAndOverhead = []
+        this.queueL1GasPrice = []
+    }
+
+    public getMinMantleOracleValues() {
+        const tokenRationQueue = this.queueTokenRatio
+        let minTokenRatio = 1n
+
+        if (tokenRationQueue.length > 0) {
+            minTokenRatio = tokenRationQueue.reduce(
+                (acc: bigint, cur) => minBigInt(cur.tokenRatio, acc),
+                tokenRationQueue[0].tokenRatio
+            )
+        }
+
+        const scalarQueue = this.queueScalar
+        let minScalar = 1n
+
+        if (scalarQueue.length > 0) {
+            minScalar = scalarQueue.reduce(
+                (acc: bigint, cur) => minBigInt(cur.scalar, acc),
+                scalarQueue[0].scalar
+            )
+        }
+
+        const rollupDataGasAndOverheadQueue = this.queueRollupDataGasAndOverhead
+        let minRollupDataGasAndOverhead = 1n
+
+        if (rollupDataGasAndOverheadQueue.length > 0) {
+            minRollupDataGasAndOverhead = rollupDataGasAndOverheadQueue.reduce(
+                (acc: bigint, cur) =>
+                    minBigInt(cur.rollupDataGasAndOverhead, acc),
+                rollupDataGasAndOverheadQueue[0].rollupDataGasAndOverhead
+            )
+        }
+
+        const l1GasPriceQueue = this.queueL1GasPrice
+        let minL1GasPrice = 1n
+
+        if (l1GasPriceQueue.length > 0) {
+            minL1GasPrice = l1GasPriceQueue.reduce(
+                (acc: bigint, cur) => minBigInt(cur.l1GasPrice, acc),
+                l1GasPriceQueue[0].l1GasPrice
+            )
+        }
+
+        return {
+            minTokenRatio,
+            minScalar,
+            minRollupDataGasAndOverhead,
+            minL1GasPrice
+        }
+    }
+
+    public saveMantleOracleValues({
+        tokenRatio,
+        scalar,
+        rollupDataGasAndOverhead,
+        l1GasPrice
+    }: {
+        tokenRatio: bigint
+        scalar: bigint
+        rollupDataGasAndOverhead: bigint
+        l1GasPrice: bigint
+    }) {
+        this.saveTokenRatio(tokenRatio)
+        this.saveScalar(scalar)
+        this.saveRollupDataGasAndOverhead(rollupDataGasAndOverhead)
+        this.saveL1GasPrice(l1GasPrice)
+    }
+
+    saveTokenRatio(tokenRatio: bigint) {
+        if (tokenRatio === 0n) {
+            return
+        }
+
+        const queue = this.queueTokenRatio
+        const last = queue.length > 0 ? queue[queue.length - 1] : null
+        const timestamp = Date.now()
+
+        if (!last || timestamp - last.timestamp >= this.queueValidity) {
+            if (queue.length >= this.maxQueueSize) {
+                queue.shift()
+            }
+            queue.push({ tokenRatio, timestamp })
+        } else if (tokenRatio < last.tokenRatio) {
+            last.tokenRatio = tokenRatio
+            last.timestamp = timestamp
+        }
+    }
+
+    saveScalar(scalar: bigint) {
+        if (scalar === 0n) {
+            return
+        }
+
+        const queue = this.queueScalar
+        const last = queue.length > 0 ? queue[queue.length - 1] : null
+        const timestamp = Date.now()
+
+        if (!last || timestamp - last.timestamp >= this.queueValidity) {
+            if (queue.length >= this.maxQueueSize) {
+                queue.shift()
+            }
+            queue.push({ scalar, timestamp })
+        } else if (scalar < last.scalar) {
+            last.scalar = scalar
+            last.timestamp = timestamp
+        }
+    }
+
+    saveRollupDataGasAndOverhead(rollupDataGasAndOverhead: bigint) {
+        if (rollupDataGasAndOverhead === 0n) {
+            return
+        }
+
+        const queue = this.queueRollupDataGasAndOverhead
+        const last = queue.length > 0 ? queue[queue.length - 1] : null
+        const timestamp = Date.now()
+
+        if (!last || timestamp - last.timestamp >= this.queueValidity) {
+            if (queue.length >= this.maxQueueSize) {
+                queue.shift()
+            }
+            queue.push({ rollupDataGasAndOverhead, timestamp })
+        } else if (rollupDataGasAndOverhead < last.rollupDataGasAndOverhead) {
+            last.rollupDataGasAndOverhead = rollupDataGasAndOverhead
+            last.timestamp = timestamp
+        }
+    }
+
+    saveL1GasPrice(l1GasPrice: bigint) {
+        if (l1GasPrice === 0n) {
+            return
+        }
+
+        const queue = this.queueL1GasPrice
+        const last = queue.length > 0 ? queue[queue.length - 1] : null
+        const timestamp = Date.now()
+
+        if (!last || timestamp - last.timestamp >= this.queueValidity) {
+            if (queue.length >= this.maxQueueSize) {
+                queue.shift()
+            }
+            queue.push({ l1GasPrice, timestamp })
+        } else if (l1GasPrice < last.l1GasPrice) {
+            last.l1GasPrice = l1GasPrice
+            last.timestamp = timestamp
+        }
     }
 }
 
@@ -146,6 +315,7 @@ export class GasPriceManager {
     private gasPriceRefreshIntervalInSeconds: number
     private chainType: ChainType
     public arbitrumManager: ArbitrumManager
+    public mantleManager: MantleManager
 
     constructor(
         chain: Chain,
@@ -178,6 +348,7 @@ export class GasPriceManager {
         }
 
         this.arbitrumManager = new ArbitrumManager(this.maxQueueSize)
+        this.mantleManager = new MantleManager(this.maxQueueSize)
     }
 
     public init() {
@@ -585,7 +756,7 @@ export class GasPriceManager {
 
         const { maxPriorityFeePerGas } =
             this.queueMaxPriorityFeePerGas[
-                this.queueMaxPriorityFeePerGas.length - 1
+            this.queueMaxPriorityFeePerGas.length - 1
             ]
 
         const { maxFeePerGas } =
