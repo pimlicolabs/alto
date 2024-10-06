@@ -27,6 +27,7 @@
             "suspicious": {
                 "noExplicitAny": "warn"
             },
+            "correctness": { "useImportExtensions": "off" },
             "style": {
                 "useNamingConvention": "off"
             }
@@ -42,7 +43,7 @@
     "javascript": {
         "formatter": {
             "semicolons": "asNeeded",
-            "trailingComma": "none"
+            "trailingCommas": "none"
         }
     }
 }

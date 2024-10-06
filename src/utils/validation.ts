@@ -6,7 +6,8 @@ import {
     type PackedUserOperation,
     type UserOperation,
     type UserOperationV06,
-    type UserOperationV07
+    type UserOperationV07,
+    ArbitrumL1FeeAbi
 } from "@alto/types"
 import {
     type Chain,
@@ -33,6 +34,7 @@ import {
 import { baseGoerli, baseSepolia, base } from "viem/chains"
 import { isVersion06, toPackedUserOperation } from "./userop"
 import { maxBigInt, minBigInt } from "./bigInt"
+import { MantleBvmGasPriceOracleAbi } from "@alto/types"
 import type { GasPriceManager } from "@alto/handlers"
 
 export interface GasOverheads {
@@ -315,29 +317,40 @@ export async function calcPreVerificationGas(
     )
 
     if (chainId === 59140) {
-        // linea sepolia
         preVerificationGas *= 2n
-    } else if (chainType === "op-stack") {
-        preVerificationGas = await calcOptimismPreVerificationGas(
-            publicClient,
-            userOperation,
-            entryPoint,
-            preVerificationGas,
-            gasPriceManager,
-            validate
-        )
-    } else if (chainType === "arbitrum") {
-        preVerificationGas = await calcArbitrumPreVerificationGas(
-            publicClient,
-            userOperation,
-            entryPoint,
-            preVerificationGas,
-            gasPriceManager,
-            validate
-        )
     }
 
-    return preVerificationGas
+    switch (chainType) {
+        case "op-stack":
+            return await calcOptimismPreVerificationGas(
+                publicClient,
+                userOperation,
+                entryPoint,
+                preVerificationGas,
+                gasPriceManager,
+                validate
+            )
+        case "arbitrum":
+            return await calcArbitrumPreVerificationGas(
+                publicClient,
+                userOperation,
+                entryPoint,
+                preVerificationGas,
+                gasPriceManager,
+                validate
+            )
+        case "mantle":
+            return await calcMantlePreVerificationGas(
+                publicClient,
+                userOperation,
+                entryPoint,
+                preVerificationGas,
+                gasPriceManager,
+                validate
+            )
+        default:
+            return preVerificationGas
+    }
 }
 
 export function calcVerificationGasAndCallGasLimit(
@@ -411,9 +424,9 @@ export function calcDefaultPreVerificationGas(
         .reduce((sum, x) => sum + x)
     const ret = Math.round(
         callDataCost +
-            ov.fixed / ov.bundleSize +
-            ov.perUserOp +
-            ov.perUserOpWord * lengthInWord
+        ov.fixed / ov.bundleSize +
+        ov.perUserOp +
+        ov.perUserOpWord * lengthInWord
     )
     return BigInt(ret)
 }
@@ -449,6 +462,90 @@ const getL1FeeAbi = [
     }
 ] as const
 
+export async function calcMantlePreVerificationGas(
+    publicClient: PublicClient<Transport, Chain>,
+    op: UserOperation,
+    entryPoint: Address,
+    staticFee: bigint,
+    gasPriceManager: GasPriceManager,
+    verify?: boolean
+) {
+    const data = getHandleOpsCallData(op, entryPoint)
+
+    const serializedTx = serializeTransaction(
+        {
+            to: entryPoint,
+            chainId: publicClient.chain.id,
+            nonce: 999999,
+            gasLimit: maxUint64,
+            gasPrice: maxUint64,
+            data
+        },
+        {
+            r: "0x123451234512345123451234512345123451234512345123451234512345",
+            s: "0x123451234512345123451234512345123451234512345123451234512345",
+            v: 28n
+        }
+    )
+
+    let tokenRatio: bigint
+    let scalar: bigint
+    let rollupDataGasAndOverhead: bigint
+    let l1GasPrice: bigint
+
+    if (verify) {
+        ;[tokenRatio, scalar, rollupDataGasAndOverhead, l1GasPrice] =
+            await Promise.all([
+                publicClient.readContract({
+                    address: "0x420000000000000000000000000000000000000F",
+                    abi: MantleBvmGasPriceOracleAbi,
+                    functionName: "tokenRatio"
+                }),
+                publicClient.readContract({
+                    address: "0x420000000000000000000000000000000000000F",
+                    abi: MantleBvmGasPriceOracleAbi,
+                    functionName: "scalar"
+                }),
+                publicClient.readContract({
+                    address: "0x420000000000000000000000000000000000000F",
+                    abi: MantleBvmGasPriceOracleAbi,
+                    functionName: "getL1GasUsed",
+                    args: [serializedTx]
+                }),
+                publicClient.readContract({
+                    address: "0x420000000000000000000000000000000000000F",
+                    abi: MantleBvmGasPriceOracleAbi,
+                    functionName: "l1BaseFee"
+                })
+            ])
+
+        gasPriceManager.mantleManager.saveMantleOracleValues({
+            tokenRatio,
+            scalar,
+            rollupDataGasAndOverhead,
+            l1GasPrice
+        })
+    } else {
+        const minValues =
+            gasPriceManager.mantleManager.getMinMantleOracleValues()
+
+        tokenRatio = minValues.minTokenRatio
+        scalar = minValues.minScalar
+        rollupDataGasAndOverhead = minValues.minRollupDataGasAndOverhead
+        l1GasPrice = minValues.minL1GasPrice
+    }
+
+    const mantleL1RollUpFeeDivisionFactor = 1_000_000n
+
+    const l1RollupFee =
+        (rollupDataGasAndOverhead * l1GasPrice * tokenRatio * scalar) /
+        mantleL1RollUpFeeDivisionFactor
+
+    const l2MaxFee = BigInt(op.maxFeePerGas)
+
+    return staticFee + l1RollupFee / l2MaxFee
+}
+
 export async function calcOptimismPreVerificationGas(
     publicClient: PublicClient<Transport, Chain>,
     op: UserOperation,
@@ -457,38 +554,7 @@ export async function calcOptimismPreVerificationGas(
     gasPriceManager: GasPriceManager,
     verify?: boolean
 ) {
-    let selector: Hex
-    let paramData: Hex
-
-    if (isVersion06(op)) {
-        const randomDataUserOp: UserOperation = removeZeroBytesFromUserOp(op)
-        const handleOpsAbi = getAbiItem({
-            abi: EntryPointV06Abi,
-            name: "handleOps"
-        })
-
-        selector = toFunctionSelector(handleOpsAbi)
-        paramData = encodeAbiParameters(handleOpsAbi.inputs, [
-            [randomDataUserOp],
-            entryPoint
-        ])
-    } else {
-        const randomDataUserOp: PackedUserOperation =
-            removeZeroBytesFromUserOp(op)
-
-        const handleOpsAbi = getAbiItem({
-            abi: EntryPointV07Abi,
-            name: "handleOps"
-        })
-
-        selector = toFunctionSelector(handleOpsAbi)
-        paramData = encodeAbiParameters(handleOpsAbi.inputs, [
-            [randomDataUserOp],
-            entryPoint
-        ])
-    }
-
-    const data = concat([selector, paramData])
+    const data = getHandleOpsCallData(op, entryPoint)
 
     const serializedTx = serializeTransaction(
         {
@@ -537,48 +603,6 @@ export async function calcOptimismPreVerificationGas(
     return staticFee + l1Fee / l2price
 }
 
-const getArbitrumL1FeeAbi = [
-    {
-        inputs: [
-            {
-                internalType: "address",
-                name: "to",
-                type: "address"
-            },
-            {
-                internalType: "bool",
-                name: "contractCreation",
-                type: "bool"
-            },
-            {
-                internalType: "bytes",
-                name: "data",
-                type: "bytes"
-            }
-        ],
-        name: "gasEstimateL1Component",
-        outputs: [
-            {
-                internalType: "uint64",
-                name: "gasEstimateForL1",
-                type: "uint64"
-            },
-            {
-                internalType: "uint256",
-                name: "baseFee",
-                type: "uint256"
-            },
-            {
-                internalType: "uint256",
-                name: "l1BaseFeeEstimate",
-                type: "uint256"
-            }
-        ],
-        stateMutability: "nonpayable",
-        type: "function"
-    }
-] as const
-
 export async function calcArbitrumPreVerificationGas(
     publicClient: PublicClient<Transport, Chain | undefined>,
     op: UserOperation,
@@ -587,37 +611,7 @@ export async function calcArbitrumPreVerificationGas(
     gasPriceManager: GasPriceManager,
     validate: boolean
 ) {
-    let selector: Hex
-    let paramData: Hex
-
-    if (isVersion06(op)) {
-        const handleOpsAbi = getAbiItem({
-            abi: EntryPointV06Abi,
-            name: "handleOps"
-        })
-
-        selector = toFunctionSelector(handleOpsAbi)
-        paramData = encodeAbiParameters(handleOpsAbi.inputs, [
-            [removeZeroBytesFromUserOp(op)],
-            entryPoint
-        ])
-    } else {
-        const randomDataUserOp: PackedUserOperation =
-            removeZeroBytesFromUserOp(op)
-
-        const handleOpsAbi = getAbiItem({
-            abi: EntryPointV07Abi,
-            name: "handleOps"
-        })
-
-        selector = toFunctionSelector(handleOpsAbi)
-        paramData = encodeAbiParameters(handleOpsAbi.inputs, [
-            [randomDataUserOp],
-            entryPoint
-        ])
-    }
-
-    const data = concat([selector, paramData])
+    const data = getHandleOpsCallData(op, entryPoint)
 
     const precompileAddress = "0x00000000000000000000000000000000000000C8"
 
@@ -638,7 +632,7 @@ export async function calcArbitrumPreVerificationGas(
     )
 
     const arbGasPriceOracle = getContract({
-        abi: getArbitrumL1FeeAbi,
+        abi: ArbitrumL1FeeAbi,
         address: precompileAddress,
         client: {
             public: publicClient
@@ -674,6 +668,43 @@ export async function calcArbitrumPreVerificationGas(
     }
 
     return staticFee + gasForL1
+}
+
+// Returns back the bytes for the handleOps call
+function getHandleOpsCallData(op: UserOperation, entryPoint: Address) {
+    let selector: Hex
+    let paramData: Hex
+
+    if (isVersion06(op)) {
+        const handleOpsAbi = getAbiItem({
+            abi: EntryPointV06Abi,
+            name: "handleOps"
+        })
+
+        selector = toFunctionSelector(handleOpsAbi)
+        paramData = encodeAbiParameters(handleOpsAbi.inputs, [
+            [removeZeroBytesFromUserOp(op)],
+            entryPoint
+        ])
+    } else {
+        const randomDataUserOp: PackedUserOperation =
+            removeZeroBytesFromUserOp(op)
+
+        const handleOpsAbi = getAbiItem({
+            abi: EntryPointV07Abi,
+            name: "handleOps"
+        })
+
+        selector = toFunctionSelector(handleOpsAbi)
+        paramData = encodeAbiParameters(handleOpsAbi.inputs, [
+            [randomDataUserOp],
+            entryPoint
+        ])
+    }
+
+    const data = concat([selector, paramData])
+
+    return data
 }
 
 export function parseViemError(err: unknown) {
