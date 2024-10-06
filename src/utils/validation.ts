@@ -494,6 +494,14 @@ export async function calcMantlePreVerificationGas(
     let l1GasPrice: bigint
 
     if (verify) {
+        const minValues =
+            gasPriceManager.mantleManager.getMinMantleOracleValues()
+
+        tokenRatio = minValues.minTokenRatio
+        scalar = minValues.minScalar
+        rollupDataGasAndOverhead = minValues.minRollupDataGasAndOverhead
+        l1GasPrice = minValues.minL1GasPrice
+    } else {
         ;[tokenRatio, scalar, rollupDataGasAndOverhead, l1GasPrice] =
             await Promise.all([
                 publicClient.readContract({
@@ -525,14 +533,6 @@ export async function calcMantlePreVerificationGas(
             rollupDataGasAndOverhead,
             l1GasPrice
         })
-    } else {
-        const minValues =
-            gasPriceManager.mantleManager.getMinMantleOracleValues()
-
-        tokenRatio = minValues.minTokenRatio
-        scalar = minValues.minScalar
-        rollupDataGasAndOverhead = minValues.minRollupDataGasAndOverhead
-        l1GasPrice = minValues.minL1GasPrice
     }
 
     const mantleL1RollUpFeeDivisionFactor = 1_000_000n
