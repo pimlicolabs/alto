@@ -30,6 +30,7 @@ import {
     isVersion06,
     maxBigInt,
     parseViemError,
+    scaleBigIntByPercent,
     toPackedUserOperation
 } from "@alto/utils"
 // biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
@@ -46,7 +47,9 @@ import {
     type Chain,
     type PublicClient,
     type Transport,
-    type WalletClient
+    type WalletClient,
+    type Hex,
+    TransactionExecutionError
 } from "viem"
 import {
     createCompressedCalldata,
@@ -55,6 +58,10 @@ import {
     simulatedOpsToResults,
     type CompressedFilterOpsAndEstimateGasParams
 } from "./utils"
+import type {
+    PrepareTransactionRequestRequest,
+    SendTransactionErrorType
+} from "viem"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -514,6 +521,91 @@ export class Executor {
         await Promise.all(promises)
     }
 
+    async sendHandleOpsTransaction(
+        userOps: PackedUserOperation[],
+        entryPoint: Address,
+        opts:
+            | {
+                  gasPrice: bigint
+                  maxFeePerGas?: undefined
+                  maxPriorityFeePerGas?: undefined
+                  account: Account
+                  gas: bigint
+                  nonce: number
+              }
+            | {
+                  maxFeePerGas: bigint
+                  maxPriorityFeePerGas: bigint
+                  gasPrice?: undefined
+                  account: Account
+                  gas: bigint
+                  nonce: number
+              }
+    ) {
+        let request: PrepareTransactionRequestRequest
+
+        try {
+            request = await this.walletClient.prepareTransactionRequest({
+                to: entryPoint,
+                data: encodeFunctionData({
+                    abi: EntryPointV07Abi,
+                    functionName: "handleOps",
+                    args: [userOps, opts.account.address]
+                }),
+                ...opts,
+                nonce: opts.nonce - 1
+            })
+        } catch (e: unknown) {
+            throw new Error("Failed to generate transactionRequest")
+        }
+
+        let attempts = 0
+        let transactionHash: Hex | undefined
+        const maxAttempts = 3
+
+        // Try sending the transaction and updating if there is an error
+        while (attempts < maxAttempts) {
+            try {
+                transactionHash =
+                    await this.walletClient.sendTransaction(request)
+
+                break
+            } catch (e: unknown) {
+                const error = e as SendTransactionErrorType
+
+                if (error instanceof TransactionExecutionError) {
+                    const cause = error.cause
+
+                    if (cause instanceof NonceTooLowError) {
+                        this.logger.warn("Nonce too low, retrying")
+                        request.nonce += 1
+                    }
+
+                    if (cause instanceof IntrinsicGasTooLowError) {
+                        this.logger.warn("Intrinsic gas too low, retrying")
+                        request.gas = scaleBigIntByPercent(request.gas, 150)
+                    }
+                }
+
+                attempts++
+                if (attempts === maxAttempts) {
+                    throw error
+                }
+
+                this.logger.warn(`Attempt ${attempts} failed. Retrying...`)
+            }
+        }
+
+        console.log("sent: ", transactionHash)
+
+        // needed for TS
+        if (!transactionHash) {
+            throw new Error("Transaction hash not assigned")
+        }
+
+        return transactionHash as Hex
+    }
+
     async bundle(
         entryPoint: Address,
         ops: UserOperation[]
@@ -696,8 +788,9 @@ export class Executor {
                       )
             ) as PackedUserOperation[]
 
-            transactionHash = await ep.write.handleOps(
-                [userOps, wallet.address],
+            transactionHash = await this.sendHandleOpsTransaction(
+                userOps,
+                entryPoint,
                 opts
             )
 
@@ -708,6 +801,7 @@ export class Executor {
                 )
             })
         } catch (err: unknown) {
+            console.log(err)
             const e = parseViemError(err)
             if (e instanceof InsufficientFundsError) {
                 childLogger.error(
