@@ -1,5 +1,11 @@
 # @pimlico/alto
 
+## 0.0.7
+
+### Patch Changes
+
+- 8588fbd30e111228d5d9422f538b0633357166d7: Improved calldata gas estimations for v0.7 userOperations
+
 ## 0.0.6
 
 ### Patch Changes
