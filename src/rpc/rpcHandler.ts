@@ -482,7 +482,7 @@ export class RpcHandler implements IRpcEndpoint {
             userOperation,
             entryPoint,
             queuedUserOperations,
-            undefined,
+            true,
             stateOverrides
         )
 
