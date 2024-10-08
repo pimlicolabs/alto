@@ -536,7 +536,8 @@ export class RpcHandler implements IRpcEndpoint {
             callGasLimit = 0n
         }
 
-        // if user passes in balance override on op.sender, run one more simulation to check if it's valid with that balance override.
+        // If a balance override is provided for the sender, perform an additional simulation
+        // to verify the userOperation succeeds with the specified balance.
         if (stateOverrides?.[userOperation.sender]?.balance) {
             // biome-ignore lint/style/noParameterAssign: prepare userOperaiton for simulation
             userOperation = {
