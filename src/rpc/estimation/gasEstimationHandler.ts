@@ -27,15 +27,15 @@ function getStateOverrides({
 
     if (addSenderBalanceOverride) {
         result[userOperation.sender] = {
+            ...deepHexlify(stateOverride?.[userOperation.sender] || {}),
             balance: toHex(100000_000000000000000000n),
-            ...deepHexlify(stateOverride?.[userOperation.sender] || {})
         }
     }
 
     if (replacedEntryPoint) {
         result[entryPoint] = {
+            ...deepHexlify(stateOverride?.[entryPoint] || {}),
             code: EXECUTE_SIMULATOR_BYTECODE,
-            ...deepHexlify(stateOverride?.[entryPoint] || {})
         }
     }
 
