@@ -119,7 +119,7 @@ export class GasEstimatorV06 {
                     /* Linea-Sepolia reverts in this format. */
                     z.object({
                         code: z.literal(-32000),
-                        message: z.string(),
+                        message: z.literal('Execution reverted'),
                         data: hexDataSchema
                     }),
                     z.object({
