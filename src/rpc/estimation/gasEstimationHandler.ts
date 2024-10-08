@@ -34,7 +34,8 @@ function getStateOverrides({
 
     if (replacedEntryPoint) {
         result[entryPoint] = {
-            code: EXECUTE_SIMULATOR_BYTECODE
+            code: EXECUTE_SIMULATOR_BYTECODE,
+            ...deepHexlify(stateOverride?.[entryPoint] || {})
         }
     }
 
