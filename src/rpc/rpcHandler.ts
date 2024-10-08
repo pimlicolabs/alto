@@ -482,6 +482,7 @@ export class RpcHandler implements IRpcEndpoint {
             userOperation,
             entryPoint,
             queuedUserOperations,
+            undefined,
             stateOverrides
         )
 
@@ -500,7 +501,7 @@ export class RpcHandler implements IRpcEndpoint {
             isVersion07(userOperation) &&
             userOperation.paymaster !== null &&
             "paymasterVerificationGasLimit" in
-                executionResult.data.executionResult &&
+            executionResult.data.executionResult &&
             "paymasterPostOpGasLimit" in executionResult.data.executionResult
         ) {
             paymasterVerificationGasLimit =
@@ -510,13 +511,17 @@ export class RpcHandler implements IRpcEndpoint {
                 executionResult.data.executionResult.paymasterPostOpGasLimit ||
                 1n
 
-            const multiplier = this.paymasterGasLimitMultiplier
+            const multiplier = Number(this.paymasterGasLimitMultiplier)
 
-            paymasterVerificationGasLimit =
-                (paymasterVerificationGasLimit * multiplier) / 100n
+            paymasterVerificationGasLimit = scaleBigIntByPercent(
+                paymasterVerificationGasLimit,
+                multiplier
+            )
 
-            paymasterPostOpGasLimit =
-                (paymasterPostOpGasLimit * multiplier) / 100n
+            paymasterPostOpGasLimit = scaleBigIntByPercent(
+                paymasterPostOpGasLimit,
+                multiplier
+            )
         }
 
         if (this.chainId === base.id || this.chainId === baseSepolia.id) {
@@ -529,6 +534,27 @@ export class RpcHandler implements IRpcEndpoint {
 
         if (userOperation.callData === "0x") {
             callGasLimit = 0n
+        }
+
+        // if user passes in balance override on op.sender, run one more simulation to check if it's valid with that balance override.
+        if (stateOverrides?.[userOperation.sender]?.balance) {
+            // biome-ignore lint/style/noParameterAssign: prepare userOperaiton for simulation
+            userOperation = {
+                ...userOperation,
+                preVerificationGas,
+                verificationGasLimit,
+                callGasLimit,
+                paymasterVerificationGasLimit,
+                paymasterPostOpGasLimit
+            }
+
+            await this.validator.getExecutionResult(
+                userOperation,
+                entryPoint,
+                queuedUserOperations,
+                false,
+                stateOverrides
+            )
         }
 
         if (isVersion07(userOperation)) {
@@ -599,8 +625,8 @@ export class RpcHandler implements IRpcEndpoint {
             name: "UserOperationEvent"
         })
 
-        let fromBlock: bigint | undefined = undefined
-        let toBlock: "latest" | undefined = undefined
+        let fromBlock: bigint | undefined
+        let toBlock: "latest" | undefined
         if (this.rpcMaxBlockRange !== undefined) {
             const latestBlock = await this.publicClient.getBlockNumber()
             fromBlock = latestBlock - BigInt(this.rpcMaxBlockRange)
