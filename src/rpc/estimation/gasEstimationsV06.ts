@@ -13,7 +13,8 @@ import {
     type PublicClient,
     decodeErrorResult,
     encodeFunctionData,
-    toHex
+    toHex,
+    InvalidInputRpcError
 } from "viem"
 import { z } from "zod"
 import type { SimulateHandleOpResult } from "./types"
@@ -94,6 +95,11 @@ export class GasEstimatorV06 {
                 } as const
             }
 
+            let revertCause = err.cause
+            if (err instanceof InvalidInputRpcError) {
+                revertCause  = err.walk() as RpcRequestErrorType
+            }
+
             const causeParseResult = z
                 .union([
                     z.object({
@@ -101,7 +107,7 @@ export class GasEstimatorV06 {
                         message: z.string(),
                         data: hexDataSchema
                     }),
-                    /* Fuse RPCs return in this format. */
+                    /* Fuse RPCs reverts in this format. */
                     z.object({
                         code: z.number(),
                         message: z.string().regex(/VM execution error.*/),
@@ -109,6 +115,12 @@ export class GasEstimatorV06 {
                             .string()
                             .transform((data) => data.replace("Reverted ", ""))
                             .pipe(hexDataSchema)
+                    }),
+                    /* Linea-Sepolia reverts in this format. */
+                    z.object({
+                        code: z.literal(-32000),
+                        message: z.string(),
+                        data: hexDataSchema
                     }),
                     z.object({
                         code: z.number(),
@@ -120,7 +132,7 @@ export class GasEstimatorV06 {
                         data: hexDataSchema
                     })
                 ])
-                .safeParse(err.cause)
+                .safeParse(revertCause)
 
             if (!causeParseResult.success) {
                 throw new Error(JSON.stringify(err.cause))
