@@ -58,6 +58,7 @@ import type {
 import {
     calcPreVerificationGas,
     calcVerificationGasAndCallGasLimit,
+    deepHexlify,
     getAAError,
     getNonceKeyAndValue,
     getUserOperationHash,
@@ -558,6 +559,7 @@ export class RpcHandler implements IRpcEndpoint {
                 queuedUserOperations,
                 false,
                 stateOverrides
+                deepHexlify(stateOverrides)
             )
         }
 
