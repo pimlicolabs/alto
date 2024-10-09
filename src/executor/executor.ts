@@ -791,7 +791,6 @@ export class Executor {
                 )
             })
         } catch (err: unknown) {
-            console.log(err)
             const e = parseViemError(err)
             if (e instanceof InsufficientFundsError) {
                 childLogger.error(
