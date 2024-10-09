@@ -58,10 +58,7 @@ import {
     simulatedOpsToResults,
     type CompressedFilterOpsAndEstimateGasParams
 } from "./utils"
-import type {
-    PrepareTransactionRequestRequest,
-    SendTransactionErrorType
-} from "viem"
+import type { SendTransactionErrorType } from "viem"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
