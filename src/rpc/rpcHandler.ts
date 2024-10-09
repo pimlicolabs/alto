@@ -424,6 +424,7 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         if (this.chainId === hedera.id) {
+            // The eth_call gasLimit is set to 12_500_000 on Hedera.
             userOperation.verificationGasLimit = 5_000_000n
             userOperation.callGasLimit = 4_500_000n
         }
