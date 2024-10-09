@@ -424,7 +424,8 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         if (this.chainId === hedera.id) {
-            userOperation.callGasLimit = 2_500_000n
+            ;(userOperation.verificationGasLimit = 5_000_000n),
+                (userOperation.callGasLimit = 4_500_000n)
         }
 
         if (isVersion07(userOperation)) {
