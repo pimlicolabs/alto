@@ -1,4 +1,4 @@
-import type { UserOperation } from "@alto/types"
+import type { ChainType, UserOperation } from "@alto/types"
 import type { StateOverrides, UserOperationV07 } from "@alto/types"
 import type { Hex } from "viem"
 import type { SimulateHandleOpResult } from "./types"
@@ -56,6 +56,7 @@ export class GasEstimationHandler {
         chainId: number,
         blockTagSupport: boolean,
         utilityWalletAddress: Address,
+        chainType: ChainType,
         entryPointSimulationsAddress?: Address,
         fixedGasLimitForEstimation?: bigint
     ) {
@@ -74,6 +75,7 @@ export class GasEstimationHandler {
             entryPointSimulationsAddress,
             blockTagSupport,
             utilityWalletAddress,
+            chainType,
             fixedGasLimitForEstimation
         )
     }
