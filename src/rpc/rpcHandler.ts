@@ -501,7 +501,7 @@ export class RpcHandler implements IRpcEndpoint {
             isVersion07(userOperation) &&
             userOperation.paymaster !== null &&
             "paymasterVerificationGasLimit" in
-            executionResult.data.executionResult &&
+                executionResult.data.executionResult &&
             "paymasterPostOpGasLimit" in executionResult.data.executionResult
         ) {
             paymasterVerificationGasLimit =
@@ -539,18 +539,15 @@ export class RpcHandler implements IRpcEndpoint {
         // If a balance override is provided for the sender, perform an additional simulation
         // to verify the userOperation succeeds with the specified balance.
         if (stateOverrides?.[userOperation.sender]?.balance) {
-            // biome-ignore lint/style/noParameterAssign: prepare userOperaiton for simulation
-            userOperation = {
-                ...userOperation,
-                preVerificationGas,
-                verificationGasLimit,
-                callGasLimit,
-                paymasterVerificationGasLimit,
-                paymasterPostOpGasLimit
-            }
-
             await this.validator.getExecutionResult(
-                userOperation,
+                {
+                    ...userOperation,
+                    preVerificationGas,
+                    verificationGasLimit,
+                    callGasLimit,
+                    paymasterVerificationGasLimit,
+                    paymasterPostOpGasLimit
+                },
                 entryPoint,
                 queuedUserOperations,
                 false,
