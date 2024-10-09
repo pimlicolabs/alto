@@ -701,6 +701,9 @@ export function parseViemError(err: unknown) {
         if (e instanceof EstimateGasExecutionError) {
             return e
         }
+        if (e instanceof TransactionExecutionError) {
+            return e
+        }
         return
     }
     return

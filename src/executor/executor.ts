@@ -30,6 +30,7 @@ import {
     isVersion06,
     maxBigInt,
     parseViemError,
+    scaleBigIntByPercent,
     toPackedUserOperation
 } from "@alto/utils"
 // biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
@@ -46,7 +47,9 @@ import {
     type Chain,
     type PublicClient,
     type Transport,
-    type WalletClient
+    type WalletClient,
+    type Hex,
+    TransactionExecutionError
 } from "viem"
 import {
     createCompressedCalldata,
@@ -55,6 +58,7 @@ import {
     simulatedOpsToResults,
     type CompressedFilterOpsAndEstimateGasParams
 } from "./utils"
+import type { SendTransactionErrorType } from "viem"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -514,6 +518,83 @@ export class Executor {
         await Promise.all(promises)
     }
 
+    async sendHandleOpsTransaction(
+        userOps: PackedUserOperation[],
+        isUserOpVersion06: boolean,
+        entryPoint: Address,
+        opts:
+            | {
+                  gasPrice: bigint
+                  maxFeePerGas?: undefined
+                  maxPriorityFeePerGas?: undefined
+                  account: Account
+                  gas: bigint
+                  nonce: number
+              }
+            | {
+                  maxFeePerGas: bigint
+                  maxPriorityFeePerGas: bigint
+                  gasPrice?: undefined
+                  account: Account
+                  gas: bigint
+                  nonce: number
+              }
+    ) {
+        const request = await this.walletClient.prepareTransactionRequest({
+            to: entryPoint,
+            data: encodeFunctionData({
+                abi: isUserOpVersion06 ? EntryPointV06Abi : EntryPointV07Abi,
+                functionName: "handleOps",
+                args: [userOps, opts.account.address]
+            }),
+            ...opts
+        })
+
+        let attempts = 0
+        let transactionHash: Hex | undefined
+        const maxAttempts = 3
+
+        // Try sending the transaction and updating relevant fields if there is an error.
+        while (attempts < maxAttempts) {
+            try {
+                transactionHash =
+                    await this.walletClient.sendTransaction(request)
+
+                break
+            } catch (e: unknown) {
+                const error = e as SendTransactionErrorType
+
+                if (error instanceof TransactionExecutionError) {
+                    const cause = error.cause
+
+                    if (cause instanceof NonceTooLowError) {
+                        this.logger.warn("Nonce too low, retrying")
+                        request.nonce += 1
+                    }
+
+                    if (cause instanceof IntrinsicGasTooLowError) {
+                        this.logger.warn("Intrinsic gas too low, retrying")
+                        request.gas = scaleBigIntByPercent(request.gas, 150)
+                    }
+                }
+
+                attempts++
+                if (attempts === maxAttempts) {
+                    throw error
+                }
+
+                this.logger.warn(`Attempt ${attempts} failed. Retrying...`)
+            }
+        }
+
+        // needed for TS
+        if (!transactionHash) {
+            throw new Error("Transaction hash not assigned")
+        }
+
+        return transactionHash as Hex
+    }
+
     async bundle(
         entryPoint: Address,
         ops: UserOperation[]
@@ -696,8 +777,10 @@ export class Executor {
                       )
             ) as PackedUserOperation[]
 
-            transactionHash = await ep.write.handleOps(
-                [userOps, wallet.address],
+            transactionHash = await this.sendHandleOpsTransaction(
+                userOps,
+                isUserOpVersion06,
+                entryPoint,
                 opts
             )
 
