@@ -520,6 +520,7 @@ export class Executor {
 
     async sendHandleOpsTransaction(
         userOps: PackedUserOperation[],
+        isUserOpVersion06: boolean,
         entryPoint: Address,
         opts:
             | {
@@ -542,7 +543,7 @@ export class Executor {
         const request = await this.walletClient.prepareTransactionRequest({
             to: entryPoint,
             data: encodeFunctionData({
-                abi: EntryPointV07Abi,
+                abi: isUserOpVersion06 ? EntryPointV06Abi : EntryPointV07Abi,
                 functionName: "handleOps",
                 args: [userOps, opts.account.address]
             }),
@@ -778,6 +779,7 @@ export class Executor {
 
             transactionHash = await this.sendHandleOpsTransaction(
                 userOps,
+                isUserOpVersion06,
                 entryPoint,
                 opts
             )
