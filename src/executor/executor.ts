@@ -542,28 +542,21 @@ export class Executor {
                   nonce: number
               }
     ) {
-        let request: PrepareTransactionRequestRequest
-
-        try {
-            request = await this.walletClient.prepareTransactionRequest({
-                to: entryPoint,
-                data: encodeFunctionData({
-                    abi: EntryPointV07Abi,
-                    functionName: "handleOps",
-                    args: [userOps, opts.account.address]
-                }),
-                ...opts,
-                nonce: opts.nonce - 1
-            })
-        } catch (e: unknown) {
-            throw new Error("Failed to generate transactionRequest")
-        }
+        const request = await this.walletClient.prepareTransactionRequest({
+            to: entryPoint,
+            data: encodeFunctionData({
+                abi: EntryPointV07Abi,
+                functionName: "handleOps",
+                args: [userOps, opts.account.address]
+            }),
+            ...opts
+        })
 
         let attempts = 0
         let transactionHash: Hex | undefined
         const maxAttempts = 3
 
-        // Try sending the transaction and updating if there is an error
+        // Try sending the transaction and updating relevant fields if there is an error.
         while (attempts < maxAttempts) {
             try {
                 transactionHash =
@@ -595,8 +588,6 @@ export class Executor {
                 this.logger.warn(`Attempt ${attempts} failed. Retrying...`)
             }
         }
-
-        console.log("sent: ", transactionHash)
 
         // needed for TS
         if (!transactionHash) {
