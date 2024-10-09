@@ -558,7 +558,6 @@ export class RpcHandler implements IRpcEndpoint {
                 entryPoint,
                 queuedUserOperations,
                 false,
-                stateOverrides
                 deepHexlify(stateOverrides)
             )
         }
