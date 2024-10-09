@@ -22,7 +22,8 @@ import {
     ValidationErrors,
     ExecutionErrors,
     targetCallResultSchema,
-    RpcError
+    RpcError,
+    ChainType
 } from "@alto/types"
 import { getUserOperationHash, toPackedUserOperation } from "@alto/utils"
 import {
@@ -40,6 +41,7 @@ export class GasEstimatorV07 {
     blockTagSupport: boolean
     utilityWalletAddress: Address
     fixedGasLimitForEstimation?: bigint
+    chainType: ChainType
 
     constructor(
         binarySearchToleranceDelta: bigint,
@@ -49,6 +51,7 @@ export class GasEstimatorV07 {
         entryPointSimulationsAddress: Address | undefined,
         blockTagSupport: boolean,
         utilityWalletAddress: Address,
+        chainType: ChainType,
         fixedGasLimitForEstimation?: bigint
     ) {
         this.binarySearchToleranceDelta = binarySearchToleranceDelta
@@ -58,6 +61,7 @@ export class GasEstimatorV07 {
         this.entryPointSimulationsAddress = entryPointSimulationsAddress
         this.blockTagSupport = blockTagSupport
         this.utilityWalletAddress = utilityWalletAddress
+        this.chainType = chainType
         this.fixedGasLimitForEstimation = fixedGasLimitForEstimation
     }
 
@@ -302,14 +306,35 @@ export class GasEstimatorV07 {
             queuedUserOperations
         })
 
-        let cause = await this.callPimlicoEntryPointSimulations({
-            entryPoint,
-            entryPointSimulationsCallData: [
-                simulateHandleOpLast,
-                simulateCallData
-            ],
-            stateOverrides
-        })
+        let cause
+
+        if (this.chainType === "hedera") {
+            // due to Hedera specific restrictions, we can't combine these two calls.
+            const [simulateHandleOpLastCause, simulateCallDataCause] =
+                await Promise.all([
+                    this.callPimlicoEntryPointSimulations({
+                        entryPoint,
+                        entryPointSimulationsCallData: [simulateHandleOpLast],
+                        stateOverrides
+                    }),
+                    this.callPimlicoEntryPointSimulations({
+                        entryPoint,
+                        entryPointSimulationsCallData: [simulateCallData],
+                        stateOverrides
+                    })
+                ])
+
+            cause = [simulateHandleOpLastCause[0], simulateCallDataCause[0]]
+        } else {
+            cause = await this.callPimlicoEntryPointSimulations({
+                entryPoint,
+                entryPointSimulationsCallData: [
+                    simulateHandleOpLast,
+                    simulateCallData
+                ],
+                stateOverrides
+            })
+        }
 
         cause = cause.map((data: Hex) => {
             const decodedDelegateAndError = decodeErrorResult({

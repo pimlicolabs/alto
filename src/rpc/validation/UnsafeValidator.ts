@@ -96,6 +96,7 @@ export class UnsafeValidator implements InterfaceValidator {
             publicClient.chain.id,
             blockTagSupport,
             utilityWalletAddress,
+            chainType,
             entryPointSimulationsAddress,
             fixedGasLimitForEstimation
         )
