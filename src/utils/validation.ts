@@ -32,7 +32,7 @@ import {
 } from "viem"
 import { baseGoerli, baseSepolia, base } from "viem/chains"
 import { isVersion06, toPackedUserOperation } from "./userop"
-import { maxBigInt, minBigInt } from "./bigInt"
+import { maxBigInt, minBigInt, scaleBigIntByPercent } from "./bigInt"
 import type { GasPriceManager } from "@alto/handlers"
 
 export interface GasOverheads {
@@ -351,9 +351,10 @@ export function calcVerificationGasAndCallGasLimit(
         gasUsed: bigint
     }
 ) {
-    const verificationGasLimit =
-        ((executionResult.preOpGas - userOperation.preVerificationGas) * 3n) /
-        2n
+    const verificationGasLimit = scaleBigIntByPercent(
+        (executionResult.preOpGas - userOperation.preVerificationGas),
+        150
+    )
 
     let gasPrice: bigint
 
@@ -375,7 +376,7 @@ export function calcVerificationGasAndCallGasLimit(
         chainId === baseSepolia.id ||
         chainId === base.id
     ) {
-        callGasLimit = (110n * callGasLimit) / 100n
+        callGasLimit = scaleBigIntByPercent(callGasLimit, 110)
     }
 
     return { verificationGasLimit, callGasLimit }

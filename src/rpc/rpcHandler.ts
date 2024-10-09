@@ -488,6 +488,7 @@ export class RpcHandler implements IRpcEndpoint {
             userOperation,
             entryPoint,
             queuedUserOperations,
+            true,
             stateOverrides
         )
 
@@ -516,13 +517,17 @@ export class RpcHandler implements IRpcEndpoint {
                 executionResult.data.executionResult.paymasterPostOpGasLimit ||
                 1n
 
-            const multiplier = this.paymasterGasLimitMultiplier
+            const multiplier = Number(this.paymasterGasLimitMultiplier)
 
-            paymasterVerificationGasLimit =
-                (paymasterVerificationGasLimit * multiplier) / 100n
+            paymasterVerificationGasLimit = scaleBigIntByPercent(
+                paymasterVerificationGasLimit,
+                multiplier
+            )
 
-            paymasterPostOpGasLimit =
-                (paymasterPostOpGasLimit * multiplier) / 100n
+            paymasterPostOpGasLimit = scaleBigIntByPercent(
+                paymasterPostOpGasLimit,
+                multiplier
+            )
         }
 
         if (this.chainId === base.id || this.chainId === baseSepolia.id) {
@@ -535,6 +540,25 @@ export class RpcHandler implements IRpcEndpoint {
 
         if (userOperation.callData === "0x") {
             callGasLimit = 0n
+        }
+
+        // If a balance override is provided for the sender, perform an additional simulation
+        // to verify the userOperation succeeds with the specified balance.
+        if (stateOverrides?.[userOperation.sender]?.balance) {
+            await this.validator.getExecutionResult(
+                {
+                    ...userOperation,
+                    preVerificationGas,
+                    verificationGasLimit,
+                    callGasLimit,
+                    paymasterVerificationGasLimit,
+                    paymasterPostOpGasLimit
+                },
+                entryPoint,
+                queuedUserOperations,
+                false,
+                stateOverrides
+            )
         }
 
         if (isVersion07(userOperation)) {
@@ -605,8 +629,8 @@ export class RpcHandler implements IRpcEndpoint {
             name: "UserOperationEvent"
         })
 
-        let fromBlock: bigint | undefined = undefined
-        let toBlock: "latest" | undefined = undefined
+        let fromBlock: bigint | undefined
+        let toBlock: "latest" | undefined
         if (this.rpcMaxBlockRange !== undefined) {
             const latestBlock = await this.publicClient.getBlockNumber()
             fromBlock = latestBlock - BigInt(this.rpcMaxBlockRange)
