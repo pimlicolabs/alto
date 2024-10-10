@@ -1,17 +1,17 @@
-import { test, describe, expect, beforeAll, beforeEach } from "vitest"
-import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils"
 import type { Address, Hex } from "viem"
-import {
-    deployRevertingContract,
-    decodeRevert,
-    getRevertCall
-} from "../src/revertingContract"
-import { deployPaymaster } from "../src/testPaymaster"
 import {
     type EntryPointVersion,
     entryPoint06Address,
     entryPoint07Address
 } from "viem/account-abstraction"
+import { beforeAll, beforeEach, describe, expect, test } from "vitest"
+import {
+    decodeRevert,
+    deployRevertingContract,
+    getRevertCall
+} from "../src/revertingContract"
+import { deployPaymaster } from "../src/testPaymaster"
+import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils"
 
 describe.each([
     {

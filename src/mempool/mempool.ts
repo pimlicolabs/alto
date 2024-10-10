@@ -1,9 +1,10 @@
-import type { Metrics } from "@alto/utils"
+import type { EventManager } from "@alto/handlers"
 // import { MongoClient, Collection, Filter } from "mongodb"
 // import { PublicClient, getContract } from "viem"
 // import { EntryPointAbi } from "../types/EntryPoint"
 import {
     EntryPointV06Abi,
+    EntryPointV07Abi,
     type InterfaceValidator,
     type MempoolUserOperation,
     type ReferencedCodeHashes,
@@ -15,12 +16,11 @@ import {
     type UserOperationInfo,
     ValidationErrors,
     type ValidationResult,
-    deriveUserOperation,
-    EntryPointV07Abi
+    deriveUserOperation
 } from "@alto/types"
 import type { HexData32 } from "@alto/types"
+import type { Metrics } from "@alto/utils"
 import type { Logger } from "@alto/utils"
-import type { EventManager } from "@alto/handlers"
 import {
     getAddressFromInitCodeOrPaymasterAndData,
     getNonceKeyAndValue,

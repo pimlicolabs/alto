@@ -1,3 +1,5 @@
+import type { SenderManager } from "@alto/executor"
+import type { GasPriceManager } from "@alto/handlers"
 import type {
     ChainType,
     InterfaceValidator,
@@ -10,22 +12,21 @@ import type {
     ValidationResultWithAggregationV07
 } from "@alto/types"
 import {
+    type Address,
     CodeHashGetterAbi,
     CodeHashGetterBytecode,
     EntryPointV06Abi,
     EntryPointV07SimulationsAbi,
-    RpcError,
-    ValidationErrors,
-    type Address,
+    PimlicoEntryPointSimulationsAbi,
     type ReferencedCodeHashes,
+    RpcError,
     type StakeInfo,
     type StorageMap,
     type UserOperation,
-    type ValidationResultWithAggregation,
-    PimlicoEntryPointSimulationsAbi
+    ValidationErrors,
+    type ValidationResultWithAggregation
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
-import type { GasPriceManager } from "@alto/handlers"
 import {
     calcVerificationGasAndCallGasLimit,
     getAddressFromInitCodeOrPaymasterAndData,
@@ -34,27 +35,26 @@ import {
     toPackedUserOperation
 } from "@alto/utils"
 import {
-    decodeErrorResult,
-    encodeDeployData,
-    encodeFunctionData,
-    zeroAddress,
     type Chain,
     type ExecutionRevertedError,
     type Hex,
     type PublicClient,
-    type Transport
+    type Transport,
+    decodeErrorResult,
+    encodeDeployData,
+    encodeFunctionData,
+    zeroAddress
 } from "viem"
 import { getSimulateValidationResult } from "../estimation/gasEstimationsV07"
 import {
-    bundlerCollectorTracer,
     type BundlerTracerResult,
-    type ExitInfo
+    type ExitInfo,
+    bundlerCollectorTracer
 } from "./BundlerCollectorTracerV07"
 import { tracerResultParserV06 } from "./TracerResultParserV06"
 import { tracerResultParserV07 } from "./TracerResultParserV07"
 import { UnsafeValidator } from "./UnsafeValidator"
 import { debug_traceCall } from "./tracer"
-import type { SenderManager } from "@alto/executor"
 
 export class SafeValidator
     extends UnsafeValidator

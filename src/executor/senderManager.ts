@@ -1,21 +1,21 @@
+import type { GasPriceManager } from "@alto/handlers"
 import {
-    CallEngineAbi,
     type Address,
+    CallEngineAbi,
     type HexData,
     type HexData32
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
-import type { GasPriceManager } from "@alto/handlers"
 import { Semaphore } from "async-mutex"
 import {
-    formatEther,
-    getContract,
     type Account,
     type Chain,
     type PublicClient,
     type TransactionReceipt,
     type Transport,
-    type WalletClient
+    type WalletClient,
+    formatEther,
+    getContract
 } from "viem"
 
 const waitForTransactionReceipt = async (

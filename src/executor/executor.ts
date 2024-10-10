@@ -2,28 +2,28 @@ import type {
     DefaultFilterOpsAndEstimateGasParams,
     SenderManager
 } from "@alto/executor"
+import type {
+    CompressionHandler,
+    EventManager,
+    GasPriceManager
+} from "@alto/handlers"
 import type { InterfaceReputationManager } from "@alto/mempool"
 import {
-    type TransactionInfo,
     type Address,
-    type UserOperation,
     type BundleResult,
     type CompressedUserOperation,
-    type HexData32,
-    deriveUserOperation,
     EntryPointV06Abi,
     EntryPointV07Abi,
+    type HexData32,
+    type PackedUserOperation,
+    type TransactionInfo,
+    type UserOperation,
     type UserOperationV06,
     type UserOperationV07,
-    type PackedUserOperation,
-    type UserOperationWithHash
+    type UserOperationWithHash,
+    deriveUserOperation
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
-import type {
-    GasPriceManager,
-    CompressionHandler,
-    EventManager
-} from "@alto/handlers"
 import {
     getRequiredPrefund,
     getUserOperationHash,
@@ -36,24 +36,24 @@ import {
 import * as sentry from "@sentry/node"
 import { Mutex } from "async-mutex"
 import {
+    type Account,
+    type Chain,
     FeeCapTooLowError,
     InsufficientFundsError,
     IntrinsicGasTooLowError,
     NonceTooLowError,
-    encodeFunctionData,
-    getContract,
-    type Account,
-    type Chain,
     type PublicClient,
     type Transport,
-    type WalletClient
+    type WalletClient,
+    encodeFunctionData,
+    getContract
 } from "viem"
 import {
+    type CompressedFilterOpsAndEstimateGasParams,
     createCompressedCalldata,
     filterOpsAndEstimateGas,
     flushStuckTransaction,
-    simulatedOpsToResults,
-    type CompressedFilterOpsAndEstimateGasParams
+    simulatedOpsToResults
 } from "./utils"
 
 export interface GasEstimateResult {

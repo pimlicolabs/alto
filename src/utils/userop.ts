@@ -1,39 +1,39 @@
 import {
     EntryPointV06Abi,
-    type UserOperationV06,
-    type HexData32,
-    type UserOperation,
-    type UserOperationV07,
     EntryPointV07Abi,
-    type PackedUserOperation,
     type GetUserOperationReceiptResponseResult,
+    type HexData32,
+    type PackedUserOperation,
+    type UserOperation,
+    type UserOperationV06,
+    type UserOperationV07,
     logSchema,
     receiptSchema
 } from "@alto/types"
 import * as sentry from "@sentry/node"
+import type { Logger } from "pino"
 import {
     type Address,
     type Hex,
     type PublicClient,
+    type TransactionReceipt,
+    concat,
+    decodeErrorResult,
     decodeEventLog,
     encodeAbiParameters,
+    encodeEventTopics,
     getAddress,
     keccak256,
-    toHex,
-    concat,
-    slice,
     pad,
-    decodeErrorResult,
     parseAbi,
-    encodeEventTopics,
-    zeroAddress,
-    type TransactionReceipt,
-    parseEventLogs
+    parseEventLogs,
+    slice,
+    toHex,
+    zeroAddress
 } from "viem"
-import { areAddressesEqual } from "./helpers"
-import type { Logger } from "pino"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
+import { areAddressesEqual } from "./helpers"
 
 // Type predicate check if the UserOperation is V06.
 export function isVersion06(

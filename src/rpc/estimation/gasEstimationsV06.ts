@@ -1,8 +1,8 @@
 import {
     EntryPointV06Abi,
+    EntryPointV06SimulationsAbi,
     RpcError,
     ValidationErrors,
-    EntryPointV06SimulationsAbi,
     executionResultSchema,
     hexDataSchema
 } from "@alto/types"

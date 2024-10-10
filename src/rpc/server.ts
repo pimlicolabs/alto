@@ -1,13 +1,15 @@
 import {
+    type ApiVersion,
+    type JSONRPCResponse,
     RpcError,
     ValidationErrors,
-    bundlerRequestSchema,
-    jsonRpcSchema,
     altoVersions,
-    type ApiVersion,
-    type JSONRPCResponse
+    bundlerRequestSchema,
+    jsonRpcSchema
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
+import cors from "@fastify/cors"
+import websocket from "@fastify/websocket"
 import * as sentry from "@sentry/node"
 import Fastify, {
     type FastifyBaseLogger,
@@ -17,12 +19,10 @@ import Fastify, {
 } from "fastify"
 import type { Registry } from "prom-client"
 import { toHex } from "viem"
-import { fromZodError } from "zod-validation-error"
-import type { IRpcEndpoint } from "./rpcHandler"
-import websocket from "@fastify/websocket"
-import RpcReply from "../utils/rpc-reply"
 import type * as WebSocket from "ws"
-import cors from "@fastify/cors"
+import { fromZodError } from "zod-validation-error"
+import RpcReply from "../utils/rpc-reply"
+import type { IRpcEndpoint } from "./rpcHandler"
 
 // jsonBigIntOverride.ts
 const originalJsonStringify = JSON.stringify

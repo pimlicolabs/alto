@@ -1,16 +1,16 @@
 import type { SenderManager } from "@alto/executor"
 import { Executor, ExecutorManager } from "@alto/executor"
 import {
-    type GasPriceManager,
     CompressionHandler,
-    EventManager
+    EventManager,
+    type GasPriceManager
 } from "@alto/handlers"
 import {
+    type InterfaceReputationManager,
     MemoryMempool,
     Monitor,
     NullReputationManager,
-    ReputationManager,
-    type InterfaceReputationManager
+    ReputationManager
 } from "@alto/mempool"
 import {
     NonceQueuer,

@@ -1,32 +1,32 @@
 import { SenderManager } from "@alto/executor"
+import { GasPriceManager } from "@alto/handlers"
 import {
+    type Logger,
     createMetrics,
     initDebugLogger,
-    initProductionLogger,
-    type Logger
+    initProductionLogger
 } from "@alto/utils"
 import { Registry } from "prom-client"
 import {
-    createPublicClient,
-    createWalletClient,
+    http,
     type Chain,
     type PublicClient,
     type Transport,
-    http,
+    createPublicClient,
+    createWalletClient,
     formatEther
 } from "viem"
 import { fromZodError } from "zod-validation-error"
+import { UtilityWalletMonitor } from "../executor/utilityWalletMonitor"
+import { PimlicoEntryPointSimulationsDeployBytecode } from "../types/contracts"
 import {
-    optionArgsSchema,
     type IBundlerArgs,
     type IOptions,
-    type IOptionsInput
+    type IOptionsInput,
+    optionArgsSchema
 } from "./config"
 import { customTransport } from "./customTransport"
 import { setupServer } from "./setupServer"
-import { PimlicoEntryPointSimulationsDeployBytecode } from "../types/contracts"
-import { UtilityWalletMonitor } from "../executor/utilityWalletMonitor"
-import { GasPriceManager } from "@alto/handlers"
 
 const parseArgs = (args: IOptionsInput): IOptions => {
     // validate every arg, make type safe so if i add a new arg i have to validate it

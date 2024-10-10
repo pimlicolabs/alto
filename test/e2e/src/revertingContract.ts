@@ -1,6 +1,7 @@
 // Utils for interacting with the contract located in alto/contracts/TestUtils/AlwaysReverting.sol
 
 import {
+    http,
     type Address,
     type Hex,
     concat,
@@ -8,11 +9,10 @@ import {
     decodeErrorResult,
     encodeFunctionData,
     getCreate2Address,
-    http,
     parseAbi
 } from "viem"
-import { ANVIL_RPC } from "./constants"
 import { foundry } from "viem/chains"
+import { ANVIL_RPC } from "./constants"
 import { getAnvilWalletClient } from "./utils"
 
 // source: https://gist.github.com/mouseless-eth/41146d2392a520fbdff33b927fbe4cae

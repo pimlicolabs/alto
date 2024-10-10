@@ -1,3 +1,14 @@
+import {
+    EntryPointV07Abi,
+    PaymasterAbi,
+    RpcError,
+    SenderCreatorAbi,
+    type StakeInfo,
+    type StorageMap,
+    type UserOperationV07,
+    ValidationErrors,
+    type ValidationResultV07
+} from "@alto/types"
 import type { Abi, AbiFunction } from "abitype"
 // This file contains references to validation rules, in the format [xxx-###]
 // where xxx is OP/STO/COD/EP/SREP/EREP/UREP/ALT, and ### is a number
@@ -13,17 +24,6 @@ import {
     pad
 } from "viem"
 import type { BundlerTracerResult } from "./BundlerCollectorTracerV07"
-import {
-    EntryPointV07Abi,
-    PaymasterAbi,
-    SenderCreatorAbi,
-    type UserOperationV07,
-    type StakeInfo,
-    type ValidationResultV07,
-    type StorageMap,
-    RpcError,
-    ValidationErrors
-} from "@alto/types"
 
 interface CallEntry {
     to: string

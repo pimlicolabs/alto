@@ -1,5 +1,3 @@
-// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
-import * as sentry from "@sentry/node"
 import type { InterfaceReputationManager } from "@alto/mempool"
 import {
     type BundleResult,
@@ -19,11 +17,13 @@ import {
 import type { Logger } from "@alto/utils"
 import {
     getRevertErrorData,
-    scaleBigIntByPercent,
     isVersion06,
     parseViemError,
+    scaleBigIntByPercent,
     toPackedUserOperation
 } from "@alto/utils"
+// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
+import * as sentry from "@sentry/node"
 import {
     type Account,
     type Address,

@@ -1,8 +1,10 @@
+import type { EventManager } from "@alto/handlers"
+import type { MemoryMempool } from "@alto/mempool"
 import {
     EntryPointV06Abi,
+    EntryPointV07Abi,
     type MempoolUserOperation,
-    deriveUserOperation,
-    EntryPointV07Abi
+    deriveUserOperation
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
@@ -19,8 +21,6 @@ import {
     type Transport,
     getContract
 } from "viem"
-import type { MemoryMempool } from "@alto/mempool"
-import type { EventManager } from "@alto/handlers"
 
 type QueuedUserOperation = {
     entryPoint: Address

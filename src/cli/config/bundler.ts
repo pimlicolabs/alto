@@ -1,9 +1,9 @@
 import {
     type ApiVersion,
     addressSchema,
+    bundlerRequestSchema,
     commaSeperatedAddressPattern,
-    hexData32Schema,
-    bundlerRequestSchema
+    hexData32Schema
 } from "@alto/types"
 import type { Hex } from "viem"
 import { type Account, privateKeyToAccount } from "viem/accounts"

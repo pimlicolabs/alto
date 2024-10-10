@@ -1,4 +1,3 @@
-import type { Metrics, Logger, BundlingStatus } from "@alto/utils"
 import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
@@ -8,33 +7,34 @@ import type {
 import {
     type BundleResult,
     type BundlingMode,
+    type CompressedUserOperation,
+    EntryPointV06Abi,
     type HexData32,
     type MempoolUserOperation,
     type SubmittedUserOperation,
     type TransactionInfo,
-    deriveUserOperation,
-    isCompressedType,
     type UserOperation,
-    type CompressedUserOperation,
     type UserOperationInfo,
-    EntryPointV06Abi
+    deriveUserOperation,
+    isCompressedType
 } from "@alto/types"
+import type { BundlingStatus, Logger, Metrics } from "@alto/utils"
 import {
     getAAError,
     getBundleStatus,
     parseUserOperationReceipt
 } from "@alto/utils"
 import {
-    getAbiItem,
-    type TransactionReceipt,
-    TransactionReceiptNotFoundError,
     type Address,
     type Block,
     type Chain,
     type Hash,
     type PublicClient,
+    type TransactionReceipt,
+    TransactionReceiptNotFoundError,
     type Transport,
-    type WatchBlocksReturnType
+    type WatchBlocksReturnType,
+    getAbiItem
 } from "viem"
 import type { Executor, ReplaceTransactionResult } from "./executor"
 

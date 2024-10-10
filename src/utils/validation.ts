@@ -1,3 +1,4 @@
+import type { GasPriceManager } from "@alto/handlers"
 import {
     type Address,
     type ChainType,
@@ -30,10 +31,9 @@ import {
     toBytes,
     toFunctionSelector
 } from "viem"
-import { baseGoerli, baseSepolia, base } from "viem/chains"
-import { isVersion06, toPackedUserOperation } from "./userop"
+import { base, baseGoerli, baseSepolia } from "viem/chains"
 import { maxBigInt, minBigInt, scaleBigIntByPercent } from "./bigInt"
-import type { GasPriceManager } from "@alto/handlers"
+import { isVersion06, toPackedUserOperation } from "./userop"
 
 export interface GasOverheads {
     /**
@@ -352,7 +352,7 @@ export function calcVerificationGasAndCallGasLimit(
     }
 ) {
     const verificationGasLimit = scaleBigIntByPercent(
-        (executionResult.preOpGas - userOperation.preVerificationGas),
+        executionResult.preOpGas - userOperation.preVerificationGas,
         150
     )
 

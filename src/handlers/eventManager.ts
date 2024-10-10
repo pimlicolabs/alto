@@ -1,9 +1,9 @@
+import type { Logger, Metrics } from "@alto/utils"
 // biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
 import * as sentry from "@sentry/node"
 import Redis from "ioredis"
 import type { Hex } from "viem"
 import type { OpEventType } from "../types/schemas"
-import type { Logger, Metrics } from "@alto/utils"
 
 export class EventManager {
     private redis: Redis | undefined

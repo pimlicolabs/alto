@@ -1,8 +1,8 @@
 import {
     type Address,
-    getAddress,
     BaseError,
-    type RawContractError
+    type RawContractError,
+    getAddress
 } from "viem"
 
 /// Ensure proper equality by converting both addresses into their checksum type

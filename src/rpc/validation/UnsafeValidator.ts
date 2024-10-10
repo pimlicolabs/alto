@@ -1,3 +1,4 @@
+import type { GasPriceManager } from "@alto/handlers"
 import type {
     ChainType,
     InterfaceValidator,
@@ -26,7 +27,6 @@ import {
     entryPointExecutionErrorSchemaV07
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
-import type { GasPriceManager } from "@alto/handlers"
 import {
     calcPreVerificationGas,
     calcVerificationGasAndCallGasLimit,

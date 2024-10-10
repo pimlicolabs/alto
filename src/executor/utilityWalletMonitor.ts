@@ -1,5 +1,5 @@
 import type { Logger, Metrics } from "@alto/utils"
-import { formatEther, type Hex, type PublicClient } from "viem"
+import { type Hex, type PublicClient, formatEther } from "viem"
 
 export class UtilityWalletMonitor {
     private publicClient: PublicClient

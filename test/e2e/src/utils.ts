@@ -1,22 +1,19 @@
 import {
+    type SmartAccountClient,
+    createSmartAccountClient
+} from "permissionless"
+import { toSimpleSmartAccount } from "permissionless/accounts"
+import { createPimlicoClient } from "permissionless/clients/pimlico"
+import {
+    http,
+    type Chain,
     type Hex,
     type Transport,
-    type Chain,
     createPublicClient,
     createTestClient,
     createWalletClient,
-    http,
     parseEther
 } from "viem"
-import {
-    generatePrivateKey,
-    mnemonicToAccount,
-    privateKeyToAccount
-} from "viem/accounts"
-import { ALTO_RPC, ANVIL_RPC } from "./constants"
-import { foundry } from "viem/chains"
-import { createPimlicoClient } from "permissionless/clients/pimlico"
-import { toSimpleSmartAccount } from "permissionless/accounts"
 import {
     type EntryPointVersion,
     type SmartAccount,
@@ -24,9 +21,12 @@ import {
     entryPoint07Address
 } from "viem/account-abstraction"
 import {
-    type SmartAccountClient,
-    createSmartAccountClient
-} from "permissionless"
+    generatePrivateKey,
+    mnemonicToAccount,
+    privateKeyToAccount
+} from "viem/accounts"
+import { foundry } from "viem/chains"
+import { ALTO_RPC, ANVIL_RPC } from "./constants"
 
 const anvilClient = createTestClient({
     transport: http(ANVIL_RPC),

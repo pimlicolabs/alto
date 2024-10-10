@@ -1,17 +1,17 @@
 import {
-    RpcError,
-    gasStationResult,
+    type ChainType,
     type GasPriceParameters,
-    type ChainType
+    RpcError,
+    gasStationResult
 } from "@alto/types"
-import { maxBigInt, minBigInt, type Logger } from "@alto/utils"
+import { type Logger, maxBigInt, minBigInt } from "@alto/utils"
 import * as sentry from "@sentry/node"
-import { parseGwei, type Chain, type PublicClient, maxUint128 } from "viem"
+import { type Chain, type PublicClient, maxUint128, parseGwei } from "viem"
 import {
+    avalanche,
     celo,
     celoAlfajores,
     dfk,
-    avalanche,
     polygon,
     polygonMumbai
 } from "viem/chains"
