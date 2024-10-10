@@ -89,12 +89,6 @@ export function customTransport(
                     if (error) {
                         let loggerFn = logger.error
 
-                        if (error.message === "execution reverted") {
-                            loggerFn = logger.info
-                        }
-
-                        let shouldSkipLog = false
-
                         if (isHex(error?.data) && error?.data?.length > 10) {
                             const errorSelector = slice(error?.data, 0, 4)
 
@@ -105,19 +99,17 @@ export function customTransport(
                                     FAILED_OP_SELECTOR
                                 ].includes(errorSelector as Hex)
                             ) {
-                                shouldSkipLog = true
+                                loggerFn = logger.info
                             }
                         }
 
-                        if (!shouldSkipLog) {
-                            loggerFn(
-                                {
-                                    error,
-                                    body
-                                },
-                                "received error response"
-                            )
-                        }
+                        loggerFn(
+                            {
+                                error,
+                                body
+                            },
+                            "received error response"
+                        )
 
                         throw new RpcRequestError({
                             body,
