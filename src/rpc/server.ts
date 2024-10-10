@@ -337,7 +337,15 @@ export class Server {
             reply.rpcStatus = "success"
             this.fastify.log.info(
                 {
-                    data: JSON.stringify(jsonRpcResponse),
+                    data:
+                        bundlerRequest.method ===
+                            "eth_getUserOperationReceipt" &&
+                        jsonRpcResponse.result
+                            ? {
+                                  ...jsonRpcResponse,
+                                  result: "<reduced>"
+                              }
+                            : jsonRpcResponse, // do not log the full result for eth_getUserOperationReceipt to reduce log size
                     method: bundlerRequest.method
                 },
                 "sent reply"
