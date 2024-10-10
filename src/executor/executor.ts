@@ -729,9 +729,8 @@ export class Executor {
             }
 
             if (
-                e?.details &&
                 e?.details
-                    .toLowerCase()
+                    ?.toLowerCase()
                     .includes("replacement transaction underpriced")
             ) {
                 childLogger.error(
