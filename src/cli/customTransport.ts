@@ -4,9 +4,15 @@ import {
     type HttpTransportConfig,
     RpcRequestError,
     UrlRequiredError,
-    createTransport
+    createTransport,
+    toFunctionSelector,
+    getAbiItem,
+    isHex,
+    slice,
+    Hex
 } from "viem"
-import { rpc } from "viem/utils"
+import { formatAbiItem, rpc } from "viem/utils"
+import { EntryPointV06Abi } from "../types/contracts"
 
 export type RpcRequest = {
     jsonrpc?: "2.0" | undefined
@@ -14,6 +20,33 @@ export type RpcRequest = {
     params?: any | undefined
     id?: number | undefined
 }
+
+const EXECUTION_RESULT_SELECTOR = toFunctionSelector(
+    formatAbiItem(
+        getAbiItem({
+            abi: EntryPointV06Abi,
+            name: "ExecutionResult"
+        })
+    )
+)
+
+const VALIDATION_RESULT_SELECTOR = toFunctionSelector(
+    formatAbiItem(
+        getAbiItem({
+            abi: EntryPointV06Abi,
+            name: "ValidationResult"
+        })
+    )
+)
+
+const FAILED_OP_SELECTOR = toFunctionSelector(
+    formatAbiItem(
+        getAbiItem({
+            abi: EntryPointV06Abi,
+            name: "FailedOp"
+        })
+    )
+)
 
 export function customTransport(
     /** URL of the JSON-RPC API. Defaults to the chain's public RPC URL. */
@@ -60,13 +93,31 @@ export function customTransport(
                             loggerFn = logger.info
                         }
 
-                        loggerFn(
-                            {
-                                error,
-                                body
-                            },
-                            "received error response"
-                        )
+                        let shouldSkipLog = false
+
+                        if (error?.data && isHex(error?.data)) {
+                            const errorSelector = slice(error?.data, 0, 4)
+
+                            if (
+                                [
+                                    EXECUTION_RESULT_SELECTOR,
+                                    VALIDATION_RESULT_SELECTOR,
+                                    FAILED_OP_SELECTOR
+                                ].includes(errorSelector as Hex)
+                            ) {
+                                shouldSkipLog = true
+                            }
+                        }
+
+                        if (!shouldSkipLog) {
+                            loggerFn(
+                                {
+                                    error,
+                                    body
+                                },
+                                "received error response"
+                            )
+                        }
 
                         throw new RpcRequestError({
                             body,
