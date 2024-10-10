@@ -54,13 +54,20 @@ export function customTransport(
 
                     const [{ error, result }] = await fn(body)
                     if (error) {
-                        logger.error(
+                        let loggerFn = logger.error
+
+                        if (error.message === "execution reverted") {
+                            loggerFn = logger.info
+                        }
+
+                        loggerFn(
                             {
                                 error,
                                 body
                             },
-                            "Received error response"
+                            "received error response"
                         )
+
                         throw new RpcRequestError({
                             body,
                             error: {
@@ -75,7 +82,7 @@ export function customTransport(
                             url: url
                         })
                     }
-                    logger.info({ body, result }, "Received response")
+                    logger.info({ body, result }, "received response")
                     return result
                 },
                 retryCount,
