@@ -87,7 +87,7 @@ export function customTransport(
 
                     const [{ error, result }] = await fn(body)
                     if (error) {
-                        let loggerFn = logger.error
+                        let loggerFn = logger.error.bind(logger)
 
                         if (isHex(error?.data) && error?.data?.length > 10) {
                             const errorSelector = slice(error?.data, 0, 4)
@@ -99,13 +99,13 @@ export function customTransport(
                                     FAILED_OP_SELECTOR
                                 ].includes(errorSelector as Hex)
                             ) {
-                                loggerFn = logger.info
+                                loggerFn = logger.info.bind(logger)
                             }
                         }
 
                         loggerFn(
                             {
-                                error,
+                                err: error,
                                 body
                             },
                             "received error response"
