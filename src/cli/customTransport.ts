@@ -4,9 +4,15 @@ import {
     type HttpTransportConfig,
     RpcRequestError,
     UrlRequiredError,
-    createTransport
+    createTransport,
+    toFunctionSelector,
+    getAbiItem,
+    isHex,
+    slice,
+    Hex
 } from "viem"
-import { rpc } from "viem/utils"
+import { formatAbiItem, rpc } from "viem/utils"
+import { EntryPointV06Abi } from "../types/contracts"
 
 export type RpcRequest = {
     jsonrpc?: "2.0" | undefined
@@ -14,6 +20,33 @@ export type RpcRequest = {
     params?: any | undefined
     id?: number | undefined
 }
+
+const EXECUTION_RESULT_SELECTOR = toFunctionSelector(
+    formatAbiItem(
+        getAbiItem({
+            abi: EntryPointV06Abi,
+            name: "ExecutionResult"
+        })
+    )
+)
+
+const VALIDATION_RESULT_SELECTOR = toFunctionSelector(
+    formatAbiItem(
+        getAbiItem({
+            abi: EntryPointV06Abi,
+            name: "ValidationResult"
+        })
+    )
+)
+
+const FAILED_OP_SELECTOR = toFunctionSelector(
+    formatAbiItem(
+        getAbiItem({
+            abi: EntryPointV06Abi,
+            name: "FailedOp"
+        })
+    )
+)
 
 export function customTransport(
     /** URL of the JSON-RPC API. Defaults to the chain's public RPC URL. */
@@ -54,13 +87,30 @@ export function customTransport(
 
                     const [{ error, result }] = await fn(body)
                     if (error) {
-                        logger.error(
+                        let loggerFn = logger.error.bind(logger)
+
+                        if (isHex(error?.data) && error?.data?.length > 10) {
+                            const errorSelector = slice(error?.data, 0, 4)
+
+                            if (
+                                [
+                                    EXECUTION_RESULT_SELECTOR,
+                                    VALIDATION_RESULT_SELECTOR,
+                                    FAILED_OP_SELECTOR
+                                ].includes(errorSelector as Hex)
+                            ) {
+                                loggerFn = logger.info.bind(logger)
+                            }
+                        }
+
+                        loggerFn(
                             {
-                                error,
+                                err: error,
                                 body
                             },
-                            "Received error response"
+                            "received error response"
                         )
+
                         throw new RpcRequestError({
                             body,
                             error: {
@@ -75,7 +125,7 @@ export function customTransport(
                             url: url
                         })
                     }
-                    logger.info({ body, result }, "Received response")
+                    logger.info({ body, result }, "received response")
                     return result
                 },
                 retryCount,
