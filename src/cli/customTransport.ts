@@ -95,7 +95,7 @@ export function customTransport(
 
                         let shouldSkipLog = false
 
-                        if (error?.data && isHex(error?.data)) {
+                        if (isHex(error?.data) && error?.data?.length > 10) {
                             const errorSelector = slice(error?.data, 0, 4)
 
                             if (
