@@ -729,6 +729,7 @@ export class Executor {
             }
 
             if (
+                e?.details &&
                 e?.details
                     .toLowerCase()
                     .includes("replacement transaction underpriced")
