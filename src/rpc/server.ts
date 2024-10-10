@@ -341,7 +341,10 @@ export class Server {
                         bundlerRequest.method ===
                             "eth_getUserOperationReceipt" &&
                         jsonRpcResponse.result
-                            ? "reduced"
+                            ? {
+                                  ...jsonRpcResponse,
+                                  result: "reduced"
+                              }
                             : jsonRpcResponse, // do not log the full result for eth_getUserOperationReceipt to reduce log size
                     method: bundlerRequest.method
                 },
