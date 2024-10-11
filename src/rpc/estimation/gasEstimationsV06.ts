@@ -1,4 +1,5 @@
 import {
+    ENTRYPOINT_V06_SIMULATION_OVERRIDE,
     EntryPointV06Abi,
     EntryPointV06SimulationsAbi,
     RpcError,
@@ -14,30 +15,31 @@ import {
     decodeErrorResult,
     encodeFunctionData,
     toHex,
-    getAddress
+    slice
 } from "viem"
 import { z } from "zod"
 import type { SimulateHandleOpResult } from "./types"
+import { deepHexlify } from "../../utils/userop"
 
 export class GasEstimatorV06 {
     publicClient: PublicClient
     blockTagSupport: boolean
     utilityWalletAddress: Address
     fixedGasLimitForEstimation?: bigint
-    rpcTraceSupport: boolean
+    codeOverrideSupport: boolean
 
     constructor(
         publicClient: PublicClient,
         blockTagSupport: boolean,
         utilityWalletAddress: Address,
-        rpcTraceSupport: boolean,
+        codeOverrideSupport: boolean,
         fixedGasLimitForEstimation?: bigint
     ) {
         this.publicClient = publicClient
         this.blockTagSupport = blockTagSupport
         this.utilityWalletAddress = utilityWalletAddress
         this.fixedGasLimitForEstimation = fixedGasLimitForEstimation
-        this.rpcTraceSupport = rpcTraceSupport
+        this.codeOverrideSupport = codeOverrideSupport
     }
 
     decodeSimulateHandleOpResult(data: Hex): SimulateHandleOpResult {
@@ -61,6 +63,18 @@ export class GasEstimatorV06 {
             return {
                 result: "failed",
                 data: decodedError.args[1] as string
+            } as const
+        }
+
+        // custom error thrown by entryPoint if code override is used
+        if (
+            decodedError &&
+            decodedError.errorName === "CallPhaseReverted" &&
+            decodedError.args
+        ) {
+            return {
+                result: "failed",
+                data: decodedError.args[0]
             } as const
         }
 
@@ -93,13 +107,19 @@ export class GasEstimatorV06 {
         )
     }
 
-    async ethCall(
-        entryPoint: Address,
-        userOperation: UserOperationV06,
-        targetAddress: Address,
-        targetCallData: Hex,
-        stateOverrides?: StateOverrides
-    ): Promise<SimulateHandleOpResult> {
+    async simulateHandleOpV06({
+        userOperation,
+        targetAddress,
+        targetCallData,
+        entryPoint,
+        stateOverrides = undefined
+    }: {
+        userOperation: UserOperationV06
+        targetAddress: Address
+        targetCallData: Hex
+        entryPoint: Address
+        stateOverrides?: StateOverrides | undefined
+    }): Promise<SimulateHandleOpResult> {
         try {
             const {
                 publicClient,
@@ -107,6 +127,17 @@ export class GasEstimatorV06 {
                 utilityWalletAddress,
                 fixedGasLimitForEstimation
             } = this
+
+            if (this.codeOverrideSupport) {
+                if (stateOverrides === undefined) {
+                    stateOverrides = {}
+                }
+
+                stateOverrides[entryPoint] = {
+                    ...deepHexlify(stateOverrides?.[entryPoint] || {}),
+                    code: ENTRYPOINT_V06_SIMULATION_OVERRIDE
+                }
+            }
 
             await publicClient.request({
                 method: "eth_call",
@@ -177,131 +208,11 @@ export class GasEstimatorV06 {
                 throw new Error(JSON.stringify(err.cause))
             }
 
-            const cause = causeParseResult.data
+            const data = causeParseResult.data.data
 
-            return this.decodeSimulateHandleOpResult(cause.data)
+            return this.decodeSimulateHandleOpResult(data)
         }
 
         throw new Error("Unexpected error")
-    }
-
-    async traceCall(
-        entryPoint: Address,
-        userOperation: UserOperationV06,
-        targetAddress: Address,
-        targetCallData: Hex,
-        stateOverrides?: StateOverrides
-    ): Promise<SimulateHandleOpResult> {
-        const {
-            publicClient,
-            blockTagSupport,
-            utilityWalletAddress,
-            fixedGasLimitForEstimation
-        } = this
-
-        const traceResult = await publicClient.request({
-            // @ts-ignore
-            method: "trace_call",
-            params: [
-                {
-                    to: entryPoint,
-                    from: utilityWalletAddress,
-                    data: encodeFunctionData({
-                        abi: EntryPointV06Abi,
-                        functionName: "simulateHandleOp",
-                        args: [userOperation, targetAddress, targetCallData]
-                    }),
-                    ...(fixedGasLimitForEstimation !== undefined && {
-                        gas: `0x${fixedGasLimitForEstimation.toString(16)}`
-                    })
-                },
-                // @ts-ignore
-                ["trace"],
-                // @ts-ignore
-                blockTagSupport
-                    ? "latest"
-                    : toHex(await publicClient.getBlockNumber()),
-                // @ts-ignore
-                ...(stateOverrides ? [stateOverrides] : [])
-            ]
-        })
-
-        const result = z
-            .object({
-                output: hexDataSchema,
-                trace: z.array(
-                    z.object({
-                        action: z.object({
-                            input: hexDataSchema,
-                            from: hexDataSchema,
-                            to: hexDataSchema
-                        }),
-                        error: z.string().optional(),
-                        result: z
-                            .object({
-                                output: hexDataSchema.optional()
-                            })
-                            .optional(),
-                        type: z.string()
-                    })
-                )
-            })
-            .safeParse(traceResult)
-
-        if (!result.success) {
-            throw new Error(JSON.stringify(result.error.cause))
-        }
-
-        // Check if the smartAccount's execution reverted.
-        const smartAccountExecutionResult = result.data.trace.find(
-            (trace) =>
-                getAddress(trace.action.to) === userOperation.sender &&
-                getAddress(trace.action.from) === entryPoint &&
-                trace.action.input === userOperation.callData
-        )
-
-        if (
-            smartAccountExecutionResult &&
-            smartAccountExecutionResult.error?.toLowerCase() === "reverted"
-        ) {
-            return {
-                result: "failed",
-                data: smartAccountExecutionResult.result?.output || "0x"
-            }
-        }
-
-        return this.decodeSimulateHandleOpResult(result.data.output)
-    }
-
-    async simulateHandleOpV06({
-        userOperation,
-        targetAddress,
-        targetCallData,
-        entryPoint,
-        stateOverrides = undefined
-    }: {
-        userOperation: UserOperationV06
-        targetAddress: Address
-        targetCallData: Hex
-        entryPoint: Address
-        stateOverrides?: StateOverrides | undefined
-    }): Promise<SimulateHandleOpResult> {
-        if (this.rpcTraceSupport) {
-            return await this.traceCall(
-                entryPoint,
-                userOperation,
-                targetAddress,
-                targetCallData,
-                stateOverrides
-            )
-        } else {
-            return await this.ethCall(
-                entryPoint,
-                userOperation,
-                targetAddress,
-                targetCallData,
-                stateOverrides
-            )
-        }
     }
 }

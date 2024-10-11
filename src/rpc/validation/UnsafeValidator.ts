@@ -73,7 +73,7 @@ export class UnsafeValidator implements InterfaceValidator {
         utilityWalletAddress: Address,
         binarySearchToleranceDelta: bigint,
         binarySearchGasAllowance: bigint,
-        rpcTraceSupport: boolean,
+        codeOverrideSupport: boolean,
         entryPointSimulationsAddress?: Address,
         fixedGasLimitForEstimation?: bigint,
         usingTenderly = false,
@@ -98,7 +98,7 @@ export class UnsafeValidator implements InterfaceValidator {
             blockTagSupport,
             utilityWalletAddress,
             chainType,
-            rpcTraceSupport,
+            codeOverrideSupport,
             entryPointSimulationsAddress,
             fixedGasLimitForEstimation
         )
@@ -196,7 +196,6 @@ export class UnsafeValidator implements InterfaceValidator {
             addSenderBalanceOverride,
             balanceOverrideEnabled: this.balanceOverrideEnabled,
             entryPoint,
-            replacedEntryPoint: false,
             targetAddress: zeroAddress,
             targetCallData: "0x",
             stateOverrides

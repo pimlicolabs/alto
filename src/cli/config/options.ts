@@ -327,9 +327,8 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         require: false,
         default: true
     },
-    "trace-call-support": {
-        description:
-            "Enable trace support when simulating v0.6 user operations",
+    "code-override-support": {
+        description: "Does the RPC support code overrides",
         type: "boolean",
         require: false,
         default: false

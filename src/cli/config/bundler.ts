@@ -163,7 +163,7 @@ export const rpcArgsSchema = z.object({
     "polling-interval": z.number().int().min(0),
     "max-block-range": z.number().int().min(0).optional(),
     "block-tag-support": z.boolean().optional().default(true),
-    "trace-call-support": z.boolean().optional().default(false)
+    "code-override-support": z.boolean().optional().default(false)
 })
 
 export const bundleCopmressionArgsSchema = z.object({
