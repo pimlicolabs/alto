@@ -54,6 +54,7 @@ export class GasEstimationHandler {
         blockTagSupport: boolean,
         utilityWalletAddress: Address,
         chainType: ChainType,
+        rpcTraceSupport: boolean,
         entryPointSimulationsAddress?: Address,
         fixedGasLimitForEstimation?: bigint
     ) {
@@ -61,6 +62,7 @@ export class GasEstimationHandler {
             publicClient,
             blockTagSupport,
             utilityWalletAddress,
+            rpcTraceSupport,
             fixedGasLimitForEstimation
         )
 

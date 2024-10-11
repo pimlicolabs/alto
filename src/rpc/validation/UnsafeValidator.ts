@@ -73,6 +73,7 @@ export class UnsafeValidator implements InterfaceValidator {
         utilityWalletAddress: Address,
         binarySearchToleranceDelta: bigint,
         binarySearchGasAllowance: bigint,
+        rpcTraceSupport: boolean,
         entryPointSimulationsAddress?: Address,
         fixedGasLimitForEstimation?: bigint,
         usingTenderly = false,
@@ -97,6 +98,7 @@ export class UnsafeValidator implements InterfaceValidator {
             blockTagSupport,
             utilityWalletAddress,
             chainType,
+            rpcTraceSupport,
             entryPointSimulationsAddress,
             fixedGasLimitForEstimation
         )

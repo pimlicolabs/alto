@@ -326,6 +326,13 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         type: "boolean",
         require: false,
         default: true
+    },
+    "trace-call-support": {
+        description:
+            "Enable trace support when simulating v0.6 user operations",
+        type: "boolean",
+        require: false,
+        default: false
     }
 }
 

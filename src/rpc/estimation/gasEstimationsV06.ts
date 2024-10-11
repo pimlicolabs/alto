@@ -13,7 +13,8 @@ import {
     type PublicClient,
     decodeErrorResult,
     encodeFunctionData,
-    toHex
+    toHex,
+    getAddress
 } from "viem"
 import { z } from "zod"
 import type { SimulateHandleOpResult } from "./types"
@@ -23,40 +24,90 @@ export class GasEstimatorV06 {
     blockTagSupport: boolean
     utilityWalletAddress: Address
     fixedGasLimitForEstimation?: bigint
+    rpcTraceSupport: boolean
 
     constructor(
         publicClient: PublicClient,
         blockTagSupport: boolean,
         utilityWalletAddress: Address,
+        rpcTraceSupport: boolean,
         fixedGasLimitForEstimation?: bigint
     ) {
         this.publicClient = publicClient
         this.blockTagSupport = blockTagSupport
         this.utilityWalletAddress = utilityWalletAddress
         this.fixedGasLimitForEstimation = fixedGasLimitForEstimation
+        this.rpcTraceSupport = rpcTraceSupport
     }
 
-    async simulateHandleOpV06({
-        userOperation,
-        targetAddress,
-        targetCallData,
-        entryPoint,
-        stateOverrides = undefined
-    }: {
-        userOperation: UserOperationV06
-        targetAddress: Address
-        targetCallData: Hex
-        entryPoint: Address
-        stateOverrides?: StateOverrides | undefined
-    }): Promise<SimulateHandleOpResult> {
-        const {
-            publicClient,
-            blockTagSupport,
-            utilityWalletAddress,
-            fixedGasLimitForEstimation
-        } = this
+    decodeSimulateHandleOpResult(data: Hex): SimulateHandleOpResult {
+        if (data === "0x") {
+            throw new RpcError(
+                "AA23 reverted: UserOperation called non-existant contract, or reverted with 0x",
+                ValidationErrors.SimulateValidation
+            )
+        }
 
+        const decodedError = decodeErrorResult({
+            abi: [...EntryPointV06Abi, ...EntryPointV06SimulationsAbi],
+            data
+        })
+
+        if (
+            decodedError &&
+            decodedError.errorName === "FailedOp" &&
+            decodedError.args
+        ) {
+            return {
+                result: "failed",
+                data: decodedError.args[1] as string
+            } as const
+        }
+
+        if (
+            decodedError &&
+            decodedError.errorName === "Error" &&
+            decodedError.args
+        ) {
+            return {
+                result: "failed",
+                data: decodedError.args[0]
+            } as const
+        }
+
+        if (decodedError.errorName === "ExecutionResult") {
+            const parsedExecutionResult = executionResultSchema.parse(
+                decodedError.args
+            )
+
+            return {
+                result: "execution",
+                data: {
+                    executionResult: parsedExecutionResult
+                } as const
+            }
+        }
+
+        throw new Error(
+            "Unexpected error whilst decoding simulateHandleOp result"
+        )
+    }
+
+    async ethCall(
+        entryPoint: Address,
+        userOperation: UserOperationV06,
+        targetAddress: Address,
+        targetCallData: Hex,
+        stateOverrides?: StateOverrides
+    ): Promise<SimulateHandleOpResult> {
         try {
+            const {
+                publicClient,
+                blockTagSupport,
+                utilityWalletAddress,
+                fixedGasLimitForEstimation
+            } = this
+
             await publicClient.request({
                 method: "eth_call",
                 params: [
@@ -128,53 +179,129 @@ export class GasEstimatorV06 {
 
             const cause = causeParseResult.data
 
-            if (cause.data === "0x") {
-                throw new RpcError(
-                    "AA23 reverted: UserOperation called non-existant contract, or reverted with 0x",
-                    ValidationErrors.SimulateValidation
-                )
-            }
+            return this.decodeSimulateHandleOpResult(cause.data)
+        }
 
-            const decodedError = decodeErrorResult({
-                abi: [...EntryPointV06Abi, ...EntryPointV06SimulationsAbi],
-                data: cause.data
+        throw new Error("Unexpected error")
+    }
+
+    async traceCall(
+        entryPoint: Address,
+        userOperation: UserOperationV06,
+        targetAddress: Address,
+        targetCallData: Hex,
+        stateOverrides?: StateOverrides
+    ): Promise<SimulateHandleOpResult> {
+        const {
+            publicClient,
+            blockTagSupport,
+            utilityWalletAddress,
+            fixedGasLimitForEstimation
+        } = this
+
+        const traceResult = await publicClient.request({
+            // @ts-ignore
+            method: "trace_call",
+            params: [
+                {
+                    to: entryPoint,
+                    from: utilityWalletAddress,
+                    data: encodeFunctionData({
+                        abi: EntryPointV06Abi,
+                        functionName: "simulateHandleOp",
+                        args: [userOperation, targetAddress, targetCallData]
+                    }),
+                    ...(fixedGasLimitForEstimation !== undefined && {
+                        gas: `0x${fixedGasLimitForEstimation.toString(16)}`
+                    })
+                },
+                // @ts-ignore
+                ["trace"],
+                // @ts-ignore
+                blockTagSupport
+                    ? "latest"
+                    : toHex(await publicClient.getBlockNumber()),
+                // @ts-ignore
+                ...(stateOverrides ? [stateOverrides] : [])
+            ]
+        })
+
+        const result = z
+            .object({
+                output: hexDataSchema,
+                trace: z.array(
+                    z.object({
+                        action: z.object({
+                            input: hexDataSchema,
+                            from: hexDataSchema,
+                            to: hexDataSchema
+                        }),
+                        error: z.string().optional(),
+                        result: z
+                            .object({
+                                output: hexDataSchema.optional()
+                            })
+                            .optional(),
+                        type: z.string()
+                    })
+                )
             })
+            .safeParse(traceResult)
 
-            if (
-                decodedError &&
-                decodedError.errorName === "FailedOp" &&
-                decodedError.args
-            ) {
-                return {
-                    result: "failed",
-                    data: decodedError.args[1] as string
-                } as const
-            }
+        if (!result.success) {
+            throw new Error(JSON.stringify(result.error.cause))
+        }
 
-            if (
-                decodedError &&
-                decodedError.errorName === "Error" &&
-                decodedError.args
-            ) {
-                return {
-                    result: "failed",
-                    data: decodedError.args[0]
-                } as const
-            }
+        // Check if the smartAccount's execution reverted.
+        const smartAccountExecutionResult = result.data.trace.find(
+            (trace) =>
+                getAddress(trace.action.to) === userOperation.sender &&
+                getAddress(trace.action.from) === entryPoint &&
+                trace.action.input === userOperation.callData
+        )
 
-            if (decodedError.errorName === "ExecutionResult") {
-                const parsedExecutionResult = executionResultSchema.parse(
-                    decodedError.args
-                )
-
-                return {
-                    result: "execution",
-                    data: {
-                        executionResult: parsedExecutionResult
-                    } as const
-                }
+        if (
+            smartAccountExecutionResult &&
+            smartAccountExecutionResult.error?.toLowerCase() === "reverted"
+        ) {
+            return {
+                result: "failed",
+                data: smartAccountExecutionResult.result?.output || "0x"
             }
         }
-        throw new Error("Unexpected error")
+
+        return this.decodeSimulateHandleOpResult(result.data.output)
+    }
+
+    async simulateHandleOpV06({
+        userOperation,
+        targetAddress,
+        targetCallData,
+        entryPoint,
+        stateOverrides = undefined
+    }: {
+        userOperation: UserOperationV06
+        targetAddress: Address
+        targetCallData: Hex
+        entryPoint: Address
+        stateOverrides?: StateOverrides | undefined
+    }): Promise<SimulateHandleOpResult> {
+        if (this.rpcTraceSupport) {
+            return await this.traceCall(
+                entryPoint,
+                userOperation,
+                targetAddress,
+                targetCallData,
+                stateOverrides
+            )
+        } else {
+            return await this.ethCall(
+                entryPoint,
+                userOperation,
+                targetAddress,
+                targetCallData,
+                stateOverrides
+            )
+        }
     }
 }
