@@ -144,7 +144,7 @@ export async function bundlerHandler(args: IOptionsInput): Promise<void> {
             bytecode: PimlicoEntryPointSimulationsDeployBytecode
         })
 
-        const receipt = await client.getTransactionReceipt({
+        const receipt = await client.waitForTransactionReceipt({
             hash: deployHash
         })
 
