@@ -14,8 +14,7 @@ import {
     type PublicClient,
     decodeErrorResult,
     encodeFunctionData,
-    toHex,
-    slice
+    toHex
 } from "viem"
 import { z } from "zod"
 import type { SimulateHandleOpResult } from "./types"
