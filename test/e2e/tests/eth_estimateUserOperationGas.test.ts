@@ -2,11 +2,10 @@ import type { EntryPointVersion } from "viem/account-abstraction"
 import { beforeEach, describe, expect, test } from "vitest"
 import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils"
 import {
-    decodeRevert,
     getRevertCall,
     deployRevertingContract
 } from "../src/revertingContract"
-import { Address, BaseError, ContractFunctionRevertedError } from "viem"
+import { Address, BaseError } from "viem"
 
 describe.each([
     {
@@ -123,7 +122,7 @@ describe.each([
             expect(estimation.paymasterVerificationGasLimit).toBe(0n)
         })
 
-        test.only("Should throw revert reason if simulation reverted during callphase", async () => {
+        test("Should throw revert reason if simulation reverted during callphase", async () => {
             const smartAccountClient = await getSmartAccountClient({
                 entryPointVersion
             })

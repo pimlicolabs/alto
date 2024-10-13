@@ -1,4 +1,4 @@
-import type { Address, Hex } from "viem"
+import { parseGwei, type Address, type Hex } from "viem"
 import {
     type EntryPointVersion,
     entryPoint06Address,
@@ -74,13 +74,18 @@ describe.each([
             let hash: Hex
             if (entryPointVersion === "0.6") {
                 hash = await smartAccountClient.sendUserOperation({
-                    calls: [
+                    callData: await smartAccountClient.account.encodeCalls([
                         {
                             to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
                             data: "0x",
                             value: 0n
                         }
-                    ],
+                    ]),
+                    callGasLimit: 500_000n,
+                    verificationGasLimit: 500_000n,
+                    preVerificationGas: 500_000n,
+                    maxFeePerGas: parseGwei("10"),
+                    maxPriorityFeePerGas: parseGwei("10"),
                     paymasterAndData: paymaster
                 })
             } else {
