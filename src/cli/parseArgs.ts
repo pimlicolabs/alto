@@ -34,13 +34,9 @@ function convertKeysToCamelCase<T extends IOptions>(
     )
 }
 
-// Example usage with config
-// Assume config is of type IOptions
-
 export const parseArgs = (
     args: IOptionsInput
 ): CamelCasedProperties<IOptions> => {
-    // validate every arg, make type safe so if i add a new arg i have to validate it
     const parsing = optionArgsSchema.safeParse(args)
     if (!parsing.success) {
         const error = fromZodError(parsing.error)

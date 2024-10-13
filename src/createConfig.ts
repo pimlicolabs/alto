@@ -1,6 +1,3 @@
-// Example usage with config
-// Assume config is of type IOptions
-
 import type { IOptions } from "@alto/cli"
 import type { CamelCasedProperties } from "./cli/parseArgs"
 import type { Logger } from "pino"
