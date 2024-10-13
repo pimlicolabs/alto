@@ -12,7 +12,8 @@ import {
     getAddressFromInitCodeOrPaymasterAndData,
     isVersion06
 } from "@alto/utils"
-import { type Address, type PublicClient, getAddress, getContract } from "viem"
+import { type Address, getAddress, getContract } from "viem"
+import type { AltoConfig } from "../createConfig"
 
 export interface InterfaceReputationManager {
     checkReputation(
@@ -172,9 +173,7 @@ export class NullReputationManager implements InterfaceReputationManager {
 }
 
 export class ReputationManager implements InterfaceReputationManager {
-    private publicClient: PublicClient
-    private minStake: bigint
-    private minUnstakeDelay: bigint
+    private config: AltoConfig
     private entityCount: { [address: Address]: bigint } = {}
     private throttledEntityMinMempoolCount: bigint
     private maxMempoolUserOperationsPerSender: bigint
@@ -188,40 +187,30 @@ export class ReputationManager implements InterfaceReputationManager {
     private bundlerReputationParams: ReputationParams
     private logger: Logger
 
-    constructor(
-        publicClient: PublicClient,
-        entryPoints: Address[],
-        minStake: bigint,
-        minUnstakeDelay: bigint,
-        logger: Logger,
-        maxMempoolUserOperationsPerNewUnstakedEntity?: bigint,
-        throttledEntityMinMempoolCount?: bigint,
-        inclusionRateFactor?: bigint,
-        maxMempoolUserOperationsPerSender?: bigint,
-        blackList?: Address[],
-        whiteList?: Address[],
-        bundlerReputationParams?: ReputationParams
-    ) {
-        this.publicClient = publicClient
-        this.minStake = minStake
-        this.minUnstakeDelay = minUnstakeDelay
-        this.logger = logger
-        this.maxMempoolUserOperationsPerNewUnstakedEntity =
-            maxMempoolUserOperationsPerNewUnstakedEntity ?? 10n
-        this.inclusionRateFactor = inclusionRateFactor ?? 10n
-        this.throttledEntityMinMempoolCount =
-            throttledEntityMinMempoolCount ?? 4n
-        this.maxMempoolUserOperationsPerSender =
-            maxMempoolUserOperationsPerSender ?? 4n
-        this.bundlerReputationParams =
-            bundlerReputationParams ?? BundlerReputationParams
-        for (const address of blackList || []) {
-            this.blackList.add(address)
-        }
-        for (const address of whiteList || []) {
-            this.whitelist.add(address)
-        }
-        for (const entryPoint of entryPoints) {
+    constructor(config: AltoConfig) {
+        this.config = config
+        this.logger = config.logger.child(
+            { module: "reputation_manager" },
+            {
+                level:
+                    config.args.reputationManagerLogLevel ||
+                    config.args.logLevel
+            }
+        )
+        this.maxMempoolUserOperationsPerNewUnstakedEntity = 10n
+        this.inclusionRateFactor = 10n
+        this.throttledEntityMinMempoolCount = 4n
+        this.maxMempoolUserOperationsPerSender = 4n
+        this.bundlerReputationParams = BundlerReputationParams
+
+        // Currently we don't have any args for blacklist and whitelist
+        // for (const address of blackList || []) {
+        //     this.blackList.add(address)
+        // }
+        // for (const address of whiteList || []) {
+        //     this.whitelist.add(address)
+        // }
+        for (const entryPoint of config.args.entrypoints) {
             this.entries[entryPoint] = {}
         }
     }
@@ -279,7 +268,7 @@ export class ReputationManager implements InterfaceReputationManager {
             abi: EntryPointV06Abi,
             address: entryPoint,
             client: {
-                public: this.publicClient
+                public: this.config.publicClient
             }
         })
         const stakeInfo = await entryPointContract.read.getDepositInfo([
@@ -290,7 +279,8 @@ export class ReputationManager implements InterfaceReputationManager {
         const unstakeDelaySec = BigInt(stakeInfo.unstakeDelaySec)
 
         const isStaked =
-            stake >= this.minStake && unstakeDelaySec >= this.minUnstakeDelay
+            stake >= this.config.args.minEntityStake &&
+            unstakeDelaySec >= this.config.args.minEntityUnstakeDelay
 
         return {
             stakeInfo: {
@@ -663,10 +653,10 @@ export class ReputationManager implements InterfaceReputationManager {
         }
         this.checkBanned(entryPoint, entityType, stakeInfo)
 
-        if (stakeInfo.stake < this.minStake) {
+        if (stakeInfo.stake < this.config.args.minEntityStake) {
             if (stakeInfo.stake === 0n) {
                 throw new RpcError(
-                    `${entityType} ${stakeInfo.addr} is unstaked and must stake minimum ${this.minStake} to use pimlico`,
+                    `${entityType} ${stakeInfo.addr} is unstaked and must stake minimum ${this.config.args.minEntityStake} to use pimlico`,
                     ValidationErrors.InsufficientStake
                 )
             }
@@ -677,7 +667,9 @@ export class ReputationManager implements InterfaceReputationManager {
             )
         }
 
-        if (stakeInfo.unstakeDelaySec < this.minUnstakeDelay) {
+        if (
+            stakeInfo.unstakeDelaySec < this.config.args.minEntityUnstakeDelay
+        ) {
             throw new RpcError(
                 `${entityType} ${stakeInfo.addr} does not have enough unstake delay to use pimlico`,
                 ValidationErrors.InsufficientStake

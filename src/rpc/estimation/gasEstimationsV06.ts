@@ -10,30 +10,19 @@ import type { StateOverrides, UserOperationV06 } from "@alto/types"
 import type { Hex, RpcRequestErrorType } from "viem"
 import {
     type Address,
-    type PublicClient,
     decodeErrorResult,
     encodeFunctionData,
     toHex
 } from "viem"
 import { z } from "zod"
 import type { SimulateHandleOpResult } from "./types"
+import type { AltoConfig } from "../../createConfig"
 
 export class GasEstimatorV06 {
-    publicClient: PublicClient
-    blockTagSupport: boolean
-    utilityWalletAddress: Address
-    fixedGasLimitForEstimation?: bigint
+    private config: AltoConfig
 
-    constructor(
-        publicClient: PublicClient,
-        blockTagSupport: boolean,
-        utilityWalletAddress: Address,
-        fixedGasLimitForEstimation?: bigint
-    ) {
-        this.publicClient = publicClient
-        this.blockTagSupport = blockTagSupport
-        this.utilityWalletAddress = utilityWalletAddress
-        this.fixedGasLimitForEstimation = fixedGasLimitForEstimation
+    constructor(config: AltoConfig) {
+        this.config = config
     }
 
     async simulateHandleOpV06({
@@ -49,12 +38,13 @@ export class GasEstimatorV06 {
         entryPoint: Address
         stateOverrides?: StateOverrides | undefined
     }): Promise<SimulateHandleOpResult> {
-        const {
-            publicClient,
-            blockTagSupport,
-            utilityWalletAddress,
-            fixedGasLimitForEstimation
-        } = this
+        const publicClient = this.config.publicClient
+        const blockTagSupport = this.config.args.blockTagSupport
+        const utilityWalletAddress =
+            this.config.args.utilityPrivateKey?.address ??
+            "0x4337000c2828F5260d8921fD25829F606b9E8680"
+        const fixedGasLimitForEstimation =
+            this.config.args.fixedGasLimitForEstimation
 
         try {
             await publicClient.request({

@@ -1,31 +1,38 @@
 import type { Logger, Metrics } from "@alto/utils"
-import { type Hex, type PublicClient, formatEther } from "viem"
+import { type Hex, formatEther } from "viem"
+import type { AltoConfig } from "../createConfig"
+import type { Address } from "abitype"
 
 export class UtilityWalletMonitor {
-    private publicClient: PublicClient
-    private monitorInterval: number
+    private config: AltoConfig
     private utilityWalletAddress: Hex
     private timer: NodeJS.Timer | undefined
     private metrics: Metrics
     private logger: Logger
 
-    constructor(
-        publicClient: PublicClient,
-        monitorInterval: number,
-        utilityWalletAddress: Hex,
-        metrics: Metrics,
-        logger: Logger
-    ) {
-        this.publicClient = publicClient
-        this.monitorInterval = monitorInterval
+    constructor({
+        config,
+        metrics,
+        utilityWalletAddress
+    }: {
+        config: AltoConfig
+        metrics: Metrics
+        utilityWalletAddress: Address
+    }) {
+        this.config = config
         this.utilityWalletAddress = utilityWalletAddress
         this.metrics = metrics
-        this.logger = logger
+        this.logger = config.logger.child(
+            { module: "utility_wallet_monitor" },
+            {
+                level: config.args.logLevel
+            }
+        )
     }
 
     private async updateMetrics() {
         try {
-            const balance = await this.publicClient.getBalance({
+            const balance = await this.config.publicClient.getBalance({
                 address: this.utilityWalletAddress
             })
 
@@ -49,7 +56,7 @@ export class UtilityWalletMonitor {
 
         this.timer = setInterval(
             this.updateMetrics.bind(this),
-            this.monitorInterval
+            this.config.args.utilityWalletMonitorInterval
         ) as NodeJS.Timer
     }
 

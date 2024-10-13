@@ -27,16 +27,14 @@ import {
 import {
     type Address,
     type Block,
-    type Chain,
     type Hash,
-    type PublicClient,
     type TransactionReceipt,
     TransactionReceiptNotFoundError,
-    type Transport,
     type WatchBlocksReturnType,
     getAbiItem
 } from "viem"
 import type { Executor, ReplaceTransactionResult } from "./executor"
+import type { AltoConfig } from "../createConfig"
 
 function getTransactionsFromUserOperationEntries(
     entries: SubmittedUserOperation[]
@@ -51,63 +49,58 @@ function getTransactionsFromUserOperationEntries(
 }
 
 export class ExecutorManager {
-    private entryPoints: Address[]
+    private config: AltoConfig
     private executor: Executor
     private mempool: MemoryMempool
     private monitor: Monitor
-    private publicClient: PublicClient<Transport, Chain>
-    private pollingInterval: number
     private logger: Logger
     private metrics: Metrics
     private reputationManager: InterfaceReputationManager
     private unWatch: WatchBlocksReturnType | undefined
     private currentlyHandlingBlock = false
     private timer?: NodeJS.Timer
-    private bundlerFrequency: number
-    private maxGasLimitPerBundle: bigint
     private gasPriceManager: GasPriceManager
     private eventManager: EventManager
-    private aa95ResubmitMultiplier: bigint
     rpcMaxBlockRange: number | undefined
 
-    constructor(
-        executor: Executor,
-        entryPoints: Address[],
-        mempool: MemoryMempool,
-        monitor: Monitor,
-        reputationManager: InterfaceReputationManager,
-        publicClient: PublicClient<Transport, Chain>,
-        pollingInterval: number,
-        logger: Logger,
-        metrics: Metrics,
-        bundleMode: BundlingMode,
-        bundlerFrequency: number,
-        maxGasLimitPerBundle: bigint,
-        gasPriceManager: GasPriceManager,
-        eventManager: EventManager,
-        aa95ResubmitMultiplier: bigint,
-        rpcMaxBlockRange: number | undefined
-    ) {
-        this.entryPoints = entryPoints
+    constructor({
+        config,
+        executor,
+        mempool,
+        monitor,
+        reputationManager,
+        metrics,
+        gasPriceManager,
+        eventManager
+    }: {
+        config: AltoConfig
+        executor: Executor
+        mempool: MemoryMempool
+        monitor: Monitor
+        reputationManager: InterfaceReputationManager
+        metrics: Metrics
+        gasPriceManager: GasPriceManager
+        eventManager: EventManager
+    }) {
+        this.config = config
         this.reputationManager = reputationManager
         this.executor = executor
         this.mempool = mempool
         this.monitor = monitor
-        this.publicClient = publicClient
-        this.pollingInterval = pollingInterval
-        this.logger = logger
+        this.logger = config.logger.child(
+            { module: "executor_manager" },
+            {
+                level: config.args.executorLogLevel || config.args.logLevel
+            }
+        )
         this.metrics = metrics
-        this.bundlerFrequency = bundlerFrequency
-        this.maxGasLimitPerBundle = maxGasLimitPerBundle
         this.gasPriceManager = gasPriceManager
         this.eventManager = eventManager
-        this.aa95ResubmitMultiplier = aa95ResubmitMultiplier
-        this.rpcMaxBlockRange = rpcMaxBlockRange
 
-        if (bundleMode === "auto") {
+        if (this.config.args.bundleMode === "auto") {
             this.timer = setInterval(async () => {
                 await this.bundle()
-            }, bundlerFrequency) as NodeJS.Timer
+            }, this.config.args.maxBundleWait) as NodeJS.Timer
         }
     }
 
@@ -115,7 +108,7 @@ export class ExecutorManager {
         if (bundleMode === "auto" && !this.timer) {
             this.timer = setInterval(async () => {
                 await this.bundle()
-            }, this.bundlerFrequency) as NodeJS.Timer
+            }, this.config.args.maxBundleWait) as NodeJS.Timer
         } else if (bundleMode === "manual" && this.timer) {
             clearInterval(this.timer)
             this.timer = undefined
@@ -123,7 +116,10 @@ export class ExecutorManager {
     }
 
     async bundleNow(): Promise<Hash[]> {
-        const ops = await this.mempool.process(this.maxGasLimitPerBundle, 1)
+        const ops = await this.mempool.process(
+            this.config.args.maxGasPerBundle,
+            1
+        )
         if (ops.length === 0) {
             throw new Error("no ops to bundle")
         }
@@ -140,7 +136,7 @@ export class ExecutorManager {
         const txHashes: Hash[] = []
 
         await Promise.all(
-            this.entryPoints.map(async (entryPoint) => {
+            this.config.args.entrypoints.map(async (entryPoint) => {
                 const ops = opEntryPointMap.get(entryPoint)
                 if (ops) {
                     const txHash = await this.sendToExecutor(entryPoint, ops)
@@ -297,7 +293,10 @@ export class ExecutorManager {
         const opsToBundle: UserOperationInfo[][] = []
 
         while (true) {
-            const ops = await this.mempool.process(this.maxGasLimitPerBundle, 1)
+            const ops = await this.mempool.process(
+                this.config.args.maxGasPerBundle,
+                1
+            )
             if (ops?.length > 0) {
                 opsToBundle.push(ops)
             } else {
@@ -326,7 +325,7 @@ export class ExecutorManager {
                 }
 
                 await Promise.all(
-                    this.entryPoints.map(async (entryPoint) => {
+                    this.config.args.entrypoints.map(async (entryPoint) => {
                         const userOperations = opEntryPointMap.get(entryPoint)
                         if (userOperations) {
                             await this.sendToExecutor(
@@ -349,7 +348,7 @@ export class ExecutorManager {
         if (this.unWatch) {
             return
         }
-        this.unWatch = this.publicClient.watchBlocks({
+        this.unWatch = this.config.publicClient.watchBlocks({
             onBlock: handleBlock,
             // onBlock: async (block) => {
             //     // Use an arrow function to ensure correct binding of `this`
@@ -368,7 +367,7 @@ export class ExecutorManager {
             },
             emitMissed: false,
             includeTransactions: false,
-            pollingInterval: this.pollingInterval
+            pollingInterval: this.config.args.pollingInterval
         })
 
         this.logger.debug("started watching blocks")
@@ -405,7 +404,7 @@ export class ExecutorManager {
                 ...(await getBundleStatus(
                     isVersion06,
                     transactionHash,
-                    this.publicClient,
+                    this.config.publicClient,
                     this.logger,
                     entryPoint
                 ))
@@ -498,7 +497,7 @@ export class ExecutorManager {
             bundlingStatus.isAA95
         ) {
             // resubmit with more gas when bundler encounters AA95
-            const multiplier = this.aa95ResubmitMultiplier
+            const multiplier = this.config.args.aa95GasMultiplier
             transactionInfo.transactionRequest.gas =
                 (transactionInfo.transactionRequest.gas * multiplier) / 100n
             transactionInfo.transactionRequest.nonce += 1
@@ -535,7 +534,7 @@ export class ExecutorManager {
         transactionHash: Hash
         blockNumber: bigint
     }) {
-        const unwatch = this.publicClient.watchBlockNumber({
+        const unwatch = this.config.publicClient.watchBlockNumber({
             onBlockNumber: async (currentBlockNumber) => {
                 if (currentBlockNumber > blockNumber + 1n) {
                     const userOperationReceipt =
@@ -606,7 +605,7 @@ export class ExecutorManager {
         let fromBlock: bigint | undefined = undefined
         let toBlock: "latest" | undefined = undefined
         if (this.rpcMaxBlockRange !== undefined) {
-            const latestBlock = await this.publicClient.getBlockNumber()
+            const latestBlock = await this.config.publicClient.getBlockNumber()
             fromBlock = latestBlock - BigInt(this.rpcMaxBlockRange)
             if (fromBlock < 0n) {
                 fromBlock = 0n
@@ -614,8 +613,8 @@ export class ExecutorManager {
             toBlock = "latest"
         }
 
-        const filterResult = await this.publicClient.getLogs({
-            address: this.entryPoints,
+        const filterResult = await this.config.publicClient.getLogs({
+            address: this.config.args.entrypoints,
             event: userOperationEventAbiItem,
             fromBlock,
             toBlock,
@@ -665,7 +664,7 @@ export class ExecutorManager {
             while (true) {
                 try {
                     const transactionReceipt =
-                        await this.publicClient.getTransactionReceipt({
+                        await this.config.publicClient.getTransactionReceipt({
                             hash: txHash
                         })
 
@@ -675,9 +674,10 @@ export class ExecutorManager {
                         undefined
 
                     if (effectiveGasPrice === undefined) {
-                        const tx = await this.publicClient.getTransaction({
-                            hash: txHash
-                        })
+                        const tx =
+                            await this.config.publicClient.getTransaction({
+                                hash: txHash
+                            })
                         effectiveGasPrice = tx.gasPrice ?? undefined
                     }
 
@@ -735,7 +735,7 @@ export class ExecutorManager {
         }
 
         await Promise.all(
-            this.entryPoints.map(async (entryPoint) => {
+            this.config.args.entrypoints.map(async (entryPoint) => {
                 const ops = opEntryPointMap.get(entryPoint)
 
                 if (ops) {

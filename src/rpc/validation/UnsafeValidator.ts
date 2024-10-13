@@ -1,6 +1,5 @@
 import type { GasPriceManager } from "@alto/handlers"
 import type {
-    ChainType,
     InterfaceValidator,
     StateOverrides,
     UserOperationV06,
@@ -36,10 +35,7 @@ import {
 import * as sentry from "@sentry/node"
 import {
     BaseError,
-    type Chain,
     ContractFunctionExecutionError,
-    type PublicClient,
-    type Transport,
     getContract,
     pad,
     slice,
@@ -49,57 +45,29 @@ import {
 import { fromZodError } from "zod-validation-error"
 import { GasEstimationHandler } from "../estimation/gasEstimationHandler"
 import type { SimulateHandleOpResult } from "../estimation/types"
+import type { AltoConfig } from "../../createConfig"
 
 export class UnsafeValidator implements InterfaceValidator {
-    publicClient: PublicClient<Transport, Chain>
-    logger: Logger
+    config: AltoConfig
     metrics: Metrics
-    usingTenderly: boolean
-    balanceOverrideEnabled: boolean
-    expirationCheck: boolean
-    chainId: number
     gasPriceManager: GasPriceManager
-    chainType: ChainType
 
     gasEstimationHandler: GasEstimationHandler
 
-    constructor(
-        publicClient: PublicClient<Transport, Chain>,
-        logger: Logger,
-        metrics: Metrics,
-        gasPriceManager: GasPriceManager,
-        chainType: ChainType,
-        blockTagSupport: boolean,
-        utilityWalletAddress: Address,
-        binarySearchToleranceDelta: bigint,
-        binarySearchGasAllowance: bigint,
-        entryPointSimulationsAddress?: Address,
-        fixedGasLimitForEstimation?: bigint,
-        usingTenderly = false,
-        balanceOverrideEnabled = false,
-        expirationCheck = true
-    ) {
-        this.publicClient = publicClient
-        this.logger = logger
+    constructor({
+        config,
+        metrics,
+        gasPriceManager
+    }: {
+        config: AltoConfig
+        metrics: Metrics
+        gasPriceManager: GasPriceManager
+    }) {
+        this.config = config
         this.metrics = metrics
-        this.usingTenderly = usingTenderly
-        this.balanceOverrideEnabled = balanceOverrideEnabled
-        this.expirationCheck = expirationCheck
-        this.chainId = publicClient.chain.id
         this.gasPriceManager = gasPriceManager
-        this.chainType = chainType
 
-        this.gasEstimationHandler = new GasEstimationHandler(
-            binarySearchToleranceDelta,
-            binarySearchGasAllowance,
-            publicClient,
-            publicClient.chain.id,
-            blockTagSupport,
-            utilityWalletAddress,
-            chainType,
-            entryPointSimulationsAddress,
-            fixedGasLimitForEstimation
-        )
+        this.gasEstimationHandler = new GasEstimationHandler(config)
     }
 
     async getSimulationResult(
@@ -192,7 +160,7 @@ export class UnsafeValidator implements InterfaceValidator {
             userOperation,
             queuedUserOperations,
             addSenderBalanceOverride,
-            balanceOverrideEnabled: this.balanceOverrideEnabled,
+            balanceOverrideEnabled: this.config.args.balanceOverride,
             entryPoint,
             replacedEntryPoint: false,
             targetAddress: zeroAddress,
@@ -224,7 +192,7 @@ export class UnsafeValidator implements InterfaceValidator {
             address: entryPoint,
             abi: EntryPointV06Abi,
             client: {
-                public: this.publicClient
+                public: this.config.publicClient
             }
         })
 
@@ -253,9 +221,9 @@ export class UnsafeValidator implements InterfaceValidator {
             ...((await this.getSimulationResult(
                 isVersion06(userOperation),
                 simulateValidationResult,
-                this.logger,
+                this.config.logger,
                 "validation",
-                this.usingTenderly
+                this.config.args.tenderly
             )) as ValidationResultV06 | ValidationResultWithAggregationV06),
             storageMap: {}
         }
@@ -269,7 +237,7 @@ export class UnsafeValidator implements InterfaceValidator {
 
         const now = Date.now() / 1000
 
-        this.logger.debug({
+        this.config.logger.debug({
             validAfter: validationResult.returnInfo.validAfter,
             validUntil: validationResult.returnInfo.validUntil,
             now
@@ -277,7 +245,7 @@ export class UnsafeValidator implements InterfaceValidator {
 
         if (
             validationResult.returnInfo.validAfter > now - 5 &&
-            this.expirationCheck
+            this.config.args.expirationCheck
         ) {
             throw new RpcError(
                 "User operation is not valid yet",
@@ -287,7 +255,7 @@ export class UnsafeValidator implements InterfaceValidator {
 
         if (
             validationResult.returnInfo.validUntil < now + 30 &&
-            this.expirationCheck
+            this.config.args.expirationCheck
         ) {
             throw new RpcError(
                 "expires too soon",
@@ -509,15 +477,13 @@ export class UnsafeValidator implements InterfaceValidator {
         userOperation: UserOperation,
         entryPoint: Address
     ) {
-        const preVerificationGas = await calcPreVerificationGas(
-            this.publicClient,
+        const preVerificationGas = await calcPreVerificationGas({
+            config: this.config,
             userOperation,
             entryPoint,
-            this.chainId,
-            this.chainType,
-            this.gasPriceManager,
-            true
-        )
+            gasPriceManager: this.gasPriceManager,
+            validate: true
+        })
 
         if (preVerificationGas > userOperation.preVerificationGas) {
             throw new RpcError(
@@ -556,7 +522,7 @@ export class UnsafeValidator implements InterfaceValidator {
                             preOpGas: validationResult.returnInfo.preOpGas,
                             paid: validationResult.returnInfo.prefund
                         },
-                        this.chainId
+                        this.config.publicClient.chain.id
                     )
 
                 let mul = 1n

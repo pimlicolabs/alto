@@ -1,7 +1,6 @@
 import type { GasPriceManager } from "@alto/handlers"
 import {
     type Address,
-    type ChainType,
     EntryPointV06Abi,
     EntryPointV07Abi,
     type PackedUserOperation,
@@ -34,6 +33,7 @@ import {
 import { base, baseGoerli, baseSepolia } from "viem/chains"
 import { maxBigInt, minBigInt, scaleBigIntByPercent } from "./bigInt"
 import { isVersion06, toPackedUserOperation } from "./userop"
+import type { AltoConfig } from "../createConfig"
 
 export interface GasOverheads {
     /**
@@ -299,36 +299,41 @@ export function packUserOpV07(op: PackedUserOperation): `0x${string}` {
     )
 }
 
-export async function calcPreVerificationGas(
-    publicClient: PublicClient<Transport, Chain>,
-    userOperation: UserOperation,
-    entryPoint: Address,
-    chainId: number,
-    chainType: ChainType,
-    gasPriceManager: GasPriceManager,
-    validate: boolean, // when calculating preVerificationGas for validation
+export async function calcPreVerificationGas({
+    config,
+    userOperation,
+    entryPoint,
+    gasPriceManager,
+    validate,
+    overheads
+}: {
+    config: AltoConfig
+    userOperation: UserOperation
+    entryPoint: Address
+    gasPriceManager: GasPriceManager
+    validate: boolean // when calculating preVerificationGas for validation
     overheads?: GasOverheads
-): Promise<bigint> {
+}): Promise<bigint> {
     let preVerificationGas = calcDefaultPreVerificationGas(
         userOperation,
         overheads
     )
 
-    if (chainId === 59140) {
+    if (config.publicClient.chain.id === 59140) {
         // linea sepolia
         preVerificationGas *= 2n
-    } else if (chainType === "op-stack") {
+    } else if (config.args.chainType === "op-stack") {
         preVerificationGas = await calcOptimismPreVerificationGas(
-            publicClient,
+            config.publicClient,
             userOperation,
             entryPoint,
             preVerificationGas,
             gasPriceManager,
             validate
         )
-    } else if (chainType === "arbitrum") {
+    } else if (config.args.chainType === "arbitrum") {
         preVerificationGas = await calcArbitrumPreVerificationGas(
-            publicClient,
+            config.publicClient,
             userOperation,
             entryPoint,
             preVerificationGas,

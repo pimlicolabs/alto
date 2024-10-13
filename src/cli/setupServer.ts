@@ -20,102 +20,43 @@ import {
     UnsafeValidator
 } from "@alto/rpc"
 import type { InterfaceValidator } from "@alto/types"
-import type { Logger, Metrics } from "@alto/utils"
+import type { Metrics } from "@alto/utils"
 import type { Registry } from "prom-client"
-import type { Chain, PublicClient, Transport, WalletClient } from "viem"
-import type { IBundleCompressionArgs, IOptions } from "./config"
+import type { AltoConfig } from "../createConfig"
 
-const getReputationManager = ({
-    client,
-    parsedArgs,
-    logger
-}: {
-    client: PublicClient<Transport, Chain>
-    parsedArgs: IOptions
-    logger: Logger
-}): InterfaceReputationManager => {
-    if (parsedArgs["safe-mode"]) {
-        return new ReputationManager(
-            client,
-            parsedArgs.entrypoints,
-            BigInt(parsedArgs["min-entity-stake"]),
-            BigInt(parsedArgs["min-entity-unstake-delay"]),
-            logger.child(
-                { module: "reputation_manager" },
-                {
-                    level:
-                        parsedArgs["reputation-manager-log-level"] ||
-                        parsedArgs["log-level"]
-                }
-            )
-        )
+const getReputationManager = (
+    config: AltoConfig
+): InterfaceReputationManager => {
+    if (config.args.safeMode) {
+        return new ReputationManager(config)
     }
     return new NullReputationManager()
 }
 
 const getValidator = ({
-    client,
-    parsedArgs,
-    logger,
+    config,
     senderManager,
     metrics,
     gasPriceManager
 }: {
-    client: PublicClient<Transport, Chain>
-    parsedArgs: IOptions
-    logger: Logger
+    config: AltoConfig
     senderManager: SenderManager
     metrics: Metrics
     gasPriceManager: GasPriceManager
-    walletClient: WalletClient<Transport, Chain>
 }): InterfaceValidator => {
-    const utilityWalletAddress =
-        parsedArgs["utility-private-key"]?.address ||
-        "0x4337000c2828F5260d8921fD25829F606b9E8680"
-
-    if (parsedArgs["safe-mode"]) {
-        return new SafeValidator(
-            client,
+    if (config.args.safeMode) {
+        return new SafeValidator({
+            config,
             senderManager,
-            logger.child(
-                { module: "rpc" },
-                {
-                    level:
-                        parsedArgs["rpc-log-level"] || parsedArgs["log-level"]
-                }
-            ),
             metrics,
-            gasPriceManager,
-            parsedArgs["chain-type"],
-            parsedArgs["block-tag-support"],
-            utilityWalletAddress,
-            parsedArgs["binary-search-tolerance-delta"],
-            parsedArgs["binary-search-gas-allowance"],
-            parsedArgs["entrypoint-simulation-contract"],
-            parsedArgs["fixed-gas-limit-for-estimation"],
-            parsedArgs.tenderly,
-            parsedArgs["balance-override"]
-        )
+            gasPriceManager
+        })
     }
-    return new UnsafeValidator(
-        client,
-        logger.child(
-            { module: "rpc" },
-            { level: parsedArgs["rpc-log-level"] || parsedArgs["log-level"] }
-        ),
+    return new UnsafeValidator({
+        config,
         metrics,
-        gasPriceManager,
-        parsedArgs["chain-type"],
-        parsedArgs["block-tag-support"],
-        utilityWalletAddress,
-        parsedArgs["binary-search-tolerance-delta"],
-        parsedArgs["binary-search-gas-allowance"],
-        parsedArgs["entrypoint-simulation-contract"],
-        parsedArgs["fixed-gas-limit-for-estimation"],
-        parsedArgs.tenderly,
-        parsedArgs["balance-override"],
-        parsedArgs["expiration-check"]
-    )
+        gasPriceManager
+    })
 }
 
 const getMonitor = (): Monitor => {
@@ -123,209 +64,134 @@ const getMonitor = (): Monitor => {
 }
 
 const getMempool = ({
+    config,
     monitor,
     reputationManager,
     validator,
-    client,
-    parsedArgs,
-    logger,
     metrics,
     eventManager
 }: {
+    config: AltoConfig
     monitor: Monitor
     reputationManager: InterfaceReputationManager
     validator: InterfaceValidator
-    client: PublicClient<Transport, Chain>
-    parsedArgs: IOptions
-    logger: Logger
     metrics: Metrics
     eventManager: EventManager
 }): MemoryMempool => {
-    return new MemoryMempool(
+    return new MemoryMempool({
+        config,
         monitor,
         reputationManager,
         validator,
-        client,
-        parsedArgs["safe-mode"],
-        logger.child(
-            { module: "mempool" },
-            {
-                level:
-                    parsedArgs["mempool-log-level"] || parsedArgs["log-level"]
-            }
-        ),
         metrics,
-        parsedArgs["mempool-max-parallel-ops"],
-        parsedArgs["mempool-max-queued-ops"],
-        parsedArgs["enforce-unique-senders-per-bundle"],
         eventManager
-    )
+    })
 }
 
 const getEventManager = ({
-    endpoint,
-    chainId,
-    logger,
+    config,
     metrics
 }: {
-    endpoint?: string
-    chainId: number
-    logger: Logger
+    config: AltoConfig
     metrics: Metrics
 }) => {
-    return new EventManager(endpoint, chainId, logger, metrics)
+    return new EventManager({ config, metrics })
 }
 
-const getCompressionHandler = async ({
-    client,
-    parsedArgs
-}: {
-    client: PublicClient<Transport, Chain>
-    parsedArgs: IBundleCompressionArgs
-}): Promise<CompressionHandler | null> => {
+const getCompressionHandler = async (
+    config: AltoConfig
+): Promise<CompressionHandler | null> => {
     let compressionHandler: CompressionHandler | null = null
     if (
-        parsedArgs["bundle-bulker-address"] !== undefined &&
-        parsedArgs["per-op-inflator-address"] !== undefined
+        config.args.bundleBulkerAddress !== undefined &&
+        config.args.perOpInflatorAddress !== undefined
     ) {
         compressionHandler = await CompressionHandler.createAsync(
-            parsedArgs["bundle-bulker-address"],
-            parsedArgs["per-op-inflator-address"],
-            client
+            config.args.bundleBulkerAddress,
+            config.args.perOpInflatorAddress,
+            config.publicClient
         )
     }
     return compressionHandler
 }
 
 const getExecutor = ({
-    client,
-    walletClient,
+    config,
     senderManager,
     reputationManager,
-    parsedArgs,
-    logger,
     metrics,
     compressionHandler,
     gasPriceManager,
     eventManager
 }: {
-    client: PublicClient<Transport, Chain>
-    walletClient: WalletClient<Transport, Chain>
+    config: AltoConfig
     senderManager: SenderManager
     reputationManager: InterfaceReputationManager
-    parsedArgs: IOptions
-    logger: Logger
     metrics: Metrics
     compressionHandler: CompressionHandler | null
     gasPriceManager: GasPriceManager
     eventManager: EventManager
 }): Executor => {
-    return new Executor(
-        client,
-        walletClient,
+    return new Executor({
+        config,
         senderManager,
         reputationManager,
-        parsedArgs.entrypoints,
-        logger.child(
-            { module: "executor" },
-            {
-                level:
-                    parsedArgs["executor-log-level"] || parsedArgs["log-level"]
-            }
-        ),
         metrics,
         compressionHandler,
         gasPriceManager,
-        eventManager,
-        !parsedArgs.tenderly,
-        parsedArgs["legacy-transactions"],
-        parsedArgs["fixed-gas-limit-for-estimation"],
-        parsedArgs["block-tag-support"],
-        parsedArgs["local-gas-limit-calculation"],
-        parsedArgs["no-profit-bundling"]
-    )
+        eventManager
+    })
 }
 
 const getExecutorManager = ({
+    config,
     executor,
     mempool,
     monitor,
     reputationManager,
-    client,
-    parsedArgs,
-    logger,
     metrics,
     gasPriceManager,
     eventManager
 }: {
+    config: AltoConfig
     executor: Executor
     mempool: MemoryMempool
     monitor: Monitor
     reputationManager: InterfaceReputationManager
-    client: PublicClient<Transport, Chain>
-    parsedArgs: IOptions
-    logger: Logger
     metrics: Metrics
     gasPriceManager: GasPriceManager
     eventManager: EventManager
 }) => {
-    return new ExecutorManager(
+    return new ExecutorManager({
+        config,
         executor,
-        parsedArgs.entrypoints,
         mempool,
         monitor,
         reputationManager,
-        client,
-        parsedArgs["polling-interval"],
-        logger.child(
-            { module: "executor" },
-            {
-                level:
-                    parsedArgs["executor-log-level"] || parsedArgs["log-level"]
-            }
-        ),
         metrics,
-        parsedArgs["bundle-mode"],
-        parsedArgs["max-bundle-wait"],
-        parsedArgs["max-gas-per-bundle"],
         gasPriceManager,
-        eventManager,
-        parsedArgs["aa95-gas-multiplier"],
-        parsedArgs["max-block-range"]
-    )
+        eventManager
+    })
 }
 
 const getNonceQueuer = ({
+    config,
     mempool,
-    client,
-    parsedArgs,
-    logger,
     eventManager
 }: {
+    config: AltoConfig
     mempool: MemoryMempool
-    client: PublicClient<Transport, Chain>
-    parsedArgs: IOptions
-    logger: Logger
     eventManager: EventManager
 }) => {
-    return new NonceQueuer(
+    return new NonceQueuer({
+        config,
         mempool,
-        client,
-        logger.child(
-            { module: "nonce_queuer" },
-            {
-                level:
-                    parsedArgs["nonce-queuer-log-level"] ||
-                    parsedArgs["log-level"]
-            }
-        ),
-        parsedArgs["block-tag-support"],
         eventManager
-    )
+    })
 }
 
 const getRpcHandler = ({
-    client,
+    config,
     validator,
     mempool,
     executor,
@@ -333,14 +199,12 @@ const getRpcHandler = ({
     nonceQueuer,
     executorManager,
     reputationManager,
-    parsedArgs,
-    logger,
     metrics,
     compressionHandler,
     gasPriceManager,
     eventManager
 }: {
-    client: PublicClient<Transport, Chain>
+    config: AltoConfig
     validator: InterfaceValidator
     mempool: MemoryMempool
     executor: Executor
@@ -348,16 +212,13 @@ const getRpcHandler = ({
     nonceQueuer: NonceQueuer
     executorManager: ExecutorManager
     reputationManager: InterfaceReputationManager
-    parsedArgs: IOptions
-    logger: Logger
     metrics: Metrics
     compressionHandler: CompressionHandler | null
     eventManager: EventManager
     gasPriceManager: GasPriceManager
 }) => {
-    return new RpcHandler(
-        parsedArgs.entrypoints,
-        client,
+    return new RpcHandler({
+        config,
         validator,
         mempool,
         executor,
@@ -365,139 +226,82 @@ const getRpcHandler = ({
         nonceQueuer,
         executorManager,
         reputationManager,
-        parsedArgs.tenderly ?? false,
-        parsedArgs["max-block-range"],
-        logger.child(
-            { module: "rpc" },
-            { level: parsedArgs["rpc-log-level"] || parsedArgs["log-level"] }
-        ),
         metrics,
-        parsedArgs["enable-debug-endpoints"],
         compressionHandler,
-        parsedArgs["legacy-transactions"],
         gasPriceManager,
-        parsedArgs["gas-price-multipliers"],
-        parsedArgs["chain-type"],
-        parsedArgs["paymaster-gas-limit-multiplier"],
-        eventManager,
-        parsedArgs["enable-instant-bundling-endpoint"],
-        parsedArgs["dangerous-skip-user-operation-validation"]
-    )
+        eventManager
+    })
 }
 
 const getServer = ({
+    config,
     rpcEndpoint,
-    parsedArgs,
-    logger,
     registry,
     metrics
 }: {
+    config: AltoConfig
     rpcEndpoint: RpcHandler
-    parsedArgs: IOptions
-    logger: Logger
     registry: Registry
     metrics: Metrics
 }) => {
-    return new Server(
+    return new Server({
+        config,
         rpcEndpoint,
-        parsedArgs["api-version"],
-        parsedArgs["default-api-version"],
-        parsedArgs.port,
-        parsedArgs.timeout,
-        parsedArgs["websocket-max-payload-size"],
-        parsedArgs.websocket,
-        logger.child(
-            { module: "rpc" },
-            { level: parsedArgs["rpc-log-level"] || parsedArgs["log-level"] }
-        ),
         registry,
-        metrics,
-        parsedArgs["rpc-methods"]
-    )
+        metrics
+    })
 }
 
 export const setupServer = async ({
-    client,
-    walletClient,
-    parsedArgs,
-    logger,
-    rootLogger,
+    config,
     registry,
     metrics,
     senderManager,
     gasPriceManager
 }: {
-    client: PublicClient<Transport, Chain>
-    walletClient: WalletClient<Transport, Chain>
-    parsedArgs: IOptions
-    logger: Logger
-    rootLogger: Logger
+    config: AltoConfig
     registry: Registry
     metrics: Metrics
     senderManager: SenderManager
     gasPriceManager: GasPriceManager
 }) => {
     const validator = getValidator({
-        client,
-        logger,
-        parsedArgs,
+        config,
         senderManager,
         metrics,
-        gasPriceManager,
-        walletClient
+        gasPriceManager
     })
-    const reputationManager = getReputationManager({
-        client,
-        parsedArgs,
-        logger
-    })
+    const reputationManager = getReputationManager(config)
 
-    const compressionHandler = await getCompressionHandler({
-        client,
-        parsedArgs
-    })
+    const compressionHandler = await getCompressionHandler(config)
+
     const eventManager = getEventManager({
-        endpoint: parsedArgs["redis-queue-endpoint"],
-        chainId: client.chain.id,
-        logger,
+        config,
         metrics
     })
 
-    if (parsedArgs["refilling-wallets"]) {
-        await senderManager.validateAndRefillWallets(
-            client,
-            walletClient,
-            parsedArgs["min-executor-balance"]
-        )
+    if (config.args.refillingWallets) {
+        await senderManager.validateAndRefillWallets()
 
         setInterval(async () => {
-            await senderManager.validateAndRefillWallets(
-                client,
-                walletClient,
-                parsedArgs["min-executor-balance"]
-            )
-        }, parsedArgs["executor-refill-interval"] * 1000)
+            await senderManager.validateAndRefillWallets()
+        }, config.args.executorRefillInterval * 1000)
     }
 
     const monitor = getMonitor()
     const mempool = getMempool({
+        config,
         monitor,
         reputationManager,
         validator,
-        client,
-        parsedArgs,
-        logger,
         metrics,
         eventManager
     })
 
     const executor = getExecutor({
-        client,
-        walletClient,
+        config,
         senderManager,
         reputationManager,
-        parsedArgs,
-        logger,
         metrics,
         compressionHandler,
         gasPriceManager,
@@ -505,28 +309,24 @@ export const setupServer = async ({
     })
 
     const executorManager = getExecutorManager({
+        config,
         executor,
         mempool,
         monitor,
         reputationManager,
-        client,
-        parsedArgs,
-        logger,
         metrics,
         gasPriceManager,
         eventManager
     })
 
     const nonceQueuer = getNonceQueuer({
+        config,
         mempool,
-        client,
-        parsedArgs,
-        logger,
         eventManager
     })
 
     const rpcEndpoint = getRpcHandler({
-        client,
+        config,
         validator,
         mempool,
         executor,
@@ -534,26 +334,28 @@ export const setupServer = async ({
         nonceQueuer,
         executorManager,
         reputationManager,
-        parsedArgs,
-        logger,
         metrics,
         compressionHandler,
         gasPriceManager,
         eventManager
     })
 
-    if (parsedArgs["flush-stuck-transactions-during-startup"]) {
+    if (config.args.flushStuckTransactionsDuringStartup) {
         executor.flushStuckTransactions()
     }
+
+    const rootLogger = config.logger.child(
+        { module: "root" },
+        { level: config.args.logLevel }
+    )
 
     rootLogger.info(
         `Initialized ${senderManager.wallets.length} executor wallets`
     )
 
     const server = getServer({
+        config,
         rpcEndpoint,
-        parsedArgs,
-        logger,
         registry,
         metrics
     })

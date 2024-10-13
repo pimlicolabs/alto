@@ -11,8 +11,6 @@ import type {
 } from "@alto/mempool"
 import type {
     ApiVersion,
-    ChainType,
-    GasPriceMultipliers,
     PackedUserOperation,
     StateOverrides,
     TransactionInfo,
@@ -70,12 +68,9 @@ import {
     toUnpackedUserOperation
 } from "@alto/utils"
 import {
-    type Chain,
     type Hex,
-    type PublicClient,
     type Transaction,
     TransactionNotFoundError,
-    type Transport,
     decodeFunctionData,
     getAbiItem,
     getAddress,
@@ -85,6 +80,7 @@ import {
 } from "viem"
 import { base, baseSepolia, optimism } from "viem/chains"
 import type { NonceQueuer } from "./nonceQueuer"
+import type { AltoConfig } from "../createConfig"
 
 export interface IRpcEndpoint {
     handleMethod(
@@ -113,80 +109,65 @@ export interface IRpcEndpoint {
 }
 
 export class RpcHandler implements IRpcEndpoint {
-    entryPoints: Address[]
-    publicClient: PublicClient<Transport, Chain>
+    config: AltoConfig
     validator: InterfaceValidator
     mempool: MemoryMempool
     executor: Executor
     monitor: Monitor
     nonceQueuer: NonceQueuer
-    usingTenderly: boolean
     rpcMaxBlockRange: number | undefined
     logger: Logger
     metrics: Metrics
-    chainId: number
-    chainType: ChainType
-    enableDebugEndpoints: boolean
     executorManager: ExecutorManager
     reputationManager: InterfaceReputationManager
     compressionHandler: CompressionHandler | null
-    legacyTransactions: boolean
-    dangerousSkipUserOperationValidation: boolean
     gasPriceManager: GasPriceManager
-    gasPriceMultipliers: GasPriceMultipliers
-    paymasterGasLimitMultiplier: bigint
     eventManager: EventManager
-    enableInstantBundlingEndpoint: boolean
 
-    constructor(
-        entryPoints: Address[],
-        publicClient: PublicClient<Transport, Chain>,
-        validator: InterfaceValidator,
-        mempool: MemoryMempool,
-        executor: Executor,
-        monitor: Monitor,
-        nonceQueuer: NonceQueuer,
-        executorManager: ExecutorManager,
-        reputationManager: InterfaceReputationManager,
-        usingTenderly: boolean,
-        rpcMaxBlockRange: number | undefined,
-        logger: Logger,
-        metrics: Metrics,
-        enableDebugEndpoints: boolean,
-        compressionHandler: CompressionHandler | null,
-        legacyTransactions: boolean,
-        gasPriceManager: GasPriceManager,
-        gasPriceMultipliers: GasPriceMultipliers,
-        chainType: ChainType,
-        paymasterGasLimitMultiplier: bigint,
-        eventManager: EventManager,
-        enableInstantBundlingEndpoint: boolean,
-        dangerousSkipUserOperationValidation = false
-    ) {
-        this.entryPoints = entryPoints
-        this.publicClient = publicClient
+    constructor({
+        config,
+        validator,
+        mempool,
+        executor,
+        monitor,
+        nonceQueuer,
+        executorManager,
+        reputationManager,
+        metrics,
+        compressionHandler,
+        gasPriceManager,
+        eventManager
+    }: {
+        config: AltoConfig
+        validator: InterfaceValidator
+        mempool: MemoryMempool
+        executor: Executor
+        monitor: Monitor
+        nonceQueuer: NonceQueuer
+        executorManager: ExecutorManager
+        reputationManager: InterfaceReputationManager
+        metrics: Metrics
+        compressionHandler: CompressionHandler | null
+        eventManager: EventManager
+        gasPriceManager: GasPriceManager
+    }) {
+        this.config = config
         this.validator = validator
         this.mempool = mempool
         this.executor = executor
         this.monitor = monitor
         this.nonceQueuer = nonceQueuer
-        this.usingTenderly = usingTenderly
-        this.rpcMaxBlockRange = rpcMaxBlockRange
-        this.logger = logger
+        this.logger = config.logger.child(
+            { module: "rpc" },
+            {
+                level: config.args.rpcLogLevel || config.args.logLevel
+            }
+        )
         this.metrics = metrics
-        this.enableDebugEndpoints = enableDebugEndpoints
-        this.chainId = publicClient.chain.id
         this.executorManager = executorManager
         this.reputationManager = reputationManager
         this.compressionHandler = compressionHandler
-        this.legacyTransactions = legacyTransactions
-        this.dangerousSkipUserOperationValidation =
-            dangerousSkipUserOperationValidation
-        this.gasPriceMultipliers = gasPriceMultipliers
-        this.chainType = chainType
         this.gasPriceManager = gasPriceManager
-        this.paymasterGasLimitMultiplier = paymasterGasLimitMultiplier
-        this.enableInstantBundlingEndpoint = enableInstantBundlingEndpoint
         this.eventManager = eventManager
     }
 
@@ -321,9 +302,9 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     ensureEntryPointIsSupported(entryPoint: Address) {
-        if (!this.entryPoints.includes(entryPoint)) {
+        if (!this.config.args.entrypoints.includes(entryPoint)) {
             throw new Error(
-                `EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.entryPoints.join(
+                `EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.args.entrypoints.join(
                     ", "
                 )}`
             )
@@ -331,7 +312,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     ensureDebugEndpointsAreEnabled(methodName: string) {
-        if (!this.enableDebugEndpoints) {
+        if (!this.config.args.enableDebugEndpoints) {
             throw new RpcError(
                 `${methodName} is only available in development environment`
             )
@@ -345,7 +326,7 @@ export class RpcHandler implements IRpcEndpoint {
         entryPoint: Address
     ) {
         if (
-            this.legacyTransactions &&
+            this.config.args.legacyTransactions &&
             userOperation.maxFeePerGas !== userOperation.maxPriorityFeePerGas
         ) {
             const reason =
@@ -380,11 +361,11 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     eth_chainId(): ChainIdResponseResult {
-        return BigInt(this.chainId)
+        return BigInt(this.config.publicClient.chain.id)
     }
 
     eth_supportedEntryPoints(): SupportedEntryPointsResponseResult {
-        return this.entryPoints
+        return this.config.args.entrypoints
     }
 
     async eth_estimateUserOperationGas(
@@ -401,15 +382,13 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
 
-        let preVerificationGas = await calcPreVerificationGas(
-            this.publicClient,
+        let preVerificationGas = await calcPreVerificationGas({
+            config: this.config,
             userOperation,
             entryPoint,
-            this.chainId,
-            this.chainType,
-            this.gasPriceManager,
-            false
-        )
+            gasPriceManager: this.gasPriceManager,
+            validate: false
+        })
         preVerificationGas = scaleBigIntByPercent(preVerificationGas, 110)
 
         // biome-ignore lint/style/noParameterAssign: prepare userOperaiton for simulation
@@ -420,11 +399,11 @@ export class RpcHandler implements IRpcEndpoint {
             callGasLimit: 10_000_000n
         }
 
-        if (this.chainId === base.id) {
+        if (this.config.publicClient.chain.id === base.id) {
             userOperation.verificationGasLimit = 5_000_000n
         }
 
-        if (this.chainType === "hedera") {
+        if (this.config.args.chainType === "hedera") {
             // The eth_call gasLimit is set to 12_500_000 on Hedera.
             userOperation.verificationGasLimit = 5_000_000n
             userOperation.callGasLimit = 4_500_000n
@@ -497,7 +476,7 @@ export class RpcHandler implements IRpcEndpoint {
             calcVerificationGasAndCallGasLimit(
                 userOperation,
                 executionResult.data.executionResult,
-                this.chainId,
+                this.config.publicClient.chain.id,
                 executionResult.data.callDataResult
             )
 
@@ -518,7 +497,9 @@ export class RpcHandler implements IRpcEndpoint {
                 executionResult.data.executionResult.paymasterPostOpGasLimit ||
                 1n
 
-            const multiplier = Number(this.paymasterGasLimitMultiplier)
+            const multiplier = Number(
+                this.config.args.paymasterGasLimitMultiplier
+            )
 
             paymasterVerificationGasLimit = scaleBigIntByPercent(
                 paymasterVerificationGasLimit,
@@ -531,11 +512,17 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
 
-        if (this.chainId === base.id || this.chainId === baseSepolia.id) {
+        if (
+            this.config.publicClient.chain.id === base.id ||
+            this.config.publicClient.chain.id === baseSepolia.id
+        ) {
             callGasLimit += 10_000n
         }
 
-        if (this.chainId === base.id || this.chainId === optimism.id) {
+        if (
+            this.config.publicClient.chain.id === base.id ||
+            this.config.publicClient.chain.id === optimism.id
+        ) {
             callGasLimit = maxBigInt(callGasLimit, 120_000n)
         }
 
@@ -596,7 +583,7 @@ export class RpcHandler implements IRpcEndpoint {
         const hash = getUserOperationHash(
             userOperation,
             entryPoint,
-            this.chainId
+            this.config.publicClient.chain.id
         )
         this.eventManager.emitReceived(hash)
 
@@ -633,7 +620,7 @@ export class RpcHandler implements IRpcEndpoint {
         let fromBlock: bigint | undefined
         let toBlock: "latest" | undefined
         if (this.rpcMaxBlockRange !== undefined) {
-            const latestBlock = await this.publicClient.getBlockNumber()
+            const latestBlock = await this.config.publicClient.getBlockNumber()
             fromBlock = latestBlock - BigInt(this.rpcMaxBlockRange)
             if (fromBlock < 0n) {
                 fromBlock = 0n
@@ -641,8 +628,8 @@ export class RpcHandler implements IRpcEndpoint {
             toBlock = "latest"
         }
 
-        const filterResult = await this.publicClient.getLogs({
-            address: this.entryPoints,
+        const filterResult = await this.config.publicClient.getLogs({
+            address: this.config.args.entrypoints,
             event: userOperationEventAbiItem,
             fromBlock,
             toBlock,
@@ -666,7 +653,9 @@ export class RpcHandler implements IRpcEndpoint {
             txHash: HexData32
         ): Promise<Transaction> => {
             try {
-                return await this.publicClient.getTransaction({ hash: txHash })
+                return await this.config.publicClient.getTransaction({
+                    hash: txHash
+                })
             } catch (e) {
                 if (e instanceof TransactionNotFoundError) {
                     return getTransaction(txHash)
@@ -825,12 +814,12 @@ export class RpcHandler implements IRpcEndpoint {
         let { maxFeePerGas, maxPriorityFeePerGas } =
             await this.gasPriceManager.getGasPrice()
 
-        if (this.chainType === "hedera") {
+        if (this.config.args.chainType === "hedera") {
             maxFeePerGas /= 10n ** 9n
             maxPriorityFeePerGas /= 10n ** 9n
         }
 
-        const { slow, standard, fast } = this.gasPriceMultipliers
+        const { slow, standard, fast } = this.config.args.gasPriceMultipliers
 
         return {
             slow: {
@@ -860,7 +849,7 @@ export class RpcHandler implements IRpcEndpoint {
         const opHash = getUserOperationHash(
             userOperation,
             entryPoint,
-            this.chainId
+            this.config.publicClient.chain.id
         )
 
         await this.preMempoolChecks(
@@ -907,7 +896,7 @@ export class RpcHandler implements IRpcEndpoint {
             userOperationNonceValue ===
             currentNonceValue + BigInt(queuedUserOperations.length)
         ) {
-            if (this.dangerousSkipUserOperationValidation) {
+            if (this.config.args.dangerousSkipUserOperationValidation) {
                 const [success, errorReason] = this.mempool.add(op, entryPoint)
                 if (!success) {
                     this.eventManager.emitFailedValidation(
@@ -976,7 +965,7 @@ export class RpcHandler implements IRpcEndpoint {
         userOperation: UserOperation,
         entryPoint: Address
     ) {
-        if (!this.enableInstantBundlingEndpoint) {
+        if (!this.config.args.enableInstantBundlingEndpoint) {
             throw new RpcError(
                 "pimlico_sendUserOperationNow endpoint is not enabled",
                 ValidationErrors.InvalidFields
@@ -988,7 +977,7 @@ export class RpcHandler implements IRpcEndpoint {
         const opHash = getUserOperationHash(
             userOperation,
             entryPoint,
-            this.chainId
+            this.config.publicClient.chain.id
         )
 
         await this.preMempoolChecks(
@@ -1040,10 +1029,11 @@ export class RpcHandler implements IRpcEndpoint {
         this.executor.markWalletProcessed(res.value.transactionInfo.executor)
 
         // wait for receipt
-        const receipt = await this.publicClient.waitForTransactionReceipt({
-            hash: res.value.transactionInfo.transactionHash,
-            pollingInterval: 100
-        })
+        const receipt =
+            await this.config.publicClient.waitForTransactionReceipt({
+                hash: res.value.transactionInfo.transactionHash,
+                pollingInterval: 100
+            })
 
         const userOperationReceipt = parseUserOperationReceipt(opHash, receipt)
 
@@ -1068,7 +1058,7 @@ export class RpcHandler implements IRpcEndpoint {
             const hash = getUserOperationHash(
                 inflatedOp,
                 entryPoint,
-                this.chainId
+                this.config.publicClient.chain.id
             )
 
             this.eventManager.emitReceived(hash, receivedTimestamp)
@@ -1113,7 +1103,7 @@ export class RpcHandler implements IRpcEndpoint {
         const inflatorId =
             await this.compressionHandler.getInflatorRegisteredId(
                 inflatorAddress,
-                this.publicClient
+                this.config.publicClient
             )
 
         if (inflatorId === 0) {
@@ -1128,7 +1118,7 @@ export class RpcHandler implements IRpcEndpoint {
             address: inflatorAddress,
             abi: IOpInflatorAbi,
             client: {
-                public: this.publicClient
+                public: this.config.publicClient
             }
         })
 
@@ -1163,7 +1153,7 @@ export class RpcHandler implements IRpcEndpoint {
                 ? EntryPointV06Abi
                 : EntryPointV07Abi,
             client: {
-                public: this.publicClient
+                public: this.config.publicClient
             }
         })
 
