@@ -35,7 +35,7 @@ export const deploySimulationsContract = async ({
         bytecode: PimlicoEntryPointSimulationsDeployBytecode
     })
 
-    const receipt = await publicClient.getTransactionReceipt({
+    const receipt = await publicClient.waitForTransactionReceipt({
         hash: deployHash
     })
 
