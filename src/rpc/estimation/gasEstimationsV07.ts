@@ -1,5 +1,4 @@
 import {
-    type ChainType,
     EntryPointV07Abi,
     EntryPointV07SimulationsAbi,
     ExecutionErrors,
@@ -17,7 +16,6 @@ import { getUserOperationHash, toPackedUserOperation } from "@alto/utils"
 import type { Hex } from "viem"
 import {
     type Address,
-    type PublicClient,
     decodeAbiParameters,
     decodeErrorResult,
     decodeFunctionResult,
@@ -31,38 +29,13 @@ import {
     type SimulateHandleOpResult,
     simulationValidationResultStruct
 } from "./types"
+import type { AltoConfig } from "../../createConfig"
 
 export class GasEstimatorV07 {
-    binarySearchToleranceDelta: bigint
-    binarySearchGasAllowance: bigint
-    chainId: number
-    publicClient: PublicClient
-    entryPointSimulationsAddress: Address | undefined
-    blockTagSupport: boolean
-    utilityWalletAddress: Address
-    fixedGasLimitForEstimation?: bigint
-    chainType: ChainType
+    private config: AltoConfig
 
-    constructor(
-        binarySearchToleranceDelta: bigint,
-        binarySearchGasAllowance: bigint,
-        chainId: number,
-        publicClient: PublicClient,
-        entryPointSimulationsAddress: Address | undefined,
-        blockTagSupport: boolean,
-        utilityWalletAddress: Address,
-        chainType: ChainType,
-        fixedGasLimitForEstimation?: bigint
-    ) {
-        this.binarySearchToleranceDelta = binarySearchToleranceDelta
-        this.binarySearchGasAllowance = binarySearchGasAllowance
-        this.chainId = chainId
-        this.publicClient = publicClient
-        this.entryPointSimulationsAddress = entryPointSimulationsAddress
-        this.blockTagSupport = blockTagSupport
-        this.utilityWalletAddress = utilityWalletAddress
-        this.chainType = chainType
-        this.fixedGasLimitForEstimation = fixedGasLimitForEstimation
+    constructor(config: AltoConfig) {
+        this.config = config
     }
 
     async simulateValidation({
@@ -115,7 +88,11 @@ export class GasEstimatorV07 {
                 functionName: "executeUserOp",
                 args: [
                     packedOp,
-                    getUserOperationHash(op, entryPoint, this.chainId)
+                    getUserOperationHash(
+                        op,
+                        entryPoint,
+                        this.config.publicClient.chain.id
+                    )
                 ]
             })
         }
@@ -139,7 +116,7 @@ export class GasEstimatorV07 {
             userOperationHash: getUserOperationHash(
                 uop,
                 entryPoint,
-                this.chainId
+                this.config.publicClient.chain.id
             )
         }))
 
@@ -156,7 +133,7 @@ export class GasEstimatorV07 {
         userOperation,
         queuedUserOperations,
         entryPoint,
-        gasAllowance = this.binarySearchGasAllowance,
+        gasAllowance = this.config.binarySearchGasAllowance,
         initialMinGas = 0n
     }: {
         userOperation: UserOperationV07
@@ -191,7 +168,7 @@ export class GasEstimatorV07 {
                 targetOp,
                 entryPoint,
                 initialMinGas,
-                this.binarySearchToleranceDelta,
+                this.config.binarySearchToleranceDelta,
                 gasAllowance
             ]
         })
@@ -308,7 +285,7 @@ export class GasEstimatorV07 {
 
         let cause
 
-        if (this.chainType === "hedera") {
+        if (this.config.chainType === "hedera") {
             // due to Hedera specific restrictions, we can't combine these two calls.
             const [simulateHandleOpLastCause, simulateCallDataCause] =
                 await Promise.all([
@@ -409,13 +386,15 @@ export class GasEstimatorV07 {
         entryPointSimulationsCallData: Hex[]
         stateOverrides?: StateOverrides
     }) {
-        const {
-            publicClient,
-            blockTagSupport,
-            utilityWalletAddress,
-            entryPointSimulationsAddress,
-            fixedGasLimitForEstimation
-        } = this
+        const publicClient = this.config.publicClient
+        const blockTagSupport = this.config.blockTagSupport
+        const utilityWalletAddress =
+            this.config.utilityPrivateKey?.address ??
+            "0x4337000c2828F5260d8921fD25829F606b9E8680"
+        const entryPointSimulationsAddress =
+            this.config.entrypointSimulationContract
+        const fixedGasLimitForEstimation =
+            this.config.fixedGasLimitForEstimation
 
         if (!entryPointSimulationsAddress) {
             throw new RpcError(

@@ -7,7 +7,7 @@ import {
     bundlerRequestSchema,
     jsonRpcSchema
 } from "@alto/types"
-import type { Logger, Metrics } from "@alto/utils"
+import type { Metrics } from "@alto/utils"
 import cors from "@fastify/cors"
 import websocket from "@fastify/websocket"
 import * as sentry from "@sentry/node"
@@ -23,6 +23,7 @@ import type * as WebSocket from "ws"
 import { fromZodError } from "zod-validation-error"
 import RpcReply from "../utils/rpc-reply"
 import type { IRpcEndpoint } from "./rpcHandler"
+import type { AltoConfig } from "../createConfig"
 
 // jsonBigIntOverride.ts
 const originalJsonStringify = JSON.stringify
@@ -69,37 +70,40 @@ declare module "fastify" {
 }
 
 export class Server {
+    private config: AltoConfig
     private fastify: FastifyInstance
     private rpcEndpoint: IRpcEndpoint
-    private port: number
     private registry: Registry
     private metrics: Metrics
-    private apiVersions: ApiVersion[]
-    private defaultApiVersion: ApiVersion
-    private supportedRpcMethods: string[] | null
 
-    constructor(
-        rpcEndpoint: IRpcEndpoint,
-        apiVersions: ApiVersion[],
-        defaultApiVersion: ApiVersion,
-        port: number,
-        requestTimeout: number | undefined,
-        websocketMaxPayloadSize: number,
-        websocketEnabled: boolean,
-        logger: Logger,
-        registry: Registry,
-        metrics: Metrics,
-        supportedRpcMethods: string[] | null
-    ) {
+    constructor({
+        config,
+        rpcEndpoint,
+        registry,
+        metrics
+    }: {
+        config: AltoConfig
+        rpcEndpoint: IRpcEndpoint
+        registry: Registry
+        metrics: Metrics
+    }) {
+        this.config = config
+        const logger = config.getLogger(
+            { module: "rpc" },
+            {
+                level: config.rpcLogLevel || config.logLevel
+            }
+        )
+
         this.fastify = Fastify({
             logger: logger as FastifyBaseLogger, // workaround for https://github.com/fastify/fastify/issues/4960
-            requestTimeout: requestTimeout,
+            requestTimeout: config.timeout,
             disableRequestLogging: true
         })
 
         this.fastify.register(websocket, {
             options: {
-                maxPayload: websocketMaxPayloadSize
+                maxPayload: config.websocketMaxPayloadSize
             }
         })
 
@@ -138,9 +142,8 @@ export class Server {
         this.fastify.post("/:version/rpc", this.rpcHttp.bind(this))
         this.fastify.post("/", this.rpcHttp.bind(this))
 
-        if (websocketEnabled) {
-            // biome-ignore lint/suspicious/useAwait: adhere to interface
-            this.fastify.register(async (fastify) => {
+        if (config.websocket) {
+            this.fastify.register((fastify) => {
                 fastify.route({
                     method: "GET",
                     url: "/:version/rpc",
@@ -153,8 +156,7 @@ export class Server {
                                 `GET request to /${version}/rpc is not supported, use POST isntead`
                             )
                     },
-                    // biome-ignore lint/suspicious/useAwait: adhere to interface
-                    wsHandler: async (socket: WebSocket.WebSocket, request) => {
+                    wsHandler: (socket: WebSocket.WebSocket, request) => {
                         socket.on("message", async (msgBuffer: Buffer) =>
                             this.rpcSocket(request, msgBuffer, socket)
                         )
@@ -167,16 +169,12 @@ export class Server {
         this.fastify.get("/metrics", this.serveMetrics.bind(this))
 
         this.rpcEndpoint = rpcEndpoint
-        this.port = port
         this.registry = registry
         this.metrics = metrics
-        this.apiVersions = apiVersions
-        this.defaultApiVersion = defaultApiVersion
-        this.supportedRpcMethods = supportedRpcMethods
     }
 
     public start(): void {
-        this.fastify.listen({ port: this.port, host: "0.0.0.0" })
+        this.fastify.listen({ port: this.config.port, host: "0.0.0.0" })
     }
 
     public async stop(): Promise<void> {
@@ -227,7 +225,7 @@ export class Server {
         let requestId: number | null = null
 
         const versionParsingResult = altoVersions.safeParse(
-            (request.params as any)?.version ?? this.defaultApiVersion
+            (request.params as any)?.version ?? this.config.defaultApiVersion
         )
 
         if (!versionParsingResult.success) {
@@ -240,7 +238,7 @@ export class Server {
 
         const apiVersion: ApiVersion = versionParsingResult.data
 
-        if (this.apiVersions.indexOf(apiVersion) === -1) {
+        if (this.config.apiVersion.indexOf(apiVersion) === -1) {
             throw new RpcError(
                 `unsupported version ${apiVersion}`,
                 ValidationErrors.InvalidFields
@@ -307,8 +305,8 @@ export class Server {
             request.rpcMethod = bundlerRequest.method
 
             if (
-                this.supportedRpcMethods !== null &&
-                !this.supportedRpcMethods.includes(bundlerRequest.method)
+                this.config.rpcMethods !== null &&
+                !this.config.rpcMethods.includes(bundlerRequest.method)
             ) {
                 throw new RpcError(
                     `Method not supported: ${bundlerRequest.method}`,

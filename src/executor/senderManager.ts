@@ -9,14 +9,12 @@ import type { Logger, Metrics } from "@alto/utils"
 import { Semaphore } from "async-mutex"
 import {
     type Account,
-    type Chain,
     type PublicClient,
     type TransactionReceipt,
-    type Transport,
-    type WalletClient,
     formatEther,
     getContract
 } from "viem"
+import type { AltoConfig } from "../createConfig"
 
 const waitForTransactionReceipt = async (
     publicClient: PublicClient,
@@ -30,24 +28,35 @@ const waitForTransactionReceipt = async (
 }
 
 export class SenderManager {
+    private config: AltoConfig
     wallets: Account[]
     utilityAccount: Account | undefined
     availableWallets: Account[]
-    private logger: Logger
     private metrics: Metrics
-    private legacyTransactions: boolean
     private semaphore: Semaphore
     private gasPriceManager: GasPriceManager
+    private logger: Logger
 
-    constructor(
-        wallets: Account[],
-        utilityAccount: Account | undefined,
-        logger: Logger,
-        metrics: Metrics,
-        legacyTransactions: boolean,
-        gasPriceManager: GasPriceManager,
-        maxSigners?: number
-    ) {
+    constructor({
+        config,
+        metrics,
+        gasPriceManager
+    }: {
+        config: AltoConfig
+        metrics: Metrics
+        gasPriceManager: GasPriceManager
+    }) {
+        this.config = config
+        this.logger = config.getLogger(
+            { module: "executor" },
+            {
+                level: config.executorLogLevel || config.logLevel
+            }
+        )
+
+        const maxSigners = config.maxExecutors
+        const wallets = config.executorPrivateKeys
+
         if (maxSigners !== undefined && wallets.length > maxSigners) {
             this.wallets = wallets.slice(0, maxSigners)
             this.availableWallets = wallets.slice(0, maxSigners)
@@ -56,10 +65,8 @@ export class SenderManager {
             this.availableWallets = wallets
         }
 
-        this.utilityAccount = utilityAccount
-        this.logger = logger
+        this.utilityAccount = this.config.utilityPrivateKey
         this.metrics = metrics
-        this.legacyTransactions = legacyTransactions
         metrics.walletsAvailable.set(this.availableWallets.length)
         metrics.walletsTotal.set(this.wallets.length)
         this.semaphore = new Semaphore(this.availableWallets.length)
@@ -67,16 +74,14 @@ export class SenderManager {
     }
 
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: <explanation>
-    async validateAndRefillWallets(
-        publicClient: PublicClient,
-        walletClient: WalletClient<Transport, Chain>,
-        minBalance?: bigint
-    ): Promise<void> {
+    async validateAndRefillWallets(): Promise<void> {
+        const minBalance = this.config.minExecutorBalance
+
         if (!(minBalance && this.utilityAccount)) {
             return
         }
 
-        const utilityWalletBalance = await publicClient.getBalance({
+        const utilityWalletBalance = await this.config.publicClient.getBalance({
             address: this.utilityAccount.address
         })
 
@@ -84,7 +89,7 @@ export class SenderManager {
 
         const balanceRequestPromises = this.availableWallets.map(
             async (wallet) => {
-                const balance = await publicClient.getBalance({
+                const balance = await this.config.publicClient.getBalance({
                     address: wallet.address
                 })
 
@@ -136,9 +141,9 @@ export class SenderManager {
                 await this.gasPriceManager.getGasPrice()
 
             if (
-                walletClient.chain.id === 59140 ||
-                walletClient.chain.id === 137 ||
-                walletClient.chain.id === 10
+                this.config.walletClient.chain.id === 59140 ||
+                this.config.walletClient.chain.id === 137 ||
+                this.config.walletClient.chain.id === 10
             ) {
                 const instructions = []
                 for (const [address, missingBalance] of Object.entries(
@@ -152,9 +157,9 @@ export class SenderManager {
                 }
 
                 let refillAddress: `0x${string}`
-                if (walletClient.chain.id === 59140) {
+                if (this.config.walletClient.chain.id === 59140) {
                     refillAddress = "0xEad1aC3DF6F96b91491d6396F4d1610C5638B4Db"
-                } else if (walletClient.chain.id === 137) {
+                } else if (this.config.walletClient.chain.id === 137) {
                     refillAddress = "0x3402DB43152dAB9ab72fa805fdD5f391cD3E3822"
                 } else {
                     refillAddress = "0x3402DB43152dAB9ab72fa805fdD5f391cD3E3822"
@@ -164,8 +169,8 @@ export class SenderManager {
                     abi: CallEngineAbi,
                     address: refillAddress,
                     client: {
-                        public: publicClient,
-                        wallet: walletClient
+                        public: this.config.publicClient,
+                        wallet: this.config.walletClient
                     }
                 })
                 const tx = await callEngine.write.execute([instructions], {
@@ -175,7 +180,7 @@ export class SenderManager {
                     maxPriorityFeePerGas: maxPriorityFeePerGas * 2n
                 })
 
-                await waitForTransactionReceipt(publicClient, tx)
+                await waitForTransactionReceipt(this.config.publicClient, tx)
 
                 for (const [address, missingBalance] of Object.entries(
                     balancesMissing
@@ -189,23 +194,26 @@ export class SenderManager {
                 for (const [address, missingBalance] of Object.entries(
                     balancesMissing
                 )) {
-                    const tx = await walletClient.sendTransaction({
+                    const tx = await this.config.walletClient.sendTransaction({
                         account: this.utilityAccount,
                         // @ts-ignore
                         to: address,
                         value: missingBalance,
-                        maxFeePerGas: this.legacyTransactions
+                        maxFeePerGas: this.config.legacyTransactions
                             ? undefined
                             : maxFeePerGas,
-                        maxPriorityFeePerGas: this.legacyTransactions
+                        maxPriorityFeePerGas: this.config.legacyTransactions
                             ? undefined
                             : maxPriorityFeePerGas,
-                        gasPrice: this.legacyTransactions
+                        gasPrice: this.config.legacyTransactions
                             ? maxFeePerGas
                             : undefined
                     })
 
-                    await waitForTransactionReceipt(publicClient, tx)
+                    await waitForTransactionReceipt(
+                        this.config.publicClient,
+                        tx
+                    )
                     this.logger.info(
                         { tx, executor: address, missingBalance },
                         "refilled wallet"
