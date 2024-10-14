@@ -61,7 +61,6 @@ export class ExecutorManager {
     private timer?: NodeJS.Timer
     private gasPriceManager: GasPriceManager
     private eventManager: EventManager
-    rpcMaxBlockRange: number | undefined
 
     constructor({
         config,
@@ -601,9 +600,9 @@ export class ExecutorManager {
 
         let fromBlock: bigint | undefined = undefined
         let toBlock: "latest" | undefined = undefined
-        if (this.rpcMaxBlockRange !== undefined) {
+        if (this.config.maxBlockRange !== undefined) {
             const latestBlock = await this.config.publicClient.getBlockNumber()
-            fromBlock = latestBlock - BigInt(this.rpcMaxBlockRange)
+            fromBlock = latestBlock - BigInt(this.config.maxBlockRange)
             if (fromBlock < 0n) {
                 fromBlock = 0n
             }
