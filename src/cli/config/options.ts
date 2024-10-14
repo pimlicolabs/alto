@@ -327,6 +327,12 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         type: "boolean",
         require: false,
         default: true
+    },
+    "code-override-support": {
+        description: "Does the RPC support code overrides",
+        type: "boolean",
+        require: false,
+        default: false
     }
 }
 

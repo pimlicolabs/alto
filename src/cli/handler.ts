@@ -1,50 +1,28 @@
 import { SenderManager } from "@alto/executor"
 import { GasPriceManager } from "@alto/handlers"
 import {
-    type Logger,
     createMetrics,
     initDebugLogger,
     initProductionLogger
 } from "@alto/utils"
 import { Registry } from "prom-client"
 import {
-    http,
     type Chain,
-    type PublicClient,
-    type Transport,
     createPublicClient,
     createWalletClient,
     formatEther
 } from "viem"
-import { fromZodError } from "zod-validation-error"
 import { UtilityWalletMonitor } from "../executor/utilityWalletMonitor"
-import { PimlicoEntryPointSimulationsDeployBytecode } from "../types/contracts"
-import {
-    type IBundlerArgs,
-    type IOptions,
-    type IOptionsInput,
-    optionArgsSchema
-} from "./config"
+import type { IOptionsInput } from "./config"
 import { customTransport } from "./customTransport"
 import { setupServer } from "./setupServer"
+import { type AltoConfig, createConfig } from "../createConfig"
+import { parseArgs } from "./parseArgs"
+import { deploySimulationsContract } from "./deploySimulationsContract"
 
-const parseArgs = (args: IOptionsInput): IOptions => {
-    // validate every arg, make type safe so if i add a new arg i have to validate it
-    const parsing = optionArgsSchema.safeParse(args)
-    if (!parsing.success) {
-        const error = fromZodError(parsing.error)
-        throw new Error(error.message)
-    }
-
-    return parsing.data
-}
-
-const preFlightChecks = async (
-    publicClient: PublicClient<Transport, Chain>,
-    parsedArgs: IBundlerArgs
-): Promise<void> => {
-    for (const entrypoint of parsedArgs.entrypoints) {
-        const entryPointCode = await publicClient.getBytecode({
+const preFlightChecks = async (config: AltoConfig): Promise<void> => {
+    for (const entrypoint of config.entrypoints) {
+        const entryPointCode = await config.publicClient.getBytecode({
             address: entrypoint
         })
         if (entryPointCode === "0x") {
@@ -52,9 +30,9 @@ const preFlightChecks = async (
         }
     }
 
-    if (parsedArgs["entrypoint-simulation-contract"]) {
-        const simulations = parsedArgs["entrypoint-simulation-contract"]
-        const simulationsCode = await publicClient.getBytecode({
+    if (config.entrypointSimulationContract) {
+        const simulations = config.entrypointSimulationContract
+        const simulationsCode = await config.publicClient.getBytecode({
             address: simulations
         })
         if (simulationsCode === undefined || simulationsCode === "0x") {
@@ -65,60 +43,60 @@ const preFlightChecks = async (
     }
 }
 
-export async function bundlerHandler(args: IOptionsInput): Promise<void> {
-    const parsedArgs = parseArgs(args)
-
-    let logger: Logger
-    if (parsedArgs.json) {
-        logger = initProductionLogger(parsedArgs["log-level"])
-    } else {
-        logger = initDebugLogger(parsedArgs["log-level"])
-    }
-
-    const rootLogger = logger.child(
-        { module: "root" },
-        { level: parsedArgs["log-level"] }
-    )
+export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
+    const args = parseArgs(args_)
+    const logger = args.json
+        ? initProductionLogger(args.logLevel)
+        : initDebugLogger(args.logLevel)
 
     const getChainId = async () => {
         const client = createPublicClient({
-            transport: customTransport(parsedArgs["rpc-url"], {
+            transport: customTransport(args.rpcUrl, {
                 logger: logger.child(
                     { module: "public_client" },
                     {
-                        level:
-                            parsedArgs["public-client-log-level"] ||
-                            parsedArgs["log-level"]
+                        level: args.publicClientLogLevel || args.logLevel
                     }
                 )
             })
         })
         return await client.getChainId()
     }
+
     const chainId = await getChainId()
 
     const chain: Chain = {
         id: chainId,
-        name: args["network-name"],
+        name: args.networkName,
         nativeCurrency: {
             name: "ETH",
             symbol: "ETH",
             decimals: 18
         },
         rpcUrls: {
-            default: { http: [args["rpc-url"]] },
-            public: { http: [args["rpc-url"]] }
+            default: { http: [args.rpcUrl] },
+            public: { http: [args.rpcUrl] }
         }
     }
 
-    const client = createPublicClient({
-        transport: customTransport(args["rpc-url"], {
+    const publicClient = createPublicClient({
+        transport: customTransport(args.rpcUrl, {
             logger: logger.child(
                 { module: "public_client" },
                 {
-                    level:
-                        parsedArgs["public-client-log-level"] ||
-                        parsedArgs["log-level"]
+                    level: args.publicClientLogLevel || args.logLevel
+                }
+            )
+        }),
+        chain
+    })
+
+    const walletClient = createWalletClient({
+        transport: customTransport(args.sendTransactionRpcUrl ?? args.rpcUrl, {
+            logger: logger.child(
+                { module: "wallet_client" },
+                {
+                    level: args.walletClientLogLevel || args.logLevel
                 }
             )
         }),
@@ -126,54 +104,16 @@ export async function bundlerHandler(args: IOptionsInput): Promise<void> {
     })
 
     // if flag is set, use utility wallet to deploy the simulations contract
-    if (parsedArgs["deploy-simulations-contract"]) {
-        if (!parsedArgs["utility-private-key"]) {
-            throw new Error(
-                "Cannot deploy entryPoint simulations without utility-private-key"
-            )
-        }
-
-        const walletClient = createWalletClient({
-            transport: http(args["rpc-url"]),
-            account: parsedArgs["utility-private-key"]
+    if (args.deploySimulationsContract) {
+        args.entrypointSimulationContract = await deploySimulationsContract({
+            args,
+            publicClient
         })
-
-        const deployHash = await walletClient.deployContract({
-            chain,
-            abi: [],
-            bytecode: PimlicoEntryPointSimulationsDeployBytecode
-        })
-
-        const receipt = await client.waitForTransactionReceipt({
-            hash: deployHash
-        })
-
-        const simulationsContract = receipt.contractAddress
-
-        if (simulationsContract === null) {
-            throw new Error("Failed to deploy simulationsContract")
-        }
-
-        parsedArgs["entrypoint-simulation-contract"] = simulationsContract
     }
 
-    const gasPriceManager = new GasPriceManager(
-        chain,
-        client,
-        parsedArgs["legacy-transactions"],
-        logger.child(
-            { module: "gas_price_manager" },
-            {
-                level:
-                    parsedArgs["public-client-log-level"] ||
-                    parsedArgs["log-level"]
-            }
-        ),
-        parsedArgs["gas-price-bump"],
-        parsedArgs["gas-price-expiry"],
-        parsedArgs["gas-price-refresh-interval"],
-        parsedArgs["chain-type"]
-    )
+    const config = createConfig({ ...args, logger, publicClient, walletClient })
+
+    const gasPriceManager = new GasPriceManager(config)
 
     await gasPriceManager.init()
 
@@ -184,70 +124,32 @@ export async function bundlerHandler(args: IOptionsInput): Promise<void> {
     })
     const metrics = createMetrics(registry)
 
-    await preFlightChecks(client, parsedArgs)
+    await preFlightChecks(config)
 
-    const walletClient = createWalletClient({
-        transport: customTransport(
-            parsedArgs["send-transaction-rpc-url"] ?? args["rpc-url"],
-            {
-                logger: logger.child(
-                    { module: "wallet_client" },
-                    {
-                        level:
-                            parsedArgs["wallet-client-log-level"] ||
-                            parsedArgs["log-level"]
-                    }
-                )
-            }
-        ),
-        chain
+    const senderManager = new SenderManager({
+        config,
+        metrics,
+        gasPriceManager
     })
 
-    const senderManager = new SenderManager(
-        parsedArgs["executor-private-keys"],
-        parsedArgs["utility-private-key"],
-        logger.child(
-            { module: "executor" },
-            {
-                level:
-                    parsedArgs["executor-log-level"] || parsedArgs["log-level"]
-            }
-        ),
-        metrics,
-        parsedArgs["legacy-transactions"],
-        gasPriceManager,
-        parsedArgs["max-executors"]
-    )
+    const utilityWalletAddress = config.utilityPrivateKey?.address
 
-    const utilityWalletAddress = parsedArgs["utility-private-key"]?.address
-
-    if (utilityWalletAddress && parsedArgs["utility-wallet-monitor"]) {
-        const utilityWalletMonitor = new UtilityWalletMonitor(
-            client,
-            parsedArgs["utility-wallet-monitor-interval"],
-            utilityWalletAddress,
+    if (utilityWalletAddress && config.utilityWalletMonitor) {
+        const utilityWalletMonitor = new UtilityWalletMonitor({
+            config,
             metrics,
-            logger.child(
-                { module: "utility_wallet_monitor" },
-                {
-                    level: parsedArgs["log-level"]
-                }
-            )
-        )
+            utilityWalletAddress
+        })
 
         await utilityWalletMonitor.start()
     }
 
     metrics.executorWalletsMinBalance.set(
-        Number.parseFloat(formatEther(parsedArgs["min-executor-balance"] || 0n))
+        Number.parseFloat(formatEther(config.minExecutorBalance || 0n))
     )
 
     await setupServer({
-        client,
-        walletClient,
-        parsedArgs,
-        logger,
-        rootLogger,
+        config,
         registry,
         metrics,
         senderManager,

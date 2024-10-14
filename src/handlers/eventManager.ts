@@ -1,28 +1,35 @@
 import type { Logger, Metrics } from "@alto/utils"
-// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
 import * as sentry from "@sentry/node"
 import Redis from "ioredis"
 import type { Hex } from "viem"
 import type { OpEventType } from "../types/schemas"
+import type { AltoConfig } from "../createConfig"
 
 export class EventManager {
-    private redis: Redis | undefined
     private chainId: number
+    private redis: Redis | undefined
     private logger: Logger
     private metrics: Metrics
 
-    constructor(
-        endpoint: string | undefined,
-        chainId: number,
-        logger: Logger,
+    constructor({
+        config,
+        metrics
+    }: {
+        config: AltoConfig
         metrics: Metrics
-    ) {
-        this.chainId = chainId
-        this.logger = logger
+    }) {
+        this.chainId = config.publicClient.chain.id
+
+        this.logger = config.getLogger(
+            { module: "event_manager" },
+            {
+                level: config.logLevel
+            }
+        )
         this.metrics = metrics
 
-        if (endpoint) {
-            this.redis = new Redis(endpoint)
+        if (config.redisQueueEndpoint) {
+            this.redis = new Redis(config.redisQueueEndpoint)
             return
         }
 
