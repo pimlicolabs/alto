@@ -1,4 +1,5 @@
 import {
+    ENTRYPOINT_V06_SIMULATION_OVERRIDE,
     EntryPointV06Abi,
     EntryPointV06SimulationsAbi,
     RpcError,
@@ -17,12 +18,78 @@ import {
 import { z } from "zod"
 import type { SimulateHandleOpResult } from "./types"
 import type { AltoConfig } from "../../createConfig"
+import { deepHexlify } from "../../utils/userop"
 
 export class GasEstimatorV06 {
     private config: AltoConfig
 
     constructor(config: AltoConfig) {
         this.config = config
+    }
+
+    decodeSimulateHandleOpResult(data: Hex): SimulateHandleOpResult {
+        if (data === "0x") {
+            throw new RpcError(
+                "AA23 reverted: UserOperation called non-existant contract, or reverted with 0x",
+                ValidationErrors.SimulateValidation
+            )
+        }
+
+        const decodedError = decodeErrorResult({
+            abi: [...EntryPointV06Abi, ...EntryPointV06SimulationsAbi],
+            data
+        })
+
+        if (
+            decodedError &&
+            decodedError.errorName === "FailedOp" &&
+            decodedError.args
+        ) {
+            return {
+                result: "failed",
+                data: decodedError.args[1] as string
+            } as const
+        }
+
+        // custom error thrown by entryPoint if code override is used
+        if (
+            decodedError &&
+            decodedError.errorName === "CallPhaseReverted" &&
+            decodedError.args
+        ) {
+            return {
+                result: "failed",
+                data: decodedError.args[0]
+            } as const
+        }
+
+        if (
+            decodedError &&
+            decodedError.errorName === "Error" &&
+            decodedError.args
+        ) {
+            return {
+                result: "failed",
+                data: decodedError.args[0]
+            } as const
+        }
+
+        if (decodedError.errorName === "ExecutionResult") {
+            const parsedExecutionResult = executionResultSchema.parse(
+                decodedError.args
+            )
+
+            return {
+                result: "execution",
+                data: {
+                    executionResult: parsedExecutionResult
+                } as const
+            }
+        }
+
+        throw new Error(
+            "Unexpected error whilst decoding simulateHandleOp result"
+        )
     }
 
     async simulateHandleOpV06({
@@ -45,6 +112,17 @@ export class GasEstimatorV06 {
             "0x4337000c2828F5260d8921fD25829F606b9E8680"
         const fixedGasLimitForEstimation =
             this.config.fixedGasLimitForEstimation
+
+        if (this.config.codeOverrideSupport) {
+            if (stateOverrides === undefined) {
+                stateOverrides = {}
+            }
+
+            stateOverrides[entryPoint] = {
+                ...deepHexlify(stateOverrides?.[entryPoint] || {}),
+                code: ENTRYPOINT_V06_SIMULATION_OVERRIDE
+            }
+        }
 
         try {
             await publicClient.request({
@@ -116,54 +194,9 @@ export class GasEstimatorV06 {
                 throw new Error(JSON.stringify(err.cause))
             }
 
-            const cause = causeParseResult.data
+            const data = causeParseResult.data.data
 
-            if (cause.data === "0x") {
-                throw new RpcError(
-                    "AA23 reverted: UserOperation called non-existant contract, or reverted with 0x",
-                    ValidationErrors.SimulateValidation
-                )
-            }
-
-            const decodedError = decodeErrorResult({
-                abi: [...EntryPointV06Abi, ...EntryPointV06SimulationsAbi],
-                data: cause.data
-            })
-
-            if (
-                decodedError &&
-                decodedError.errorName === "FailedOp" &&
-                decodedError.args
-            ) {
-                return {
-                    result: "failed",
-                    data: decodedError.args[1] as string
-                } as const
-            }
-
-            if (
-                decodedError &&
-                decodedError.errorName === "Error" &&
-                decodedError.args
-            ) {
-                return {
-                    result: "failed",
-                    data: decodedError.args[0]
-                } as const
-            }
-
-            if (decodedError.errorName === "ExecutionResult") {
-                const parsedExecutionResult = executionResultSchema.parse(
-                    decodedError.args
-                )
-
-                return {
-                    result: "execution",
-                    data: {
-                        executionResult: parsedExecutionResult
-                    } as const
-                }
-            }
+            return this.decodeSimulateHandleOpResult(data)
         }
         throw new Error("Unexpected error")
     }

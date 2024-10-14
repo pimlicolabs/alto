@@ -1,6 +1,11 @@
 import type { EntryPointVersion } from "viem/account-abstraction"
 import { beforeEach, describe, expect, test } from "vitest"
 import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils"
+import {
+    getRevertCall,
+    deployRevertingContract
+} from "../src/revertingContract"
+import { Address, BaseError } from "viem"
 
 describe.each([
     {
@@ -12,7 +17,10 @@ describe.each([
 ])(
     "$entryPointVersion supports eth_estimateUserOperationGas",
     ({ entryPointVersion }) => {
+        let revertingContract: Address
+
         beforeEach(async () => {
+            revertingContract = await deployRevertingContract()
             await beforeEachCleanUp()
         })
 
@@ -112,6 +120,28 @@ describe.each([
 
             expect(estimation.paymasterPostOpGasLimit).toBe(0n)
             expect(estimation.paymasterVerificationGasLimit).toBe(0n)
+        })
+
+        test("Should throw revert reason if simulation reverted during callphase", async () => {
+            const smartAccountClient = await getSmartAccountClient({
+                entryPointVersion
+            })
+
+            try {
+                await smartAccountClient.estimateUserOperationGas({
+                    calls: [
+                        {
+                            to: revertingContract,
+                            data: getRevertCall("foobar"),
+                            value: 0n
+                        }
+                    ]
+                })
+            } catch (e: any) {
+                expect(e).toBeInstanceOf(BaseError)
+                const err = e.walk()
+                expect(err.reason).toEqual("foobar")
+            }
         })
     }
 )

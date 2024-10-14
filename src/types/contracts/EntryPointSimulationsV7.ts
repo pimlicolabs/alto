@@ -1,16 +1,3 @@
-export const EntryPointV06SimulationsAbi = [
-    {
-        inputs: [
-            {
-                name: "reason",
-                type: "string"
-            }
-        ],
-        name: "Error",
-        type: "error"
-    }
-] as const
-
 export const EntryPointV07SimulationsAbi = [
     {
         type: "constructor",

@@ -167,7 +167,6 @@ export class UnsafeValidator implements InterfaceValidator {
             addSenderBalanceOverride,
             balanceOverrideEnabled: this.config.balanceOverride,
             entryPoint,
-            replacedEntryPoint: false,
             targetAddress: zeroAddress,
             targetCallData: "0x",
             stateOverrides
