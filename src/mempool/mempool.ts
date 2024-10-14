@@ -69,7 +69,7 @@ export class MemoryMempool {
         this.logger = config.logger.child(
             { module: "mempool" },
             {
-                level: config.args.logLevel
+                level: config.logLevel
             }
         )
         this.store = new MemoryStore(this.logger, metrics)
@@ -145,7 +145,7 @@ export class MemoryMempool {
     }
 
     checkEntityMultipleRoleViolation(op: UserOperation): Promise<void> {
-        if (!this.config.args.safeMode) {
+        if (!this.config.safeMode) {
             return Promise.resolve()
         }
 
@@ -367,9 +367,7 @@ export class MemoryMempool {
                 return userOp.sender === op.sender
             }).length
 
-        if (
-            parallelUserOperationsCount > this.config.args.mempoolMaxParallelOps
-        ) {
+        if (parallelUserOperationsCount > this.config.mempoolMaxParallelOps) {
             return [
                 false,
                 "AA25 invalid account nonce: Maximum number of parallel user operations for that is allowed for this sender reached"
@@ -389,7 +387,7 @@ export class MemoryMempool {
                 return userOp.sender === op.sender && opNonceKey === nonceKey
             }).length
 
-        if (queuedUserOperationsCount > this.config.args.mempoolMaxQueuedOps) {
+        if (queuedUserOperationsCount > this.config.mempoolMaxQueuedOps) {
             return [
                 false,
                 "AA25 invalid account nonce: Maximum number of queued user operations reached for this sender and nonce key"
@@ -438,7 +436,7 @@ export class MemoryMempool {
         storageMap: StorageMap
     }> {
         const op = deriveUserOperation(opInfo.mempoolUserOperation)
-        if (!this.config.args.safeMode) {
+        if (!this.config.safeMode) {
             return {
                 skip: false,
                 paymasterDeposit,
@@ -527,7 +525,7 @@ export class MemoryMempool {
 
         if (
             senders.has(op.sender) &&
-            this.config.args.enforceUniqueSendersPerBundle
+            this.config.enforceUniqueSendersPerBundle
         ) {
             this.logger.trace(
                 {

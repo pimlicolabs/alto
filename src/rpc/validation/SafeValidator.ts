@@ -192,7 +192,7 @@ export class SafeValidator
             referencedContracts?: ReferencedCodeHashes
         }
     > {
-        if (this.config.args.tenderly) {
+        if (this.config.tenderly) {
             return super.getValidationResultV07(
                 userOperation,
                 queuedUserOperations,
@@ -263,7 +263,7 @@ export class SafeValidator
             storageMap: StorageMap
         }
     > {
-        if (this.config.args.tenderly) {
+        if (this.config.tenderly) {
             return super.getValidationResultV06(userOperation, entryPoint)
         }
 
@@ -500,7 +500,7 @@ export class SafeValidator
         })
 
         const entryPointSimulationsAddress =
-            this.config.args.entrypointSimulationContract
+            this.config.entrypointSimulationContract
 
         const tracerResult = await debug_traceCall(
             this.config.publicClient,

@@ -91,19 +91,19 @@ export class Server {
         const logger = config.logger.child(
             { module: "rpc" },
             {
-                level: config.args.rpcLogLevel || config.args.logLevel
+                level: config.rpcLogLevel || config.logLevel
             }
         )
 
         this.fastify = Fastify({
             logger: logger as FastifyBaseLogger, // workaround for https://github.com/fastify/fastify/issues/4960
-            requestTimeout: config.args.timeout,
+            requestTimeout: config.timeout,
             disableRequestLogging: true
         })
 
         this.fastify.register(websocket, {
             options: {
-                maxPayload: config.args.websocketMaxPayloadSize
+                maxPayload: config.websocketMaxPayloadSize
             }
         })
 
@@ -142,7 +142,7 @@ export class Server {
         this.fastify.post("/:version/rpc", this.rpcHttp.bind(this))
         this.fastify.post("/", this.rpcHttp.bind(this))
 
-        if (config.args.websocket) {
+        if (config.websocket) {
             this.fastify.register((fastify) => {
                 fastify.route({
                     method: "GET",
@@ -174,7 +174,7 @@ export class Server {
     }
 
     public start(): void {
-        this.fastify.listen({ port: this.config.args.port, host: "0.0.0.0" })
+        this.fastify.listen({ port: this.config.port, host: "0.0.0.0" })
     }
 
     public async stop(): Promise<void> {
@@ -225,8 +225,7 @@ export class Server {
         let requestId: number | null = null
 
         const versionParsingResult = altoVersions.safeParse(
-            (request.params as any)?.version ??
-                this.config.args.defaultApiVersion
+            (request.params as any)?.version ?? this.config.defaultApiVersion
         )
 
         if (!versionParsingResult.success) {
@@ -239,7 +238,7 @@ export class Server {
 
         const apiVersion: ApiVersion = versionParsingResult.data
 
-        if (this.config.args.apiVersion.indexOf(apiVersion) === -1) {
+        if (this.config.apiVersion.indexOf(apiVersion) === -1) {
             throw new RpcError(
                 `unsupported version ${apiVersion}`,
                 ValidationErrors.InvalidFields
@@ -306,8 +305,8 @@ export class Server {
             request.rpcMethod = bundlerRequest.method
 
             if (
-                this.config.args.rpcMethods !== null &&
-                !this.config.args.rpcMethods.includes(bundlerRequest.method)
+                this.config.rpcMethods !== null &&
+                !this.config.rpcMethods.includes(bundlerRequest.method)
             ) {
                 throw new RpcError(
                     `Method not supported: ${bundlerRequest.method}`,

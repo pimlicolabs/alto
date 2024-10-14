@@ -27,7 +27,7 @@ import type { AltoConfig } from "../createConfig"
 const getReputationManager = (
     config: AltoConfig
 ): InterfaceReputationManager => {
-    if (config.args.safeMode) {
+    if (config.safeMode) {
         return new ReputationManager(config)
     }
     return new NullReputationManager()
@@ -44,7 +44,7 @@ const getValidator = ({
     metrics: Metrics
     gasPriceManager: GasPriceManager
 }): InterfaceValidator => {
-    if (config.args.safeMode) {
+    if (config.safeMode) {
         return new SafeValidator({
             config,
             senderManager,
@@ -103,12 +103,12 @@ const getCompressionHandler = async (
 ): Promise<CompressionHandler | null> => {
     let compressionHandler: CompressionHandler | null = null
     if (
-        config.args.bundleBulkerAddress !== undefined &&
-        config.args.perOpInflatorAddress !== undefined
+        config.bundleBulkerAddress !== undefined &&
+        config.perOpInflatorAddress !== undefined
     ) {
         compressionHandler = await CompressionHandler.createAsync(
-            config.args.bundleBulkerAddress,
-            config.args.perOpInflatorAddress,
+            config.bundleBulkerAddress,
+            config.perOpInflatorAddress,
             config.publicClient
         )
     }
@@ -280,12 +280,12 @@ export const setupServer = async ({
         metrics
     })
 
-    if (config.args.refillingWallets) {
+    if (config.refillingWallets) {
         await senderManager.validateAndRefillWallets()
 
         setInterval(async () => {
             await senderManager.validateAndRefillWallets()
-        }, config.args.executorRefillInterval * 1000)
+        }, config.executorRefillInterval * 1000)
     }
 
     const monitor = getMonitor()
@@ -340,13 +340,13 @@ export const setupServer = async ({
         eventManager
     })
 
-    if (config.args.flushStuckTransactionsDuringStartup) {
+    if (config.flushStuckTransactionsDuringStartup) {
         executor.flushStuckTransactions()
     }
 
     const rootLogger = config.logger.child(
         { module: "root" },
-        { level: config.args.logLevel }
+        { level: config.logLevel }
     )
 
     rootLogger.info(

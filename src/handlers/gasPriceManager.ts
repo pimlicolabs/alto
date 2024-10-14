@@ -147,20 +147,20 @@ export class GasPriceManager {
         this.logger = config.logger.child(
             { module: "gas_price_manager" },
             {
-                level: config.args.publicClientLogLevel || config.args.logLevel
+                level: config.publicClientLogLevel || config.logLevel
             }
         )
-        this.maxQueueSize = this.config.args.gasPriceExpiry
+        this.maxQueueSize = this.config.gasPriceExpiry
 
         // Periodically update gas prices if specified
-        if (this.config.args.gasPriceRefreshInterval > 0) {
+        if (this.config.gasPriceRefreshInterval > 0) {
             setInterval(() => {
-                if (this.config.args.legacyTransactions === false) {
+                if (this.config.legacyTransactions === false) {
                     this.updateBaseFee()
                 }
 
                 this.updateGasPrice()
-            }, this.config.args.gasPriceRefreshInterval * 1000)
+            }, this.config.gasPriceRefreshInterval * 1000)
         }
 
         this.arbitrumManager = new ArbitrumManager(this.maxQueueSize)
@@ -169,7 +169,7 @@ export class GasPriceManager {
     public init() {
         return Promise.all([
             this.updateGasPrice(),
-            this.config.args.legacyTransactions === false
+            this.config.legacyTransactions === false
                 ? this.updateBaseFee()
                 : Promise.resolve()
         ])
@@ -210,7 +210,7 @@ export class GasPriceManager {
     private bumpTheGasPrice(
         gasPriceParameters: GasPriceParameters
     ): GasPriceParameters {
-        const bumpAmount = this.config.args.gasPriceBump
+        const bumpAmount = this.config.gasPriceBump
 
         const maxPriorityFeePerGas = maxBigInt(
             gasPriceParameters.maxPriorityFeePerGas,
@@ -495,7 +495,7 @@ export class GasPriceManager {
             }
         }
 
-        if (this.config.args.legacyTransactions) {
+        if (this.config.legacyTransactions) {
             const gasPrice = this.bumpTheGasPrice(
                 await this.getLegacyTransactionGasPrice()
             )
@@ -539,13 +539,13 @@ export class GasPriceManager {
     }
 
     public getBaseFee() {
-        if (this.config.args.legacyTransactions) {
+        if (this.config.legacyTransactions) {
             throw new RpcError(
                 "baseFee is not available for legacy transactions"
             )
         }
 
-        if (this.config.args.gasPriceRefreshInterval === 0) {
+        if (this.config.gasPriceRefreshInterval === 0) {
             return this.updateBaseFee()
         }
 
@@ -570,7 +570,7 @@ export class GasPriceManager {
     }
 
     public getGasPrice() {
-        if (this.config.args.gasPriceRefreshInterval === 0) {
+        if (this.config.gasPriceRefreshInterval === 0) {
             return this.updateGasPrice()
         }
 
@@ -625,7 +625,7 @@ export class GasPriceManager {
         let lowestMaxFeePerGas = await this.getMinMaxFeePerGas()
         let lowestMaxPriorityFeePerGas = await this.getMinMaxPriorityFeePerGas()
 
-        if (this.config.args.chainType === "hedera") {
+        if (this.config.chainType === "hedera") {
             lowestMaxFeePerGas /= 10n ** 9n
             lowestMaxPriorityFeePerGas /= 10n ** 9n
         }

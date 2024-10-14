@@ -23,13 +23,13 @@ export class EventManager {
         this.logger = config.logger.child(
             { module: "event_manager" },
             {
-                level: config.args.logLevel
+                level: config.logLevel
             }
         )
         this.metrics = metrics
 
-        if (config.args.redisQueueEndpoint) {
-            this.redis = new Redis(config.args.redisQueueEndpoint)
+        if (config.redisQueueEndpoint) {
+            this.redis = new Redis(config.redisQueueEndpoint)
             return
         }
 

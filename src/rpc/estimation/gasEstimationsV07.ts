@@ -133,7 +133,7 @@ export class GasEstimatorV07 {
         userOperation,
         queuedUserOperations,
         entryPoint,
-        gasAllowance = this.config.args.binarySearchGasAllowance,
+        gasAllowance = this.config.binarySearchGasAllowance,
         initialMinGas = 0n
     }: {
         userOperation: UserOperationV07
@@ -168,7 +168,7 @@ export class GasEstimatorV07 {
                 targetOp,
                 entryPoint,
                 initialMinGas,
-                this.config.args.binarySearchToleranceDelta,
+                this.config.binarySearchToleranceDelta,
                 gasAllowance
             ]
         })
@@ -285,7 +285,7 @@ export class GasEstimatorV07 {
 
         let cause
 
-        if (this.config.args.chainType === "hedera") {
+        if (this.config.chainType === "hedera") {
             // due to Hedera specific restrictions, we can't combine these two calls.
             const [simulateHandleOpLastCause, simulateCallDataCause] =
                 await Promise.all([
@@ -387,14 +387,14 @@ export class GasEstimatorV07 {
         stateOverrides?: StateOverrides
     }) {
         const publicClient = this.config.publicClient
-        const blockTagSupport = this.config.args.blockTagSupport
+        const blockTagSupport = this.config.blockTagSupport
         const utilityWalletAddress =
-            this.config.args.utilityPrivateKey?.address ??
+            this.config.utilityPrivateKey?.address ??
             "0x4337000c2828F5260d8921fD25829F606b9E8680"
         const entryPointSimulationsAddress =
-            this.config.args.entrypointSimulationContract
+            this.config.entrypointSimulationContract
         const fixedGasLimitForEstimation =
-            this.config.args.fixedGasLimitForEstimation
+            this.config.fixedGasLimitForEstimation
 
         if (!entryPointSimulationsAddress) {
             throw new RpcError(

@@ -192,9 +192,7 @@ export class ReputationManager implements InterfaceReputationManager {
         this.logger = config.logger.child(
             { module: "reputation_manager" },
             {
-                level:
-                    config.args.reputationManagerLogLevel ||
-                    config.args.logLevel
+                level: config.reputationManagerLogLevel || config.logLevel
             }
         )
         this.maxMempoolUserOperationsPerNewUnstakedEntity = 10n
@@ -210,7 +208,7 @@ export class ReputationManager implements InterfaceReputationManager {
         // for (const address of whiteList || []) {
         //     this.whitelist.add(address)
         // }
-        for (const entryPoint of config.args.entrypoints) {
+        for (const entryPoint of config.entrypoints) {
             this.entries[entryPoint] = {}
         }
     }
@@ -279,8 +277,8 @@ export class ReputationManager implements InterfaceReputationManager {
         const unstakeDelaySec = BigInt(stakeInfo.unstakeDelaySec)
 
         const isStaked =
-            stake >= this.config.args.minEntityStake &&
-            unstakeDelaySec >= this.config.args.minEntityUnstakeDelay
+            stake >= this.config.minEntityStake &&
+            unstakeDelaySec >= this.config.minEntityUnstakeDelay
 
         return {
             stakeInfo: {
@@ -653,10 +651,10 @@ export class ReputationManager implements InterfaceReputationManager {
         }
         this.checkBanned(entryPoint, entityType, stakeInfo)
 
-        if (stakeInfo.stake < this.config.args.minEntityStake) {
+        if (stakeInfo.stake < this.config.minEntityStake) {
             if (stakeInfo.stake === 0n) {
                 throw new RpcError(
-                    `${entityType} ${stakeInfo.addr} is unstaked and must stake minimum ${this.config.args.minEntityStake} to use pimlico`,
+                    `${entityType} ${stakeInfo.addr} is unstaked and must stake minimum ${this.config.minEntityStake} to use pimlico`,
                     ValidationErrors.InsufficientStake
                 )
             }
@@ -667,9 +665,7 @@ export class ReputationManager implements InterfaceReputationManager {
             )
         }
 
-        if (
-            stakeInfo.unstakeDelaySec < this.config.args.minEntityUnstakeDelay
-        ) {
+        if (stakeInfo.unstakeDelaySec < this.config.minEntityUnstakeDelay) {
             throw new RpcError(
                 `${entityType} ${stakeInfo.addr} does not have enough unstake delay to use pimlico`,
                 ValidationErrors.InsufficientStake

@@ -52,7 +52,7 @@ export class NonceQueuer {
         this.logger = config.logger.child(
             { module: "nonce_queuer" },
             {
-                level: config.args.nonceQueuerLogLevel || config.args.logLevel
+                level: config.nonceQueuerLogLevel || config.logLevel
             }
         )
         this.eventManager = eventManager
@@ -158,9 +158,7 @@ export class NonceQueuer {
                         args: [userOperation.sender, qop.nonceKey]
                     }
                 }),
-                blockTag: this.config.args.blockTagSupport
-                    ? "latest"
-                    : undefined
+                blockTag: this.config.blockTagSupport ? "latest" : undefined
             })
         } catch (error) {
             this.logger.error(

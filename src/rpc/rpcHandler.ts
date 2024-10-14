@@ -160,7 +160,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.logger = config.logger.child(
             { module: "rpc" },
             {
-                level: config.args.rpcLogLevel || config.args.logLevel
+                level: config.rpcLogLevel || config.logLevel
             }
         )
         this.metrics = metrics
@@ -302,9 +302,9 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     ensureEntryPointIsSupported(entryPoint: Address) {
-        if (!this.config.args.entrypoints.includes(entryPoint)) {
+        if (!this.config.entrypoints.includes(entryPoint)) {
             throw new Error(
-                `EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.args.entrypoints.join(
+                `EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.entrypoints.join(
                     ", "
                 )}`
             )
@@ -312,7 +312,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     ensureDebugEndpointsAreEnabled(methodName: string) {
-        if (!this.config.args.enableDebugEndpoints) {
+        if (!this.config.enableDebugEndpoints) {
             throw new RpcError(
                 `${methodName} is only available in development environment`
             )
@@ -326,7 +326,7 @@ export class RpcHandler implements IRpcEndpoint {
         entryPoint: Address
     ) {
         if (
-            this.config.args.legacyTransactions &&
+            this.config.legacyTransactions &&
             userOperation.maxFeePerGas !== userOperation.maxPriorityFeePerGas
         ) {
             const reason =
@@ -365,7 +365,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     eth_supportedEntryPoints(): SupportedEntryPointsResponseResult {
-        return this.config.args.entrypoints
+        return this.config.entrypoints
     }
 
     async eth_estimateUserOperationGas(
@@ -403,7 +403,7 @@ export class RpcHandler implements IRpcEndpoint {
             userOperation.verificationGasLimit = 5_000_000n
         }
 
-        if (this.config.args.chainType === "hedera") {
+        if (this.config.chainType === "hedera") {
             // The eth_call gasLimit is set to 12_500_000 on Hedera.
             userOperation.verificationGasLimit = 5_000_000n
             userOperation.callGasLimit = 4_500_000n
@@ -497,9 +497,7 @@ export class RpcHandler implements IRpcEndpoint {
                 executionResult.data.executionResult.paymasterPostOpGasLimit ||
                 1n
 
-            const multiplier = Number(
-                this.config.args.paymasterGasLimitMultiplier
-            )
+            const multiplier = Number(this.config.paymasterGasLimitMultiplier)
 
             paymasterVerificationGasLimit = scaleBigIntByPercent(
                 paymasterVerificationGasLimit,
@@ -629,7 +627,7 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         const filterResult = await this.config.publicClient.getLogs({
-            address: this.config.args.entrypoints,
+            address: this.config.entrypoints,
             event: userOperationEventAbiItem,
             fromBlock,
             toBlock,
@@ -814,12 +812,12 @@ export class RpcHandler implements IRpcEndpoint {
         let { maxFeePerGas, maxPriorityFeePerGas } =
             await this.gasPriceManager.getGasPrice()
 
-        if (this.config.args.chainType === "hedera") {
+        if (this.config.chainType === "hedera") {
             maxFeePerGas /= 10n ** 9n
             maxPriorityFeePerGas /= 10n ** 9n
         }
 
-        const { slow, standard, fast } = this.config.args.gasPriceMultipliers
+        const { slow, standard, fast } = this.config.gasPriceMultipliers
 
         return {
             slow: {
@@ -896,7 +894,7 @@ export class RpcHandler implements IRpcEndpoint {
             userOperationNonceValue ===
             currentNonceValue + BigInt(queuedUserOperations.length)
         ) {
-            if (this.config.args.dangerousSkipUserOperationValidation) {
+            if (this.config.dangerousSkipUserOperationValidation) {
                 const [success, errorReason] = this.mempool.add(op, entryPoint)
                 if (!success) {
                     this.eventManager.emitFailedValidation(
@@ -965,7 +963,7 @@ export class RpcHandler implements IRpcEndpoint {
         userOperation: UserOperation,
         entryPoint: Address
     ) {
-        if (!this.config.args.enableInstantBundlingEndpoint) {
+        if (!this.config.enableInstantBundlingEndpoint) {
             throw new RpcError(
                 "pimlico_sendUserOperationNow endpoint is not enabled",
                 ValidationErrors.InvalidFields

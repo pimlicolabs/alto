@@ -21,7 +21,7 @@ import { parseArgs } from "./parseArgs"
 import { deploySimulationsContract } from "./deploySimulationsContract"
 
 const preFlightChecks = async (config: AltoConfig): Promise<void> => {
-    for (const entrypoint of config.args.entrypoints) {
+    for (const entrypoint of config.entrypoints) {
         const entryPointCode = await config.publicClient.getBytecode({
             address: entrypoint
         })
@@ -30,8 +30,8 @@ const preFlightChecks = async (config: AltoConfig): Promise<void> => {
         }
     }
 
-    if (config.args.entrypointSimulationContract) {
-        const simulations = config.args.entrypointSimulationContract
+    if (config.entrypointSimulationContract) {
+        const simulations = config.entrypointSimulationContract
         const simulationsCode = await config.publicClient.getBytecode({
             address: simulations
         })
@@ -111,7 +111,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         })
     }
 
-    const config = createConfig({ args, logger, publicClient, walletClient })
+    const config = createConfig({ ...args, logger, publicClient, walletClient })
 
     const gasPriceManager = new GasPriceManager(config)
 
@@ -132,9 +132,9 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         gasPriceManager
     })
 
-    const utilityWalletAddress = config.args.utilityPrivateKey?.address
+    const utilityWalletAddress = config.utilityPrivateKey?.address
 
-    if (utilityWalletAddress && config.args.utilityWalletMonitor) {
+    if (utilityWalletAddress && config.utilityWalletMonitor) {
         const utilityWalletMonitor = new UtilityWalletMonitor({
             config,
             metrics,
@@ -145,7 +145,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     }
 
     metrics.executorWalletsMinBalance.set(
-        Number.parseFloat(formatEther(config.args.minExecutorBalance || 0n))
+        Number.parseFloat(formatEther(config.minExecutorBalance || 0n))
     )
 
     await setupServer({

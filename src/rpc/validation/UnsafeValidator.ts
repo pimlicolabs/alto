@@ -160,7 +160,7 @@ export class UnsafeValidator implements InterfaceValidator {
             userOperation,
             queuedUserOperations,
             addSenderBalanceOverride,
-            balanceOverrideEnabled: this.config.args.balanceOverride,
+            balanceOverrideEnabled: this.config.balanceOverride,
             entryPoint,
             replacedEntryPoint: false,
             targetAddress: zeroAddress,
@@ -223,7 +223,7 @@ export class UnsafeValidator implements InterfaceValidator {
                 simulateValidationResult,
                 this.config.logger,
                 "validation",
-                this.config.args.tenderly
+                this.config.tenderly
             )) as ValidationResultV06 | ValidationResultWithAggregationV06),
             storageMap: {}
         }
@@ -245,7 +245,7 @@ export class UnsafeValidator implements InterfaceValidator {
 
         if (
             validationResult.returnInfo.validAfter > now - 5 &&
-            this.config.args.expirationCheck
+            this.config.expirationCheck
         ) {
             throw new RpcError(
                 "User operation is not valid yet",
@@ -255,7 +255,7 @@ export class UnsafeValidator implements InterfaceValidator {
 
         if (
             validationResult.returnInfo.validUntil < now + 30 &&
-            this.config.args.expirationCheck
+            this.config.expirationCheck
         ) {
             throw new RpcError(
                 "expires too soon",

@@ -105,7 +105,7 @@ export class Executor {
         this.logger = config.logger.child(
             { module: "executor" },
             {
-                level: config.args.executorLogLevel || config.args.logLevel
+                level: config.executorLogLevel || config.logLevel
             }
         )
         this.metrics = metrics
@@ -229,9 +229,9 @@ export class Executor {
             newRequest.nonce,
             newRequest.maxFeePerGas,
             newRequest.maxPriorityFeePerGas,
-            this.config.args.blockTagSupport ? "latest" : undefined,
-            this.config.args.legacyTransactions,
-            this.config.args.fixedGasLimitForEstimation,
+            this.config.blockTagSupport ? "latest" : undefined,
+            this.config.legacyTransactions,
+            this.config.fixedGasLimitForEstimation,
             this.reputationManager,
             this.logger
         )
@@ -280,7 +280,7 @@ export class Executor {
                 return opInfo
             })
 
-        if (this.config.args.localGasLimitCalculation) {
+        if (this.config.localGasLimitCalculation) {
             gasLimit = opsToBundle.reduce((acc, opInfo) => {
                 const userOperation = deriveUserOperation(
                     opInfo.mempoolUserOperation
@@ -383,7 +383,7 @@ export class Executor {
             )
 
             const txHash = await this.config.walletClient.sendTransaction(
-                this.config.args.legacyTransactions
+                this.config.legacyTransactions
                     ? {
                           ...newRequest,
                           gasPrice: newRequest.maxFeePerGas,
@@ -566,9 +566,9 @@ export class Executor {
             nonce,
             gasPriceParameters.maxFeePerGas,
             gasPriceParameters.maxPriorityFeePerGas,
-            this.config.args.blockTagSupport ? "pending" : undefined,
-            this.config.args.legacyTransactions,
-            this.config.args.fixedGasLimitForEstimation,
+            this.config.blockTagSupport ? "pending" : undefined,
+            this.config.legacyTransactions,
+            this.config.fixedGasLimitForEstimation,
             this.reputationManager,
             childLogger
         )
@@ -642,7 +642,7 @@ export class Executor {
 
         let transactionHash: HexData32
         try {
-            const isLegacyTransaction = this.config.args.legacyTransactions
+            const isLegacyTransaction = this.config.legacyTransactions
 
             const gasOptions = isLegacyTransaction
                 ? { gasPrice: gasPriceParameters.maxFeePerGas }
@@ -652,7 +652,7 @@ export class Executor {
                           gasPriceParameters.maxPriorityFeePerGas
                   }
 
-            if (this.config.args.noProfitBundling) {
+            if (this.config.noProfitBundling) {
                 const gasPrice = totalBeneficiaryFees / gasLimit
                 if (isLegacyTransaction) {
                     gasOptions.gasPrice = gasPrice
@@ -877,9 +877,9 @@ export class Executor {
             nonce,
             gasPriceParameters.maxFeePerGas,
             gasPriceParameters.maxPriorityFeePerGas,
-            this.config.args.blockTagSupport ? "pending" : undefined,
-            this.config.args.legacyTransactions,
-            this.config.args.fixedGasLimitForEstimation,
+            this.config.blockTagSupport ? "pending" : undefined,
+            this.config.legacyTransactions,
+            this.config.fixedGasLimitForEstimation,
             this.reputationManager,
             childLogger
         )
@@ -933,7 +933,7 @@ export class Executor {
 
         let transactionHash: HexData32
         try {
-            const gasOptions = this.config.args.legacyTransactions
+            const gasOptions = this.config.legacyTransactions
                 ? {
                       gasPrice: gasPriceParameters.maxFeePerGas
                   }

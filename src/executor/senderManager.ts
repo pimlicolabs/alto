@@ -50,12 +50,12 @@ export class SenderManager {
         this.logger = config.logger.child(
             { module: "executor" },
             {
-                level: config.args.executorLogLevel || config.args.logLevel
+                level: config.executorLogLevel || config.logLevel
             }
         )
 
-        const maxSigners = config.args.maxExecutors
-        const wallets = config.args.executorPrivateKeys
+        const maxSigners = config.maxExecutors
+        const wallets = config.executorPrivateKeys
 
         if (maxSigners !== undefined && wallets.length > maxSigners) {
             this.wallets = wallets.slice(0, maxSigners)
@@ -65,7 +65,7 @@ export class SenderManager {
             this.availableWallets = wallets
         }
 
-        this.utilityAccount = this.config.args.utilityPrivateKey
+        this.utilityAccount = this.config.utilityPrivateKey
         this.metrics = metrics
         metrics.walletsAvailable.set(this.availableWallets.length)
         metrics.walletsTotal.set(this.wallets.length)
@@ -75,7 +75,7 @@ export class SenderManager {
 
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: <explanation>
     async validateAndRefillWallets(): Promise<void> {
-        const minBalance = this.config.args.minExecutorBalance
+        const minBalance = this.config.minExecutorBalance
 
         if (!(minBalance && this.utilityAccount)) {
             return
@@ -199,14 +199,13 @@ export class SenderManager {
                         // @ts-ignore
                         to: address,
                         value: missingBalance,
-                        maxFeePerGas: this.config.args.legacyTransactions
+                        maxFeePerGas: this.config.legacyTransactions
                             ? undefined
                             : maxFeePerGas,
-                        maxPriorityFeePerGas: this.config.args
-                            .legacyTransactions
+                        maxPriorityFeePerGas: this.config.legacyTransactions
                             ? undefined
                             : maxPriorityFeePerGas,
-                        gasPrice: this.config.args.legacyTransactions
+                        gasPrice: this.config.legacyTransactions
                             ? maxFeePerGas
                             : undefined
                     })

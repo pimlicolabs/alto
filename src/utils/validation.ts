@@ -322,7 +322,7 @@ export async function calcPreVerificationGas({
     if (config.publicClient.chain.id === 59140) {
         // linea sepolia
         preVerificationGas *= 2n
-    } else if (config.args.chainType === "op-stack") {
+    } else if (config.chainType === "op-stack") {
         preVerificationGas = await calcOptimismPreVerificationGas(
             config.publicClient,
             userOperation,
@@ -331,7 +331,7 @@ export async function calcPreVerificationGas({
             gasPriceManager,
             validate
         )
-    } else if (config.args.chainType === "arbitrum") {
+    } else if (config.chainType === "arbitrum") {
         preVerificationGas = await calcArbitrumPreVerificationGas(
             config.publicClient,
             userOperation,

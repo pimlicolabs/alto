@@ -39,12 +39,12 @@ export class GasEstimatorV06 {
         stateOverrides?: StateOverrides | undefined
     }): Promise<SimulateHandleOpResult> {
         const publicClient = this.config.publicClient
-        const blockTagSupport = this.config.args.blockTagSupport
+        const blockTagSupport = this.config.blockTagSupport
         const utilityWalletAddress =
-            this.config.args.utilityPrivateKey?.address ??
+            this.config.utilityPrivateKey?.address ??
             "0x4337000c2828F5260d8921fD25829F606b9E8680"
         const fixedGasLimitForEstimation =
-            this.config.args.fixedGasLimitForEstimation
+            this.config.fixedGasLimitForEstimation
 
         try {
             await publicClient.request({

@@ -90,17 +90,17 @@ export class ExecutorManager {
         this.logger = config.logger.child(
             { module: "executor_manager" },
             {
-                level: config.args.executorLogLevel || config.args.logLevel
+                level: config.executorLogLevel || config.logLevel
             }
         )
         this.metrics = metrics
         this.gasPriceManager = gasPriceManager
         this.eventManager = eventManager
 
-        if (this.config.args.bundleMode === "auto") {
+        if (this.config.bundleMode === "auto") {
             this.timer = setInterval(async () => {
                 await this.bundle()
-            }, this.config.args.maxBundleWait) as NodeJS.Timer
+            }, this.config.maxBundleWait) as NodeJS.Timer
         }
     }
 
@@ -108,7 +108,7 @@ export class ExecutorManager {
         if (bundleMode === "auto" && !this.timer) {
             this.timer = setInterval(async () => {
                 await this.bundle()
-            }, this.config.args.maxBundleWait) as NodeJS.Timer
+            }, this.config.maxBundleWait) as NodeJS.Timer
         } else if (bundleMode === "manual" && this.timer) {
             clearInterval(this.timer)
             this.timer = undefined
@@ -116,10 +116,7 @@ export class ExecutorManager {
     }
 
     async bundleNow(): Promise<Hash[]> {
-        const ops = await this.mempool.process(
-            this.config.args.maxGasPerBundle,
-            1
-        )
+        const ops = await this.mempool.process(this.config.maxGasPerBundle, 1)
         if (ops.length === 0) {
             throw new Error("no ops to bundle")
         }
@@ -136,7 +133,7 @@ export class ExecutorManager {
         const txHashes: Hash[] = []
 
         await Promise.all(
-            this.config.args.entrypoints.map(async (entryPoint) => {
+            this.config.entrypoints.map(async (entryPoint) => {
                 const ops = opEntryPointMap.get(entryPoint)
                 if (ops) {
                     const txHash = await this.sendToExecutor(entryPoint, ops)
@@ -294,7 +291,7 @@ export class ExecutorManager {
 
         while (true) {
             const ops = await this.mempool.process(
-                this.config.args.maxGasPerBundle,
+                this.config.maxGasPerBundle,
                 1
             )
             if (ops?.length > 0) {
@@ -325,7 +322,7 @@ export class ExecutorManager {
                 }
 
                 await Promise.all(
-                    this.config.args.entrypoints.map(async (entryPoint) => {
+                    this.config.entrypoints.map(async (entryPoint) => {
                         const userOperations = opEntryPointMap.get(entryPoint)
                         if (userOperations) {
                             await this.sendToExecutor(
@@ -367,7 +364,7 @@ export class ExecutorManager {
             },
             emitMissed: false,
             includeTransactions: false,
-            pollingInterval: this.config.args.pollingInterval
+            pollingInterval: this.config.pollingInterval
         })
 
         this.logger.debug("started watching blocks")
@@ -497,7 +494,7 @@ export class ExecutorManager {
             bundlingStatus.isAA95
         ) {
             // resubmit with more gas when bundler encounters AA95
-            const multiplier = this.config.args.aa95GasMultiplier
+            const multiplier = this.config.aa95GasMultiplier
             transactionInfo.transactionRequest.gas =
                 (transactionInfo.transactionRequest.gas * multiplier) / 100n
             transactionInfo.transactionRequest.nonce += 1
@@ -614,7 +611,7 @@ export class ExecutorManager {
         }
 
         const filterResult = await this.config.publicClient.getLogs({
-            address: this.config.args.entrypoints,
+            address: this.config.entrypoints,
             event: userOperationEventAbiItem,
             fromBlock,
             toBlock,
@@ -735,7 +732,7 @@ export class ExecutorManager {
         }
 
         await Promise.all(
-            this.config.args.entrypoints.map(async (entryPoint) => {
+            this.config.entrypoints.map(async (entryPoint) => {
                 const ops = opEntryPointMap.get(entryPoint)
 
                 if (ops) {

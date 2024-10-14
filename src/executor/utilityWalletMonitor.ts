@@ -25,7 +25,7 @@ export class UtilityWalletMonitor {
         this.logger = config.logger.child(
             { module: "utility_wallet_monitor" },
             {
-                level: config.args.logLevel
+                level: config.logLevel
             }
         )
     }
@@ -56,7 +56,7 @@ export class UtilityWalletMonitor {
 
         this.timer = setInterval(
             this.updateMetrics.bind(this),
-            this.config.args.utilityWalletMonitorInterval
+            this.config.utilityWalletMonitorInterval
         ) as NodeJS.Timer
     }
 
