@@ -1,29 +1,29 @@
-import {
-    type Hex,
-    createPublicClient,
-    decodeEventLog,
-    decodeFunctionData,
-    http,
-    parseAbi,
-    parseAbiItem,
-    slice,
-    hexToNumber
-} from "viem"
-import { handleOpsAbi } from "./abi"
 import { type Pool, createPool } from "@viem/anvil"
 import type { UserOperation } from "permissionless"
 import { createPimlicoBundlerClient } from "permissionless/clients/pimlico"
 import {
-    KINTO_RPC,
+    http,
+    type Hex,
+    createPublicClient,
+    decodeEventLog,
+    decodeFunctionData,
+    hexToNumber,
+    parseAbi,
+    parseAbiItem,
+    slice
+} from "viem"
+import { handleOpsAbi } from "./abi"
+import { startAlto } from "./setupAlto"
+import {
+    type CompressedOp,
     KINTO_ENTRYPOINT,
+    KINTO_RPC,
+    type OpInfoType,
+    isCompressed,
     kintoMainnet,
     prettyPrintTxHash,
-    sleep,
-    type OpInfoType,
-    type CompressedOp,
-    isCompressed
+    sleep
 } from "./utils"
-import { startAlto } from "./setupAlto"
 
 const canReplayUserOperation = async ({
     anvilPool,

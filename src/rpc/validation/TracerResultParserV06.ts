@@ -5,9 +5,9 @@ import {
     SenderCreatorAbi,
     type StakeInfo,
     type StorageMap,
+    type UserOperationV06,
     ValidationErrors,
-    type ValidationResult,
-    type UserOperationV06
+    type ValidationResult
 } from "@alto/types"
 import type { Abi, AbiFunction } from "abitype"
 // This file contains references to validation rules, in the format [xxx-###]

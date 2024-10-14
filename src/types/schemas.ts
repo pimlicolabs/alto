@@ -4,7 +4,7 @@ import type { MempoolUserOperation } from "./mempool"
 
 const hexDataPattern = /^0x[0-9A-Fa-f]*$/
 const addressPattern = /^0x[0-9,a-f,A-F]{40}$/
-export const hexData32Pattern = /^0x([0-9a-fA-F][0-9a-fA-F]){0,32}$/
+export const hexData32Pattern = /^0x([0-9a-fA-F][0-9a-fA-F]){32}$/
 export const commaSeperatedAddressPattern =
     /^(0x[0-9a-fA-F]{40})(,\s*(0x[0-9a-fA-F]{40}))*$/
 
@@ -235,8 +235,8 @@ const stateOverridesSchema = z.record(
         balance: hexNumberSchema.optional(),
         nonce: hexNumberSchema.optional(),
         code: hexDataSchema.optional(),
-        state: z.unknown().optional(),
-        stateDiff: z.unknown().optional()
+        state: z.record(hexData32Schema, hexData32Schema).optional(),
+        stateDiff: z.record(hexData32Schema, hexData32Schema).optional()
     })
 )
 

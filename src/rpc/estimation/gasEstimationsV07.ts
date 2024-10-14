@@ -1,64 +1,41 @@
+import {
+    EntryPointV07Abi,
+    EntryPointV07SimulationsAbi,
+    ExecutionErrors,
+    type ExecutionResult,
+    PimlicoEntryPointSimulationsAbi,
+    RpcError,
+    type StateOverrides,
+    type TargetCallResult,
+    type UserOperationV07,
+    ValidationErrors,
+    type ValidationResultV07,
+    targetCallResultSchema
+} from "@alto/types"
+import { getUserOperationHash, toPackedUserOperation } from "@alto/utils"
 import type { Hex } from "viem"
 import {
     type Address,
-    type PublicClient,
-    decodeErrorResult,
-    encodeFunctionData,
-    toHex,
     decodeAbiParameters,
+    decodeErrorResult,
     decodeFunctionResult,
+    encodeFunctionData,
+    slice,
     toFunctionSelector,
-    slice
+    toHex
 } from "viem"
-import {
-    type StateOverrides,
-    type UserOperationV07,
-    type ValidationResultV07,
-    type ExecutionResult,
-    type TargetCallResult,
-    EntryPointV07Abi,
-    EntryPointV07SimulationsAbi,
-    PimlicoEntryPointSimulationsAbi,
-    ValidationErrors,
-    ExecutionErrors,
-    targetCallResultSchema,
-    RpcError
-} from "@alto/types"
-import { getUserOperationHash, toPackedUserOperation } from "@alto/utils"
-import {
-    simulationValidationResultStruct,
-    type SimulateHandleOpResult
-} from "./types"
 import { AccountExecuteAbi } from "../../types/contracts/IAccountExecute"
+import {
+    type SimulateHandleOpResult,
+    simulationValidationResultStruct
+} from "./types"
+import type { AltoConfig } from "../../createConfig"
 
 export class GasEstimatorV07 {
-    binarySearchToleranceDelta: bigint
-    binarySearchGasAllowance: bigint
-    chainId: number
-    publicClient: PublicClient
-    entryPointSimulationsAddress: Address | undefined
-    blockTagSupport: boolean
-    utilityWalletAddress: Address
-    fixedGasLimitForEstimation?: bigint
+    private config: AltoConfig
 
-    constructor(
-        binarySearchToleranceDelta: bigint,
-        binarySearchGasAllowance: bigint,
-        chainId: number,
-        publicClient: PublicClient,
-        entryPointSimulationsAddress: Address | undefined,
-        blockTagSupport: boolean,
-        utilityWalletAddress: Address,
-        fixedGasLimitForEstimation?: bigint
-    ) {
-        this.binarySearchToleranceDelta = binarySearchToleranceDelta
-        this.binarySearchGasAllowance = binarySearchGasAllowance
-        this.chainId = chainId
-        this.publicClient = publicClient
-        this.entryPointSimulationsAddress = entryPointSimulationsAddress
-        this.blockTagSupport = blockTagSupport
-        this.utilityWalletAddress = utilityWalletAddress
-        this.fixedGasLimitForEstimation = fixedGasLimitForEstimation
+    constructor(config: AltoConfig) {
+        this.config = config
     }
 
     async simulateValidation({
@@ -111,7 +88,11 @@ export class GasEstimatorV07 {
                 functionName: "executeUserOp",
                 args: [
                     packedOp,
-                    getUserOperationHash(op, entryPoint, this.chainId)
+                    getUserOperationHash(
+                        op,
+                        entryPoint,
+                        this.config.publicClient.chain.id
+                    )
                 ]
             })
         }
@@ -135,7 +116,7 @@ export class GasEstimatorV07 {
             userOperationHash: getUserOperationHash(
                 uop,
                 entryPoint,
-                this.chainId
+                this.config.publicClient.chain.id
             )
         }))
 
@@ -152,7 +133,7 @@ export class GasEstimatorV07 {
         userOperation,
         queuedUserOperations,
         entryPoint,
-        gasAllowance = this.binarySearchGasAllowance,
+        gasAllowance = this.config.binarySearchGasAllowance,
         initialMinGas = 0n
     }: {
         userOperation: UserOperationV07
@@ -187,7 +168,7 @@ export class GasEstimatorV07 {
                 targetOp,
                 entryPoint,
                 initialMinGas,
-                this.binarySearchToleranceDelta,
+                this.config.binarySearchToleranceDelta,
                 gasAllowance
             ]
         })
@@ -302,14 +283,35 @@ export class GasEstimatorV07 {
             queuedUserOperations
         })
 
-        let cause = await this.callPimlicoEntryPointSimulations({
-            entryPoint,
-            entryPointSimulationsCallData: [
-                simulateHandleOpLast,
-                simulateCallData
-            ],
-            stateOverrides
-        })
+        let cause
+
+        if (this.config.chainType === "hedera") {
+            // due to Hedera specific restrictions, we can't combine these two calls.
+            const [simulateHandleOpLastCause, simulateCallDataCause] =
+                await Promise.all([
+                    this.callPimlicoEntryPointSimulations({
+                        entryPoint,
+                        entryPointSimulationsCallData: [simulateHandleOpLast],
+                        stateOverrides
+                    }),
+                    this.callPimlicoEntryPointSimulations({
+                        entryPoint,
+                        entryPointSimulationsCallData: [simulateCallData],
+                        stateOverrides
+                    })
+                ])
+
+            cause = [simulateHandleOpLastCause[0], simulateCallDataCause[0]]
+        } else {
+            cause = await this.callPimlicoEntryPointSimulations({
+                entryPoint,
+                entryPointSimulationsCallData: [
+                    simulateHandleOpLast,
+                    simulateCallData
+                ],
+                stateOverrides
+            })
+        }
 
         cause = cause.map((data: Hex) => {
             const decodedDelegateAndError = decodeErrorResult({
@@ -384,13 +386,15 @@ export class GasEstimatorV07 {
         entryPointSimulationsCallData: Hex[]
         stateOverrides?: StateOverrides
     }) {
-        const {
-            publicClient,
-            blockTagSupport,
-            utilityWalletAddress,
-            entryPointSimulationsAddress,
-            fixedGasLimitForEstimation
-        } = this
+        const publicClient = this.config.publicClient
+        const blockTagSupport = this.config.blockTagSupport
+        const utilityWalletAddress =
+            this.config.utilityPrivateKey?.address ??
+            "0x4337000c2828F5260d8921fD25829F606b9E8680"
+        const entryPointSimulationsAddress =
+            this.config.entrypointSimulationContract
+        const fixedGasLimitForEstimation =
+            this.config.fixedGasLimitForEstimation
 
         if (!entryPointSimulationsAddress) {
             throw new RpcError(

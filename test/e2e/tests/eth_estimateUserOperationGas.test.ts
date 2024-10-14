@@ -1,6 +1,6 @@
-import { test, describe, expect, beforeEach } from "vitest"
-import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils"
 import type { EntryPointVersion } from "viem/account-abstraction"
+import { beforeEach, describe, expect, test } from "vitest"
+import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils"
 
 describe.each([
     {

@@ -1,8 +1,10 @@
+import type { EventManager } from "@alto/handlers"
+import type { MemoryMempool } from "@alto/mempool"
 import {
     EntryPointV06Abi,
+    EntryPointV07Abi,
     type MempoolUserOperation,
-    deriveUserOperation,
-    EntryPointV07Abi
+    deriveUserOperation
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
@@ -12,15 +14,12 @@ import {
 } from "@alto/utils"
 import {
     type Address,
-    type Chain,
     type Hash,
     type MulticallReturnType,
     type PublicClient,
-    type Transport,
     getContract
 } from "viem"
-import type { MemoryMempool } from "@alto/mempool"
-import type { EventManager } from "@alto/handlers"
+import type { AltoConfig } from "../createConfig"
 
 type QueuedUserOperation = {
     entryPoint: Address
@@ -34,23 +33,28 @@ type QueuedUserOperation = {
 export class NonceQueuer {
     queuedUserOperations: QueuedUserOperation[] = []
 
+    config: AltoConfig
     mempool: MemoryMempool
-    publicClient: PublicClient<Transport, Chain>
     logger: Logger
-    blockTagSupport: boolean
     eventManager: EventManager
 
-    constructor(
-        mempool: MemoryMempool,
-        publicClient: PublicClient<Transport, Chain>,
-        logger: Logger,
-        blockTagSupport: boolean,
+    constructor({
+        config,
+        mempool,
+        eventManager
+    }: {
+        config: AltoConfig
+        mempool: MemoryMempool
         eventManager: EventManager
-    ) {
+    }) {
+        this.config = config
         this.mempool = mempool
-        this.publicClient = publicClient
-        this.logger = logger
-        this.blockTagSupport = blockTagSupport
+        this.logger = config.getLogger(
+            { module: "nonce_queuer" },
+            {
+                level: config.nonceQueuerLogLevel || config.logLevel
+            }
+        )
         this.eventManager = eventManager
 
         setInterval(() => {
@@ -69,7 +73,7 @@ export class NonceQueuer {
         }
 
         const availableOps = await this.getAvailableUserOperations(
-            this.publicClient
+            this.config.publicClient
         )
 
         if (availableOps.length === 0) {
@@ -99,7 +103,7 @@ export class NonceQueuer {
         const hash = getUserOperationHash(
             deriveUserOperation(mempoolUserOperation),
             entryPoint,
-            this.publicClient.chain.id
+            this.config.publicClient.chain.id
         )
         this.queuedUserOperations.push({
             entryPoint,
@@ -154,7 +158,7 @@ export class NonceQueuer {
                         args: [userOperation.sender, qop.nonceKey]
                     }
                 }),
-                blockTag: this.blockTagSupport ? "latest" : undefined
+                blockTag: this.config.blockTagSupport ? "latest" : undefined
             })
         } catch (error) {
             this.logger.error(

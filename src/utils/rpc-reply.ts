@@ -1,5 +1,5 @@
 import type { FastifyReply } from "fastify"
-import * as WebSocket from "ws"
+import type * as WebSocket from "ws"
 
 class RpcReply {
     private http: FastifyReply | null

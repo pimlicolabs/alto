@@ -1,9 +1,9 @@
-import type { Metrics } from "@alto/utils"
 import type {
     HexData32,
     SubmittedUserOperation,
     UserOperationInfo
 } from "@alto/types"
+import type { Metrics } from "@alto/utils"
 import type { Logger } from "@alto/utils"
 
 export class MemoryStore {

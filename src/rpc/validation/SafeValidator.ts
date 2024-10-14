@@ -1,5 +1,6 @@
+import type { SenderManager } from "@alto/executor"
+import type { GasPriceManager } from "@alto/handlers"
 import type {
-    ChainType,
     InterfaceValidator,
     UserOperationV06,
     UserOperationV07,
@@ -10,22 +11,21 @@ import type {
     ValidationResultWithAggregationV07
 } from "@alto/types"
 import {
+    type Address,
     CodeHashGetterAbi,
     CodeHashGetterBytecode,
     EntryPointV06Abi,
     EntryPointV07SimulationsAbi,
-    RpcError,
-    ValidationErrors,
-    type Address,
+    PimlicoEntryPointSimulationsAbi,
     type ReferencedCodeHashes,
+    RpcError,
     type StakeInfo,
     type StorageMap,
     type UserOperation,
-    type ValidationResultWithAggregation,
-    PimlicoEntryPointSimulationsAbi
+    ValidationErrors,
+    type ValidationResultWithAggregation
 } from "@alto/types"
-import type { Logger, Metrics } from "@alto/utils"
-import type { GasPriceManager } from "@alto/handlers"
+import type { Metrics } from "@alto/utils"
 import {
     calcVerificationGasAndCallGasLimit,
     getAddressFromInitCodeOrPaymasterAndData,
@@ -34,27 +34,24 @@ import {
     toPackedUserOperation
 } from "@alto/utils"
 import {
+    type ExecutionRevertedError,
+    type Hex,
     decodeErrorResult,
     encodeDeployData,
     encodeFunctionData,
-    zeroAddress,
-    type Chain,
-    type ExecutionRevertedError,
-    type Hex,
-    type PublicClient,
-    type Transport
+    zeroAddress
 } from "viem"
 import { getSimulateValidationResult } from "../estimation/gasEstimationsV07"
 import {
-    bundlerCollectorTracer,
     type BundlerTracerResult,
-    type ExitInfo
+    type ExitInfo,
+    bundlerCollectorTracer
 } from "./BundlerCollectorTracerV07"
 import { tracerResultParserV06 } from "./TracerResultParserV06"
 import { tracerResultParserV07 } from "./TracerResultParserV07"
 import { UnsafeValidator } from "./UnsafeValidator"
 import { debug_traceCall } from "./tracer"
-import type { SenderManager } from "@alto/executor"
+import type { AltoConfig } from "../../createConfig"
 
 export class SafeValidator
     extends UnsafeValidator
@@ -62,37 +59,22 @@ export class SafeValidator
 {
     private senderManager: SenderManager
 
-    constructor(
-        publicClient: PublicClient<Transport, Chain>,
-        senderManager: SenderManager,
-        logger: Logger,
-        metrics: Metrics,
-        gasPriceManager: GasPriceManager,
-        chainType: ChainType,
-        blockTagSupport: boolean,
-        utilityWalletAddress: Address,
-        binarySearchToleranceDelta: bigint,
-        binarySearchGasAllowance: bigint,
-        entryPointSimulationsAddress?: Address,
-        fixedGasLimitForEstimation?: bigint,
-        usingTenderly = false,
-        balanceOverrideEnabled = false
-    ) {
-        super(
-            publicClient,
-            logger,
+    constructor({
+        config,
+        senderManager,
+        metrics,
+        gasPriceManager
+    }: {
+        config: AltoConfig
+        senderManager: SenderManager
+        metrics: Metrics
+        gasPriceManager: GasPriceManager
+    }) {
+        super({
+            config,
             metrics,
-            gasPriceManager,
-            chainType,
-            blockTagSupport,
-            utilityWalletAddress,
-            binarySearchToleranceDelta,
-            binarySearchGasAllowance,
-            entryPointSimulationsAddress,
-            fixedGasLimitForEstimation,
-            usingTenderly,
-            balanceOverrideEnabled
-        )
+            gasPriceManager
+        })
         this.senderManager = senderManager
     }
 
@@ -126,7 +108,7 @@ export class SafeValidator
                             preOpGas: validationResult.returnInfo.preOpGas,
                             paid: validationResult.returnInfo.prefund
                         },
-                        this.chainId
+                        this.config.publicClient.chain.id
                     )
 
                 let mul = 1n
@@ -181,7 +163,7 @@ export class SafeValidator
         let hash = ""
 
         try {
-            await this.publicClient.call({
+            await this.config.publicClient.call({
                 account: wallet,
                 data: deployData
             })
@@ -210,7 +192,7 @@ export class SafeValidator
             referencedContracts?: ReferencedCodeHashes
         }
     > {
-        if (this.usingTenderly) {
+        if (this.config.tenderly) {
             return super.getValidationResultV07(
                 userOperation,
                 queuedUserOperations,
@@ -281,7 +263,7 @@ export class SafeValidator
             storageMap: StorageMap
         }
     > {
-        if (this.usingTenderly) {
+        if (this.config.tenderly) {
             return super.getValidationResultV06(userOperation, entryPoint)
         }
 
@@ -359,7 +341,7 @@ export class SafeValidator
         entryPoint: Address
     ): Promise<[ValidationResultV06, BundlerTracerResult]> {
         const tracerResult = await debug_traceCall(
-            this.publicClient,
+            this.config.publicClient,
             {
                 from: zeroAddress,
                 to: entryPoint,
@@ -518,11 +500,10 @@ export class SafeValidator
         })
 
         const entryPointSimulationsAddress =
-            this.gasEstimationHandler.gasEstimatorV07
-                .entryPointSimulationsAddress
+            this.config.entrypointSimulationContract
 
         const tracerResult = await debug_traceCall(
-            this.publicClient,
+            this.config.publicClient,
             {
                 from: zeroAddress,
                 to: entryPointSimulationsAddress,

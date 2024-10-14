@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process"
+import { http, type Hex, createTestClient, parseEther } from "viem"
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
-import { type Hex, createTestClient, http, parseEther } from "viem"
 import waitPort from "wait-port"
 import { sleep } from "./utils"
 

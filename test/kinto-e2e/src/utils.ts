@@ -1,5 +1,5 @@
 import type { UserOperation } from "permissionless"
-import { defineChain, type Hex, type Hash, type Address } from "viem"
+import { type Address, type Hash, type Hex, defineChain } from "viem"
 
 export const prettyPrintTxHash = (hash: Hash) => {
     return `https://kintoscan.io/tx/${hash}`

@@ -1,9 +1,10 @@
-import type { Metrics } from "@alto/utils"
+import type { EventManager } from "@alto/handlers"
 // import { MongoClient, Collection, Filter } from "mongodb"
 // import { PublicClient, getContract } from "viem"
 // import { EntryPointAbi } from "../types/EntryPoint"
 import {
     EntryPointV06Abi,
+    EntryPointV07Abi,
     type InterfaceValidator,
     type MempoolUserOperation,
     type ReferencedCodeHashes,
@@ -15,12 +16,11 @@ import {
     type UserOperationInfo,
     ValidationErrors,
     type ValidationResult,
-    deriveUserOperation,
-    EntryPointV07Abi
+    deriveUserOperation
 } from "@alto/types"
 import type { HexData32 } from "@alto/types"
+import type { Metrics } from "@alto/utils"
 import type { Logger } from "@alto/utils"
-import type { EventManager } from "@alto/handlers"
 import {
     getAddressFromInitCodeOrPaymasterAndData,
     getNonceKeyAndValue,
@@ -28,60 +28,52 @@ import {
     isVersion06,
     isVersion07
 } from "@alto/utils"
-import {
-    type Address,
-    type Chain,
-    type PublicClient,
-    type Transport,
-    getAddress,
-    getContract
-} from "viem"
+import { type Address, getAddress, getContract } from "viem"
 import type { Monitor } from "./monitoring"
 import {
     type InterfaceReputationManager,
     ReputationStatuses
 } from "./reputationManager"
 import { MemoryStore } from "./store"
+import type { AltoConfig } from "../createConfig"
 
 export class MemoryMempool {
+    private config: AltoConfig
     private monitor: Monitor
-    private publicClient: PublicClient<Transport, Chain>
     private reputationManager: InterfaceReputationManager
     private store: MemoryStore
     private throttledEntityBundleCount: number
     private logger: Logger
     private validator: InterfaceValidator
-    private safeMode: boolean
-    private parallelUserOpsMaxSize: number
-    private queuedUserOpsMaxSize: number
-    private onlyUniqueSendersPerBundle: boolean
     private eventManager: EventManager
 
-    constructor(
-        monitor: Monitor,
-        reputationManager: InterfaceReputationManager,
-        validator: InterfaceValidator,
-        publicClient: PublicClient<Transport, Chain>,
-        safeMode: boolean,
-        logger: Logger,
-        metrics: Metrics,
-        parallelUserOpsMaxSize: number,
-        queuedUserOpsMaxSize: number,
-        onlyUniqueSendersPerBundle: boolean,
-        eventManager: EventManager,
-        throttledEntityBundleCount?: number
-    ) {
+    constructor({
+        config,
+        monitor,
+        reputationManager,
+        validator,
+        metrics,
+        eventManager
+    }: {
+        config: AltoConfig
+        monitor: Monitor
+        reputationManager: InterfaceReputationManager
+        validator: InterfaceValidator
+        metrics: Metrics
+        eventManager: EventManager
+    }) {
+        this.config = config
         this.reputationManager = reputationManager
         this.monitor = monitor
         this.validator = validator
-        this.publicClient = publicClient
-        this.safeMode = safeMode
-        this.logger = logger
-        this.store = new MemoryStore(logger, metrics)
-        this.parallelUserOpsMaxSize = parallelUserOpsMaxSize
-        this.queuedUserOpsMaxSize = queuedUserOpsMaxSize
-        this.onlyUniqueSendersPerBundle = onlyUniqueSendersPerBundle
-        this.throttledEntityBundleCount = throttledEntityBundleCount ?? 4
+        this.logger = config.getLogger(
+            { module: "mempool" },
+            {
+                level: config.logLevel
+            }
+        )
+        this.store = new MemoryStore(this.logger, metrics)
+        this.throttledEntityBundleCount = 4 // we don't have any config for this as of now
         this.eventManager = eventManager
     }
 
@@ -152,11 +144,11 @@ export class MemoryMempool {
         this.store.removeProcessing(userOpHash)
     }
 
-    // biome-ignore lint/suspicious/useAwait: keep async to adhere to interface
-    async checkEntityMultipleRoleViolation(op: UserOperation): Promise<void> {
-        if (!this.safeMode) {
-            return
+    checkEntityMultipleRoleViolation(op: UserOperation): Promise<void> {
+        if (!this.config.safeMode) {
+            return Promise.resolve()
         }
+
         const knownEntities = this.getKnownEntities()
 
         if (
@@ -197,6 +189,7 @@ export class MemoryMempool {
                 ValidationErrors.OpcodeValidation
             )
         }
+        return Promise.resolve()
     }
 
     getKnownEntities(): {
@@ -253,7 +246,7 @@ export class MemoryMempool {
         const opHash = getUserOperationHash(
             op,
             entryPoint,
-            this.publicClient.chain.id
+            this.config.publicClient.chain.id
         )
 
         const outstandingOps = [...this.store.dumpOutstanding()]
@@ -374,7 +367,7 @@ export class MemoryMempool {
                 return userOp.sender === op.sender
             }).length
 
-        if (parallelUserOperationsCount > this.parallelUserOpsMaxSize) {
+        if (parallelUserOperationsCount > this.config.mempoolMaxParallelOps) {
             return [
                 false,
                 "AA25 invalid account nonce: Maximum number of parallel user operations for that is allowed for this sender reached"
@@ -394,7 +387,7 @@ export class MemoryMempool {
                 return userOp.sender === op.sender && opNonceKey === nonceKey
             }).length
 
-        if (queuedUserOperationsCount > this.queuedUserOpsMaxSize) {
+        if (queuedUserOperationsCount > this.config.mempoolMaxQueuedOps) {
             return [
                 false,
                 "AA25 invalid account nonce: Maximum number of queued user operations reached for this sender and nonce key"
@@ -443,7 +436,7 @@ export class MemoryMempool {
         storageMap: StorageMap
     }> {
         const op = deriveUserOperation(opInfo.mempoolUserOperation)
-        if (!this.safeMode) {
+        if (!this.config.safeMode) {
             return {
                 skip: false,
                 paymasterDeposit,
@@ -530,7 +523,10 @@ export class MemoryMempool {
             }
         }
 
-        if (senders.has(op.sender) && this.onlyUniqueSendersPerBundle) {
+        if (
+            senders.has(op.sender) &&
+            this.config.enforceUniqueSendersPerBundle
+        ) {
             this.logger.trace(
                 {
                     sender: op.sender,
@@ -614,7 +610,7 @@ export class MemoryMempool {
                     abi: isUserOpV06 ? EntryPointV06Abi : EntryPointV07Abi,
                     address: opInfo.entryPoint,
                     client: {
-                        public: this.publicClient
+                        public: this.config.publicClient
                     }
                 })
                 paymasterDeposit[paymaster] =
@@ -776,7 +772,7 @@ export class MemoryMempool {
                 ? EntryPointV06Abi
                 : EntryPointV07Abi,
             client: {
-                public: this.publicClient
+                public: this.config.publicClient
             }
         })
 

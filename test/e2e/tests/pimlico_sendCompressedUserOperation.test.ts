@@ -1,4 +1,21 @@
-import { describe, test, beforeAll, expect, beforeEach } from "vitest"
+import type { PimlicoClient } from "permissionless/clients/pimlico"
+import {
+    http,
+    createPublicClient,
+    createTestClient,
+    getAddress,
+    getContract,
+    parseEther,
+    parseGwei,
+    zeroAddress
+} from "viem"
+import {
+    type UserOperation,
+    UserOperationReceiptNotFoundError
+} from "viem/account-abstraction"
+import { foundry } from "viem/chains"
+import { beforeAll, beforeEach, describe, expect, test } from "vitest"
+import { ANVIL_RPC } from "../src/constants"
 import {
     beforeEachCleanUp,
     getPimlicoClient,
@@ -6,23 +23,6 @@ import {
     sendBundleNow,
     setBundlingMode
 } from "../src/utils"
-import {
-    createPublicClient,
-    createTestClient,
-    getAddress,
-    getContract,
-    http,
-    parseEther,
-    parseGwei,
-    zeroAddress
-} from "viem"
-import { ANVIL_RPC } from "../src/constants"
-import { foundry } from "viem/chains"
-import type { PimlicoClient } from "permissionless/clients/pimlico"
-import {
-    UserOperationReceiptNotFoundError,
-    type UserOperation
-} from "viem/account-abstraction"
 
 const publicClient = createPublicClient({
     transport: http(ANVIL_RPC),

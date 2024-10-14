@@ -1,20 +1,20 @@
 import {
-    RpcError,
-    gasStationResult,
     type GasPriceParameters,
-    type ChainType
+    RpcError,
+    gasStationResult
 } from "@alto/types"
-import { maxBigInt, minBigInt, type Logger } from "@alto/utils"
+import { type Logger, maxBigInt, minBigInt } from "@alto/utils"
 import * as sentry from "@sentry/node"
-import { parseGwei, type Chain, type PublicClient, maxUint128 } from "viem"
+import { type PublicClient, maxUint128, parseGwei } from "viem"
 import {
+    avalanche,
     celo,
     celoAlfajores,
     dfk,
-    avalanche,
     polygon,
     polygonMumbai
 } from "viem/chains"
+import type { AltoConfig } from "../createConfig"
 
 enum ChainId {
     Goerli = 5,
@@ -129,10 +129,7 @@ class ArbitrumManager {
 }
 
 export class GasPriceManager {
-    private chain: Chain
-    private publicClient: PublicClient
-    private legacyTransactions: boolean
-    private logger: Logger
+    private readonly config: AltoConfig
     private queueBaseFeePerGas: { timestamp: number; baseFeePerGas: bigint }[] =
         [] // Store pairs of [price, timestamp]
     private queueMaxFeePerGas: { timestamp: number; maxFeePerGas: bigint }[] =
@@ -141,40 +138,29 @@ export class GasPriceManager {
         timestamp: number
         maxPriorityFeePerGas: bigint
     }[] = [] // Store pairs of [price, timestamp]
-    private maxQueueSize
-    private gasBumpMultiplier: bigint
-    private gasPriceRefreshIntervalInSeconds: number
-    private chainType: ChainType
     public arbitrumManager: ArbitrumManager
+    private maxQueueSize: number
+    private logger: Logger
 
-    constructor(
-        chain: Chain,
-        publicClient: PublicClient,
-        legacyTransactions: boolean,
-        logger: Logger,
-        gasBumpMultiplier: bigint,
-        gasPriceTimeValidityInSeconds: number,
-        gasPriceRefreshIntervalInSeconds: number,
-        chainType: ChainType
-    ) {
-        this.maxQueueSize = gasPriceTimeValidityInSeconds
-        this.chain = chain
-        this.publicClient = publicClient
-        this.legacyTransactions = legacyTransactions
-        this.logger = logger
-        this.gasBumpMultiplier = gasBumpMultiplier
-        this.gasPriceRefreshIntervalInSeconds = gasPriceRefreshIntervalInSeconds
-        this.chainType = chainType
+    constructor(config: AltoConfig) {
+        this.config = config
+        this.logger = config.getLogger(
+            { module: "gas_price_manager" },
+            {
+                level: config.publicClientLogLevel || config.logLevel
+            }
+        )
+        this.maxQueueSize = this.config.gasPriceExpiry
 
         // Periodically update gas prices if specified
-        if (this.gasPriceRefreshIntervalInSeconds > 0) {
+        if (this.config.gasPriceRefreshInterval > 0) {
             setInterval(() => {
-                if (this.legacyTransactions === false) {
+                if (this.config.legacyTransactions === false) {
                     this.updateBaseFee()
                 }
 
                 this.updateGasPrice()
-            }, this.gasPriceRefreshIntervalInSeconds * 1000)
+            }, this.config.gasPriceRefreshInterval * 1000)
         }
 
         this.arbitrumManager = new ArbitrumManager(this.maxQueueSize)
@@ -183,7 +169,7 @@ export class GasPriceManager {
     public init() {
         return Promise.all([
             this.updateGasPrice(),
-            this.legacyTransactions === false
+            this.config.legacyTransactions === false
                 ? this.updateBaseFee()
                 : Promise.resolve()
         ])
@@ -203,7 +189,9 @@ export class GasPriceManager {
     }
 
     private async getPolygonGasPriceParameters(): Promise<GasPriceParameters | null> {
-        const gasStationUrl = getGasStationUrl(this.chain.id)
+        const gasStationUrl = getGasStationUrl(
+            this.config.publicClient.chain.id
+        )
         try {
             const data = await (await fetch(gasStationUrl)).json()
             // take the standard speed here, SDK options will define the extra tip
@@ -222,11 +210,11 @@ export class GasPriceManager {
     private bumpTheGasPrice(
         gasPriceParameters: GasPriceParameters
     ): GasPriceParameters {
-        const bumpAmount = this.gasBumpMultiplier
+        const bumpAmount = this.config.gasPriceBump
 
         const maxPriorityFeePerGas = maxBigInt(
             gasPriceParameters.maxPriorityFeePerGas,
-            this.getDefaultGasFee(this.chain.id)
+            this.getDefaultGasFee(this.config.publicClient.chain.id)
         )
         const maxFeePerGas = maxBigInt(
             gasPriceParameters.maxFeePerGas,
@@ -238,7 +226,10 @@ export class GasPriceManager {
             maxPriorityFeePerGas: (maxPriorityFeePerGas * bumpAmount) / 100n
         }
 
-        if (this.chain.id === celo.id || this.chain.id === celoAlfajores.id) {
+        if (
+            this.config.publicClient.chain.id === celo.id ||
+            this.config.publicClient.chain.id === celoAlfajores.id
+        ) {
             const maxFee = maxBigInt(
                 result.maxFeePerGas,
                 result.maxPriorityFeePerGas
@@ -249,7 +240,7 @@ export class GasPriceManager {
             }
         }
 
-        if (this.chain.id === dfk.id) {
+        if (this.config.publicClient.chain.id === dfk.id) {
             const maxFeePerGas = maxBigInt(5_000_000_000n, result.maxFeePerGas)
             const maxPriorityFeePerGas = maxBigInt(
                 5_000_000_000n,
@@ -263,7 +254,7 @@ export class GasPriceManager {
         }
 
         // set a minimum maxPriorityFee & maxFee to 1.5gwei on avalanche (because eth_maxPriorityFeePerGas returns 0)
-        if (this.chain.id === avalanche.id) {
+        if (this.config.publicClient.chain.id === avalanche.id) {
             const maxFeePerGas = maxBigInt(
                 parseGwei("1.5"),
                 result.maxFeePerGas
@@ -332,8 +323,8 @@ export class GasPriceManager {
     private async getLegacyTransactionGasPrice(): Promise<GasPriceParameters> {
         let gasPrice: bigint | undefined
         try {
-            const gasInfo = await this.publicClient.estimateFeesPerGas({
-                chain: this.chain,
+            const gasInfo = await this.config.publicClient.estimateFeesPerGas({
+                chain: this.config.publicClient.chain,
                 type: "legacy"
             })
             gasPrice = gasInfo.gasPrice
@@ -349,7 +340,7 @@ export class GasPriceManager {
         if (gasPrice === undefined) {
             this.logger.warn("gasPrice is undefined, using fallback value")
             try {
-                gasPrice = await this.publicClient.getGasPrice()
+                gasPrice = await this.config.publicClient.getGasPrice()
             } catch (e) {
                 this.logger.error("failed to get fallback gasPrice")
                 sentry.captureException(e)
@@ -368,8 +359,8 @@ export class GasPriceManager {
         let maxPriorityFeePerGas: bigint | undefined
 
         try {
-            const fees = await this.publicClient.estimateFeesPerGas({
-                chain: this.chain
+            const fees = await this.config.publicClient.estimateFeesPerGas({
+                chain: this.config.publicClient.chain
             })
             maxFeePerGas = fees.maxFeePerGas
             maxPriorityFeePerGas = fees.maxPriorityFeePerGas
@@ -390,7 +381,7 @@ export class GasPriceManager {
             try {
                 maxPriorityFeePerGas =
                     await this.getFallBackMaxPriorityFeePerGas(
-                        this.publicClient,
+                        this.config.publicClient,
                         maxFeePerGas ?? 0n
                     )
             } catch (e) {
@@ -404,7 +395,7 @@ export class GasPriceManager {
             this.logger.warn("maxFeePerGas is undefined, using fallback value")
             try {
                 maxFeePerGas =
-                    (await this.getNextBaseFee(this.publicClient)) +
+                    (await this.getNextBaseFee(this.config.publicClient)) +
                     maxPriorityFeePerGas
             } catch (e) {
                 this.logger.error("failed to get fallback maxFeePerGas")
@@ -481,8 +472,8 @@ export class GasPriceManager {
         let maxPriorityFeePerGas = 0n
 
         if (
-            this.chain.id === polygon.id ||
-            this.chain.id === polygonMumbai.id
+            this.config.publicClient.chain.id === polygon.id ||
+            this.config.publicClient.chain.id === polygonMumbai.id
         ) {
             const polygonEstimate = await this.getPolygonGasPriceParameters()
             if (polygonEstimate) {
@@ -504,7 +495,7 @@ export class GasPriceManager {
             }
         }
 
-        if (this.legacyTransactions) {
+        if (this.config.legacyTransactions) {
             const gasPrice = this.bumpTheGasPrice(
                 await this.getLegacyTransactionGasPrice()
             )
@@ -536,7 +527,7 @@ export class GasPriceManager {
     }
 
     private async updateBaseFee(): Promise<bigint> {
-        const latestBlock = await this.publicClient.getBlock()
+        const latestBlock = await this.config.publicClient.getBlock()
         if (latestBlock.baseFeePerGas === null) {
             throw new RpcError("block does not have baseFeePerGas")
         }
@@ -548,13 +539,13 @@ export class GasPriceManager {
     }
 
     public getBaseFee() {
-        if (this.legacyTransactions) {
+        if (this.config.legacyTransactions) {
             throw new RpcError(
                 "baseFee is not available for legacy transactions"
             )
         }
 
-        if (this.gasPriceRefreshIntervalInSeconds === 0) {
+        if (this.config.gasPriceRefreshInterval === 0) {
             return this.updateBaseFee()
         }
 
@@ -579,7 +570,7 @@ export class GasPriceManager {
     }
 
     public getGasPrice() {
-        if (this.gasPriceRefreshIntervalInSeconds === 0) {
+        if (this.config.gasPriceRefreshInterval === 0) {
             return this.updateGasPrice()
         }
 
@@ -634,7 +625,7 @@ export class GasPriceManager {
         let lowestMaxFeePerGas = await this.getMinMaxFeePerGas()
         let lowestMaxPriorityFeePerGas = await this.getMinMaxPriorityFeePerGas()
 
-        if (this.chainType === "hedera") {
+        if (this.config.chainType === "hedera") {
             lowestMaxFeePerGas /= 10n ** 9n
             lowestMaxPriorityFeePerGas /= 10n ** 9n
         }

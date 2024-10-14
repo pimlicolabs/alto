@@ -2,28 +2,28 @@ import type {
     DefaultFilterOpsAndEstimateGasParams,
     SenderManager
 } from "@alto/executor"
+import type {
+    CompressionHandler,
+    EventManager,
+    GasPriceManager
+} from "@alto/handlers"
 import type { InterfaceReputationManager } from "@alto/mempool"
 import {
-    type TransactionInfo,
     type Address,
-    type UserOperation,
     type BundleResult,
     type CompressedUserOperation,
-    type HexData32,
-    deriveUserOperation,
     EntryPointV06Abi,
     EntryPointV07Abi,
+    type HexData32,
+    type PackedUserOperation,
+    type TransactionInfo,
+    type UserOperation,
     type UserOperationV06,
     type UserOperationV07,
-    type PackedUserOperation,
-    type UserOperationWithHash
+    type UserOperationWithHash,
+    deriveUserOperation
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
-import type {
-    GasPriceManager,
-    CompressionHandler,
-    EventManager
-} from "@alto/handlers"
 import {
     getRequiredPrefund,
     getUserOperationHash,
@@ -33,10 +33,10 @@ import {
     scaleBigIntByPercent,
     toPackedUserOperation
 } from "@alto/utils"
-// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
 import * as sentry from "@sentry/node"
 import { Mutex } from "async-mutex"
 import {
+    type Account,
     FeeCapTooLowError,
     InsufficientFundsError,
     IntrinsicGasTooLowError,
@@ -52,13 +52,14 @@ import {
     TransactionExecutionError
 } from "viem"
 import {
+    type CompressedFilterOpsAndEstimateGasParams,
     createCompressedCalldata,
     filterOpsAndEstimateGas,
     flushStuckTransaction,
-    simulatedOpsToResults,
-    type CompressedFilterOpsAndEstimateGasParams
+    simulatedOpsToResults
 } from "./utils"
 import type { SendTransactionErrorType } from "viem"
+import type { AltoConfig } from "../createConfig"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -80,59 +81,46 @@ export type ReplaceTransactionResult =
 
 export class Executor {
     // private unWatch: WatchBlocksReturnType | undefined
-
-    publicClient: PublicClient
-    walletClient: WalletClient<Transport, Chain, Account | undefined>
-    entryPoints: Address[]
+    config: AltoConfig
     senderManager: SenderManager
     logger: Logger
     metrics: Metrics
-    simulateTransaction: boolean
-    legacyTransactions: boolean
-    fixedGasLimitForEstimation?: bigint
-    localGasLimitCalculation: boolean
     reputationManager: InterfaceReputationManager
     compressionHandler: CompressionHandler | null
     gasPriceManager: GasPriceManager
-    blockTagSupport: boolean
     mutex: Mutex
     eventManager: EventManager
-    noProfitBundling: boolean // if true, bundle such that all beneficiary fees go towards tx gasFees
 
-    constructor(
-        publicClient: PublicClient,
-        walletClient: WalletClient<Transport, Chain, Account | undefined>,
-        senderManager: SenderManager,
-        reputationManager: InterfaceReputationManager,
-        entryPoints: Address[],
-        logger: Logger,
-        metrics: Metrics,
-        compressionHandler: CompressionHandler | null,
-        gasPriceManager: GasPriceManager,
-        eventManager: EventManager,
-        simulateTransaction = false,
-        legacyTransactions = false,
-        fixedGasLimitForEstimation?: bigint,
-        blockTagSupport = true,
-        localGasLimitCalculation = false,
-        noProfitBundling = false
-    ) {
-        this.publicClient = publicClient
-        this.walletClient = walletClient
+    constructor({
+        config,
+        senderManager,
+        reputationManager,
+        metrics,
+        compressionHandler,
+        gasPriceManager,
+        eventManager
+    }: {
+        config: AltoConfig
+        senderManager: SenderManager
+        reputationManager: InterfaceReputationManager
+        metrics: Metrics
+        compressionHandler: CompressionHandler | null
+        gasPriceManager: GasPriceManager
+        eventManager: EventManager
+    }) {
+        this.config = config
         this.senderManager = senderManager
         this.reputationManager = reputationManager
-        this.logger = logger
+        this.logger = config.getLogger(
+            { module: "executor" },
+            {
+                level: config.executorLogLevel || config.logLevel
+            }
+        )
         this.metrics = metrics
-        this.simulateTransaction = simulateTransaction
-        this.legacyTransactions = legacyTransactions
-        this.fixedGasLimitForEstimation = fixedGasLimitForEstimation
-        this.localGasLimitCalculation = localGasLimitCalculation
         this.compressionHandler = compressionHandler
         this.gasPriceManager = gasPriceManager
         this.eventManager = eventManager
-        this.blockTagSupport = blockTagSupport
-        this.entryPoints = entryPoints
-        this.noProfitBundling = noProfitBundling
 
         this.mutex = new Mutex()
     }
@@ -183,7 +171,7 @@ export class Executor {
                     userOperationHash: getUserOperationHash(
                         op,
                         transactionInfo.entryPoint,
-                        this.walletClient.chain.id
+                        this.config.walletClient.chain.id
                     ),
                     entryPoint: opInfo.entryPoint
                 }
@@ -222,8 +210,8 @@ export class Executor {
                 abi: isUserOpVersion06 ? EntryPointV06Abi : EntryPointV07Abi,
                 address: entryPoint,
                 client: {
-                    public: this.publicClient,
-                    wallet: this.walletClient
+                    public: this.config.publicClient,
+                    wallet: this.config.walletClient
                 }
             })
 
@@ -235,7 +223,7 @@ export class Executor {
             const compressionHandler = this.getCompressionHandler()
 
             callContext = {
-                publicClient: this.publicClient,
+                publicClient: this.config.publicClient,
                 bundleBulker: compressionHandler.bundleBulkerAddress,
                 perOpInflatorId: compressionHandler.perOpInflatorId,
                 type: "compressed"
@@ -250,9 +238,9 @@ export class Executor {
             newRequest.nonce,
             newRequest.maxFeePerGas,
             newRequest.maxPriorityFeePerGas,
-            this.blockTagSupport ? "latest" : undefined,
-            this.legacyTransactions,
-            this.fixedGasLimitForEstimation,
+            this.config.blockTagSupport ? "latest" : undefined,
+            this.config.legacyTransactions,
+            this.config.fixedGasLimitForEstimation,
             this.reputationManager,
             this.logger
         )
@@ -301,7 +289,7 @@ export class Executor {
                 return opInfo
             })
 
-        if (this.localGasLimitCalculation) {
+        if (this.config.localGasLimitCalculation) {
             gasLimit = opsToBundle.reduce((acc, opInfo) => {
                 const userOperation = deriveUserOperation(
                     opInfo.mempoolUserOperation
@@ -403,8 +391,8 @@ export class Executor {
                 "replacing transaction"
             )
 
-            const txHash = await this.walletClient.sendTransaction(
-                this.legacyTransactions
+            const txHash = await this.config.walletClient.sendTransaction(
+                this.config.legacyTransactions
                     ? {
                           ...newRequest,
                           gasPrice: newRequest.maxFeePerGas,
@@ -418,7 +406,7 @@ export class Executor {
 
             opsToBundle.map((opToBundle) => {
                 const op = deriveUserOperation(opToBundle.mempoolUserOperation)
-                const chainId = this.publicClient.chain?.id
+                const chainId = this.config.publicClient.chain?.id
                 const opHash = getUserOperationHash(
                     op,
                     opToBundle.entryPoint,
@@ -507,8 +495,8 @@ export class Executor {
         const gasPrice = await this.gasPriceManager.getGasPrice()
         const promises = wallets.map((wallet) => {
             flushStuckTransaction(
-                this.publicClient,
-                this.walletClient,
+                this.config.publicClient,
+                this.config.walletClient,
                 wallet,
                 gasPrice.maxFeePerGas * 5n,
                 this.logger
@@ -607,7 +595,7 @@ export class Executor {
                 userOperationHash: getUserOperationHash(
                     op,
                     entryPoint,
-                    this.walletClient.chain.id
+                    this.config.walletClient.chain.id
                 )
             }
         })
@@ -631,8 +619,8 @@ export class Executor {
             abi: isUserOpVersion06 ? EntryPointV06Abi : EntryPointV07Abi,
             address: entryPoint,
             client: {
-                public: this.publicClient,
-                wallet: this.walletClient
+                public: this.config.publicClient,
+                wallet: this.config.walletClient
             }
         })
 
@@ -645,7 +633,7 @@ export class Executor {
         const gasPriceParameters = await this.gasPriceManager.getGasPrice()
         childLogger.debug({ gasPriceParameters }, "got gas price")
 
-        const nonce = await this.publicClient.getTransactionCount({
+        const nonce = await this.config.publicClient.getTransactionCount({
             address: wallet.address,
             blockTag: "pending"
         })
@@ -664,9 +652,9 @@ export class Executor {
             nonce,
             gasPriceParameters.maxFeePerGas,
             gasPriceParameters.maxPriorityFeePerGas,
-            this.blockTagSupport ? "pending" : undefined,
-            this.legacyTransactions,
-            this.fixedGasLimitForEstimation,
+            this.config.blockTagSupport ? "pending" : undefined,
+            this.config.legacyTransactions,
+            this.config.fixedGasLimitForEstimation,
             this.reputationManager,
             childLogger
         )
@@ -740,7 +728,7 @@ export class Executor {
 
         let transactionHash: HexData32
         try {
-            const isLegacyTransaction = this.legacyTransactions
+            const isLegacyTransaction = this.config.legacyTransactions
 
             const gasOptions = isLegacyTransaction
                 ? { gasPrice: gasPriceParameters.maxFeePerGas }
@@ -750,7 +738,7 @@ export class Executor {
                           gasPriceParameters.maxPriorityFeePerGas
                   }
 
-            if (this.noProfitBundling) {
+            if (this.config.noProfitBundling) {
                 const gasPrice = totalBeneficiaryFees / gasLimit
                 if (isLegacyTransaction) {
                     gasOptions.gasPrice = gasPrice
@@ -813,7 +801,7 @@ export class Executor {
 
             if (
                 e?.details
-                    .toLowerCase()
+                    ?.toLowerCase()
                     .includes("replacement transaction underpriced")
             ) {
                 childLogger.error(
@@ -897,7 +885,7 @@ export class Executor {
                           ]
                       }),
                 gas: gasLimit,
-                chain: this.walletClient.chain,
+                chain: this.config.walletClient.chain,
                 maxFeePerGas: gasPriceParameters.maxFeePerGas,
                 maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
                 nonce: nonce
@@ -947,14 +935,14 @@ export class Executor {
         const gasPriceParameters = await this.gasPriceManager.getGasPrice()
         childLogger.debug({ gasPriceParameters }, "got gas price")
 
-        const nonce = await this.publicClient.getTransactionCount({
+        const nonce = await this.config.publicClient.getTransactionCount({
             address: wallet.address,
             blockTag: "pending"
         })
         childLogger.trace({ nonce }, "got nonce")
 
         const callContext: CompressedFilterOpsAndEstimateGasParams = {
-            publicClient: this.publicClient,
+            publicClient: this.config.publicClient,
             bundleBulker: compressionHandler.bundleBulkerAddress,
             perOpInflatorId: compressionHandler.perOpInflatorId,
             type: "compressed"
@@ -970,16 +958,16 @@ export class Executor {
                     userOperationHash: getUserOperationHash(
                         compressedOp.inflatedOp,
                         entryPoint,
-                        this.walletClient.chain.id
+                        this.config.walletClient.chain.id
                     )
                 }
             }),
             nonce,
             gasPriceParameters.maxFeePerGas,
             gasPriceParameters.maxPriorityFeePerGas,
-            this.blockTagSupport ? "pending" : undefined,
-            this.legacyTransactions,
-            this.fixedGasLimitForEstimation,
+            this.config.blockTagSupport ? "pending" : undefined,
+            this.config.legacyTransactions,
+            this.config.fixedGasLimitForEstimation,
             this.reputationManager,
             childLogger
         )
@@ -993,7 +981,7 @@ export class Executor {
                 const userOpHash = getUserOperationHash(
                     compressedOp.inflatedOp,
                     entryPoint,
-                    this.walletClient.chain.id
+                    this.config.walletClient.chain.id
                 )
 
                 return {
@@ -1033,7 +1021,7 @@ export class Executor {
 
         let transactionHash: HexData32
         try {
-            const gasOptions = this.legacyTransactions
+            const gasOptions = this.config.legacyTransactions
                 ? {
                       gasPrice: gasPriceParameters.maxFeePerGas
                   }
@@ -1051,7 +1039,7 @@ export class Executor {
             )
 
             // need to use sendTransaction to target BundleBulker's fallback
-            transactionHash = await this.walletClient.sendTransaction({
+            transactionHash = await this.config.walletClient.sendTransaction({
                 account: wallet,
                 to: compressionHandler.bundleBulkerAddress,
                 data: createCompressedCalldata(
@@ -1115,7 +1103,7 @@ export class Executor {
                 ),
                 gas: gasLimit,
                 account: wallet,
-                chain: this.walletClient.chain,
+                chain: this.config.walletClient.chain,
                 maxFeePerGas: gasPriceParameters.maxFeePerGas,
                 maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
                 nonce: nonce
