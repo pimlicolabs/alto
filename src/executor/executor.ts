@@ -36,7 +36,6 @@ import {
 import * as sentry from "@sentry/node"
 import { Mutex } from "async-mutex"
 import {
-    type Account,
     FeeCapTooLowError,
     InsufficientFundsError,
     IntrinsicGasTooLowError,
@@ -44,10 +43,6 @@ import {
     encodeFunctionData,
     getContract,
     type Account,
-    type Chain,
-    type PublicClient,
-    type Transport,
-    type WalletClient,
     type Hex,
     TransactionExecutionError
 } from "viem"
@@ -528,15 +523,18 @@ export class Executor {
                   nonce: number
               }
     ) {
-        const request = await this.walletClient.prepareTransactionRequest({
-            to: entryPoint,
-            data: encodeFunctionData({
-                abi: isUserOpVersion06 ? EntryPointV06Abi : EntryPointV07Abi,
-                functionName: "handleOps",
-                args: [userOps, opts.account.address]
-            }),
-            ...opts
-        })
+        const request =
+            await this.config.walletClient.prepareTransactionRequest({
+                to: entryPoint,
+                data: encodeFunctionData({
+                    abi: isUserOpVersion06
+                        ? EntryPointV06Abi
+                        : EntryPointV07Abi,
+                    functionName: "handleOps",
+                    args: [userOps, opts.account.address]
+                }),
+                ...opts
+            })
 
         let attempts = 0
         let transactionHash: Hex | undefined
@@ -546,11 +544,12 @@ export class Executor {
         while (attempts < maxAttempts) {
             try {
                 transactionHash =
-                    await this.walletClient.sendTransaction(request)
+                    await this.config.walletClient.sendTransaction(request)
 
                 break
             } catch (e: unknown) {
                 const error = e as SendTransactionErrorType
+                let isErrorHandled = false
 
                 if (error instanceof TransactionExecutionError) {
                     const cause = error.cause
@@ -558,20 +557,20 @@ export class Executor {
                     if (cause instanceof NonceTooLowError) {
                         this.logger.warn("Nonce too low, retrying")
                         request.nonce += 1
+                        isErrorHandled = true
                     }
 
                     if (cause instanceof IntrinsicGasTooLowError) {
                         this.logger.warn("Intrinsic gas too low, retrying")
                         request.gas = scaleBigIntByPercent(request.gas, 150)
+                        isErrorHandled = true
                     }
                 }
 
                 attempts++
-                if (attempts === maxAttempts) {
+                if (attempts === maxAttempts || !isErrorHandled) {
                     throw error
                 }
-
-                this.logger.warn(`Attempt ${attempts} failed. Retrying...`)
             }
         }
 

@@ -28,7 +28,8 @@ import {
     getContract,
     serializeTransaction,
     toBytes,
-    toFunctionSelector
+    toFunctionSelector,
+    InternalRpcError
 } from "viem"
 import { base, baseGoerli, baseSepolia } from "viem/chains"
 import { maxBigInt, minBigInt, scaleBigIntByPercent } from "./bigInt"
@@ -706,7 +707,7 @@ export function parseViemError(err: unknown) {
         if (e instanceof EstimateGasExecutionError) {
             return e
         }
-        if (e instanceof TransactionExecutionError) {
+        if (e instanceof InternalRpcError) {
             return e
         }
         return
