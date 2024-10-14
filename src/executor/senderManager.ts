@@ -47,7 +47,7 @@ export class SenderManager {
         gasPriceManager: GasPriceManager
     }) {
         this.config = config
-        this.logger = config.logger.child(
+        this.logger = config.getLogger(
             { module: "executor" },
             {
                 level: config.executorLogLevel || config.logLevel

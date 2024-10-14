@@ -51,7 +51,7 @@ export class UnsafeValidator implements InterfaceValidator {
     config: AltoConfig
     metrics: Metrics
     gasPriceManager: GasPriceManager
-
+    logger: Logger
     gasEstimationHandler: GasEstimationHandler
 
     constructor({
@@ -66,7 +66,12 @@ export class UnsafeValidator implements InterfaceValidator {
         this.config = config
         this.metrics = metrics
         this.gasPriceManager = gasPriceManager
-
+        this.logger = config.getLogger(
+            { module: "validator" },
+            {
+                level: config.logLevel
+            }
+        )
         this.gasEstimationHandler = new GasEstimationHandler(config)
     }
 
@@ -221,7 +226,7 @@ export class UnsafeValidator implements InterfaceValidator {
             ...((await this.getSimulationResult(
                 isVersion06(userOperation),
                 simulateValidationResult,
-                this.config.logger,
+                this.logger,
                 "validation",
                 this.config.tenderly
             )) as ValidationResultV06 | ValidationResultWithAggregationV06),
@@ -237,7 +242,7 @@ export class UnsafeValidator implements InterfaceValidator {
 
         const now = Date.now() / 1000
 
-        this.config.logger.debug({
+        this.logger.debug({
             validAfter: validationResult.returnInfo.validAfter,
             validUntil: validationResult.returnInfo.validUntil,
             now

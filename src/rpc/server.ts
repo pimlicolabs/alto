@@ -88,7 +88,7 @@ export class Server {
         metrics: Metrics
     }) {
         this.config = config
-        const logger = config.logger.child(
+        const logger = config.getLogger(
             { module: "rpc" },
             {
                 level: config.rpcLogLevel || config.logLevel

@@ -189,7 +189,7 @@ export class ReputationManager implements InterfaceReputationManager {
 
     constructor(config: AltoConfig) {
         this.config = config
-        this.logger = config.logger.child(
+        this.logger = config.getLogger(
             { module: "reputation_manager" },
             {
                 level: config.reputationManagerLogLevel || config.logLevel

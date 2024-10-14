@@ -313,7 +313,7 @@ export class SafeValidator
 
         const now = Date.now() / 1000
 
-        this.config.logger.debug({
+        this.logger.debug({
             validAfter: validationResult.returnInfo.validAfter,
             validUntil: validationResult.returnInfo.validUntil,
             now: now
@@ -514,7 +514,7 @@ export class SafeValidator
             }
         )
 
-        this.config.logger.info(
+        this.logger.info(
             `tracerResult: ${JSON.stringify(tracerResult, (_k, v) =>
                 typeof v === "bigint" ? v.toString() : v
             )}`

@@ -144,7 +144,7 @@ export class GasPriceManager {
 
     constructor(config: AltoConfig) {
         this.config = config
-        this.logger = config.logger.child(
+        this.logger = config.getLogger(
             { module: "gas_price_manager" },
             {
                 level: config.publicClientLogLevel || config.logLevel

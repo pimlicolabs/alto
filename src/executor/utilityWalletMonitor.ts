@@ -22,7 +22,7 @@ export class UtilityWalletMonitor {
         this.config = config
         this.utilityWalletAddress = utilityWalletAddress
         this.metrics = metrics
-        this.logger = config.logger.child(
+        this.logger = config.getLogger(
             { module: "utility_wallet_monitor" },
             {
                 level: config.logLevel

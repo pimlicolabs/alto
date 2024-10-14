@@ -344,7 +344,7 @@ export const setupServer = async ({
         executor.flushStuckTransactions()
     }
 
-    const rootLogger = config.logger.child(
+    const rootLogger = config.getLogger(
         { module: "root" },
         { level: config.logLevel }
     )

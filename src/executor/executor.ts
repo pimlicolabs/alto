@@ -102,7 +102,7 @@ export class Executor {
         this.config = config
         this.senderManager = senderManager
         this.reputationManager = reputationManager
-        this.logger = config.logger.child(
+        this.logger = config.getLogger(
             { module: "executor" },
             {
                 level: config.executorLogLevel || config.logLevel

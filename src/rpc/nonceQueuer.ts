@@ -49,7 +49,7 @@ export class NonceQueuer {
     }) {
         this.config = config
         this.mempool = mempool
-        this.logger = config.logger.child(
+        this.logger = config.getLogger(
             { module: "nonce_queuer" },
             {
                 level: config.nonceQueuerLogLevel || config.logLevel

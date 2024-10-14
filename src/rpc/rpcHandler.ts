@@ -157,7 +157,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.executor = executor
         this.monitor = monitor
         this.nonceQueuer = nonceQueuer
-        this.logger = config.logger.child(
+        this.logger = config.getLogger(
             { module: "rpc" },
             {
                 level: config.rpcLogLevel || config.logLevel

@@ -66,7 +66,7 @@ export class MemoryMempool {
         this.reputationManager = reputationManager
         this.monitor = monitor
         this.validator = validator
-        this.logger = config.logger.child(
+        this.logger = config.getLogger(
             { module: "mempool" },
             {
                 level: config.logLevel

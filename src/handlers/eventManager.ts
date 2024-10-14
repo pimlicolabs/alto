@@ -20,7 +20,7 @@ export class EventManager {
     }) {
         this.chainId = config.publicClient.chain.id
 
-        this.logger = config.logger.child(
+        this.logger = config.getLogger(
             { module: "event_manager" },
             {
                 level: config.logLevel

@@ -87,7 +87,7 @@ export class ExecutorManager {
         this.executor = executor
         this.mempool = mempool
         this.monitor = monitor
-        this.logger = config.logger.child(
+        this.logger = config.getLogger(
             { module: "executor_manager" },
             {
                 level: config.executorLogLevel || config.logLevel
