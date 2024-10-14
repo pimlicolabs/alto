@@ -23,7 +23,8 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description: "Address of the EntryPoint simulations contract",
         type: "string",
         alias: "c",
-        require: false
+        require: false,
+        default: "0xBbe8A301FbDb2a4CD58c4A37c262ecef8f889c47"
     },
     "executor-private-keys": {
         description: "Private keys of the executor accounts split by commas",
