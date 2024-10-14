@@ -30,18 +30,21 @@ import {
     isVersion06,
     maxBigInt,
     parseViemError,
+    scaleBigIntByPercent,
     toPackedUserOperation
 } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import { Mutex } from "async-mutex"
 import {
-    type Account,
     FeeCapTooLowError,
     InsufficientFundsError,
     IntrinsicGasTooLowError,
     NonceTooLowError,
     encodeFunctionData,
-    getContract
+    getContract,
+    type Account,
+    type Hex,
+    TransactionExecutionError
 } from "viem"
 import {
     type CompressedFilterOpsAndEstimateGasParams,
@@ -50,6 +53,7 @@ import {
     flushStuckTransaction,
     simulatedOpsToResults
 } from "./utils"
+import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
 
 export interface GasEstimateResult {
@@ -497,6 +501,87 @@ export class Executor {
         await Promise.all(promises)
     }
 
+    async sendHandleOpsTransaction(
+        userOps: PackedUserOperation[],
+        isUserOpVersion06: boolean,
+        entryPoint: Address,
+        opts:
+            | {
+                  gasPrice: bigint
+                  maxFeePerGas?: undefined
+                  maxPriorityFeePerGas?: undefined
+                  account: Account
+                  gas: bigint
+                  nonce: number
+              }
+            | {
+                  maxFeePerGas: bigint
+                  maxPriorityFeePerGas: bigint
+                  gasPrice?: undefined
+                  account: Account
+                  gas: bigint
+                  nonce: number
+              }
+    ) {
+        const request =
+            await this.config.walletClient.prepareTransactionRequest({
+                to: entryPoint,
+                data: encodeFunctionData({
+                    abi: isUserOpVersion06
+                        ? EntryPointV06Abi
+                        : EntryPointV07Abi,
+                    functionName: "handleOps",
+                    args: [userOps, opts.account.address]
+                }),
+                ...opts
+            })
+
+        let attempts = 0
+        let transactionHash: Hex | undefined
+        const maxAttempts = 3
+
+        // Try sending the transaction and updating relevant fields if there is an error.
+        while (attempts < maxAttempts) {
+            try {
+                transactionHash =
+                    await this.config.walletClient.sendTransaction(request)
+
+                break
+            } catch (e: unknown) {
+                const error = e as SendTransactionErrorType
+                let isErrorHandled = false
+
+                if (error instanceof TransactionExecutionError) {
+                    const cause = error.cause
+
+                    if (cause instanceof NonceTooLowError) {
+                        this.logger.warn("Nonce too low, retrying")
+                        request.nonce += 1
+                        isErrorHandled = true
+                    }
+
+                    if (cause instanceof IntrinsicGasTooLowError) {
+                        this.logger.warn("Intrinsic gas too low, retrying")
+                        request.gas = scaleBigIntByPercent(request.gas, 150)
+                        isErrorHandled = true
+                    }
+                }
+
+                attempts++
+                if (attempts === maxAttempts || !isErrorHandled) {
+                    throw error
+                }
+            }
+        }
+
+        // needed for TS
+        if (!transactionHash) {
+            throw new Error("Transaction hash not assigned")
+        }
+
+        return transactionHash as Hex
+    }
+
     async bundle(
         entryPoint: Address,
         ops: UserOperation[]
@@ -679,8 +764,10 @@ export class Executor {
                       )
             ) as PackedUserOperation[]
 
-            transactionHash = await ep.write.handleOps(
-                [userOps, wallet.address],
+            transactionHash = await this.sendHandleOpsTransaction(
+                userOps,
+                isUserOpVersion06,
+                entryPoint,
                 opts
             )
 
