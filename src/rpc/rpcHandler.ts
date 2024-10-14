@@ -115,7 +115,6 @@ export class RpcHandler implements IRpcEndpoint {
     executor: Executor
     monitor: Monitor
     nonceQueuer: NonceQueuer
-    rpcMaxBlockRange: number | undefined
     logger: Logger
     metrics: Metrics
     executorManager: ExecutorManager
@@ -617,9 +616,9 @@ export class RpcHandler implements IRpcEndpoint {
 
         let fromBlock: bigint | undefined
         let toBlock: "latest" | undefined
-        if (this.rpcMaxBlockRange !== undefined) {
+        if (this.config.maxBlockRange !== undefined) {
             const latestBlock = await this.config.publicClient.getBlockNumber()
-            fromBlock = latestBlock - BigInt(this.rpcMaxBlockRange)
+            fromBlock = latestBlock - BigInt(this.config.maxBlockRange)
             if (fromBlock < 0n) {
                 fromBlock = 0n
             }
