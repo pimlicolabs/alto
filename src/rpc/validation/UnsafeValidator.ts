@@ -213,6 +213,7 @@ export class UnsafeValidator implements InterfaceValidator {
             this.gasEstimationHandler.gasEstimatorV06.simulateHandleOpV06({
                 entryPoint,
                 userOperation,
+                useCodeOverride: false,
                 targetAddress: zeroAddress,
                 targetCallData: "0x"
             })
