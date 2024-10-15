@@ -12,7 +12,10 @@ import {
     Hex
 } from "viem"
 import { formatAbiItem, rpc } from "viem/utils"
-import { EntryPointV06Abi } from "../types/contracts"
+import {
+    EntryPointV06Abi,
+    EntryPointV06SimulationsAbi
+} from "../types/contracts"
 
 export type RpcRequest = {
     jsonrpc?: "2.0" | undefined
@@ -44,6 +47,16 @@ const FAILED_OP_SELECTOR = toFunctionSelector(
         getAbiItem({
             abi: EntryPointV06Abi,
             name: "FailedOp"
+        })
+    )
+)
+
+// custom selector for when code overrides are used.
+const CALLPHASE_REVERTED_SELECTOR = toFunctionSelector(
+    formatAbiItem(
+        getAbiItem({
+            abi: EntryPointV06SimulationsAbi,
+            name: "CallPhaseReverted"
         })
     )
 )
@@ -96,7 +109,8 @@ export function customTransport(
                                 [
                                     EXECUTION_RESULT_SELECTOR,
                                     VALIDATION_RESULT_SELECTOR,
-                                    FAILED_OP_SELECTOR
+                                    FAILED_OP_SELECTOR,
+                                    CALLPHASE_REVERTED_SELECTOR
                                 ].includes(errorSelector as Hex)
                             ) {
                                 loggerFn = logger.info.bind(logger)
