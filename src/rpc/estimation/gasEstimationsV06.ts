@@ -97,12 +97,14 @@ export class GasEstimatorV06 {
         targetAddress,
         targetCallData,
         entryPoint,
+        useCodeOverride = true,
         stateOverrides = undefined
     }: {
         userOperation: UserOperationV06
         targetAddress: Address
         targetCallData: Hex
         entryPoint: Address
+        useCodeOverride?: boolean
         stateOverrides?: StateOverrides | undefined
     }): Promise<SimulateHandleOpResult> {
         const publicClient = this.config.publicClient
@@ -113,7 +115,7 @@ export class GasEstimatorV06 {
         const fixedGasLimitForEstimation =
             this.config.fixedGasLimitForEstimation
 
-        if (this.config.codeOverrideSupport) {
+        if (this.config.codeOverrideSupport && useCodeOverride) {
             if (stateOverrides === undefined) {
                 stateOverrides = {}
             }

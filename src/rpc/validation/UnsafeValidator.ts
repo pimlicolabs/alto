@@ -213,6 +213,7 @@ export class UnsafeValidator implements InterfaceValidator {
             this.gasEstimationHandler.gasEstimatorV06.simulateHandleOpV06({
                 entryPoint,
                 userOperation,
+                useCodeOverride: false, // disable code override so that call phase reverts aren't caught
                 targetAddress: zeroAddress,
                 targetCallData: "0x"
             })
