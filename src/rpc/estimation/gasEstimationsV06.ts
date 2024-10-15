@@ -105,7 +105,6 @@ export class GasEstimatorV06 {
         targetCallData: Hex
         entryPoint: Address
         useCodeOverride?: boolean
-        enableCodeOverride?: boolean
         stateOverrides?: StateOverrides | undefined
     }): Promise<SimulateHandleOpResult> {
         const publicClient = this.config.publicClient
