@@ -5,7 +5,7 @@ import {
 } from "@alto/types"
 import { type Logger, maxBigInt, minBigInt } from "@alto/utils"
 import * as sentry from "@sentry/node"
-import { type PublicClient, maxUint128, parseGwei } from "viem"
+import { type PublicClient, parseGwei } from "viem"
 import {
     avalanche,
     celo,
@@ -27,6 +27,68 @@ enum ChainId {
 const MIN_POLYGON_GAS_PRICE = parseGwei("31")
 const MIN_MUMBAI_GAS_PRICE = parseGwei("1")
 
+class TimedValueQueue {
+    private queue: { timestamp: number; value: bigint }[]
+    private maxQueueSize: number
+    private queueValidity: number
+
+    constructor(maxQueueSize: number, queueValidity: number) {
+        this.queue = []
+        this.maxQueueSize = maxQueueSize
+        this.queueValidity = queueValidity
+    }
+
+    public saveValue(value: bigint) {
+        if (value === 0n) {
+            return
+        }
+
+        const last = this.queue[this.queue.length - 1]
+        const timestamp = Date.now()
+
+        if (!last || timestamp - last.timestamp >= this.queueValidity) {
+            if (this.queue.length >= this.maxQueueSize) {
+                this.queue.shift()
+            }
+            this.queue.push({ value, timestamp })
+        } else if (value < last.value) {
+            last.value = value
+            last.timestamp = timestamp
+        }
+    }
+
+    public getLatestValue(): bigint | null {
+        if (this.queue.length === 0) {
+            return null
+        }
+        return this.queue[this.queue.length - 1].value
+    }
+
+    public getMinValue(defaultValue: bigint) {
+        if (this.queue.length === 0) {
+            return defaultValue
+        }
+        return this.queue.reduce(
+            (acc, cur) => (cur.value < acc ? cur.value : acc),
+            this.queue[0].value
+        )
+    }
+
+    public getMaxValue(defaultValue: bigint) {
+        if (this.queue.length === 0) {
+            return defaultValue
+        }
+        return this.queue.reduce(
+            (acc, cur) => (cur.value > acc ? cur.value : acc),
+            this.queue[0].value
+        )
+    }
+
+    public isEmpty(): boolean {
+        return this.queue.length === 0
+    }
+}
+
 function getGasStationUrl(chainId: ChainId.Polygon | ChainId.Mumbai): string {
     switch (chainId) {
         case ChainId.Polygon:
@@ -36,109 +98,91 @@ function getGasStationUrl(chainId: ChainId.Polygon | ChainId.Mumbai): string {
     }
 }
 
-class ArbitrumManager {
-    private queueL1BaseFee: { timestamp: number; baseFee: bigint }[]
-    private queueL2BaseFee: { timestamp: number; baseFee: bigint }[]
-
-    private maxQueueSize
-    private queueValidity = 15_000
+class MantleManager {
+    private tokenRatioQueue: TimedValueQueue
+    private scalarQueue: TimedValueQueue
+    private rollupDataGasAndOverheadQueue: TimedValueQueue
+    private l1GasPriceQueue: TimedValueQueue
 
     constructor(maxQueueSize: number) {
-        this.maxQueueSize = maxQueueSize
-        this.queueL1BaseFee = []
-        this.queueL2BaseFee = []
+        const queueValidity = 15_000
+        this.tokenRatioQueue = new TimedValueQueue(maxQueueSize, queueValidity)
+        this.scalarQueue = new TimedValueQueue(maxQueueSize, queueValidity)
+        this.rollupDataGasAndOverheadQueue = new TimedValueQueue(
+            maxQueueSize,
+            queueValidity
+        )
+        this.l1GasPriceQueue = new TimedValueQueue(maxQueueSize, queueValidity)
+    }
+
+    public getMinMantleOracleValues() {
+        return {
+            minTokenRatio: this.tokenRatioQueue.getMinValue(1n),
+            minScalar: this.scalarQueue.getMinValue(1n),
+            minRollupDataGasAndOverhead:
+                this.rollupDataGasAndOverheadQueue.getMinValue(1n),
+            minL1GasPrice: this.l1GasPriceQueue.getMinValue(1n)
+        }
+    }
+
+    public saveMantleOracleValues({
+        tokenRatio,
+        scalar,
+        rollupDataGasAndOverhead,
+        l1GasPrice
+    }: {
+        tokenRatio: bigint
+        scalar: bigint
+        rollupDataGasAndOverhead: bigint
+        l1GasPrice: bigint
+    }) {
+        this.tokenRatioQueue.saveValue(tokenRatio)
+        this.scalarQueue.saveValue(scalar)
+        this.rollupDataGasAndOverheadQueue.saveValue(rollupDataGasAndOverhead)
+        this.l1GasPriceQueue.saveValue(l1GasPrice)
+    }
+}
+
+class ArbitrumManager {
+    private l1BaseFeeQueue: TimedValueQueue
+    private l2BaseFeeQueue: TimedValueQueue
+
+    constructor(maxQueueSize: number) {
+        const queueValidity = 15_000
+        this.l1BaseFeeQueue = new TimedValueQueue(maxQueueSize, queueValidity)
+        this.l2BaseFeeQueue = new TimedValueQueue(maxQueueSize, queueValidity)
     }
 
     public saveL1BaseFee(baseFee: bigint) {
-        if (baseFee === 0n) {
-            return
-        }
-
-        const queue = this.queueL1BaseFee
-        const last = queue.length > 0 ? queue[queue.length - 1] : null
-        const timestamp = Date.now()
-
-        if (!last || timestamp - last.timestamp >= this.queueValidity) {
-            if (queue.length >= this.maxQueueSize) {
-                queue.shift()
-            }
-            queue.push({ baseFee, timestamp })
-        } else if (baseFee < last.baseFee) {
-            last.baseFee = baseFee
-            last.timestamp = timestamp
-        }
+        this.l1BaseFeeQueue.saveValue(baseFee)
     }
 
     public saveL2BaseFee(baseFee: bigint) {
-        if (baseFee === 0n) {
-            return
-        }
-
-        const queue = this.queueL2BaseFee
-        const last = queue.length > 0 ? queue[queue.length - 1] : null
-        const timestamp = Date.now()
-
-        if (!last || timestamp - last.timestamp >= this.queueValidity) {
-            if (queue.length >= this.maxQueueSize) {
-                queue.shift()
-            }
-            queue.push({ baseFee, timestamp })
-        } else if (baseFee < last.baseFee) {
-            last.baseFee = baseFee
-            last.timestamp = timestamp
-        }
+        this.l2BaseFeeQueue.saveValue(baseFee)
     }
 
-    public async getMinL1BaseFee() {
-        const queue = this.queueL1BaseFee
-
-        if (queue.length === 0) {
-            return 1n
-        }
-        return queue.reduce(
-            (acc: bigint, cur) => minBigInt(cur.baseFee, acc),
-            queue[0].baseFee
-        )
+    public getMinL1BaseFee() {
+        return this.l1BaseFeeQueue.getMinValue(1n)
     }
 
-    public async getMaxL1BaseFee() {
-        const queue = this.queueL1BaseFee
-
-        if (queue.length === 0) {
-            return maxUint128
-        }
-
-        return queue.reduce(
-            (acc: bigint, cur) => maxBigInt(cur.baseFee, acc),
-            queue[0].baseFee
-        )
+    public getMaxL1BaseFee() {
+        const maxUint128 = (1n << 128n) - 1n
+        return this.l1BaseFeeQueue.getMaxValue(maxUint128)
     }
 
-    public async getMaxL2BaseFee() {
-        const queue = this.queueL2BaseFee
-
-        if (queue.length === 0) {
-            return maxUint128
-        }
-
-        return queue.reduce(
-            (acc: bigint, cur) => maxBigInt(cur.baseFee, acc),
-            queue[0].baseFee
-        )
+    public getMaxL2BaseFee() {
+        const maxUint128 = (1n << 128n) - 1n
+        return this.l2BaseFeeQueue.getMaxValue(maxUint128)
     }
 }
 
 export class GasPriceManager {
     private readonly config: AltoConfig
-    private queueBaseFeePerGas: { timestamp: number; baseFeePerGas: bigint }[] =
-        [] // Store pairs of [price, timestamp]
-    private queueMaxFeePerGas: { timestamp: number; maxFeePerGas: bigint }[] =
-        [] // Store pairs of [price, timestamp]
-    private queueMaxPriorityFeePerGas: {
-        timestamp: number
-        maxPriorityFeePerGas: bigint
-    }[] = [] // Store pairs of [price, timestamp]
+    private baseFeePerGasQueue: TimedValueQueue
+    private maxFeePerGasQueue: TimedValueQueue
+    private maxPriorityFeePerGasQueue: TimedValueQueue
     public arbitrumManager: ArbitrumManager
+    public mantleManager: MantleManager
     private maxQueueSize: number
     private logger: Logger
 
@@ -152,6 +196,20 @@ export class GasPriceManager {
         )
         this.maxQueueSize = this.config.gasPriceExpiry
 
+        const queueValidity = 1000 // milliseconds
+        this.baseFeePerGasQueue = new TimedValueQueue(
+            this.maxQueueSize,
+            queueValidity
+        )
+        this.maxFeePerGasQueue = new TimedValueQueue(
+            this.maxQueueSize,
+            queueValidity
+        )
+        this.maxPriorityFeePerGasQueue = new TimedValueQueue(
+            this.maxQueueSize,
+            queueValidity
+        )
+
         // Periodically update gas prices if specified
         if (this.config.gasPriceRefreshInterval > 0) {
             setInterval(() => {
@@ -164,6 +222,7 @@ export class GasPriceManager {
         }
 
         this.arbitrumManager = new ArbitrumManager(this.maxQueueSize)
+        this.mantleManager = new MantleManager(this.maxQueueSize)
     }
 
     public init() {
@@ -411,62 +470,6 @@ export class GasPriceManager {
         return { maxFeePerGas, maxPriorityFeePerGas }
     }
 
-    private saveBaseFeePerGas(gasPrice: bigint, timestamp: number) {
-        const queue = this.queueBaseFeePerGas
-        const last = queue.length > 0 ? queue[queue.length - 1] : null
-
-        if (!last || timestamp - last.timestamp >= 1000) {
-            if (queue.length >= this.maxQueueSize) {
-                queue.shift()
-            }
-            queue.push({ baseFeePerGas: gasPrice, timestamp })
-        } else if (gasPrice < last.baseFeePerGas) {
-            last.baseFeePerGas = gasPrice
-            last.timestamp = timestamp
-        }
-    }
-
-    private saveMaxFeePerGas(gasPrice: bigint, timestamp: number) {
-        const queue = this.queueMaxFeePerGas
-        const last = queue.length > 0 ? queue[queue.length - 1] : null
-
-        if (!last || timestamp - last.timestamp >= 1000) {
-            if (queue.length >= this.maxQueueSize) {
-                queue.shift()
-            }
-            queue.push({ maxFeePerGas: gasPrice, timestamp })
-        } else if (gasPrice < last.maxFeePerGas) {
-            last.maxFeePerGas = gasPrice
-            last.timestamp = timestamp
-        }
-    }
-
-    private saveMaxPriorityFeePerGas(gasPrice: bigint, timestamp: number) {
-        const queue = this.queueMaxPriorityFeePerGas
-        const last = queue.length > 0 ? queue[queue.length - 1] : null
-
-        if (!last || timestamp - last.timestamp >= 1000) {
-            if (queue.length >= this.maxQueueSize) {
-                queue.shift()
-            }
-            queue.push({ maxPriorityFeePerGas: gasPrice, timestamp })
-        } else if (gasPrice < last.maxPriorityFeePerGas) {
-            last.maxPriorityFeePerGas = gasPrice
-            last.timestamp = timestamp
-        }
-    }
-
-    private saveGasPrice(gasPrice: GasPriceParameters, timestamp: number) {
-        return new Promise<void>((resolve) => {
-            this.saveMaxFeePerGas(gasPrice.maxFeePerGas, timestamp)
-            this.saveMaxPriorityFeePerGas(
-                gasPrice.maxPriorityFeePerGas,
-                timestamp
-            )
-            resolve()
-        })
-    }
-
     private async innerGetGasPrice(): Promise<GasPriceParameters> {
         let maxFeePerGas = 0n
         let maxPriorityFeePerGas = 0n
@@ -533,12 +536,12 @@ export class GasPriceManager {
         }
 
         const baseFee = latestBlock.baseFeePerGas
-        this.saveBaseFeePerGas(baseFee, Date.now())
+        this.baseFeePerGasQueue.saveValue(baseFee)
 
         return baseFee
     }
 
-    public getBaseFee() {
+    public async getBaseFee(): Promise<bigint> {
         if (this.config.legacyTransactions) {
             throw new RpcError(
                 "baseFee is not available for legacy transactions"
@@ -546,41 +549,38 @@ export class GasPriceManager {
         }
 
         if (this.config.gasPriceRefreshInterval === 0) {
-            return this.updateBaseFee()
+            return await this.updateBaseFee()
         }
 
-        const { baseFeePerGas } =
-            this.queueBaseFeePerGas[this.queueBaseFeePerGas.length - 1]
+        const baseFee = this.baseFeePerGasQueue.getLatestValue()
+        if (baseFee === null) {
+            throw new RpcError("No base fee available")
+        }
 
-        return baseFeePerGas
+        return baseFee
     }
 
     private async updateGasPrice(): Promise<GasPriceParameters> {
         const gasPrice = await this.innerGetGasPrice()
 
-        this.saveGasPrice(
-            {
-                maxFeePerGas: gasPrice.maxFeePerGas,
-                maxPriorityFeePerGas: gasPrice.maxPriorityFeePerGas
-            },
-            Date.now()
-        )
+        this.maxFeePerGasQueue.saveValue(gasPrice.maxFeePerGas)
+        this.maxPriorityFeePerGasQueue.saveValue(gasPrice.maxPriorityFeePerGas)
 
         return gasPrice
     }
 
-    public getGasPrice() {
+    public async getGasPrice(): Promise<GasPriceParameters> {
         if (this.config.gasPriceRefreshInterval === 0) {
-            return this.updateGasPrice()
+            return await this.updateGasPrice()
         }
 
-        const { maxPriorityFeePerGas } =
-            this.queueMaxPriorityFeePerGas[
-                this.queueMaxPriorityFeePerGas.length - 1
-            ]
+        const maxFeePerGas = this.maxFeePerGasQueue.getLatestValue()
+        const maxPriorityFeePerGas =
+            this.maxPriorityFeePerGasQueue.getLatestValue()
 
-        const { maxFeePerGas } =
-            this.queueMaxFeePerGas[this.queueMaxFeePerGas.length - 1]
+        if (maxFeePerGas === null || maxPriorityFeePerGas === null) {
+            throw new RpcError("No gas price available")
+        }
 
         return {
             maxFeePerGas,
@@ -588,37 +588,28 @@ export class GasPriceManager {
         }
     }
 
-    public async getMaxBaseFeePerGas() {
-        if (this.queueBaseFeePerGas.length === 0) {
+    public async getMaxBaseFeePerGas(): Promise<bigint> {
+        if (this.baseFeePerGasQueue.isEmpty()) {
             await this.getBaseFee()
         }
 
-        return this.queueBaseFeePerGas.reduce(
-            (acc: bigint, cur) => maxBigInt(cur.baseFeePerGas, acc),
-            this.queueBaseFeePerGas[0].baseFeePerGas
-        )
+        return this.baseFeePerGasQueue.getMaxValue(0n)
     }
 
-    private async getMinMaxFeePerGas() {
-        if (this.queueMaxFeePerGas.length === 0) {
+    private async getMinMaxFeePerGas(): Promise<bigint> {
+        if (this.maxFeePerGasQueue.isEmpty()) {
             await this.getGasPrice()
         }
 
-        return this.queueMaxFeePerGas.reduce(
-            (acc: bigint, cur) => minBigInt(cur.maxFeePerGas, acc),
-            this.queueMaxFeePerGas[0].maxFeePerGas
-        )
+        return this.maxFeePerGasQueue.getMinValue(0n)
     }
 
-    private async getMinMaxPriorityFeePerGas() {
-        if (this.queueMaxPriorityFeePerGas.length === 0) {
+    private async getMinMaxPriorityFeePerGas(): Promise<bigint> {
+        if (this.maxPriorityFeePerGasQueue.isEmpty()) {
             await this.getGasPrice()
         }
 
-        return this.queueMaxPriorityFeePerGas.reduce(
-            (acc, cur) => minBigInt(cur.maxPriorityFeePerGas, acc),
-            this.queueMaxPriorityFeePerGas[0].maxPriorityFeePerGas
-        )
+        return this.maxPriorityFeePerGasQueue.getMinValue(0n)
     }
 
     public async validateGasPrice(gasPrice: GasPriceParameters) {
