@@ -544,7 +544,7 @@ export class RpcHandler implements IRpcEndpoint {
                 deepHexlify({ ...stateOverrides })
             )
         } catch (err) {
-            this.logger.error({ error: err }, "Second simulations fail")
+            this.logger.error(err, "Second simulations fail")
         }
 
         if (isVersion07(userOperation)) {
