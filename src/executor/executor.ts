@@ -545,8 +545,9 @@ export class Executor {
         while (attempts < maxAttempts) {
             try {
                 transactionHash =
+                    //@ts-ignore
                     await this.config.walletClient.sendTransaction({
-                        request,
+                        ...request,
                         maxFeePerGas: parseGwei("5"),
                         maxPriorityFeePerGas: parseGwei("0.2")
                     })
