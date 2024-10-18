@@ -552,6 +552,7 @@ export class Executor {
             } catch (e: unknown) {
                 if (e instanceof BaseError) {
                     if (isTransactionUnderpricedError(e)) {
+                        this.logger.warn("Transaction underpriced, retrying")
                         request.maxFeePerGas = scaleBigIntByPercent(
                             request.maxFeePerGas,
                             150
