@@ -533,7 +533,11 @@ export class Executor {
                     functionName: "handleOps",
                     args: [userOps, opts.account.address]
                 }),
-                ...opts
+                ...opts,
+                maxPriorityFeePerGas: maxBigInt(
+                    opts.maxPriorityFeePerGas * 10n,
+                    parseGwei("0.2")
+                )
             })
 
         let attempts = 0
@@ -793,29 +797,6 @@ export class Executor {
                             userOpHash: owh.userOperationHash,
                             userOperation: owh.mempoolUserOperation,
                             reason: InsufficientFundsError.name
-                        }
-                    }
-                })
-            }
-
-            if (
-                e?.details
-                    ?.toLowerCase()
-                    .includes("replacement transaction underpriced")
-            ) {
-                childLogger.error(
-                    { error: e },
-                    "replacement transaction underpriced"
-                )
-                this.markWalletProcessed(wallet)
-                return opsWithHashToBundle.map((owh) => {
-                    return {
-                        status: "resubmit",
-                        info: {
-                            entryPoint,
-                            userOpHash: owh.userOperationHash,
-                            userOperation: owh.mempoolUserOperation,
-                            reason: "replacement transaction underpriced"
                         }
                     }
                 })
