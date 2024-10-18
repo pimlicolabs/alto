@@ -44,7 +44,8 @@ import {
     getContract,
     type Account,
     type Hex,
-    TransactionExecutionError
+    TransactionExecutionError,
+    parseGwei
 } from "viem"
 import {
     type CompressedFilterOpsAndEstimateGasParams,
@@ -533,11 +534,7 @@ export class Executor {
                     functionName: "handleOps",
                     args: [userOps, opts.account.address]
                 }),
-                ...opts,
-                maxPriorityFeePerGas: maxBigInt(
-                    opts.maxPriorityFeePerGas * 10n,
-                    parseGwei("0.2")
-                )
+                ...opts
             })
 
         let attempts = 0
@@ -548,7 +545,11 @@ export class Executor {
         while (attempts < maxAttempts) {
             try {
                 transactionHash =
-                    await this.config.walletClient.sendTransaction(request)
+                    await this.config.walletClient.sendTransaction({
+                        request,
+                        maxFeePerGas: parseGwei("5"),
+                        maxPriorityFeePerGas: parseGwei("0.2")
+                    })
 
                 break
             } catch (e: unknown) {
