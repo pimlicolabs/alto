@@ -39,8 +39,15 @@ import {
     concat,
     decodeErrorResult,
     hexToBytes,
-    numberToHex
+    numberToHex,
+    BaseError
 } from "viem"
+
+export const isTransactionUnderpricedError = (e: BaseError) => {
+    return e?.details
+        ?.toLowerCase()
+        .includes("replacement transaction underpriced")
+}
 
 export function simulatedOpsToResults(
     simulatedOps: {

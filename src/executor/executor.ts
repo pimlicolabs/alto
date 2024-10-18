@@ -40,18 +40,20 @@ import {
     InsufficientFundsError,
     IntrinsicGasTooLowError,
     NonceTooLowError,
+    TransactionExecutionError,
     encodeFunctionData,
     getContract,
     type Account,
     type Hex,
-    TransactionExecutionError
+    BaseError
 } from "viem"
 import {
     type CompressedFilterOpsAndEstimateGasParams,
     createCompressedCalldata,
     filterOpsAndEstimateGas,
     flushStuckTransaction,
-    simulatedOpsToResults
+    simulatedOpsToResults,
+    isTransactionUnderpricedError
 } from "./utils"
 import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
@@ -548,6 +550,31 @@ export class Executor {
 
                 break
             } catch (e: unknown) {
+                if (e instanceof BaseError) {
+                    if (isTransactionUnderpricedError(e)) {
+                        request.maxFeePerGas = scaleBigIntByPercent(
+                            request.maxFeePerGas,
+                            150
+                        )
+                        request.maxPriorityFeePerGas = scaleBigIntByPercent(
+                            request.maxPriorityFeePerGas,
+                            150
+                        )
+                        //this.markWalletProcessed(wallet)
+                        //return opsWithHashToBundle.map((owh) => {
+                        //    return {
+                        //        status: "resubmit",
+                        //        info: {
+                        //            entryPoint,
+                        //            userOpHash: owh.userOperationHash,
+                        //            userOperation: owh.mempoolUserOperation,
+                        //            reason: "replacement transaction underpriced"
+                        //        }
+                        //    }
+                        //})
+                    }
+                }
+
                 const error = e as SendTransactionErrorType
                 let isErrorHandled = false
 
@@ -793,29 +820,6 @@ export class Executor {
                             userOpHash: owh.userOperationHash,
                             userOperation: owh.mempoolUserOperation,
                             reason: InsufficientFundsError.name
-                        }
-                    }
-                })
-            }
-
-            if (
-                e?.details
-                    ?.toLowerCase()
-                    .includes("replacement transaction underpriced")
-            ) {
-                childLogger.error(
-                    { error: e },
-                    "replacement transaction underpriced"
-                )
-                this.markWalletProcessed(wallet)
-                return opsWithHashToBundle.map((owh) => {
-                    return {
-                        status: "resubmit",
-                        info: {
-                            entryPoint,
-                            userOpHash: owh.userOperationHash,
-                            userOperation: owh.mempoolUserOperation,
-                            reason: "replacement transaction underpriced"
                         }
                     }
                 })
