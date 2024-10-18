@@ -468,7 +468,7 @@ export class RpcHandler implements IRpcEndpoint {
             entryPoint,
             queuedUserOperations,
             true,
-            stateOverrides
+            deepHexlify({ ...stateOverrides })
         )
 
         let { verificationGasLimit, callGasLimit } =
@@ -541,7 +541,7 @@ export class RpcHandler implements IRpcEndpoint {
                 entryPoint,
                 queuedUserOperations,
                 false,
-                deepHexlify(stateOverrides)
+                deepHexlify({ ...stateOverrides })
             )
         } catch (err) {
             this.logger.error({ error: err }, "Second simulations fail")
