@@ -4,12 +4,19 @@ import Redis from "ioredis"
 import type { Hex } from "viem"
 import type { OpEventType } from "../types/schemas"
 import type { AltoConfig } from "../createConfig"
+import Queue, { type Queue as QueueType } from "bull"
+
+type QueueMessage = OpEventType & {
+    userOperationHash: Hex
+    eventTimestamp: number
+    chainId: number
+}
 
 export class EventManager {
     private chainId: number
-    private redis: Redis | undefined
     private logger: Logger
     private metrics: Metrics
+    private redisEventManagerQueue?: QueueType<QueueMessage>
 
     constructor({
         config,
@@ -28,12 +35,18 @@ export class EventManager {
         )
         this.metrics = metrics
 
-        if (config.redisQueueEndpoint) {
-            this.redis = new Redis(config.redisQueueEndpoint)
+        if (config.redisQueueEndpoint && config.redisEventManagerQueueName) {
+            const redis = new Redis(config.redisQueueEndpoint)
+            this.redisEventManagerQueue = new Queue<QueueMessage>(
+                config.redisEventManagerQueueName,
+                {
+                    createClient: () => {
+                        return redis
+                    }
+                }
+            )
             return
         }
-
-        this.redis = undefined
     }
 
     // emits when the userOperation was mined onchain but reverted during the callphase
@@ -197,7 +210,7 @@ export class EventManager {
         event: OpEventType
         timestamp?: number
     }) {
-        if (!this.redis) {
+        if (!this.redisEventManagerQueue) {
             return
         }
 
@@ -209,27 +222,23 @@ export class EventManager {
         }
 
         // log to redis here
-        let lpushStatus: string
+        let jobStatus: string
         try {
-            await this.redis.lpush(
-                "UserOperationStatusEventsQueue",
-                JSON.stringify(entry)
-            )
-            lpushStatus = "success"
+            await this.redisEventManagerQueue.add(entry)
+            jobStatus = "success"
         } catch (e) {
             this.logger.error(
                 "Failed to send userOperation status event due to ",
                 JSON.stringify(e)
             )
             sentry.captureException(e)
-            lpushStatus = "failed"
+            jobStatus = "failed"
         }
 
         this.metrics.emittedOpEvents
             .labels({
-                // biome-ignore lint/style/useNamingConvention: event_type
                 event_type: event.eventType,
-                status: lpushStatus
+                status: jobStatus
             })
             .inc()
     }
