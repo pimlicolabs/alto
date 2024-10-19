@@ -26,6 +26,11 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: "0xBbe8A301FbDb2a4CD58c4A37c262ecef8f889c47"
     },
+    "refill-helper-contract": {
+        description: "Address of the Executor refill helper contract",
+        type: "string",
+        require: false
+    },
     "executor-private-keys": {
         description: "Private keys of the executor accounts split by commas",
         type: "string",

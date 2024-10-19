@@ -30,6 +30,7 @@ export const bundlerArgsSchema = z.object({
         (v) => (v === "" ? undefined : v),
         addressSchema.optional()
     ),
+    "refill-helper-contract": addressSchema.optional(),
     "no-profit-bundling": z.boolean(),
     "safe-mode": z.boolean(),
     "utility-private-key": hexData32Schema
