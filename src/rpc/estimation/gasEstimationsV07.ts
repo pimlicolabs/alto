@@ -183,6 +183,7 @@ export class GasEstimatorV07 {
         minGas,
         targetOp,
         queuedOps,
+        stateOverrides,
         simulateHandleOpLastResult
     }: {
         entryPoint: Address
@@ -190,6 +191,7 @@ export class GasEstimatorV07 {
         minGas: bigint
         targetOp: UserOperationV07
         queuedOps: UserOperationV07[]
+        stateOverrides: StateOverrides
         simulateHandleOpLastResult: SimulateHandleOpResult<"execution">
     }): Promise<SimulateHandleOpResult> {
         const maxRetries = 3
@@ -211,7 +213,8 @@ export class GasEstimatorV07 {
 
             let cause = await this.callPimlicoEntryPointSimulations({
                 entryPoint,
-                entryPointSimulationsCallData: [simulateCallData]
+                entryPointSimulationsCallData: [simulateCallData],
+                stateOverrides
             })
 
             cause = cause.map((data: Hex) => {
@@ -283,7 +286,7 @@ export class GasEstimatorV07 {
             queuedUserOperations
         })
 
-        let cause
+        let cause: readonly Hex[]
 
         if (this.config.chainType === "hedera") {
             // due to Hedera specific restrictions, we can't combine these two calls.
@@ -355,7 +358,8 @@ export class GasEstimatorV07 {
                     targetOp: userOperation,
                     queuedOps: queuedUserOperations,
                     simulateHandleOpLastResult:
-                        simulateHandleOpLastResult as SimulateHandleOpResult<"execution">
+                        simulateHandleOpLastResult as SimulateHandleOpResult<"execution">,
+                    stateOverrides
                 })
             }
 
