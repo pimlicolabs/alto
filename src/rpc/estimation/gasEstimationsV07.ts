@@ -191,7 +191,7 @@ export class GasEstimatorV07 {
         minGas: bigint
         targetOp: UserOperationV07
         queuedOps: UserOperationV07[]
-        stateOverrides: StateOverrides
+        stateOverrides?: StateOverrides | undefined
         simulateHandleOpLastResult: SimulateHandleOpResult<"execution">
     }): Promise<SimulateHandleOpResult> {
         const maxRetries = 3
