@@ -22,22 +22,34 @@ import { deploySimulationsContract } from "./deploySimulationsContract"
 
 const preFlightChecks = async (config: AltoConfig): Promise<void> => {
     for (const entrypoint of config.entrypoints) {
-        const entryPointCode = await config.publicClient.getBytecode({
+        const entryPointCode = await config.publicClient.getCode({
             address: entrypoint
         })
-        if (entryPointCode === "0x") {
+        if (entryPointCode === undefined || entryPointCode === "0x") {
             throw new Error(`entry point ${entrypoint} does not exist`)
         }
     }
 
     if (config.entrypointSimulationContract) {
         const simulations = config.entrypointSimulationContract
-        const simulationsCode = await config.publicClient.getBytecode({
+        const simulationsCode = await config.publicClient.getCode({
             address: simulations
         })
         if (simulationsCode === undefined || simulationsCode === "0x") {
             throw new Error(
                 `EntryPointSimulations contract ${simulations} does not exist`
+            )
+        }
+    }
+
+    if (config.refillHelperContract) {
+        const refillHelper = config.refillHelperContract
+        const refillHelperCode = await config.publicClient.getCode({
+            address: refillHelper
+        })
+        if (refillHelperCode === undefined || refillHelperCode === "0x") {
+            throw new Error(
+                `RefillHelper contract ${refillHelper} does not exist`
             )
         }
     }
