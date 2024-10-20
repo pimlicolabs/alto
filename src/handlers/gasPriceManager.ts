@@ -27,6 +27,93 @@ enum ChainId {
 const MIN_POLYGON_GAS_PRICE = parseGwei("31")
 const MIN_MUMBAI_GAS_PRICE = parseGwei("1")
 
+function getGasStationUrl(chainId: ChainId.Polygon | ChainId.Mumbai): string {
+    switch (chainId) {
+        case ChainId.Polygon:
+            return "https://gasstation.polygon.technology/v2"
+        case ChainId.Mumbai:
+            return "https://gasstation-testnet.polygon.technology/v2"
+    }
+}
+
+class ArbitrumManager {
+    private l1BaseFeeQueue: TimedValueQueue
+    private l2BaseFeeQueue: TimedValueQueue
+
+    constructor(maxQueueSize: number) {
+        const queueValidity = 15_000
+        this.l1BaseFeeQueue = new TimedValueQueue(maxQueueSize, queueValidity)
+        this.l2BaseFeeQueue = new TimedValueQueue(maxQueueSize, queueValidity)
+    }
+
+    public saveL1BaseFee(baseFee: bigint) {
+        this.l1BaseFeeQueue.saveValue(baseFee)
+    }
+
+    public saveL2BaseFee(baseFee: bigint) {
+        this.l2BaseFeeQueue.saveValue(baseFee)
+    }
+
+    public getMinL1BaseFee() {
+        return this.l1BaseFeeQueue.getMinValue(1n)
+    }
+
+    public getMaxL1BaseFee() {
+        const maxUint128 = (1n << 128n) - 1n
+        return this.l1BaseFeeQueue.getMaxValue(maxUint128)
+    }
+
+    public getMaxL2BaseFee() {
+        const maxUint128 = (1n << 128n) - 1n
+        return this.l2BaseFeeQueue.getMaxValue(maxUint128)
+    }
+}
+
+class MantleManager {
+    private tokenRatioQueue: TimedValueQueue
+    private scalarQueue: TimedValueQueue
+    private rollupDataGasAndOverheadQueue: TimedValueQueue
+    private l1GasPriceQueue: TimedValueQueue
+
+    constructor(maxQueueSize: number) {
+        const queueValidity = 15_000
+        this.tokenRatioQueue = new TimedValueQueue(maxQueueSize, queueValidity)
+        this.scalarQueue = new TimedValueQueue(maxQueueSize, queueValidity)
+        this.rollupDataGasAndOverheadQueue = new TimedValueQueue(
+            maxQueueSize,
+            queueValidity
+        )
+        this.l1GasPriceQueue = new TimedValueQueue(maxQueueSize, queueValidity)
+    }
+
+    public getMinMantleOracleValues() {
+        return {
+            minTokenRatio: this.tokenRatioQueue.getMinValue(1n),
+            minScalar: this.scalarQueue.getMinValue(1n),
+            minRollupDataGasAndOverhead:
+                this.rollupDataGasAndOverheadQueue.getMinValue(1n),
+            minL1GasPrice: this.l1GasPriceQueue.getMinValue(1n)
+        }
+    }
+
+    public saveMantleOracleValues({
+        tokenRatio,
+        scalar,
+        rollupDataGasAndOverhead,
+        l1GasPrice
+    }: {
+        tokenRatio: bigint
+        scalar: bigint
+        rollupDataGasAndOverhead: bigint
+        l1GasPrice: bigint
+    }) {
+        this.tokenRatioQueue.saveValue(tokenRatio)
+        this.scalarQueue.saveValue(scalar)
+        this.rollupDataGasAndOverheadQueue.saveValue(rollupDataGasAndOverhead)
+        this.l1GasPriceQueue.saveValue(l1GasPrice)
+    }
+}
+
 class TimedValueQueue {
     private queue: { timestamp: number; value: bigint }[]
     private maxQueueSize: number
@@ -86,93 +173,6 @@ class TimedValueQueue {
 
     public isEmpty(): boolean {
         return this.queue.length === 0
-    }
-}
-
-function getGasStationUrl(chainId: ChainId.Polygon | ChainId.Mumbai): string {
-    switch (chainId) {
-        case ChainId.Polygon:
-            return "https://gasstation.polygon.technology/v2"
-        case ChainId.Mumbai:
-            return "https://gasstation-testnet.polygon.technology/v2"
-    }
-}
-
-class MantleManager {
-    private tokenRatioQueue: TimedValueQueue
-    private scalarQueue: TimedValueQueue
-    private rollupDataGasAndOverheadQueue: TimedValueQueue
-    private l1GasPriceQueue: TimedValueQueue
-
-    constructor(maxQueueSize: number) {
-        const queueValidity = 15_000
-        this.tokenRatioQueue = new TimedValueQueue(maxQueueSize, queueValidity)
-        this.scalarQueue = new TimedValueQueue(maxQueueSize, queueValidity)
-        this.rollupDataGasAndOverheadQueue = new TimedValueQueue(
-            maxQueueSize,
-            queueValidity
-        )
-        this.l1GasPriceQueue = new TimedValueQueue(maxQueueSize, queueValidity)
-    }
-
-    public getMinMantleOracleValues() {
-        return {
-            minTokenRatio: this.tokenRatioQueue.getMinValue(1n),
-            minScalar: this.scalarQueue.getMinValue(1n),
-            minRollupDataGasAndOverhead:
-                this.rollupDataGasAndOverheadQueue.getMinValue(1n),
-            minL1GasPrice: this.l1GasPriceQueue.getMinValue(1n)
-        }
-    }
-
-    public saveMantleOracleValues({
-        tokenRatio,
-        scalar,
-        rollupDataGasAndOverhead,
-        l1GasPrice
-    }: {
-        tokenRatio: bigint
-        scalar: bigint
-        rollupDataGasAndOverhead: bigint
-        l1GasPrice: bigint
-    }) {
-        this.tokenRatioQueue.saveValue(tokenRatio)
-        this.scalarQueue.saveValue(scalar)
-        this.rollupDataGasAndOverheadQueue.saveValue(rollupDataGasAndOverhead)
-        this.l1GasPriceQueue.saveValue(l1GasPrice)
-    }
-}
-
-class ArbitrumManager {
-    private l1BaseFeeQueue: TimedValueQueue
-    private l2BaseFeeQueue: TimedValueQueue
-
-    constructor(maxQueueSize: number) {
-        const queueValidity = 15_000
-        this.l1BaseFeeQueue = new TimedValueQueue(maxQueueSize, queueValidity)
-        this.l2BaseFeeQueue = new TimedValueQueue(maxQueueSize, queueValidity)
-    }
-
-    public saveL1BaseFee(baseFee: bigint) {
-        this.l1BaseFeeQueue.saveValue(baseFee)
-    }
-
-    public saveL2BaseFee(baseFee: bigint) {
-        this.l2BaseFeeQueue.saveValue(baseFee)
-    }
-
-    public getMinL1BaseFee() {
-        return this.l1BaseFeeQueue.getMinValue(1n)
-    }
-
-    public getMaxL1BaseFee() {
-        const maxUint128 = (1n << 128n) - 1n
-        return this.l1BaseFeeQueue.getMaxValue(maxUint128)
-    }
-
-    public getMaxL2BaseFee() {
-        const maxUint128 = (1n << 128n) - 1n
-        return this.l2BaseFeeQueue.getMaxValue(maxUint128)
     }
 }
 
