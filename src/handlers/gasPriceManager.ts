@@ -37,13 +37,13 @@ function getGasStationUrl(chainId: ChainId.Polygon | ChainId.Mumbai): string {
 }
 
 class ArbitrumManager {
-    private l1BaseFeeQueue: TimedValueQueue
-    private l2BaseFeeQueue: TimedValueQueue
+    private l1BaseFeeQueue: TimedQueue
+    private l2BaseFeeQueue: TimedQueue
 
     constructor(maxQueueSize: number) {
         const queueValidity = 15_000
-        this.l1BaseFeeQueue = new TimedValueQueue(maxQueueSize, queueValidity)
-        this.l2BaseFeeQueue = new TimedValueQueue(maxQueueSize, queueValidity)
+        this.l1BaseFeeQueue = new TimedQueue(maxQueueSize, queueValidity)
+        this.l2BaseFeeQueue = new TimedQueue(maxQueueSize, queueValidity)
     }
 
     public saveL1BaseFee(baseFee: bigint) {
@@ -70,20 +70,20 @@ class ArbitrumManager {
 }
 
 class MantleManager {
-    private tokenRatioQueue: TimedValueQueue
-    private scalarQueue: TimedValueQueue
-    private rollupDataGasAndOverheadQueue: TimedValueQueue
-    private l1GasPriceQueue: TimedValueQueue
+    private tokenRatioQueue: TimedQueue
+    private scalarQueue: TimedQueue
+    private rollupDataGasAndOverheadQueue: TimedQueue
+    private l1GasPriceQueue: TimedQueue
 
     constructor(maxQueueSize: number) {
         const queueValidity = 15_000
-        this.tokenRatioQueue = new TimedValueQueue(maxQueueSize, queueValidity)
-        this.scalarQueue = new TimedValueQueue(maxQueueSize, queueValidity)
-        this.rollupDataGasAndOverheadQueue = new TimedValueQueue(
+        this.tokenRatioQueue = new TimedQueue(maxQueueSize, queueValidity)
+        this.scalarQueue = new TimedQueue(maxQueueSize, queueValidity)
+        this.rollupDataGasAndOverheadQueue = new TimedQueue(
             maxQueueSize,
             queueValidity
         )
-        this.l1GasPriceQueue = new TimedValueQueue(maxQueueSize, queueValidity)
+        this.l1GasPriceQueue = new TimedQueue(maxQueueSize, queueValidity)
     }
 
     public getMinMantleOracleValues() {
@@ -114,7 +114,7 @@ class MantleManager {
     }
 }
 
-class TimedValueQueue {
+class TimedQueue {
     private queue: { timestamp: number; value: bigint }[]
     private maxQueueSize: number
     private queueValidity: number
@@ -178,9 +178,9 @@ class TimedValueQueue {
 
 export class GasPriceManager {
     private readonly config: AltoConfig
-    private baseFeePerGasQueue: TimedValueQueue
-    private maxFeePerGasQueue: TimedValueQueue
-    private maxPriorityFeePerGasQueue: TimedValueQueue
+    private baseFeePerGasQueue: TimedQueue
+    private maxFeePerGasQueue: TimedQueue
+    private maxPriorityFeePerGasQueue: TimedQueue
     public arbitrumManager: ArbitrumManager
     public mantleManager: MantleManager
     private maxQueueSize: number
@@ -197,15 +197,15 @@ export class GasPriceManager {
         this.maxQueueSize = this.config.gasPriceExpiry
 
         const queueValidity = 1000 // milliseconds
-        this.baseFeePerGasQueue = new TimedValueQueue(
+        this.baseFeePerGasQueue = new TimedQueue(
             this.maxQueueSize,
             queueValidity
         )
-        this.maxFeePerGasQueue = new TimedValueQueue(
+        this.maxFeePerGasQueue = new TimedQueue(
             this.maxQueueSize,
             queueValidity
         )
-        this.maxPriorityFeePerGasQueue = new TimedValueQueue(
+        this.maxPriorityFeePerGasQueue = new TimedQueue(
             this.maxQueueSize,
             queueValidity
         )
