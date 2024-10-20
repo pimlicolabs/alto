@@ -259,7 +259,7 @@ export class UnsafeValidator implements InterfaceValidator {
         }
 
         if (
-            validationResult.returnInfo.validUntil < now &&
+            validationResult.returnInfo.validUntil < now + 5 &&
             this.config.expirationCheck
         ) {
             throw new RpcError(
@@ -441,7 +441,7 @@ export class UnsafeValidator implements InterfaceValidator {
 
         if (
             res.returnInfo.validUntil == null ||
-            res.returnInfo.validUntil < now
+            res.returnInfo.validUntil < now + 5
         ) {
             throw new RpcError(
                 `UserOperation expires too soon, validUntil=${res.returnInfo.validUntil}, now=${now}`,
