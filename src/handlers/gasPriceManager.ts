@@ -5,7 +5,7 @@ import {
 } from "@alto/types"
 import { type Logger, maxBigInt, minBigInt } from "@alto/utils"
 import * as sentry from "@sentry/node"
-import { type PublicClient, parseGwei } from "viem"
+import { type PublicClient, parseGwei, maxUint128 } from "viem"
 import {
     avalanche,
     celo,
@@ -55,17 +55,18 @@ class ArbitrumManager {
     }
 
     public getMinL1BaseFee() {
-        return this.l1BaseFeeQueue.getMinValue(1n)
+        let minL1BaseFee = this.l1BaseFeeQueue.getMinValue() || 1n
+        return minL1BaseFee
     }
 
     public getMaxL1BaseFee() {
-        const maxUint128 = (1n << 128n) - 1n
-        return this.l1BaseFeeQueue.getMaxValue(maxUint128)
+        let maxL1BaseFee = this.l1BaseFeeQueue.getMaxValue() || maxUint128
+        return maxL1BaseFee
     }
 
     public getMaxL2BaseFee() {
-        const maxUint128 = (1n << 128n) - 1n
-        return this.l2BaseFeeQueue.getMaxValue(maxUint128)
+        let maxL2BaseFee = this.l2BaseFeeQueue.getMaxValue() || maxUint128
+        return maxL2BaseFee
     }
 }
 
@@ -88,11 +89,11 @@ class MantleManager {
 
     public getMinMantleOracleValues() {
         return {
-            minTokenRatio: this.tokenRatioQueue.getMinValue(1n),
-            minScalar: this.scalarQueue.getMinValue(1n),
+            minTokenRatio: this.tokenRatioQueue.getMinValue() || 1n,
+            minScalar: this.scalarQueue.getMinValue() || 1n,
             minRollupDataGasAndOverhead:
-                this.rollupDataGasAndOverheadQueue.getMinValue(1n),
-            minL1GasPrice: this.l1GasPriceQueue.getMinValue(1n)
+                this.rollupDataGasAndOverheadQueue.getMinValue() || 1n,
+            minL1GasPrice: this.l1GasPriceQueue.getMinValue() || 1n
         }
     }
 
@@ -151,22 +152,24 @@ class TimedQueue {
         return this.queue[this.queue.length - 1].value
     }
 
-    public getMinValue(defaultValue: bigint) {
+    public getMinValue() {
         if (this.queue.length === 0) {
-            return defaultValue
+            return undefined
         }
+
         return this.queue.reduce(
-            (acc, cur) => (cur.value < acc ? cur.value : acc),
+            (acc, cur) => minBigInt(cur.value, acc),
             this.queue[0].value
         )
     }
 
-    public getMaxValue(defaultValue: bigint) {
+    public getMaxValue() {
         if (this.queue.length === 0) {
-            return defaultValue
+            return undefined
         }
+
         return this.queue.reduce(
-            (acc, cur) => (cur.value > acc ? cur.value : acc),
+            (acc, cur) => maxBigInt(cur.value, acc),
             this.queue[0].value
         )
     }
@@ -351,34 +354,6 @@ export class GasPriceManager {
         return minBigInt(feeAverage, gasPrice)
     }
 
-    private async getNextBaseFee(publicClient: PublicClient) {
-        const block = await publicClient.getBlock({
-            blockTag: "latest"
-        })
-        const currentBaseFeePerGas =
-            block.baseFeePerGas || (await publicClient.getGasPrice())
-        const currentGasUsed = block.gasUsed
-        const gasTarget = block.gasLimit / 2n
-
-        if (currentGasUsed === gasTarget) {
-            return currentBaseFeePerGas
-        }
-
-        if (currentGasUsed > gasTarget) {
-            const gasUsedDelta = currentGasUsed - gasTarget
-            const baseFeePerGasDelta = maxBigInt(
-                (currentBaseFeePerGas * gasUsedDelta) / gasTarget / 8n,
-                1n
-            )
-            return currentBaseFeePerGas + baseFeePerGasDelta
-        }
-
-        const gasUsedDelta = currentGasUsed - gasTarget
-        const baseFeePerGasDelta =
-            (currentBaseFeePerGas * gasUsedDelta) / gasTarget / 8n
-        return currentBaseFeePerGas - baseFeePerGasDelta
-    }
-
     private async getLegacyTransactionGasPrice(): Promise<GasPriceParameters> {
         let gasPrice: bigint | undefined
         try {
@@ -454,7 +429,7 @@ export class GasPriceManager {
             this.logger.warn("maxFeePerGas is undefined, using fallback value")
             try {
                 maxFeePerGas =
-                    (await this.getNextBaseFee(this.config.publicClient)) +
+                    (await this.config.publicClient.getGasPrice()) +
                     maxPriorityFeePerGas
             } catch (e) {
                 this.logger.error("failed to get fallback maxFeePerGas")
@@ -552,9 +527,9 @@ export class GasPriceManager {
             return await this.updateBaseFee()
         }
 
-        const baseFee = this.baseFeePerGasQueue.getLatestValue()
-        if (baseFee === null) {
-            throw new RpcError("No base fee available")
+        let baseFee = this.baseFeePerGasQueue.getLatestValue()
+        if (!baseFee) {
+            baseFee = await this.getBaseFee()
         }
 
         return baseFee
@@ -578,7 +553,7 @@ export class GasPriceManager {
         const maxPriorityFeePerGas =
             this.maxPriorityFeePerGasQueue.getLatestValue()
 
-        if (maxFeePerGas === null || maxPriorityFeePerGas === null) {
+        if (!maxFeePerGas || !maxPriorityFeePerGas) {
             throw new RpcError("No gas price available")
         }
 
@@ -589,27 +564,34 @@ export class GasPriceManager {
     }
 
     public async getMaxBaseFeePerGas(): Promise<bigint> {
-        if (this.baseFeePerGasQueue.isEmpty()) {
-            await this.getBaseFee()
+        let maxBaseFeePerGas = this.baseFeePerGasQueue.getMaxValue()
+        if (!maxBaseFeePerGas) {
+            maxBaseFeePerGas = await this.getBaseFee()
         }
 
-        return this.baseFeePerGasQueue.getMaxValue(0n)
+        return maxBaseFeePerGas
     }
 
     private async getMinMaxFeePerGas(): Promise<bigint> {
-        if (this.maxFeePerGasQueue.isEmpty()) {
-            await this.getGasPrice()
+        let minMaxFeePerGas = this.maxFeePerGasQueue.getMinValue()
+        if (!minMaxFeePerGas) {
+            const gasPrice = await this.getGasPrice()
+            minMaxFeePerGas = gasPrice.maxFeePerGas
         }
 
-        return this.maxFeePerGasQueue.getMinValue(0n)
+        return minMaxFeePerGas
     }
 
     private async getMinMaxPriorityFeePerGas(): Promise<bigint> {
-        if (this.maxPriorityFeePerGasQueue.isEmpty()) {
-            await this.getGasPrice()
+        let minMaxPriorityFeePerGas =
+            this.maxPriorityFeePerGasQueue.getMinValue()
+
+        if (!minMaxPriorityFeePerGas) {
+            const gasPrices = await this.getGasPrice()
+            minMaxPriorityFeePerGas = gasPrices.maxPriorityFeePerGas
         }
 
-        return this.maxPriorityFeePerGasQueue.getMinValue(0n)
+        return minMaxPriorityFeePerGas
     }
 
     public async validateGasPrice(gasPrice: GasPriceParameters) {
