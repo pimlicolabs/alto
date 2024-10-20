@@ -5,7 +5,7 @@ import {
 } from "@alto/types"
 import { type Logger, maxBigInt, minBigInt } from "@alto/utils"
 import * as sentry from "@sentry/node"
-import { type PublicClient, parseGwei, maxUint128 } from "viem"
+import { type PublicClient, parseGwei } from "viem"
 import {
     avalanche,
     celo,
@@ -15,6 +15,9 @@ import {
     polygonMumbai
 } from "viem/chains"
 import type { AltoConfig } from "../createConfig"
+import { TimedQueue } from "../utils/timedQueue"
+import { ArbitrumManager } from "./arbitrumGasPriceManager"
+import { MantleManager } from "./mantleGasPriceManager"
 
 enum ChainId {
     Goerli = 5,
@@ -33,149 +36,6 @@ function getGasStationUrl(chainId: ChainId.Polygon | ChainId.Mumbai): string {
             return "https://gasstation.polygon.technology/v2"
         case ChainId.Mumbai:
             return "https://gasstation-testnet.polygon.technology/v2"
-    }
-}
-
-class ArbitrumManager {
-    private l1BaseFeeQueue: TimedQueue
-    private l2BaseFeeQueue: TimedQueue
-
-    constructor(maxQueueSize: number) {
-        const queueValidity = 15_000
-        this.l1BaseFeeQueue = new TimedQueue(maxQueueSize, queueValidity)
-        this.l2BaseFeeQueue = new TimedQueue(maxQueueSize, queueValidity)
-    }
-
-    public saveL1BaseFee(baseFee: bigint) {
-        this.l1BaseFeeQueue.saveValue(baseFee)
-    }
-
-    public saveL2BaseFee(baseFee: bigint) {
-        this.l2BaseFeeQueue.saveValue(baseFee)
-    }
-
-    public getMinL1BaseFee() {
-        let minL1BaseFee = this.l1BaseFeeQueue.getMinValue() || 1n
-        return minL1BaseFee
-    }
-
-    public getMaxL1BaseFee() {
-        let maxL1BaseFee = this.l1BaseFeeQueue.getMaxValue() || maxUint128
-        return maxL1BaseFee
-    }
-
-    public getMaxL2BaseFee() {
-        let maxL2BaseFee = this.l2BaseFeeQueue.getMaxValue() || maxUint128
-        return maxL2BaseFee
-    }
-}
-
-class MantleManager {
-    private tokenRatioQueue: TimedQueue
-    private scalarQueue: TimedQueue
-    private rollupDataGasAndOverheadQueue: TimedQueue
-    private l1GasPriceQueue: TimedQueue
-
-    constructor(maxQueueSize: number) {
-        const queueValidity = 15_000
-        this.tokenRatioQueue = new TimedQueue(maxQueueSize, queueValidity)
-        this.scalarQueue = new TimedQueue(maxQueueSize, queueValidity)
-        this.rollupDataGasAndOverheadQueue = new TimedQueue(
-            maxQueueSize,
-            queueValidity
-        )
-        this.l1GasPriceQueue = new TimedQueue(maxQueueSize, queueValidity)
-    }
-
-    public getMinMantleOracleValues() {
-        return {
-            minTokenRatio: this.tokenRatioQueue.getMinValue() || 1n,
-            minScalar: this.scalarQueue.getMinValue() || 1n,
-            minRollupDataGasAndOverhead:
-                this.rollupDataGasAndOverheadQueue.getMinValue() || 1n,
-            minL1GasPrice: this.l1GasPriceQueue.getMinValue() || 1n
-        }
-    }
-
-    public saveMantleOracleValues({
-        tokenRatio,
-        scalar,
-        rollupDataGasAndOverhead,
-        l1GasPrice
-    }: {
-        tokenRatio: bigint
-        scalar: bigint
-        rollupDataGasAndOverhead: bigint
-        l1GasPrice: bigint
-    }) {
-        this.tokenRatioQueue.saveValue(tokenRatio)
-        this.scalarQueue.saveValue(scalar)
-        this.rollupDataGasAndOverheadQueue.saveValue(rollupDataGasAndOverhead)
-        this.l1GasPriceQueue.saveValue(l1GasPrice)
-    }
-}
-
-class TimedQueue {
-    private queue: { timestamp: number; value: bigint }[]
-    private maxQueueSize: number
-    private queueValidity: number
-
-    constructor(maxQueueSize: number, queueValidity: number) {
-        this.queue = []
-        this.maxQueueSize = maxQueueSize
-        this.queueValidity = queueValidity
-    }
-
-    public saveValue(value: bigint) {
-        if (value === 0n) {
-            return
-        }
-
-        const last = this.queue[this.queue.length - 1]
-        const timestamp = Date.now()
-
-        if (!last || timestamp - last.timestamp >= this.queueValidity) {
-            if (this.queue.length >= this.maxQueueSize) {
-                this.queue.shift()
-            }
-            this.queue.push({ value, timestamp })
-        } else if (value < last.value) {
-            last.value = value
-            last.timestamp = timestamp
-        }
-    }
-
-    public getLatestValue(): bigint | null {
-        if (this.queue.length === 0) {
-            return null
-        }
-        return this.queue[this.queue.length - 1].value
-    }
-
-    public getMinValue() {
-        if (this.queue.length === 0) {
-            return undefined
-        }
-
-        return this.queue.reduce(
-            (acc, cur) => minBigInt(cur.value, acc),
-            this.queue[0].value
-        )
-    }
-
-    public getMaxValue() {
-        if (this.queue.length === 0) {
-            return undefined
-        }
-
-        return this.queue.reduce(
-            (acc, cur) => maxBigInt(cur.value, acc),
-            this.queue[0].value
-        )
-    }
-
-    public isEmpty(): boolean {
-        return this.queue.length === 0
     }
 }
 
