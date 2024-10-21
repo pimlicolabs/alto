@@ -44,10 +44,10 @@ export class GasPriceManager {
     private baseFeePerGasQueue: TimedQueue
     private maxFeePerGasQueue: TimedQueue
     private maxPriorityFeePerGasQueue: TimedQueue
+    private logger: Logger
+
     public arbitrumManager: ArbitrumManager
     public mantleManager: MantleManager
-    private maxQueueSize: number
-    private logger: Logger
 
     constructor(config: AltoConfig) {
         this.config = config
@@ -57,19 +57,13 @@ export class GasPriceManager {
                 level: config.publicClientLogLevel || config.logLevel
             }
         )
-        this.maxQueueSize = this.config.gasPriceExpiry
+        const maxQueueSize = this.config.gasPriceExpiry
 
         const queueValidity = 1000 // milliseconds
-        this.baseFeePerGasQueue = new TimedQueue(
-            this.maxQueueSize,
-            queueValidity
-        )
-        this.maxFeePerGasQueue = new TimedQueue(
-            this.maxQueueSize,
-            queueValidity
-        )
+        this.baseFeePerGasQueue = new TimedQueue(maxQueueSize, queueValidity)
+        this.maxFeePerGasQueue = new TimedQueue(maxQueueSize, queueValidity)
         this.maxPriorityFeePerGasQueue = new TimedQueue(
-            this.maxQueueSize,
+            maxQueueSize,
             queueValidity
         )
 
@@ -84,8 +78,8 @@ export class GasPriceManager {
             }, this.config.gasPriceRefreshInterval * 1000)
         }
 
-        this.arbitrumManager = new ArbitrumManager(this.maxQueueSize)
-        this.mantleManager = new MantleManager(this.maxQueueSize)
+        this.arbitrumManager = new ArbitrumManager(maxQueueSize)
+        this.mantleManager = new MantleManager(maxQueueSize)
     }
 
     public init() {
