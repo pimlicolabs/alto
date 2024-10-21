@@ -6,7 +6,9 @@ import {
     type PackedUserOperation,
     type UserOperation,
     type UserOperationV06,
-    type UserOperationV07
+    type UserOperationV07,
+    MantleBvmGasPriceOracleAbi,
+    OpL1FeeAbi
 } from "@alto/types"
 import {
     type Chain,
@@ -29,12 +31,14 @@ import {
     serializeTransaction,
     toBytes,
     toFunctionSelector,
-    InternalRpcError
+    InternalRpcError,
+    maxUint64
 } from "viem"
-import { base, baseGoerli, baseSepolia } from "viem/chains"
+import { base, baseGoerli, baseSepolia, lineaSepolia } from "viem/chains"
 import { maxBigInt, minBigInt, scaleBigIntByPercent } from "./bigInt"
 import { isVersion06, toPackedUserOperation } from "./userop"
 import type { AltoConfig } from "../createConfig"
+import { ArbitrumL1FeeAbi } from "../types/contracts/ArbitrumL1FeeAbi"
 
 export interface GasOverheads {
     /**
@@ -320,30 +324,41 @@ export async function calcPreVerificationGas({
         overheads
     )
 
-    if (config.publicClient.chain.id === 59140) {
-        // linea sepolia
-        preVerificationGas *= 2n
-    } else if (config.chainType === "op-stack") {
-        preVerificationGas = await calcOptimismPreVerificationGas(
-            config.publicClient,
-            userOperation,
-            entryPoint,
-            preVerificationGas,
-            gasPriceManager,
-            validate
-        )
-    } else if (config.chainType === "arbitrum") {
-        preVerificationGas = await calcArbitrumPreVerificationGas(
-            config.publicClient,
-            userOperation,
-            entryPoint,
-            preVerificationGas,
-            gasPriceManager,
-            validate
-        )
+    if (config.publicClient.chain.id === lineaSepolia.id) {
+        return preVerificationGas * 2n
     }
 
-    return preVerificationGas
+    switch (config.chainType) {
+        case "op-stack":
+            return await calcOptimismPreVerificationGas(
+                config.publicClient,
+                userOperation,
+                entryPoint,
+                preVerificationGas,
+                gasPriceManager,
+                validate
+            )
+        case "arbitrum":
+            return await calcArbitrumPreVerificationGas(
+                config.publicClient,
+                userOperation,
+                entryPoint,
+                preVerificationGas,
+                gasPriceManager,
+                validate
+            )
+        case "mantle":
+            return await calcMantlePreVerificationGas(
+                config.publicClient,
+                userOperation,
+                entryPoint,
+                preVerificationGas,
+                gasPriceManager,
+                validate
+            )
+        default:
+            return preVerificationGas
+    }
 }
 
 export function calcVerificationGasAndCallGasLimit(
@@ -425,175 +440,8 @@ export function calcDefaultPreVerificationGas(
     return BigInt(ret)
 }
 
-const maxUint64 = 2n ** 64n - 1n
-
-const getL1FeeAbi = [
-    {
-        inputs: [
-            {
-                internalType: "bytes",
-                name: "data",
-                type: "bytes"
-            }
-        ],
-        name: "getL1Fee",
-        outputs: [
-            {
-                internalType: "uint256",
-                name: "fee",
-                type: "uint256"
-            }
-        ],
-        stateMutability: "nonpayable",
-        type: "function"
-    },
-    {
-        inputs: [],
-        name: "l1BaseFee",
-        outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-        stateMutability: "view",
-        type: "function"
-    }
-] as const
-
-export async function calcOptimismPreVerificationGas(
-    publicClient: PublicClient<Transport, Chain>,
-    op: UserOperation,
-    entryPoint: Address,
-    staticFee: bigint,
-    gasPriceManager: GasPriceManager,
-    verify?: boolean
-) {
-    let selector: Hex
-    let paramData: Hex
-
-    if (isVersion06(op)) {
-        const randomDataUserOp: UserOperation = removeZeroBytesFromUserOp(op)
-        const handleOpsAbi = getAbiItem({
-            abi: EntryPointV06Abi,
-            name: "handleOps"
-        })
-
-        selector = toFunctionSelector(handleOpsAbi)
-        paramData = encodeAbiParameters(handleOpsAbi.inputs, [
-            [randomDataUserOp],
-            entryPoint
-        ])
-    } else {
-        const randomDataUserOp: PackedUserOperation =
-            removeZeroBytesFromUserOp(op)
-
-        const handleOpsAbi = getAbiItem({
-            abi: EntryPointV07Abi,
-            name: "handleOps"
-        })
-
-        selector = toFunctionSelector(handleOpsAbi)
-        paramData = encodeAbiParameters(handleOpsAbi.inputs, [
-            [randomDataUserOp],
-            entryPoint
-        ])
-    }
-
-    const data = concat([selector, paramData])
-
-    const serializedTx = serializeTransaction(
-        {
-            to: entryPoint,
-            chainId: publicClient.chain.id,
-            nonce: 999999,
-            gasLimit: maxUint64,
-            gasPrice: maxUint64,
-            data
-        },
-        {
-            r: "0x123451234512345123451234512345123451234512345123451234512345",
-            s: "0x123451234512345123451234512345123451234512345123451234512345",
-            v: 28n
-        }
-    )
-
-    const opGasPriceOracle = getContract({
-        abi: getL1FeeAbi,
-        address: "0x420000000000000000000000000000000000000F",
-        client: {
-            public: publicClient
-        }
-    })
-
-    const [{ result: l1Fee }, baseFeePerGas] = await Promise.all([
-        opGasPriceOracle.simulate.getL1Fee([serializedTx]),
-        verify
-            ? gasPriceManager.getMaxBaseFeePerGas()
-            : gasPriceManager.getBaseFee()
-    ])
-
-    if (op.maxFeePerGas <= 1n || op.maxPriorityFeePerGas <= 1n) {
-        // if user didn't provide gasPrice values, fetch current going price rate
-        const gasPrices = await gasPriceManager.getGasPrice()
-        op.maxPriorityFeePerGas = gasPrices.maxPriorityFeePerGas
-        op.maxFeePerGas = gasPrices.maxFeePerGas
-    }
-
-    const l2MaxFee = op.maxFeePerGas
-
-    const l2PriorityFee = baseFeePerGas + op.maxPriorityFeePerGas
-
-    const l2price = minBigInt(l2MaxFee, l2PriorityFee)
-
-    return staticFee + l1Fee / l2price
-}
-
-const getArbitrumL1FeeAbi = [
-    {
-        inputs: [
-            {
-                internalType: "address",
-                name: "to",
-                type: "address"
-            },
-            {
-                internalType: "bool",
-                name: "contractCreation",
-                type: "bool"
-            },
-            {
-                internalType: "bytes",
-                name: "data",
-                type: "bytes"
-            }
-        ],
-        name: "gasEstimateL1Component",
-        outputs: [
-            {
-                internalType: "uint64",
-                name: "gasEstimateForL1",
-                type: "uint64"
-            },
-            {
-                internalType: "uint256",
-                name: "baseFee",
-                type: "uint256"
-            },
-            {
-                internalType: "uint256",
-                name: "l1BaseFeeEstimate",
-                type: "uint256"
-            }
-        ],
-        stateMutability: "nonpayable",
-        type: "function"
-    }
-] as const
-
-export async function calcArbitrumPreVerificationGas(
-    publicClient: PublicClient<Transport, Chain | undefined>,
-    op: UserOperation,
-    entryPoint: Address,
-    staticFee: bigint,
-    gasPriceManager: GasPriceManager,
-    validate: boolean
-) {
+// Returns back the bytes for the handleOps call
+function getHandleOpsCallData(op: UserOperation, entryPoint: Address) {
     let selector: Hex
     let paramData: Hex
 
@@ -626,6 +474,161 @@ export async function calcArbitrumPreVerificationGas(
 
     const data = concat([selector, paramData])
 
+    return data
+}
+
+export async function calcMantlePreVerificationGas(
+    publicClient: PublicClient<Transport, Chain>,
+    op: UserOperation,
+    entryPoint: Address,
+    staticFee: bigint,
+    gasPriceManager: GasPriceManager,
+    verify?: boolean
+) {
+    const data = getHandleOpsCallData(op, entryPoint)
+
+    const serializedTx = serializeTransaction(
+        {
+            to: entryPoint,
+            chainId: publicClient.chain.id,
+            nonce: 999999,
+            gasLimit: maxUint64,
+            gasPrice: maxUint64,
+            data
+        },
+        {
+            r: "0x123451234512345123451234512345123451234512345123451234512345",
+            s: "0x123451234512345123451234512345123451234512345123451234512345",
+            v: 28n
+        }
+    )
+
+    let tokenRatio: bigint
+    let scalar: bigint
+    let rollupDataGasAndOverhead: bigint
+    let l1GasPrice: bigint
+
+    const mantleManager = gasPriceManager.mantleManager
+
+    if (verify) {
+        const minValues = mantleManager.getMinMantleOracleValues()
+
+        tokenRatio = minValues.minTokenRatio
+        scalar = minValues.minScalar
+        rollupDataGasAndOverhead = minValues.minRollupDataGasAndOverhead
+        l1GasPrice = minValues.minL1GasPrice
+    } else {
+        ;[tokenRatio, scalar, rollupDataGasAndOverhead, l1GasPrice] =
+            await Promise.all([
+                publicClient.readContract({
+                    address: "0x420000000000000000000000000000000000000F",
+                    abi: MantleBvmGasPriceOracleAbi,
+                    functionName: "tokenRatio"
+                }),
+                publicClient.readContract({
+                    address: "0x420000000000000000000000000000000000000F",
+                    abi: MantleBvmGasPriceOracleAbi,
+                    functionName: "scalar"
+                }),
+                publicClient.readContract({
+                    address: "0x420000000000000000000000000000000000000F",
+                    abi: MantleBvmGasPriceOracleAbi,
+                    functionName: "getL1GasUsed",
+                    args: [serializedTx]
+                }),
+                publicClient.readContract({
+                    address: "0x420000000000000000000000000000000000000F",
+                    abi: MantleBvmGasPriceOracleAbi,
+                    functionName: "l1BaseFee"
+                })
+            ])
+
+        mantleManager.saveMantleOracleValues({
+            tokenRatio,
+            scalar,
+            rollupDataGasAndOverhead,
+            l1GasPrice
+        })
+    }
+
+    const mantleL1RollUpFeeDivisionFactor = 1_000_000n
+
+    const l1RollupFee =
+        (rollupDataGasAndOverhead * l1GasPrice * tokenRatio * scalar) /
+        mantleL1RollUpFeeDivisionFactor
+
+    const l2MaxFee = BigInt(op.maxFeePerGas)
+
+    return staticFee + l1RollupFee / l2MaxFee
+}
+
+export async function calcOptimismPreVerificationGas(
+    publicClient: PublicClient<Transport, Chain>,
+    op: UserOperation,
+    entryPoint: Address,
+    staticFee: bigint,
+    gasPriceManager: GasPriceManager,
+    verify?: boolean
+) {
+    const data = getHandleOpsCallData(op, entryPoint)
+
+    const serializedTx = serializeTransaction(
+        {
+            to: entryPoint,
+            chainId: publicClient.chain.id,
+            nonce: 999999,
+            gasLimit: maxUint64,
+            gasPrice: maxUint64,
+            data
+        },
+        {
+            r: "0x123451234512345123451234512345123451234512345123451234512345",
+            s: "0x123451234512345123451234512345123451234512345123451234512345",
+            v: 28n
+        }
+    )
+
+    const opGasPriceOracle = getContract({
+        abi: OpL1FeeAbi,
+        address: "0x420000000000000000000000000000000000000F",
+        client: {
+            public: publicClient
+        }
+    })
+
+    const [{ result: l1Fee }, baseFeePerGas] = await Promise.all([
+        opGasPriceOracle.simulate.getL1Fee([serializedTx]),
+        verify
+            ? gasPriceManager.getMaxBaseFeePerGas()
+            : gasPriceManager.getBaseFee()
+    ])
+
+    if (op.maxFeePerGas <= 1n || op.maxPriorityFeePerGas <= 1n) {
+        // if user didn't provide gasPrice values, fetch current going price rate
+        const gasPrices = await gasPriceManager.getGasPrice()
+        op.maxPriorityFeePerGas = gasPrices.maxPriorityFeePerGas
+        op.maxFeePerGas = gasPrices.maxFeePerGas
+    }
+
+    const l2MaxFee = op.maxFeePerGas
+
+    const l2PriorityFee = baseFeePerGas + op.maxPriorityFeePerGas
+
+    const l2price = minBigInt(l2MaxFee, l2PriorityFee)
+
+    return staticFee + l1Fee / l2price
+}
+
+export async function calcArbitrumPreVerificationGas(
+    publicClient: PublicClient<Transport, Chain | undefined>,
+    op: UserOperation,
+    entryPoint: Address,
+    staticFee: bigint,
+    gasPriceManager: GasPriceManager,
+    validate: boolean
+) {
+    const data = getHandleOpsCallData(op, entryPoint)
+
     const precompileAddress = "0x00000000000000000000000000000000000000C8"
 
     const serializedTx = serializeTransaction(
@@ -645,7 +648,7 @@ export async function calcArbitrumPreVerificationGas(
     )
 
     const arbGasPriceOracle = getContract({
-        abi: getArbitrumL1FeeAbi,
+        abi: ArbitrumL1FeeAbi,
         address: precompileAddress,
         client: {
             public: publicClient
@@ -660,22 +663,21 @@ export async function calcArbitrumPreVerificationGas(
 
     let [gasForL1, l2BaseFee, l1BaseFeeEstimate] = result
 
-    gasPriceManager.arbitrumManager.saveL1BaseFee(l1BaseFeeEstimate)
-    gasPriceManager.arbitrumManager.saveL2BaseFee(l2BaseFee)
+    const arbitrumManager = gasPriceManager.arbitrumManager
+
+    arbitrumManager.saveL1BaseFee(l1BaseFeeEstimate)
+    arbitrumManager.saveL2BaseFee(l2BaseFee)
 
     if (validate) {
         if (l1BaseFeeEstimate === 0n) {
-            l1BaseFeeEstimate =
-                await gasPriceManager.arbitrumManager.getMaxL1BaseFee()
+            l1BaseFeeEstimate = arbitrumManager.getMaxL1BaseFee()
         }
 
         // gasEstimateL1Component source: https://github.com/OffchainLabs/nitro/blob/5cd7d6913eb6b4dedb08f6ea49d7f9802d2cc5b9/execution/nodeInterface/NodeInterface.go#L515-L551
         const feesForL1 = (gasForL1 * l2BaseFee) / l1BaseFeeEstimate
 
-        const minL1BaseFeeEstimate =
-            await gasPriceManager.arbitrumManager.getMinL1BaseFee()
-        const maxL2BaseFee =
-            await gasPriceManager.arbitrumManager.getMaxL2BaseFee()
+        const minL1BaseFeeEstimate = arbitrumManager.getMinL1BaseFee()
+        const maxL2BaseFee = arbitrumManager.getMaxL2BaseFee()
 
         gasForL1 = (feesForL1 * minL1BaseFeeEstimate) / maxL2BaseFee
     }

@@ -123,7 +123,13 @@ export const bundlerArgsSchema = z.object({
 })
 
 export const compatibilityArgsSchema = z.object({
-    "chain-type": z.enum(["default", "op-stack", "arbitrum", "hedera"]),
+    "chain-type": z.enum([
+        "default",
+        "op-stack",
+        "arbitrum",
+        "hedera",
+        "mantle"
+    ]),
     "legacy-transactions": z.boolean(),
     "api-version": z
         .string()
