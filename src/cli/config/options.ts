@@ -364,7 +364,8 @@ export const logOptions: CliCommandOptions<ILogArgsInput> = {
     "redis-event-manager-queue-name": {
         description: "redis event manager queue name",
         type: "string",
-        require: false
+        require: false,
+        default: "UserOperationStatusBullEventsQueue"
     },
     json: {
         description: "Log in JSON format",

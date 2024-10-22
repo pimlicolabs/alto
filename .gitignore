@@ -10,7 +10,7 @@ src/esm
 test/spec-tests/bundler-spec-tests
 test/build
 .DS_Store
-
+Alto-Bruno/
 .nx/cache
 .vscode/
 .sentryclirc

@@ -37,6 +37,7 @@ export class EventManager {
 
         if (config.redisQueueEndpoint && config.redisEventManagerQueueName) {
             const redis = new Redis(config.redisQueueEndpoint)
+
             this.redisEventManagerQueue = new Queue<QueueMessage>(
                 config.redisEventManagerQueueName,
                 {
@@ -228,8 +229,8 @@ export class EventManager {
             jobStatus = "success"
         } catch (e) {
             this.logger.error(
-                "Failed to send userOperation status event due to ",
-                JSON.stringify(e)
+                e,
+                "Failed to send userOperation status event due to "
             )
             sentry.captureException(e)
             jobStatus = "failed"
