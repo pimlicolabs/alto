@@ -225,7 +225,10 @@ export class EventManager {
         // log to redis here
         let jobStatus: string
         try {
-            await this.redisEventManagerQueue.add(entry)
+            await this.redisEventManagerQueue.add(entry, {
+                removeOnComplete: true,
+                removeOnFail: true
+            })
             jobStatus = "success"
         } catch (e) {
             this.logger.error(
