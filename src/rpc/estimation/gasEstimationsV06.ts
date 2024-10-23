@@ -72,7 +72,7 @@ export class GasEstimatorV06 {
         ) {
             return {
                 result: "failed",
-                data: `${decodedError.args?.[1]} - ${parseFailedOpWithRevert(
+                data: `${decodedError.args?.[1]} ${parseFailedOpWithRevert(
                     decodedError.args?.[2] as Hex
                 )}`
             } as const
