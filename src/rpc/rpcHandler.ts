@@ -527,10 +527,12 @@ export class RpcHandler implements IRpcEndpoint {
             callGasLimit = 0n
         }
 
-        callGasLimit = scaleBigIntByPercent(
-            callGasLimit,
-            Number(this.config.callGasLimitMultiplier)
-        )
+        if (isVersion06(userOperation)) {
+            callGasLimit = scaleBigIntByPercent(
+                callGasLimit,
+                Number(this.config.callGasLimitMultiplier)
+            )
+        }
 
         // If a balance override is provided for the sender, perform an additional simulation
         // to verify the userOperation succeeds with the specified balance.
