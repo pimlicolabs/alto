@@ -19,6 +19,7 @@ import { z } from "zod"
 import type { SimulateHandleOpResult } from "./types"
 import type { AltoConfig } from "../../createConfig"
 import { deepHexlify } from "../../utils/userop"
+import { parseFailedOpWithRevert } from "./gasEstimationsV07"
 
 export class GasEstimatorV06 {
     private config: AltoConfig
@@ -60,6 +61,20 @@ export class GasEstimatorV06 {
             return {
                 result: "failed",
                 data: decodedError.args[0]
+            } as const
+        }
+
+        // custom error thrown by entryPoint if code override is used
+        if (
+            decodedError &&
+            decodedError.errorName === "FailedOpWithRevert" &&
+            decodedError.args
+        ) {
+            return {
+                result: "failed",
+                data: `${decodedError.args?.[1]} ${parseFailedOpWithRevert(
+                    decodedError.args?.[2] as Hex
+                )}`
             } as const
         }
 
