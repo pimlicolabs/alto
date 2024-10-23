@@ -144,9 +144,6 @@ export const compatibilityArgsSchema = z.object({
     "balance-override": z.boolean(),
     "local-gas-limit-calculation": z.boolean(),
     "flush-stuck-transactions-during-startup": z.boolean(),
-    "paymaster-gas-limit-multiplier": z
-        .string()
-        .transform((val) => BigInt(val)),
     "fixed-gas-limit-for-estimation": z
         .string()
         .transform((val) => BigInt(val))
@@ -211,7 +208,8 @@ export const gasEstimationArgsSchema = z.object({
         .string()
         .transform((val) => BigInt(val))
         .default("1000000"),
-    "call-gas-limit-multiplier": z.string().transform((val) => BigInt(val))
+    "call-gas-limit-multiplier": z.string().transform((val) => BigInt(val)),
+    "paymaster-gas-limit-multiplier": z.string().transform((val) => BigInt(val))
 })
 
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>
