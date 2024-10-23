@@ -45,7 +45,9 @@ const sdk = new NodeSDK({
         new HttpInstrumentation({
             requireParentforOutgoingSpans: true
         }),
-        new UndiciInstrumentation(),
+        new UndiciInstrumentation({
+            requireParentforSpans: true
+        }),
         new FastifyInstrumentation(),
         new PinoInstrumentation()
     ],
