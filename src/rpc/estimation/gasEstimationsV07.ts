@@ -645,7 +645,9 @@ function getSimulateHandleOpResult(data: Hex): SimulateHandleOpResult {
         ) {
             return {
                 result: "failed",
-                data: parseFailedOpWithRevert(decodedError.args?.[2] as Hex),
+                data: `${decodedError.args[1]}: ${parseFailedOpWithRevert(
+                    decodedError.args?.[2] as Hex
+                )}`,
                 code: ValidationErrors.SimulateValidation
             } as const
         }
