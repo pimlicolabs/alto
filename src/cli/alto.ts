@@ -8,6 +8,7 @@ import {
     bundlerOptions,
     compatibilityOptions,
     debugOptions,
+    gasEstimationOptions,
     logOptions,
     rpcOptions,
     serverOptions
@@ -64,6 +65,8 @@ export function getAltoCli(): yargs.Argv {
         .group(Object.keys(logOptions), "Logging Options:")
         .options(debugOptions)
         .group(Object.keys(debugOptions), "Debug Options:")
+        .options(gasEstimationOptions)
+        .group(Object.keys(gasEstimationOptions), "Gas Estimation Options:")
         // blank scriptName so that help text doesn't display the cli name before each command
         .scriptName("")
         .demandCommand(1)

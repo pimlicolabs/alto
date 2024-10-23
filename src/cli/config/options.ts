@@ -210,6 +210,20 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
             type: "string",
             require: false,
             default: "1000000"
+        },
+        "call-gas-limit-multiplier": {
+            description:
+                "Amount to multiply the call gas limits fetched from simulations",
+            type: "string",
+            require: true,
+            default: "100"
+        },
+        "paymaster-gas-limit-multiplier": {
+            description:
+                "Amount to multiply the paymaster gas limits fetched from simulations",
+            type: "string",
+            require: true,
+            default: "110"
         }
     }
 
@@ -268,13 +282,6 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             type: "string",
             require: false,
             default: "v1"
-        },
-        "paymaster-gas-limit-multiplier": {
-            description:
-                "Amount to multiply the paymaster gas limits fetched from simulations",
-            type: "string",
-            require: true,
-            default: "110"
         }
     }
 
