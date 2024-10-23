@@ -210,7 +210,8 @@ export const gasEstimationArgsSchema = z.object({
     "binary-search-gas-allowance": z
         .string()
         .transform((val) => BigInt(val))
-        .default("1000000")
+        .default("1000000"),
+    "call-gas-limit-multiplier": z.string().transform((val) => BigInt(val))
 })
 
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>
