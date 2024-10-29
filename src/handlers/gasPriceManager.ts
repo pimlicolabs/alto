@@ -151,7 +151,8 @@ export class GasPriceManager {
             onError: (error) => {
                 this.logger.error({ error }, "Error watching block number")
                 sentry.captureException(error)
-            }
+            },
+            pollingInterval: this.config.watchBlockPollingInterval
         })
     }
 

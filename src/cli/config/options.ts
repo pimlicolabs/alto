@@ -169,6 +169,12 @@ export const gasPriceOptions: CliCommandOptions<IGasPriceArgsInput> = {
         require: false,
         default: "100"
     },
+    "watch-block-polling-interval": {
+        description: "How often should the block number be polled",
+        type: "number",
+        require: false,
+        default: 500
+    },
     "gas-price-staleness-threshold": {
         description:
             "Maximum that the gas prices fetched using pimlico_getUserOperationGasPrice will be accepted for (number of blocks)",

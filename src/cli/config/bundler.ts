@@ -189,6 +189,7 @@ export const gasPriceArgsSchema = z.object({
         .string()
         .transform((val) => BigInt(val))
         .default("100"),
+    "watch-block-polling-interval": z.number().int().min(0).default(500),
     "gas-price-multipliers": z
         .string()
         .transform((value) => value.split(",").map(BigInt))
