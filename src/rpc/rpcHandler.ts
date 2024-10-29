@@ -952,7 +952,7 @@ export class RpcHandler implements IRpcEndpoint {
                         getAAError(errorReason)
                     )
                     throw new RpcError(
-                        `UserOperation reverted during simulation with reason: ${errorReason}`,
+                        errorReason,
                         ValidationErrors.InvalidFields
                     )
                 }
