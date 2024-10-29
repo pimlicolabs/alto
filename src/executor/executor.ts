@@ -550,6 +550,8 @@ export class Executor {
 
                 break
             } catch (e: unknown) {
+                let isErrorHandled = false
+
                 if (e instanceof BaseError) {
                     if (isTransactionUnderpricedError(e)) {
                         this.logger.warn("Transaction underpriced, retrying")
@@ -561,23 +563,11 @@ export class Executor {
                             request.maxPriorityFeePerGas,
                             150
                         )
-                        //this.markWalletProcessed(wallet)
-                        //return opsWithHashToBundle.map((owh) => {
-                        //    return {
-                        //        status: "resubmit",
-                        //        info: {
-                        //            entryPoint,
-                        //            userOpHash: owh.userOperationHash,
-                        //            userOperation: owh.mempoolUserOperation,
-                        //            reason: "replacement transaction underpriced"
-                        //        }
-                        //    }
-                        //})
+                        isErrorHandled = true
                     }
                 }
 
                 const error = e as SendTransactionErrorType
-                let isErrorHandled = false
 
                 if (error instanceof TransactionExecutionError) {
                     const cause = error.cause
@@ -595,10 +585,11 @@ export class Executor {
                     }
                 }
 
-                attempts++
                 if (attempts === maxAttempts || !isErrorHandled) {
                     throw error
                 }
+
+                attempts++
             }
         }
 
