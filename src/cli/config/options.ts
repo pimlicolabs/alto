@@ -180,7 +180,7 @@ export const gasPriceOptions: CliCommandOptions<IGasPriceArgsInput> = {
             "Maximum that the gas prices fetched using pimlico_getUserOperationGasPrice will be accepted for (number of blocks)",
         type: "number",
         require: false,
-        default: 10
+        default: 50
     },
     "gas-price-multipliers": {
         description:
