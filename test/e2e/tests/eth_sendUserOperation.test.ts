@@ -12,7 +12,8 @@ import {
     type EntryPointVersion,
     UserOperationReceiptNotFoundError,
     entryPoint06Address,
-    entryPoint07Address
+    entryPoint07Address,
+    UserOperation
 } from "viem/account-abstraction"
 import { generatePrivateKey } from "viem/accounts"
 import { foundry } from "viem/chains"
@@ -382,6 +383,40 @@ describe.each([
                         receipts[0].receipt.transactionHash
                 )
             ).toEqual(true)
+        })
+
+        test("Should throw 'already known' if same userOperation is sent twice", async () => {
+            const smartAccountClient = await getSmartAccountClient({
+                entryPointVersion
+            })
+
+            const to = "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5"
+            const value = parseEther("0.15")
+
+            const userOperation =
+                (await smartAccountClient.prepareUserOperation({
+                    calls: [
+                        {
+                            to,
+                            value,
+                            data: "0x"
+                        }
+                    ]
+                })) as UserOperation
+            userOperation.signature =
+                await smartAccountClient.account.signUserOperation(
+                    userOperation
+                )
+
+            await smartAccountClient.sendUserOperation(userOperation) // first should go through
+
+            await expect(async () => {
+                await smartAccountClient.sendUserOperation(userOperation) // second should fail due to "already known"
+            }).rejects.toThrowError(
+                expect.objectContaining({
+                    details: expect.stringContaining("Already known")
+                })
+            )
         })
     }
 )
