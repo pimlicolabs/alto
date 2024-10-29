@@ -163,10 +163,6 @@ export class GasPriceManager {
             if (!this.config.legacyTransactions) {
                 await this.updateBaseFee(latestBlock)
             }
-
-            if (this.config.chainType === "arbitrum") {
-                //await this.arbitrumManager.
-            }
         } catch (error) {
             this.logger.error({ error }, "Error updating gas prices for block")
             sentry.captureException(error)
