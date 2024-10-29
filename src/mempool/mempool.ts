@@ -258,6 +258,16 @@ export class MemoryMempool {
                 .map(({ userOperation }) => userOperation)
         ]
 
+        // Check if the exact same userOperation is already in the mempool.
+        const existingUserOperation = [
+            ...outstandingOps,
+            ...processedOrSubmittedOps
+        ].find(({ userOperationHash }) => userOperationHash === opHash)
+
+        if (existingUserOperation) {
+            return [false, "Already known"]
+        }
+
         if (
             processedOrSubmittedOps.find(({ mempoolUserOperation }) => {
                 const userOperation = deriveUserOperation(mempoolUserOperation)
