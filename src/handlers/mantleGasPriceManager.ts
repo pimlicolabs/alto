@@ -1,4 +1,4 @@
-import { TimedQueue } from "../utils/timedQueue"
+import { TimedQueue } from "@alto/utils"
 
 export class MantleManager {
     private tokenRatioQueue: TimedQueue
@@ -6,8 +6,9 @@ export class MantleManager {
     private rollupDataGasAndOverheadQueue: TimedQueue
     private l1GasPriceQueue: TimedQueue
 
-    constructor(maxQueueSize: number) {
+    constructor() {
         const queueValidity = 15_000
+        const maxQueueSize = 250
         this.tokenRatioQueue = new TimedQueue(maxQueueSize, queueValidity)
         this.scalarQueue = new TimedQueue(maxQueueSize, queueValidity)
         this.rollupDataGasAndOverheadQueue = new TimedQueue(

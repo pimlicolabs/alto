@@ -376,6 +376,8 @@ export const setupServer = async ({
             "dumping mempool before shutdown"
         )
 
+        gasPriceManager.shutdown()
+
         process.exit(0)
     }
 

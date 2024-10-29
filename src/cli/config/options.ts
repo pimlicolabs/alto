@@ -6,6 +6,7 @@ import type {
     ICompatibilityArgsInput,
     IDebugArgsInput,
     IGasEstimationArgsInput,
+    IGasPriceArgsInput,
     ILogArgsInput,
     IOptionsInput,
     IRpcArgsInput,
@@ -101,45 +102,11 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: true,
         default: true
     },
-    "gas-price-bump": {
-        description: "Amount to multiply the gas prices fetched from the node",
-        type: "string",
-        require: false,
-        default: "100"
-    },
     "no-profit-bundling": {
         description:
             "Bundle tx such that all beneficiary fees are spent on gas fees",
         type: "boolean",
         default: false
-    },
-    "gas-price-floor-percent": {
-        description:
-            "The minimum percentage of incoming user operation gas prices compared to the gas price used by the bundler to submit bundles",
-        type: "number",
-        require: true,
-        default: 101
-    },
-    "gas-price-expiry": {
-        description:
-            "Maximum that the gas prices fetched using pimlico_getUserOperationGasPrice will be accepted for (seconds)",
-        type: "number",
-        require: false,
-        default: 10
-    },
-    "gas-price-multipliers": {
-        description:
-            "Amount to multiply the gas prices fetched using pimlico_getUserOperationGasPrice (format: slow,standard,fast)",
-        type: "string",
-        require: false,
-        default: "100,100,100"
-    },
-    "gas-price-refresh-interval": {
-        description:
-            "How to often to refresh the gas prices (seconds). If 0, then gas prices are refreshed on every request",
-        type: "number",
-        require: false,
-        default: 0
     },
     "mempool-max-parallel-ops": {
         description:
@@ -192,6 +159,29 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
             "Should the bundler enable the pimlico_sendUserOperationNow endpoint",
         type: "boolean",
         default: false
+    }
+}
+
+export const gasPriceOptions: CliCommandOptions<IGasPriceArgsInput> = {
+    "gas-price-bump": {
+        description: "Amount to multiply the gas prices fetched from the node",
+        type: "string",
+        require: false,
+        default: "100"
+    },
+    "gas-price-staleness-threshold": {
+        description:
+            "Maximum that the gas prices fetched using pimlico_getUserOperationGasPrice will be accepted for (number of blocks)",
+        type: "number",
+        require: false,
+        default: 10
+    },
+    "gas-price-multipliers": {
+        description:
+            "Amount to multiply the gas prices fetched using pimlico_getUserOperationGasPrice (format: slow,standard,fast)",
+        type: "string",
+        require: false,
+        default: "100,100,100"
     }
 }
 

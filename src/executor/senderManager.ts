@@ -138,7 +138,7 @@ export class SenderManager {
 
         if (Object.keys(balancesMissing).length > 0) {
             const { maxFeePerGas, maxPriorityFeePerGas } =
-                await this.gasPriceManager.getGasPrice()
+                await this.gasPriceManager.latestGasPrice()
 
             if (this.config.refillHelperContract) {
                 const instructions = []

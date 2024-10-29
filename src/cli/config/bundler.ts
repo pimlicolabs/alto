@@ -69,22 +69,6 @@ export const bundlerArgsSchema = z.object({
     "max-bundle-wait": z.number().int().min(0),
     "max-bundle-size": z.number().int().min(0),
 
-    "gas-price-bump": z
-        .string()
-        .transform((val) => BigInt(val))
-        .default("100"),
-    "gas-price-floor-percent": z.number().int().min(0),
-    "gas-price-expiry": z.number().int().min(0),
-    "gas-price-multipliers": z
-        .string()
-        .transform((value) => value.split(",").map(BigInt))
-        .refine(
-            (values) => values.length === 3,
-            "Must contain 3 comma seperated items in format: slow,standard,fast"
-        )
-        .transform(([slow, standard, fast]) => ({ slow, standard, fast })),
-    "gas-price-refresh-interval": z.number().int().min(0),
-
     "mempool-max-parallel-ops": z.number().int().min(0).default(10),
     "mempool-max-queued-ops": z.number().int().min(0).default(0),
     "enforce-unique-senders-per-bundle": z.boolean().default(true),
@@ -199,6 +183,22 @@ export const debugArgsSchema = z.object({
     tenderly: z.boolean()
 })
 
+export const gasPriceArgsSchema = z.object({
+    "gas-price-staleness-threshold": z.number().int().min(0),
+    "gas-price-bump": z
+        .string()
+        .transform((val) => BigInt(val))
+        .default("100"),
+    "gas-price-multipliers": z
+        .string()
+        .transform((value) => value.split(",").map(BigInt))
+        .refine(
+            (values) => values.length === 3,
+            "Must contain 3 comma seperated items in format: slow,standard,fast"
+        )
+        .transform(([slow, standard, fast]) => ({ slow, standard, fast }))
+})
+
 export const gasEstimationArgsSchema = z.object({
     "binary-search-tolerance-delta": z
         .string()
@@ -235,6 +235,9 @@ export type ILogArgsInput = z.input<typeof logArgsSchema>
 export type IDebugArgs = z.infer<typeof debugArgsSchema>
 export type IDebugArgsInput = z.input<typeof debugArgsSchema>
 
+export type IGasPriceArgs = z.infer<typeof gasPriceArgsSchema>
+export type IGasPriceArgsInput = z.input<typeof gasPriceArgsSchema>
+
 export type IGasEstimationArgs = z.infer<typeof gasEstimationArgsSchema>
 export type IGasEstimationArgsInput = z.input<typeof gasEstimationArgsSchema>
 
@@ -246,7 +249,8 @@ export const optionArgsSchema = z.object({
     ...rpcArgsSchema.shape,
     ...bundleCopmressionArgsSchema.shape,
     ...debugArgsSchema.shape,
-    ...gasEstimationArgsSchema.shape
+    ...gasEstimationArgsSchema.shape,
+    ...gasPriceArgsSchema.shape
 })
 
 export type IOptions = z.infer<typeof optionArgsSchema>

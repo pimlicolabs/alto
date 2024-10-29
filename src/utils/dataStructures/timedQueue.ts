@@ -1,4 +1,4 @@
-import { maxBigInt, minBigInt } from "./bigInt"
+import { minBigInt, maxBigInt } from "../bigInt"
 
 export class TimedQueue {
     private queue: { timestamp: number; value: bigint }[]

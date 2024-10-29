@@ -816,7 +816,7 @@ export class RpcHandler implements IRpcEndpoint {
 
     async pimlico_getUserOperationGasPrice(): Promise<PimlicoGetUserOperationGasPriceResponseResult> {
         let { maxFeePerGas, maxPriorityFeePerGas } =
-            await this.gasPriceManager.getGasPrice()
+            await this.gasPriceManager.latestGasPrice()
 
         if (this.config.chainType === "hedera") {
             maxFeePerGas /= 10n ** 9n

@@ -1,12 +1,13 @@
+import { TimedQueue } from "@alto/utils"
 import { maxUint128 } from "viem"
-import { TimedQueue } from "../utils/timedQueue"
 
 export class ArbitrumManager {
     private l1BaseFeeQueue: TimedQueue
     private l2BaseFeeQueue: TimedQueue
 
-    constructor(maxQueueSize: number) {
+    constructor() {
         const queueValidity = 15_000
+        const maxQueueSize = 250
         this.l1BaseFeeQueue = new TimedQueue(maxQueueSize, queueValidity)
         this.l2BaseFeeQueue = new TimedQueue(maxQueueSize, queueValidity)
     }
