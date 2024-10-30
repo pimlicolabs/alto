@@ -45,7 +45,8 @@ import {
     getContract,
     type Account,
     type Hex,
-    BaseError
+    BaseError,
+    NonceTooHighError
 } from "viem"
 import {
     type CompressedFilterOpsAndEstimateGasParams,
@@ -572,15 +573,32 @@ export class Executor {
                 if (error instanceof TransactionExecutionError) {
                     const cause = error.cause
 
-                    if (cause instanceof NonceTooLowError) {
+                    if (
+                        cause instanceof NonceTooLowError ||
+                        cause instanceof NonceTooHighError
+                    ) {
                         this.logger.warn("Nonce too low, retrying")
-                        request.nonce += 1
+                        request.nonce =
+                            await this.config.publicClient.getTransactionCount({
+                                address: request.from,
+                                blockTag: "pending"
+                            })
                         isErrorHandled = true
                     }
 
                     if (cause instanceof IntrinsicGasTooLowError) {
                         this.logger.warn("Intrinsic gas too low, retrying")
                         request.gas = scaleBigIntByPercent(request.gas, 150)
+                        isErrorHandled = true
+                    }
+
+                    // This is thrown by OP-Stack chains that use proxyd.
+                    // ref: https://github.com/ethereum-optimism/optimism/issues/2618#issuecomment-1630272888
+                    if (cause.details?.includes("no backends available")) {
+                        this.logger.warn(
+                            "no backends avaiable error, retrying after 500ms"
+                        )
+                        await new Promise((resolve) => setTimeout(resolve, 500))
                         isErrorHandled = true
                     }
                 }
