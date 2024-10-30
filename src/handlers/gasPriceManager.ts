@@ -5,7 +5,7 @@ import {
 } from "@alto/types"
 import { type Logger, maxBigInt, minBigInt, FixedStack } from "@alto/utils"
 import * as sentry from "@sentry/node"
-import { type PublicClient, parseGwei, Block } from "viem"
+import { type PublicClient, parseGwei, Block, toHex } from "viem"
 import {
     avalanche,
     celo,
@@ -95,6 +95,7 @@ export class GasPriceManager {
         return baseFee
     }
 
+    // Returns the latest cached gasPrice.
     public async latestGasPrice(): Promise<GasPriceParameters> {
         const gasPrice = this.gasPriceStack.peek()
 
@@ -103,6 +104,11 @@ export class GasPriceManager {
         }
 
         return gasPrice
+    }
+
+    // Actively fetches the network gasPrice instead of using the gasPriceStack cache.
+    public async networkGasPrice(): Promise<GasPriceParameters> {
+        return await this.innerGetGasPrice()
     }
 
     public async getMaxBaseFeePerGas(): Promise<bigint> {

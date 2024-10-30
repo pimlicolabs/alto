@@ -18,11 +18,11 @@ export class FixedStack<T> {
         this.items.push(item)
     }
 
-    pop(): T | null {
+    pop(): T | undefined {
         if (this.isEmpty()) {
-            return null
+            return undefined
         }
-        return this.items.pop()!
+        return this.items.shift()
     }
 
     peek(): T | null {
