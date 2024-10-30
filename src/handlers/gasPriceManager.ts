@@ -5,7 +5,7 @@ import {
 } from "@alto/types"
 import { type Logger, maxBigInt, minBigInt, FixedStack } from "@alto/utils"
 import * as sentry from "@sentry/node"
-import { type PublicClient, parseGwei, Block, toHex } from "viem"
+import { type PublicClient, parseGwei, Block } from "viem"
 import {
     avalanche,
     celo,
