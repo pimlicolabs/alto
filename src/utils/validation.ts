@@ -377,17 +377,9 @@ export function calcVerificationGasAndCallGasLimit(
         150
     )
 
-    let gasPrice: bigint
-
-    if (userOperation.maxPriorityFeePerGas === userOperation.maxFeePerGas) {
-        gasPrice = userOperation.maxFeePerGas
-    } else {
-        gasPrice = userOperation.maxFeePerGas
-    }
-
     const calculatedCallGasLimit =
         callDataResult?.gasUsed ??
-        executionResult.paid / gasPrice - executionResult.preOpGas
+        executionResult.paid / userOperation.maxFeePerGas - executionResult.preOpGas
 
     let callGasLimit =
         maxBigInt(calculatedCallGasLimit, 9000n) + 21_000n + 50_000n
