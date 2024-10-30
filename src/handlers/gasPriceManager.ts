@@ -417,6 +417,10 @@ export class GasPriceManager {
         }
     }
 
+    public async getNetworkGasPrice(): Promise<GasPriceParameters> {
+        return await this.innerGetGasPrice()
+    }
+
     public async getMaxBaseFeePerGas(): Promise<bigint> {
         let maxBaseFeePerGas = this.baseFeePerGasQueue.getMaxValue()
         if (!maxBaseFeePerGas) {
