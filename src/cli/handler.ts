@@ -11,8 +11,6 @@ import {
     createPublicClient,
     createWalletClient,
     formatEther,
-    WalletClient,
-    Transport,
     fallback
 } from "viem"
 import { UtilityWalletMonitor } from "../executor/utilityWalletMonitor"
