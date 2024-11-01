@@ -10,7 +10,8 @@ import {
     type Chain,
     createPublicClient,
     createWalletClient,
-    formatEther
+    formatEther,
+    fallback
 } from "viem"
 import { UtilityWalletMonitor } from "../executor/utilityWalletMonitor"
 import type { IOptionsInput } from "./config"
@@ -103,15 +104,24 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         chain
     })
 
-    const walletClient = createWalletClient({
-        transport: customTransport(args.sendTransactionRpcUrl ?? args.rpcUrl, {
+    const createWalletTransport = (url: string) =>
+        customTransport(url, {
             logger: logger.child(
                 { module: "wallet_client" },
-                {
-                    level: args.walletClientLogLevel || args.logLevel
-                }
+                { level: args.walletClientLogLevel || args.logLevel }
             )
-        }),
+        })
+
+    const walletClient = createWalletClient({
+        transport: args.sendTransactionRpcUrl
+            ? fallback(
+                  [
+                      createWalletTransport(args.sendTransactionRpcUrl),
+                      createWalletTransport(args.rpcUrl)
+                  ],
+                  { rank: false }
+              )
+            : createWalletTransport(args.rpcUrl),
         chain
     })
 
