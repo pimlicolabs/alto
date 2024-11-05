@@ -393,7 +393,7 @@ export class RpcHandler implements IRpcEndpoint {
         // biome-ignore lint/style/noParameterAssign: prepare userOperaiton for simulation
         userOperation = {
             ...userOperation,
-            preVerificationGas: 1_000_000n,
+            preVerificationGas,
             verificationGasLimit: 10_000_000n,
             callGasLimit: 10_000_000n
         }
