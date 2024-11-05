@@ -6,7 +6,7 @@ import type {
 } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
-    MemoryMempool,
+    Mempool,
     Monitor
 } from "@alto/mempool"
 import type {
@@ -80,7 +80,7 @@ import {
 } from "viem"
 import { base, baseSepolia, optimism } from "viem/chains"
 import type { NonceQueuer } from "./nonceQueuer"
-import type { AltoConfig } from "../createConfig"
+import type { AltoConfig } from "@alto/config"
 
 export interface IRpcEndpoint {
     handleMethod(
@@ -111,7 +111,7 @@ export interface IRpcEndpoint {
 export class RpcHandler implements IRpcEndpoint {
     config: AltoConfig
     validator: InterfaceValidator
-    mempool: MemoryMempool
+    mempool: Mempool
     executor: Executor
     monitor: Monitor
     nonceQueuer: NonceQueuer
@@ -139,7 +139,7 @@ export class RpcHandler implements IRpcEndpoint {
     }: {
         config: AltoConfig
         validator: InterfaceValidator
-        mempool: MemoryMempool
+        mempool: Mempool
         executor: Executor
         monitor: Monitor
         nonceQueuer: NonceQueuer
@@ -751,11 +751,9 @@ export class RpcHandler implements IRpcEndpoint {
         this.ensureDebugEndpointsAreEnabled("debug_bundler_dumpMempool")
         this.ensureEntryPointIsSupported(entryPoint)
 
-        return this.mempool
-            .dumpOutstanding()
-            .map((userOpInfo) =>
-                deriveUserOperation(userOpInfo.mempoolUserOperation)
-            )
+        return (await this.mempool.dumpOutstanding()).map((userOpInfo) =>
+            deriveUserOperation(userOpInfo.mempoolUserOperation)
+        )
     }
 
     async debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
@@ -901,7 +899,10 @@ export class RpcHandler implements IRpcEndpoint {
             currentNonceValue + BigInt(queuedUserOperations.length)
         ) {
             if (this.config.dangerousSkipUserOperationValidation) {
-                const [success, errorReason] = this.mempool.add(op, entryPoint)
+                const [success, errorReason] = await this.mempool.add(
+                    op,
+                    entryPoint
+                )
                 if (!success) {
                     this.eventManager.emitFailedValidation(
                         opHash,
@@ -939,7 +940,7 @@ export class RpcHandler implements IRpcEndpoint {
                     userOperation
                 )
 
-                const [success, errorReason] = this.mempool.add(
+                const [success, errorReason] = await this.mempool.add(
                     op,
                     entryPoint,
                     validationResult.referencedContracts

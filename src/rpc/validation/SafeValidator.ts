@@ -51,7 +51,7 @@ import { tracerResultParserV06 } from "./TracerResultParserV06"
 import { tracerResultParserV07 } from "./TracerResultParserV07"
 import { UnsafeValidator } from "./UnsafeValidator"
 import { debug_traceCall } from "./tracer"
-import type { AltoConfig } from "../../createConfig"
+import type { AltoConfig } from "@alto/config"
 
 export class SafeValidator
     extends UnsafeValidator

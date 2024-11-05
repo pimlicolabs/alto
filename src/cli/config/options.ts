@@ -7,6 +7,7 @@ import type {
     IDebugArgsInput,
     IGasEstimationArgsInput,
     ILogArgsInput,
+    IMempoolArgsInput,
     IOptionsInput,
     IRpcArgsInput,
     IServerArgsInput
@@ -140,27 +141,6 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "number",
         require: false,
         default: 0
-    },
-    "mempool-max-parallel-ops": {
-        description:
-            "Maximum amount of parallel user ops to keep in the meempool (same sender, different nonce keys)",
-        type: "number",
-        require: false,
-        default: 10
-    },
-    "mempool-max-queued-ops": {
-        description:
-            "Maximum amount of sequential user ops to keep in the mempool (same sender and nonce key, different nonce values)",
-        type: "number",
-        require: false,
-        default: 0
-    },
-    "enforce-unique-senders-per-bundle": {
-        description:
-            "Include user ops with the same sender in the single bundle",
-        type: "boolean",
-        require: false,
-        default: true
     },
     "max-gas-per-bundle": {
         description: "Maximum amount of gas per bundle",
@@ -476,6 +456,49 @@ export const debugOptions: CliCommandOptions<IDebugArgsInput> = {
         type: "boolean",
         require: true,
         default: false
+    }
+}
+
+export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
+    "redis-mempool": {
+        description: "Enable Redis-backed mempool storage",
+        type: "boolean",
+        require: false,
+        default: false
+    },
+    "redis-mempool-url": {
+        description:
+            "Redis connection URL (required if redis-mempool is enabled)",
+        type: "string",
+        require: false,
+        implies: "redis-mempool"
+    },
+    "redis-mempool-concurrency": {
+        description: "Number of concurrent jobs to process",
+        type: "number",
+        require: false,
+        default: 10
+    },
+    "mempool-max-parallel-ops": {
+        description:
+            "Maximum amount of parallel user ops to keep in the mempool (same sender, different nonce keys)",
+        type: "number",
+        require: false,
+        default: 10
+    },
+    "mempool-max-queued-ops": {
+        description:
+            "Maximum amount of sequential user ops to keep in the mempool (same sender and nonce key, different nonce values)",
+        type: "number",
+        require: false,
+        default: 0
+    },
+    "enforce-unique-senders-per-bundle": {
+        description:
+            "Include user ops with the same sender in the single bundle",
+        type: "boolean",
+        require: false,
+        default: true
     }
 }
 

@@ -14,7 +14,7 @@ import {
     formatEther,
     getContract
 } from "viem"
-import type { AltoConfig } from "../createConfig"
+import type { AltoConfig } from "@alto/config"
 
 const waitForTransactionReceipt = async (
     publicClient: PublicClient,

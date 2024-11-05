@@ -19,7 +19,6 @@ import {
     deriveUserOperation
 } from "@alto/types"
 import type { HexData32 } from "@alto/types"
-import type { Metrics } from "@alto/utils"
 import type { Logger } from "@alto/utils"
 import {
     getAddressFromInitCodeOrPaymasterAndData,
@@ -34,14 +33,14 @@ import {
     type InterfaceReputationManager,
     ReputationStatuses
 } from "./reputationManager"
-import { MemoryStore } from "./store"
-import type { AltoConfig } from "../createConfig"
+import type { Store } from "@alto/store"
+import type { AltoConfig } from "@alto/config"
 
-export class MemoryMempool {
+export class Mempool {
     private config: AltoConfig
     private monitor: Monitor
     private reputationManager: InterfaceReputationManager
-    private store: MemoryStore
+    private store: Store
     private throttledEntityBundleCount: number
     private logger: Logger
     private validator: InterfaceValidator
@@ -52,15 +51,15 @@ export class MemoryMempool {
         monitor,
         reputationManager,
         validator,
-        metrics,
-        eventManager
+        eventManager,
+        store
     }: {
         config: AltoConfig
         monitor: Monitor
         reputationManager: InterfaceReputationManager
         validator: InterfaceValidator
-        metrics: Metrics
         eventManager: EventManager
+        store: Store
     }) {
         this.config = config
         this.reputationManager = reputationManager
@@ -72,22 +71,20 @@ export class MemoryMempool {
                 level: config.logLevel
             }
         )
-        this.store = new MemoryStore(this.logger, metrics)
+        this.store = store
         this.throttledEntityBundleCount = 4 // we don't have any config for this as of now
         this.eventManager = eventManager
     }
 
-    replaceSubmitted(
+    async replaceSubmitted(
         userOperation: UserOperationInfo,
         transactionInfo: TransactionInfo
-    ): void {
-        const op = this.store
-            .dumpSubmitted()
-            .find(
-                (op) =>
-                    op.userOperation.userOperationHash ===
-                    userOperation.userOperationHash
-            )
+    ) {
+        const op = (await this.store.dumpSubmitted()).find(
+            (op) =>
+                op.userOperation.userOperationHash ===
+                userOperation.userOperationHash
+        )
         if (op) {
             this.store.removeSubmitted(userOperation.userOperationHash)
             this.store.addSubmitted({
@@ -104,13 +101,13 @@ export class MemoryMempool {
         }
     }
 
-    markSubmitted(
+    async markSubmitted(
         userOpHash: `0x${string}`,
         transactionInfo: TransactionInfo
-    ): void {
-        const op = this.store
-            .dumpProcessing()
-            .find((op) => op.userOperationHash === userOpHash)
+    ) {
+        const op = (await this.store.dumpProcessing()).find(
+            (op) => op.userOperationHash === userOpHash
+        )
         if (op) {
             this.store.removeProcessing(userOpHash)
             this.store.addSubmitted({
@@ -124,15 +121,15 @@ export class MemoryMempool {
         }
     }
 
-    dumpOutstanding(): UserOperationInfo[] {
+    dumpOutstanding(): Promise<UserOperationInfo[]> {
         return this.store.dumpOutstanding()
     }
 
-    dumpProcessing(): UserOperationInfo[] {
+    dumpProcessing(): Promise<UserOperationInfo[]> {
         return this.store.dumpProcessing()
     }
 
-    dumpSubmittedOps(): SubmittedUserOperation[] {
+    dumpSubmittedOps(): Promise<SubmittedUserOperation[]> {
         return this.store.dumpSubmitted()
     }
 
@@ -144,12 +141,12 @@ export class MemoryMempool {
         this.store.removeProcessing(userOpHash)
     }
 
-    checkEntityMultipleRoleViolation(op: UserOperation): Promise<void> {
+    async checkEntityMultipleRoleViolation(op: UserOperation): Promise<void> {
         if (!this.config.safeMode) {
             return Promise.resolve()
         }
 
-        const knownEntities = this.getKnownEntities()
+        const knownEntities = await this.getKnownEntities()
 
         if (
             knownEntities.paymasters.has(op.sender) ||
@@ -192,12 +189,12 @@ export class MemoryMempool {
         return Promise.resolve()
     }
 
-    getKnownEntities(): {
+    async getKnownEntities(): Promise<{
         sender: Set<Address>
         paymasters: Set<Address>
         factories: Set<Address>
-    } {
-        const allOps = [...this.store.dumpOutstanding()]
+    }> {
+        const allOps = await this.store.dumpOutstanding()
 
         const entities: {
             sender: Set<Address>
@@ -237,11 +234,11 @@ export class MemoryMempool {
 
     // TODO: add check for adding a userop with conflicting nonce
     // In case of concurrent requests
-    add(
+    async add(
         mempoolUserOperation: MempoolUserOperation,
         entryPoint: Address,
         referencedContracts?: ReferencedCodeHashes
-    ): [boolean, string] {
+    ): Promise<[boolean, string]> {
         const op = deriveUserOperation(mempoolUserOperation)
         const opHash = getUserOperationHash(
             op,
@@ -249,13 +246,13 @@ export class MemoryMempool {
             this.config.publicClient.chain.id
         )
 
-        const outstandingOps = [...this.store.dumpOutstanding()]
+        const outstandingOps = await this.store.dumpOutstanding()
 
         const processedOrSubmittedOps = [
-            ...this.store.dumpProcessing(),
-            ...this.store
-                .dumpSubmitted()
-                .map(({ userOperation }) => userOperation)
+            ...(await this.store.dumpProcessing()),
+            ...(await this.store.dumpSubmitted()).map(
+                ({ userOperation }) => userOperation
+            )
         ]
 
         // Check if the exact same userOperation is already in the mempool.
@@ -368,14 +365,12 @@ export class MemoryMempool {
         }
 
         // Check if mempool already includes max amount of parallel user operations
-        const parallelUserOperationsCount = this.store
-            .dumpOutstanding()
-            .filter((userOpInfo) => {
-                const userOp = deriveUserOperation(
-                    userOpInfo.mempoolUserOperation
-                )
-                return userOp.sender === op.sender
-            }).length
+        const parallelUserOperationsCount = (
+            await this.store.dumpOutstanding()
+        ).filter((userOpInfo) => {
+            const userOp = deriveUserOperation(userOpInfo.mempoolUserOperation)
+            return userOp.sender === op.sender
+        }).length
 
         if (parallelUserOperationsCount > this.config.mempoolMaxParallelOps) {
             return [
@@ -386,16 +381,14 @@ export class MemoryMempool {
 
         // Check if mempool already includes max amount of queued user operations
         const [nonceKey] = getNonceKeyAndValue(op.nonce)
-        const queuedUserOperationsCount = this.store
-            .dumpOutstanding()
-            .filter((userOpInfo) => {
-                const userOp = deriveUserOperation(
-                    userOpInfo.mempoolUserOperation
-                )
-                const [opNonceKey] = getNonceKeyAndValue(userOp.nonce)
+        const queuedUserOperationsCount = (
+            await this.store.dumpOutstanding()
+        ).filter((userOpInfo) => {
+            const userOp = deriveUserOperation(userOpInfo.mempoolUserOperation)
+            const [opNonceKey] = getNonceKeyAndValue(userOp.nonce)
 
-                return userOp.sender === op.sender && opNonceKey === nonceKey
-            }).length
+            return userOp.sender === op.sender && opNonceKey === nonceKey
+        }).length
 
         if (queuedUserOperationsCount > this.config.mempoolMaxQueuedOps) {
             return [
@@ -667,98 +660,91 @@ export class MemoryMempool {
         }
     }
 
-    async process(
-        maxGasLimit: bigint,
-        minOps?: number
-    ): Promise<UserOperationInfo[]> {
-        const outstandingUserOperations = this.store.dumpOutstanding().slice()
-
-        // Sort userops before the execution
-        // Decide the order of the userops based on the sender and nonce
-        // If sender is the same, sort by nonce key
-        outstandingUserOperations.sort((a, b) => {
-            const aUserOp = deriveUserOperation(a.mempoolUserOperation)
-            const bUserOp = deriveUserOperation(b.mempoolUserOperation)
-
-            if (aUserOp.sender === bUserOp.sender) {
-                const [aNonceKey, aNonceValue] = getNonceKeyAndValue(
-                    aUserOp.nonce
-                )
-                const [bNonceKey, bNonceValue] = getNonceKeyAndValue(
-                    bUserOp.nonce
-                )
-
-                if (aNonceKey === bNonceKey) {
-                    return Number(aNonceValue - bNonceValue)
+    process(
+        {
+            maxGasLimit,
+            maxTime
+        }: {
+            maxGasLimit: bigint
+            maxTime?: number
+        },
+        callback: (ops: UserOperationInfo[]) => void | Promise<void>
+    ) {
+        return this.store.process({ maxTime }, async (ops) => {
+            // Sort userops before the execution
+            // Decide the order of the userops based on the sender and nonce
+            // If sender is the same, sort by nonce key
+            ops.sort((a, b) => {
+                const aUserOp = deriveUserOperation(a.mempoolUserOperation)
+                const bUserOp = deriveUserOperation(b.mempoolUserOperation)
+                if (aUserOp.sender === bUserOp.sender) {
+                    const [aNonceKey, aNonceValue] = getNonceKeyAndValue(
+                        aUserOp.nonce
+                    )
+                    const [bNonceKey, bNonceValue] = getNonceKeyAndValue(
+                        bUserOp.nonce
+                    )
+                    if (aNonceKey === bNonceKey) {
+                        return Number(aNonceValue - bNonceValue)
+                    }
+                    return Number(aNonceKey - bNonceKey)
                 }
-
-                return Number(aNonceKey - bNonceKey)
+                return 0
+            })
+            let gasUsed = 0n
+            const result: UserOperationInfo[] = []
+            // paymaster deposit should be enough for all UserOps in the bundle.
+            let paymasterDeposit: { [paymaster: string]: bigint } = {}
+            // throttled paymasters and factories are allowed only small UserOps per bundle.
+            let stakedEntityCount: { [addr: string]: number } = {}
+            // each sender is allowed only once per bundle
+            let senders = new Set<string>()
+            let knownEntities = await this.getKnownEntities()
+            let storageMap: StorageMap = {}
+            for (const opInfo of ops) {
+                const op = deriveUserOperation(opInfo.mempoolUserOperation)
+                gasUsed +=
+                    op.callGasLimit +
+                    op.verificationGasLimit * 3n +
+                    op.preVerificationGas
+                if (gasUsed > maxGasLimit) {
+                    break
+                }
+                const skipResult = await this.shouldSkip(
+                    opInfo,
+                    paymasterDeposit,
+                    stakedEntityCount,
+                    knownEntities,
+                    senders,
+                    storageMap
+                )
+                paymasterDeposit = skipResult.paymasterDeposit
+                stakedEntityCount = skipResult.stakedEntityCount
+                knownEntities = skipResult.knownEntities
+                senders = skipResult.senders
+                storageMap = skipResult.storageMap
+                if (skipResult.skip) {
+                    continue
+                }
+                this.reputationManager.decreaseUserOperationCount(op)
+                this.store.addProcessing(opInfo)
+                result.push(opInfo)
             }
-
-            return 0
+            callback(result)
         })
-
-        let opsTaken = 0
-        let gasUsed = 0n
-        const result: UserOperationInfo[] = []
-
-        // paymaster deposit should be enough for all UserOps in the bundle.
-        let paymasterDeposit: { [paymaster: string]: bigint } = {}
-        // throttled paymasters and factories are allowed only small UserOps per bundle.
-        let stakedEntityCount: { [addr: string]: number } = {}
-        // each sender is allowed only once per bundle
-        let senders = new Set<string>()
-        let knownEntities = this.getKnownEntities()
-
-        let storageMap: StorageMap = {}
-
-        for (const opInfo of outstandingUserOperations) {
-            const op = deriveUserOperation(opInfo.mempoolUserOperation)
-            gasUsed +=
-                op.callGasLimit +
-                op.verificationGasLimit * 3n +
-                op.preVerificationGas
-            if (gasUsed > maxGasLimit && opsTaken >= (minOps || 0)) {
-                break
-            }
-            const skipResult = await this.shouldSkip(
-                opInfo,
-                paymasterDeposit,
-                stakedEntityCount,
-                knownEntities,
-                senders,
-                storageMap
-            )
-            paymasterDeposit = skipResult.paymasterDeposit
-            stakedEntityCount = skipResult.stakedEntityCount
-            knownEntities = skipResult.knownEntities
-            senders = skipResult.senders
-            storageMap = skipResult.storageMap
-
-            if (skipResult.skip) {
-                continue
-            }
-
-            this.reputationManager.decreaseUserOperationCount(op)
-            this.store.removeOutstanding(opInfo.userOperationHash)
-            this.store.addProcessing(opInfo)
-            result.push(opInfo)
-            opsTaken++
-        }
-        return result
     }
 
-    get(opHash: HexData32): UserOperation | null {
-        const outstanding = this.store
-            .dumpOutstanding()
-            .find((op) => op.userOperationHash === opHash)
+    async get(opHash: HexData32): Promise<UserOperation | null> {
+        const outstanding = (await this.store.dumpOutstanding()).find(
+            (op) => op.userOperationHash === opHash
+        )
         if (outstanding) {
             return deriveUserOperation(outstanding.mempoolUserOperation)
         }
 
-        const submitted = this.store
-            .dumpSubmitted()
-            .find((op) => op.userOperation.userOperationHash === opHash)
+        const submitted = (await this.store.dumpSubmitted()).find(
+            (op) => op.userOperation.userOperationHash === opHash
+        )
         if (submitted) {
             return deriveUserOperation(
                 submitted.userOperation.mempoolUserOperation
@@ -805,8 +791,7 @@ export class MemoryMempool {
             currentNonceValue = getNonceKeyAndValue(getNonceResult)[1]
         }
 
-        const outstanding = this.store
-            .dumpOutstanding()
+        const outstanding = (await this.store.dumpOutstanding())
             .map((userOpInfo) =>
                 deriveUserOperation(userOpInfo.mempoolUserOperation)
             )

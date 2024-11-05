@@ -1,7 +1,7 @@
 import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
-    MemoryMempool,
+    Mempool,
     Monitor
 } from "@alto/mempool"
 import {
@@ -34,7 +34,7 @@ import {
     getAbiItem
 } from "viem"
 import type { Executor, ReplaceTransactionResult } from "./executor"
-import type { AltoConfig } from "../createConfig"
+import type { AltoConfig } from "@alto/config"
 
 function getTransactionsFromUserOperationEntries(
     entries: SubmittedUserOperation[]
@@ -51,14 +51,13 @@ function getTransactionsFromUserOperationEntries(
 export class ExecutorManager {
     private config: AltoConfig
     private executor: Executor
-    private mempool: MemoryMempool
+    private mempool: Mempool
     private monitor: Monitor
     private logger: Logger
     private metrics: Metrics
     private reputationManager: InterfaceReputationManager
     private unWatch: WatchBlocksReturnType | undefined
     private currentlyHandlingBlock = false
-    private timer?: NodeJS.Timer
     private gasPriceManager: GasPriceManager
     private eventManager: EventManager
 
@@ -74,7 +73,7 @@ export class ExecutorManager {
     }: {
         config: AltoConfig
         executor: Executor
-        mempool: MemoryMempool
+        mempool: Mempool
         monitor: Monitor
         reputationManager: InterfaceReputationManager
         metrics: Metrics
@@ -97,61 +96,77 @@ export class ExecutorManager {
         this.eventManager = eventManager
 
         if (this.config.bundleMode === "auto") {
-            this.timer = setInterval(async () => {
-                await this.bundle()
-            }, this.config.maxBundleWait) as NodeJS.Timer
+            this.mempool.process(
+                {
+                    maxGasLimit: this.config.maxGasPerBundle,
+                    maxTime: this.config.maxBundleWait
+                },
+                this.bundle
+            )
         }
     }
 
     setBundlingMode(bundleMode: BundlingMode): void {
-        if (bundleMode === "auto" && !this.timer) {
-            this.timer = setInterval(async () => {
-                await this.bundle()
-            }, this.config.maxBundleWait) as NodeJS.Timer
-        } else if (bundleMode === "manual" && this.timer) {
-            clearInterval(this.timer)
-            this.timer = undefined
+        if (bundleMode === "auto") {
+            this.mempool.process(
+                {
+                    maxGasLimit: this.config.maxGasPerBundle,
+                    maxTime: this.config.maxBundleWait
+                },
+                this.bundle
+            )
         }
     }
 
-    async bundleNow(): Promise<Hash[]> {
-        const ops = await this.mempool.process(this.config.maxGasPerBundle, 1)
-        if (ops.length === 0) {
-            throw new Error("no ops to bundle")
-        }
-
-        const opEntryPointMap = new Map<Address, MempoolUserOperation[]>()
-
-        for (const op of ops) {
-            if (!opEntryPointMap.has(op.entryPoint)) {
-                opEntryPointMap.set(op.entryPoint, [])
-            }
-            opEntryPointMap.get(op.entryPoint)?.push(op.mempoolUserOperation)
-        }
-
-        const txHashes: Hash[] = []
-
-        await Promise.all(
-            this.config.entrypoints.map(async (entryPoint) => {
-                const ops = opEntryPointMap.get(entryPoint)
-                if (ops) {
-                    const txHash = await this.sendToExecutor(entryPoint, ops)
-
-                    if (!txHash) {
-                        throw new Error("no tx hash")
+    bundleNow(): Promise<Hash[]> {
+        return new Promise<Hash[]>((resolve) => {
+            const stopProcessing = this.mempool.process(
+                {
+                    maxGasLimit: this.config.maxGasPerBundle,
+                    maxTime: 1
+                },
+                async (ops) => {
+                    stopProcessing()
+                    if (ops.length === 0) {
+                        throw new Error("no ops to bundle")
                     }
-
-                    txHashes.push(txHash)
-                } else {
-                    this.logger.warn(
-                        { entryPoint },
-                        "no user operations for entry point"
+                    const opEntryPointMap = new Map<
+                        Address,
+                        MempoolUserOperation[]
+                    >()
+                    for (const op of ops) {
+                        if (!opEntryPointMap.has(op.entryPoint)) {
+                            opEntryPointMap.set(op.entryPoint, [])
+                        }
+                        opEntryPointMap
+                            .get(op.entryPoint)
+                            ?.push(op.mempoolUserOperation)
+                    }
+                    const txHashes: Hash[] = []
+                    await Promise.all(
+                        this.config.entrypoints.map(async (entryPoint) => {
+                            const ops = opEntryPointMap.get(entryPoint)
+                            if (ops) {
+                                const txHash = await this.sendToExecutor(
+                                    entryPoint,
+                                    ops
+                                )
+                                if (!txHash) {
+                                    throw new Error("no tx hash")
+                                }
+                                txHashes.push(txHash)
+                            } else {
+                                this.logger.warn(
+                                    { entryPoint },
+                                    "no user operations for entry point"
+                                )
+                            }
+                        })
                     )
+                    resolve(txHashes)
                 }
-            })
-        )
-
-        return txHashes
+            )
+        })
     }
 
     async sendToExecutor(
@@ -285,57 +300,27 @@ export class ExecutorManager {
         return txHash
     }
 
-    async bundle() {
-        const opsToBundle: UserOperationInfo[][] = []
+    async bundle(ops: UserOperationInfo[]) {
+        const opEntryPointMap = new Map<Address, MempoolUserOperation[]>()
 
-        while (true) {
-            const ops = await this.mempool.process(
-                this.config.maxGasPerBundle,
-                1
-            )
-            if (ops?.length > 0) {
-                opsToBundle.push(ops)
-            } else {
-                break
+        for (const op of ops) {
+            if (!opEntryPointMap.has(op.entryPoint)) {
+                opEntryPointMap.set(op.entryPoint, [])
             }
-        }
-
-        if (opsToBundle.length === 0) {
-            return
+            opEntryPointMap.get(op.entryPoint)?.push(op.mempoolUserOperation)
         }
 
         await Promise.all(
-            opsToBundle.map(async (ops) => {
-                const opEntryPointMap = new Map<
-                    Address,
-                    MempoolUserOperation[]
-                >()
-
-                for (const op of ops) {
-                    if (!opEntryPointMap.has(op.entryPoint)) {
-                        opEntryPointMap.set(op.entryPoint, [])
-                    }
-                    opEntryPointMap
-                        .get(op.entryPoint)
-                        ?.push(op.mempoolUserOperation)
+            this.config.entrypoints.map(async (entryPoint) => {
+                const userOperations = opEntryPointMap.get(entryPoint)
+                if (userOperations) {
+                    await this.sendToExecutor(entryPoint, userOperations)
+                } else {
+                    this.logger.warn(
+                        { entryPoint },
+                        "no user operations for entry point"
+                    )
                 }
-
-                await Promise.all(
-                    this.config.entrypoints.map(async (entryPoint) => {
-                        const userOperations = opEntryPointMap.get(entryPoint)
-                        if (userOperations) {
-                            await this.sendToExecutor(
-                                entryPoint,
-                                userOperations
-                            )
-                        } else {
-                            this.logger.warn(
-                                { entryPoint },
-                                "no user operations for entry point"
-                            )
-                        }
-                    })
-                )
             })
         )
     }
@@ -719,7 +704,7 @@ export class ExecutorManager {
     }
 
     async refreshUserOperationStatuses(): Promise<void> {
-        const ops = this.mempool.dumpSubmittedOps()
+        const ops = await this.mempool.dumpSubmittedOps()
 
         const opEntryPointMap = new Map<Address, SubmittedUserOperation[]>()
 
@@ -764,7 +749,7 @@ export class ExecutorManager {
 
         this.logger.debug({ blockNumber: block.number }, "handling block")
 
-        const submittedEntries = this.mempool.dumpSubmittedOps()
+        const submittedEntries = await this.mempool.dumpSubmittedOps()
         if (submittedEntries.length === 0) {
             this.stopWatchingBlocks()
             this.currentlyHandlingBlock = false
@@ -783,7 +768,7 @@ export class ExecutorManager {
         )
 
         const transactionInfos = getTransactionsFromUserOperationEntries(
-            this.mempool.dumpSubmittedOps()
+            await this.mempool.dumpSubmittedOps()
         )
 
         await Promise.all(
@@ -803,7 +788,7 @@ export class ExecutorManager {
 
         // for any left check if enough time has passed, if so replace
         const transactionInfos2 = getTransactionsFromUserOperationEntries(
-            this.mempool.dumpSubmittedOps()
+            await this.mempool.dumpSubmittedOps()
         )
         await Promise.all(
             transactionInfos2.map(async (txInfo) => {

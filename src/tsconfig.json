@@ -37,6 +37,12 @@
             ],
             "@alto/handlers": [
                 "./handlers"
+            ],
+            "@alto/config": [
+                "./createConfig.ts"
+            ],
+            "@alto/store": [
+                "./store"
             ]
         }
     },

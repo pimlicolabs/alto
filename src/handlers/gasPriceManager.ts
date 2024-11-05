@@ -14,7 +14,7 @@ import {
     polygon,
     polygonMumbai
 } from "viem/chains"
-import type { AltoConfig } from "../createConfig"
+import type { AltoConfig } from "@alto/config"
 import { TimedQueue } from "../utils/timedQueue"
 import { ArbitrumManager } from "./arbitrumGasPriceManager"
 import { MantleManager } from "./mantleGasPriceManager"

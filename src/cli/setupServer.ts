@@ -7,7 +7,7 @@ import {
 } from "@alto/handlers"
 import {
     type InterfaceReputationManager,
-    MemoryMempool,
+    Mempool,
     Monitor,
     NullReputationManager,
     ReputationManager
@@ -22,7 +22,8 @@ import {
 import type { InterfaceValidator } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import type { Registry } from "prom-client"
-import type { AltoConfig } from "../createConfig"
+import type { AltoConfig } from "@alto/config"
+import { type Store, createMemoryStore, createRedisStore } from "@alto/store"
 
 const getReputationManager = (
     config: AltoConfig
@@ -77,14 +78,28 @@ const getMempool = ({
     validator: InterfaceValidator
     metrics: Metrics
     eventManager: EventManager
-}): MemoryMempool => {
-    return new MemoryMempool({
+}): Mempool => {
+    let store: Store
+
+    if (config.redisMempool) {
+        store = createRedisStore({
+            config,
+            metrics
+        })
+    } else {
+        store = createMemoryStore({
+            config,
+            metrics
+        })
+    }
+
+    return new Mempool({
         config,
         monitor,
         reputationManager,
         validator,
-        metrics,
-        eventManager
+        eventManager,
+        store
     })
 }
 
@@ -155,7 +170,7 @@ const getExecutorManager = ({
 }: {
     config: AltoConfig
     executor: Executor
-    mempool: MemoryMempool
+    mempool: Mempool
     monitor: Monitor
     reputationManager: InterfaceReputationManager
     metrics: Metrics
@@ -180,7 +195,7 @@ const getNonceQueuer = ({
     eventManager
 }: {
     config: AltoConfig
-    mempool: MemoryMempool
+    mempool: Mempool
     eventManager: EventManager
 }) => {
     return new NonceQueuer({
@@ -206,7 +221,7 @@ const getRpcHandler = ({
 }: {
     config: AltoConfig
     validator: InterfaceValidator
-    mempool: MemoryMempool
+    mempool: Mempool
     executor: Executor
     monitor: Monitor
     nonceQueuer: NonceQueuer
@@ -368,11 +383,10 @@ export const setupServer = async ({
         await server.stop()
         rootLogger.info("server stopped")
 
-        const outstanding = mempool.dumpOutstanding().length
-        const submitted = mempool.dumpSubmittedOps().length
-        const processing = mempool.dumpProcessing().length
+        const submitted = (await mempool.dumpSubmittedOps()).length
+        const processing = (await mempool.dumpProcessing()).length
         rootLogger.info(
-            { outstanding, submitted, processing },
+            { submitted, processing },
             "dumping mempool before shutdown"
         )
 

@@ -85,9 +85,6 @@ export const bundlerArgsSchema = z.object({
         .transform(([slow, standard, fast]) => ({ slow, standard, fast })),
     "gas-price-refresh-interval": z.number().int().min(0),
 
-    "mempool-max-parallel-ops": z.number().int().min(0).default(10),
-    "mempool-max-queued-ops": z.number().int().min(0).default(0),
-    "enforce-unique-senders-per-bundle": z.boolean().default(true),
     "max-gas-per-bundle": z
         .string()
         .transform((val) => BigInt(val))
@@ -170,9 +167,18 @@ export const rpcArgsSchema = z.object({
     "code-override-support": z.boolean().optional().default(false)
 })
 
-export const bundleCopmressionArgsSchema = z.object({
+export const bundleCompressionArgsSchema = z.object({
     "bundle-bulker-address": addressSchema.optional(),
     "per-op-inflator-address": addressSchema.optional()
+})
+
+export const mempoolArgsSchema = z.object({
+    "redis-mempool": z.boolean().default(false),
+    "redis-mempool-url": z.string().optional(),
+    "redis-mempool-concurrency": z.number().int().min(0).default(10),
+    "mempool-max-parallel-ops": z.number().int().min(0).default(10),
+    "mempool-max-queued-ops": z.number().int().min(0).default(0),
+    "enforce-unique-senders-per-bundle": z.boolean().default(true)
 })
 
 export const logArgsSchema = z.object({
@@ -224,9 +230,9 @@ export type IServerArgsInput = z.input<typeof serverArgsSchema>
 export type IRpcArgs = z.infer<typeof rpcArgsSchema>
 export type IRpcArgsInput = z.input<typeof rpcArgsSchema>
 
-export type IBundleCompressionArgs = z.infer<typeof bundleCopmressionArgsSchema>
+export type IBundleCompressionArgs = z.infer<typeof bundleCompressionArgsSchema>
 export type IBundleCompressionArgsInput = z.input<
-    typeof bundleCopmressionArgsSchema
+    typeof bundleCompressionArgsSchema
 >
 
 export type ILogArgs = z.infer<typeof logArgsSchema>
@@ -238,15 +244,19 @@ export type IDebugArgsInput = z.input<typeof debugArgsSchema>
 export type IGasEstimationArgs = z.infer<typeof gasEstimationArgsSchema>
 export type IGasEstimationArgsInput = z.input<typeof gasEstimationArgsSchema>
 
+export type IMempoolArgs = z.infer<typeof mempoolArgsSchema>
+export type IMempoolArgsInput = z.input<typeof mempoolArgsSchema>
+
 export const optionArgsSchema = z.object({
     ...bundlerArgsSchema.shape,
     ...compatibilityArgsSchema.shape,
     ...logArgsSchema.shape,
     ...serverArgsSchema.shape,
     ...rpcArgsSchema.shape,
-    ...bundleCopmressionArgsSchema.shape,
+    ...bundleCompressionArgsSchema.shape,
     ...debugArgsSchema.shape,
-    ...gasEstimationArgsSchema.shape
+    ...gasEstimationArgsSchema.shape,
+    ...mempoolArgsSchema.shape
 })
 
 export type IOptions = z.infer<typeof optionArgsSchema>

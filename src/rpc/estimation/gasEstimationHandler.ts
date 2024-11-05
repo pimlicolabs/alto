@@ -6,7 +6,7 @@ import { type Address, toHex } from "viem"
 import { GasEstimatorV06 } from "./gasEstimationsV06"
 import { GasEstimatorV07 } from "./gasEstimationsV07"
 import type { SimulateHandleOpResult } from "./types"
-import type { AltoConfig } from "../../createConfig"
+import type { AltoConfig } from "@alto/config"
 
 function getStateOverrides({
     addSenderBalanceOverride,

@@ -17,7 +17,7 @@ import {
 } from "viem"
 import { z } from "zod"
 import type { SimulateHandleOpResult } from "./types"
-import type { AltoConfig } from "../../createConfig"
+import type { AltoConfig } from "@alto/config"
 import { deepHexlify } from "../../utils/userop"
 import { parseFailedOpWithRevert } from "./gasEstimationsV07"
 

@@ -57,7 +57,7 @@ import {
     isTransactionUnderpricedError
 } from "./utils"
 import type { SendTransactionErrorType } from "viem"
-import type { AltoConfig } from "../createConfig"
+import type { AltoConfig } from "@alto/config"
 
 export interface GasEstimateResult {
     preverificationGas: bigint

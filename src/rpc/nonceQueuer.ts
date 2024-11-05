@@ -1,5 +1,5 @@
 import type { EventManager } from "@alto/handlers"
-import type { MemoryMempool } from "@alto/mempool"
+import type { Mempool } from "@alto/mempool"
 import {
     EntryPointV06Abi,
     EntryPointV07Abi,
@@ -19,7 +19,7 @@ import {
     type PublicClient,
     getContract
 } from "viem"
-import type { AltoConfig } from "../createConfig"
+import type { AltoConfig } from "@alto/config"
 
 type QueuedUserOperation = {
     entryPoint: Address
@@ -34,7 +34,7 @@ export class NonceQueuer {
     queuedUserOperations: QueuedUserOperation[] = []
 
     config: AltoConfig
-    mempool: MemoryMempool
+    mempool: Mempool
     logger: Logger
     eventManager: EventManager
 
@@ -44,7 +44,7 @@ export class NonceQueuer {
         eventManager
     }: {
         config: AltoConfig
-        mempool: MemoryMempool
+        mempool: Mempool
         eventManager: EventManager
     }) {
         this.config = config

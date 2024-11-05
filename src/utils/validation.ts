@@ -37,7 +37,7 @@ import {
 import { base, baseGoerli, baseSepolia, lineaSepolia } from "viem/chains"
 import { maxBigInt, minBigInt, scaleBigIntByPercent } from "./bigInt"
 import { isVersion06, toPackedUserOperation } from "./userop"
-import type { AltoConfig } from "../createConfig"
+import type { AltoConfig } from "@alto/config"
 import { ArbitrumL1FeeAbi } from "../types/contracts/ArbitrumL1FeeAbi"
 
 export interface GasOverheads {
@@ -379,7 +379,8 @@ export function calcVerificationGasAndCallGasLimit(
 
     const calculatedCallGasLimit =
         callDataResult?.gasUsed ??
-        executionResult.paid / userOperation.maxFeePerGas - executionResult.preOpGas
+        executionResult.paid / userOperation.maxFeePerGas -
+            executionResult.preOpGas
 
     let callGasLimit =
         maxBigInt(calculatedCallGasLimit, 9000n) + 21_000n + 50_000n

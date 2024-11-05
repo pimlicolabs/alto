@@ -1,6 +1,6 @@
 import type { Logger, Metrics } from "@alto/utils"
 import { type Hex, formatEther } from "viem"
-import type { AltoConfig } from "../createConfig"
+import type { AltoConfig } from "@alto/config"
 import type { Address } from "abitype"
 
 export class UtilityWalletMonitor {
