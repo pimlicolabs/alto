@@ -173,7 +173,6 @@ export const bundleCompressionArgsSchema = z.object({
 })
 
 export const mempoolArgsSchema = z.object({
-    "redis-mempool": z.boolean().default(false),
     "redis-mempool-url": z.string().optional(),
     "redis-mempool-concurrency": z.number().int().min(0).default(10),
     "mempool-max-parallel-ops": z.number().int().min(0).default(10),

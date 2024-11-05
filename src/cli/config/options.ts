@@ -460,12 +460,6 @@ export const debugOptions: CliCommandOptions<IDebugArgsInput> = {
 }
 
 export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
-    "redis-mempool": {
-        description: "Enable Redis-backed mempool storage",
-        type: "boolean",
-        require: false,
-        default: false
-    },
     "redis-mempool-url": {
         description:
             "Redis connection URL (required if redis-mempool is enabled)",

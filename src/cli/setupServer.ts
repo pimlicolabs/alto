@@ -81,7 +81,7 @@ const getMempool = ({
 }): Mempool => {
     let store: Store
 
-    if (config.redisMempool) {
+    if (config.redisMempoolUrl) {
         store = createRedisStore({
             config,
             metrics
