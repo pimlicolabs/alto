@@ -1,5 +1,11 @@
 # @pimlico/alto
 
+## 0.0.8
+
+### Patch Changes
+
+- 101fadc6c8f358b7a9d30c6263b0346f674dea3e: Created 0.0.8 release
+
 ## 0.0.7
 
 ### Patch Changes
