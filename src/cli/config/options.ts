@@ -464,8 +464,7 @@ export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
         description:
             "Redis connection URL (required if redis-mempool is enabled)",
         type: "string",
-        require: false,
-        implies: "redis-mempool"
+        require: false
     },
     "redis-mempool-concurrency": {
         description: "Number of concurrent jobs to process",

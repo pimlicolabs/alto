@@ -110,7 +110,7 @@ export class ExecutorManager {
         if (bundleMode === "auto") {
             this.mempool.process(
                 {
-                    maxGasLimit: this.config.maxGasPerBundle,
+                    maxGasLimit: BigInt(this.config.maxGasPerBundle),
                     maxTime: this.config.maxBundleWait
                 },
                 this.bundle
@@ -300,7 +300,7 @@ export class ExecutorManager {
         return txHash
     }
 
-    async bundle(ops: UserOperationInfo[]) {
+    bundle = async (ops: UserOperationInfo[]) => {
         const opEntryPointMap = new Map<Address, MempoolUserOperation[]>()
 
         for (const op of ops) {

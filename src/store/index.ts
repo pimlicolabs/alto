@@ -17,9 +17,11 @@ export type Store = {
     clear: (from: "outstanding" | "processing" | "submitted") => Promise<void>
     process: (
         {
-            maxTime
+            maxTime,
+            maxGasLimit
         }: {
             maxTime?: number
+            maxGasLimit: bigint
         },
         callback: (ops: UserOperationInfo[]) => void | Promise<void>
     ) => () => void

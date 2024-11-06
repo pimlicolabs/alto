@@ -670,7 +670,7 @@ export class Mempool {
         },
         callback: (ops: UserOperationInfo[]) => void | Promise<void>
     ) {
-        return this.store.process({ maxTime }, async (ops) => {
+        return this.store.process({ maxTime, maxGasLimit }, async (ops) => {
             // Sort userops before the execution
             // Decide the order of the userops based on the sender and nonce
             // If sender is the same, sort by nonce key
@@ -691,7 +691,6 @@ export class Mempool {
                 }
                 return 0
             })
-            let gasUsed = 0n
             const result: UserOperationInfo[] = []
             // paymaster deposit should be enough for all UserOps in the bundle.
             let paymasterDeposit: { [paymaster: string]: bigint } = {}
@@ -703,13 +702,6 @@ export class Mempool {
             let storageMap: StorageMap = {}
             for (const opInfo of ops) {
                 const op = deriveUserOperation(opInfo.mempoolUserOperation)
-                gasUsed +=
-                    op.callGasLimit +
-                    op.verificationGasLimit * 3n +
-                    op.preVerificationGas
-                if (gasUsed > maxGasLimit) {
-                    break
-                }
                 const skipResult = await this.shouldSkip(
                     opInfo,
                     paymasterDeposit,
@@ -718,14 +710,14 @@ export class Mempool {
                     senders,
                     storageMap
                 )
+                if (skipResult.skip) {
+                    continue
+                }
                 paymasterDeposit = skipResult.paymasterDeposit
                 stakedEntityCount = skipResult.stakedEntityCount
                 knownEntities = skipResult.knownEntities
                 senders = skipResult.senders
                 storageMap = skipResult.storageMap
-                if (skipResult.skip) {
-                    continue
-                }
                 this.reputationManager.decreaseUserOperationCount(op)
                 this.store.addProcessing(opInfo)
                 result.push(opInfo)

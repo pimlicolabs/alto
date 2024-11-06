@@ -2,8 +2,12 @@ import { createMemoryStore, type Store } from "@alto/store"
 import type { AltoConfig } from "@alto/config"
 import type { Metrics } from "@alto/utils"
 import { Redis } from "ioredis"
-import Queue, { type Job } from "bull"
-import type { UserOperationInfo } from "@alto/types"
+import Queue from "bull"
+import {
+    deriveUserOperation,
+    userOperationInfoSchema,
+    type UserOperationInfo
+} from "@alto/types"
 
 const outstandingQueueName = "outstanding-mempool"
 
@@ -65,22 +69,46 @@ export const createRedisStore = ({
     const memoryStore = createMemoryStore({ config, metrics })
 
     return {
-        process: ({ maxTime }, callback) => {
-            let outstandingOpJobs: Job<UserOperationInfo>[] = []
+        process: ({ maxTime, maxGasLimit }, callback) => {
+            let outstandingOps: UserOperationInfo[] = []
+            let gasUsed = 0n
 
-            outstandingQueue.process(config.redisMempoolConcurrency, (job) => {
-                outstandingOpJobs.push(job)
-            })
-
-            const interval = setInterval(async () => {
-                if (outstandingOpJobs.length > 0) {
-                    await Promise.all([
-                        callback(outstandingOpJobs.map((job) => job.data)),
-                        ...outstandingOpJobs.map((job) => job.moveToCompleted())
-                    ])
-                    outstandingOpJobs = []
+            const processOutstandingOps = () => {
+                if (outstandingOps.length > 0) {
+                    callback([...outstandingOps])
+                    outstandingOps = []
+                    gasUsed = 0n
                 }
-            }, maxTime)
+            }
+
+            let interval = setInterval(processOutstandingOps, maxTime)
+
+            outstandingQueue.process(
+                config.redisMempoolConcurrency,
+                (job, done) => {
+                    const opInfo = userOperationInfoSchema.parse(job.data)
+
+                    const op = deriveUserOperation(opInfo.mempoolUserOperation)
+
+                    gasUsed +=
+                        op.callGasLimit +
+                        op.verificationGasLimit * 3n +
+                        op.preVerificationGas
+
+                    if (gasUsed > maxGasLimit) {
+                        clearInterval(interval)
+                        callback([...outstandingOps])
+
+                        outstandingOps = []
+                        gasUsed = 0n
+
+                        interval = setInterval(processOutstandingOps, maxTime)
+                    }
+
+                    outstandingOps.push(opInfo)
+                    done()
+                }
+            )
 
             return () => clearInterval(interval)
         },

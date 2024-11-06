@@ -1,7 +1,8 @@
-import type {
-    HexData32,
-    SubmittedUserOperation,
-    UserOperationInfo
+import {
+    deriveUserOperation,
+    type HexData32,
+    type SubmittedUserOperation,
+    type UserOperationInfo
 } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import type { Logger } from "@alto/utils"
@@ -317,10 +318,33 @@ export const createMemoryStore = ({
     }
 
     return {
-        process: ({ maxTime }, callback) => {
+        process: ({ maxTime, maxGasLimit }, callback) => {
             const interval = setInterval(() => {
-                if (storage.outstanding.length > 0) {
-                    callback(storage.outstanding)
+                let gasUsed = 0n
+
+                const filteredOps = storage.outstanding.filter((opInfo) => {
+                    const op = deriveUserOperation(opInfo.mempoolUserOperation)
+                    const opGasLimit =
+                        op.callGasLimit +
+                        op.verificationGasLimit * 3n +
+                        op.preVerificationGas
+
+                    if (gasUsed + opGasLimit < maxGasLimit) {
+                        gasUsed += opGasLimit
+                        return true
+                    }
+                    return false
+                })
+
+                if (filteredOps.length > 0) {
+                    callback([...filteredOps])
+
+                    const removeHashes = new Set(
+                        filteredOps.map((op) => op.userOperationHash)
+                    )
+                    storage.outstanding = storage.outstanding.filter(
+                        (opInfo) => !removeHashes.has(opInfo.userOperationHash)
+                    )
                 }
             }, maxTime)
 
