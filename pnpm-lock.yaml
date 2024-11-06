@@ -140,6 +140,9 @@ importers:
       prom-client:
         specifier: ^14.2.0
         version: 14.2.0
+      redis-semaphore:
+        specifier: ^5.6.1
+        version: 5.6.1(ioredis@5.4.1)
       viem:
         specifier: ^2.19.0
         version: 2.21.12(typescript@5.3.3)(zod@3.22.4)
@@ -213,7 +216,7 @@ packages:
       '@babel/traverse': 7.21.5
       '@babel/types': 7.21.5
       convert-source-map: 1.9.0
-      debug: 4.3.4
+      debug: 4.3.6
       gensync: 1.0.0-beta.2
       json5: 2.2.3
       semver: 6.3.1
@@ -373,7 +376,7 @@ packages:
       '@babel/helper-split-export-declaration': 7.18.6
       '@babel/parser': 7.21.5
       '@babel/types': 7.21.5
-      debug: 4.3.4
+      debug: 4.3.6
       globals: 11.12.0
     transitivePeerDependencies:
       - supports-color
@@ -2282,7 +2285,6 @@ packages:
         optional: true
     dependencies:
       ms: 2.1.2
-    dev: false
 
   /decamelize-keys@1.1.1:
     resolution: {integrity: sha512-WiPxgEirIV0/eIOMcnFBA3/IJZAZqKnwAwWyvvdi4lsr1WCN22nhdf/3db3DoZcUjTV2SqfzIwNyp6y2xs3nmg==}
@@ -3293,7 +3295,7 @@ packages:
     resolution: {integrity: sha512-n3s8EwkdFIJCG3BPKBYvskgXGoy88ARzvegkitk60NxRdwltLOTaH7CUiMRXvwYorl0Q712iEjcWB+fK/MrWVw==}
     engines: {node: '>=10'}
     dependencies:
-      debug: 4.3.4
+      debug: 4.3.6
       istanbul-lib-coverage: 3.2.0
       source-map: 0.6.1
     transitivePeerDependencies:
@@ -4174,6 +4176,21 @@ packages:
     engines: {node: '>=4'}
     dependencies:
       redis-errors: 1.2.0
+
+  /redis-semaphore@5.6.1(ioredis@5.4.1):
+    resolution: {integrity: sha512-dGaLDxhtNStKBvnIlMNMAyLpetMnjDOimmJmOSJ7uTTJ+ZEglN3SFCUYAU1cmKvAg9jIIf93/iUFnv1+5iZtqA==}
+    engines: {node: '>= 14.17.0'}
+    peerDependencies:
+      ioredis: ^4.1.0 || ^5
+    peerDependenciesMeta:
+      ioredis:
+        optional: true
+    dependencies:
+      debug: 4.3.6
+      ioredis: 5.4.1
+    transitivePeerDependencies:
+      - supports-color
+    dev: false
 
   /regenerator-runtime@0.14.1:
     resolution: {integrity: sha512-dYnhHh0nJoMfnkZs6GmmhFknAGRrLznOu5nc9ML+EJxGvrx6H7teuevqVqCuPcPK//3eDrrjQhehXVx9cnkGdw==}

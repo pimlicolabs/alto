@@ -24,6 +24,7 @@ import type { Metrics } from "@alto/utils"
 import type { Registry } from "prom-client"
 import type { AltoConfig } from "@alto/config"
 import { type Store, createMemoryStore, createRedisStore } from "@alto/store"
+import { validateAndRefillWallets } from "../executor/validateAndRefillWallets"
 
 const getReputationManager = (
     config: AltoConfig
@@ -296,10 +297,10 @@ export const setupServer = async ({
     })
 
     if (config.refillingWallets) {
-        await senderManager.validateAndRefillWallets()
+        await validateAndRefillWallets({ config, gasPriceManager, metrics })
 
         setInterval(async () => {
-            await senderManager.validateAndRefillWallets()
+            await validateAndRefillWallets({ config, gasPriceManager, metrics })
         }, config.executorRefillInterval * 1000)
     }
 
@@ -365,7 +366,7 @@ export const setupServer = async ({
     )
 
     rootLogger.info(
-        `Initialized ${senderManager.wallets.length} executor wallets`
+        `Initialized ${senderManager.getAllWallets().length} executor wallets`
     )
 
     const server = getServer({

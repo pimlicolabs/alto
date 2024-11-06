@@ -9,19 +9,13 @@ import type { Logger } from "@alto/utils"
 import type { AltoConfig } from "@alto/config"
 import type { Store } from "./index"
 
-type MemoryStorage = {
-    outstanding: UserOperationInfo[]
-    processing: UserOperationInfo[]
-    submitted: SubmittedUserOperation[]
-}
-
 const addOutstanding = ({
-    storage,
+    outstanding,
     op,
     logger,
     metrics
 }: {
-    storage: MemoryStorage
+    outstanding: UserOperationInfo[]
     op: UserOperationInfo
     logger: Logger
     metrics: Metrics
@@ -36,16 +30,16 @@ const addOutstanding = ({
         })
         .inc()
 
-    return [...storage.outstanding, op]
+    return [...outstanding, op]
 }
 
 const addProcessing = ({
-    storage,
+    processing,
     op,
     logger,
     metrics
 }: {
-    storage: MemoryStorage
+    processing: UserOperationInfo[]
     op: UserOperationInfo
     logger: Logger
     metrics: Metrics
@@ -60,16 +54,16 @@ const addProcessing = ({
         })
         .inc()
 
-    return [...storage.processing, op]
+    return [...processing, op]
 }
 
 const addSubmitted = ({
-    storage,
+    submitted,
     op,
     logger,
     metrics
 }: {
-    storage: MemoryStorage
+    submitted: SubmittedUserOperation[]
     op: SubmittedUserOperation
     logger: Logger
     metrics: Metrics
@@ -87,21 +81,21 @@ const addSubmitted = ({
         })
         .inc()
 
-    return [...storage.submitted, op]
+    return [...submitted, op]
 }
 
 const removeOutstanding = ({
-    storage,
+    outstanding,
     userOpHash,
     logger,
     metrics
 }: {
-    storage: MemoryStorage
+    outstanding: UserOperationInfo[]
     userOpHash: HexData32
     logger: Logger
     metrics: Metrics
 }) => {
-    const index = storage.outstanding.findIndex(
+    const index = outstanding.findIndex(
         (op) => op.userOperationHash === userOpHash
     )
     if (index === -1) {
@@ -109,7 +103,7 @@ const removeOutstanding = ({
             { userOpHash, store: "outstanding" },
             "tried to remove non-existent user op from mempool"
         )
-        return [...storage.outstanding]
+        return [...outstanding]
     }
 
     logger.debug(
@@ -122,24 +116,21 @@ const removeOutstanding = ({
         })
         .dec()
 
-    return [
-        ...storage.outstanding.slice(0, index),
-        ...storage.outstanding.slice(index + 1)
-    ]
+    return [...outstanding.slice(0, index), ...outstanding.slice(index + 1)]
 }
 
 const removeProcessing = ({
-    storage,
+    processing,
     userOpHash,
     logger,
     metrics
 }: {
-    storage: MemoryStorage
+    processing: UserOperationInfo[]
     userOpHash: HexData32
     logger: Logger
     metrics: Metrics
 }) => {
-    const index = storage.processing.findIndex(
+    const index = processing.findIndex(
         (op) => op.userOperationHash === userOpHash
     )
     if (index === -1) {
@@ -147,7 +138,7 @@ const removeProcessing = ({
             { userOpHash, store: "processing" },
             "tried to remove non-existent user op from mempool"
         )
-        return [...storage.processing]
+        return [...processing]
     }
 
     logger.debug(
@@ -160,24 +151,21 @@ const removeProcessing = ({
         })
         .dec()
 
-    return [
-        ...storage.processing.slice(0, index),
-        ...storage.processing.slice(index + 1)
-    ]
+    return [...processing.slice(0, index), ...processing.slice(index + 1)]
 }
 
 const removeSubmitted = ({
-    storage,
+    submitted,
     userOpHash,
     logger,
     metrics
 }: {
-    storage: MemoryStorage
+    submitted: SubmittedUserOperation[]
     userOpHash: HexData32
     logger: Logger
     metrics: Metrics
 }) => {
-    const index = storage.submitted.findIndex(
+    const index = submitted.findIndex(
         (op) => op.userOperation.userOperationHash === userOpHash
     )
     if (index === -1) {
@@ -185,7 +173,7 @@ const removeSubmitted = ({
             { userOpHash, store: "submitted" },
             "tried to remove non-existent user op from mempool"
         )
-        return [...storage.submitted]
+        return [...submitted]
     }
 
     logger.debug(
@@ -198,99 +186,100 @@ const removeSubmitted = ({
         })
         .dec()
 
-    return [
-        ...storage.submitted.slice(0, index),
-        ...storage.submitted.slice(index + 1)
-    ]
+    return [...submitted.slice(0, index), ...submitted.slice(index + 1)]
 }
 
 const dumpOutstanding = ({
-    storage,
+    outstanding,
     logger
 }: {
-    storage: MemoryStorage
+    outstanding: UserOperationInfo[]
     logger: Logger
 }): UserOperationInfo[] => {
     logger.trace(
         {
             store: "outstanding",
-            length: storage.outstanding.length
+            length: outstanding.length
         },
         "dumping mempool"
     )
-    return [...storage.outstanding]
+    return [...outstanding]
 }
 
 const dumpProcessing = ({
-    storage,
+    processing,
     logger
 }: {
-    storage: MemoryStorage
+    processing: UserOperationInfo[]
     logger: Logger
 }): UserOperationInfo[] => {
     logger.trace(
         {
             store: "processing",
-            length: storage.processing.length
+            length: processing.length
         },
         "dumping mempool"
     )
-    return [...storage.processing]
+    return [...processing]
 }
 
 const dumpSubmitted = ({
-    storage,
+    submitted,
     logger
 }: {
-    storage: MemoryStorage
+    submitted: SubmittedUserOperation[]
     logger: Logger
 }): SubmittedUserOperation[] => {
     logger.trace(
-        { store: "submitted", length: storage.submitted.length },
+        { store: "submitted", length: submitted.length },
         "dumping mempool"
     )
-    return [...storage.submitted]
+    return [...submitted]
 }
 
 const clear = ({
-    storage,
+    outstanding,
+    processing,
+    submitted,
     from,
     logger
 }: {
-    storage: MemoryStorage
+    outstanding: UserOperationInfo[]
+    processing: UserOperationInfo[]
+    submitted: SubmittedUserOperation[]
     from: "outstanding" | "processing" | "submitted"
     logger: Logger
 }) => {
     if (from === "outstanding") {
         logger.debug(
-            { store: from, length: storage.outstanding.length },
+            { store: from, length: outstanding.length },
             "clearing mempool"
         )
         return {
             outstanding: [],
-            processing: [...storage.processing],
-            submitted: [...storage.submitted]
+            processing: [...processing],
+            submitted: [...submitted]
         }
     }
     if (from === "processing") {
         logger.debug(
-            { store: from, length: storage.processing.length },
+            { store: from, length: processing.length },
             "clearing mempool"
         )
         return {
-            outstanding: [...storage.outstanding],
+            outstanding: [...outstanding],
             processing: [],
-            submitted: [...storage.submitted]
+            submitted: [...submitted]
         }
     }
     if (from === "submitted") {
         logger.debug(
-            { store: from, length: storage.submitted.length },
+            { store: from, length: submitted.length },
             "clearing mempool"
         )
         return {
-            outstanding: [...storage.outstanding],
-            processing: [...storage.processing],
+            outstanding: [...outstanding],
+            processing: [...processing],
             submitted: []
         }
     }
@@ -303,26 +292,27 @@ export const createMemoryStore = ({
 }: {
     config: AltoConfig
     metrics: Metrics
-}): Store => {
-    const logger = config.getLogger(
-        { module: "mempool" },
-        {
-            level: config.logLevel
-        }
-    )
-
-    const storage: MemoryStorage = {
+}): Store<{
+    outstanding: UserOperationInfo[]
+    processing: UserOperationInfo[]
+    submitted: SubmittedUserOperation[]
+    logger: Logger
+}> => {
+    return {
         outstanding: [],
         processing: [],
-        submitted: []
-    }
-
-    return {
-        process: ({ maxTime, maxGasLimit }, callback) => {
+        submitted: [],
+        logger: config.getLogger(
+            { module: "mempool" },
+            {
+                level: config.logLevel
+            }
+        ),
+        process({ maxTime, maxGasLimit }, callback) {
             const interval = setInterval(() => {
                 let gasUsed = 0n
 
-                const filteredOps = storage.outstanding.filter((opInfo) => {
+                const filteredOps = this.outstanding.filter((opInfo) => {
                     const op = deriveUserOperation(opInfo.mempoolUserOperation)
                     const opGasLimit =
                         op.callGasLimit +
@@ -342,7 +332,7 @@ export const createMemoryStore = ({
                     const removeHashes = new Set(
                         filteredOps.map((op) => op.userOperationHash)
                     )
-                    storage.outstanding = storage.outstanding.filter(
+                    this.outstanding = this.outstanding.filter(
                         (opInfo) => !removeHashes.has(opInfo.userOperationHash)
                     )
                 }
@@ -350,71 +340,95 @@ export const createMemoryStore = ({
 
             return () => clearInterval(interval)
         },
-        addOutstanding: (op) => {
-            storage.outstanding = addOutstanding({
-                storage,
+        addOutstanding(op) {
+            this.outstanding = addOutstanding({
+                outstanding: this.outstanding,
                 op,
-                logger,
+                logger: this.logger,
                 metrics
             })
             return Promise.resolve()
         },
-        addProcessing: (op) => {
-            storage.processing = addProcessing({
-                storage,
+        addProcessing(op) {
+            this.processing = addProcessing({
+                processing: this.processing,
                 op,
-                logger,
+                logger: this.logger,
                 metrics
             })
             return Promise.resolve()
         },
-        addSubmitted: (op) => {
-            storage.submitted = addSubmitted({
-                storage,
+        addSubmitted(op) {
+            this.submitted = addSubmitted({
+                submitted: this.submitted,
                 op,
-                logger,
+                logger: this.logger,
                 metrics
             })
             return Promise.resolve()
         },
-        removeOutstanding: (userOpHash) => {
-            storage.outstanding = removeOutstanding({
-                storage,
+        removeOutstanding(userOpHash) {
+            this.outstanding = removeOutstanding({
+                outstanding: this.outstanding,
                 userOpHash,
-                logger,
+                logger: this.logger,
                 metrics
             })
             return Promise.resolve()
         },
-        removeProcessing: (userOpHash) => {
-            storage.processing = removeProcessing({
-                storage,
+        removeProcessing(userOpHash) {
+            this.processing = removeProcessing({
+                processing: this.processing,
                 userOpHash,
-                logger,
+                logger: this.logger,
                 metrics
             })
             return Promise.resolve()
         },
-        removeSubmitted: (userOpHash) => {
-            storage.submitted = removeSubmitted({
-                storage,
+        removeSubmitted(userOpHash) {
+            this.submitted = removeSubmitted({
+                submitted: this.submitted,
                 userOpHash,
-                logger,
+                logger: this.logger,
                 metrics
             })
             return Promise.resolve()
         },
-        dumpOutstanding: () =>
-            Promise.resolve(dumpOutstanding({ storage, logger })),
-        dumpProcessing: () =>
-            Promise.resolve(dumpProcessing({ storage, logger })),
-        dumpSubmitted: () =>
-            Promise.resolve(dumpSubmitted({ storage, logger })),
-        clear: (from) => {
-            const newStorage = clear({ storage, from, logger })
-            storage.outstanding = newStorage.outstanding
-            storage.processing = newStorage.processing
-            storage.submitted = newStorage.submitted
+        dumpOutstanding() {
+            return Promise.resolve(
+                dumpOutstanding({
+                    outstanding: this.outstanding,
+                    logger: this.logger
+                })
+            )
+        },
+        dumpProcessing() {
+            return Promise.resolve(
+                dumpProcessing({
+                    processing: this.processing,
+                    logger: this.logger
+                })
+            )
+        },
+        dumpSubmitted() {
+            return Promise.resolve(
+                dumpSubmitted({
+                    submitted: this.submitted,
+                    logger: this.logger
+                })
+            )
+        },
+        clear(from) {
+            const newStorage = clear({
+                outstanding: this.outstanding,
+                processing: this.processing,
+                submitted: this.submitted,
+                from,
+                logger: this.logger
+            })
+            this.outstanding = newStorage.outstanding
+            this.processing = newStorage.processing
+            this.submitted = newStorage.submitted
             return Promise.resolve()
         }
     }

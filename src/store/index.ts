@@ -4,7 +4,8 @@ import type {
     UserOperationInfo
 } from "@alto/types"
 
-export type Store = {
+// biome-ignore lint/complexity/noBannedTypes: <explanation>
+export type Store<T extends Record<string, unknown> = {}> = T & {
     addOutstanding: (op: UserOperationInfo) => Promise<void>
     addProcessing: (op: UserOperationInfo) => Promise<void>
     addSubmitted: (op: SubmittedUserOperation) => Promise<void>

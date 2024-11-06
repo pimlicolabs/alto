@@ -137,10 +137,7 @@ export class Executor {
     }
 
     markWalletProcessed(executor: Account) {
-        if (!this.senderManager.availableWallets.includes(executor)) {
-            this.senderManager.pushWallet(executor)
-        }
-        return Promise.resolve()
+        this.senderManager.pushWallet(executor)
     }
 
     async replaceTransaction(
@@ -482,9 +479,9 @@ export class Executor {
     }
 
     async flushStuckTransactions(): Promise<void> {
-        const allWallets = new Set(this.senderManager.wallets)
+        const allWallets = new Set(this.senderManager.getAllWallets())
 
-        const utilityWallet = this.senderManager.utilityAccount
+        const utilityWallet = this.config.utilityPrivateKey
         if (utilityWallet) {
             allWallets.add(utilityWallet)
         }

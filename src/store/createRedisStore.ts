@@ -54,22 +54,23 @@ const createQueue = <T>(url: string, queueName: string) => {
 export const createRedisStore = ({
     config,
     metrics
-}: { config: AltoConfig; metrics: Metrics }): Store => {
+}: { config: AltoConfig; metrics: Metrics }): Store<{
+    outstandingQueue: Queue.Queue<UserOperationInfo>
+    memoryStore: Store
+}> => {
     const { redisMempoolUrl } = config
 
     if (!redisMempoolUrl) {
         throw new Error("Redis mempool URL is not set")
     }
 
-    const outstandingQueue = createQueue<UserOperationInfo>(
-        redisMempoolUrl,
-        outstandingQueueName
-    )
-
-    const memoryStore = createMemoryStore({ config, metrics })
-
     return {
-        process: ({ maxTime, maxGasLimit }, callback) => {
+        outstandingQueue: createQueue<UserOperationInfo>(
+            redisMempoolUrl,
+            outstandingQueueName
+        ),
+        memoryStore: createMemoryStore({ config, metrics }),
+        process({ maxTime, maxGasLimit }, callback) {
             let outstandingOps: UserOperationInfo[] = []
             let gasUsed = 0n
 
@@ -83,7 +84,7 @@ export const createRedisStore = ({
 
             let interval = setInterval(processOutstandingOps, maxTime)
 
-            outstandingQueue.process(
+            this.outstandingQueue.process(
                 config.redisMempoolConcurrency,
                 (job, done) => {
                     const opInfo = userOperationInfoSchema.parse(job.data)
@@ -112,17 +113,17 @@ export const createRedisStore = ({
 
             return () => clearInterval(interval)
         },
-        addOutstanding: async (op) => {
-            await outstandingQueue.add(op)
+        async addOutstanding(op) {
+            await this.outstandingQueue.add(op)
         },
-        addProcessing: async (op) => {
-            await memoryStore.addProcessing(op)
+        async addProcessing(op) {
+            await this.memoryStore.addProcessing(op)
         },
-        addSubmitted: async (op) => {
-            await memoryStore.addSubmitted(op)
+        async addSubmitted(op) {
+            await this.memoryStore.addSubmitted(op)
         },
-        removeOutstanding: async (userOpHash) => {
-            const jobs = await outstandingQueue.getWaiting()
+        async removeOutstanding(userOpHash) {
+            const jobs = await this.outstandingQueue.getWaiting()
 
             const job = jobs.find(
                 (job) => job.data.userOperationHash === userOpHash
@@ -132,28 +133,28 @@ export const createRedisStore = ({
                 await job.remove()
             }
         },
-        removeProcessing: async (userOpHash) => {
-            await memoryStore.removeProcessing(userOpHash)
+        async removeProcessing(userOpHash) {
+            await this.memoryStore.removeProcessing(userOpHash)
         },
-        removeSubmitted: async (userOpHash) => {
-            await memoryStore.removeSubmitted(userOpHash)
+        async removeSubmitted(userOpHash) {
+            await this.memoryStore.removeSubmitted(userOpHash)
         },
-        dumpOutstanding: async () => {
-            const awaitingJobs = await outstandingQueue.getWaiting()
+        async dumpOutstanding() {
+            const awaitingJobs = await this.outstandingQueue.getWaiting()
 
             return awaitingJobs.map((job) => job.data)
         },
-        dumpProcessing: () => {
-            return memoryStore.dumpProcessing()
+        dumpProcessing() {
+            return this.memoryStore.dumpProcessing()
         },
-        dumpSubmitted: () => {
-            return memoryStore.dumpSubmitted()
+        dumpSubmitted() {
+            return this.memoryStore.dumpSubmitted()
         },
-        clear: async (from) => {
+        async clear(from) {
             if (from === "outstanding") {
-                await outstandingQueue.clean(0, "active")
+                await this.outstandingQueue.clean(0, "active")
             } else {
-                await memoryStore.clear(from)
+                await this.memoryStore.clear(from)
             }
         }
     }
