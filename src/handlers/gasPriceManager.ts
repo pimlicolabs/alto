@@ -59,7 +59,7 @@ export class GasPriceManager {
         )
         const maxQueueSize = this.config.gasPriceExpiry
 
-        const queueValidity = 1000 // milliseconds
+        const queueValidity = 10_000 // milliseconds
         this.baseFeePerGasQueue = new TimedQueue(maxQueueSize, queueValidity)
         this.maxFeePerGasQueue = new TimedQueue(maxQueueSize, queueValidity)
         this.maxPriorityFeePerGasQueue = new TimedQueue(
