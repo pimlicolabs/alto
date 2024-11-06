@@ -5,10 +5,9 @@ export class ArbitrumManager {
     private l1BaseFeeQueue: TimedQueue
     private l2BaseFeeQueue: TimedQueue
 
-    constructor(maxQueueSize: number) {
-        const queueValidity = 15_000
-        this.l1BaseFeeQueue = new TimedQueue(maxQueueSize, queueValidity)
-        this.l2BaseFeeQueue = new TimedQueue(maxQueueSize, queueValidity)
+    constructor(queueValidity: number) {
+        this.l1BaseFeeQueue = new TimedQueue(queueValidity)
+        this.l2BaseFeeQueue = new TimedQueue(queueValidity)
     }
 
     public saveL1BaseFee(baseFee: bigint) {

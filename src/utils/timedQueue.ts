@@ -5,12 +5,13 @@ export class TimedQueue {
     private maxQueueSize: number
     private queueValidity: number
 
-    constructor(maxQueueSize: number, queueValidity: number) {
+    constructor(queueValidity: number) {
         this.queue = []
-        this.maxQueueSize = maxQueueSize
+        this.maxQueueSize = queueValidity / 1_000
         this.queueValidity = queueValidity
     }
 
+    // Only saves the value if it is lower than the latest value.
     public saveValue(value: bigint) {
         if (value === 0n) {
             return
