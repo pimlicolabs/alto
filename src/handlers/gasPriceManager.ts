@@ -380,7 +380,7 @@ export class GasPriceManager {
 
         let baseFee = this.baseFeePerGasQueue.getLatestValue()
         if (!baseFee) {
-            baseFee = await this.getBaseFee()
+            baseFee = await this.updateBaseFee()
         }
 
         return baseFee
