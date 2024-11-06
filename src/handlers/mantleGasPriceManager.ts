@@ -6,15 +6,11 @@ export class MantleManager {
     private rollupDataGasAndOverheadQueue: TimedQueue
     private l1GasPriceQueue: TimedQueue
 
-    constructor(maxQueueSize: number) {
-        const queueValidity = 15_000
-        this.tokenRatioQueue = new TimedQueue(maxQueueSize, queueValidity)
-        this.scalarQueue = new TimedQueue(maxQueueSize, queueValidity)
-        this.rollupDataGasAndOverheadQueue = new TimedQueue(
-            maxQueueSize,
-            queueValidity
-        )
-        this.l1GasPriceQueue = new TimedQueue(maxQueueSize, queueValidity)
+    constructor(queueValidity: number) {
+        this.tokenRatioQueue = new TimedQueue(queueValidity)
+        this.scalarQueue = new TimedQueue(queueValidity)
+        this.rollupDataGasAndOverheadQueue = new TimedQueue(queueValidity)
+        this.l1GasPriceQueue = new TimedQueue(queueValidity)
     }
 
     public getMinMantleOracleValues() {
