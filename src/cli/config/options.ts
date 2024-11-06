@@ -125,7 +125,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
             "Maximum that the gas prices fetched using pimlico_getUserOperationGasPrice will be accepted for (seconds)",
         type: "number",
         require: false,
-        default: 10
+        default: 20
     },
     "gas-price-multipliers": {
         description:
