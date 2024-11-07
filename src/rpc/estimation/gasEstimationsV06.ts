@@ -13,7 +13,8 @@ import {
     type Address,
     decodeErrorResult,
     encodeFunctionData,
-    toHex
+    toHex,
+    RpcRequestError
 } from "viem"
 import { z } from "zod"
 import type { SimulateHandleOpResult } from "./types"
@@ -179,6 +180,10 @@ export class GasEstimatorV06 {
                 } as const
             }
 
+            const cause = err.walk(
+                (err) => err instanceof RpcRequestError
+            )
+
             const causeParseResult = z
                 .union([
                     z.object({
@@ -203,12 +208,18 @@ export class GasEstimatorV06 {
                                 /VM Exception while processing transaction:.*/
                             ),
                         data: hexDataSchema
+                    }),
+                    /* Monad devnet RPC return in this format */
+                    z.object({
+                        code: z.literal(-32603),
+                        message: z.string().regex(/execution reverted.*/),
+                        data: hexDataSchema
                     })
                 ])
-                .safeParse(err.cause)
+                .safeParse(cause?.cause)
 
             if (!causeParseResult.success) {
-                throw new Error(JSON.stringify(err.cause))
+                throw new Error(JSON.stringify(cause))
             }
 
             const data = causeParseResult.data.data
