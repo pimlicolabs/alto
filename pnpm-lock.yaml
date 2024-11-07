@@ -140,9 +140,6 @@ importers:
       prom-client:
         specifier: ^14.2.0
         version: 14.2.0
-      redis-semaphore:
-        specifier: ^5.6.1
-        version: 5.6.1(ioredis@5.4.1)
       viem:
         specifier: ^2.19.0
         version: 2.21.12(typescript@5.3.3)(zod@3.22.4)
@@ -4176,21 +4173,6 @@ packages:
     engines: {node: '>=4'}
     dependencies:
       redis-errors: 1.2.0
-
-  /redis-semaphore@5.6.1(ioredis@5.4.1):
-    resolution: {integrity: sha512-dGaLDxhtNStKBvnIlMNMAyLpetMnjDOimmJmOSJ7uTTJ+ZEglN3SFCUYAU1cmKvAg9jIIf93/iUFnv1+5iZtqA==}
-    engines: {node: '>= 14.17.0'}
-    peerDependencies:
-      ioredis: ^4.1.0 || ^5
-    peerDependenciesMeta:
-      ioredis:
-        optional: true
-    dependencies:
-      debug: 4.3.6
-      ioredis: 5.4.1
-    transitivePeerDependencies:
-      - supports-color
-    dev: false
 
   /regenerator-runtime@0.14.1:
     resolution: {integrity: sha512-dYnhHh0nJoMfnkZs6GmmhFknAGRrLznOu5nc9ML+EJxGvrx6H7teuevqVqCuPcPK//3eDrrjQhehXVx9cnkGdw==}
