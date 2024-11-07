@@ -9,7 +9,7 @@ import {
     type UserOperationInfo
 } from "@alto/types"
 
-const outstandingQueueName = "outstanding-mempool"
+const outstandingQueueName = "outstanding-mempool-v2"
 
 const createQueue = <T>(url: string, queueName: string) => {
     let client: Redis
@@ -59,6 +59,10 @@ export const createRedisStore = ({
     memoryStore: Store
 }> => {
     const { redisMempoolUrl } = config
+
+    const logger = config.getLogger({
+        module: "redisStore"
+    })
 
     if (!redisMempoolUrl) {
         throw new Error("Redis mempool URL is not set")
@@ -114,6 +118,15 @@ export const createRedisStore = ({
             return () => clearInterval(interval)
         },
         async addOutstanding(op) {
+            logger.debug(
+                { userOpHash: op.userOperationHash, store: "outstanding" },
+                "added user op to mempool"
+            )
+            metrics.userOperationsInMempool
+                .labels({
+                    status: "outstanding"
+                })
+                .inc()
             await this.outstandingQueue.add(op)
         },
         async addProcessing(op) {
@@ -125,12 +138,28 @@ export const createRedisStore = ({
         async removeOutstanding(userOpHash) {
             const jobs = await this.outstandingQueue.getWaiting()
 
-            const job = jobs.find(
-                (job) => job.data.userOperationHash === userOpHash
-            )
+            const job = jobs.find((job) => {
+                const parsedData = userOperationInfoSchema.parse(job.data)
+
+                return parsedData.userOperationHash === userOpHash
+            })
 
             if (job) {
                 await job.remove()
+                logger.debug(
+                    { userOpHash, store: "outstanding" },
+                    "removed user op from mempool"
+                )
+                metrics.userOperationsInMempool
+                    .labels({
+                        status: "outstanding"
+                    })
+                    .dec()
+            } else {
+                logger.warn(
+                    { userOpHash, store: "outstanding" },
+                    "tried to remove non-existent user op from mempool"
+                )
             }
         },
         async removeProcessing(userOpHash) {
@@ -142,7 +171,17 @@ export const createRedisStore = ({
         async dumpOutstanding() {
             const awaitingJobs = await this.outstandingQueue.getWaiting()
 
-            return awaitingJobs.map((job) => job.data)
+            logger.trace(
+                {
+                    store: "outstanding",
+                    length: awaitingJobs.length
+                },
+                "dumping mempool"
+            )
+
+            return awaitingJobs.map((job) => {
+                return userOperationInfoSchema.parse(job.data)
+            })
         },
         dumpProcessing() {
             return this.memoryStore.dumpProcessing()
@@ -152,6 +191,7 @@ export const createRedisStore = ({
         },
         async clear(from) {
             if (from === "outstanding") {
+                logger.debug({ store: from }, "clearing mempool")
                 await this.outstandingQueue.clean(0, "active")
             } else {
                 await this.memoryStore.clear(from)

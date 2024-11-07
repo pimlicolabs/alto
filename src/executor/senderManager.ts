@@ -5,6 +5,7 @@ import type { AltoConfig } from "@alto/config"
 import { Redis } from "ioredis"
 
 export type SenderManager = {
+    getWalletsInUse: () => Account[]
     getAllWallets: () => Account[]
     getWallet: () => Promise<Account>
     pushWallet: (wallet: Account) => void
@@ -34,7 +35,7 @@ const createLocalSenderManager = ({
 }: {
     config: AltoConfig
     metrics: Metrics
-}) => {
+}): SenderManager => {
     const wallets = getAvailableWallets(config)
     const availableWallets = [...wallets]
 
@@ -49,11 +50,10 @@ const createLocalSenderManager = ({
 
     return {
         getAllWallets: () => [...wallets],
+        getWalletsInUse: () => [...availableWallets],
         async getWallet() {
             logger.trace("waiting for semaphore ")
-            const [result] = await semaphore.acquire()
-
-            console.log(result)
+            await semaphore.acquire()
 
             const wallet = availableWallets.shift()
 
@@ -83,6 +83,7 @@ const createLocalSenderManager = ({
                 { executor: wallet.address },
                 "pushed wallet to sender manager"
             )
+
             metrics.walletsAvailable.set(availableWallets.length)
             return
         }
@@ -102,8 +103,11 @@ async function createRedisQueue({
 }) {
     const hasElements = await redis.llen(name)
 
-    if (!hasElements) {
-        await redis.lpush(name, ...entries)
+    if (hasElements === 0) {
+        const pipeline = redis.pipeline()
+        pipeline.del(name)
+        pipeline.lpush(name, ...entries)
+        await pipeline.exec()
     }
 
     return {
@@ -119,12 +123,13 @@ const createRedisSenderManager = async ({
 }: {
     config: AltoConfig
     metrics: Metrics
-}) => {
+}): Promise<SenderManager> => {
     if (!config.redisQueueEndpoint) {
         throw new Error("redisQueueEndpoint is required")
     }
 
     const wallets = getAvailableWallets(config)
+    const walletsInUse: Record<string, Account> = {}
 
     const logger = config.getLogger(
         { module: "sender-manager" },
@@ -142,6 +147,7 @@ const createRedisSenderManager = async ({
 
     return {
         getAllWallets: () => [...wallets],
+        getWalletsInUse: () => Object.values(walletsInUse),
         getWallet: async () => {
             logger.trace("waiting for wallet ")
 
@@ -167,6 +173,7 @@ const createRedisSenderManager = async ({
             redisQueue.llen().then((len) => {
                 metrics.walletsAvailable.set(len)
             })
+            walletsInUse[wallet.address] = wallet
 
             return wallet
         },
@@ -176,6 +183,10 @@ const createRedisSenderManager = async ({
                     metrics.walletsAvailable.set(len)
                 })
             })
+
+            if (walletsInUse[wallet.address]) {
+                delete walletsInUse[wallet.address]
+            }
         }
     }
 }

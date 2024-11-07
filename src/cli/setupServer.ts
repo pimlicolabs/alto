@@ -391,9 +391,14 @@ export const setupServer = async ({
             "dumping mempool before shutdown"
         )
 
+        for (const wallet of senderManager.getWalletsInUse()) {
+            console.log("pushing wallet back to pool", wallet.address)
+            senderManager.pushWallet(wallet)
+        }
+
         process.exit(0)
     }
 
-    process.on("SIGINT", gracefulShutdown)
-    process.on("SIGTERM", gracefulShutdown)
+    process.once("SIGINT", gracefulShutdown)
+    process.once("SIGTERM", gracefulShutdown)
 }
