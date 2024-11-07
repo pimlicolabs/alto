@@ -71,7 +71,7 @@ export const createRedisStore = ({
     return {
         outstandingQueue: createQueue<UserOperationInfo>(
             redisMempoolUrl,
-            outstandingQueueName
+            `${outstandingQueueName}-${config.publicClient.chain.id}`
         ),
         memoryStore: createMemoryStore({ config, metrics }),
         process({ maxTime, maxGasLimit }, callback) {

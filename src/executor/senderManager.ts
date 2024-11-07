@@ -141,7 +141,7 @@ const createRedisSenderManager = async ({
     const redis = new Redis(config.redisQueueEndpoint)
     const redisQueue = await createRedisQueue({
         redis,
-        name: "sender-manager",
+        name: `sender-manager-${config.publicClient.chain.id}`,
         entries: wallets.map((w) => w.address)
     })
 
