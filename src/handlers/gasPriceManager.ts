@@ -57,15 +57,12 @@ export class GasPriceManager {
                 level: config.publicClientLogLevel || config.logLevel
             }
         )
-        const maxQueueSize = this.config.gasPriceExpiry
 
-        const queueValidity = 1000 // milliseconds
-        this.baseFeePerGasQueue = new TimedQueue(maxQueueSize, queueValidity)
-        this.maxFeePerGasQueue = new TimedQueue(maxQueueSize, queueValidity)
-        this.maxPriorityFeePerGasQueue = new TimedQueue(
-            maxQueueSize,
-            queueValidity
-        )
+        const queueValidity = this.config.gasPriceExpiry * 1_000
+
+        this.baseFeePerGasQueue = new TimedQueue(queueValidity)
+        this.maxFeePerGasQueue = new TimedQueue(queueValidity)
+        this.maxPriorityFeePerGasQueue = new TimedQueue(queueValidity)
 
         // Periodically update gas prices if specified
         if (this.config.gasPriceRefreshInterval > 0) {
@@ -78,8 +75,8 @@ export class GasPriceManager {
             }, this.config.gasPriceRefreshInterval * 1000)
         }
 
-        this.arbitrumManager = new ArbitrumManager(maxQueueSize)
-        this.mantleManager = new MantleManager(maxQueueSize)
+        this.arbitrumManager = new ArbitrumManager(queueValidity)
+        this.mantleManager = new MantleManager(queueValidity)
     }
 
     public init() {
@@ -383,7 +380,7 @@ export class GasPriceManager {
 
         let baseFee = this.baseFeePerGasQueue.getLatestValue()
         if (!baseFee) {
-            baseFee = await this.getBaseFee()
+            baseFee = await this.updateBaseFee()
         }
 
         return baseFee
