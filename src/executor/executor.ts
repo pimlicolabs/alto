@@ -544,6 +544,7 @@ export class Executor {
                 ...opts
             })
 
+        let isTransactionUnderPriced = false
         let attempts = 0
         let transactionHash: Hex | undefined
         const maxAttempts = 3
@@ -562,11 +563,6 @@ export class Executor {
                     if (isTransactionUnderpricedError(e)) {
                         this.logger.warn("Transaction underpriced, retrying")
 
-                        await this.handleTransactionUnderPriced({
-                            nonce: request.nonce,
-                            executor: request.from
-                        })
-
                         request.maxFeePerGas = scaleBigIntByPercent(
                             request.maxFeePerGas,
                             150
@@ -576,6 +572,7 @@ export class Executor {
                             150
                         )
                         isErrorHandled = true
+                        isTransactionUnderPriced = true
                     }
                 }
 
@@ -620,6 +617,13 @@ export class Executor {
 
                 attempts++
             }
+        }
+
+        if (isTransactionUnderPriced) {
+            await this.handleTransactionUnderPriced({
+                nonce: request.nonce,
+                executor: request.from
+            })
         }
 
         // needed for TS
