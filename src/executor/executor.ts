@@ -7,7 +7,7 @@ import type {
     EventManager,
     GasPriceManager
 } from "@alto/handlers"
-import type { InterfaceReputationManager } from "@alto/mempool"
+import type { InterfaceReputationManager, MemoryMempool } from "@alto/mempool"
 import {
     type Address,
     type BundleResult,
@@ -87,10 +87,12 @@ export class Executor {
     compressionHandler: CompressionHandler | null
     gasPriceManager: GasPriceManager
     mutex: Mutex
+    mempool: MemoryMempool
     eventManager: EventManager
 
     constructor({
         config,
+        mempool,
         senderManager,
         reputationManager,
         metrics,
@@ -99,6 +101,7 @@ export class Executor {
         eventManager
     }: {
         config: AltoConfig
+        mempool: MemoryMempool
         senderManager: SenderManager
         reputationManager: InterfaceReputationManager
         metrics: Metrics
@@ -107,6 +110,7 @@ export class Executor {
         eventManager: EventManager
     }) {
         this.config = config
+        this.mempool = mempool
         this.senderManager = senderManager
         this.reputationManager = reputationManager
         this.logger = config.getLogger(
@@ -557,6 +561,12 @@ export class Executor {
                 if (e instanceof BaseError) {
                     if (isTransactionUnderpricedError(e)) {
                         this.logger.warn("Transaction underpriced, retrying")
+
+                        await this.handleTransactionUnderPriced({
+                            nonce: request.nonce,
+                            executor: request.from
+                        })
+
                         request.maxFeePerGas = scaleBigIntByPercent(
                             request.maxFeePerGas,
                             150
@@ -618,6 +628,33 @@ export class Executor {
         }
 
         return transactionHash as Hex
+    }
+
+    // Occurs when tx was sent with conflicting nonce, we want to resubmit all conflicting ops
+    async handleTransactionUnderPriced({
+        nonce,
+        executor
+    }: { nonce: number; executor: Address }) {
+        const submitted = this.mempool.dumpSubmittedOps()
+
+        const conflictingOps = submitted
+            .filter((submitted) => {
+                const tx = submitted.transactionInfo
+
+                return (
+                    tx.executor.address === executor &&
+                    tx.transactionRequest.nonce === nonce
+                )
+            })
+            .map(({ userOperation }) => userOperation)
+
+        conflictingOps.map((op) => {
+            this.logger.info(
+                `Resubmitting ${op.userOperationHash} due to transaction underpriced`
+            )
+            this.mempool.removeSubmitted(op.userOperationHash)
+            this.mempool.add(op.mempoolUserOperation, op.entryPoint)
+        })
     }
 
     async bundle(
