@@ -557,7 +557,7 @@ export class Executor {
 
                 break
             } catch (e: unknown) {
-                let isTransactionUnderPriced = false
+                isTransactionUnderPriced = false
                 let isErrorHandled = false
 
                 if (e instanceof BaseError) {
