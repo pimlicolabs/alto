@@ -80,9 +80,10 @@ export const createRedisStore = ({
 
             const processOutstandingOps = () => {
                 if (outstandingOps.length > 0) {
-                    callback([...outstandingOps])
+                    const processingOps = [...outstandingOps]
                     outstandingOps = []
                     gasUsed = 0n
+                    callback(processingOps)
                 }
             }
 
@@ -95,21 +96,25 @@ export const createRedisStore = ({
 
                     const op = deriveUserOperation(opInfo.mempoolUserOperation)
 
-                    gasUsed +=
+                    const userOpCost =
                         op.callGasLimit +
                         op.verificationGasLimit * 3n +
                         op.preVerificationGas
 
-                    if (gasUsed > maxGasLimit) {
+                    if (gasUsed + userOpCost > maxGasLimit) {
                         clearInterval(interval)
-                        callback([...outstandingOps])
+                        const processingOps = [...outstandingOps]
 
                         outstandingOps = []
                         gasUsed = 0n
 
+                        callback(processingOps)
+
                         interval = setInterval(processOutstandingOps, maxTime)
+                        return done()
                     }
 
+                    gasUsed += userOpCost
                     outstandingOps.push(opInfo)
                     done()
                 }
@@ -136,6 +141,7 @@ export const createRedisStore = ({
             await this.memoryStore.addSubmitted(op)
         },
         async removeOutstanding(userOpHash) {
+            // TODO: need to improve this as the user op may get picked by this time by some other executor
             const jobs = await this.outstandingQueue.getWaiting()
 
             const job = jobs.find((job) => {
