@@ -491,10 +491,10 @@ export class RpcHandler implements IRpcEndpoint {
         ) {
             paymasterVerificationGasLimit =
                 executionResult.data.executionResult
-                    .paymasterVerificationGasLimit || 1n
+                    .paymasterVerificationGasLimit || 0n
             paymasterPostOpGasLimit =
                 executionResult.data.executionResult.paymasterPostOpGasLimit ||
-                1n
+                0n
 
             const multiplier = Number(this.config.paymasterGasLimitMultiplier)
 
