@@ -111,7 +111,6 @@ export const createRedisStore = ({
                         callback(processingOps)
 
                         interval = setInterval(processOutstandingOps, maxTime)
-                        return done()
                     }
 
                     gasUsed += userOpCost
