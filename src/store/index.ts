@@ -17,12 +17,10 @@ export type Store<T extends Record<string, unknown> = {}> = T & {
     dumpSubmitted: () => Promise<SubmittedUserOperation[]>
     clear: (from: "outstanding" | "processing" | "submitted") => Promise<void>
     process: (
-        {
-            maxTime,
-            maxGasLimit
-        }: {
-            maxTime?: number
+        args: {
             maxGasLimit: bigint
+            maxTime?: number
+            immediate?: boolean
         },
         callback: (ops: UserOperationInfo[]) => void | Promise<void>
     ) => () => void

@@ -308,10 +308,9 @@ export const createMemoryStore = ({
                 level: config.logLevel
             }
         ),
-        process({ maxTime, maxGasLimit }, callback) {
-            const interval = setInterval(() => {
+        process({ maxTime, maxGasLimit, immediate }, callback) {
+            const getOpsToBundle = () => {
                 let gasUsed = 0n
-
                 const filteredOps = this.outstanding.filter((opInfo) => {
                     const op = deriveUserOperation(opInfo.mempoolUserOperation)
                     const opGasLimit =
@@ -326,6 +325,11 @@ export const createMemoryStore = ({
                     return false
                 })
 
+                return filteredOps
+            }
+
+            const processOps = () => {
+                const filteredOps = getOpsToBundle()
                 if (filteredOps.length > 0) {
                     callback([...filteredOps])
 
@@ -336,7 +340,13 @@ export const createMemoryStore = ({
                         (opInfo) => !removeHashes.has(opInfo.userOperationHash)
                     )
                 }
-            }, maxTime)
+            }
+
+            const interval = setInterval(processOps, maxTime)
+
+            if (immediate) {
+                processOps()
+            }
 
             return () => clearInterval(interval)
         },

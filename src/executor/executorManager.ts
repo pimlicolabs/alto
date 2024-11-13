@@ -123,7 +123,8 @@ export class ExecutorManager {
             const stopProcessing = this.mempool.process(
                 {
                     maxGasLimit: this.config.maxGasPerBundle,
-                    maxTime: 1
+                    maxTime: 1,
+                    immediate: true
                 },
                 async (ops) => {
                     stopProcessing()

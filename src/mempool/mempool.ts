@@ -663,67 +663,72 @@ export class Mempool {
     process(
         {
             maxGasLimit,
-            maxTime
+            maxTime,
+            immediate = false
         }: {
             maxGasLimit: bigint
             maxTime?: number
+            immediate?: boolean
         },
         callback: (ops: UserOperationInfo[]) => void | Promise<void>
     ) {
-        return this.store.process({ maxTime, maxGasLimit }, async (ops) => {
-            // Sort userops before the execution
-            // Decide the order of the userops based on the sender and nonce
-            // If sender is the same, sort by nonce key
-            ops.sort((a, b) => {
-                const aUserOp = deriveUserOperation(a.mempoolUserOperation)
-                const bUserOp = deriveUserOperation(b.mempoolUserOperation)
-                if (aUserOp.sender === bUserOp.sender) {
-                    const [aNonceKey, aNonceValue] = getNonceKeyAndValue(
-                        aUserOp.nonce
-                    )
-                    const [bNonceKey, bNonceValue] = getNonceKeyAndValue(
-                        bUserOp.nonce
-                    )
-                    if (aNonceKey === bNonceKey) {
-                        return Number(aNonceValue - bNonceValue)
+        return this.store.process(
+            { maxTime, maxGasLimit, immediate },
+            async (ops) => {
+                // Sort userops before the execution
+                // Decide the order of the userops based on the sender and nonce
+                // If sender is the same, sort by nonce key
+                ops.sort((a, b) => {
+                    const aUserOp = deriveUserOperation(a.mempoolUserOperation)
+                    const bUserOp = deriveUserOperation(b.mempoolUserOperation)
+                    if (aUserOp.sender === bUserOp.sender) {
+                        const [aNonceKey, aNonceValue] = getNonceKeyAndValue(
+                            aUserOp.nonce
+                        )
+                        const [bNonceKey, bNonceValue] = getNonceKeyAndValue(
+                            bUserOp.nonce
+                        )
+                        if (aNonceKey === bNonceKey) {
+                            return Number(aNonceValue - bNonceValue)
+                        }
+                        return Number(aNonceKey - bNonceKey)
                     }
-                    return Number(aNonceKey - bNonceKey)
+                    return 0
+                })
+                const result: UserOperationInfo[] = []
+                // paymaster deposit should be enough for all UserOps in the bundle.
+                let paymasterDeposit: { [paymaster: string]: bigint } = {}
+                // throttled paymasters and factories are allowed only small UserOps per bundle.
+                let stakedEntityCount: { [addr: string]: number } = {}
+                // each sender is allowed only once per bundle
+                let senders = new Set<string>()
+                let knownEntities = await this.getKnownEntities()
+                let storageMap: StorageMap = {}
+                for (const opInfo of ops) {
+                    const op = deriveUserOperation(opInfo.mempoolUserOperation)
+                    const skipResult = await this.shouldSkip(
+                        opInfo,
+                        paymasterDeposit,
+                        stakedEntityCount,
+                        knownEntities,
+                        senders,
+                        storageMap
+                    )
+                    if (skipResult.skip) {
+                        continue
+                    }
+                    paymasterDeposit = skipResult.paymasterDeposit
+                    stakedEntityCount = skipResult.stakedEntityCount
+                    knownEntities = skipResult.knownEntities
+                    senders = skipResult.senders
+                    storageMap = skipResult.storageMap
+                    this.reputationManager.decreaseUserOperationCount(op)
+                    this.store.addProcessing(opInfo)
+                    result.push(opInfo)
                 }
-                return 0
-            })
-            const result: UserOperationInfo[] = []
-            // paymaster deposit should be enough for all UserOps in the bundle.
-            let paymasterDeposit: { [paymaster: string]: bigint } = {}
-            // throttled paymasters and factories are allowed only small UserOps per bundle.
-            let stakedEntityCount: { [addr: string]: number } = {}
-            // each sender is allowed only once per bundle
-            let senders = new Set<string>()
-            let knownEntities = await this.getKnownEntities()
-            let storageMap: StorageMap = {}
-            for (const opInfo of ops) {
-                const op = deriveUserOperation(opInfo.mempoolUserOperation)
-                const skipResult = await this.shouldSkip(
-                    opInfo,
-                    paymasterDeposit,
-                    stakedEntityCount,
-                    knownEntities,
-                    senders,
-                    storageMap
-                )
-                if (skipResult.skip) {
-                    continue
-                }
-                paymasterDeposit = skipResult.paymasterDeposit
-                stakedEntityCount = skipResult.stakedEntityCount
-                knownEntities = skipResult.knownEntities
-                senders = skipResult.senders
-                storageMap = skipResult.storageMap
-                this.reputationManager.decreaseUserOperationCount(op)
-                this.store.addProcessing(opInfo)
-                result.push(opInfo)
+                callback(result)
             }
-            callback(result)
-        })
+        )
     }
 
     async get(opHash: HexData32): Promise<UserOperation | null> {

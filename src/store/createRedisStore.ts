@@ -74,7 +74,7 @@ export const createRedisStore = ({
             `${outstandingQueueName}-${config.publicClient.chain.id}`
         ),
         memoryStore: createMemoryStore({ config, metrics }),
-        process({ maxTime, maxGasLimit }, callback) {
+        process({ maxTime, maxGasLimit, immediate }, callback) {
             let outstandingOps: UserOperationInfo[] = []
             let gasUsed = 0n
 
@@ -119,6 +119,10 @@ export const createRedisStore = ({
                     done()
                 }
             )
+
+            if (immediate) {
+                processOutstandingOps()
+            }
 
             return () => clearInterval(interval)
         },
