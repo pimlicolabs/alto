@@ -116,6 +116,7 @@ const getCompressionHandler = async (
 }
 
 const getExecutor = ({
+    mempool,
     config,
     senderManager,
     reputationManager,
@@ -124,6 +125,7 @@ const getExecutor = ({
     gasPriceManager,
     eventManager
 }: {
+    mempool: MemoryMempool
     config: AltoConfig
     senderManager: SenderManager
     reputationManager: InterfaceReputationManager
@@ -133,6 +135,7 @@ const getExecutor = ({
     eventManager: EventManager
 }): Executor => {
     return new Executor({
+        mempool,
         config,
         senderManager,
         reputationManager,
@@ -299,6 +302,7 @@ export const setupServer = async ({
     })
 
     const executor = getExecutor({
+        mempool,
         config,
         senderManager,
         reputationManager,
