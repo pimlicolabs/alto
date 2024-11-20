@@ -319,7 +319,7 @@ export async function calcPreVerificationGas({
     validate: boolean // when calculating preVerificationGas for validation
     overheads?: GasOverheads
 }): Promise<bigint> {
-    let preVerificationGas = calcDefaultPreVerificationGas(
+    const preVerificationGas = calcDefaultPreVerificationGas(
         userOperation,
         overheads
     )
@@ -504,7 +504,7 @@ export async function calcMantlePreVerificationGas(
     const mantleManager = gasPriceManager.mantleManager
 
     if (verify) {
-        const minValues = mantleManager.getMinMantleOracleValues()
+        const minValues = await mantleManager.getMinMantleOracleValues()
 
         tokenRatio = minValues.minTokenRatio
         scalar = minValues.minScalar
@@ -663,14 +663,14 @@ export async function calcArbitrumPreVerificationGas(
 
     if (validate) {
         if (l1BaseFeeEstimate === 0n) {
-            l1BaseFeeEstimate = arbitrumManager.getMaxL1BaseFee()
+            l1BaseFeeEstimate = await arbitrumManager.getMaxL1BaseFee()
         }
 
         // gasEstimateL1Component source: https://github.com/OffchainLabs/nitro/blob/5cd7d6913eb6b4dedb08f6ea49d7f9802d2cc5b9/execution/nodeInterface/NodeInterface.go#L515-L551
         const feesForL1 = (gasForL1 * l2BaseFee) / l1BaseFeeEstimate
 
-        const minL1BaseFeeEstimate = arbitrumManager.getMinL1BaseFee()
-        const maxL2BaseFee = arbitrumManager.getMaxL2BaseFee()
+        const minL1BaseFeeEstimate = await arbitrumManager.getMinL1BaseFee()
+        const maxL2BaseFee = await arbitrumManager.getMaxL2BaseFee()
 
         gasForL1 = (feesForL1 * minL1BaseFeeEstimate) / maxL2BaseFee
     }

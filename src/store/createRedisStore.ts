@@ -9,8 +9,6 @@ import {
     type UserOperationInfo
 } from "@alto/types"
 
-const outstandingQueueName = "outstanding-mempool-v2"
-
 const createQueue = <T>(url: string, queueName: string) => {
     let client: Redis
     let subscriber: Redis
@@ -71,7 +69,7 @@ export const createRedisStore = ({
     return {
         outstandingQueue: createQueue<UserOperationInfo>(
             redisMempoolUrl,
-            `${outstandingQueueName}-${config.publicClient.chain.id}`
+            `${config.redisMempoolQueueName}-${config.publicClient.chain.id}`
         ),
         memoryStore: createMemoryStore({ config, metrics }),
         process({ maxTime, maxGasLimit, immediate }, callback) {

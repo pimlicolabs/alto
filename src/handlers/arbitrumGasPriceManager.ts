@@ -1,13 +1,14 @@
 import { maxUint128 } from "viem"
-import { TimedQueue } from "../utils/timedQueue"
+import { getTimedQueue, type TimedQueue } from "../utils/timedQueue"
+import type { AltoConfig } from "@alto/config"
 
 export class ArbitrumManager {
     private l1BaseFeeQueue: TimedQueue
     private l2BaseFeeQueue: TimedQueue
 
-    constructor(queueValidity: number) {
-        this.l1BaseFeeQueue = new TimedQueue(queueValidity)
-        this.l2BaseFeeQueue = new TimedQueue(queueValidity)
+    constructor(config: AltoConfig) {
+        this.l1BaseFeeQueue = getTimedQueue(config)
+        this.l2BaseFeeQueue = getTimedQueue(config)
     }
 
     public saveL1BaseFee(baseFee: bigint) {
@@ -18,18 +19,20 @@ export class ArbitrumManager {
         this.l2BaseFeeQueue.saveValue(baseFee)
     }
 
-    public getMinL1BaseFee() {
-        let minL1BaseFee = this.l1BaseFeeQueue.getMinValue() || 1n
+    public async getMinL1BaseFee() {
+        const minL1BaseFee = (await this.l1BaseFeeQueue.getMinValue()) || 1n
         return minL1BaseFee
     }
 
-    public getMaxL1BaseFee() {
-        let maxL1BaseFee = this.l1BaseFeeQueue.getMaxValue() || maxUint128
+    public async getMaxL1BaseFee() {
+        const maxL1BaseFee =
+            (await this.l1BaseFeeQueue.getMaxValue()) || maxUint128
         return maxL1BaseFee
     }
 
-    public getMaxL2BaseFee() {
-        let maxL2BaseFee = this.l2BaseFeeQueue.getMaxValue() || maxUint128
+    public async getMaxL2BaseFee() {
+        const maxL2BaseFee =
+            (await this.l2BaseFeeQueue.getMaxValue()) || maxUint128
         return maxL2BaseFee
     }
 }

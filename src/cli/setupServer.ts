@@ -141,7 +141,7 @@ const getExecutor = ({
     gasPriceManager,
     eventManager
 }: {
-    mempool: MemoryMempool
+    mempool: Mempool
     config: AltoConfig
     senderManager: SenderManager
     reputationManager: InterfaceReputationManager

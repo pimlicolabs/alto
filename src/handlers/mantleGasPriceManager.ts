@@ -1,4 +1,5 @@
-import { TimedQueue } from "../utils/timedQueue"
+import { getTimedQueue, type TimedQueue } from "../utils/timedQueue"
+import type { AltoConfig } from "@alto/config"
 
 export class MantleManager {
     private tokenRatioQueue: TimedQueue
@@ -6,20 +7,20 @@ export class MantleManager {
     private rollupDataGasAndOverheadQueue: TimedQueue
     private l1GasPriceQueue: TimedQueue
 
-    constructor(queueValidity: number) {
-        this.tokenRatioQueue = new TimedQueue(queueValidity)
-        this.scalarQueue = new TimedQueue(queueValidity)
-        this.rollupDataGasAndOverheadQueue = new TimedQueue(queueValidity)
-        this.l1GasPriceQueue = new TimedQueue(queueValidity)
+    constructor(config: AltoConfig) {
+        this.tokenRatioQueue = getTimedQueue(config)
+        this.scalarQueue = getTimedQueue(config)
+        this.rollupDataGasAndOverheadQueue = getTimedQueue(config)
+        this.l1GasPriceQueue = getTimedQueue(config)
     }
 
-    public getMinMantleOracleValues() {
+    public async getMinMantleOracleValues() {
         return {
-            minTokenRatio: this.tokenRatioQueue.getMinValue() || 1n,
-            minScalar: this.scalarQueue.getMinValue() || 1n,
+            minTokenRatio: (await this.tokenRatioQueue.getMinValue()) || 1n,
+            minScalar: (await this.scalarQueue.getMinValue()) || 1n,
             minRollupDataGasAndOverhead:
-                this.rollupDataGasAndOverheadQueue.getMinValue() || 1n,
-            minL1GasPrice: this.l1GasPriceQueue.getMinValue() || 1n
+                (await this.rollupDataGasAndOverheadQueue.getMinValue()) || 1n,
+            minL1GasPrice: (await this.l1GasPriceQueue.getMinValue()) || 1n
         }
     }
 

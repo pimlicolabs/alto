@@ -15,7 +15,7 @@ import {
     polygonMumbai
 } from "viem/chains"
 import type { AltoConfig } from "@alto/config"
-import { TimedQueue } from "../utils/timedQueue"
+import { getTimedQueue, type TimedQueue } from "../utils/timedQueue"
 import { ArbitrumManager } from "./arbitrumGasPriceManager"
 import { MantleManager } from "./mantleGasPriceManager"
 
@@ -58,11 +58,9 @@ export class GasPriceManager {
             }
         )
 
-        const queueValidity = this.config.gasPriceExpiry * 1_000
-
-        this.baseFeePerGasQueue = new TimedQueue(queueValidity)
-        this.maxFeePerGasQueue = new TimedQueue(queueValidity)
-        this.maxPriorityFeePerGasQueue = new TimedQueue(queueValidity)
+        this.baseFeePerGasQueue = getTimedQueue(config)
+        this.maxFeePerGasQueue = getTimedQueue(config)
+        this.maxPriorityFeePerGasQueue = getTimedQueue(config)
 
         // Periodically update gas prices if specified
         if (this.config.gasPriceRefreshInterval > 0) {
@@ -75,8 +73,8 @@ export class GasPriceManager {
             }, this.config.gasPriceRefreshInterval * 1000)
         }
 
-        this.arbitrumManager = new ArbitrumManager(queueValidity)
-        this.mantleManager = new MantleManager(queueValidity)
+        this.arbitrumManager = new ArbitrumManager(config)
+        this.mantleManager = new MantleManager(config)
     }
 
     public init() {
@@ -419,7 +417,7 @@ export class GasPriceManager {
     }
 
     public async getMaxBaseFeePerGas(): Promise<bigint> {
-        let maxBaseFeePerGas = this.baseFeePerGasQueue.getMaxValue()
+        let maxBaseFeePerGas = await this.baseFeePerGasQueue.getMaxValue()
         if (!maxBaseFeePerGas) {
             maxBaseFeePerGas = await this.getBaseFee()
         }
@@ -428,7 +426,7 @@ export class GasPriceManager {
     }
 
     private async getMinMaxFeePerGas(): Promise<bigint> {
-        let minMaxFeePerGas = this.maxFeePerGasQueue.getMinValue()
+        let minMaxFeePerGas = await this.maxFeePerGasQueue.getMinValue()
         if (!minMaxFeePerGas) {
             const gasPrice = await this.getGasPrice()
             minMaxFeePerGas = gasPrice.maxFeePerGas
@@ -439,7 +437,7 @@ export class GasPriceManager {
 
     private async getMinMaxPriorityFeePerGas(): Promise<bigint> {
         let minMaxPriorityFeePerGas =
-            this.maxPriorityFeePerGasQueue.getMinValue()
+            await this.maxPriorityFeePerGasQueue.getMinValue()
 
         if (!minMaxPriorityFeePerGas) {
             const gasPrices = await this.getGasPrice()

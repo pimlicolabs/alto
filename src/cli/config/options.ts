@@ -472,6 +472,18 @@ export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
         require: false,
         default: 10
     },
+    "redis-mempool-queue-name": {
+        description: "Redis mempool queue name",
+        type: "string",
+        require: false,
+        default: "outstanding-mempool-v2"
+    },
+    "redis-gas-price-queue-name": {
+        description: "Queue name to store gas prices",
+        type: "string",
+        require: false,
+        default: "gas-price-queue"
+    },
     "mempool-max-parallel-ops": {
         description:
             "Maximum amount of parallel user ops to keep in the mempool (same sender, different nonce keys)",

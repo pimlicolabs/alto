@@ -7,7 +7,7 @@ import type {
     EventManager,
     GasPriceManager
 } from "@alto/handlers"
-import type { InterfaceReputationManager, MemoryMempool } from "@alto/mempool"
+import type { InterfaceReputationManager, Mempool } from "@alto/mempool"
 import {
     type Address,
     type BundleResult,
@@ -87,7 +87,7 @@ export class Executor {
     compressionHandler: CompressionHandler | null
     gasPriceManager: GasPriceManager
     mutex: Mutex
-    mempool: MemoryMempool
+    mempool: Mempool
     eventManager: EventManager
 
     constructor({
@@ -101,7 +101,7 @@ export class Executor {
         eventManager
     }: {
         config: AltoConfig
-        mempool: MemoryMempool
+        mempool: Mempool
         senderManager: SenderManager
         reputationManager: InterfaceReputationManager
         metrics: Metrics
@@ -637,7 +637,7 @@ export class Executor {
         nonce,
         executor
     }: { nonce: number; executor: Address }) {
-        const submitted = this.mempool.dumpSubmittedOps()
+        const submitted = await this.mempool.dumpSubmittedOps()
 
         const conflictingOps = submitted
             .filter((submitted) => {
