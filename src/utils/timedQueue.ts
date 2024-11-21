@@ -1,6 +1,7 @@
 import type { AltoConfig } from "@alto/config"
 import { maxBigInt, minBigInt } from "./bigInt"
 import { Redis } from "ioredis"
+import type { Logger } from "pino"
 
 export interface TimedQueue {
     saveValue(value: bigint): Promise<void>
@@ -15,6 +16,7 @@ export class RedisTimedQueue implements TimedQueue {
     private queueKey: string
     private queueValidity: number
     private latestValue: bigint | null
+    private logger: Logger
 
     constructor(config: AltoConfig) {
         const { redisMempoolUrl } = config
@@ -29,6 +31,13 @@ export class RedisTimedQueue implements TimedQueue {
         this.queueKey = config.redisGasPriceQueueName
         this.queueValidity = queueValidity
         this.latestValue = null
+
+        this.logger = config.getLogger(
+            { module: "RedisTimedQueue" },
+            {
+                level: config.mempoolLogLevel || config.logLevel
+            }
+        )
     }
 
     private async pruneExpiredEntries() {
@@ -57,6 +66,11 @@ export class RedisTimedQueue implements TimedQueue {
         const timestamp = Date.now()
         await this.pruneExpiredEntries()
 
+        this.logger.debug(
+            { value, timestamp },
+            "[RedisTimedQueue] Saving value"
+        )
+
         // Directly add the value with its timestamp as the score
         await this.redisClient.zadd(
             this.queueKey,
@@ -72,16 +86,23 @@ export class RedisTimedQueue implements TimedQueue {
 
     public async getMinValue(): Promise<bigint | undefined> {
         const minEntry = await this.redisClient.zrange(this.queueKey, 0, 0)
+
+        this.logger.debug({ minEntry }, "[RedisTimedQueue] Getting min value")
+
         return minEntry.length === 0 ? undefined : BigInt(minEntry[0])
     }
 
     public async getMaxValue(): Promise<bigint | undefined> {
         const maxEntry = await this.redisClient.zrevrange(this.queueKey, 0, 0)
+
+        this.logger.debug({ maxEntry }, "[RedisTimedQueue] Getting max value")
+
         return maxEntry.length === 0 ? undefined : BigInt(maxEntry[0])
     }
 
     public async isEmpty(): Promise<boolean> {
         const queueSize = await this.redisClient.zcard(this.queueKey)
+        this.logger.debug({ queueSize }, "[RedisTimedQueue] Checking if empty")
         return queueSize === 0
     }
 
