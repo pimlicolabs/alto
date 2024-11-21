@@ -183,8 +183,20 @@ export class MemoryTimedQueue implements TimedQueue {
 }
 
 export const getTimedQueue = (config: AltoConfig): TimedQueue => {
+    const logger = config.getLogger(
+        { module: "getTimedQueue" },
+        {
+            level: config.mempoolLogLevel || config.logLevel
+        }
+    )
+
+    logger.debug("[getTimedQueue] Initializing timed queue")
+
     if (config.redisMempoolUrl) {
+        logger.debug("[getTimedQueue] Using RedisTimedQueue")
         return new RedisTimedQueue(config)
     }
+
+    logger.debug("[getTimedQueue] Using MemoryTimedQueue")
     return new MemoryTimedQueue(config)
 }
