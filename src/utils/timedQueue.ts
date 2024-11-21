@@ -66,10 +66,7 @@ export class RedisTimedQueue implements TimedQueue {
         const timestamp = Date.now()
         await this.pruneExpiredEntries()
 
-        this.logger.debug(
-            { value, timestamp },
-            "[RedisTimedQueue] Saving value"
-        )
+        this.logger.info({ value, timestamp }, "[RedisTimedQueue] Saving value")
 
         // Directly add the value with its timestamp as the score
         await this.redisClient.zadd(
@@ -87,7 +84,7 @@ export class RedisTimedQueue implements TimedQueue {
     public async getMinValue(): Promise<bigint | undefined> {
         const minEntry = await this.redisClient.zrange(this.queueKey, 0, 0)
 
-        this.logger.debug({ minEntry }, "[RedisTimedQueue] Getting min value")
+        this.logger.info({ minEntry }, "[RedisTimedQueue] Getting min value")
 
         return minEntry.length === 0 ? undefined : BigInt(minEntry[0])
     }
@@ -95,14 +92,14 @@ export class RedisTimedQueue implements TimedQueue {
     public async getMaxValue(): Promise<bigint | undefined> {
         const maxEntry = await this.redisClient.zrevrange(this.queueKey, 0, 0)
 
-        this.logger.debug({ maxEntry }, "[RedisTimedQueue] Getting max value")
+        this.logger.info({ maxEntry }, "[RedisTimedQueue] Getting max value")
 
         return maxEntry.length === 0 ? undefined : BigInt(maxEntry[0])
     }
 
     public async isEmpty(): Promise<boolean> {
         const queueSize = await this.redisClient.zcard(this.queueKey)
-        this.logger.debug({ queueSize }, "[RedisTimedQueue] Checking if empty")
+        this.logger.info({ queueSize }, "[RedisTimedQueue] Checking if empty")
         return queueSize === 0
     }
 
@@ -139,7 +136,7 @@ export class MemoryTimedQueue implements TimedQueue {
         const last = this.queue[this.queue.length - 1]
         const timestamp = Date.now()
 
-        this.logger.debug(
+        this.logger.info(
             { value, timestamp },
             "[MemoryTimedQueue] Saving value"
         )
@@ -161,7 +158,7 @@ export class MemoryTimedQueue implements TimedQueue {
             return null
         }
 
-        this.logger.debug(
+        this.logger.info(
             { value: this.queue[this.queue.length - 1].value },
             "[MemoryTimedQueue] Getting latest value"
         )
@@ -174,7 +171,7 @@ export class MemoryTimedQueue implements TimedQueue {
             return Promise.resolve(undefined)
         }
 
-        this.logger.debug(
+        this.logger.info(
             { value: this.queue[0].value },
             "[MemoryTimedQueue] Getting min value"
         )
@@ -192,7 +189,7 @@ export class MemoryTimedQueue implements TimedQueue {
             return Promise.resolve(undefined)
         }
 
-        this.logger.debug(
+        this.logger.info(
             { value: this.queue[0].value },
             "[MemoryTimedQueue] Getting max value"
         )
@@ -206,7 +203,7 @@ export class MemoryTimedQueue implements TimedQueue {
     }
 
     public isEmpty(): Promise<boolean> {
-        this.logger.debug(
+        this.logger.info(
             { queueLength: this.queue.length },
             "[MemoryTimedQueue] Checking if empty"
         )
@@ -222,13 +219,13 @@ export const getTimedQueue = (config: AltoConfig): TimedQueue => {
         }
     )
 
-    logger.debug("[getTimedQueue] Initializing timed queue")
+    logger.info("[getTimedQueue] Initializing timed queue")
 
     if (config.redisMempoolUrl) {
-        logger.debug("[getTimedQueue] Using RedisTimedQueue")
+        logger.info("[getTimedQueue] Using RedisTimedQueue")
         return new RedisTimedQueue(config)
     }
 
-    logger.debug("[getTimedQueue] Using MemoryTimedQueue")
+    logger.info("[getTimedQueue] Using MemoryTimedQueue")
     return new MemoryTimedQueue(config)
 }
