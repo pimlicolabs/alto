@@ -29,7 +29,9 @@ export class RedisTimedQueue implements TimedQueue {
         const queueValidity = config.gasPriceExpiry * 1_000
 
         this.redisClient = new Redis(redisMempoolUrl)
-        this.queueKey = `${config.redisGasPriceQueueName}-${tag}`
+
+        this.tag = `${tag}-${config.publicClient.chain.id}`
+        this.queueKey = `${config.redisGasPriceQueueName}-${this.tag}`
         this.queueValidity = queueValidity
         this.latestValue = null
 
@@ -39,7 +41,6 @@ export class RedisTimedQueue implements TimedQueue {
                 level: config.mempoolLogLevel || config.logLevel
             }
         )
-        this.tag = tag
     }
 
     private async pruneExpiredEntries() {
