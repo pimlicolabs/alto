@@ -8,10 +8,22 @@ export class MantleManager {
     private l1GasPriceQueue: TimedQueue
 
     constructor(config: AltoConfig) {
-        this.tokenRatioQueue = getTimedQueue(config)
-        this.scalarQueue = getTimedQueue(config)
-        this.rollupDataGasAndOverheadQueue = getTimedQueue(config)
-        this.l1GasPriceQueue = getTimedQueue(config)
+        this.tokenRatioQueue = getTimedQueue({
+            config,
+            tag: "mantle-token-ratio-queue"
+        })
+        this.scalarQueue = getTimedQueue({
+            config,
+            tag: "mantle-scalar-queue"
+        })
+        this.rollupDataGasAndOverheadQueue = getTimedQueue({
+            config,
+            tag: "mantle-rollup-data-gas-and-overhead-queue"
+        })
+        this.l1GasPriceQueue = getTimedQueue({
+            config,
+            tag: "mantle-l1-gas-price-queue"
+        })
     }
 
     public async getMinMantleOracleValues() {

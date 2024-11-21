@@ -18,7 +18,7 @@ export class RedisTimedQueue implements TimedQueue {
     private latestValue: bigint | null
     private logger: Logger
 
-    constructor(config: AltoConfig) {
+    constructor({ config, tag }: { config: AltoConfig; tag: string }) {
         const { redisMempoolUrl } = config
 
         if (!redisMempoolUrl) {
@@ -28,7 +28,7 @@ export class RedisTimedQueue implements TimedQueue {
         const queueValidity = config.gasPriceExpiry * 1_000
 
         this.redisClient = new Redis(redisMempoolUrl)
-        this.queueKey = config.redisGasPriceQueueName
+        this.queueKey = `${config.redisGasPriceQueueName}-${tag}`
         this.queueValidity = queueValidity
         this.latestValue = null
 
@@ -211,7 +211,10 @@ export class MemoryTimedQueue implements TimedQueue {
     }
 }
 
-export const getTimedQueue = (config: AltoConfig): TimedQueue => {
+export const getTimedQueue = ({
+    config,
+    tag
+}: { config: AltoConfig; tag: string }): TimedQueue => {
     const logger = config.getLogger(
         { module: "getTimedQueue" },
         {
@@ -223,7 +226,7 @@ export const getTimedQueue = (config: AltoConfig): TimedQueue => {
 
     if (config.redisMempoolUrl) {
         logger.info("[getTimedQueue] Using RedisTimedQueue")
-        return new RedisTimedQueue(config)
+        return new RedisTimedQueue({ config, tag })
     }
 
     logger.info("[getTimedQueue] Using MemoryTimedQueue")

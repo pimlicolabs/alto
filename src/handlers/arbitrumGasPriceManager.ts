@@ -7,8 +7,14 @@ export class ArbitrumManager {
     private l2BaseFeeQueue: TimedQueue
 
     constructor(config: AltoConfig) {
-        this.l1BaseFeeQueue = getTimedQueue(config)
-        this.l2BaseFeeQueue = getTimedQueue(config)
+        this.l1BaseFeeQueue = getTimedQueue({
+            config,
+            tag: "arbitrum-l1-base-fee-queue"
+        })
+        this.l2BaseFeeQueue = getTimedQueue({
+            config,
+            tag: "arbitrum-l2-base-fee-queue"
+        })
     }
 
     public saveL1BaseFee(baseFee: bigint) {

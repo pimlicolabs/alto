@@ -58,9 +58,18 @@ export class GasPriceManager {
             }
         )
 
-        this.baseFeePerGasQueue = getTimedQueue(config)
-        this.maxFeePerGasQueue = getTimedQueue(config)
-        this.maxPriorityFeePerGasQueue = getTimedQueue(config)
+        this.baseFeePerGasQueue = getTimedQueue({
+            config,
+            tag: "gas-price-manager-base-fee-per-gas-queue"
+        })
+        this.maxFeePerGasQueue = getTimedQueue({
+            config,
+            tag: "gas-price-manager-max-fee-per-gas-queue"
+        })
+        this.maxPriorityFeePerGasQueue = getTimedQueue({
+            config,
+            tag: "gas-price-manager-max-priority-fee-per-gas-queue"
+        })
 
         // Periodically update gas prices if specified
         if (this.config.gasPriceRefreshInterval > 0) {
