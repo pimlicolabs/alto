@@ -115,12 +115,19 @@ export class MemoryTimedQueue implements TimedQueue {
     private queue: { timestamp: number; value: bigint }[]
     private maxQueueSize: number
     private queueValidity: number
+    private logger: Logger
 
     constructor(config: AltoConfig) {
         const queueValidity = config.gasPriceExpiry * 1_000
         this.queue = []
         this.maxQueueSize = queueValidity / 1_000
         this.queueValidity = queueValidity
+        this.logger = config.getLogger(
+            { module: "MemoryTimedQueue" },
+            {
+                level: config.mempoolLogLevel || config.logLevel
+            }
+        )
     }
 
     // Only saves the value if it is lower than the latest value.
@@ -131,6 +138,11 @@ export class MemoryTimedQueue implements TimedQueue {
 
         const last = this.queue[this.queue.length - 1]
         const timestamp = Date.now()
+
+        this.logger.debug(
+            { value, timestamp },
+            "[MemoryTimedQueue] Saving value"
+        )
 
         if (!last || timestamp - last.timestamp >= this.queueValidity) {
             if (this.queue.length >= this.maxQueueSize) {
@@ -148,6 +160,12 @@ export class MemoryTimedQueue implements TimedQueue {
         if (this.queue.length === 0) {
             return null
         }
+
+        this.logger.debug(
+            { value: this.queue[this.queue.length - 1].value },
+            "[MemoryTimedQueue] Getting latest value"
+        )
+
         return this.queue[this.queue.length - 1].value
     }
 
@@ -155,6 +173,11 @@ export class MemoryTimedQueue implements TimedQueue {
         if (this.queue.length === 0) {
             return Promise.resolve(undefined)
         }
+
+        this.logger.debug(
+            { value: this.queue[0].value },
+            "[MemoryTimedQueue] Getting min value"
+        )
 
         return Promise.resolve(
             this.queue.reduce(
@@ -169,6 +192,11 @@ export class MemoryTimedQueue implements TimedQueue {
             return Promise.resolve(undefined)
         }
 
+        this.logger.debug(
+            { value: this.queue[0].value },
+            "[MemoryTimedQueue] Getting max value"
+        )
+
         return Promise.resolve(
             this.queue.reduce(
                 (acc, cur) => maxBigInt(cur.value, acc),
@@ -178,6 +206,10 @@ export class MemoryTimedQueue implements TimedQueue {
     }
 
     public isEmpty(): Promise<boolean> {
+        this.logger.debug(
+            { queueLength: this.queue.length },
+            "[MemoryTimedQueue] Checking if empty"
+        )
         return Promise.resolve(this.queue.length === 0)
     }
 }
