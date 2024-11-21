@@ -17,6 +17,7 @@ export class RedisTimedQueue implements TimedQueue {
     private queueValidity: number
     private latestValue: bigint | null
     private logger: Logger
+    private tag: string
 
     constructor({ config, tag }: { config: AltoConfig; tag: string }) {
         const { redisMempoolUrl } = config
@@ -38,6 +39,7 @@ export class RedisTimedQueue implements TimedQueue {
                 level: config.mempoolLogLevel || config.logLevel
             }
         )
+        this.tag = tag
     }
 
     private async pruneExpiredEntries() {
@@ -66,7 +68,10 @@ export class RedisTimedQueue implements TimedQueue {
         const timestamp = Date.now()
         await this.pruneExpiredEntries()
 
-        this.logger.info({ value, timestamp }, "[RedisTimedQueue] Saving value")
+        this.logger.info(
+            { value, timestamp, tag: this.tag },
+            "[RedisTimedQueue] Saving value"
+        )
 
         // Directly add the value with its timestamp as the score
         await this.redisClient.zadd(
