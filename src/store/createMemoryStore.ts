@@ -331,14 +331,14 @@ export const createMemoryStore = ({
             const processOps = () => {
                 const filteredOps = getOpsToBundle()
                 if (filteredOps.length > 0) {
-                    callback([...filteredOps])
-
                     const removeHashes = new Set(
                         filteredOps.map((op) => op.userOperationHash)
                     )
                     this.outstanding = this.outstanding.filter(
                         (opInfo) => !removeHashes.has(opInfo.userOperationHash)
                     )
+
+                    callback([...filteredOps])
                 }
             }
 
