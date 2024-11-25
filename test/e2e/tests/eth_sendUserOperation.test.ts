@@ -6,14 +6,18 @@ import {
     createTestClient,
     getContract,
     parseEther,
-    parseGwei
+    parseGwei,
+    Address,
+    concat
 } from "viem"
 import {
     type EntryPointVersion,
     UserOperationReceiptNotFoundError,
     entryPoint06Address,
     entryPoint07Address,
-    UserOperation
+    UserOperation,
+    UserOperationSignatureError,
+    UserOperationExecutionError
 } from "viem/account-abstraction"
 import { generatePrivateKey } from "viem/accounts"
 import { foundry } from "viem/chains"
@@ -27,6 +31,7 @@ import {
 } from "../src/utils"
 import { ENTRYPOINT_V06_ABI, ENTRYPOINT_V07_ABI } from "./utils/abi"
 import { getNonceKeyAndValue } from "./utils/userop"
+import { deployPaymaster } from "../src/testPaymaster"
 
 const anvilClient = createTestClient({
     chain: foundry,
@@ -51,23 +56,25 @@ describe.each([
 ])(
     "$entryPointVersion supports eth_sendUserOperation",
     ({ entryPoint, entryPointVersion }) => {
+        const TO_ADDRESS = "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5"
+        const VALUE = parseEther("0.15")
+        let paymaster: Address
+
         beforeEach(async () => {
             await beforeEachCleanUp()
+            paymaster = await deployPaymaster(entryPoint)
         })
 
         test("Send UserOperation", async () => {
-            const smartAccountClient = await getSmartAccountClient({
+            const client = await getSmartAccountClient({
                 entryPointVersion
             })
 
-            const to = "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5"
-            const value = parseEther("0.15")
-
-            const hash = await smartAccountClient.sendUserOperation({
+            const hash = await client.sendUserOperation({
                 calls: [
                     {
-                        to,
-                        value,
+                        to: TO_ADDRESS,
+                        value: VALUE,
                         data: "0x"
                     }
                 ]
@@ -75,29 +82,26 @@ describe.each([
 
             await new Promise((resolve) => setTimeout(resolve, 1500))
 
-            await smartAccountClient.waitForUserOperationReceipt({ hash })
+            await client.waitForUserOperationReceipt({ hash })
 
             expect(
-                await publicClient.getBalance({ address: to })
-            ).toBeGreaterThanOrEqual(value)
+                await publicClient.getBalance({ address: TO_ADDRESS })
+            ).toBeGreaterThanOrEqual(VALUE)
         })
 
         test("Replace mempool transaction", async () => {
-            const smartAccountClient = await getSmartAccountClient({
+            const client = await getSmartAccountClient({
                 entryPointVersion
             })
 
             await anvilClient.setAutomine(false)
             await anvilClient.mine({ blocks: 1 })
 
-            const to = "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5"
-            const value = parseEther("0.15")
-
-            const hash = await smartAccountClient.sendUserOperation({
+            const hash = await client.sendUserOperation({
                 calls: [
                     {
-                        to,
-                        value,
+                        to: TO_ADDRESS,
+                        value: VALUE,
                         data: "0x"
                     }
                 ]
@@ -113,7 +117,7 @@ describe.each([
 
             // check that no tx was mined
             await expect(async () => {
-                await smartAccountClient.getUserOperationReceipt({
+                await client.getUserOperationReceipt({
                     hash
                 })
             }).rejects.toThrow(UserOperationReceiptNotFoundError)
@@ -123,14 +127,14 @@ describe.each([
             await new Promise((resolve) => setTimeout(resolve, 5000))
             await anvilClient.mine({ blocks: 1 })
 
-            const opReceipt = await smartAccountClient.getUserOperationReceipt({
+            const opReceipt = await client.getUserOperationReceipt({
                 hash
             })
 
             expect(opReceipt?.success).equal(true)
             expect(
-                await publicClient.getBalance({ address: to })
-            ).toBeGreaterThanOrEqual(value)
+                await publicClient.getBalance({ address: TO_ADDRESS })
+            ).toBeGreaterThanOrEqual(VALUE)
         })
 
         test("Send multiple UserOperations", async () => {
@@ -141,16 +145,13 @@ describe.each([
                 entryPointVersion
             })
 
-            const to = "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5"
-            const value = parseEther("0.15")
-
             await setBundlingMode("manual")
 
             const firstHash = await firstClient.sendUserOperation({
                 calls: [
                     {
-                        to,
-                        value,
+                        to: TO_ADDRESS,
+                        value: VALUE,
                         data: "0x"
                     }
                 ]
@@ -158,8 +159,8 @@ describe.each([
             const secondHash = await secondClient.sendUserOperation({
                 calls: [
                     {
-                        to,
-                        value,
+                        to: TO_ADDRESS,
+                        value: VALUE,
                         data: "0x"
                     }
                 ]
@@ -194,8 +195,8 @@ describe.each([
             ).toEqual(true)
 
             expect(
-                await publicClient.getBalance({ address: to })
-            ).toBeGreaterThanOrEqual(value * 2n)
+                await publicClient.getBalance({ address: TO_ADDRESS })
+            ).toBeGreaterThanOrEqual(VALUE * 2n)
         })
 
         test("Send parallel UserOperations", async () => {
@@ -217,15 +218,15 @@ describe.each([
             })
 
             // Needs to deploy user op first
-            const smartAccountClient = await getSmartAccountClient({
+            const client = await getSmartAccountClient({
                 entryPointVersion,
                 privateKey
             })
 
-            await smartAccountClient.sendUserOperation({
+            await client.sendUserOperation({
                 calls: [
                     {
-                        to: smartAccountClient.account.address,
+                        to: client.account.address,
                         value: parseEther("0.01"),
                         data: "0x"
                     }
@@ -236,11 +237,11 @@ describe.each([
 
             const opHashes = await Promise.all(
                 nonceKeys.map((nonceKey) =>
-                    smartAccountClient.sendUserOperation({
+                    client.sendUserOperation({
                         calls: [
                             {
-                                to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
-                                value: parseEther("0.15"),
+                                to: TO_ADDRESS,
+                                value: VALUE,
                                 data: "0x"
                             }
                         ],
@@ -256,10 +257,9 @@ describe.each([
 
             const receipts = await Promise.all(
                 opHashes.map(async (hash) => {
-                    const receipt =
-                        await smartAccountClient.waitForUserOperationReceipt({
-                            hash
-                        })
+                    const receipt = await client.waitForUserOperationReceipt({
+                        hash
+                    })
 
                     return receipt
                 })
@@ -314,15 +314,15 @@ describe.each([
             const privateKey = generatePrivateKey()
 
             // Needs to deploy user op first
-            const smartAccountClient = await getSmartAccountClient({
+            const client = await getSmartAccountClient({
                 entryPointVersion,
                 privateKey
             })
 
-            await smartAccountClient.sendUserOperation({
+            await client.sendUserOperation({
                 calls: [
                     {
-                        to: smartAccountClient.account.address,
+                        to: client.account.address,
                         value: parseEther("0.01"),
                         data: "0x"
                     }
@@ -336,19 +336,16 @@ describe.each([
 
             // Send 3 sequential user ops
             const sendUserOperation = async (nonceValueDiff: bigint) => {
-                const to = "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5"
-                const value = parseEther("0.15")
-
                 const nonce = (await entryPointContract.read.getNonce([
-                    smartAccountClient.account.address,
+                    client.account.address,
                     nonceKey
                 ])) as bigint
 
-                return smartAccountClient.sendUserOperation({
+                return client.sendUserOperation({
                     calls: [
                         {
-                            to,
-                            value,
+                            to: TO_ADDRESS,
+                            value: VALUE,
                             data: "0x"
                         }
                     ],
@@ -365,10 +362,9 @@ describe.each([
 
             const receipts = await Promise.all(
                 opHashes.map(async (hash) => {
-                    const receipt =
-                        await smartAccountClient.waitForUserOperationReceipt({
-                            hash
-                        })
+                    const receipt = await client.waitForUserOperationReceipt({
+                        hash
+                    })
 
                     return receipt
                 })
@@ -386,35 +382,98 @@ describe.each([
         })
 
         test("Should throw 'already known' if same userOperation is sent twice", async () => {
-            const smartAccountClient = await getSmartAccountClient({
+            const client = await getSmartAccountClient({
                 entryPointVersion
             })
 
-            const to = "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5"
-            const value = parseEther("0.15")
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+            op.signature = await client.account.signUserOperation(op)
 
-            const userOperation =
-                (await smartAccountClient.prepareUserOperation({
-                    calls: [
-                        {
-                            to,
-                            value,
-                            data: "0x"
-                        }
-                    ]
-                })) as UserOperation
-            userOperation.signature =
-                await smartAccountClient.account.signUserOperation(
-                    userOperation
-                )
-
-            await smartAccountClient.sendUserOperation(userOperation) // first should go through
+            await client.sendUserOperation(op) // first should go through
 
             await expect(async () => {
-                await smartAccountClient.sendUserOperation(userOperation) // second should fail due to "already known"
+                await client.sendUserOperation(op) // second should fail due to "already known"
             }).rejects.toThrowError(
                 expect.objectContaining({
                     details: expect.stringContaining("Already known")
+                })
+            )
+        })
+
+        test("Should throw AA24 if signature is invalid", async () => {
+            const client = await getSmartAccountClient({
+                entryPointVersion
+            })
+
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ],
+                signatures: await client.account.getStubSignature() // FAILING CONDITION
+            })) as UserOperation
+
+            await expect(async () => {
+                await client.sendUserOperation(op)
+            }).rejects.toThrowError(
+                expect.objectContaining({
+                    name: "UserOperationExecutionError",
+                    details: expect.stringMatching(
+                        /(AA24|Invalid UserOperation signature or paymaster signature)/i
+                    )
+                })
+            )
+        })
+
+        test("Should throw AA34 if paymaster signature is invalid", async () => {
+            const client = await getSmartAccountClient({
+                entryPointVersion
+            })
+
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+
+            const invalidPaymasterSignature = "0xff"
+
+            if (entryPointVersion === "0.7") {
+                op.paymaster = paymaster
+                op.paymasterData = invalidPaymasterSignature // FAILING CONDITION
+                op.paymasterVerificationGasLimit = 100_000n
+            } else {
+                op.paymasterAndData = concat([
+                    paymaster,
+                    invalidPaymasterSignature
+                ])
+            }
+
+            op.signature = await client.account.signUserOperation(op)
+
+            await expect(async () => {
+                await client.sendUserOperation(op)
+            }).rejects.toThrowError(
+                expect.objectContaining({
+                    name: "UserOperationExecutionError",
+                    details: expect.stringMatching(
+                        /(AA34|Invalid UserOperation signature or paymaster signature)/i
+                    )
                 })
             )
         })

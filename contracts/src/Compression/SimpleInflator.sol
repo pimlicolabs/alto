@@ -3,7 +3,7 @@ pragma solidity >=0.8;
 pragma abicoder v2;
 
 import "bulk/src/IOpInflator.sol";
-import {LibZip} from "solady/src/utils/LibZip.sol";
+import {LibZip} from "solady/utils/LibZip.sol";
 
 contract SimpleInflator is IOpInflator {
     function inflate(bytes calldata compressed) external pure override returns (UserOperation memory op) {
