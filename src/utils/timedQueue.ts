@@ -51,8 +51,8 @@ export class RedisTimedQueue implements TimedQueue {
         )
 
         for (let i = 0; i < allEntries.length; i += 2) {
-            const value = BigInt(allEntries[i])
-            const timestamp = Number.parseInt(allEntries[i + 1])
+            const timestamp = Number.parseInt(allEntries[i])
+            const value = BigInt(allEntries[i + 1])
 
             this.logger.info(
                 { value, timestamp },
@@ -99,8 +99,9 @@ export class RedisTimedQueue implements TimedQueue {
         let latestTimestamp = 0
 
         for (let i = 0; i < allEntries.length; i += 2) {
-            const value = BigInt(allEntries[i])
-            const timestamp = Number.parseInt(allEntries[i + 1])
+            const timestamp = Number.parseInt(allEntries[i])
+            const value = BigInt(allEntries[i + 1])
+
             if (timestamp > latestTimestamp) {
                 latestTimestamp = timestamp
                 latestValue = value
@@ -111,7 +112,12 @@ export class RedisTimedQueue implements TimedQueue {
     }
 
     public async getMinValue(): Promise<bigint | undefined> {
-        const minEntry = await this.redisClient.zrange(this.queueKey, 0, 0)
+        const minEntry = await this.redisClient.zrange(
+            this.queueKey,
+            0,
+            0,
+            "WITHSCORES"
+        )
 
         const allEntries = await this.redisClient.zrange(
             this.queueKey,
@@ -132,15 +138,20 @@ export class RedisTimedQueue implements TimedQueue {
             "[RedisTimedQueue] Getting min value"
         )
 
-        return minEntry.length === 0 ? undefined : BigInt(minEntry[0])
+        return minEntry.length === 0 ? undefined : BigInt(minEntry[1])
     }
 
     public async getMaxValue(): Promise<bigint | undefined> {
-        const maxEntry = await this.redisClient.zrevrange(this.queueKey, 0, 0)
+        const maxEntry = await this.redisClient.zrevrange(
+            this.queueKey,
+            0,
+            0,
+            "WITHSCORES"
+        )
 
         this.logger.info({ maxEntry }, "[RedisTimedQueue] Getting max value")
 
-        return maxEntry.length === 0 ? undefined : BigInt(maxEntry[0])
+        return maxEntry.length === 0 ? undefined : BigInt(maxEntry[1])
     }
 
     public async isEmpty(): Promise<boolean> {
