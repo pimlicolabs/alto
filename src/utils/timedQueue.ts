@@ -107,7 +107,24 @@ export class RedisTimedQueue implements TimedQueue {
     public async getMinValue(): Promise<bigint | undefined> {
         const minEntry = await this.redisClient.zrange(this.queueKey, 0, 0)
 
-        this.logger.info({ minEntry }, "[RedisTimedQueue] Getting min value")
+        const allEntries = await this.redisClient.zrange(
+            this.queueKey,
+            0,
+            -1,
+            "WITHSCORES"
+        )
+
+        const allValues: bigint[] = []
+
+        for (let i = 0; i < allEntries.length; i += 2) {
+            const value = BigInt(allEntries[i])
+            allValues.push(value)
+        }
+
+        this.logger.info(
+            { minEntry, allValues },
+            "[RedisTimedQueue] Getting min value"
+        )
 
         return minEntry.length === 0 ? undefined : BigInt(minEntry[0])
     }
