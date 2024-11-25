@@ -385,7 +385,7 @@ export class GasPriceManager {
             return await this.updateBaseFee()
         }
 
-        let baseFee = this.baseFeePerGasQueue.getLatestValue()
+        let baseFee = await this.baseFeePerGasQueue.getLatestValue()
         if (!baseFee) {
             baseFee = await this.updateBaseFee()
         }
@@ -407,9 +407,9 @@ export class GasPriceManager {
             return await this.updateGasPrice()
         }
 
-        const maxFeePerGas = this.maxFeePerGasQueue.getLatestValue()
+        const maxFeePerGas = await this.maxFeePerGasQueue.getLatestValue()
         const maxPriorityFeePerGas =
-            this.maxPriorityFeePerGasQueue.getLatestValue()
+            await this.maxPriorityFeePerGasQueue.getLatestValue()
 
         if (!maxFeePerGas || !maxPriorityFeePerGas) {
             throw new RpcError("No gas price available")

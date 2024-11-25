@@ -5,7 +5,7 @@ import type { Logger } from "pino"
 
 export interface TimedQueue {
     saveValue(value: bigint): Promise<void>
-    getLatestValue(): bigint | null
+    getLatestValue(): Promise<bigint | null>
     getMinValue(): Promise<bigint | undefined>
     getMaxValue(): Promise<bigint | undefined>
     isEmpty(): Promise<boolean>
@@ -15,7 +15,6 @@ export class RedisTimedQueue implements TimedQueue {
     private redisClient: Redis
     private queueKey: string
     private queueValidity: number
-    private latestValue: bigint | null
     private logger: Logger
     private tag: string
 
@@ -33,7 +32,6 @@ export class RedisTimedQueue implements TimedQueue {
         this.tag = `${tag}-${config.publicClient.chain.id}`
         this.queueKey = `${config.redisGasPriceQueueName}-${this.tag}`
         this.queueValidity = queueValidity
-        this.latestValue = null
 
         this.logger = config.getLogger(
             { module: "RedisTimedQueue" },
@@ -80,11 +78,30 @@ export class RedisTimedQueue implements TimedQueue {
             timestamp.toString(),
             value.toString()
         )
-        this.latestValue = value
     }
 
-    public getLatestValue(): bigint | null {
-        return this.latestValue
+    public async getLatestValue(): Promise<bigint | null> {
+        const allEntries = await this.redisClient.zrange(
+            this.queueKey,
+            0,
+            -1,
+            "WITHSCORES"
+        )
+
+        // sort all entries by timestamp
+        let latestValue: bigint | null = null
+        let latestTimestamp = 0
+
+        for (let i = 0; i < allEntries.length; i += 2) {
+            const value = BigInt(allEntries[i])
+            const timestamp = Number.parseInt(allEntries[i + 1])
+            if (timestamp > latestTimestamp) {
+                latestTimestamp = timestamp
+                latestValue = value
+            }
+        }
+
+        return latestValue
     }
 
     public async getMinValue(): Promise<bigint | undefined> {
@@ -159,9 +176,9 @@ export class MemoryTimedQueue implements TimedQueue {
         return Promise.resolve()
     }
 
-    public getLatestValue(): bigint | null {
+    public getLatestValue(): Promise<bigint | null> {
         if (this.queue.length === 0) {
-            return null
+            return Promise.resolve(null)
         }
 
         this.logger.info(
@@ -169,7 +186,7 @@ export class MemoryTimedQueue implements TimedQueue {
             "[MemoryTimedQueue] Getting latest value"
         )
 
-        return this.queue[this.queue.length - 1].value
+        return Promise.resolve(this.queue[this.queue.length - 1].value)
     }
 
     public getMinValue(): Promise<bigint | undefined> {
