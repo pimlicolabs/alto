@@ -11,6 +11,10 @@ contract TestPaymasterV07 is IPaymaster {
 
     IEntryPoint public immutable entryPoint;
 
+    constructor(IEntryPoint _entryPoint) {
+        entryPoint = _entryPoint;
+    }
+
     function deposit() public payable {
         entryPoint.depositTo{value: msg.value}(address(this));
     }
