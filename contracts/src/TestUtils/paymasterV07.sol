@@ -23,9 +23,9 @@ contract TestPaymasterV07 is IPaymaster {
         PackedUserOperation calldata userOp,
         bytes32, /*userOpHash*/
         uint256 /*requiredPreFund*/
-    ) public pure override returns (bytes memory context, uint256 validationData) {
+    ) public view override returns (bytes memory context, uint256 validationData) {
         // Return false if there are paymasterData bytes (this allows us to test failing conditions).
-        if (userOp.paymasterAndData.length > 20) {
+        if (userOp.paymasterAndData.length > (20 + 16 + 16)) {
             return ("", _packValidationData(true, 0, 0));
         }
 
