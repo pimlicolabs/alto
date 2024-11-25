@@ -53,6 +53,12 @@ export class RedisTimedQueue implements TimedQueue {
         for (let i = 0; i < allEntries.length; i += 2) {
             const value = BigInt(allEntries[i])
             const timestamp = Number.parseInt(allEntries[i + 1])
+
+            this.logger.info(
+                { value, timestamp },
+                "[RedisTimedQueue] Pruning expired entries"
+            )
+
             if (currentTime - timestamp > this.queueValidity) {
                 await this.redisClient.zrem(this.queueKey, value.toString())
             } else {
