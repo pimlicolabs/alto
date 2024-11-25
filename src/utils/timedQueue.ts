@@ -81,8 +81,8 @@ export class RedisTimedQueue implements TimedQueue {
         // Directly add the value with its timestamp as the score
         await this.redisClient.zadd(
             this.queueKey,
-            timestamp.toString(),
-            value.toString()
+            Number(value),
+            timestamp.toString()
         )
     }
 
