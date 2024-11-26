@@ -39,6 +39,10 @@ export class RedisTimedQueue implements TimedQueue {
                 level: config.mempoolLogLevel || config.logLevel
             }
         )
+
+        setInterval(async () => {
+            await this.pruneExpiredEntries()
+        }, queueValidity)
     }
 
     private async pruneExpiredEntries() {
@@ -50,28 +54,31 @@ export class RedisTimedQueue implements TimedQueue {
             "WITHSCORES"
         )
 
+        const multi = this.redisClient.multi()
+
+        this.logger.debug(
+            { tag: this.tag },
+            "[RedisTimedQueue] Pruning expired entries"
+        )
+
         for (let i = 0; i < allEntries.length; i += 2) {
             const timestamp = Number.parseInt(allEntries[i])
             const value = BigInt(allEntries[i + 1])
 
-            this.logger.debug(
-                { value, timestamp },
-                "[RedisTimedQueue] Pruning expired entries"
-            )
-
             if (currentTime - timestamp > this.queueValidity) {
-                await this.redisClient.zrem(this.queueKey, value.toString())
+                multi.zrem(this.queueKey, value.toString())
             } else {
                 break // Since the sorted set is sorted, no further entries need to be checked.
             }
         }
+
+        await multi.exec()
     }
 
     public async saveValue(value: bigint): Promise<void> {
         if (value === 0n) return
 
         const timestamp = Date.now()
-        await this.pruneExpiredEntries()
 
         this.logger.debug(
             { value, timestamp, tag: this.tag },

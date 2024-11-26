@@ -381,7 +381,10 @@ export class GasPriceManager {
             )
         }
 
-        if (this.config.gasPriceRefreshInterval === 0) {
+        if (
+            this.config.gasPriceRefreshInterval === 0 &&
+            !this.config.redisMempoolUrl
+        ) {
             return await this.updateBaseFee()
         }
 
@@ -403,7 +406,10 @@ export class GasPriceManager {
     }
 
     public async getGasPrice(): Promise<GasPriceParameters> {
-        if (this.config.gasPriceRefreshInterval === 0) {
+        if (
+            this.config.gasPriceRefreshInterval === 0 &&
+            !this.config.redisMempoolUrl
+        ) {
             return await this.updateGasPrice()
         }
 
