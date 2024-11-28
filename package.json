@@ -17,6 +17,7 @@
         "start": "node src/lib/cli/alto.js run",
         "dev": "nodemon --ext ts,js,json --watch src --exec DOTENV_CONFIG_PATH=$(pwd)/.env ts-node --project src/tsconfig.json -r tsconfig-paths/register src/cli/alto.ts run",
         "test": "pnpm -r --workspace-concurrency 1 test --verbose=true",
+        "test:ci": "pnpm --filter e2e test:ci",
         "test:spec": "./test/spec-tests/run-spec-tests.sh",
         "lint": "biome check .",
         "lint:fix": "pnpm run lint --apply",
