@@ -468,7 +468,7 @@ export class RpcHandler implements IRpcEndpoint {
             entryPoint,
             queuedUserOperations,
             true,
-            stateOverrides
+            deepHexlify(stateOverrides)
         )
 
         let { verificationGasLimit, callGasLimit } =
@@ -536,7 +536,7 @@ export class RpcHandler implements IRpcEndpoint {
 
         // If a balance override is provided for the sender, perform an additional simulation
         // to verify the userOperation succeeds with the specified balance.
-        if (stateOverrides?.[userOperation.sender]?.balance) {
+        try {
             await this.validator.getExecutionResult(
                 {
                     ...userOperation,
@@ -551,6 +551,8 @@ export class RpcHandler implements IRpcEndpoint {
                 false,
                 deepHexlify(stateOverrides)
             )
+        } catch (e) {
+            this.logger.error(e, "Second simulation failed")
         }
 
         if (isVersion07(userOperation)) {
