@@ -243,13 +243,6 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             require: true,
             default: false
         },
-        "balance-override": {
-            description:
-                "Override the sender native token balance during estimation",
-            type: "boolean",
-            require: true,
-            default: true
-        },
         "local-gas-limit-calculation": {
             description:
                 "Calculate the bundle transaction gas limits locally instead of using the RPC gas limit estimation",

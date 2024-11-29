@@ -467,7 +467,6 @@ export class RpcHandler implements IRpcEndpoint {
             userOperation,
             entryPoint,
             queuedUserOperations,
-            true,
             deepHexlify(stateOverrides)
         )
 
@@ -548,11 +547,18 @@ export class RpcHandler implements IRpcEndpoint {
                 },
                 entryPoint,
                 queuedUserOperations,
-                false,
                 deepHexlify(stateOverrides)
             )
         } else {
-            // Temporarily log reverts in event of user not having enough balance.
+            // [Temporarily] Log reverts in event of user not having enough balance.
+
+            // Remove sender's balance state override if exists
+            if (stateOverrides !== undefined) {
+                const sender = userOperation.sender
+                const { balance: _, ...rest } = stateOverrides[sender] || {}
+                stateOverrides[sender] = rest
+            }
+
             try {
                 await this.validator.getExecutionResult(
                     {
@@ -565,7 +571,6 @@ export class RpcHandler implements IRpcEndpoint {
                     },
                     entryPoint,
                     queuedUserOperations,
-                    false,
                     deepHexlify(stateOverrides)
                 )
             } catch (e) {
