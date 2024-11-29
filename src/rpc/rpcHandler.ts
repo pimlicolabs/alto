@@ -551,26 +551,26 @@ export class RpcHandler implements IRpcEndpoint {
                 false,
                 deepHexlify(stateOverrides)
             )
-        }
-
-        // Temporarily log reverts in event of user not having enough balance.
-        try {
-            await this.validator.getExecutionResult(
-                {
-                    ...userOperation,
-                    preVerificationGas,
-                    verificationGasLimit,
-                    callGasLimit,
-                    paymasterVerificationGasLimit,
-                    paymasterPostOpGasLimit
-                },
-                entryPoint,
-                queuedUserOperations,
-                false,
-                deepHexlify(stateOverrides)
-            )
-        } catch (e) {
-            this.logger.error(e, "Second simulation failed")
+        } else {
+            // Temporarily log reverts in event of user not having enough balance.
+            try {
+                await this.validator.getExecutionResult(
+                    {
+                        ...userOperation,
+                        preVerificationGas,
+                        verificationGasLimit,
+                        callGasLimit,
+                        paymasterVerificationGasLimit,
+                        paymasterPostOpGasLimit
+                    },
+                    entryPoint,
+                    queuedUserOperations,
+                    false,
+                    deepHexlify(stateOverrides)
+                )
+            } catch (e) {
+                this.logger.error(e, "Second simulation failed")
+            }
         }
 
         if (isVersion07(userOperation)) {
