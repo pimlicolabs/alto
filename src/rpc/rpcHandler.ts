@@ -536,6 +536,24 @@ export class RpcHandler implements IRpcEndpoint {
 
         // If a balance override is provided for the sender, perform an additional simulation
         // to verify the userOperation succeeds with the specified balance.
+        if (stateOverrides?.[userOperation.sender]?.balance) {
+            await this.validator.getExecutionResult(
+                {
+                    ...userOperation,
+                    preVerificationGas,
+                    verificationGasLimit,
+                    callGasLimit,
+                    paymasterVerificationGasLimit,
+                    paymasterPostOpGasLimit
+                },
+                entryPoint,
+                queuedUserOperations,
+                false,
+                deepHexlify(stateOverrides)
+            )
+        }
+
+        // Temporarily log reverts in event of user not having enough balance.
         try {
             await this.validator.getExecutionResult(
                 {
