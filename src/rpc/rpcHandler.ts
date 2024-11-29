@@ -536,7 +536,7 @@ export class RpcHandler implements IRpcEndpoint {
 
         // If a balance override is provided for the sender, perform an additional simulation
         // to verify the userOperation succeeds with the specified balance.
-        if (stateOverrides?.[userOperation.sender]?.balance) {
+        if (stateOverrides?.[userOperation.sender]?.balance !== undefined) {
             await this.validator.getExecutionResult(
                 {
                     ...userOperation,
