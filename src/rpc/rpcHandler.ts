@@ -81,6 +81,7 @@ import {
 import { base, baseSepolia, optimism } from "viem/chains"
 import type { NonceQueuer } from "./nonceQueuer"
 import type { AltoConfig } from "../createConfig"
+import { SignedAuthorization } from "viem/experimental"
 
 export interface IRpcEndpoint {
     handleMethod(
@@ -297,6 +298,14 @@ export class RpcHandler implements IRpcEndpoint {
                         ...request.params
                     )
                 }
+            case "pimlico_sendUserOperation7702":
+                return {
+                    method,
+                    result: await this.pimlico_sendUserOperation7702(
+                        apiVersion,
+                        ...request.params
+                    )
+                }
         }
     }
 
@@ -463,13 +472,13 @@ export class RpcHandler implements IRpcEndpoint {
             }
         }
 
-        const executionResult = await this.validator.getExecutionResult(
+        const executionResult = await this.validator.getExecutionResult({
             userOperation,
             entryPoint,
             queuedUserOperations,
-            true,
-            deepHexlify(stateOverrides)
-        )
+            addSenderBalanceOverride: true,
+            stateOverrides: deepHexlify(stateOverrides)
+        })
 
         let { verificationGasLimit, callGasLimit } =
             calcVerificationGasAndCallGasLimit(
@@ -537,8 +546,8 @@ export class RpcHandler implements IRpcEndpoint {
         // If a balance override is provided for the sender, perform an additional simulation
         // to verify the userOperation succeeds with the specified balance.
         if (stateOverrides?.[userOperation.sender]?.balance !== undefined) {
-            await this.validator.getExecutionResult(
-                {
+            await this.validator.getExecutionResult({
+                userOperation: {
                     ...userOperation,
                     preVerificationGas,
                     verificationGasLimit,
@@ -548,14 +557,14 @@ export class RpcHandler implements IRpcEndpoint {
                 },
                 entryPoint,
                 queuedUserOperations,
-                false,
-                deepHexlify(stateOverrides)
-            )
+                addSenderBalanceOverride: false,
+                stateOverrides: deepHexlify(stateOverrides)
+            })
         } else {
             // Temporarily log reverts in event of user not having enough balance.
             try {
-                await this.validator.getExecutionResult(
-                    {
+                await this.validator.getExecutionResult({
+                    userOperation: {
                         ...userOperation,
                         preVerificationGas,
                         verificationGasLimit,
@@ -565,9 +574,9 @@ export class RpcHandler implements IRpcEndpoint {
                     },
                     entryPoint,
                     queuedUserOperations,
-                    false,
-                    deepHexlify(stateOverrides)
-                )
+                    addSenderBalanceOverride: false,
+                    stateOverrides: deepHexlify(stateOverrides)
+                })
             } catch (e) {
                 this.logger.error(e, "Second simulation failed")
             }
@@ -935,19 +944,19 @@ export class RpcHandler implements IRpcEndpoint {
                 }
             } else {
                 if (apiVersion !== "v1") {
-                    await this.validator.validatePreVerificationGas(
+                    await this.validator.validatePreVerificationGas({
                         userOperation,
                         entryPoint
-                    )
+                    })
                 }
 
                 const validationResult =
-                    await this.validator.validateUserOperation(
-                        apiVersion !== "v1",
+                    await this.validator.validateUserOperation({
+                        shouldCheckPrefund: apiVersion !== "v1",
                         userOperation,
                         queuedUserOperations,
                         entryPoint
-                    )
+                    })
 
                 await this.reputationManager.checkReputation(
                     userOperation,
@@ -982,6 +991,45 @@ export class RpcHandler implements IRpcEndpoint {
 
         this.nonceQueuer.add(op, entryPoint)
         return "queued"
+    }
+
+    async pimlico_sendUserOperation7702(
+        apiVersion: ApiVersion,
+        userOperation: UserOperation,
+        authorizationSignature: SignedAuthorization,
+        entryPoint: Address
+    ) {
+        this.logger.info({
+            enable7702Endpoint: this.config.enable7702Endpoint
+        })
+
+        // if (!this.config.enable7702Endpoint) {
+        //     throw new RpcError(
+        //         "pimlico_sendUserOperation7702 endpoint is not enabled",
+        //         ValidationErrors.InvalidFields
+        //     )
+        // }
+
+        this.ensureEntryPointIsSupported(entryPoint)
+
+        try {
+            await this.addToMempoolIfValid(
+                {
+                    userOperation,
+                    authorization: authorizationSignature
+                },
+                entryPoint,
+                apiVersion
+            )
+        } catch (e) {
+            this.logger.error(e)
+        }
+
+        return getUserOperationHash(
+            userOperation,
+            entryPoint,
+            this.config.publicClient.chain.id
+        )
     }
 
     async pimlico_sendUserOperationNow(

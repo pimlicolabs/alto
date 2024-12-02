@@ -42,6 +42,7 @@ import {
     numberToHex,
     BaseError
 } from "viem"
+import { SignedAuthorizationList } from "viem/experimental"
 
 export const isTransactionUnderpricedError = (e: BaseError) => {
     return e?.details
@@ -139,7 +140,8 @@ export async function filterOpsAndEstimateGas(
     onlyPre1559: boolean,
     fixedGasLimitForEstimation: bigint | undefined,
     reputationManager: InterfaceReputationManager,
-    logger: Logger
+    logger: Logger,
+    authorizationList?: SignedAuthorizationList
 ) {
     const simulatedOps: {
         owh: UserOperationWithHash
@@ -169,19 +171,18 @@ export async function filterOpsAndEstimateGas(
 
                 const opsToSend = simulatedOps
                     .filter((op) => op.reason === undefined)
-                    .map((op) => {
+                    .map(({ owh }) => {
+                        const op = deriveUserOperation(owh.mempoolUserOperation)
                         return isUserOpV06
-                            ? op.owh.mempoolUserOperation
-                            : toPackedUserOperation(
-                                  op.owh
-                                      .mempoolUserOperation as UserOperationV07
-                              )
+                            ? op
+                            : toPackedUserOperation(op as UserOperationV07)
                     })
 
                 gasLimit = await ep.estimateGas.handleOps(
                     // @ts-ignore - ep is set correctly for opsToSend, but typescript doesn't know that
                     [opsToSend, wallet.address],
                     {
+                        authorizationList,
                         account: wallet,
                         nonce: nonce,
                         blockTag: blockTag,

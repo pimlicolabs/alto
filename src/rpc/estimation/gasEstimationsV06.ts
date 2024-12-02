@@ -180,9 +180,7 @@ export class GasEstimatorV06 {
                 } as const
             }
 
-            const cause = err.walk(
-                (err) => err instanceof RpcRequestError
-            )
+            const cause = err.walk((err) => err instanceof RpcRequestError)
 
             const causeParseResult = z
                 .union([
