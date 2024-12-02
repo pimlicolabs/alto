@@ -375,6 +375,11 @@ export class RpcHandler implements IRpcEndpoint {
     ): Promise<EstimateUserOperationGasResponseResult> {
         this.ensureEntryPointIsSupported(entryPoint)
 
+        // Remove state override if not supported by network.
+        if (!this.config.balanceOverride) {
+            stateOverrides = undefined
+        }
+
         if (userOperation.maxFeePerGas === 0n) {
             throw new RpcError(
                 "user operation max fee per gas must be larger than 0 during gas estimation"
