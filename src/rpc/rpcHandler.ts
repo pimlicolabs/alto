@@ -467,6 +467,7 @@ export class RpcHandler implements IRpcEndpoint {
             userOperation,
             entryPoint,
             queuedUserOperations,
+            true,
             deepHexlify(stateOverrides)
         )
 
@@ -533,50 +534,30 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
 
-        // If a balance override is provided for the sender, perform an additional simulation
-        // to verify the userOperation succeeds with the specified balance.
-        if (stateOverrides?.[userOperation.sender]?.balance !== undefined) {
-            await this.validator.getExecutionResult(
-                {
-                    ...userOperation,
-                    preVerificationGas,
-                    verificationGasLimit,
-                    callGasLimit,
-                    paymasterVerificationGasLimit,
-                    paymasterPostOpGasLimit
-                },
-                entryPoint,
-                queuedUserOperations,
-                deepHexlify(stateOverrides)
-            )
-        } else {
-            // [Temporarily] Log reverts in event of user not having enough balance.
-
-            // Remove sender's balance state override if exists
-            if (stateOverrides !== undefined) {
-                const sender = userOperation.sender
-                const { balance: _, ...rest } = stateOverrides[sender] || {}
-                stateOverrides[sender] = rest
-            }
-
-            try {
-                await this.validator.getExecutionResult(
-                    {
-                        ...userOperation,
-                        preVerificationGas,
-                        verificationGasLimit,
-                        callGasLimit,
-                        paymasterVerificationGasLimit,
-                        paymasterPostOpGasLimit
-                    },
-                    entryPoint,
-                    queuedUserOperations,
-                    deepHexlify(stateOverrides)
-                )
-            } catch (e) {
-                this.logger.error(e, "Second simulation failed")
-            }
-        }
+        // TODO: uncomment this
+        // Check if userOperation passes
+        // if (isVersion06(userOperation)) {
+        // // Remove sender's balance state override if exists
+        //     if (stateOverrides !== undefined) {
+        //         const sender = userOperation.sender
+        //         const { balance: _, ...rest } = stateOverrides[sender] || {}
+        //         stateOverrides[sender] = rest
+        //     }
+        //
+        //     await this.validator.getExecutionResult(
+        //         {
+        //             ...userOperation,
+        //             preVerificationGas,
+        //             verificationGasLimit,
+        //             callGasLimit,
+        //             paymasterVerificationGasLimit,
+        //             paymasterPostOpGasLimit
+        //         },
+        //         entryPoint,
+        //         queuedUserOperations,
+        //         deepHexlify(stateOverrides)
+        //     )
+        // }
 
         if (isVersion07(userOperation)) {
             return {
