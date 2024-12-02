@@ -23,7 +23,7 @@ import type * as WebSocket from "ws"
 import { fromZodError } from "zod-validation-error"
 import RpcReply from "../utils/rpc-reply"
 import type { IRpcEndpoint } from "./rpcHandler"
-import type { AltoConfig } from "../createConfig"
+import type { AltoConfig } from "@alto/config"
 
 // jsonBigIntOverride.ts
 const originalJsonStringify = JSON.stringify

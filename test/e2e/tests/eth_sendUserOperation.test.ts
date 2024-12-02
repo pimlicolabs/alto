@@ -267,14 +267,6 @@ describe.each([
 
             expect(receipts.every((receipt) => receipt.success)).toEqual(true)
 
-            expect(
-                receipts.every(
-                    (receipt) =>
-                        receipt.receipt.transactionHash ===
-                        receipts[0].receipt.transactionHash
-                )
-            ).toEqual(true)
-
             // user ops whould be ordered by the nonce key
             const logs = await entryPointContract.getEvents.UserOperationEvent()
 

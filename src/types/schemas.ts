@@ -176,6 +176,32 @@ const userOperationSchema = z.union([
     userOperationV07Schema
 ])
 
+export const compressedUserOperationSchema = z.object({
+    compressedCalldata: hexDataSchema,
+    inflatedOp: userOperationSchema,
+    inflatorAddress: addressSchema,
+    inflatorId: z.number()
+})
+
+export const mempoolUserOperationSchema = z.union([
+    userOperationSchema,
+    compressedUserOperationSchema
+])
+
+export const userOperationInfoSchema = z.object({
+    mempoolUserOperation: mempoolUserOperationSchema,
+    entryPoint: addressSchema,
+    userOperationHash: hexData32Schema,
+    lastReplaced: z.number(),
+    firstSubmitted: z.number(),
+    referencedContracts: z
+        .object({
+            hash: z.string(),
+            addresses: z.array(z.string())
+        })
+        .optional()
+})
+
 export type UserOperationV06 = z.infer<typeof userOperationV06Schema>
 export type UserOperationV07 = z.infer<typeof userOperationV07Schema>
 export type PackedUserOperation = z.infer<typeof packerUserOperationSchema>

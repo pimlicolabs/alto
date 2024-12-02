@@ -7,7 +7,7 @@ import type {
     EventManager,
     GasPriceManager
 } from "@alto/handlers"
-import type { InterfaceReputationManager, MemoryMempool } from "@alto/mempool"
+import type { InterfaceReputationManager, Mempool } from "@alto/mempool"
 import {
     type Address,
     type BundleResult,
@@ -57,7 +57,7 @@ import {
     isTransactionUnderpricedError
 } from "./utils"
 import type { SendTransactionErrorType } from "viem"
-import type { AltoConfig } from "../createConfig"
+import type { AltoConfig } from "@alto/config"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -87,7 +87,7 @@ export class Executor {
     compressionHandler: CompressionHandler | null
     gasPriceManager: GasPriceManager
     mutex: Mutex
-    mempool: MemoryMempool
+    mempool: Mempool
     eventManager: EventManager
 
     constructor({
@@ -101,7 +101,7 @@ export class Executor {
         eventManager
     }: {
         config: AltoConfig
-        mempool: MemoryMempool
+        mempool: Mempool
         senderManager: SenderManager
         reputationManager: InterfaceReputationManager
         metrics: Metrics
@@ -141,10 +141,7 @@ export class Executor {
     }
 
     markWalletProcessed(executor: Account) {
-        if (!this.senderManager.availableWallets.includes(executor)) {
-            this.senderManager.pushWallet(executor)
-        }
-        return Promise.resolve()
+        this.senderManager.pushWallet(executor)
     }
 
     async replaceTransaction(
@@ -486,9 +483,9 @@ export class Executor {
     }
 
     async flushStuckTransactions(): Promise<void> {
-        const allWallets = new Set(this.senderManager.wallets)
+        const allWallets = new Set(this.senderManager.getAllWallets())
 
-        const utilityWallet = this.senderManager.utilityAccount
+        const utilityWallet = this.config.utilityPrivateKey
         if (utilityWallet) {
             allWallets.add(utilityWallet)
         }
@@ -640,7 +637,7 @@ export class Executor {
         nonce,
         executor
     }: { nonce: number; executor: Address }) {
-        const submitted = this.mempool.dumpSubmittedOps()
+        const submitted = await this.mempool.dumpSubmittedOps()
 
         const conflictingOps = submitted
             .filter((submitted) => {

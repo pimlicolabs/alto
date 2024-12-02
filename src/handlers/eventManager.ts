@@ -3,7 +3,7 @@ import * as sentry from "@sentry/node"
 import Redis from "ioredis"
 import type { Hex } from "viem"
 import type { OpEventType } from "../types/schemas"
-import type { AltoConfig } from "../createConfig"
+import type { AltoConfig } from "@alto/config"
 import Queue, { type Queue as QueueType } from "bull"
 
 type QueueMessage = OpEventType & {

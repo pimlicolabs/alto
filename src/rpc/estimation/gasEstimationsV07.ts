@@ -29,7 +29,7 @@ import {
     type SimulateHandleOpResult,
     simulationValidationResultStruct
 } from "./types"
-import type { AltoConfig } from "../../createConfig"
+import type { AltoConfig } from "@alto/config"
 
 export class GasEstimatorV07 {
     private config: AltoConfig

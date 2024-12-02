@@ -11,6 +11,7 @@ test/spec-tests/bundler-spec-tests
 test/build
 .DS_Store
 Alto-Bruno/
+temp.ts
 .nx/cache
 .vscode/
 .sentryclirc

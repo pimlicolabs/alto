@@ -1,6 +1,13 @@
 import type { Address, Chain, Hex } from "viem"
 import type { Account } from "viem/accounts"
-import type { CompressedUserOperation, HexData32, UserOperation } from "."
+import type {
+    mempoolUserOperationSchema,
+    CompressedUserOperation,
+    HexData32,
+    UserOperation,
+    userOperationInfoSchema
+} from "."
+import type { z } from "zod"
 
 export interface ReferencedCodeHashes {
     // addresses accessed during this user operation
@@ -22,7 +29,7 @@ export const isCompressedType = (op: MempoolUserOperation): boolean => {
     return "compressedCalldata" in op
 }
 
-export type MempoolUserOperation = UserOperation | CompressedUserOperation
+export type MempoolUserOperation = z.infer<typeof mempoolUserOperationSchema>
 
 export type TransactionInfo = {
     transactionType: "default" | "compressed"
@@ -47,14 +54,7 @@ export type TransactionInfo = {
     timesPotentiallyIncluded: number
 }
 
-export type UserOperationInfo = {
-    mempoolUserOperation: MempoolUserOperation
-    entryPoint: Address
-    userOperationHash: HexData32
-    lastReplaced: number
-    firstSubmitted: number
-    referencedContracts?: ReferencedCodeHashes
-}
+export type UserOperationInfo = z.infer<typeof userOperationInfoSchema>
 
 export enum SubmissionStatus {
     NotSubmitted = "not_submitted",

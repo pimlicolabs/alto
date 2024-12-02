@@ -1,24 +1,192 @@
+import type { AltoConfig } from "@alto/config"
 import { maxBigInt, minBigInt } from "./bigInt"
+import { Redis } from "ioredis"
+import type { Logger } from "pino"
 
-export class TimedQueue {
+export interface TimedQueue {
+    saveValue(value: bigint): Promise<void>
+    getLatestValue(): Promise<bigint | null>
+    getMinValue(): Promise<bigint | undefined>
+    getMaxValue(): Promise<bigint | undefined>
+    isEmpty(): Promise<boolean>
+}
+
+export class RedisTimedQueue implements TimedQueue {
+    private redisClient: Redis
+    private queueKey: string
+    private queueValidity: number
+    private logger: Logger
+    private tag: string
+
+    constructor({ config, tag }: { config: AltoConfig; tag: string }) {
+        const { redisMempoolUrl } = config
+
+        if (!redisMempoolUrl) {
+            throw new Error("Redis mempool URL is not set")
+        }
+
+        const queueValidity = config.gasPriceExpiry * 1_000
+
+        this.redisClient = new Redis(redisMempoolUrl)
+
+        this.tag = `${tag}-${config.publicClient.chain.id}`
+        this.queueKey = `${config.redisGasPriceQueueName}-${this.tag}`
+        this.queueValidity = queueValidity
+
+        this.logger = config.getLogger(
+            { module: "RedisTimedQueue" },
+            {
+                level: config.mempoolLogLevel || config.logLevel
+            }
+        )
+
+        setInterval(async () => {
+            await this.pruneExpiredEntries()
+        }, queueValidity)
+    }
+
+    private async pruneExpiredEntries() {
+        const currentTime = Date.now()
+        const allEntries = await this.redisClient.zrange(
+            this.queueKey,
+            0,
+            -1,
+            "WITHSCORES"
+        )
+
+        const multi = this.redisClient.multi()
+
+        this.logger.debug(
+            { tag: this.tag },
+            "[RedisTimedQueue] Pruning expired entries"
+        )
+
+        for (let i = 0; i < allEntries.length; i += 2) {
+            const timestamp = Number.parseInt(allEntries[i])
+            const value = BigInt(allEntries[i + 1])
+
+            if (currentTime - timestamp > this.queueValidity) {
+                multi.zrem(this.queueKey, value.toString())
+            } else {
+                break // Since the sorted set is sorted, no further entries need to be checked.
+            }
+        }
+
+        await multi.exec()
+    }
+
+    public async saveValue(value: bigint): Promise<void> {
+        if (value === 0n) return
+
+        const timestamp = Date.now()
+
+        this.logger.debug(
+            { value, timestamp, tag: this.tag },
+            "[RedisTimedQueue] Saving value"
+        )
+
+        // Directly add the value with its timestamp as the score
+        await this.redisClient.zadd(
+            this.queueKey,
+            Number(value),
+            timestamp.toString()
+        )
+    }
+
+    public async getLatestValue(): Promise<bigint | null> {
+        const allEntries = await this.redisClient.zrange(
+            this.queueKey,
+            0,
+            -1,
+            "WITHSCORES"
+        )
+
+        // sort all entries by timestamp
+        let latestValue: bigint | null = null
+        let latestTimestamp = 0
+
+        for (let i = 0; i < allEntries.length; i += 2) {
+            const timestamp = Number.parseInt(allEntries[i])
+            const value = BigInt(allEntries[i + 1])
+
+            if (timestamp > latestTimestamp) {
+                latestTimestamp = timestamp
+                latestValue = value
+            }
+        }
+
+        return latestValue
+    }
+
+    public async getMinValue(): Promise<bigint | undefined> {
+        const minEntry = await this.redisClient.zrange(
+            this.queueKey,
+            0,
+            0,
+            "WITHSCORES"
+        )
+
+        this.logger.debug({ minEntry }, "[RedisTimedQueue] Getting min value")
+
+        return minEntry.length === 0 ? undefined : BigInt(minEntry[1])
+    }
+
+    public async getMaxValue(): Promise<bigint | undefined> {
+        const maxEntry = await this.redisClient.zrevrange(
+            this.queueKey,
+            0,
+            0,
+            "WITHSCORES"
+        )
+
+        this.logger.debug({ maxEntry }, "[RedisTimedQueue] Getting max value")
+
+        return maxEntry.length === 0 ? undefined : BigInt(maxEntry[1])
+    }
+
+    public async isEmpty(): Promise<boolean> {
+        const queueSize = await this.redisClient.zcard(this.queueKey)
+        this.logger.debug({ queueSize }, "[RedisTimedQueue] Checking if empty")
+        return queueSize === 0
+    }
+
+    public async close() {
+        await this.redisClient.quit()
+    }
+}
+
+export class MemoryTimedQueue implements TimedQueue {
     private queue: { timestamp: number; value: bigint }[]
     private maxQueueSize: number
     private queueValidity: number
+    private logger: Logger
 
-    constructor(queueValidity: number) {
+    constructor(config: AltoConfig) {
+        const queueValidity = config.gasPriceExpiry * 1_000
         this.queue = []
         this.maxQueueSize = queueValidity / 1_000
         this.queueValidity = queueValidity
+        this.logger = config.getLogger(
+            { module: "MemoryTimedQueue" },
+            {
+                level: config.mempoolLogLevel || config.logLevel
+            }
+        )
     }
 
     // Only saves the value if it is lower than the latest value.
-    public saveValue(value: bigint) {
+    public saveValue(value: bigint): Promise<void> {
         if (value === 0n) {
-            return
+            return Promise.resolve()
         }
 
         const last = this.queue[this.queue.length - 1]
         const timestamp = Date.now()
+
+        this.logger.debug(
+            { value, timestamp },
+            "[MemoryTimedQueue] Saving value"
+        )
 
         if (!last || timestamp - last.timestamp >= this.queueValidity) {
             if (this.queue.length >= this.maxQueueSize) {
@@ -29,38 +197,85 @@ export class TimedQueue {
             last.value = value
             last.timestamp = timestamp
         }
+        return Promise.resolve()
     }
 
-    public getLatestValue(): bigint | null {
+    public getLatestValue(): Promise<bigint | null> {
         if (this.queue.length === 0) {
-            return null
+            return Promise.resolve(null)
         }
-        return this.queue[this.queue.length - 1].value
+
+        this.logger.debug(
+            { value: this.queue[this.queue.length - 1].value },
+            "[MemoryTimedQueue] Getting latest value"
+        )
+
+        return Promise.resolve(this.queue[this.queue.length - 1].value)
     }
 
-    public getMinValue() {
+    public getMinValue(): Promise<bigint | undefined> {
         if (this.queue.length === 0) {
-            return undefined
+            return Promise.resolve(undefined)
         }
 
-        return this.queue.reduce(
-            (acc, cur) => minBigInt(cur.value, acc),
-            this.queue[0].value
+        this.logger.debug(
+            { value: this.queue[0].value },
+            "[MemoryTimedQueue] Getting min value"
+        )
+
+        return Promise.resolve(
+            this.queue.reduce(
+                (acc, cur) => minBigInt(cur.value, acc),
+                this.queue[0].value
+            )
         )
     }
 
-    public getMaxValue() {
+    public getMaxValue(): Promise<bigint | undefined> {
         if (this.queue.length === 0) {
-            return undefined
+            return Promise.resolve(undefined)
         }
 
-        return this.queue.reduce(
-            (acc, cur) => maxBigInt(cur.value, acc),
-            this.queue[0].value
+        this.logger.debug(
+            { value: this.queue[0].value },
+            "[MemoryTimedQueue] Getting max value"
+        )
+
+        return Promise.resolve(
+            this.queue.reduce(
+                (acc, cur) => maxBigInt(cur.value, acc),
+                this.queue[0].value
+            )
         )
     }
 
-    public isEmpty(): boolean {
-        return this.queue.length === 0
+    public isEmpty(): Promise<boolean> {
+        this.logger.debug(
+            { queueLength: this.queue.length },
+            "[MemoryTimedQueue] Checking if empty"
+        )
+        return Promise.resolve(this.queue.length === 0)
     }
+}
+
+export const getTimedQueue = ({
+    config,
+    tag
+}: { config: AltoConfig; tag: string }): TimedQueue => {
+    const logger = config.getLogger(
+        { module: "getTimedQueue" },
+        {
+            level: config.mempoolLogLevel || config.logLevel
+        }
+    )
+
+    logger.debug("[getTimedQueue] Initializing timed queue")
+
+    if (config.redisMempoolUrl) {
+        logger.debug("[getTimedQueue] Using RedisTimedQueue")
+        return new RedisTimedQueue({ config, tag })
+    }
+
+    logger.debug("[getTimedQueue] Using MemoryTimedQueue")
+    return new MemoryTimedQueue(config)
 }

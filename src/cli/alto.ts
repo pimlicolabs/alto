@@ -10,6 +10,7 @@ import {
     debugOptions,
     gasEstimationOptions,
     logOptions,
+    mempoolOptions,
     rpcOptions,
     serverOptions
 } from "./config"
@@ -50,6 +51,8 @@ export function getAltoCli(): yargs.Argv {
         })
         .options(bundlerOptions)
         .group(Object.keys(bundlerOptions), "Options:")
+        .options(mempoolOptions)
+        .group(Object.keys(mempoolOptions), "Mempool Options:")
         .options(compatibilityOptions)
         .group(Object.keys(compatibilityOptions), "Compatibility Options:")
         .options(serverOptions)

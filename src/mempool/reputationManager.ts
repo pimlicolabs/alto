@@ -13,7 +13,7 @@ import {
     isVersion06
 } from "@alto/utils"
 import { type Address, getAddress, getContract } from "viem"
-import type { AltoConfig } from "../createConfig"
+import type { AltoConfig } from "@alto/config"
 
 export interface InterfaceReputationManager {
     checkReputation(

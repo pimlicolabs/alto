@@ -14,8 +14,8 @@ import {
     polygon,
     polygonMumbai
 } from "viem/chains"
-import type { AltoConfig } from "../createConfig"
-import { TimedQueue } from "../utils/timedQueue"
+import type { AltoConfig } from "@alto/config"
+import { getTimedQueue, type TimedQueue } from "../utils/timedQueue"
 import { ArbitrumManager } from "./arbitrumGasPriceManager"
 import { MantleManager } from "./mantleGasPriceManager"
 
@@ -58,11 +58,18 @@ export class GasPriceManager {
             }
         )
 
-        const queueValidity = this.config.gasPriceExpiry * 1_000
-
-        this.baseFeePerGasQueue = new TimedQueue(queueValidity)
-        this.maxFeePerGasQueue = new TimedQueue(queueValidity)
-        this.maxPriorityFeePerGasQueue = new TimedQueue(queueValidity)
+        this.baseFeePerGasQueue = getTimedQueue({
+            config,
+            tag: "gas-price-manager-base-fee-per-gas-queue"
+        })
+        this.maxFeePerGasQueue = getTimedQueue({
+            config,
+            tag: "gas-price-manager-max-fee-per-gas-queue"
+        })
+        this.maxPriorityFeePerGasQueue = getTimedQueue({
+            config,
+            tag: "gas-price-manager-max-priority-fee-per-gas-queue"
+        })
 
         // Periodically update gas prices if specified
         if (this.config.gasPriceRefreshInterval > 0) {
@@ -75,8 +82,8 @@ export class GasPriceManager {
             }, this.config.gasPriceRefreshInterval * 1000)
         }
 
-        this.arbitrumManager = new ArbitrumManager(queueValidity)
-        this.mantleManager = new MantleManager(queueValidity)
+        this.arbitrumManager = new ArbitrumManager(config)
+        this.mantleManager = new MantleManager(config)
     }
 
     public init() {
@@ -374,11 +381,14 @@ export class GasPriceManager {
             )
         }
 
-        if (this.config.gasPriceRefreshInterval === 0) {
+        if (
+            this.config.gasPriceRefreshInterval === 0 &&
+            !this.config.redisMempoolUrl
+        ) {
             return await this.updateBaseFee()
         }
 
-        let baseFee = this.baseFeePerGasQueue.getLatestValue()
+        let baseFee = await this.baseFeePerGasQueue.getLatestValue()
         if (!baseFee) {
             baseFee = await this.updateBaseFee()
         }
@@ -396,13 +406,16 @@ export class GasPriceManager {
     }
 
     public async getGasPrice(): Promise<GasPriceParameters> {
-        if (this.config.gasPriceRefreshInterval === 0) {
+        if (
+            this.config.gasPriceRefreshInterval === 0 &&
+            !this.config.redisMempoolUrl
+        ) {
             return await this.updateGasPrice()
         }
 
-        const maxFeePerGas = this.maxFeePerGasQueue.getLatestValue()
+        const maxFeePerGas = await this.maxFeePerGasQueue.getLatestValue()
         const maxPriorityFeePerGas =
-            this.maxPriorityFeePerGasQueue.getLatestValue()
+            await this.maxPriorityFeePerGasQueue.getLatestValue()
 
         if (!maxFeePerGas || !maxPriorityFeePerGas) {
             throw new RpcError("No gas price available")
@@ -419,7 +432,7 @@ export class GasPriceManager {
     }
 
     public async getMaxBaseFeePerGas(): Promise<bigint> {
-        let maxBaseFeePerGas = this.baseFeePerGasQueue.getMaxValue()
+        let maxBaseFeePerGas = await this.baseFeePerGasQueue.getMaxValue()
         if (!maxBaseFeePerGas) {
             maxBaseFeePerGas = await this.getBaseFee()
         }
@@ -428,7 +441,7 @@ export class GasPriceManager {
     }
 
     private async getMinMaxFeePerGas(): Promise<bigint> {
-        let minMaxFeePerGas = this.maxFeePerGasQueue.getMinValue()
+        let minMaxFeePerGas = await this.maxFeePerGasQueue.getMinValue()
         if (!minMaxFeePerGas) {
             const gasPrice = await this.getGasPrice()
             minMaxFeePerGas = gasPrice.maxFeePerGas
@@ -439,7 +452,7 @@ export class GasPriceManager {
 
     private async getMinMaxPriorityFeePerGas(): Promise<bigint> {
         let minMaxPriorityFeePerGas =
-            this.maxPriorityFeePerGasQueue.getMinValue()
+            await this.maxPriorityFeePerGasQueue.getMinValue()
 
         if (!minMaxPriorityFeePerGas) {
             const gasPrices = await this.getGasPrice()

@@ -45,7 +45,7 @@ import {
 import { fromZodError } from "zod-validation-error"
 import { GasEstimationHandler } from "../estimation/gasEstimationHandler"
 import type { SimulateHandleOpResult } from "../estimation/types"
-import type { AltoConfig } from "../../createConfig"
+import type { AltoConfig } from "@alto/config"
 
 export class UnsafeValidator implements InterfaceValidator {
     config: AltoConfig
