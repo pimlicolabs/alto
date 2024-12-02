@@ -376,7 +376,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.ensureEntryPointIsSupported(entryPoint)
 
         // Remove state override if not supported by network.
-        if (this.config.balanceOverride) {
+        if (!this.config.balanceOverride) {
             stateOverrides = undefined
         }
 
