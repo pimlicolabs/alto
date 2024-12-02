@@ -142,6 +142,11 @@ export class GasEstimatorV06 {
             }
         }
 
+        // Remove state override if not supported by network.
+        if (!this.config.balanceOverride) {
+            stateOverrides = undefined
+        }
+
         try {
             await publicClient.request({
                 method: "eth_call",
@@ -180,9 +185,7 @@ export class GasEstimatorV06 {
                 } as const
             }
 
-            const cause = err.walk(
-                (err) => err instanceof RpcRequestError
-            )
+            const cause = err.walk((err) => err instanceof RpcRequestError)
 
             const causeParseResult = z
                 .union([

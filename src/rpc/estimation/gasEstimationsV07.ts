@@ -413,6 +413,11 @@ export class GasEstimatorV07 {
             args: [entryPoint, entryPointSimulationsCallData]
         })
 
+        // Remove state override if not supported by network.
+        if (!this.config.balanceOverride) {
+            stateOverrides = undefined
+        }
+
         const result = (await publicClient.request({
             method: "eth_call",
             params: [
