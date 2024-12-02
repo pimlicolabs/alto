@@ -536,28 +536,21 @@ export class RpcHandler implements IRpcEndpoint {
 
         // TODO: uncomment this
         // Check if userOperation passes
-        // if (isVersion06(userOperation)) {
-        // // Remove sender's balance state override if exists
-        //     if (stateOverrides !== undefined) {
-        //         const sender = userOperation.sender
-        //         const { balance: _, ...rest } = stateOverrides[sender] || {}
-        //         stateOverrides[sender] = rest
-        //     }
-        //
-        //     await this.validator.getExecutionResult(
-        //         {
-        //             ...userOperation,
-        //             preVerificationGas,
-        //             verificationGasLimit,
-        //             callGasLimit,
-        //             paymasterVerificationGasLimit,
-        //             paymasterPostOpGasLimit
-        //         },
-        //         entryPoint,
-        //         queuedUserOperations,
-        //         deepHexlify(stateOverrides)
-        //     )
-        // }
+        if (isVersion06(userOperation)) {
+            await this.validator.getExecutionResult(
+                {
+                    ...userOperation,
+                    preVerificationGas,
+                    verificationGasLimit,
+                    callGasLimit,
+                    paymasterVerificationGasLimit,
+                    paymasterPostOpGasLimit
+                },
+                entryPoint,
+                queuedUserOperations,
+                deepHexlify(stateOverrides)
+            )
+        }
 
         if (isVersion07(userOperation)) {
             return {
