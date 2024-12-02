@@ -473,12 +473,14 @@ export class UnsafeValidator implements InterfaceValidator {
         userOperation,
         queuedUserOperations,
         entryPoint,
-        codeHashes
+        codeHashes,
+        authorizationList
     }: {
         userOperation: UserOperation
         queuedUserOperations: UserOperation[]
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
+        authorizationList?: SignedAuthorizationList
     }): Promise<
         (ValidationResult | ValidationResultWithAggregation) & {
             storageMap: StorageMap
@@ -495,7 +497,8 @@ export class UnsafeValidator implements InterfaceValidator {
         return this.getValidationResultV07({
             userOperation,
             queuedUserOperations: queuedUserOperations as UserOperationV07[],
-            entryPoint
+            entryPoint,
+            authorizationList
         })
     }
 
@@ -526,12 +529,14 @@ export class UnsafeValidator implements InterfaceValidator {
         shouldCheckPrefund,
         userOperation,
         queuedUserOperations,
-        entryPoint
+        entryPoint,
+        authorizationList
     }: {
         shouldCheckPrefund: boolean
         userOperation: UserOperation
         queuedUserOperations: UserOperation[]
         entryPoint: Address
+        authorizationList?: SignedAuthorizationList
         _referencedContracts?: ReferencedCodeHashes
     }): Promise<
         (ValidationResult | ValidationResultWithAggregation) & {
@@ -543,7 +548,8 @@ export class UnsafeValidator implements InterfaceValidator {
             const validationResult = await this.getValidationResult({
                 userOperation,
                 queuedUserOperations,
-                entryPoint
+                entryPoint,
+                authorizationList
             })
 
             if (shouldCheckPrefund) {

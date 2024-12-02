@@ -50,7 +50,8 @@ import {
     type UserOperation,
     ValidationErrors,
     bundlerGetStakeStatusResponseSchema,
-    deriveUserOperation
+    deriveUserOperation,
+    is7702Type
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import {
@@ -81,7 +82,7 @@ import {
 import { base, baseSepolia, optimism } from "viem/chains"
 import type { NonceQueuer } from "./nonceQueuer"
 import type { AltoConfig } from "../createConfig"
-import { SignedAuthorization } from "viem/experimental"
+import { SignedAuthorization, SignedAuthorizationList } from "viem/experimental"
 
 export interface IRpcEndpoint {
     handleMethod(
@@ -926,71 +927,70 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         if (
-            userOperationNonceValue ===
+            userOperationNonceValue >
             currentNonceValue + BigInt(queuedUserOperations.length)
         ) {
-            if (this.config.dangerousSkipUserOperationValidation) {
-                const [success, errorReason] = this.mempool.add(op, entryPoint)
-                if (!success) {
-                    this.eventManager.emitFailedValidation(
-                        opHash,
-                        errorReason,
-                        getAAError(errorReason)
-                    )
-                    throw new RpcError(
-                        errorReason,
-                        ValidationErrors.InvalidFields
-                    )
-                }
-            } else {
-                if (apiVersion !== "v1") {
-                    await this.validator.validatePreVerificationGas({
-                        userOperation,
-                        entryPoint
-                    })
-                }
-
-                const validationResult =
-                    await this.validator.validateUserOperation({
-                        shouldCheckPrefund: apiVersion !== "v1",
-                        userOperation,
-                        queuedUserOperations,
-                        entryPoint
-                    })
-
-                await this.reputationManager.checkReputation(
-                    userOperation,
-                    entryPoint,
-                    validationResult
-                )
-
-                await this.mempool.checkEntityMultipleRoleViolation(
-                    userOperation
-                )
-
-                const [success, errorReason] = this.mempool.add(
-                    op,
-                    entryPoint,
-                    validationResult.referencedContracts
-                )
-
-                if (!success) {
-                    this.eventManager.emitFailedValidation(
-                        opHash,
-                        errorReason,
-                        getAAError(errorReason)
-                    )
-                    throw new RpcError(
-                        errorReason,
-                        ValidationErrors.InvalidFields
-                    )
-                }
-                return "added"
-            }
+            this.logger.info(`\n\n\nADDING TO NONCE QUEUE\n\n\n`)
+            this.nonceQueuer.add(op, entryPoint)
+            return "queued"
         }
 
-        this.nonceQueuer.add(op, entryPoint)
-        return "queued"
+        if (this.config.dangerousSkipUserOperationValidation) {
+            const [success, errorReason] = this.mempool.add(op, entryPoint)
+            if (!success) {
+                this.eventManager.emitFailedValidation(
+                    opHash,
+                    errorReason,
+                    getAAError(errorReason)
+                )
+                throw new RpcError(errorReason, ValidationErrors.InvalidFields)
+            }
+            return "added"
+        }
+
+        if (apiVersion !== "v1") {
+            await this.validator.validatePreVerificationGas({
+                userOperation,
+                entryPoint
+            })
+        }
+
+        let authorizationList: SignedAuthorizationList | undefined
+        if (is7702Type(op)) {
+            authorizationList = [op.authorization]
+        }
+
+        const validationResult = await this.validator.validateUserOperation({
+            shouldCheckPrefund: apiVersion !== "v1",
+            userOperation,
+            queuedUserOperations,
+            entryPoint,
+            authorizationList
+        })
+
+        await this.reputationManager.checkReputation(
+            userOperation,
+            entryPoint,
+            validationResult
+        )
+
+        await this.mempool.checkEntityMultipleRoleViolation(userOperation)
+
+        const [success, errorReason] = this.mempool.add(
+            op,
+            entryPoint,
+            validationResult.referencedContracts
+        )
+
+        if (!success) {
+            this.eventManager.emitFailedValidation(
+                opHash,
+                errorReason,
+                getAAError(errorReason)
+            )
+            throw new RpcError(errorReason, ValidationErrors.InvalidFields)
+        }
+        return "added"
     }
 
     async pimlico_sendUserOperation7702(

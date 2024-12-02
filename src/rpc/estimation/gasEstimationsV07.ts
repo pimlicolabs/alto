@@ -21,8 +21,7 @@ import {
     decodeFunctionResult,
     encodeFunctionData,
     slice,
-    toFunctionSelector,
-    toHex
+    toFunctionSelector
 } from "viem"
 import { AccountExecuteAbi } from "../../types/contracts/IAccountExecute"
 import {
@@ -396,7 +395,7 @@ export class GasEstimatorV07 {
     async callPimlicoEntryPointSimulations({
         entryPoint,
         entryPointSimulationsCallData,
-        stateOverrides,
+        //stateOverrides,
         authorizationList
     }: {
         entryPoint: Address
@@ -406,7 +405,9 @@ export class GasEstimatorV07 {
     }) {
         const publicClient = this.config.publicClient
 
-        const blockTagSupport = this.config.blockTagSupport
+        // TODO: WHERE TO PUT THIS?
+        // const _blockTagSupport = this.config.blockTagSupport
+
         const utilityWalletAddress =
             this.config.utilityPrivateKey?.address ??
             "0x4337000c2828F5260d8921fD25829F606b9E8680"
@@ -428,28 +429,22 @@ export class GasEstimatorV07 {
             args: [entryPoint, entryPointSimulationsCallData]
         })
 
-        const data = (await publicClient.request({
-            method: "eth_call",
-            params: [
-                {
-                    to: entryPointSimulationsAddress,
-                    from: utilityWalletAddress,
-                    data: callData,
-                    ...(fixedGasLimitForEstimation !== undefined && {
-                        gas: `0x${fixedGasLimitForEstimation.toString(16)}`
-                    })
-                },
-                blockTagSupport
-                    ? "latest"
-                    : toHex(await publicClient.getBlockNumber()),
-                // @ts-ignore
-                ...(stateOverrides ? [stateOverrides] : [])
-            ]
-        })) as Hex
+        // @ts-ignore
+        const callResult = await publicClient.call({
+            account: utilityWalletAddress,
+            to: entryPointSimulationsAddress,
+            data: callData,
+            ...(fixedGasLimitForEstimation !== undefined && {
+                gas: fixedGasLimitForEstimation
+            }),
+            authorizationList
+            //stateOverride: stateOverrides
+        })
+        const result = callResult.data as Hex
 
         const returnBytes = decodeAbiParameters(
             [{ name: "ret", type: "bytes[]" }],
-            data
+            result
         )
 
         return returnBytes[0]
