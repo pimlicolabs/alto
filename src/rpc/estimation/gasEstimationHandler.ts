@@ -78,6 +78,7 @@ export class GasEstimationHandler {
                 entryPoint,
                 targetAddress,
                 targetCallData,
+                authorizationList,
                 stateOverrides: finalStateOverride
             })
         }
@@ -86,6 +87,7 @@ export class GasEstimationHandler {
             userOperation: userOperation as UserOperationV07,
             queuedUserOperations: queuedUserOperations as UserOperationV07[],
             entryPoint,
+            authorizationList,
             stateOverrides
         })
     }

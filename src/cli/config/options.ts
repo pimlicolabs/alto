@@ -193,9 +193,9 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "boolean",
         default: false
     },
-    "enable-7702-endpoint": {
+    "enable-experimental-endpoints": {
         description:
-            "Should the bundler enable the pimlico_sendUserOperation7702 endpoint",
+            "Should the bundler enable the pimlico_sendUserOperationNow endpoint",
         type: "boolean",
         default: false
     }

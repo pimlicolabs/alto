@@ -12,6 +12,7 @@ import { SignedAuthorizationList } from "viem/experimental"
 
 export interface InterfaceValidator {
     getExecutionResult(args: {
+        authorizationList?: SignedAuthorizationList
         userOperation: UserOperation
         entryPoint: Address
         queuedUserOperations: UserOperation[]

@@ -46,7 +46,7 @@ import { fromZodError } from "zod-validation-error"
 import { GasEstimationHandler } from "../estimation/gasEstimationHandler"
 import type { SimulateHandleOpResult } from "../estimation/types"
 import type { AltoConfig } from "../../createConfig"
-import { SignedAuthorizationList } from "viem/experimental"
+import { SignedAuthorization, SignedAuthorizationList } from "viem/experimental"
 
 export class UnsafeValidator implements InterfaceValidator {
     config: AltoConfig
@@ -171,6 +171,7 @@ export class UnsafeValidator implements InterfaceValidator {
         stateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult<"execution">> {
         const error = await this.gasEstimationHandler.simulateHandleOp({
+            authorizationList,
             userOperation,
             queuedUserOperations,
             addSenderBalanceOverride,
