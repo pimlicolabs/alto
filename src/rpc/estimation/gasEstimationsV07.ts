@@ -12,7 +12,11 @@ import {
     type ValidationResultV07,
     targetCallResultSchema
 } from "@alto/types"
-import { getUserOperationHash, toPackedUserOperation } from "@alto/utils"
+import {
+    addAuthorizationStateOverrides,
+    getUserOperationHash,
+    toPackedUserOperation
+} from "@alto/utils"
 import type { Hex } from "viem"
 import {
     type Address,
@@ -22,8 +26,7 @@ import {
     encodeFunctionData,
     slice,
     toFunctionSelector,
-    http,
-    createPublicClient
+    toHex
 } from "viem"
 import { AccountExecuteAbi } from "../../types/contracts/IAccountExecute"
 import {
@@ -32,7 +35,6 @@ import {
 } from "./types"
 import type { AltoConfig } from "../../createConfig"
 import { SignedAuthorizationList } from "viem/experimental"
-import { odysseyTestnet } from "viem/chains"
 
 export class GasEstimatorV07 {
     private config: AltoConfig
@@ -409,7 +411,7 @@ export class GasEstimatorV07 {
         const publicClient = this.config.publicClient
 
         // TODO: WHERE TO PUT THIS?
-        // const _blockTagSupport = this.config.blockTagSupport
+        const blockTagSupport = this.config.blockTagSupport
 
         const utilityWalletAddress =
             this.config.utilityPrivateKey?.address ??
@@ -432,17 +434,37 @@ export class GasEstimatorV07 {
             args: [entryPoint, entryPointSimulationsCallData]
         })
 
-        const callResult = await publicClient.call({
-            account: utilityWalletAddress,
-            to: entryPointSimulationsAddress,
-            data: callData,
-            ...(fixedGasLimitForEstimation !== undefined && {
-                gas: fixedGasLimitForEstimation
-            }),
-            authorizationList,
-            stateOverride: stateOverrides
-        })
-        const result = callResult.data as Hex
+        if (authorizationList) {
+            stateOverrides = await addAuthorizationStateOverrides({
+                stateOverrides,
+                authorizationList,
+                publicClient
+            })
+        }
+
+        // Remove state override if not supported by network.
+        if (!this.config.balanceOverride) {
+            stateOverrides = undefined
+        }
+
+        const result = (await publicClient.request({
+            method: "eth_call",
+            params: [
+                {
+                    to: entryPointSimulationsAddress,
+                    from: utilityWalletAddress,
+                    data: callData,
+                    ...(fixedGasLimitForEstimation !== undefined && {
+                        gas: `0x${fixedGasLimitForEstimation.toString(16)}`
+                    })
+                },
+                blockTagSupport
+                    ? "latest"
+                    : toHex(await publicClient.getBlockNumber()),
+                // @ts-ignore
+                ...(stateOverrides ? [stateOverrides] : [])
+            ]
+        })) as Hex
 
         const returnBytes = decodeAbiParameters(
             [{ name: "ret", type: "bytes[]" }],

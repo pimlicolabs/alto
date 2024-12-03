@@ -31,7 +31,7 @@ export function getAAError(errorMsg: string) {
 }
 
 // authorizationList is not currently supported in viem's sendTransaction, this is a temporary solution
-export async function getAuthorizationStateOverrides({
+export async function addAuthorizationStateOverrides({
     publicClient,
     authorizationList,
     stateOverrides

@@ -160,12 +160,14 @@ export class UnsafeValidator implements InterfaceValidator {
         entryPoint,
         queuedUserOperations,
         addSenderBalanceOverride,
+        authorizationList,
         stateOverrides
     }: {
         userOperation: UserOperation
         entryPoint: Address
         queuedUserOperations: UserOperation[]
         addSenderBalanceOverride: boolean
+        authorizationList?: SignedAuthorizationList
         stateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult<"execution">> {
         const error = await this.gasEstimationHandler.simulateHandleOp({
@@ -191,10 +193,12 @@ export class UnsafeValidator implements InterfaceValidator {
 
     async getValidationResultV06({
         userOperation,
-        entryPoint
+        entryPoint,
+        authorizationList
     }: {
         userOperation: UserOperationV06
         entryPoint: Address
+        authorizationList?: SignedAuthorizationList
         codeHashes?: ReferencedCodeHashes
     }): Promise<
         (ValidationResultV06 | ValidationResultWithAggregationV06) & {
@@ -225,6 +229,7 @@ export class UnsafeValidator implements InterfaceValidator {
                 userOperation,
                 useCodeOverride: false, // disable code override so that call phase reverts aren't caught
                 targetAddress: zeroAddress,
+                authorizationList,
                 targetCallData: "0x"
             })
 

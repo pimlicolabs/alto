@@ -544,44 +544,23 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
 
-        // If a balance override is provided for the sender, perform an additional simulation
-        // to verify the userOperation succeeds with the specified balance.
-        if (stateOverrides?.[userOperation.sender]?.balance !== undefined) {
-            await this.validator.getExecutionResult({
-                userOperation: {
-                    ...userOperation,
-                    preVerificationGas,
-                    verificationGasLimit,
-                    callGasLimit,
-                    paymasterVerificationGasLimit,
-                    paymasterPostOpGasLimit
-                },
-                entryPoint,
-                queuedUserOperations,
-                addSenderBalanceOverride: false,
-                stateOverrides: deepHexlify(stateOverrides)
-            })
-        } else {
-            // Temporarily log reverts in event of user not having enough balance.
-            try {
-                await this.validator.getExecutionResult({
-                    userOperation: {
-                        ...userOperation,
-                        preVerificationGas,
-                        verificationGasLimit,
-                        callGasLimit,
-                        paymasterVerificationGasLimit,
-                        paymasterPostOpGasLimit
-                    },
-                    entryPoint,
-                    queuedUserOperations,
-                    addSenderBalanceOverride: false,
-                    stateOverrides: deepHexlify(stateOverrides)
-                })
-            } catch (e) {
-                this.logger.error(e, "Second simulation failed")
-            }
-        }
+        // TODO: uncomment this
+        // Check if userOperation passes
+        // if (isVersion06(userOperation)) {
+        //     await this.validator.getExecutionResult(
+        //         {
+        //             ...userOperation,
+        //             preVerificationGas,
+        //             verificationGasLimit,
+        //             callGasLimit,
+        //             paymasterVerificationGasLimit,
+        //             paymasterPostOpGasLimit
+        //         },
+        //         entryPoint,
+        //         queuedUserOperations,
+        //         deepHexlify(stateOverrides)
+        //     )
+        // }
 
         if (isVersion07(userOperation)) {
             return {
@@ -930,7 +909,6 @@ export class RpcHandler implements IRpcEndpoint {
             userOperationNonceValue >
             currentNonceValue + BigInt(queuedUserOperations.length)
         ) {
-            this.logger.info(`\n\n\nADDING TO NONCE QUEUE\n\n\n`)
             this.nonceQueuer.add(op, entryPoint)
             return "queued"
         }
