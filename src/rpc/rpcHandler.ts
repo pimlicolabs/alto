@@ -792,13 +792,6 @@ export class RpcHandler implements IRpcEndpoint {
         entryPoint: Address,
         stateOverrides?: StateOverrides
     ) {
-        console.log("IS ENABLED: \n\n\n\n\n", {
-            enabled: this.config.flushStuckTransactionsDuringStartup,
-            test: this.config.test,
-            enabled2: this.config.enable7702Endpoints,
-            enabled3: this.config.enableInstantBundlingEndpoint,
-            enabled4: this.config.enableExperimentalEndpoints
-        })
         if (!this.config.enableExperimentalEndpoints) {
             throw new RpcError(
                 "pimlico_estimateUserOperationGas7702 endpoint is not enabled",
