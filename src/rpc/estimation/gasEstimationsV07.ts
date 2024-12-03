@@ -21,7 +21,9 @@ import {
     decodeFunctionResult,
     encodeFunctionData,
     slice,
-    toFunctionSelector
+    toFunctionSelector,
+    http,
+    createPublicClient
 } from "viem"
 import { AccountExecuteAbi } from "../../types/contracts/IAccountExecute"
 import {
@@ -30,6 +32,7 @@ import {
 } from "./types"
 import type { AltoConfig } from "../../createConfig"
 import { SignedAuthorizationList } from "viem/experimental"
+import { odysseyTestnet } from "viem/chains"
 
 export class GasEstimatorV07 {
     private config: AltoConfig
@@ -395,7 +398,7 @@ export class GasEstimatorV07 {
     async callPimlicoEntryPointSimulations({
         entryPoint,
         entryPointSimulationsCallData,
-        //stateOverrides,
+        stateOverrides,
         authorizationList
     }: {
         entryPoint: Address
@@ -429,7 +432,6 @@ export class GasEstimatorV07 {
             args: [entryPoint, entryPointSimulationsCallData]
         })
 
-        // @ts-ignore
         const callResult = await publicClient.call({
             account: utilityWalletAddress,
             to: entryPointSimulationsAddress,
@@ -437,8 +439,8 @@ export class GasEstimatorV07 {
             ...(fixedGasLimitForEstimation !== undefined && {
                 gas: fixedGasLimitForEstimation
             }),
-            authorizationList
-            //stateOverride: stateOverrides
+            authorizationList,
+            stateOverride: stateOverrides
         })
         const result = callResult.data as Hex
 
