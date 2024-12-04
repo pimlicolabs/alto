@@ -46,7 +46,7 @@ import { fromZodError } from "zod-validation-error"
 import { GasEstimationHandler } from "../estimation/gasEstimationHandler"
 import type { SimulateHandleOpResult } from "../estimation/types"
 import type { AltoConfig } from "../../createConfig"
-import { SignedAuthorization, SignedAuthorizationList } from "viem/experimental"
+import { SignedAuthorizationList } from "viem/experimental"
 
 export class UnsafeValidator implements InterfaceValidator {
     config: AltoConfig

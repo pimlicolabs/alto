@@ -835,7 +835,7 @@ export class Executor {
         try {
             const isLegacyTransaction = this.config.legacyTransactions
 
-            const gasPrice = gasPriceParameters
+            // const gasPrice = gasPriceParameters
 
             //if (this.config.noProfitBundling) {
             //    const gasPrice = totalBeneficiaryFees / gasLimit
