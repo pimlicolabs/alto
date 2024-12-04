@@ -229,7 +229,7 @@ export class GasPriceManager {
             } catch (e) {
                 this.logger.error("failed to get fallback gasPrice")
                 sentry.captureException(e)
-                throw e
+                gasPrice = parseGwei("1")
             }
         }
 
