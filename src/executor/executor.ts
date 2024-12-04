@@ -22,7 +22,7 @@ import {
     type UserOperationV07,
     type UserOperationWithHash,
     deriveUserOperation,
-    is7702Type
+    is7702Type,
     GasPriceParameters
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
@@ -863,8 +863,8 @@ export class Executor {
                 opts = {
                     type: "legacy",
                     gasPrice: gasPriceParameters.maxFeePerGas,
-                    account,
-                    gas,
+                    account: wallet,
+                    gas: gasLimit,
                     nonce
                 }
             } else if (hasAuthorizationList) {
@@ -873,8 +873,8 @@ export class Executor {
                     maxFeePerGas: gasPriceParameters.maxFeePerGas,
                     maxPriorityFeePerGas:
                         gasPriceParameters.maxPriorityFeePerGas,
-                    account,
-                    gas,
+                    account: wallet,
+                    gas: gasLimit,
                     nonce,
                     authorizationList
                 }
@@ -884,8 +884,8 @@ export class Executor {
                     maxFeePerGas: gasPriceParameters.maxFeePerGas,
                     maxPriorityFeePerGas:
                         gasPriceParameters.maxPriorityFeePerGas,
-                    account,
-                    gas,
+                    account: wallet,
+                    gas: gasLimit,
                     nonce,
                     authorizationList
                 }
