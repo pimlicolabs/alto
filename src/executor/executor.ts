@@ -23,6 +23,7 @@ import {
     type UserOperationWithHash,
     deriveUserOperation,
     is7702Type
+    GasPriceParameters
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import {
@@ -504,13 +505,20 @@ export class Executor {
 
         const gasPrice = await this.gasPriceManager.getNetworkGasPrice()
         const promises = wallets.map((wallet) => {
-            flushStuckTransaction(
-                this.config.publicClient,
-                this.config.walletClient,
-                wallet,
-                gasPrice.maxFeePerGas * 5n,
-                this.logger
-            )
+            try {
+                flushStuckTransaction(
+                    this.config.publicClient,
+                    this.config.walletClient,
+                    wallet,
+                    gasPrice.maxFeePerGas * 5n,
+                    this.logger
+                )
+            } catch (e) {
+                this.logger.error(
+                    { error: e },
+                    "error flushing stuck transaction"
+                )
+            }
         })
 
         await Promise.all(promises)
@@ -697,15 +705,35 @@ export class Executor {
         })
         childLogger.debug("bundling user operation")
 
-        const gasPriceParameters =
-            await this.gasPriceManager.getNetworkGasPrice()
-        childLogger.debug({ gasPriceParameters }, "got gas price")
-
-        const nonce = await this.config.publicClient.getTransactionCount({
-            address: wallet.address,
-            blockTag: "pending"
-        })
-        childLogger.trace({ nonce }, "got nonce")
+        // These calls can throw, so we try/catch them to mark wallet as processed in event of error.
+        let nonce: number
+        let gasPriceParameters: GasPriceParameters
+        try {
+            ;[gasPriceParameters, nonce] = await Promise.all([
+                this.gasPriceManager.getNetworkGasPrice(),
+                this.config.publicClient.getTransactionCount({
+                    address: wallet.address,
+                    blockTag: "pending"
+                })
+            ])
+        } catch (err) {
+            childLogger.error(
+                { error: err },
+                "Failed to get parameters for bundling"
+            )
+            this.markWalletProcessed(wallet)
+            return opsWithHashes.map((owh) => {
+                return {
+                    status: "resubmit",
+                    info: {
+                        entryPoint,
+                        userOpHash: owh.userOperationHash,
+                        userOperation: owh.mempoolUserOperation,
+                        reason: "Failed to get parameters for bundling"
+                    }
+                }
+            })
+        }
 
         const callContext: DefaultFilterOpsAndEstimateGasParams = {
             ep,
@@ -1031,15 +1059,39 @@ export class Executor {
         })
         childLogger.debug("bundling compressed user operation")
 
-        const gasPriceParameters =
-            await this.gasPriceManager.getNetworkGasPrice()
-        childLogger.debug({ gasPriceParameters }, "got gas price")
-
-        const nonce = await this.config.publicClient.getTransactionCount({
-            address: wallet.address,
-            blockTag: "pending"
-        })
-        childLogger.trace({ nonce }, "got nonce")
+        let nonce: number
+        let gasPriceParameters: GasPriceParameters
+        try {
+            ;[gasPriceParameters, nonce] = await Promise.all([
+                this.gasPriceManager.getNetworkGasPrice(),
+                this.config.publicClient.getTransactionCount({
+                    address: wallet.address,
+                    blockTag: "pending"
+                })
+            ])
+        } catch (err) {
+            childLogger.error(
+                { error: err },
+                "Failed to get parameters for bundling"
+            )
+            this.markWalletProcessed(wallet)
+            return compressedOps.map((compressedOp) => {
+                const userOpHash = getUserOperationHash(
+                    compressedOp.inflatedOp,
+                    entryPoint,
+                    this.config.walletClient.chain.id
+                )
+                return {
+                    status: "resubmit",
+                    info: {
+                        entryPoint,
+                        userOpHash,
+                        userOperation: compressedOp,
+                        reason: "Failed to get parameters for bundling"
+                    }
+                }
+            })
+        }
 
         const callContext: CompressedFilterOpsAndEstimateGasParams = {
             publicClient: this.config.publicClient,
