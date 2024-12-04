@@ -835,19 +835,18 @@ export class Executor {
         try {
             const isLegacyTransaction = this.config.legacyTransactions
 
-            // const gasPrice = gasPriceParameters
-
-            //if (this.config.noProfitBundling) {
-            //    const gasPrice = totalBeneficiaryFees / gasLimit
-            //    if (isLegacyTransaction) {
-            //        gasParameter.gasPrice = gasPrice
-            //    } else {
-            //        gasOptions.maxFeePerGas = maxBigInt(
-            //            gasPrice,
-            //            gasOptions.maxFeePerGas || 0n
-            //        )
-            //    }
-            //}
+            if (this.config.noProfitBundling) {
+                const gasPrice = totalBeneficiaryFees / gasLimit
+                if (isLegacyTransaction) {
+                    gasPriceParameters.maxFeePerGas = gasPrice
+                    gasPriceParameters.maxPriorityFeePerGas = gasPrice
+                } else {
+                    gasPriceParameters.maxFeePerGas = maxBigInt(
+                        gasPrice,
+                        gasPriceParameters.maxFeePerGas || 0n
+                    )
+                }
+            }
 
             const authorizationList = opsWithHashToBundle
                 .map(({ mempoolUserOperation }) =>
