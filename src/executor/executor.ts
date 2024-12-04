@@ -879,14 +879,13 @@ export class Executor {
                 }
             } else {
                 opts = {
-                    type: "eip7702",
+                    type: "eip1559",
                     maxFeePerGas: gasPriceParameters.maxFeePerGas,
                     maxPriorityFeePerGas:
                         gasPriceParameters.maxPriorityFeePerGas,
                     account: wallet,
                     gas: gasLimit,
-                    nonce,
-                    authorizationList
+                    nonce
                 }
             }
 

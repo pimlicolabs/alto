@@ -113,7 +113,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
             )
         })
 
-    const walletClient = createWalletClient({
+    let walletClient = createWalletClient({
         transport: args.sendTransactionRpcUrl
             ? fallback(
                   [
@@ -124,7 +124,11 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
               )
             : createWalletTransport(args.rpcUrl),
         chain
-    }).extend(eip7702Actions())
+    })
+
+    if (args.enableExperimentalEndpoints) {
+        walletClient = walletClient.extend(eip7702Actions())
+    }
 
     // if flag is set, use utility wallet to deploy the simulations contract
     if (args.deploySimulationsContract) {
