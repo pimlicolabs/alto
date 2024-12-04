@@ -409,8 +409,6 @@ export class GasEstimatorV07 {
         authorizationList?: SignedAuthorizationList
     }) {
         const publicClient = this.config.publicClient
-
-        // TODO: WHERE TO PUT THIS?
         const blockTagSupport = this.config.blockTagSupport
 
         const utilityWalletAddress =

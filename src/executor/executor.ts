@@ -60,6 +60,7 @@ import {
 import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { SignedAuthorizationList } from "viem/experimental"
+import { SendTransactionOptions } from "./types"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -519,39 +520,17 @@ export class Executor {
         userOps: PackedUserOperation[],
         isUserOpVersion06: boolean,
         entryPoint: Address,
-        opts:
-            | {
-                  gasPrice: bigint
-                  maxFeePerGas?: undefined
-                  maxPriorityFeePerGas?: undefined
-                  account: Account
-                  gas: bigint
-                  nonce: number
-              }
-            | {
-                  maxFeePerGas: bigint
-                  maxPriorityFeePerGas: bigint
-                  gasPrice?: undefined
-                  account: Account
-                  gas: bigint
-                  nonce: number
-              },
-        authorizationList?: SignedAuthorizationList
+        opts: SendTransactionOptions
     ) {
-        const request =
-            // @ts-ignore
-            await this.config.walletClient.prepareTransactionRequest({
-                to: entryPoint,
-                data: encodeFunctionData({
-                    abi: isUserOpVersion06
-                        ? EntryPointV06Abi
-                        : EntryPointV07Abi,
-                    functionName: "handleOps",
-                    args: [userOps, opts.account.address]
-                }),
-                authorizationList,
-                ...opts
-            })
+        let request = await this.config.walletClient.prepareTransactionRequest({
+            to: entryPoint,
+            data: encodeFunctionData({
+                abi: isUserOpVersion06 ? EntryPointV06Abi : EntryPointV07Abi,
+                functionName: "handleOps",
+                args: [userOps, opts.account.address]
+            }),
+            ...opts
+        })
 
         let isTransactionUnderPriced = false
         let attempts = 0
@@ -562,11 +541,7 @@ export class Executor {
         while (attempts < maxAttempts) {
             try {
                 transactionHash =
-                    // @ts-ignore
-                    await this.config.walletClient.sendTransaction({
-                        ...request,
-                        authorizationList
-                    })
+                    await this.config.walletClient.sendTransaction(request)
 
                 break
             } catch (e: unknown) {
@@ -832,56 +807,79 @@ export class Executor {
         try {
             const isLegacyTransaction = this.config.legacyTransactions
 
-            const gasOptions = isLegacyTransaction
-                ? { gasPrice: gasPriceParameters.maxFeePerGas }
-                : {
-                      maxFeePerGas: gasPriceParameters.maxFeePerGas,
-                      maxPriorityFeePerGas:
-                          gasPriceParameters.maxPriorityFeePerGas
-                  }
+            const gasPrice = gasPriceParameters
 
-            if (this.config.noProfitBundling) {
-                const gasPrice = totalBeneficiaryFees / gasLimit
-                if (isLegacyTransaction) {
-                    gasOptions.gasPrice = gasPrice
-                } else {
-                    gasOptions.maxFeePerGas = maxBigInt(
-                        gasPrice,
-                        gasOptions.maxFeePerGas || 0n
-                    )
+            //if (this.config.noProfitBundling) {
+            //    const gasPrice = totalBeneficiaryFees / gasLimit
+            //    if (isLegacyTransaction) {
+            //        gasParameter.gasPrice = gasPrice
+            //    } else {
+            //        gasOptions.maxFeePerGas = maxBigInt(
+            //            gasPrice,
+            //            gasOptions.maxFeePerGas || 0n
+            //        )
+            //    }
+            //}
+
+            const authorizationList = opsWithHashToBundle
+                .map(({ mempoolUserOperation }) =>
+                    is7702Type(mempoolUserOperation)
+                        ? mempoolUserOperation.authorization
+                        : undefined
+                )
+                .filter((auth) => auth !== undefined) as SignedAuthorizationList
+            const hasAuthorizationList = authorizationList.length > 0
+
+            let opts: SendTransactionOptions
+            if (isLegacyTransaction) {
+                opts = {
+                    type: "legacy",
+                    gasPrice: gasPriceParameters.maxFeePerGas,
+                    account,
+                    gas,
+                    nonce
+                }
+            } else if (hasAuthorizationList) {
+                opts = {
+                    type: "eip7702",
+                    maxFeePerGas: gasPriceParameters.maxFeePerGas,
+                    maxPriorityFeePerGas:
+                        gasPriceParameters.maxPriorityFeePerGas,
+                    account,
+                    gas,
+                    nonce,
+                    authorizationList
+                }
+            } else {
+                opts = {
+                    type: "eip7702",
+                    maxFeePerGas: gasPriceParameters.maxFeePerGas,
+                    maxPriorityFeePerGas:
+                        gasPriceParameters.maxPriorityFeePerGas,
+                    account,
+                    gas,
+                    nonce,
+                    authorizationList
                 }
             }
 
-            const opts = {
-                account: wallet,
-                gas: gasLimit,
-                nonce: nonce,
-                ...gasOptions
-            }
+            const userOps = opsWithHashToBundle.map(
+                ({ mempoolUserOperation }) => {
+                    const op = deriveUserOperation(mempoolUserOperation)
 
-            const userOps = opsWithHashToBundle.map((owh) => {
-                const op = deriveUserOperation(owh.mempoolUserOperation)
-                return isUserOpVersion06
-                    ? op
-                    : toPackedUserOperation(op as UserOperationV07)
-            }) as PackedUserOperation[]
-
-            const authorizationList = opsWithHashToBundle
-                .map(({ mempoolUserOperation }) => {
-                    if (is7702Type(mempoolUserOperation)) {
-                        return mempoolUserOperation.authorization
+                    if (isUserOpVersion06) {
+                        return op
                     }
 
-                    return undefined
-                })
-                .filter((auth) => auth !== undefined) as SignedAuthorizationList
+                    return toPackedUserOperation(op as UserOperationV07)
+                }
+            ) as PackedUserOperation[]
 
             transactionHash = await this.sendHandleOpsTransaction(
                 userOps,
                 isUserOpVersion06,
                 entryPoint,
-                opts,
-                authorizationList
+                opts
             )
 
             opsWithHashToBundle.map(({ userOperationHash }) => {
