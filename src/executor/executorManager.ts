@@ -776,7 +776,7 @@ export class ExecutorManager {
 
         // for all still not included check if needs to be replaced (based on gas price)
         const gasPriceParameters =
-            await this.gasPriceManager.getNetworkGasPrice()
+            await this.gasPriceManager.tryGetNetworkGasPrice()
         this.logger.trace(
             { gasPriceParameters },
             "fetched gas price parameters"

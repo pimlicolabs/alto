@@ -71,7 +71,7 @@ export class GasPriceManager {
                     this.updateBaseFee()
                 }
 
-                this.updateGasPrice()
+                this.tryUpdateGasPrice()
             }, this.config.gasPriceRefreshInterval * 1000)
         }
 
@@ -81,7 +81,7 @@ export class GasPriceManager {
 
     public init() {
         return Promise.all([
-            this.updateGasPrice(),
+            this.tryUpdateGasPrice(),
             this.config.legacyTransactions === false
                 ? this.updateBaseFee()
                 : Promise.resolve()
@@ -296,6 +296,7 @@ export class GasPriceManager {
         return { maxFeePerGas, maxPriorityFeePerGas }
     }
 
+    // This method throws if it can't get a valid RPC response.
     private async innerGetGasPrice(): Promise<GasPriceParameters> {
         let maxFeePerGas = 0n
         let maxPriorityFeePerGas = 0n
@@ -386,7 +387,8 @@ export class GasPriceManager {
         return baseFee
     }
 
-    private async updateGasPrice(): Promise<GasPriceParameters> {
+    // This method throws if it can't get a valid RPC response.
+    private async tryUpdateGasPrice(): Promise<GasPriceParameters> {
         const gasPrice = await this.innerGetGasPrice()
 
         this.maxFeePerGasQueue.saveValue(gasPrice.maxFeePerGas)
@@ -397,7 +399,7 @@ export class GasPriceManager {
 
     public async getGasPrice(): Promise<GasPriceParameters> {
         if (this.config.gasPriceRefreshInterval === 0) {
-            return await this.updateGasPrice()
+            return await this.tryUpdateGasPrice()
         }
 
         const maxFeePerGas = this.maxFeePerGasQueue.getLatestValue()
@@ -414,7 +416,8 @@ export class GasPriceManager {
         }
     }
 
-    public async getNetworkGasPrice(): Promise<GasPriceParameters> {
+    // This method throws if it can't get a valid RPC response.
+    public async tryGetNetworkGasPrice(): Promise<GasPriceParameters> {
         return await this.innerGetGasPrice()
     }
 

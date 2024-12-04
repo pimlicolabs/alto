@@ -153,8 +153,15 @@ export class Executor {
     ): Promise<ReplaceTransactionResult> {
         const newRequest = { ...transactionInfo.transactionRequest }
 
-        const gasPriceParameters =
-            await this.gasPriceManager.getNetworkGasPrice()
+        let gasPriceParameters
+        try {
+            gasPriceParameters =
+                await this.gasPriceManager.tryGetNetworkGasPrice()
+        } catch (err) {
+            this.logger.error({ error: err }, "Failed to get network gas price")
+            this.markWalletProcessed(transactionInfo.executor)
+            return { status: "failed" }
+        }
 
         newRequest.maxFeePerGas = maxBigInt(
             gasPriceParameters.maxFeePerGas,
@@ -496,7 +503,8 @@ export class Executor {
 
         const wallets = Array.from(allWallets)
 
-        const gasPrice = await this.gasPriceManager.getNetworkGasPrice()
+        const gasPrice = await this.gasPriceManager.tryGetNetworkGasPrice()
+
         const promises = wallets.map((wallet) => {
             try {
                 flushStuckTransaction(
@@ -722,7 +730,7 @@ export class Executor {
         let gasPriceParameters: GasPriceParameters
         try {
             ;[gasPriceParameters, nonce] = await Promise.all([
-                this.gasPriceManager.getNetworkGasPrice(),
+                this.gasPriceManager.tryGetNetworkGasPrice(),
                 this.config.publicClient.getTransactionCount({
                     address: wallet.address,
                     blockTag: "pending"
@@ -1021,7 +1029,7 @@ export class Executor {
         let gasPriceParameters: GasPriceParameters
         try {
             ;[gasPriceParameters, nonce] = await Promise.all([
-                this.gasPriceManager.getNetworkGasPrice(),
+                this.gasPriceManager.tryGetNetworkGasPrice(),
                 this.config.publicClient.getTransactionCount({
                     address: wallet.address,
                     blockTag: "pending"
