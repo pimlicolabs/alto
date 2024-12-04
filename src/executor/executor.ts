@@ -507,7 +507,6 @@ export class Executor {
                     this.logger
                 )
             } catch (e) {
-                sentry.captureException(e)
                 this.logger.error(
                     { error: e },
                     "error flushing stuck transaction"
