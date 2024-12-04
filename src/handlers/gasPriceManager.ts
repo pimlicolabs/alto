@@ -272,7 +272,10 @@ export class GasPriceManager {
             } catch (e) {
                 this.logger.error("failed to get fallback maxPriorityFeePerGas")
                 sentry.captureException(e)
-                throw e
+                return {
+                    maxPriorityFeePerGas: parseGwei("1"),
+                    maxFeePerGas: parseGwei("1")
+                }
             }
         }
 
@@ -285,7 +288,10 @@ export class GasPriceManager {
             } catch (e) {
                 this.logger.error("failed to get fallback maxFeePerGas")
                 sentry.captureException(e)
-                throw e
+                return {
+                    maxPriorityFeePerGas: parseGwei("1"),
+                    maxFeePerGas: parseGwei("1")
+                }
             }
         }
 
