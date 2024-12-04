@@ -730,7 +730,6 @@ export class Executor {
                 })
             ])
         } catch (err) {
-            sentry.captureException(err)
             childLogger.error(
                 { error: err },
                 "Failed to get parameters for bundling"
@@ -1030,8 +1029,10 @@ export class Executor {
                 })
             ])
         } catch (err) {
-            sentry.captureException(err)
-            childLogger.error({ error: err }, "failed to get nonce for wallet")
+            childLogger.error(
+                { error: err },
+                "Failed to get parameters for bundling"
+            )
             this.markWalletProcessed(wallet)
             return compressedOps.map((compressedOp) => {
                 const userOpHash = getUserOperationHash(
