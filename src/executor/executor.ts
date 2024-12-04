@@ -153,8 +153,14 @@ export class Executor {
     ): Promise<ReplaceTransactionResult> {
         const newRequest = { ...transactionInfo.transactionRequest }
 
-        const gasPriceParameters =
-            await this.gasPriceManager.getNetworkGasPrice()
+        let gasPriceParameters
+        try {
+            gasPriceParameters = await this.gasPriceManager.getNetworkGasPrice()
+        } catch (err) {
+            this.logger.error({ error: err }, "Failed to get network gas price")
+            this.markWalletProcessed(transactionInfo.executor)
+            return { status: "failed" }
+        }
 
         newRequest.maxFeePerGas = maxBigInt(
             gasPriceParameters.maxFeePerGas,
