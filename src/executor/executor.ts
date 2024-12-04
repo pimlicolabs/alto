@@ -498,13 +498,21 @@ export class Executor {
 
         const gasPrice = await this.gasPriceManager.getNetworkGasPrice()
         const promises = wallets.map((wallet) => {
-            flushStuckTransaction(
-                this.config.publicClient,
-                this.config.walletClient,
-                wallet,
-                gasPrice.maxFeePerGas * 5n,
-                this.logger
-            )
+            try {
+                flushStuckTransaction(
+                    this.config.publicClient,
+                    this.config.walletClient,
+                    wallet,
+                    gasPrice.maxFeePerGas * 5n,
+                    this.logger
+                )
+            } catch (e) {
+                sentry.captureException(e)
+                this.logger.error(
+                    { error: e },
+                    "error flushing stuck transaction"
+                )
+            }
         })
 
         await Promise.all(promises)
