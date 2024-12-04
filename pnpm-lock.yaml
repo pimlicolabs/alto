@@ -58,7 +58,7 @@ importers:
         version: 18.16.3
       viem:
         specifier: ^2.9.5
-        version: 2.9.5(typescript@5.3.3)(zod@3.22.4)
+        version: 2.9.5(typescript@5.3.3)
 
   src:
     dependencies:
@@ -1548,11 +1548,9 @@ packages:
 
   glob@7.2.0:
     resolution: {integrity: sha512-lmLf6gtyrPq8tTjSmrO94wBeQbFR3HbLHbuyD69wuyQkImp2hWqMGB47OX65FBkPffO641IP9jWa1z4ivqG26Q==}
-    deprecated: Glob versions prior to v9 are no longer supported
 
   glob@7.2.3:
     resolution: {integrity: sha512-nFR0zLpU2YCaRxwoCJvL6UvCH2JFyFVIvwTLsIf21AuHlMskA1hhTdk+LlYJtOlYt9v6dvszD2BGRqBL+iQK9Q==}
-    deprecated: Glob versions prior to v9 are no longer supported
 
   globals@11.12.0:
     resolution: {integrity: sha512-WOBp/EEGUiIsJSp7wcv/y6MO+lV9UoncWqxuFfm8eBwzWNgyfBd6Gz+IeKQ9jCmyhoH99g15M3T+QaVHFjizVA==}
@@ -1659,7 +1657,6 @@ packages:
 
   inflight@1.0.6:
     resolution: {integrity: sha512-k92I/b08q4wvFscXCLvqfsHCrjrF7yiXsQuIVvVE7N82W3+aqpzuUdBbfhWcy/FZR3/4IgflMgKLOsvPDrGCJA==}
-    deprecated: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
 
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
@@ -2341,7 +2338,6 @@ packages:
 
   rimraf@3.0.2:
     resolution: {integrity: sha512-JZkJMZkAGFFPP2YqXZXPbMlMBgsxzE8ILs4lMIX/2o0L9UBw9O/Y3o6wFw/i9YLapcUJWwqbi3kdxIPdC62TIA==}
-    deprecated: Rimraf versions prior to v4 are no longer supported
     hasBin: true
 
   rome@12.1.3:
@@ -3732,16 +3728,14 @@ snapshots:
   abitype@0.8.11(typescript@5.3.3)(zod@3.22.4):
     dependencies:
       typescript: 5.3.3
-    optionalDependencies:
       zod: 3.22.4
 
-  abitype@1.0.0(typescript@5.3.3)(zod@3.22.4):
-    optionalDependencies:
+  abitype@1.0.0(typescript@5.3.3):
+    dependencies:
       typescript: 5.3.3
-      zod: 3.22.4
 
   abitype@1.0.5(typescript@5.3.3)(zod@3.22.4):
-    optionalDependencies:
+    dependencies:
       typescript: 5.3.3
       zod: 3.22.4
 
@@ -3771,7 +3765,7 @@ snapshots:
       indent-string: 4.0.0
 
   ajv-formats@2.1.1(ajv@8.12.0):
-    optionalDependencies:
+    dependencies:
       ajv: 8.12.0
 
   ajv@8.12.0:
@@ -4079,13 +4073,11 @@ snapshots:
   debug@4.3.4(supports-color@5.5.0):
     dependencies:
       ms: 2.1.2
-    optionalDependencies:
       supports-color: 5.5.0
 
   debug@4.3.4(supports-color@8.1.1):
     dependencies:
       ms: 2.1.2
-    optionalDependencies:
       supports-color: 8.1.1
 
   debug@4.3.6:
@@ -5546,6 +5538,7 @@ snapshots:
   ts-node@10.9.2(@swc/core@1.3.105)(@types/node@18.16.3)(typescript@5.3.3):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
+      '@swc/core': 1.3.105
       '@tsconfig/node10': 1.0.9
       '@tsconfig/node12': 1.0.11
       '@tsconfig/node14': 1.0.3
@@ -5560,8 +5553,6 @@ snapshots:
       typescript: 5.3.3
       v8-compile-cache-lib: 3.0.1
       yn: 3.1.1
-    optionalDependencies:
-      '@swc/core': 1.3.105
 
   tsc-alias@1.8.8:
     dependencies:
@@ -5675,27 +5666,25 @@ snapshots:
       '@scure/bip39': 1.4.0
       abitype: 1.0.5(typescript@5.3.3)(zod@3.22.4)
       isows: 1.0.4(ws@8.17.1)
+      typescript: 5.3.3
       webauthn-p256: 0.0.5
       ws: 8.17.1
-    optionalDependencies:
-      typescript: 5.3.3
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
       - zod
 
-  viem@2.9.5(typescript@5.3.3)(zod@3.22.4):
+  viem@2.9.5(typescript@5.3.3):
     dependencies:
       '@adraffy/ens-normalize': 1.10.0
       '@noble/curves': 1.2.0
       '@noble/hashes': 1.3.2
       '@scure/bip32': 1.3.2
       '@scure/bip39': 1.2.1
-      abitype: 1.0.0(typescript@5.3.3)(zod@3.22.4)
+      abitype: 1.0.0(typescript@5.3.3)
       isows: 1.0.3(ws@8.13.0)
-      ws: 8.13.0
-    optionalDependencies:
       typescript: 5.3.3
+      ws: 8.13.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
