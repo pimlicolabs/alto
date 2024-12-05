@@ -22,6 +22,7 @@ import {
     type UserOperationV07,
     type UserOperationWithHash,
     deriveUserOperation,
+    is7702Type,
     GasPriceParameters
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
@@ -59,6 +60,8 @@ import {
 } from "./utils"
 import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
+import { SignedAuthorizationList } from "viem/experimental"
+import { SendTransactionOptions } from "./types"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -356,10 +359,11 @@ export class Executor {
                       abi: EntryPointV06Abi,
                       functionName: "handleOps",
                       args: [
-                          opsToBundle.map(
-                              (opInfo) =>
-                                  opInfo.mempoolUserOperation as UserOperationV06
-                          ),
+                          opsToBundle.map(({ mempoolUserOperation }) => {
+                              const op =
+                                  deriveUserOperation(mempoolUserOperation)
+                              return op as UserOperationV06
+                          }),
                           transactionInfo.executor.address
                       ]
                   })
@@ -367,11 +371,14 @@ export class Executor {
                       abi: EntryPointV07Abi,
                       functionName: "handleOps",
                       args: [
-                          opsToBundle.map((opInfo) =>
-                              toPackedUserOperation(
-                                  opInfo.mempoolUserOperation as UserOperationV07
+                          opsToBundle.map(({ mempoolUserOperation }) => {
+                              const op =
+                                  deriveUserOperation(mempoolUserOperation)
+
+                              return toPackedUserOperation(
+                                  op as UserOperationV07
                               )
-                          ),
+                          }),
                           transactionInfo.executor.address
                       ]
                   })
@@ -529,36 +536,17 @@ export class Executor {
         userOps: PackedUserOperation[],
         isUserOpVersion06: boolean,
         entryPoint: Address,
-        opts:
-            | {
-                  gasPrice: bigint
-                  maxFeePerGas?: undefined
-                  maxPriorityFeePerGas?: undefined
-                  account: Account
-                  gas: bigint
-                  nonce: number
-              }
-            | {
-                  maxFeePerGas: bigint
-                  maxPriorityFeePerGas: bigint
-                  gasPrice?: undefined
-                  account: Account
-                  gas: bigint
-                  nonce: number
-              }
+        opts: SendTransactionOptions
     ) {
-        const request =
-            await this.config.walletClient.prepareTransactionRequest({
-                to: entryPoint,
-                data: encodeFunctionData({
-                    abi: isUserOpVersion06
-                        ? EntryPointV06Abi
-                        : EntryPointV07Abi,
-                    functionName: "handleOps",
-                    args: [userOps, opts.account.address]
-                }),
-                ...opts
-            })
+        let request = await this.config.walletClient.prepareTransactionRequest({
+            to: entryPoint,
+            data: encodeFunctionData({
+                abi: isUserOpVersion06 ? EntryPointV06Abi : EntryPointV07Abi,
+                functionName: "handleOps",
+                args: [userOps, opts.account.address]
+            }),
+            ...opts
+        })
 
         let isTransactionUnderPriced = false
         let attempts = 0
@@ -688,7 +676,7 @@ export class Executor {
             return {
                 mempoolUserOperation: op,
                 userOperationHash: getUserOperationHash(
-                    op,
+                    deriveUserOperation(op),
                     entryPoint,
                     this.config.walletClient.chain.id
                 )
@@ -772,7 +760,16 @@ export class Executor {
             this.config.legacyTransactions,
             this.config.fixedGasLimitForEstimation,
             this.reputationManager,
-            childLogger
+            childLogger,
+            opsWithHashes
+                .map(({ mempoolUserOperation }) => {
+                    if (is7702Type(mempoolUserOperation)) {
+                        return mempoolUserOperation.authorization
+                    }
+
+                    return undefined
+                })
+                .filter((auth) => auth !== undefined) as SignedAuthorizationList
         )
 
         if (simulatedOps.length === 0) {
@@ -846,39 +843,70 @@ export class Executor {
         try {
             const isLegacyTransaction = this.config.legacyTransactions
 
-            const gasOptions = isLegacyTransaction
-                ? { gasPrice: gasPriceParameters.maxFeePerGas }
-                : {
-                      maxFeePerGas: gasPriceParameters.maxFeePerGas,
-                      maxPriorityFeePerGas:
-                          gasPriceParameters.maxPriorityFeePerGas
-                  }
-
             if (this.config.noProfitBundling) {
                 const gasPrice = totalBeneficiaryFees / gasLimit
                 if (isLegacyTransaction) {
-                    gasOptions.gasPrice = gasPrice
+                    gasPriceParameters.maxFeePerGas = gasPrice
+                    gasPriceParameters.maxPriorityFeePerGas = gasPrice
                 } else {
-                    gasOptions.maxFeePerGas = maxBigInt(
+                    gasPriceParameters.maxFeePerGas = maxBigInt(
                         gasPrice,
-                        gasOptions.maxFeePerGas || 0n
+                        gasPriceParameters.maxFeePerGas || 0n
                     )
                 }
             }
 
-            const opts = {
-                account: wallet,
-                gas: gasLimit,
-                nonce: nonce,
-                ...gasOptions
+            const authorizationList = opsWithHashToBundle
+                .map(({ mempoolUserOperation }) =>
+                    is7702Type(mempoolUserOperation)
+                        ? mempoolUserOperation.authorization
+                        : undefined
+                )
+                .filter((auth) => auth !== undefined) as SignedAuthorizationList
+            const hasAuthorizationList = authorizationList.length > 0
+
+            let opts: SendTransactionOptions
+            if (isLegacyTransaction) {
+                opts = {
+                    type: "legacy",
+                    gasPrice: gasPriceParameters.maxFeePerGas,
+                    account: wallet,
+                    gas: gasLimit,
+                    nonce
+                }
+            } else if (hasAuthorizationList) {
+                opts = {
+                    type: "eip7702",
+                    maxFeePerGas: gasPriceParameters.maxFeePerGas,
+                    maxPriorityFeePerGas:
+                        gasPriceParameters.maxPriorityFeePerGas,
+                    account: wallet,
+                    gas: gasLimit,
+                    nonce,
+                    authorizationList
+                }
+            } else {
+                opts = {
+                    type: "eip1559",
+                    maxFeePerGas: gasPriceParameters.maxFeePerGas,
+                    maxPriorityFeePerGas:
+                        gasPriceParameters.maxPriorityFeePerGas,
+                    account: wallet,
+                    gas: gasLimit,
+                    nonce
+                }
             }
 
-            const userOps = opsWithHashToBundle.map((owh) =>
-                isUserOpVersion06
-                    ? owh.mempoolUserOperation
-                    : toPackedUserOperation(
-                          owh.mempoolUserOperation as UserOperationV07
-                      )
+            const userOps = opsWithHashToBundle.map(
+                ({ mempoolUserOperation }) => {
+                    const op = deriveUserOperation(mempoolUserOperation)
+
+                    if (isUserOpVersion06) {
+                        return op
+                    }
+
+                    return toPackedUserOperation(op as UserOperationV07)
+                }
             ) as PackedUserOperation[]
 
             transactionHash = await this.sendHandleOpsTransaction(
@@ -959,8 +987,14 @@ export class Executor {
                           functionName: "handleOps",
                           args: [
                               opsWithHashToBundle.map(
-                                  (owh) =>
-                                      owh.mempoolUserOperation as UserOperationV06
+                                  ({ mempoolUserOperation }) => {
+                                      const op =
+                                          deriveUserOperation(
+                                              mempoolUserOperation
+                                          )
+
+                                      return op as UserOperationV06
+                                  }
                               ),
                               wallet.address
                           ]
@@ -969,10 +1003,16 @@ export class Executor {
                           abi: ep.abi,
                           functionName: "handleOps",
                           args: [
-                              opsWithHashToBundle.map((owh) =>
-                                  toPackedUserOperation(
-                                      owh.mempoolUserOperation as UserOperationV07
-                                  )
+                              opsWithHashToBundle.map(
+                                  ({ mempoolUserOperation }) => {
+                                      const op =
+                                          deriveUserOperation(
+                                              mempoolUserOperation
+                                          )
+                                      return toPackedUserOperation(
+                                          op as UserOperationV07
+                                      )
+                                  }
                               ),
                               wallet.address
                           ]

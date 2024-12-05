@@ -50,7 +50,8 @@ import {
     type UserOperation,
     ValidationErrors,
     bundlerGetStakeStatusResponseSchema,
-    deriveUserOperation
+    deriveUserOperation,
+    is7702Type
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import {
@@ -81,6 +82,7 @@ import {
 import { base, baseSepolia, optimism } from "viem/chains"
 import type { NonceQueuer } from "./nonceQueuer"
 import type { AltoConfig } from "../createConfig"
+import { SignedAuthorization, SignedAuthorizationList } from "viem/experimental"
 
 export interface IRpcEndpoint {
     handleMethod(
@@ -297,6 +299,25 @@ export class RpcHandler implements IRpcEndpoint {
                         ...request.params
                     )
                 }
+            case "pimlico_sendUserOperation7702":
+                return {
+                    method,
+                    result: await this.pimlico_sendUserOperation7702(
+                        apiVersion,
+                        ...request.params
+                    )
+                }
+            case "pimlico_estimateUserOperationGas7702":
+                return {
+                    method,
+                    result: await this.pimlico_estimateUserOperationGas7702(
+                        apiVersion,
+                        request.params[0],
+                        request.params[1],
+                        request.params[2],
+                        request.params[3]
+                    )
+                }
         }
     }
 
@@ -373,209 +394,12 @@ export class RpcHandler implements IRpcEndpoint {
         entryPoint: Address,
         stateOverrides?: StateOverrides
     ): Promise<EstimateUserOperationGasResponseResult> {
-        this.ensureEntryPointIsSupported(entryPoint)
-
-        if (userOperation.maxFeePerGas === 0n) {
-            throw new RpcError(
-                "user operation max fee per gas must be larger than 0 during gas estimation"
-            )
-        }
-
-        let preVerificationGas = await calcPreVerificationGas({
-            config: this.config,
+        return await this.doEstimateGas({
+            apiVersion,
             userOperation,
             entryPoint,
-            gasPriceManager: this.gasPriceManager,
-            validate: false
+            stateOverrides
         })
-        preVerificationGas = scaleBigIntByPercent(preVerificationGas, 110)
-
-        // biome-ignore lint/style/noParameterAssign: prepare userOperaiton for simulation
-        userOperation = {
-            ...userOperation,
-            preVerificationGas,
-            verificationGasLimit: 10_000_000n,
-            callGasLimit: 10_000_000n
-        }
-
-        if (this.config.publicClient.chain.id === base.id) {
-            userOperation.verificationGasLimit = 5_000_000n
-        }
-
-        if (this.config.chainType === "hedera") {
-            // The eth_call gasLimit is set to 12_500_000 on Hedera.
-            userOperation.verificationGasLimit = 5_000_000n
-            userOperation.callGasLimit = 4_500_000n
-        }
-
-        if (isVersion07(userOperation)) {
-            userOperation.paymasterPostOpGasLimit = 2_000_000n
-            userOperation.paymasterVerificationGasLimit = 5_000_000n
-        }
-
-        // This is necessary because entryPoint pays
-        // min(maxFeePerGas, baseFee + maxPriorityFeePerGas) for the verification
-        // Since we don't want our estimations to depend upon baseFee, we set
-        // maxFeePerGas to maxPriorityFeePerGas
-        userOperation.maxPriorityFeePerGas = userOperation.maxFeePerGas
-
-        // Check if the nonce is valid
-        // If the nonce is less than the current nonce, the user operation has already been executed
-        // If the nonce is greater than the current nonce, we may have missing user operations in the mempool
-        const currentNonceValue = await this.getNonceValue(
-            userOperation,
-            entryPoint
-        )
-        const [, userOperationNonceValue] = getNonceKeyAndValue(
-            userOperation.nonce
-        )
-
-        let queuedUserOperations: UserOperation[] = []
-        if (userOperationNonceValue < currentNonceValue) {
-            throw new RpcError(
-                "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
-                ValidationErrors.InvalidFields
-            )
-        }
-        if (userOperationNonceValue > currentNonceValue) {
-            // Nonce queues are supported only for v7 user operations
-            if (isVersion06(userOperation)) {
-                throw new RpcError(
-                    "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
-                    ValidationErrors.InvalidFields
-                )
-            }
-
-            queuedUserOperations = await this.mempool.getQueuedUserOperations(
-                userOperation,
-                entryPoint,
-                currentNonceValue
-            )
-
-            if (
-                userOperationNonceValue >
-                currentNonceValue + BigInt(queuedUserOperations.length)
-            ) {
-                throw new RpcError(
-                    "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
-                    ValidationErrors.InvalidFields
-                )
-            }
-        }
-
-        const executionResult = await this.validator.getExecutionResult(
-            userOperation,
-            entryPoint,
-            queuedUserOperations,
-            true,
-            deepHexlify(stateOverrides)
-        )
-
-        let { verificationGasLimit, callGasLimit } =
-            calcVerificationGasAndCallGasLimit(
-                userOperation,
-                executionResult.data.executionResult,
-                this.config.publicClient.chain.id,
-                executionResult.data.callDataResult
-            )
-
-        let paymasterVerificationGasLimit = 0n
-        let paymasterPostOpGasLimit = 0n
-
-        if (
-            isVersion07(userOperation) &&
-            userOperation.paymaster !== null &&
-            "paymasterVerificationGasLimit" in
-                executionResult.data.executionResult &&
-            "paymasterPostOpGasLimit" in executionResult.data.executionResult
-        ) {
-            paymasterVerificationGasLimit =
-                executionResult.data.executionResult
-                    .paymasterVerificationGasLimit || 1n
-            paymasterPostOpGasLimit =
-                executionResult.data.executionResult.paymasterPostOpGasLimit ||
-                1n
-
-            const multiplier = Number(this.config.paymasterGasLimitMultiplier)
-
-            paymasterVerificationGasLimit = scaleBigIntByPercent(
-                paymasterVerificationGasLimit,
-                multiplier
-            )
-
-            paymasterPostOpGasLimit = scaleBigIntByPercent(
-                paymasterPostOpGasLimit,
-                multiplier
-            )
-        }
-
-        if (
-            this.config.publicClient.chain.id === base.id ||
-            this.config.publicClient.chain.id === baseSepolia.id
-        ) {
-            callGasLimit += 10_000n
-        }
-
-        if (
-            this.config.publicClient.chain.id === base.id ||
-            this.config.publicClient.chain.id === optimism.id
-        ) {
-            callGasLimit = maxBigInt(callGasLimit, 120_000n)
-        }
-
-        if (userOperation.callData === "0x") {
-            callGasLimit = 0n
-        }
-
-        if (isVersion06(userOperation)) {
-            callGasLimit = scaleBigIntByPercent(
-                callGasLimit,
-                Number(this.config.callGasLimitMultiplier)
-            )
-        }
-
-        // TODO: uncomment this
-        // Check if userOperation passes
-        if (isVersion06(userOperation)) {
-            await this.validator.getExecutionResult(
-                {
-                    ...userOperation,
-                    preVerificationGas,
-                    verificationGasLimit,
-                    callGasLimit,
-                    paymasterVerificationGasLimit,
-                    paymasterPostOpGasLimit
-                },
-                entryPoint,
-                queuedUserOperations,
-                deepHexlify(stateOverrides)
-            )
-        }
-
-        if (isVersion07(userOperation)) {
-            return {
-                preVerificationGas,
-                verificationGasLimit,
-                callGasLimit,
-                paymasterVerificationGasLimit,
-                paymasterPostOpGasLimit
-            }
-        }
-
-        if (apiVersion === "v2") {
-            return {
-                preVerificationGas,
-                verificationGasLimit,
-                callGasLimit
-            }
-        }
-
-        return {
-            preVerificationGas,
-            verificationGas: verificationGasLimit,
-            verificationGasLimit,
-            callGasLimit
-        }
     }
 
     async eth_sendUserOperation(
@@ -896,71 +720,127 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         if (
-            userOperationNonceValue ===
+            userOperationNonceValue >
             currentNonceValue + BigInt(queuedUserOperations.length)
         ) {
-            if (this.config.dangerousSkipUserOperationValidation) {
-                const [success, errorReason] = this.mempool.add(op, entryPoint)
-                if (!success) {
-                    this.eventManager.emitFailedValidation(
-                        opHash,
-                        errorReason,
-                        getAAError(errorReason)
-                    )
-                    throw new RpcError(
-                        errorReason,
-                        ValidationErrors.InvalidFields
-                    )
-                }
-            } else {
-                if (apiVersion !== "v1") {
-                    await this.validator.validatePreVerificationGas(
-                        userOperation,
-                        entryPoint
-                    )
-                }
-
-                const validationResult =
-                    await this.validator.validateUserOperation(
-                        apiVersion !== "v1",
-                        userOperation,
-                        queuedUserOperations,
-                        entryPoint
-                    )
-
-                await this.reputationManager.checkReputation(
-                    userOperation,
-                    entryPoint,
-                    validationResult
-                )
-
-                await this.mempool.checkEntityMultipleRoleViolation(
-                    userOperation
-                )
-
-                const [success, errorReason] = this.mempool.add(
-                    op,
-                    entryPoint,
-                    validationResult.referencedContracts
-                )
-
-                if (!success) {
-                    this.eventManager.emitFailedValidation(
-                        opHash,
-                        errorReason,
-                        getAAError(errorReason)
-                    )
-                    throw new RpcError(
-                        errorReason,
-                        ValidationErrors.InvalidFields
-                    )
-                }
-                return "added"
-            }
+            this.nonceQueuer.add(op, entryPoint)
+            return "queued"
         }
 
-        this.nonceQueuer.add(op, entryPoint)
-        return "queued"
+        if (this.config.dangerousSkipUserOperationValidation) {
+            const [success, errorReason] = this.mempool.add(op, entryPoint)
+            if (!success) {
+                this.eventManager.emitFailedValidation(
+                    opHash,
+                    errorReason,
+                    getAAError(errorReason)
+                )
+                throw new RpcError(errorReason, ValidationErrors.InvalidFields)
+            }
+            return "added"
+        }
+
+        if (apiVersion !== "v1") {
+            await this.validator.validatePreVerificationGas({
+                userOperation,
+                entryPoint
+            })
+        }
+
+        let authorizationList: SignedAuthorizationList | undefined
+        if (is7702Type(op)) {
+            authorizationList = [op.authorization]
+        }
+
+        const validationResult = await this.validator.validateUserOperation({
+            shouldCheckPrefund: apiVersion !== "v1",
+            userOperation,
+            queuedUserOperations,
+            entryPoint,
+            authorizationList
+        })
+
+        await this.reputationManager.checkReputation(
+            userOperation,
+            entryPoint,
+            validationResult
+        )
+
+        await this.mempool.checkEntityMultipleRoleViolation(userOperation)
+
+        const [success, errorReason] = this.mempool.add(
+            op,
+            entryPoint,
+            validationResult.referencedContracts
+        )
+
+        if (!success) {
+            this.eventManager.emitFailedValidation(
+                opHash,
+                errorReason,
+                getAAError(errorReason)
+            )
+            throw new RpcError(errorReason, ValidationErrors.InvalidFields)
+        }
+        return "added"
+    }
+
+    async pimlico_estimateUserOperationGas7702(
+        apiVersion: ApiVersion,
+        userOperation: UserOperation,
+        authorization: SignedAuthorization,
+        entryPoint: Address,
+        stateOverrides?: StateOverrides
+    ) {
+        if (!this.config.enableExperimentalEndpoints) {
+            throw new RpcError(
+                "pimlico_estimateUserOperationGas7702 endpoint is not enabled",
+                ValidationErrors.InvalidFields
+            )
+        }
+
+        return await this.doEstimateGas({
+            apiVersion,
+            userOperation,
+            authorization,
+            entryPoint,
+            stateOverrides
+        })
+    }
+
+    async pimlico_sendUserOperation7702(
+        apiVersion: ApiVersion,
+        userOperation: UserOperation,
+        authorizationSignature: SignedAuthorization,
+        entryPoint: Address
+    ) {
+        if (!this.config.enableExperimentalEndpoints) {
+            throw new RpcError(
+                "pimlico_sendUserOperation7702 endpoint is not enabled",
+                ValidationErrors.InvalidFields
+            )
+        }
+
+        this.ensureEntryPointIsSupported(entryPoint)
+
+        try {
+            await this.addToMempoolIfValid(
+                {
+                    userOperation,
+                    authorization: authorizationSignature
+                },
+                entryPoint,
+                apiVersion
+            )
+        } catch (e) {
+            this.logger.error(e)
+        }
+
+        return getUserOperationHash(
+            userOperation,
+            entryPoint,
+            this.config.publicClient.chain.id
+        )
     }
 
     async pimlico_sendUserOperationNow(
@@ -1172,5 +1052,226 @@ export class RpcHandler implements IRpcEndpoint {
         const [_, currentNonceValue] = getNonceKeyAndValue(getNonceResult)
 
         return currentNonceValue
+    }
+
+    async doEstimateGas({
+        apiVersion,
+        userOperation,
+        entryPoint,
+        stateOverrides,
+        authorization
+    }: {
+        apiVersion: ApiVersion
+        userOperation: UserOperation
+        entryPoint: Address
+        stateOverrides?: StateOverrides
+        authorization?: SignedAuthorization
+    }) {
+        this.ensureEntryPointIsSupported(entryPoint)
+
+        if (userOperation.maxFeePerGas === 0n) {
+            throw new RpcError(
+                "user operation max fee per gas must be larger than 0 during gas estimation"
+            )
+        }
+
+        let preVerificationGas = await calcPreVerificationGas({
+            config: this.config,
+            userOperation,
+            entryPoint,
+            gasPriceManager: this.gasPriceManager,
+            validate: false
+        })
+        preVerificationGas = scaleBigIntByPercent(preVerificationGas, 110)
+
+        // biome-ignore lint/style/noParameterAssign: prepare userOperaiton for simulation
+        userOperation = {
+            ...userOperation,
+            preVerificationGas,
+            verificationGasLimit: 10_000_000n,
+            callGasLimit: 10_000_000n
+        }
+
+        if (this.config.publicClient.chain.id === base.id) {
+            userOperation.verificationGasLimit = 5_000_000n
+        }
+
+        if (this.config.chainType === "hedera") {
+            // The eth_call gasLimit is set to 12_500_000 on Hedera.
+            userOperation.verificationGasLimit = 5_000_000n
+            userOperation.callGasLimit = 4_500_000n
+        }
+
+        if (isVersion07(userOperation)) {
+            userOperation.paymasterPostOpGasLimit = 2_000_000n
+            userOperation.paymasterVerificationGasLimit = 5_000_000n
+        }
+
+        // This is necessary because entryPoint pays
+        // min(maxFeePerGas, baseFee + maxPriorityFeePerGas) for the verification
+        // Since we don't want our estimations to depend upon baseFee, we set
+        // maxFeePerGas to maxPriorityFeePerGas
+        userOperation.maxPriorityFeePerGas = userOperation.maxFeePerGas
+
+        // Check if the nonce is valid
+        // If the nonce is less than the current nonce, the user operation has already been executed
+        // If the nonce is greater than the current nonce, we may have missing user operations in the mempool
+        const currentNonceValue = await this.getNonceValue(
+            userOperation,
+            entryPoint
+        )
+        const [, userOperationNonceValue] = getNonceKeyAndValue(
+            userOperation.nonce
+        )
+
+        let queuedUserOperations: UserOperation[] = []
+
+        if (userOperationNonceValue < currentNonceValue) {
+            throw new RpcError(
+                "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
+                ValidationErrors.InvalidFields
+            )
+        }
+
+        if (userOperationNonceValue > currentNonceValue) {
+            // Nonce queues are supported only for v7 user operations
+            if (isVersion06(userOperation)) {
+                throw new RpcError(
+                    "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
+                    ValidationErrors.InvalidFields
+                )
+            }
+
+            queuedUserOperations = await this.mempool.getQueuedUserOperations(
+                userOperation,
+                entryPoint,
+                currentNonceValue
+            )
+
+            if (
+                userOperationNonceValue >
+                currentNonceValue + BigInt(queuedUserOperations.length)
+            ) {
+                throw new RpcError(
+                    "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
+                    ValidationErrors.InvalidFields
+                )
+            }
+        }
+
+        const executionResult = await this.validator.getExecutionResult({
+            userOperation,
+            entryPoint,
+            queuedUserOperations,
+            addSenderBalanceOverride: true,
+            authorizationList: authorization ? [authorization] : undefined,
+            stateOverrides: deepHexlify(stateOverrides)
+        })
+
+        let { verificationGasLimit, callGasLimit } =
+            calcVerificationGasAndCallGasLimit(
+                userOperation,
+                executionResult.data.executionResult,
+                this.config.publicClient.chain.id,
+                executionResult.data.callDataResult
+            )
+
+        let paymasterVerificationGasLimit = 0n
+        let paymasterPostOpGasLimit = 0n
+
+        if (
+            isVersion07(userOperation) &&
+            userOperation.paymaster !== null &&
+            "paymasterVerificationGasLimit" in
+                executionResult.data.executionResult &&
+            "paymasterPostOpGasLimit" in executionResult.data.executionResult
+        ) {
+            paymasterVerificationGasLimit =
+                executionResult.data.executionResult
+                    .paymasterVerificationGasLimit || 1n
+            paymasterPostOpGasLimit =
+                executionResult.data.executionResult.paymasterPostOpGasLimit ||
+                1n
+
+            const multiplier = Number(this.config.paymasterGasLimitMultiplier)
+
+            paymasterVerificationGasLimit = scaleBigIntByPercent(
+                paymasterVerificationGasLimit,
+                multiplier
+            )
+
+            paymasterPostOpGasLimit = scaleBigIntByPercent(
+                paymasterPostOpGasLimit,
+                multiplier
+            )
+        }
+
+        if (
+            this.config.publicClient.chain.id === base.id ||
+            this.config.publicClient.chain.id === baseSepolia.id
+        ) {
+            callGasLimit += 10_000n
+        }
+
+        if (
+            this.config.publicClient.chain.id === base.id ||
+            this.config.publicClient.chain.id === optimism.id
+        ) {
+            callGasLimit = maxBigInt(callGasLimit, 120_000n)
+        }
+
+        if (userOperation.callData === "0x") {
+            callGasLimit = 0n
+        }
+
+        if (isVersion06(userOperation)) {
+            callGasLimit = scaleBigIntByPercent(
+                callGasLimit,
+                Number(this.config.callGasLimitMultiplier)
+            )
+        }
+
+        // TODO: uncomment this
+        // Check if userOperation passes
+        // if (isVersion06(userOperation)) {
+        //     await this.validator.getExecutionResult(
+        //         {
+        //             ...userOperation,
+        //             preVerificationGas,
+        //             verificationGasLimit,
+        //             callGasLimit,
+        //             paymasterVerificationGasLimit,
+        //             paymasterPostOpGasLimit
+        //         },
+        //         entryPoint,
+        //         queuedUserOperations,
+        //         deepHexlify(stateOverrides)
+        //     )
+        // }
+
+        if (isVersion07(userOperation)) {
+            return {
+                preVerificationGas,
+                verificationGasLimit,
+                callGasLimit,
+                paymasterVerificationGasLimit,
+                paymasterPostOpGasLimit
+            }
+        }
+
+        if (apiVersion === "v2") {
+            return {
+                preVerificationGas,
+                verificationGasLimit,
+                callGasLimit
+            }
+        }
+
+        return {
+            preVerificationGas,
+            verificationGas: verificationGasLimit,
+            verificationGasLimit,
+            callGasLimit
+        }
     }
 }

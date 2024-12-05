@@ -192,6 +192,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
             "Should the bundler enable the pimlico_sendUserOperationNow endpoint",
         type: "boolean",
         default: false
+    },
+    "enable-experimental-endpoints": {
+        description:
+            "Should the bundler enable the pimlico_sendUserOperation7702 and pimlico_estimateUserOperationGas7702 endpoint",
+        type: "boolean",
+        default: false
     }
 }
 
