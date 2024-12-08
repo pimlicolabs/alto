@@ -127,13 +127,14 @@ export class SenderManager {
                 },
                 "utility wallet has insufficient balance to refill wallets"
             )
-            throw new Error(
-                `utility wallet ${
-                    this.utilityAccount.address
-                } has insufficient balance ${formatEther(
-                    utilityWalletBalance
-                )} < ${formatEther(totalBalanceMissing)}`
-            )
+            return
+            // throw new Error(
+            //     `utility wallet ${
+            //         this.utilityAccount.address
+            //     } has insufficient balance ${formatEther(
+            //         utilityWalletBalance
+            //     )} < ${formatEther(totalBalanceMissing)}`
+            // )
         }
 
         if (Object.keys(balancesMissing).length > 0) {
