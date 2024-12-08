@@ -469,7 +469,7 @@ export const debugOptions: CliCommandOptions<IDebugArgsInput> = {
             "Should the bundler deploy the simulations contract on startup",
         type: "boolean",
         require: true,
-        default: false
+        default: true
     },
     tenderly: {
         description: "RPC url follows the tenderly format",
