@@ -24,6 +24,16 @@ export const deploySimulationsContract = async ({
         )
     }
 
+    if (args.entrypointSimulationContract) {
+        const simulations = args.entrypointSimulationContract
+        const simulationsCode = await publicClient.getCode({
+            address: simulations
+        })
+        if (simulationsCode !== undefined && simulationsCode !== "0x") {
+            return args.entrypointSimulationContract
+        }
+    }
+
     const walletClient = createWalletClient({
         transport: http(args.rpcUrl),
         account: utilityPrivateKey
