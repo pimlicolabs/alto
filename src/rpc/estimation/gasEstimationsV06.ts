@@ -212,9 +212,9 @@ export class GasEstimatorV06 {
                             ),
                         data: hexDataSchema
                     }),
-                    /* Monad devnet RPC return in this format */
+                    /* Monad devnet and Somnia-Devnet RPC return in this format */
                     z.object({
-                        code: z.literal(-32603),
+                        code: z.number(),
                         message: z.string().regex(/execution reverted.*/),
                         data: hexDataSchema
                     })
