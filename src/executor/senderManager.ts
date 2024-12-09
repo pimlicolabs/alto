@@ -127,18 +127,19 @@ export class SenderManager {
                 },
                 "utility wallet has insufficient balance to refill wallets"
             )
-            throw new Error(
-                `utility wallet ${
-                    this.utilityAccount.address
-                } has insufficient balance ${formatEther(
-                    utilityWalletBalance
-                )} < ${formatEther(totalBalanceMissing)}`
-            )
+            return
+            // throw new Error(
+            //     `utility wallet ${
+            //         this.utilityAccount.address
+            //     } has insufficient balance ${formatEther(
+            //         utilityWalletBalance
+            //     )} < ${formatEther(totalBalanceMissing)}`
+            // )
         }
 
         if (Object.keys(balancesMissing).length > 0) {
             const { maxFeePerGas, maxPriorityFeePerGas } =
-                await this.gasPriceManager.getNetworkGasPrice()
+                await this.gasPriceManager.tryGetNetworkGasPrice()
 
             if (this.config.refillHelperContract) {
                 const instructions = []
