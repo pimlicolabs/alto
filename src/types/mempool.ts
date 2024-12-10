@@ -33,7 +33,6 @@ export type TransactionInfo = {
     transactionRequest: {
         account: Account
         to: Address
-        data: Hex
         gas: bigint
         chain: Chain
         maxFeePerGas: bigint

@@ -333,6 +333,7 @@ export class Executor {
         newRequest.gas = maxBigInt(newRequest.gas, gasLimit)
 
         // update calldata to include only ops that pass simulation
+        let txParam
         if (transactionInfo.transactionType === "default") {
             const isUserOpVersion06 = opsWithHashes.reduce(
                 (acc, op) => {
@@ -351,39 +352,29 @@ export class Executor {
                 )
             )
 
-            newRequest.data = isUserOpVersion06
-                ? encodeFunctionData({
-                      abi: EntryPointV06Abi,
-                      functionName: "handleOps",
-                      args: [
-                          opsToBundle.map(
-                              (opInfo) =>
-                                  opInfo.mempoolUserOperation as UserOperationV06
-                          ),
-                          transactionInfo.executor.address
-                      ]
-                  })
-                : encodeFunctionData({
-                      abi: EntryPointV07Abi,
-                      functionName: "handleOps",
-                      args: [
-                          opsToBundle.map((opInfo) =>
-                              toPackedUserOperation(
-                                  opInfo.mempoolUserOperation as UserOperationV07
-                              )
-                          ),
-                          transactionInfo.executor.address
-                      ]
-                  })
+            const userOps = opsToBundle.map((op) =>
+                isUserOpVersion06
+                    ? op.mempoolUserOperation
+                    : toPackedUserOperation(
+                          op.mempoolUserOperation as UserOperationV07
+                      )
+            ) as PackedUserOperation[]
+
+            txParam = {
+                type: "default",
+                isUserOpVersion06,
+                ops: userOps,
+                entryPoint: transactionInfo.entryPoint
+            }
         } else if (transactionInfo.transactionType === "compressed") {
             const compressedOps = opsToBundle.map(
-                (opInfo) =>
-                    opInfo.mempoolUserOperation as CompressedUserOperation
-            )
-            newRequest.data = createCompressedCalldata(
-                compressedOps,
-                this.getCompressionHandler().perOpInflatorId
-            )
+                ({ mempoolUserOperation }) => mempoolUserOperation
+            ) as CompressedUserOperation[]
+
+            txParam = {
+                type: "compressed",
+                compressedOps: compressedOps
+            }
         }
 
         try {
@@ -402,25 +393,30 @@ export class Executor {
                 "replacing transaction"
             )
 
-            const txHash = await this.config.walletClient.sendTransaction(
-                this.config.legacyTransactions
-                    ? {
-                          ...newRequest,
-                          gasPrice: newRequest.maxFeePerGas,
-                          maxFeePerGas: undefined,
-                          maxPriorityFeePerGas: undefined,
-                          type: "legacy",
-                          accessList: undefined
-                      }
-                    : newRequest
-            )
+            const txHash = await this.sendHandleOpsTransaction({
+                txParam,
+                opts
+            })
 
-            opsToBundle.map((opToBundle) => {
-                const op = deriveUserOperation(opToBundle.mempoolUserOperation)
+            //const txHash = await this.config.walletClient.sendTransaction(
+            //    this.config.legacyTransactions
+            //        ? {
+            //              ...newRequest,
+            //              gasPrice: newRequest.maxFeePerGas,
+            //              maxFeePerGas: undefined,
+            //              maxPriorityFeePerGas: undefined,
+            //              type: "legacy",
+            //              accessList: undefined
+            //          }
+            //        : newRequest
+            //)
+
+            opsToBundle.map(({ entryPoint, mempoolUserOperation }) => {
+                const op = deriveUserOperation(mempoolUserOperation)
                 const chainId = this.config.publicClient.chain?.id
                 const opHash = getUserOperationHash(
                     op,
-                    opToBundle.entryPoint,
+                    entryPoint,
                     chainId as number
                 )
 
@@ -489,6 +485,7 @@ export class Executor {
 
             childLogger.warn({ error: e }, "error replacing transaction")
             this.markWalletProcessed(transactionInfo.executor)
+
             return { status: "failed" }
         }
     }
@@ -525,10 +522,19 @@ export class Executor {
         await Promise.all(promises)
     }
 
-    async sendHandleOpsTransaction(
-        userOps: PackedUserOperation[],
-        isUserOpVersion06: boolean,
-        entryPoint: Address,
+    async sendHandleOpsTransaction({
+        txParam,
+        opts
+    }: {
+        txParam:
+            | {
+                  type: "default"
+                  ops: PackedUserOperation[]
+                  isUserOpVersion06: boolean
+                  entryPoint: Address
+              }
+            | { type: "compressed"; compressedOps: CompressedUserOperation[] }
+
         opts:
             | {
                   gasPrice: bigint
@@ -546,17 +552,31 @@ export class Executor {
                   gas: bigint
                   nonce: number
               }
-    ) {
+    }) {
+        let data: Hex
+        let to: Address
+
+        if (txParam.type === "default") {
+            const { isUserOpVersion06, ops, entryPoint } = txParam
+            data = encodeFunctionData({
+                abi: isUserOpVersion06 ? EntryPointV06Abi : EntryPointV07Abi,
+                functionName: "handleOps",
+                args: [ops, opts.account.address]
+            })
+            to = entryPoint
+        } else {
+            const { compressedOps } = txParam
+            const compressionHandler = this.getCompressionHandler()
+            data = createCompressedCalldata(
+                compressedOps,
+                compressionHandler.perOpInflatorId
+            )
+            to = compressionHandler.bundleBulkerAddress
+        }
+
         const request =
             await this.config.walletClient.prepareTransactionRequest({
-                to: entryPoint,
-                data: encodeFunctionData({
-                    abi: isUserOpVersion06
-                        ? EntryPointV06Abi
-                        : EntryPointV07Abi,
-                    functionName: "handleOps",
-                    args: [userOps, opts.account.address]
-                }),
+                data,
                 ...opts
             })
 
@@ -881,12 +901,15 @@ export class Executor {
                       )
             ) as PackedUserOperation[]
 
-            transactionHash = await this.sendHandleOpsTransaction(
-                userOps,
-                isUserOpVersion06,
-                entryPoint,
+            transactionHash = await this.sendHandleOpsTransaction({
+                txParam: {
+                    type: "default",
+                    ops: userOps,
+                    isUserOpVersion06,
+                    entryPoint
+                },
                 opts
-            )
+            })
 
             opsWithHashToBundle.map(({ userOperationHash }) => {
                 this.eventManager.emitSubmitted(
@@ -1156,17 +1179,12 @@ export class Executor {
                 }
             )
 
-            // need to use sendTransaction to target BundleBulker's fallback
-            transactionHash = await this.config.walletClient.sendTransaction({
-                account: wallet,
-                to: compressionHandler.bundleBulkerAddress,
-                data: createCompressedCalldata(
-                    compressedOpsToBundle,
-                    compressionHandler.perOpInflatorId
-                ),
-                gas: gasLimit,
-                nonce: nonce,
-                ...gasOptions
+            transactionHash = await this.sendHandleOpsTransaction({
+                txParam: {
+                    type: "compressed",
+                    compressedOps: compressedOpsToBundle
+                },
+                opts: { ...gasOptions, gas: gasLimit, account: wallet, nonce }
             })
 
             opsToBundle.map(({ userOperationHash }) => {
