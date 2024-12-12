@@ -381,43 +381,6 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
 
-        let preVerificationGas = await calcPreVerificationGas({
-            config: this.config,
-            userOperation,
-            entryPoint,
-            gasPriceManager: this.gasPriceManager,
-            validate: false
-        })
-        preVerificationGas = scaleBigIntByPercent(preVerificationGas, 110)
-
-        const {
-            simulationVerificationGasLimit,
-            simulationCallGasLimit,
-            simulationPaymasterVerificationGasLimit,
-            simulationPaymasterPostOpGasLimit
-        } = this.config
-
-        // biome-ignore lint/style/noParameterAssign: prepare userOperaiton for simulation
-        userOperation = {
-            ...userOperation,
-            preVerificationGas,
-            verificationGasLimit: simulationVerificationGasLimit,
-            callGasLimit: simulationCallGasLimit
-        }
-
-        if (isVersion07(userOperation)) {
-            userOperation.paymasterVerificationGasLimit =
-                simulationPaymasterVerificationGasLimit
-            userOperation.paymasterPostOpGasLimit =
-                simulationPaymasterPostOpGasLimit
-        }
-
-        // This is necessary because entryPoint pays
-        // min(maxFeePerGas, baseFee + maxPriorityFeePerGas) for the verification
-        // Since we don't want our estimations to depend upon baseFee, we set
-        // maxFeePerGas to maxPriorityFeePerGas
-        userOperation.maxPriorityFeePerGas = userOperation.maxFeePerGas
-
         // Check if the nonce is valid
         // If the nonce is less than the current nonce, the user operation has already been executed
         // If the nonce is greater than the current nonce, we may have missing user operations in the mempool
@@ -462,8 +425,37 @@ export class RpcHandler implements IRpcEndpoint {
             }
         }
 
+        // Prepare userOperation for simulation
+        const {
+            simulationVerificationGasLimit,
+            simulationCallGasLimit,
+            simulationPaymasterVerificationGasLimit,
+            simulationPaymasterPostOpGasLimit
+        } = this.config
+
+        const simulationUserOperation = {
+            ...userOperation,
+            preVerificationGas: 0n,
+            verificationGasLimit: simulationVerificationGasLimit,
+            callGasLimit: simulationCallGasLimit
+        }
+
+        if (isVersion07(simulationUserOperation)) {
+            simulationUserOperation.paymasterVerificationGasLimit =
+                simulationPaymasterVerificationGasLimit
+            simulationUserOperation.paymasterPostOpGasLimit =
+                simulationPaymasterPostOpGasLimit
+        }
+
+        // This is necessary because entryPoint pays
+        // min(maxFeePerGas, baseFee + maxPriorityFeePerGas) for the verification
+        // Since we don't want our estimations to depend upon baseFee, we set
+        // maxFeePerGas to maxPriorityFeePerGas
+        simulationUserOperation.maxPriorityFeePerGas =
+            simulationUserOperation.maxFeePerGas
+
         const executionResult = await this.validator.getExecutionResult(
-            userOperation,
+            simulationUserOperation,
             entryPoint,
             queuedUserOperations,
             true,
@@ -472,7 +464,7 @@ export class RpcHandler implements IRpcEndpoint {
 
         let { verificationGasLimit, callGasLimit } =
             calcVerificationGasAndCallGasLimit(
-                userOperation,
+                simulationUserOperation,
                 executionResult.data.executionResult,
                 this.config.publicClient.chain.id,
                 executionResult.data.callDataResult
@@ -482,8 +474,8 @@ export class RpcHandler implements IRpcEndpoint {
         let paymasterPostOpGasLimit = 0n
 
         if (
-            isVersion07(userOperation) &&
-            userOperation.paymaster !== null &&
+            isVersion07(simulationUserOperation) &&
+            simulationUserOperation.paymaster !== null &&
             "paymasterVerificationGasLimit" in
                 executionResult.data.executionResult &&
             "paymasterPostOpGasLimit" in executionResult.data.executionResult
@@ -522,23 +514,38 @@ export class RpcHandler implements IRpcEndpoint {
             callGasLimit = maxBigInt(callGasLimit, 120_000n)
         }
 
-        if (userOperation.callData === "0x") {
+        if (simulationUserOperation.callData === "0x") {
             callGasLimit = 0n
         }
 
-        if (isVersion06(userOperation)) {
+        if (isVersion06(simulationUserOperation)) {
             callGasLimit = scaleBigIntByPercent(
                 callGasLimit,
                 Number(this.config.callGasLimitMultiplier)
             )
         }
 
+        let preVerificationGas = await calcPreVerificationGas({
+            config: this.config,
+            userOperation: {
+                ...userOperation,
+                callGasLimit, // use actual callGasLimit
+                verificationGasLimit, // use actual verificationGasLimit
+                paymasterPostOpGasLimit, // use actual paymasterPostOpGasLimit
+                paymasterVerificationGasLimit // use actual paymasterVerificationGasLimit
+            },
+            entryPoint,
+            gasPriceManager: this.gasPriceManager,
+            validate: false
+        })
+        preVerificationGas = scaleBigIntByPercent(preVerificationGas, 110)
+
         // TODO: uncomment this
         // Check if userOperation passes
-        if (isVersion06(userOperation)) {
+        if (isVersion06(simulationUserOperation)) {
             await this.validator.getExecutionResult(
                 {
-                    ...userOperation,
+                    ...simulationUserOperation,
                     preVerificationGas,
                     verificationGasLimit,
                     callGasLimit,
@@ -551,7 +558,7 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
 
-        if (isVersion07(userOperation)) {
+        if (isVersion07(simulationUserOperation)) {
             return {
                 preVerificationGas,
                 verificationGasLimit,
