@@ -162,6 +162,13 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
+    const utilityWalletInsufficientBalance = new Gauge({
+        name: "alto_utility_wallet_insufficient_balance",
+        help: "Indicates if utility wallet has insufficient balance (0=OK, 1=insufficient)",
+        labelNames: [] as const,
+        registers
+    })
+
     const executorWalletsBalances = new Gauge({
         name: "alto_executor_wallet_balance",
         help: "Balance of the executor wallet",
@@ -202,6 +209,7 @@ export function createMetrics(registry: Registry, register = true) {
         replacedTransactions,
         userOperationsResubmitted,
         utilityWalletBalance,
+        utilityWalletInsufficientBalance,
         executorWalletsBalances,
         executorWalletsMinBalance,
         emittedOpEvents

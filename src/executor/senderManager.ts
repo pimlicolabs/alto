@@ -118,6 +118,7 @@ export class SenderManager {
                 { balancesMissing, totalBalanceMissing },
                 "balances missing"
             )
+            this.metrics.utilityWalletInsufficientBalance.set(1)
             this.logger.error(
                 {
                     minBalance,
@@ -136,6 +137,8 @@ export class SenderManager {
             //     )} < ${formatEther(totalBalanceMissing)}`
             // )
         }
+
+        this.metrics.utilityWalletInsufficientBalance.set(0)
 
         if (Object.keys(balancesMissing).length > 0) {
             const { maxFeePerGas, maxPriorityFeePerGas } =
