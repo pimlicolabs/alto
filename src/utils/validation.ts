@@ -229,11 +229,6 @@ export function removeZeroBytesFromUserOp<T extends UserOperation>(
     } as T extends UserOperationV06 ? UserOperationV06 : PackedUserOperation
 }
 
-// Return ranomized bytes of certain length.
-export function randomizeBytes(length: number) {
-    return toHex(crypto.randomBytes(length).toString("hex"))
-}
-
 export function packUserOpV07(op: PackedUserOperation): `0x${string}` {
     return encodeAbiParameters(
         [
@@ -534,6 +529,10 @@ function getOpStackHandleOpsCallData(
 ) {
     // Only randomize signature during estimations.
     if (!verify) {
+        const randomizeBytes = (length: number) => {
+            return toHex(crypto.randomBytes(length).toString("hex"))
+        }
+
         op = {
             ...op,
             signature: randomizeBytes(size(op.signature))
