@@ -426,35 +426,6 @@ export function calcDefaultPreVerificationGas(
     return BigInt(ret)
 }
 
-// Returns back the bytes for the handleOps call with randomized signature
-function getOpStackHandleOpsCallData(
-    op: UserOperation,
-    entryPoint: Address,
-    verify: boolean
-) {
-    // Only randomize signature during estimations.
-    if (!verify) {
-        op = {
-            ...op,
-            signature: randomizeBytes(size(op.signature))
-        }
-    }
-
-    if (isVersion07(op)) {
-        return encodeFunctionData({
-            abi: EntryPointV07Abi,
-            functionName: "handleOps",
-            args: [[toPackedUserOperation(op)], entryPoint]
-        })
-    }
-
-    return encodeFunctionData({
-        abi: EntryPointV06Abi,
-        functionName: "handleOps",
-        args: [[op], entryPoint]
-    })
-}
-
 // Returns back the bytes for the handleOps call
 function getHandleOpsCallData(op: UserOperation, entryPoint: Address) {
     if (isVersion07(op)) {
@@ -554,6 +525,35 @@ export async function calcMantlePreVerificationGas(
     const l2MaxFee = BigInt(op.maxFeePerGas)
 
     return staticFee + l1RollupFee / l2MaxFee
+}
+
+// Returns back the bytes for the handleOps call with randomized signature
+function getOpStackHandleOpsCallData(
+    op: UserOperation,
+    entryPoint: Address,
+    verify: boolean
+) {
+    // Only randomize signature during estimations.
+    if (!verify) {
+        op = {
+            ...op,
+            signature: randomizeBytes(size(op.signature))
+        }
+    }
+
+    if (isVersion07(op)) {
+        return encodeFunctionData({
+            abi: EntryPointV07Abi,
+            functionName: "handleOps",
+            args: [[toPackedUserOperation(op)], entryPoint]
+        })
+    }
+
+    return encodeFunctionData({
+        abi: EntryPointV06Abi,
+        functionName: "handleOps",
+        args: [[op], entryPoint]
+    })
 }
 
 export async function calcOptimismPreVerificationGas(
