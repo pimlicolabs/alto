@@ -18,7 +18,6 @@ import {
     type PackedUserOperation,
     type TransactionInfo,
     type UserOperation,
-    type UserOperationV06,
     type UserOperationV07,
     type UserOperationWithHash,
     deriveUserOperation,
@@ -65,6 +64,18 @@ export interface GasEstimateResult {
     verificationGasLimit: bigint
     callGasLimit: bigint
 }
+
+export type HandleOpsTxParam =
+    | {
+          type: "default"
+          ops: PackedUserOperation[]
+          isUserOpVersion06: boolean
+          entryPoint: Address
+      }
+    | {
+          type: "compressed"
+          compressedOps: CompressedUserOperation[]
+      }
 
 export type ReplaceTransactionResult =
     | {
@@ -333,7 +344,7 @@ export class Executor {
         newRequest.gas = maxBigInt(newRequest.gas, gasLimit)
 
         // update calldata to include only ops that pass simulation
-        let txParam
+        let txParam: HandleOpsTxParam
         if (transactionInfo.transactionType === "default") {
             const isUserOpVersion06 = opsWithHashes.reduce(
                 (acc, op) => {
@@ -366,7 +377,7 @@ export class Executor {
                 ops: userOps,
                 entryPoint: transactionInfo.entryPoint
             }
-        } else if (transactionInfo.transactionType === "compressed") {
+        } else {
             const compressedOps = opsToBundle.map(
                 ({ mempoolUserOperation }) => mempoolUserOperation
             ) as CompressedUserOperation[]
@@ -395,7 +406,20 @@ export class Executor {
 
             const txHash = await this.sendHandleOpsTransaction({
                 txParam,
-                opts
+                opts: this.config.legacyTransactions
+                    ? {
+                          account: newRequest.account,
+                          gasPrice: newRequest.maxFeePerGas,
+                          gas: newRequest.gas,
+                          nonce: newRequest.nonce
+                      }
+                    : {
+                          account: newRequest.account,
+                          maxFeePerGas: newRequest.maxFeePerGas,
+                          maxPriorityFeePerGas: newRequest.maxPriorityFeePerGas,
+                          gas: newRequest.gas,
+                          nonce: newRequest.nonce
+                      }
             })
 
             //const txHash = await this.config.walletClient.sendTransaction(
@@ -526,15 +550,7 @@ export class Executor {
         txParam,
         opts
     }: {
-        txParam:
-            | {
-                  type: "default"
-                  ops: PackedUserOperation[]
-                  isUserOpVersion06: boolean
-                  entryPoint: Address
-              }
-            | { type: "compressed"; compressedOps: CompressedUserOperation[] }
-
+        txParam: HandleOpsTxParam
         opts:
             | {
                   gasPrice: bigint
@@ -976,30 +992,6 @@ export class Executor {
             transactionRequest: {
                 account: wallet,
                 to: ep.address,
-                data: isUserOpVersion06
-                    ? encodeFunctionData({
-                          abi: ep.abi,
-                          functionName: "handleOps",
-                          args: [
-                              opsWithHashToBundle.map(
-                                  (owh) =>
-                                      owh.mempoolUserOperation as UserOperationV06
-                              ),
-                              wallet.address
-                          ]
-                      })
-                    : encodeFunctionData({
-                          abi: ep.abi,
-                          functionName: "handleOps",
-                          args: [
-                              opsWithHashToBundle.map((owh) =>
-                                  toPackedUserOperation(
-                                      owh.mempoolUserOperation as UserOperationV07
-                                  )
-                              ),
-                              wallet.address
-                          ]
-                      }),
                 gas: gasLimit,
                 chain: this.config.walletClient.chain,
                 maxFeePerGas: gasPriceParameters.maxFeePerGas,
@@ -1233,10 +1225,6 @@ export class Executor {
             previousTransactionHashes: [],
             transactionRequest: {
                 to: compressionHandler.bundleBulkerAddress,
-                data: createCompressedCalldata(
-                    compressedOps,
-                    compressionHandler.perOpInflatorId
-                ),
                 gas: gasLimit,
                 account: wallet,
                 chain: this.config.walletClient.chain,
