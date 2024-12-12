@@ -121,9 +121,12 @@ export class SenderManager {
             this.metrics.utilityWalletInsufficientBalance.set(1)
             this.logger.error(
                 {
-                    minBalance,
-                    utilityWalletBalance,
-                    totalBalanceMissing,
+                    minBalance: formatEther(minBalance),
+                    utilityWalletBalance: formatEther(utilityWalletBalance),
+                    totalBalanceMissing: formatEther(totalBalanceMissing),
+                    minRefillAmount: formatEther(
+                        totalBalanceMissing - utilityWalletBalance
+                    ),
                     utilityAccount: this.utilityAccount.address
                 },
                 "utility wallet has insufficient balance to refill wallets"
