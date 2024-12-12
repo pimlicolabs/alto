@@ -38,3 +38,4 @@ export type ChainType =
     | "arbitrum"
     | "hedera"
     | "mantle"
+    | "skale"

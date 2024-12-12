@@ -259,9 +259,16 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
     {
         "chain-type": {
             description:
-                "Indicates weather the chain is a OP stack chain, arbitrum chain, or default EVM chain",
+                "Indicates what type of chain the bundler is running on",
             type: "string",
-            choices: ["default", "op-stack", "arbitrum", "hedera", "mantle"],
+            choices: [
+                "default",
+                "op-stack",
+                "arbitrum",
+                "hedera",
+                "mantle",
+                "skale"
+            ],
             default: "default"
         },
         "legacy-transactions": {
