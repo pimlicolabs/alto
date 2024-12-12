@@ -224,6 +224,34 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
             type: "string",
             require: true,
             default: "110"
+        },
+        "simulation-call-gas-limit": {
+            description:
+                "UserOperation's callGasLimit used during gas estimation simulations",
+            type: "string",
+            require: true,
+            default: "10000000"
+        },
+        "simulation-verification-gas-limit": {
+            description:
+                "UserOperation's verificationGasLimit used during gas estimation simulations",
+            type: "string",
+            require: true,
+            default: "10000000"
+        },
+        "simulation-paymaster-verification-gas-limit": {
+            description:
+                "UserOperation's paymasterVerificationGasLimit used during gas estimation simulations",
+            type: "string",
+            require: true,
+            default: "5000000"
+        },
+        "simulation-paymaster-post-op-gas-limit": {
+            description:
+                "UserOperation's paymasterPostOpGasLimit used during gas estimation simulations",
+            type: "string",
+            require: true,
+            default: "2000000"
         }
     }
 
