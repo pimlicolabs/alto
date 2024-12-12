@@ -381,27 +381,36 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
 
+
+        let preVerificationGas = await calcPreVerificationGas({
+            config: this.config,
+            userOperation,
+            entryPoint,
+            gasPriceManager: this.gasPriceManager,
+            validate: false
+        })
+        preVerificationGas = scaleBigIntByPercent(preVerificationGas, 110)
+
+        const {
+            simulationVerificationGasLimit,
+            simulationCallGasLimit,
+            simulationPaymasterVerificationGasLimit,
+            simulationPaymasterPostOpGasLimit
+        } = this.config
+
         // biome-ignore lint/style/noParameterAssign: prepare userOperaiton for simulation
         userOperation = {
             ...userOperation,
-            preVerificationGas: 0n,
-            verificationGasLimit: 10_000_000n,
-            callGasLimit: 10_000_000n
-        }
-
-        if (this.config.publicClient.chain.id === base.id) {
-            userOperation.verificationGasLimit = 5_000_000n
-        }
-
-        if (this.config.chainType === "hedera") {
-            // The eth_call gasLimit is set to 12_500_000 on Hedera.
-            userOperation.verificationGasLimit = 5_000_000n
-            userOperation.callGasLimit = 4_500_000n
+            preVerificationGas,
+            verificationGasLimit: simulationVerificationGasLimit,
+            callGasLimit: simulationCallGasLimit
         }
 
         if (isVersion07(userOperation)) {
-            userOperation.paymasterPostOpGasLimit = 2_000_000n
-            userOperation.paymasterVerificationGasLimit = 5_000_000n
+            userOperation.paymasterVerificationGasLimit =
+                simulationPaymasterVerificationGasLimit
+            userOperation.paymasterPostOpGasLimit =
+                simulationPaymasterPostOpGasLimit
         }
 
         // This is necessary because entryPoint pays
