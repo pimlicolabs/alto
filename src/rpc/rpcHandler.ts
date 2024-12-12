@@ -589,12 +589,6 @@ export class RpcHandler implements IRpcEndpoint {
         userOperation: UserOperation,
         entryPoint: Address
     ): Promise<SendUserOperationResponseResult> {
-        console.log(
-            `userOpeation: ${JSON.stringify(userOperation, (_key, value) =>
-                typeof value === "bigint" ? value.toString() : value
-            )}`
-        )
-
         const hash = getUserOperationHash(
             userOperation,
             entryPoint,
