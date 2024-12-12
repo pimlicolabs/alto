@@ -381,19 +381,10 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
 
-        let preVerificationGas = await calcPreVerificationGas({
-            config: this.config,
-            userOperation,
-            entryPoint,
-            gasPriceManager: this.gasPriceManager,
-            validate: false
-        })
-        preVerificationGas = scaleBigIntByPercent(preVerificationGas, 110)
-
         // biome-ignore lint/style/noParameterAssign: prepare userOperaiton for simulation
         userOperation = {
             ...userOperation,
-            preVerificationGas,
+            preVerificationGas: 0n,
             verificationGasLimit: 10_000_000n,
             callGasLimit: 10_000_000n
         }
@@ -533,6 +524,21 @@ export class RpcHandler implements IRpcEndpoint {
                 Number(this.config.callGasLimitMultiplier)
             )
         }
+
+        let preVerificationGas = await calcPreVerificationGas({
+            config: this.config,
+            userOperation: {
+                ...userOperation,
+                callGasLimit, // use actual callGasLimit
+                verificationGasLimit, // use actual verificationGasLimit
+                paymasterPostOpGasLimit, // use actual paymasterPostOpGasLimit
+                paymasterVerificationGasLimit // use actual paymasterVerificationGasLimit
+            },
+            entryPoint,
+            gasPriceManager: this.gasPriceManager,
+            validate: false
+        })
+        preVerificationGas = scaleBigIntByPercent(preVerificationGas, 110)
 
         // TODO: uncomment this
         // Check if userOperation passes

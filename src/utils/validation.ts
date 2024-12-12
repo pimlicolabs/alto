@@ -229,7 +229,7 @@ export function removeZeroBytesFromUserOp<T extends UserOperation>(
     } as T extends UserOperationV06 ? UserOperationV06 : PackedUserOperation
 }
 
-export function randomizeUserOp<T extends UserOperation>(
+export function randomizeUserOpSignature<T extends UserOperation>(
     userOpearation: T
 ): T extends UserOperationV06 ? UserOperationV06 : PackedUserOperation {
     if (isVersion06(userOpearation)) {
@@ -238,11 +238,11 @@ export function randomizeUserOp<T extends UserOperation>(
             nonce: userOpearation.nonce,
             initCode: userOpearation.initCode,
             callData: userOpearation.callData,
-            callGasLimit: maxUint256,
-            verificationGasLimit: maxUint256,
-            preVerificationGas: maxUint256,
-            maxFeePerGas: maxUint256,
-            maxPriorityFeePerGas: maxUint256,
+            callGasLimit: userOpearation.callGasLimit,
+            verificationGasLimit: userOpearation.verificationGasLimit,
+            preVerificationGas: userOpearation.preVerificationGas,
+            maxFeePerGas: userOpearation.maxFeePerGas,
+            maxPriorityFeePerGas: userOpearation.maxPriorityFeePerGas,
             paymasterAndData: userOpearation.paymasterAndData,
             signature: randomizeBytes(size(userOpearation.signature))
         } as T extends UserOperationV06 ? UserOperationV06 : PackedUserOperation
@@ -257,14 +257,15 @@ export function randomizeUserOp<T extends UserOperation>(
         nonce: packedUserOperation.nonce,
         initCode: packedUserOperation.initCode,
         callData: packedUserOperation.callData,
-        accountGasLimits: toHex(maxUint256),
-        preVerificationGas: maxUint256,
-        gasFees: toHex(maxUint256),
+        accountGasLimits: packedUserOperation.accountGasLimits,
+        preVerificationGas: packedUserOperation.preVerificationGas,
+        gasFees: packedUserOperation.gasFees,
         paymasterAndData: packedUserOperation.paymasterAndData,
         signature: randomizeBytes(size(packedUserOperation.signature))
     } as T extends UserOperationV06 ? UserOperationV06 : PackedUserOperation
 }
 
+// Return ranomized bytes of certain length.
 export function randomizeBytes(length: number) {
     return toHex(crypto.randomBytes(length).toString("hex"))
 }
@@ -462,18 +463,22 @@ export function calcDefaultPreVerificationGas(
 }
 
 // Returns back the bytes for the handleOps call
-function getHandleOpsCallData(op: UserOperation, entryPoint: Address) {
+function getHandleOpsCallData(
+    op: UserOperation,
+    entryPoint: Address,
+    verify: boolean
+) {
     if (isVersion07(op)) {
         return encodeFunctionData({
             abi: EntryPointV07Abi,
             functionName: "handleOps",
-            args: [[randomizeUserOp(op)], entryPoint]
+            args: [[randomizeUserOpSignature(op)], entryPoint]
         })
     }
     return encodeFunctionData({
         abi: EntryPointV06Abi,
         functionName: "handleOps",
-        args: [[randomizeUserOp(op)], entryPoint]
+        args: [[randomizeUserOpSignature(op)], entryPoint]
     })
 }
 
@@ -600,7 +605,8 @@ export async function calcOptimismPreVerificationGas(
         opGasPriceOracle.read.getL1Fee([serializedTx]),
         verify
             ? gasPriceManager.getMaxBaseFeePerGas()
-            : gasPriceManager.getBaseFee()
+            : gasPriceManager.getBaseFee(),
+        opGasPriceOracle.read.getL1GasUsed([serializedTx])
     ])
 
     if (op.maxFeePerGas <= 1n || op.maxPriorityFeePerGas <= 1n) {
