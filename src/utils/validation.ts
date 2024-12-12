@@ -561,9 +561,9 @@ export async function calcOptimismPreVerificationGas(
     entryPoint: Address,
     staticFee: bigint,
     gasPriceManager: GasPriceManager,
-    verify?: boolean
+    validate: boolean
 ) {
-    const data = getOpStackHandleOpsCallData(op, entryPoint, !!verify)
+    const data = getOpStackHandleOpsCallData(op, entryPoint, validate)
 
     const serializedTx = serializeTransaction(
         {
@@ -591,10 +591,9 @@ export async function calcOptimismPreVerificationGas(
 
     const [l1Fee, baseFeePerGas] = await Promise.all([
         opGasPriceOracle.read.getL1Fee([serializedTx]),
-        verify
+        validate
             ? gasPriceManager.getMaxBaseFeePerGas()
-            : gasPriceManager.getBaseFee(),
-        opGasPriceOracle.read.getL1GasUsed([serializedTx])
+            : gasPriceManager.getBaseFee()
     ])
 
     if (op.maxFeePerGas <= 1n || op.maxPriorityFeePerGas <= 1n) {
