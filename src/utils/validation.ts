@@ -527,7 +527,6 @@ export async function calcMantlePreVerificationGas(
     return staticFee + l1RollupFee / l2MaxFee
 }
 
-// Returns back the bytes for the handleOps call with randomized signature
 function getOpStackHandleOpsCallData(
     op: UserOperation,
     entryPoint: Address,
