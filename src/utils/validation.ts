@@ -426,22 +426,6 @@ export function calcDefaultPreVerificationGas(
     return BigInt(ret)
 }
 
-// Returns back the bytes for the handleOps call
-function getHandleOpsCallData(op: UserOperation, entryPoint: Address) {
-    if (isVersion07(op)) {
-        return encodeFunctionData({
-            abi: EntryPointV07Abi,
-            functionName: "handleOps",
-            args: [[removeZeroBytesFromUserOp(op)], entryPoint]
-        })
-    }
-    return encodeFunctionData({
-        abi: EntryPointV06Abi,
-        functionName: "handleOps",
-        args: [[removeZeroBytesFromUserOp(op)], entryPoint]
-    })
-}
-
 // Returns back the bytes for the handleOps call with randomized signature
 function getOpStackHandleOpsCallData(
     op: UserOperation,
@@ -468,6 +452,22 @@ function getOpStackHandleOpsCallData(
         abi: EntryPointV06Abi,
         functionName: "handleOps",
         args: [[op], entryPoint]
+    })
+}
+
+// Returns back the bytes for the handleOps call
+function getHandleOpsCallData(op: UserOperation, entryPoint: Address) {
+    if (isVersion07(op)) {
+        return encodeFunctionData({
+            abi: EntryPointV07Abi,
+            functionName: "handleOps",
+            args: [[removeZeroBytesFromUserOp(op)], entryPoint]
+        })
+    }
+    return encodeFunctionData({
+        abi: EntryPointV06Abi,
+        functionName: "handleOps",
+        args: [[removeZeroBytesFromUserOp(op)], entryPoint]
     })
 }
 
