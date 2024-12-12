@@ -229,42 +229,6 @@ export function removeZeroBytesFromUserOp<T extends UserOperation>(
     } as T extends UserOperationV06 ? UserOperationV06 : PackedUserOperation
 }
 
-export function randomizeUserOpSignature<T extends UserOperation>(
-    userOpearation: T
-): T extends UserOperationV06 ? UserOperationV06 : PackedUserOperation {
-    if (isVersion06(userOpearation)) {
-        return {
-            sender: userOpearation.sender,
-            nonce: userOpearation.nonce,
-            initCode: userOpearation.initCode,
-            callData: userOpearation.callData,
-            callGasLimit: userOpearation.callGasLimit,
-            verificationGasLimit: userOpearation.verificationGasLimit,
-            preVerificationGas: userOpearation.preVerificationGas,
-            maxFeePerGas: userOpearation.maxFeePerGas,
-            maxPriorityFeePerGas: userOpearation.maxPriorityFeePerGas,
-            paymasterAndData: userOpearation.paymasterAndData,
-            signature: randomizeBytes(size(userOpearation.signature))
-        } as T extends UserOperationV06 ? UserOperationV06 : PackedUserOperation
-    }
-
-    const packedUserOperation: PackedUserOperation = toPackedUserOperation(
-        userOpearation as UserOperationV07
-    )
-
-    return {
-        sender: packedUserOperation.sender,
-        nonce: packedUserOperation.nonce,
-        initCode: packedUserOperation.initCode,
-        callData: packedUserOperation.callData,
-        accountGasLimits: packedUserOperation.accountGasLimits,
-        preVerificationGas: packedUserOperation.preVerificationGas,
-        gasFees: packedUserOperation.gasFees,
-        paymasterAndData: packedUserOperation.paymasterAndData,
-        signature: randomizeBytes(size(packedUserOperation.signature))
-    } as T extends UserOperationV06 ? UserOperationV06 : PackedUserOperation
-}
-
 // Return ranomized bytes of certain length.
 export function randomizeBytes(length: number) {
     return toHex(crypto.randomBytes(length).toString("hex"))
@@ -463,22 +427,47 @@ export function calcDefaultPreVerificationGas(
 }
 
 // Returns back the bytes for the handleOps call
-function getHandleOpsCallData(
-    op: UserOperation,
-    entryPoint: Address,
-    verify: boolean
-) {
+function getHandleOpsCallData(op: UserOperation, entryPoint: Address) {
     if (isVersion07(op)) {
         return encodeFunctionData({
             abi: EntryPointV07Abi,
             functionName: "handleOps",
-            args: [[randomizeUserOpSignature(op)], entryPoint]
+            args: [[removeZeroBytesFromUserOp(op)], entryPoint]
         })
     }
     return encodeFunctionData({
         abi: EntryPointV06Abi,
         functionName: "handleOps",
-        args: [[randomizeUserOpSignature(op)], entryPoint]
+        args: [[removeZeroBytesFromUserOp(op)], entryPoint]
+    })
+}
+
+// Returns back the bytes for the handleOps call with randomized signature
+function getOpStackHandleOpsCallData(
+    op: UserOperation,
+    entryPoint: Address,
+    verify: boolean
+) {
+    // Only randomize signature during estimations.
+    if (!verify) {
+        op = {
+            ...op,
+            signature: randomizeBytes(size(op.signature))
+        }
+    }
+
+    if (isVersion07(op)) {
+        return encodeFunctionData({
+            abi: EntryPointV07Abi,
+            functionName: "handleOps",
+            args: [[toPackedUserOperation(op)], entryPoint]
+        })
+    }
+
+    return encodeFunctionData({
+        abi: EntryPointV06Abi,
+        functionName: "handleOps",
+        args: [[op], entryPoint]
     })
 }
 
@@ -575,7 +564,7 @@ export async function calcOptimismPreVerificationGas(
     gasPriceManager: GasPriceManager,
     verify?: boolean
 ) {
-    const data = getHandleOpsCallData(op, entryPoint)
+    const data = getOpStackHandleOpsCallData(op, entryPoint, !!verify)
 
     const serializedTx = serializeTransaction(
         {
