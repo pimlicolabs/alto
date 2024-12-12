@@ -128,7 +128,8 @@ export const compatibilityArgsSchema = z.object({
         "op-stack",
         "arbitrum",
         "hedera",
-        "mantle"
+        "mantle",
+        "skale"
     ]),
     "legacy-transactions": z.boolean(),
     "api-version": z
