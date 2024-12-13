@@ -1,4 +1,4 @@
-import type { Address, Chain, Hex } from "viem"
+import type { Address, Chain } from "viem"
 import type { Account } from "viem/accounts"
 import type { CompressedUserOperation, HexData32, UserOperation } from "."
 

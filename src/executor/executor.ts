@@ -422,19 +422,6 @@ export class Executor {
                       }
             })
 
-            //const txHash = await this.config.walletClient.sendTransaction(
-            //    this.config.legacyTransactions
-            //        ? {
-            //              ...newRequest,
-            //              gasPrice: newRequest.maxFeePerGas,
-            //              maxFeePerGas: undefined,
-            //              maxPriorityFeePerGas: undefined,
-            //              type: "legacy",
-            //              accessList: undefined
-            //          }
-            //        : newRequest
-            //)
-
             opsToBundle.map(({ entryPoint, mempoolUserOperation }) => {
                 const op = deriveUserOperation(mempoolUserOperation)
                 const chainId = this.config.publicClient.chain?.id
@@ -592,6 +579,7 @@ export class Executor {
 
         const request =
             await this.config.walletClient.prepareTransactionRequest({
+                to,
                 data,
                 ...opts
             })
