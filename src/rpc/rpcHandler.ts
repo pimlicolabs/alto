@@ -540,8 +540,7 @@ export class RpcHandler implements IRpcEndpoint {
         })
         preVerificationGas = scaleBigIntByPercent(preVerificationGas, 110)
 
-        // TODO: uncomment this
-        // Check if userOperation passes
+        // Check if userOperation passes without estimation balance overrides
         if (isVersion06(simulationUserOperation)) {
             await this.validator.getExecutionResult(
                 {
@@ -554,6 +553,7 @@ export class RpcHandler implements IRpcEndpoint {
                 },
                 entryPoint,
                 queuedUserOperations,
+                false,
                 deepHexlify(stateOverrides)
             )
         }
