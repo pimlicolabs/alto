@@ -33,7 +33,9 @@ import {
     parseGwei,
     maxUint256,
     toHex,
-    size
+    size,
+    concat,
+    slice
 } from "viem"
 import { base, baseGoerli, baseSepolia, lineaSepolia } from "viem/chains"
 import { maxBigInt, minBigInt, scaleBigIntByPercent } from "./bigInt"
@@ -529,13 +531,25 @@ function getOpStackHandleOpsCallData(
 ) {
     // Only randomize signature during estimations.
     if (!verify) {
-        const randomizeBytes = (length: number) => {
-            return toHex(crypto.randomBytes(length).toString("hex"))
+        const randomizeBytes = (length: number) =>
+            toHex(crypto.randomBytes(length).toString("hex"))
+
+        const sigLength = size(op.signature)
+        let newSignature: `0x${string}`
+
+        if (sigLength < 32) {
+            // For short signatures, randomize the entire thing
+            newSignature = randomizeBytes(sigLength)
+        } else {
+            // For longer signatures, only randomize the last 32 bytes
+            const originalPart = slice(op.signature, 0, sigLength - 32)
+            const randomPart = randomizeBytes(32)
+            newSignature = concat([originalPart, randomPart])
         }
 
         op = {
             ...op,
-            signature: randomizeBytes(size(op.signature))
+            signature: newSignature
         }
     }
 
