@@ -299,18 +299,18 @@ export class RpcHandler implements IRpcEndpoint {
                         ...request.params
                     )
                 }
-            case "pimlico_sendUserOperation7702":
+            case "pimlico_experimental_sendUserOperation7702":
                 return {
                     method,
-                    result: await this.pimlico_sendUserOperation7702(
+                    result: await this.pimlico_experimental_sendUserOperation7702(
                         apiVersion,
                         ...request.params
                     )
                 }
-            case "pimlico_estimateUserOperationGas7702":
+            case "pimlico_experimental_estimateUserOperationGas7702":
                 return {
                     method,
-                    result: await this.pimlico_estimateUserOperationGas7702(
+                    result: await this.pimlico_experimental_estimateUserOperationGas7702(
                         apiVersion,
                         request.params[0],
                         request.params[1],
@@ -785,16 +785,16 @@ export class RpcHandler implements IRpcEndpoint {
         return "added"
     }
 
-    async pimlico_estimateUserOperationGas7702(
+    async pimlico_experimental_estimateUserOperationGas7702(
         apiVersion: ApiVersion,
         userOperation: UserOperation,
         authorization: SignedAuthorization,
         entryPoint: Address,
         stateOverrides?: StateOverrides
     ) {
-        if (!this.config.enableExperimentalEndpoints) {
+        if (!this.config.enableExperimental7702Endpoints) {
             throw new RpcError(
-                "pimlico_estimateUserOperationGas7702 endpoint is not enabled",
+                "pimlico_experimental_estimateUserOperationGas7702 endpoint is not enabled",
                 ValidationErrors.InvalidFields
             )
         }
@@ -808,15 +808,15 @@ export class RpcHandler implements IRpcEndpoint {
         })
     }
 
-    async pimlico_sendUserOperation7702(
+    async pimlico_experimental_sendUserOperation7702(
         apiVersion: ApiVersion,
         userOperation: UserOperation,
         authorizationSignature: SignedAuthorization,
         entryPoint: Address
     ) {
-        if (!this.config.enableExperimentalEndpoints) {
+        if (!this.config.enableExperimental7702Endpoints) {
             throw new RpcError(
-                "pimlico_sendUserOperation7702 endpoint is not enabled",
+                "pimlico_experimental_sendUserOperation7702 endpoint is not enabled",
                 ValidationErrors.InvalidFields
             )
         }
@@ -1067,7 +1067,7 @@ export class RpcHandler implements IRpcEndpoint {
         stateOverrides?: StateOverrides
         authorization?: SignedAuthorization
     }) {
-       this.ensureEntryPointIsSupported(entryPoint)
+        this.ensureEntryPointIsSupported(entryPoint)
 
         if (userOperation.maxFeePerGas === 0n) {
             throw new RpcError(
@@ -1148,13 +1148,14 @@ export class RpcHandler implements IRpcEndpoint {
         simulationUserOperation.maxPriorityFeePerGas =
             simulationUserOperation.maxFeePerGas
 
-        const executionResult = await this.validator.getExecutionResult(
-            simulationUserOperation,
+        const executionResult = await this.validator.getExecutionResult({
+            userOperation: simulationUserOperation,
             entryPoint,
             queuedUserOperations,
-            true,
-            deepHexlify(stateOverrides)
-        )
+            addSenderBalanceOverride: true,
+            stateOverrides: deepHexlify(stateOverrides),
+            authorizationList: authorization ? [authorization] : undefined
+        })
 
         let { verificationGasLimit, callGasLimit } =
             calcVerificationGasAndCallGasLimit(
@@ -1236,8 +1237,8 @@ export class RpcHandler implements IRpcEndpoint {
 
         // Check if userOperation passes without estimation balance overrides
         if (isVersion06(simulationUserOperation)) {
-            await this.validator.getExecutionResult(
-                {
+            await this.validator.getExecutionResult({
+                userOperation: {
                     ...simulationUserOperation,
                     preVerificationGas,
                     verificationGasLimit,
@@ -1247,9 +1248,10 @@ export class RpcHandler implements IRpcEndpoint {
                 },
                 entryPoint,
                 queuedUserOperations,
-                false,
-                deepHexlify(stateOverrides)
-            )
+                addSenderBalanceOverride: false,
+                stateOverrides: deepHexlify(stateOverrides),
+                authorizationList: authorization ? [authorization] : undefined
+            })
         }
 
         if (isVersion07(simulationUserOperation)) {
