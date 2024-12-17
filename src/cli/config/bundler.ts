@@ -129,7 +129,8 @@ export const compatibilityArgsSchema = z.object({
         "op-stack",
         "arbitrum",
         "hedera",
-        "mantle"
+        "mantle",
+        "skale"
     ]),
     "legacy-transactions": z.boolean(),
     "api-version": z
@@ -210,6 +211,16 @@ export const gasEstimationArgsSchema = z.object({
         .transform((val) => BigInt(val))
         .default("1000000"),
     "call-gas-limit-multiplier": z.string().transform((val) => BigInt(val)),
+    "simulation-call-gas-limit": z.string().transform((val) => BigInt(val)),
+    "simulation-verification-gas-limit": z
+        .string()
+        .transform((val) => BigInt(val)),
+    "simulation-paymaster-verification-gas-limit": z
+        .string()
+        .transform((val) => BigInt(val)),
+    "simulation-paymaster-post-op-gas-limit": z
+        .string()
+        .transform((val) => BigInt(val)),
     "paymaster-gas-limit-multiplier": z.string().transform((val) => BigInt(val))
 })
 

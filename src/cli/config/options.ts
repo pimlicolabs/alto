@@ -230,6 +230,34 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
             type: "string",
             require: true,
             default: "110"
+        },
+        "simulation-call-gas-limit": {
+            description:
+                "UserOperation's callGasLimit used during gas estimation simulations",
+            type: "string",
+            require: true,
+            default: "10000000"
+        },
+        "simulation-verification-gas-limit": {
+            description:
+                "UserOperation's verificationGasLimit used during gas estimation simulations",
+            type: "string",
+            require: true,
+            default: "10000000"
+        },
+        "simulation-paymaster-verification-gas-limit": {
+            description:
+                "UserOperation's paymasterVerificationGasLimit used during gas estimation simulations",
+            type: "string",
+            require: true,
+            default: "5000000"
+        },
+        "simulation-paymaster-post-op-gas-limit": {
+            description:
+                "UserOperation's paymasterPostOpGasLimit used during gas estimation simulations",
+            type: "string",
+            require: true,
+            default: "2000000"
         }
     }
 
@@ -237,9 +265,16 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
     {
         "chain-type": {
             description:
-                "Indicates weather the chain is a OP stack chain, arbitrum chain, or default EVM chain",
+                "Indicates what type of chain the bundler is running on",
             type: "string",
-            choices: ["default", "op-stack", "arbitrum", "hedera", "mantle"],
+            choices: [
+                "default",
+                "op-stack",
+                "arbitrum",
+                "hedera",
+                "mantle",
+                "skale"
+            ],
             default: "default"
         },
         "legacy-transactions": {
@@ -475,7 +510,7 @@ export const debugOptions: CliCommandOptions<IDebugArgsInput> = {
             "Should the bundler deploy the simulations contract on startup",
         type: "boolean",
         require: true,
-        default: false
+        default: true
     },
     tenderly: {
         description: "RPC url follows the tenderly format",

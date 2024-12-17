@@ -16,7 +16,6 @@ import {
     ContractFunctionRevertedError,
     EstimateGasExecutionError,
     FeeCapTooLowError,
-    type Hex,
     InsufficientFundsError,
     IntrinsicGasTooLowError,
     NonceTooLowError,
@@ -24,21 +23,24 @@ import {
     TransactionExecutionError,
     type Transport,
     bytesToHex,
-    concat,
     encodeAbiParameters,
-    getAbiItem,
     getContract,
     serializeTransaction,
     toBytes,
-    toFunctionSelector,
     InternalRpcError,
-    maxUint64
+    maxUint64,
+    encodeFunctionData,
+    parseGwei,
+    maxUint256,
+    toHex,
+    size
 } from "viem"
 import { base, baseGoerli, baseSepolia, lineaSepolia } from "viem/chains"
 import { maxBigInt, minBigInt, scaleBigIntByPercent } from "./bigInt"
-import { isVersion06, toPackedUserOperation } from "./userop"
+import { isVersion06, isVersion07, toPackedUserOperation } from "./userop"
 import type { AltoConfig } from "../createConfig"
 import { ArbitrumL1FeeAbi } from "../types/contracts/ArbitrumL1FeeAbi"
+import crypto from "crypto"
 
 export interface GasOverheads {
     /**
@@ -190,21 +192,11 @@ export function removeZeroBytesFromUserOp<T extends UserOperation>(
             nonce: userOpearation.nonce,
             initCode: userOpearation.initCode,
             callData: userOpearation.callData,
-            callGasLimit: BigInt(
-                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-            ),
-            verificationGasLimit: BigInt(
-                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-            ),
-            preVerificationGas: BigInt(
-                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-            ),
-            maxFeePerGas: BigInt(
-                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-            ),
-            maxPriorityFeePerGas: BigInt(
-                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-            ),
+            callGasLimit: maxUint256,
+            verificationGasLimit: maxUint256,
+            preVerificationGas: maxUint256,
+            maxFeePerGas: maxUint256,
+            maxPriorityFeePerGas: maxUint256,
             paymasterAndData: bytesToHex(
                 new Uint8Array(userOpearation.paymasterAndData.length).fill(255)
             ),
@@ -220,16 +212,12 @@ export function removeZeroBytesFromUserOp<T extends UserOperation>(
 
     return {
         sender: packedUserOperation.sender,
-        nonce: BigInt(
-            "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-        ),
+        nonce: maxUint256,
         initCode: packedUserOperation.initCode,
         callData: packedUserOperation.callData,
-        accountGasLimits: bytesToHex(new Uint8Array(32).fill(255)),
-        preVerificationGas: BigInt(
-            "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-        ),
-        gasFees: bytesToHex(new Uint8Array(32).fill(255)),
+        accountGasLimits: toHex(maxUint256),
+        preVerificationGas: maxUint256,
+        gasFees: toHex(maxUint256),
         paymasterAndData: bytesToHex(
             new Uint8Array(packedUserOperation.paymasterAndData.length).fill(
                 255
@@ -379,7 +367,8 @@ export function calcVerificationGasAndCallGasLimit(
 
     const calculatedCallGasLimit =
         callDataResult?.gasUsed ??
-        executionResult.paid / userOperation.maxFeePerGas - executionResult.preOpGas
+        executionResult.paid / userOperation.maxFeePerGas -
+            executionResult.preOpGas
 
     let callGasLimit =
         maxBigInt(calculatedCallGasLimit, 9000n) + 21_000n + 50_000n
@@ -434,39 +423,18 @@ export function calcDefaultPreVerificationGas(
 
 // Returns back the bytes for the handleOps call
 function getHandleOpsCallData(op: UserOperation, entryPoint: Address) {
-    let selector: Hex
-    let paramData: Hex
-
-    if (isVersion06(op)) {
-        const handleOpsAbi = getAbiItem({
-            abi: EntryPointV06Abi,
-            name: "handleOps"
-        })
-
-        selector = toFunctionSelector(handleOpsAbi)
-        paramData = encodeAbiParameters(handleOpsAbi.inputs, [
-            [removeZeroBytesFromUserOp(op)],
-            entryPoint
-        ])
-    } else {
-        const randomDataUserOp: PackedUserOperation =
-            removeZeroBytesFromUserOp(op)
-
-        const handleOpsAbi = getAbiItem({
+    if (isVersion07(op)) {
+        return encodeFunctionData({
             abi: EntryPointV07Abi,
-            name: "handleOps"
+            functionName: "handleOps",
+            args: [[removeZeroBytesFromUserOp(op)], entryPoint]
         })
-
-        selector = toFunctionSelector(handleOpsAbi)
-        paramData = encodeAbiParameters(handleOpsAbi.inputs, [
-            [randomDataUserOp],
-            entryPoint
-        ])
     }
-
-    const data = concat([selector, paramData])
-
-    return data
+    return encodeFunctionData({
+        abi: EntryPointV06Abi,
+        functionName: "handleOps",
+        args: [[removeZeroBytesFromUserOp(op)], entryPoint]
+    })
 }
 
 export async function calcMantlePreVerificationGas(
@@ -554,29 +522,61 @@ export async function calcMantlePreVerificationGas(
     return staticFee + l1RollupFee / l2MaxFee
 }
 
+function getOpStackHandleOpsCallData(
+    op: UserOperation,
+    entryPoint: Address,
+    verify: boolean
+) {
+    // Only randomize signature during estimations.
+    if (!verify) {
+        const randomizeBytes = (length: number) => {
+            return toHex(crypto.randomBytes(length).toString("hex"))
+        }
+
+        op = {
+            ...op,
+            signature: randomizeBytes(size(op.signature))
+        }
+    }
+
+    if (isVersion07(op)) {
+        return encodeFunctionData({
+            abi: EntryPointV07Abi,
+            functionName: "handleOps",
+            args: [[toPackedUserOperation(op)], entryPoint]
+        })
+    }
+
+    return encodeFunctionData({
+        abi: EntryPointV06Abi,
+        functionName: "handleOps",
+        args: [[op], entryPoint]
+    })
+}
+
 export async function calcOptimismPreVerificationGas(
     publicClient: PublicClient<Transport, Chain>,
     op: UserOperation,
     entryPoint: Address,
     staticFee: bigint,
     gasPriceManager: GasPriceManager,
-    verify?: boolean
+    validate: boolean
 ) {
-    const data = getHandleOpsCallData(op, entryPoint)
+    const data = getOpStackHandleOpsCallData(op, entryPoint, validate)
 
     const serializedTx = serializeTransaction(
         {
             to: entryPoint,
             chainId: publicClient.chain.id,
-            nonce: 999999,
-            gasLimit: maxUint64,
-            gasPrice: maxUint64,
+            maxFeePerGas: parseGwei("120"),
+            maxPriorityFeePerGas: parseGwei("120"),
+            gas: 10_000_000n,
             data
         },
         {
             r: "0x123451234512345123451234512345123451234512345123451234512345",
             s: "0x123451234512345123451234512345123451234512345123451234512345",
-            v: 28n
+            yParity: 1
         }
     )
 
@@ -588,9 +588,9 @@ export async function calcOptimismPreVerificationGas(
         }
     })
 
-    const [{ result: l1Fee }, baseFeePerGas] = await Promise.all([
-        opGasPriceOracle.simulate.getL1Fee([serializedTx]),
-        verify
+    const [l1Fee, baseFeePerGas] = await Promise.all([
+        opGasPriceOracle.read.getL1Fee([serializedTx]),
+        validate
             ? gasPriceManager.getMaxBaseFeePerGas()
             : gasPriceManager.getBaseFee()
     ])

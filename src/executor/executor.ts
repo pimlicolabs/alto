@@ -18,7 +18,6 @@ import {
     type PackedUserOperation,
     type TransactionInfo,
     type UserOperation,
-    type UserOperationV06,
     type UserOperationV07,
     type UserOperationWithHash,
     deriveUserOperation,
@@ -68,6 +67,18 @@ export interface GasEstimateResult {
     verificationGasLimit: bigint
     callGasLimit: bigint
 }
+
+export type HandleOpsTxParam =
+    | {
+          type: "default"
+          ops: PackedUserOperation[]
+          isUserOpVersion06: boolean
+          entryPoint: Address
+      }
+    | {
+          type: "compressed"
+          compressedOps: CompressedUserOperation[]
+      }
 
 export type ReplaceTransactionResult =
     | {
@@ -156,8 +167,15 @@ export class Executor {
     ): Promise<ReplaceTransactionResult> {
         const newRequest = { ...transactionInfo.transactionRequest }
 
-        const gasPriceParameters =
-            await this.gasPriceManager.getNetworkGasPrice()
+        let gasPriceParameters
+        try {
+            gasPriceParameters =
+                await this.gasPriceManager.tryGetNetworkGasPrice()
+        } catch (err) {
+            this.logger.error({ error: err }, "Failed to get network gas price")
+            this.markWalletProcessed(transactionInfo.executor)
+            return { status: "failed" }
+        }
 
         newRequest.maxFeePerGas = maxBigInt(
             gasPriceParameters.maxFeePerGas,
@@ -329,6 +347,7 @@ export class Executor {
         newRequest.gas = maxBigInt(newRequest.gas, gasLimit)
 
         // update calldata to include only ops that pass simulation
+        let txParam: HandleOpsTxParam
         if (transactionInfo.transactionType === "default") {
             const isUserOpVersion06 = opsWithHashes.reduce(
                 (acc, op) => {
@@ -347,43 +366,29 @@ export class Executor {
                 )
             )
 
-            newRequest.data = isUserOpVersion06
-                ? encodeFunctionData({
-                      abi: EntryPointV06Abi,
-                      functionName: "handleOps",
-                      args: [
-                          opsToBundle.map(({ mempoolUserOperation }) => {
-                              const op =
-                                  deriveUserOperation(mempoolUserOperation)
-                              return op as UserOperationV06
-                          }),
-                          transactionInfo.executor.address
-                      ]
-                  })
-                : encodeFunctionData({
-                      abi: EntryPointV07Abi,
-                      functionName: "handleOps",
-                      args: [
-                          opsToBundle.map(({ mempoolUserOperation }) => {
-                              const op =
-                                  deriveUserOperation(mempoolUserOperation)
+            const userOps = opsToBundle.map((op) =>
+                isUserOpVersion06
+                    ? op.mempoolUserOperation
+                    : toPackedUserOperation(
+                          op.mempoolUserOperation as UserOperationV07
+                      )
+            ) as PackedUserOperation[]
 
-                              return toPackedUserOperation(
-                                  op as UserOperationV07
-                              )
-                          }),
-                          transactionInfo.executor.address
-                      ]
-                  })
-        } else if (transactionInfo.transactionType === "compressed") {
+            txParam = {
+                type: "default",
+                isUserOpVersion06,
+                ops: userOps,
+                entryPoint: transactionInfo.entryPoint
+            }
+        } else {
             const compressedOps = opsToBundle.map(
-                (opInfo) =>
-                    opInfo.mempoolUserOperation as CompressedUserOperation
-            )
-            newRequest.data = createCompressedCalldata(
-                compressedOps,
-                this.getCompressionHandler().perOpInflatorId
-            )
+                ({ mempoolUserOperation }) => mempoolUserOperation
+            ) as CompressedUserOperation[]
+
+            txParam = {
+                type: "compressed",
+                compressedOps: compressedOps
+            }
         }
 
         try {
@@ -402,25 +407,30 @@ export class Executor {
                 "replacing transaction"
             )
 
-            const txHash = await this.config.walletClient.sendTransaction(
-                this.config.legacyTransactions
+            const txHash = await this.sendHandleOpsTransaction({
+                txParam,
+                opts: this.config.legacyTransactions
                     ? {
-                          ...newRequest,
+                          account: newRequest.account,
                           gasPrice: newRequest.maxFeePerGas,
-                          maxFeePerGas: undefined,
-                          maxPriorityFeePerGas: undefined,
-                          type: "legacy",
-                          accessList: undefined
+                          gas: newRequest.gas,
+                          nonce: newRequest.nonce
                       }
-                    : newRequest
-            )
+                    : {
+                          account: newRequest.account,
+                          maxFeePerGas: newRequest.maxFeePerGas,
+                          maxPriorityFeePerGas: newRequest.maxPriorityFeePerGas,
+                          gas: newRequest.gas,
+                          nonce: newRequest.nonce
+                      }
+            })
 
-            opsToBundle.map((opToBundle) => {
-                const op = deriveUserOperation(opToBundle.mempoolUserOperation)
+            opsToBundle.map(({ entryPoint, mempoolUserOperation }) => {
+                const op = deriveUserOperation(mempoolUserOperation)
                 const chainId = this.config.publicClient.chain?.id
                 const opHash = getUserOperationHash(
                     op,
-                    opToBundle.entryPoint,
+                    entryPoint,
                     chainId as number
                 )
 
@@ -489,6 +499,7 @@ export class Executor {
 
             childLogger.warn({ error: e }, "error replacing transaction")
             this.markWalletProcessed(transactionInfo.executor)
+
             return { status: "failed" }
         }
     }
@@ -503,7 +514,8 @@ export class Executor {
 
         const wallets = Array.from(allWallets)
 
-        const gasPrice = await this.gasPriceManager.getNetworkGasPrice()
+        const gasPrice = await this.gasPriceManager.tryGetNetworkGasPrice()
+
         const promises = wallets.map((wallet) => {
             try {
                 flushStuckTransaction(
@@ -524,21 +536,56 @@ export class Executor {
         await Promise.all(promises)
     }
 
-    async sendHandleOpsTransaction(
-        userOps: PackedUserOperation[],
-        isUserOpVersion06: boolean,
-        entryPoint: Address,
-        opts: SendTransactionOptions
-    ) {
-        let request = await this.config.walletClient.prepareTransactionRequest({
-            to: entryPoint,
-            data: encodeFunctionData({
+    async sendHandleOpsTransaction({
+        txParam,
+        opts
+    }: {
+        txParam: HandleOpsTxParam
+        opts:
+            | {
+                  gasPrice: bigint
+                  maxFeePerGas?: undefined
+                  maxPriorityFeePerGas?: undefined
+                  account: Account
+                  gas: bigint
+                  nonce: number
+              }
+            | {
+                  maxFeePerGas: bigint
+                  maxPriorityFeePerGas: bigint
+                  gasPrice?: undefined
+                  account: Account
+                  gas: bigint
+                  nonce: number
+              }
+    }) {
+        let data: Hex
+        let to: Address
+
+        if (txParam.type === "default") {
+            const { isUserOpVersion06, ops, entryPoint } = txParam
+            data = encodeFunctionData({
                 abi: isUserOpVersion06 ? EntryPointV06Abi : EntryPointV07Abi,
                 functionName: "handleOps",
-                args: [userOps, opts.account.address]
-            }),
-            ...opts
-        })
+                args: [ops, opts.account.address]
+            })
+            to = entryPoint
+        } else {
+            const { compressedOps } = txParam
+            const compressionHandler = this.getCompressionHandler()
+            data = createCompressedCalldata(
+                compressedOps,
+                compressionHandler.perOpInflatorId
+            )
+            to = compressionHandler.bundleBulkerAddress
+        }
+
+        const request =
+            await this.config.walletClient.prepareTransactionRequest({
+                to,
+                data,
+                ...opts
+            })
 
         let isTransactionUnderPriced = false
         let attempts = 0
@@ -710,7 +757,7 @@ export class Executor {
         let gasPriceParameters: GasPriceParameters
         try {
             ;[gasPriceParameters, nonce] = await Promise.all([
-                this.gasPriceManager.getNetworkGasPrice(),
+                this.gasPriceManager.tryGetNetworkGasPrice(),
                 this.config.publicClient.getTransactionCount({
                     address: wallet.address,
                     blockTag: "pending"
@@ -901,12 +948,15 @@ export class Executor {
                 }
             ) as PackedUserOperation[]
 
-            transactionHash = await this.sendHandleOpsTransaction(
-                userOps,
-                isUserOpVersion06,
-                entryPoint,
+            transactionHash = await this.sendHandleOpsTransaction({
+                txParam: {
+                    type: "default",
+                    ops: userOps,
+                    isUserOpVersion06,
+                    entryPoint
+                },
                 opts
-            )
+            })
 
             opsWithHashToBundle.map(({ userOperationHash }) => {
                 this.eventManager.emitSubmitted(
@@ -973,42 +1023,6 @@ export class Executor {
             transactionRequest: {
                 account: wallet,
                 to: ep.address,
-                data: isUserOpVersion06
-                    ? encodeFunctionData({
-                          abi: ep.abi,
-                          functionName: "handleOps",
-                          args: [
-                              opsWithHashToBundle.map(
-                                  ({ mempoolUserOperation }) => {
-                                      const op =
-                                          deriveUserOperation(
-                                              mempoolUserOperation
-                                          )
-
-                                      return op as UserOperationV06
-                                  }
-                              ),
-                              wallet.address
-                          ]
-                      })
-                    : encodeFunctionData({
-                          abi: ep.abi,
-                          functionName: "handleOps",
-                          args: [
-                              opsWithHashToBundle.map(
-                                  ({ mempoolUserOperation }) => {
-                                      const op =
-                                          deriveUserOperation(
-                                              mempoolUserOperation
-                                          )
-                                      return toPackedUserOperation(
-                                          op as UserOperationV07
-                                      )
-                                  }
-                              ),
-                              wallet.address
-                          ]
-                      }),
                 gas: gasLimit,
                 chain: this.config.walletClient.chain,
                 maxFeePerGas: gasPriceParameters.maxFeePerGas,
@@ -1061,7 +1075,7 @@ export class Executor {
         let gasPriceParameters: GasPriceParameters
         try {
             ;[gasPriceParameters, nonce] = await Promise.all([
-                this.gasPriceManager.getNetworkGasPrice(),
+                this.gasPriceManager.tryGetNetworkGasPrice(),
                 this.config.publicClient.getTransactionCount({
                     address: wallet.address,
                     blockTag: "pending"
@@ -1188,17 +1202,12 @@ export class Executor {
                 }
             )
 
-            // need to use sendTransaction to target BundleBulker's fallback
-            transactionHash = await this.config.walletClient.sendTransaction({
-                account: wallet,
-                to: compressionHandler.bundleBulkerAddress,
-                data: createCompressedCalldata(
-                    compressedOpsToBundle,
-                    compressionHandler.perOpInflatorId
-                ),
-                gas: gasLimit,
-                nonce: nonce,
-                ...gasOptions
+            transactionHash = await this.sendHandleOpsTransaction({
+                txParam: {
+                    type: "compressed",
+                    compressedOps: compressedOpsToBundle
+                },
+                opts: { ...gasOptions, gas: gasLimit, account: wallet, nonce }
             })
 
             opsToBundle.map(({ userOperationHash }) => {
@@ -1247,10 +1256,6 @@ export class Executor {
             previousTransactionHashes: [],
             transactionRequest: {
                 to: compressionHandler.bundleBulkerAddress,
-                data: createCompressedCalldata(
-                    compressedOps,
-                    compressionHandler.perOpInflatorId
-                ),
                 gas: gasLimit,
                 account: wallet,
                 chain: this.config.walletClient.chain,

@@ -776,7 +776,7 @@ export class ExecutorManager {
 
         // for all still not included check if needs to be replaced (based on gas price)
         const gasPriceParameters =
-            await this.gasPriceManager.getNetworkGasPrice()
+            await this.gasPriceManager.tryGetNetworkGasPrice()
         this.logger.trace(
             { gasPriceParameters },
             "fetched gas price parameters"
@@ -823,6 +823,7 @@ export class ExecutorManager {
         reason: string
     ): Promise<void> {
         let replaceResult: ReplaceTransactionResult | undefined = undefined
+
         try {
             replaceResult = await this.executor.replaceTransaction(txInfo)
         } finally {
@@ -830,8 +831,29 @@ export class ExecutorManager {
                 .labels({ reason, status: replaceResult?.status || "failed" })
                 .inc()
         }
+
         if (replaceResult.status === "failed") {
             txInfo.userOperationInfos.map((opInfo) => {
+                const userOperation = deriveUserOperation(
+                    opInfo.mempoolUserOperation
+                )
+
+                this.eventManager.emitDropped(
+                    opInfo.userOperationHash,
+                    "Failed to replace transaction"
+                )
+
+                this.logger.warn(
+                    {
+                        userOperation: JSON.stringify(userOperation, (_k, v) =>
+                            typeof v === "bigint" ? v.toString() : v
+                        ),
+                        userOpHash: opInfo.userOperationHash,
+                        reason
+                    },
+                    "user operation rejected"
+                )
+
                 this.mempool.removeSubmitted(opInfo.userOperationHash)
             })
 
@@ -842,6 +864,7 @@ export class ExecutorManager {
 
             return
         }
+
         if (replaceResult.status === "potentially_already_included") {
             this.logger.info(
                 { oldTxHash: txInfo.transactionHash, reason },
@@ -872,6 +895,7 @@ export class ExecutorManager {
                     .map((ni) => ni.userOperationHash)
                     .includes(info.userOperationHash)
         )
+
         const matchingOps = txInfo.userOperationInfos.filter((info) =>
             newTxInfo.userOperationInfos
                 .map((ni) => ni.userOperationHash)

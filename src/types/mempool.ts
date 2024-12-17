@@ -1,4 +1,4 @@
-import type { Address, Chain, Hex } from "viem"
+import type { Address, Chain } from "viem"
 import type { Account } from "viem/accounts"
 import type {
     CompressedUserOperation,
@@ -53,7 +53,6 @@ export type TransactionInfo = {
     transactionRequest: {
         account: Account
         to: Address
-        data: Hex
         gas: bigint
         chain: Chain
         maxFeePerGas: bigint

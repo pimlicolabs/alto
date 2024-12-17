@@ -11,7 +11,9 @@ import {
     createPublicClient,
     createWalletClient,
     formatEther,
-    fallback
+    fallback,
+    CallParameters,
+    publicActions
 } from "viem"
 import { UtilityWalletMonitor } from "../executor/utilityWalletMonitor"
 import type { IOptionsInput } from "./config"
@@ -93,7 +95,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         }
     }
 
-    const publicClient = createPublicClient({
+    let publicClient = createPublicClient({
         transport: customTransport(args.rpcUrl, {
             logger: logger.child(
                 { module: "public_client" },
@@ -104,6 +106,18 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         }),
         chain
     })
+
+    if (args.chainType === "skale") {
+        // SKALE only allows white listed addresses to deploy contracts.
+        publicClient = publicClient
+            .extend((client) => ({
+                async call(args: CallParameters) {
+                    args.account = "0x4337000c2828F5260d8921fD25829F606b9E8680"
+                    return await client.call(args)
+                }
+            }))
+            .extend(publicActions)
+    }
 
     const createWalletTransport = (url: string) =>
         customTransport(url, {
