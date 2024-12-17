@@ -140,7 +140,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         chain
     })
 
-    if (args.enableExperimentalEndpoints) {
+    if (args.enableExperimental7702Endpoints) {
         walletClient = walletClient.extend(eip7702Actions())
     }
 
