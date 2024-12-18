@@ -2,4 +2,4 @@
 "@pimlico/alto": patch
 ---
 
-Version update till Dec 18
+Version updated till Dec 18
