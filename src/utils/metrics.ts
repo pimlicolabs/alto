@@ -190,6 +190,13 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
+    const walletsProcessingTime = new Gauge({
+        name: "alto_executor_wallets_processing_time_seconds",
+        help: "Time spent processing user operations by executor wallets",
+        labelNames: [] as const,
+        registers
+    })
+
     return {
         httpRequests,
         httpRequestsDuration,
@@ -212,6 +219,7 @@ export function createMetrics(registry: Registry, register = true) {
         utilityWalletInsufficientBalance,
         executorWalletsBalances,
         executorWalletsMinBalance,
-        emittedOpEvents
+        emittedOpEvents,
+        walletsProcessingTime
     }
 }
