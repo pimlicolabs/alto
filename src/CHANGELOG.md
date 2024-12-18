@@ -1,5 +1,12 @@
 # @pimlico/alto
 
+## 0.0.9
+
+### Patch Changes
+
+- 87056b4a0884a0a9f8dd8534735deb66540aa3bc: Version updated till Dec 18
+- c7fabb9d5c5056b573df56bc72c769a00035dc76: Fixed bug in `gasPriceManager` that leads to infinite recursion when calling `getBaseFee`
+
 ## 0.0.8
 
 ### Patch Changes
