@@ -36,6 +36,7 @@ export class SenderManager {
     private semaphore: Semaphore
     private gasPriceManager: GasPriceManager
     private logger: Logger
+    private walletProcessingTime: Map<Address, Date> = new Map()
 
     constructor({
         config,
@@ -240,7 +241,7 @@ export class SenderManager {
         )
 
         this.metrics.walletsAvailable.set(this.availableWallets.length)
-
+        this.walletProcessingTime.set(wallet.address, new Date())
         return wallet
     }
 
@@ -251,6 +252,12 @@ export class SenderManager {
             { executor: wallet.address },
             "pushed wallet to sender manager"
         )
+        const processingTime = this.walletProcessingTime.get(wallet.address)
+        if (processingTime) {
+            const time = Date.now() - processingTime.getTime()
+            this.metrics.walletsProcessingTime.observe(time / 1000)
+            this.walletProcessingTime.delete(wallet.address)
+        }
         this.metrics.walletsAvailable.set(this.availableWallets.length)
         return
     }
