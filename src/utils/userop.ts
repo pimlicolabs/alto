@@ -27,6 +27,7 @@ import {
     pad,
     parseAbi,
     parseEventLogs,
+    size,
     slice,
     toHex,
     zeroAddress
@@ -132,11 +133,15 @@ export function unpackPaymasterAndData(paymasterAndData: Hex) {
             paymasterData: null
         }
     }
+
+    const paymasterAndDataSize = size(paymasterAndData)
+
     return {
         paymaster: getAddress(slice(paymasterAndData, 0, 20)),
         paymasterVerificationGasLimit: BigInt(slice(paymasterAndData, 20, 36)),
         paymasterPostOpGasLimit: BigInt(slice(paymasterAndData, 36, 52)),
-        paymasterData: slice(paymasterAndData, 52)
+        paymasterData:
+            paymasterAndDataSize > 52 ? slice(paymasterAndData, 52) : null
     }
 }
 
