@@ -134,7 +134,7 @@ export class GasEstimatorV07 {
         queuedUserOperations,
         entryPoint,
         gasAllowance = this.config.binarySearchGasAllowance,
-        initialMinGas = 0n
+        initialMinGas = 1n
     }: {
         userOperation: UserOperationV07
         queuedUserOperations: UserOperationV07[]
