@@ -190,7 +190,7 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
-    const walletsProcessingTime = new Gauge({
+    const walletsProcessingTime = new Histogram({
         name: "alto_executor_wallets_processing_time_seconds",
         help: "Time spent processing user operations by executor wallets",
         labelNames: [] as const,

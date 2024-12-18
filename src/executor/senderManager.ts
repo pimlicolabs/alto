@@ -255,7 +255,7 @@ export class SenderManager {
         const processingTime = this.walletProcessingTime.get(wallet.address)
         if (processingTime) {
             const time = Date.now() - processingTime.getTime()
-            this.metrics.walletsProcessingTime.set(time)
+            this.metrics.walletsProcessingTime.observe(time / 1000)
             this.walletProcessingTime.delete(wallet.address)
         }
         this.metrics.walletsAvailable.set(this.availableWallets.length)
