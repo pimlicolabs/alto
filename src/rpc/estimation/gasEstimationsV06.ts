@@ -21,6 +21,8 @@ import type { SimulateHandleOpResult } from "./types"
 import type { AltoConfig } from "../../createConfig"
 import { deepHexlify } from "../../utils/userop"
 import { parseFailedOpWithRevert } from "./gasEstimationsV07"
+import { SignedAuthorizationList } from "viem/experimental"
+import { addAuthorizationStateOverrides } from "@alto/utils"
 
 export class GasEstimatorV06 {
     private config: AltoConfig
@@ -114,12 +116,14 @@ export class GasEstimatorV06 {
         targetCallData,
         entryPoint,
         useCodeOverride = true,
+        authorizationList,
         stateOverrides = undefined
     }: {
         userOperation: UserOperationV06
         targetAddress: Address
         targetCallData: Hex
         entryPoint: Address
+        authorizationList?: SignedAuthorizationList
         useCodeOverride?: boolean
         stateOverrides?: StateOverrides | undefined
     }): Promise<SimulateHandleOpResult> {
@@ -140,6 +144,14 @@ export class GasEstimatorV06 {
                 ...deepHexlify(stateOverrides?.[entryPoint] || {}),
                 code: ENTRYPOINT_V06_SIMULATION_OVERRIDE
             }
+        }
+
+        if (authorizationList) {
+            stateOverrides = await addAuthorizationStateOverrides({
+                stateOverrides,
+                authorizationList,
+                publicClient
+            })
         }
 
         // Remove state override if not supported by network.

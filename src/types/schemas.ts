@@ -1,6 +1,7 @@
 import { type Hash, type Hex, getAddress, maxUint256 } from "viem"
 import { z } from "zod"
 import type { MempoolUserOperation } from "./mempool"
+import { SignedAuthorization } from "viem/experimental"
 
 const hexDataPattern = /^0x[0-9A-Fa-f]*$/
 const addressPattern = /^0x[0-9,a-f,A-F]{40}$/
@@ -182,6 +183,11 @@ export type PackedUserOperation = z.infer<typeof packerUserOperationSchema>
 
 export type UserOperation = z.infer<typeof userOperationSchema>
 
+export type UserOperation7702 = {
+    userOperation: UserOperation
+    authorization: SignedAuthorization
+}
+
 export type CompressedUserOperation = {
     compressedCalldata: Hex
     inflatedOp: UserOperation
@@ -239,6 +245,16 @@ const stateOverridesSchema = z.record(
         stateDiff: z.record(hexData32Schema, hexData32Schema).optional()
     })
 )
+
+const signedAuthorizationSchema = z.object({
+    contractAddress: addressSchema,
+    chainId: hexNumberSchema.transform((val) => Number(val)),
+    nonce: hexNumberSchema.transform((val) => Number(val)),
+    r: hexData32Schema.transform((val) => val as Hex),
+    s: hexData32Schema.transform((val) => val as Hex),
+    v: hexNumberSchema,
+    yParity: hexNumberSchema.transform((val) => Number(val))
+})
 
 export type StateOverrides = z.infer<typeof stateOverridesSchema>
 
@@ -348,6 +364,32 @@ const pimlicoSendUserOperationNowRequestSchema = z.object({
     params: z.tuple([userOperationSchema, addressSchema])
 })
 
+const pimlicoExperimentalEstimateUserOperationGas7702RequestSchema = z.object({
+    method: z.literal("pimlico_experimental_estimateUserOperationGas7702"),
+    params: z.union([
+        z.tuple([
+            partialUserOperationSchema,
+            addressSchema,
+            signedAuthorizationSchema // authorization
+        ]),
+        z.tuple([
+            partialUserOperationSchema,
+            addressSchema,
+            signedAuthorizationSchema, // authorization
+            stateOverridesSchema
+        ])
+    ])
+})
+
+const pimlicoExperimentalSendUserOperation7702RequestSchema = z.object({
+    method: z.literal("pimlico_experimental_sendUserOperation7702"),
+    params: z.tuple([
+        userOperationSchema,
+        addressSchema,
+        signedAuthorizationSchema
+    ])
+})
+
 export const altoVersions = z.enum(["v1", "v2"])
 export type AltoVersions = z.infer<typeof altoVersions>
 
@@ -369,7 +411,9 @@ const bundlerRequestSchema = z.discriminatedUnion("method", [
     pimlicoGetUserOperationStatusRequestSchema,
     pimlicoGetUserOperationGasPriceRequestSchema,
     pimlicoSendCompressedUserOperationRequestSchema,
-    pimlicoSendUserOperationNowRequestSchema
+    pimlicoSendUserOperationNowRequestSchema,
+    pimlicoExperimentalSendUserOperation7702RequestSchema,
+    pimlicoExperimentalEstimateUserOperationGas7702RequestSchema
 ])
 
 const chainIdResponseSchema = z.object({
@@ -583,6 +627,30 @@ const pimlicoSendUserOperationNowResponseSchema = z.object({
     result: userOperationReceiptSchema
 })
 
+const pimlicoExperimentalSendUserOperation7702ResponseSchema = z.object({
+    method: z.literal("pimlico_experimental_sendUserOperation7702"),
+    result: hexData32Schema
+})
+
+const pimlicoExperimentalEstimateUserOperation7702ResponseSchema = z.object({
+    method: z.literal("pimlico_experimental_estimateUserOperationGas7702"),
+    result: z.union([
+        z.object({
+            callGasLimit: hexNumberSchema,
+            preVerificationGas: hexNumberSchema,
+            verificationGasLimit: hexNumberSchema,
+            verificationGas: hexNumberSchema.optional()
+        }),
+        z.object({
+            callGasLimit: hexNumberSchema,
+            preVerificationGas: hexNumberSchema,
+            verificationGasLimit: hexNumberSchema,
+            paymasterVerificationGasLimit: hexNumberSchema.optional(),
+            paymasterPostOpGasLimit: hexNumberSchema.optional()
+        })
+    ])
+})
+
 const bundlerResponseSchema = z.discriminatedUnion("method", [
     chainIdResponseSchema,
     supportedEntryPointsResponseSchema,
@@ -601,7 +669,9 @@ const bundlerResponseSchema = z.discriminatedUnion("method", [
     pimlicoGetUserOperationStatusResponseSchema,
     pimlicoGetUserOperationGasPriceResponseSchema,
     pimlicoSendCompressedUserOperationResponseSchema,
-    pimlicoSendUserOperationNowResponseSchema
+    pimlicoSendUserOperationNowResponseSchema,
+    pimlicoExperimentalSendUserOperation7702ResponseSchema,
+    pimlicoExperimentalEstimateUserOperation7702ResponseSchema
 ])
 
 export type BundlingMode = z.infer<

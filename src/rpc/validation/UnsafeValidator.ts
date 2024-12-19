@@ -46,6 +46,7 @@ import { fromZodError } from "zod-validation-error"
 import { GasEstimationHandler } from "../estimation/gasEstimationHandler"
 import type { SimulateHandleOpResult } from "../estimation/types"
 import type { AltoConfig } from "../../createConfig"
+import { SignedAuthorizationList } from "viem/experimental"
 
 export class UnsafeValidator implements InterfaceValidator {
     config: AltoConfig
@@ -154,14 +155,23 @@ export class UnsafeValidator implements InterfaceValidator {
         return simulationResult
     }
 
-    async getExecutionResult(
-        userOperation: UserOperation,
-        entryPoint: Address,
-        queuedUserOperations: UserOperation[],
-        addSenderBalanceOverride: boolean,
+    async getExecutionResult({
+        userOperation,
+        entryPoint,
+        queuedUserOperations,
+        addSenderBalanceOverride,
+        authorizationList,
+        stateOverrides
+    }: {
+        userOperation: UserOperation
+        entryPoint: Address
+        queuedUserOperations: UserOperation[]
+        addSenderBalanceOverride: boolean
+        authorizationList?: SignedAuthorizationList
         stateOverrides?: StateOverrides
-    ): Promise<SimulateHandleOpResult<"execution">> {
+    }): Promise<SimulateHandleOpResult<"execution">> {
         const error = await this.gasEstimationHandler.simulateHandleOp({
+            authorizationList,
             userOperation,
             queuedUserOperations,
             addSenderBalanceOverride,
@@ -182,11 +192,16 @@ export class UnsafeValidator implements InterfaceValidator {
         return error as SimulateHandleOpResult<"execution">
     }
 
-    async getValidationResultV06(
-        userOperation: UserOperationV06,
-        entryPoint: Address,
-        _codeHashes?: ReferencedCodeHashes
-    ): Promise<
+    async getValidationResultV06({
+        userOperation,
+        entryPoint,
+        authorizationList
+    }: {
+        userOperation: UserOperationV06
+        entryPoint: Address
+        authorizationList?: SignedAuthorizationList
+        codeHashes?: ReferencedCodeHashes
+    }): Promise<
         (ValidationResultV06 | ValidationResultWithAggregationV06) & {
             storageMap: StorageMap
             referencedContracts?: ReferencedCodeHashes
@@ -215,6 +230,7 @@ export class UnsafeValidator implements InterfaceValidator {
                 userOperation,
                 useCodeOverride: false, // disable code override so that call phase reverts aren't caught
                 targetAddress: zeroAddress,
+                authorizationList,
                 targetCallData: "0x"
             })
 
@@ -349,12 +365,18 @@ export class UnsafeValidator implements InterfaceValidator {
         )
     }
 
-    async getValidationResultV07(
-        userOperation: UserOperationV07,
-        queuedUserOperations: UserOperationV07[],
-        entryPoint: Address,
-        _codeHashes?: ReferencedCodeHashes
-    ): Promise<
+    async getValidationResultV07({
+        userOperation,
+        queuedUserOperations,
+        entryPoint,
+        authorizationList
+    }: {
+        userOperation: UserOperationV07
+        queuedUserOperations: UserOperationV07[]
+        entryPoint: Address
+        codeHashes?: ReferencedCodeHashes
+        authorizationList?: SignedAuthorizationList
+    }): Promise<
         (ValidationResultV07 | ValidationResultWithAggregationV07) & {
             storageMap: StorageMap
             referencedContracts?: ReferencedCodeHashes
@@ -364,7 +386,8 @@ export class UnsafeValidator implements InterfaceValidator {
             await this.gasEstimationHandler.gasEstimatorV07.simulateValidation({
                 entryPoint,
                 userOperation,
-                queuedUserOperations
+                queuedUserOperations,
+                authorizationList
             })
 
         if (simulateValidationResult.status === "failed") {
@@ -452,36 +475,46 @@ export class UnsafeValidator implements InterfaceValidator {
         return res
     }
 
-    getValidationResult(
-        userOperation: UserOperation,
-        queuedUserOperations: UserOperation[],
-        entryPoint: Address,
-        _codeHashes?: ReferencedCodeHashes
-    ): Promise<
+    getValidationResult({
+        userOperation,
+        queuedUserOperations,
+        entryPoint,
+        codeHashes,
+        authorizationList
+    }: {
+        userOperation: UserOperation
+        queuedUserOperations: UserOperation[]
+        entryPoint: Address
+        codeHashes?: ReferencedCodeHashes
+        authorizationList?: SignedAuthorizationList
+    }): Promise<
         (ValidationResult | ValidationResultWithAggregation) & {
             storageMap: StorageMap
             referencedContracts?: ReferencedCodeHashes
         }
     > {
         if (isVersion06(userOperation)) {
-            return this.getValidationResultV06(
+            return this.getValidationResultV06({
                 userOperation,
                 entryPoint,
-                _codeHashes
-            )
+                codeHashes
+            })
         }
-        return this.getValidationResultV07(
+        return this.getValidationResultV07({
             userOperation,
-            queuedUserOperations as UserOperationV07[],
+            queuedUserOperations: queuedUserOperations as UserOperationV07[],
             entryPoint,
-            _codeHashes
-        )
+            authorizationList
+        })
     }
 
-    async validatePreVerificationGas(
-        userOperation: UserOperation,
+    async validatePreVerificationGas({
+        userOperation,
+        entryPoint
+    }: {
+        userOperation: UserOperation
         entryPoint: Address
-    ) {
+    }) {
         const preVerificationGas = await calcPreVerificationGas({
             config: this.config,
             userOperation,
@@ -498,24 +531,32 @@ export class UnsafeValidator implements InterfaceValidator {
         }
     }
 
-    async validateUserOperation(
-        shouldCheckPrefund: boolean,
-        userOperation: UserOperation,
-        queuedUserOperations: UserOperation[],
-        entryPoint: Address,
+    async validateUserOperation({
+        shouldCheckPrefund,
+        userOperation,
+        queuedUserOperations,
+        entryPoint,
+        authorizationList
+    }: {
+        shouldCheckPrefund: boolean
+        userOperation: UserOperation
+        queuedUserOperations: UserOperation[]
+        entryPoint: Address
+        authorizationList?: SignedAuthorizationList
         _referencedContracts?: ReferencedCodeHashes
-    ): Promise<
+    }): Promise<
         (ValidationResult | ValidationResultWithAggregation) & {
             storageMap: StorageMap
             referencedContracts?: ReferencedCodeHashes
         }
     > {
         try {
-            const validationResult = await this.getValidationResult(
+            const validationResult = await this.getValidationResult({
                 userOperation,
                 queuedUserOperations,
-                entryPoint
-            )
+                entryPoint,
+                authorizationList
+            })
 
             if (shouldCheckPrefund) {
                 const prefund = validationResult.returnInfo.prefund
