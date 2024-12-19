@@ -12,7 +12,9 @@ import {
     type UserOperationWithHash,
     deriveUserOperation,
     failedOpErrorSchema,
-    failedOpWithRevertErrorSchema
+    failedOpWithRevertErrorSchema,
+    MempoolUserOperation,
+    is7702Type
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
@@ -48,6 +50,22 @@ export const isTransactionUnderpricedError = (e: BaseError) => {
     return e?.details
         ?.toLowerCase()
         .includes("replacement transaction underpriced")
+}
+
+export const getAuthorizationList = (
+    mempoolUserOperations: MempoolUserOperation[]
+): SignedAuthorizationList | undefined => {
+    const authorizationList = mempoolUserOperations
+        .map((op) => {
+            if (is7702Type(op)) {
+                return op.authorization
+            }
+
+            return undefined
+        })
+        .filter((auth) => auth !== undefined) as SignedAuthorizationList
+
+    return authorizationList.length > 0 ? authorizationList : undefined
 }
 
 export function simulatedOpsToResults(
@@ -182,12 +200,14 @@ export async function filterOpsAndEstimateGas(
                     // @ts-ignore - ep is set correctly for opsToSend, but typescript doesn't know that
                     [opsToSend, wallet.address],
                     {
-                        authorizationList,
                         account: wallet,
                         nonce: nonce,
                         blockTag: blockTag,
                         ...(fixedEstimationGasLimit !== undefined && {
                             gas: fixedEstimationGasLimit
+                        }),
+                        ...(authorizationList !== undefined && {
+                            authorizationList
                         }),
                         ...gasOptions
                     }

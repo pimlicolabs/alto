@@ -55,11 +55,11 @@ import {
     filterOpsAndEstimateGas,
     flushStuckTransaction,
     simulatedOpsToResults,
-    isTransactionUnderpricedError
+    isTransactionUnderpricedError,
+    getAuthorizationList
 } from "./utils"
 import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
-import { SignedAuthorizationList } from "viem/experimental"
 import { SendTransactionOptions } from "./types"
 
 export interface GasEstimateResult {
@@ -800,15 +800,11 @@ export class Executor {
             this.config.fixedGasLimitForEstimation,
             this.reputationManager,
             childLogger,
-            opsWithHashes
-                .map(({ mempoolUserOperation }) => {
-                    if (is7702Type(mempoolUserOperation)) {
-                        return mempoolUserOperation.authorization
-                    }
-
-                    return undefined
-                })
-                .filter((auth) => auth !== undefined) as SignedAuthorizationList
+            getAuthorizationList(
+                opsWithHashes.map(
+                    ({ mempoolUserOperation }) => mempoolUserOperation
+                )
+            )
         )
 
         if (simulatedOps.length === 0) {
@@ -895,14 +891,11 @@ export class Executor {
                 }
             }
 
-            const authorizationList = opsWithHashToBundle
-                .map(({ mempoolUserOperation }) =>
-                    is7702Type(mempoolUserOperation)
-                        ? mempoolUserOperation.authorization
-                        : undefined
+            const authorizationList = getAuthorizationList(
+                opsWithHashToBundle.map(
+                    ({ mempoolUserOperation }) => mempoolUserOperation
                 )
-                .filter((auth) => auth !== undefined) as SignedAuthorizationList
-            const hasAuthorizationList = authorizationList.length > 0
+            )
 
             let opts: SendTransactionOptions
             if (isLegacyTransaction) {
@@ -913,7 +906,7 @@ export class Executor {
                     gas: gasLimit,
                     nonce
                 }
-            } else if (hasAuthorizationList) {
+            } else if (authorizationList) {
                 opts = {
                     type: "eip7702",
                     maxFeePerGas: gasPriceParameters.maxFeePerGas,
