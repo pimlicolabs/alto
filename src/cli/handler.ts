@@ -127,7 +127,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
             )
         })
 
-    let walletClient = createWalletClient({
+    const walletClient = createWalletClient({
         transport: args.sendTransactionRpcUrl
             ? fallback(
                   [
