@@ -369,13 +369,13 @@ const pimlicoExperimentalEstimateUserOperationGas7702RequestSchema = z.object({
     params: z.union([
         z.tuple([
             partialUserOperationSchema,
-            signedAuthorizationSchema, // authorization
-            addressSchema
+            addressSchema,
+            signedAuthorizationSchema // authorization
         ]),
         z.tuple([
             partialUserOperationSchema,
-            signedAuthorizationSchema, // authorization
             addressSchema,
+            signedAuthorizationSchema, // authorization
             stateOverridesSchema
         ])
     ])
@@ -385,8 +385,8 @@ const pimlicoExperimentalSendUserOperation7702RequestSchema = z.object({
     method: z.literal("pimlico_experimental_sendUserOperation7702"),
     params: z.tuple([
         userOperationSchema,
-        signedAuthorizationSchema,
-        addressSchema
+        addressSchema,
+        signedAuthorizationSchema
     ])
 })
 

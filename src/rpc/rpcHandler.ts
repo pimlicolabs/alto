@@ -788,8 +788,8 @@ export class RpcHandler implements IRpcEndpoint {
     async pimlico_experimental_estimateUserOperationGas7702(
         apiVersion: ApiVersion,
         userOperation: UserOperation,
-        authorization: SignedAuthorization,
         entryPoint: Address,
+        authorization: SignedAuthorization,
         stateOverrides?: StateOverrides
     ) {
         if (!this.config.enableExperimental7702Endpoints) {
@@ -811,8 +811,8 @@ export class RpcHandler implements IRpcEndpoint {
     async pimlico_experimental_sendUserOperation7702(
         apiVersion: ApiVersion,
         userOperation: UserOperation,
-        authorizationSignature: SignedAuthorization,
-        entryPoint: Address
+        entryPoint: Address,
+        authorizationSignature: SignedAuthorization
     ) {
         if (!this.config.enableExperimental7702Endpoints) {
             throw new RpcError(
