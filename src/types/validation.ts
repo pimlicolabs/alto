@@ -128,7 +128,7 @@ export const executionResultSchema = z.union([
 
 export type ExecutionResult = z.infer<typeof executionResultSchema>
 
-export const targetCallResultSchema = z.object({
+export const binarySearchCallResultSchema = z.object({
     gasUsed: z.bigint(),
     success: z.boolean(),
     returnData: z
@@ -137,7 +137,9 @@ export const targetCallResultSchema = z.object({
         .transform((val) => val as HexData)
 })
 
-export type TargetCallResult = z.infer<typeof targetCallResultSchema>
+export type BinarySearchCallResult = z.infer<
+    typeof binarySearchCallResultSchema
+>
 
 export const executionResultErrorSchema = z.object({
     args: executionResultSchema,
