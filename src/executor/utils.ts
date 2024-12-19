@@ -12,7 +12,9 @@ import {
     type UserOperationWithHash,
     deriveUserOperation,
     failedOpErrorSchema,
-    failedOpWithRevertErrorSchema
+    failedOpWithRevertErrorSchema,
+    MempoolUserOperation,
+    is7702Type
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
@@ -42,11 +44,28 @@ import {
     numberToHex,
     BaseError
 } from "viem"
+import { SignedAuthorizationList } from "viem/experimental"
 
 export const isTransactionUnderpricedError = (e: BaseError) => {
     return e?.details
         ?.toLowerCase()
         .includes("replacement transaction underpriced")
+}
+
+export const getAuthorizationList = (
+    mempoolUserOperations: MempoolUserOperation[]
+): SignedAuthorizationList | undefined => {
+    const authorizationList = mempoolUserOperations
+        .map((op) => {
+            if (is7702Type(op)) {
+                return op.authorization
+            }
+
+            return undefined
+        })
+        .filter((auth) => auth !== undefined) as SignedAuthorizationList
+
+    return authorizationList.length > 0 ? authorizationList : undefined
 }
 
 export function simulatedOpsToResults(
@@ -139,7 +158,8 @@ export async function filterOpsAndEstimateGas(
     onlyPre1559: boolean,
     fixedGasLimitForEstimation: bigint | undefined,
     reputationManager: InterfaceReputationManager,
-    logger: Logger
+    logger: Logger,
+    authorizationList?: SignedAuthorizationList
 ) {
     const simulatedOps: {
         owh: UserOperationWithHash
@@ -169,13 +189,11 @@ export async function filterOpsAndEstimateGas(
 
                 const opsToSend = simulatedOps
                     .filter((op) => op.reason === undefined)
-                    .map((op) => {
+                    .map(({ owh }) => {
+                        const op = deriveUserOperation(owh.mempoolUserOperation)
                         return isUserOpV06
-                            ? op.owh.mempoolUserOperation
-                            : toPackedUserOperation(
-                                  op.owh
-                                      .mempoolUserOperation as UserOperationV07
-                              )
+                            ? op
+                            : toPackedUserOperation(op as UserOperationV07)
                     })
 
                 gasLimit = await ep.estimateGas.handleOps(
@@ -187,6 +205,9 @@ export async function filterOpsAndEstimateGas(
                         blockTag: blockTag,
                         ...(fixedEstimationGasLimit !== undefined && {
                             gas: fixedEstimationGasLimit
+                        }),
+                        ...(authorizationList !== undefined && {
+                            authorizationList
                         }),
                         ...gasOptions
                     }
@@ -391,6 +412,7 @@ export async function filterOpsAndEstimateGas(
     }
     return { simulatedOps, gasLimit: 0n }
 }
+
 export async function flushStuckTransaction(
     publicClient: PublicClient,
     walletClient: WalletClient<Transport, Chain, Account | undefined>,

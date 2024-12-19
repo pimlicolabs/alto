@@ -7,6 +7,7 @@ import { GasEstimatorV06 } from "./gasEstimationsV06"
 import { GasEstimatorV07 } from "./gasEstimationsV07"
 import type { SimulateHandleOpResult } from "./types"
 import type { AltoConfig } from "../../createConfig"
+import { SignedAuthorizationList } from "viem/experimental"
 
 function getStateOverrides({
     addSenderBalanceOverride,
@@ -47,6 +48,7 @@ export class GasEstimationHandler {
         entryPoint,
         targetAddress,
         targetCallData,
+        authorizationList,
         stateOverrides = {}
     }: {
         userOperation: UserOperation
@@ -56,6 +58,7 @@ export class GasEstimationHandler {
         entryPoint: Address
         targetAddress: Address
         targetCallData: Hex
+        authorizationList?: SignedAuthorizationList
         stateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult> {
         let finalStateOverride = undefined
@@ -75,6 +78,7 @@ export class GasEstimationHandler {
                 entryPoint,
                 targetAddress,
                 targetCallData,
+                authorizationList,
                 stateOverrides: finalStateOverride
             })
         }
@@ -83,6 +87,7 @@ export class GasEstimationHandler {
             userOperation: userOperation as UserOperationV07,
             queuedUserOperations: queuedUserOperations as UserOperationV07[],
             entryPoint,
+            authorizationList,
             stateOverrides
         })
     }

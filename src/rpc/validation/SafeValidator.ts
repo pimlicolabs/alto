@@ -78,25 +78,31 @@ export class SafeValidator
         this.senderManager = senderManager
     }
 
-    async validateUserOperation(
-        shouldCheckPrefund: boolean,
-        userOperation: UserOperation,
-        queuedUserOperations: UserOperation[],
-        entryPoint: Address,
+    async validateUserOperation({
+        shouldCheckPrefund,
+        userOperation,
+        queuedUserOperations,
+        entryPoint,
+        referencedContracts
+    }: {
+        shouldCheckPrefund: boolean
+        userOperation: UserOperation
+        queuedUserOperations: UserOperation[]
+        entryPoint: Address
         referencedContracts?: ReferencedCodeHashes
-    ): Promise<
+    }): Promise<
         (ValidationResult | ValidationResultWithAggregation) & {
             storageMap: StorageMap
             referencedContracts?: ReferencedCodeHashes
         }
     > {
         try {
-            const validationResult = await this.getValidationResult(
+            const validationResult = await this.getValidationResult({
                 userOperation,
                 queuedUserOperations,
                 entryPoint,
-                referencedContracts
-            )
+                codeHashes: referencedContracts
+            })
 
             if (shouldCheckPrefund) {
                 const prefund = validationResult.returnInfo.prefund
@@ -181,23 +187,28 @@ export class SafeValidator
         }
     }
 
-    async getValidationResultV07(
-        userOperation: UserOperationV07,
-        queuedUserOperations: UserOperationV07[],
-        entryPoint: Address,
+    async getValidationResultV07({
+        userOperation,
+        queuedUserOperations,
+        entryPoint,
+        preCodeHashes
+    }: {
+        userOperation: UserOperationV07
+        queuedUserOperations: UserOperationV07[]
+        entryPoint: Address
         preCodeHashes?: ReferencedCodeHashes
-    ): Promise<
+    }): Promise<
         (ValidationResultV07 | ValidationResultWithAggregationV07) & {
             storageMap: StorageMap
             referencedContracts?: ReferencedCodeHashes
         }
     > {
         if (this.config.tenderly) {
-            return super.getValidationResultV07(
+            return super.getValidationResultV07({
                 userOperation,
                 queuedUserOperations,
                 entryPoint
-            )
+            })
         }
 
         if (preCodeHashes && preCodeHashes.addresses.length > 0) {
@@ -253,18 +264,22 @@ export class SafeValidator
         }
     }
 
-    async getValidationResultV06(
-        userOperation: UserOperationV06,
-        entryPoint: Address,
+    async getValidationResultV06({
+        userOperation,
+        entryPoint,
+        preCodeHashes
+    }: {
+        userOperation: UserOperationV06
+        entryPoint: Address
         preCodeHashes?: ReferencedCodeHashes
-    ): Promise<
+    }): Promise<
         (ValidationResultV06 | ValidationResultWithAggregationV06) & {
             referencedContracts?: ReferencedCodeHashes
             storageMap: StorageMap
         }
     > {
         if (this.config.tenderly) {
-            return super.getValidationResultV06(userOperation, entryPoint)
+            return super.getValidationResultV06({ userOperation, entryPoint })
         }
 
         if (preCodeHashes && preCodeHashes.addresses.length > 0) {

@@ -119,7 +119,8 @@ export const bundlerArgsSchema = z.object({
         ),
     "refilling-wallets": z.boolean().default(true),
     "aa95-gas-multiplier": z.string().transform((val) => BigInt(val)),
-    "enable-instant-bundling-endpoint": z.boolean()
+    "enable-instant-bundling-endpoint": z.boolean(),
+    "enable-experimental-7702-endpoints": z.boolean()
 })
 
 export const compatibilityArgsSchema = z.object({
