@@ -319,14 +319,16 @@ export class GasEstimatorV07 {
             })
 
         const binarySearchPaymasterVerificationGasLimit =
-            this.encodeBinarySearchGasLimit({
-                entryPoint,
-                userOperation,
-                queuedUserOperations,
-                target: zeroAddress,
-                targetCallData: "0x" as Hex,
-                functionName: "binarySearchPaymasterVerificationGasLimit"
-            })
+            userOperation.paymaster
+                ? this.encodeBinarySearchGasLimit({
+                      entryPoint,
+                      userOperation,
+                      queuedUserOperations,
+                      target: zeroAddress,
+                      targetCallData: "0x" as Hex,
+                      functionName: "binarySearchPaymasterVerificationGasLimit"
+                  })
+                : null
 
         const simulateCallData = this.encodeBinarySearchGasLimit({
             entryPoint,
@@ -340,7 +342,7 @@ export class GasEstimatorV07 {
             functionName: "simulateCallData"
         })
 
-        let cause: readonly Hex[]
+        let cause: readonly [Hex, Hex, null | Hex, Hex]
 
         if (this.config.chainType === "hedera") {
             // due to Hedera specific restrictions, we can't combine these two calls.
@@ -364,14 +366,16 @@ export class GasEstimatorV07 {
                     stateOverrides,
                     authorizationList
                 }),
-                this.callPimlicoEntryPointSimulations({
-                    entryPoint,
-                    entryPointSimulationsCallData: [
-                        binarySearchPaymasterVerificationGasLimit
-                    ],
-                    stateOverrides,
-                    authorizationList
-                }),
+                binarySearchPaymasterVerificationGasLimit
+                    ? this.callPimlicoEntryPointSimulations({
+                          entryPoint,
+                          entryPointSimulationsCallData: [
+                              binarySearchPaymasterVerificationGasLimit
+                          ],
+                          stateOverrides,
+                          authorizationList
+                      })
+                    : [null],
                 this.callPimlicoEntryPointSimulations({
                     entryPoint,
                     entryPointSimulationsCallData: [simulateCallData],
@@ -387,20 +391,49 @@ export class GasEstimatorV07 {
                 simulateCallDataCause[0]
             ]
         } else {
-            cause = await this.callPimlicoEntryPointSimulations({
-                entryPoint,
-                entryPointSimulationsCallData: [
-                    simulateHandleOpLast,
-                    binarySearchVerificationGasLimit,
-                    binarySearchPaymasterVerificationGasLimit,
-                    simulateCallData
-                ],
-                stateOverrides,
-                authorizationList
-            })
+            const estimationsCause = binarySearchPaymasterVerificationGasLimit
+                ? await this.callPimlicoEntryPointSimulations({
+                      entryPoint,
+                      entryPointSimulationsCallData: [
+                          simulateHandleOpLast,
+                          binarySearchVerificationGasLimit,
+                          binarySearchPaymasterVerificationGasLimit,
+                          simulateCallData
+                      ],
+                      stateOverrides,
+                      authorizationList
+                  })
+                : await this.callPimlicoEntryPointSimulations({
+                      entryPoint,
+                      entryPointSimulationsCallData: [
+                          simulateHandleOpLast,
+                          binarySearchVerificationGasLimit,
+                          simulateCallData
+                      ],
+                      stateOverrides,
+                      authorizationList
+                  })
+
+            cause = binarySearchPaymasterVerificationGasLimit
+                ? [
+                      estimationsCause[0],
+                      estimationsCause[1],
+                      estimationsCause[2],
+                      estimationsCause[3]
+                  ]
+                : [
+                      estimationsCause[0],
+                      estimationsCause[1],
+                      null,
+                      estimationsCause[2]
+                  ]
         }
 
-        cause = cause.map((data: Hex) => {
+        cause = cause.map((data: Hex | null) => {
+            if (!data) {
+                return null
+            }
+
             const decodedDelegateAndError = decodeErrorResult({
                 abi: EntryPointV07Abi,
                 data: data
@@ -414,14 +447,14 @@ export class GasEstimatorV07 {
             }
 
             return delegateAndRevertResponseBytes as Hex
-        })
+        }) as [Hex, Hex, null | Hex, Hex]
 
         const [
             simulateHandleOpLastCause,
             binarySearchVerificationGasLimitCause,
             binarySearchPaymasterVerificationGasLimitCause,
             simulateCallDataCause
-        ] = cause
+        ] = cause as [Hex, Hex, null | Hex, Hex]
 
         try {
             const simulateHandleOpLastResult = getSimulateHandleOpResult(
@@ -474,10 +507,19 @@ export class GasEstimatorV07 {
             }
 
             const binarySearchPaymasterVerificationGasLimitResult =
-                validateBinarySearchDataResult(
-                    binarySearchPaymasterVerificationGasLimitCause,
-                    "binarySearchPaymasterVerificationGasLimit"
-                )
+                binarySearchPaymasterVerificationGasLimitCause
+                    ? validateBinarySearchDataResult(
+                          binarySearchPaymasterVerificationGasLimitCause,
+                          "binarySearchPaymasterVerificationGasLimit"
+                      )
+                    : ({
+                          result: "success",
+                          data: {
+                              gasUsed: 0n,
+                              success: true,
+                              returnData: "0x" as Hex
+                          }
+                      } as { result: "success"; data: BinarySearchCallResult })
 
             let paymasterVerificationGasLimit = 0n
 
