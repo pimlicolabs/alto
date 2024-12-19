@@ -78,7 +78,9 @@ const main = async () => {
             gas: 15_000_000n,
             nonce: nonce++
         })
-        .then(() => console.log("[V0.7 CORE] Deploying EntryPointSimulations"))
+        .then(async () =>
+            console.log("[V0.7 CORE] Deploying EntryPointSimulations")
+        )
 
     walletClient
         .sendTransaction({
