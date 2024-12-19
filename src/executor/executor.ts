@@ -21,7 +21,6 @@ import {
     type UserOperationV07,
     type UserOperationWithHash,
     deriveUserOperation,
-    is7702Type,
     GasPriceParameters
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
