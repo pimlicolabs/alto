@@ -138,11 +138,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
               )
             : createWalletTransport(args.rpcUrl),
         chain
-    })
-
-    if (args.enableExperimental7702Endpoints) {
-        walletClient = walletClient.extend(eip7702Actions())
-    }
+    }).extend(eip7702Actions())
 
     // if flag is set, use utility wallet to deploy the simulations contract
     if (args.deploySimulationsContract) {
