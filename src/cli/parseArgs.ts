@@ -13,7 +13,7 @@ export type CamelCasedProperties<T> = {
 }
 
 function toCamelCase(str: string): string {
-    return str.replace(/([-_][a-z])/g, (group) =>
+    return str.replace(/([-_][a-z0-9])/g, (group) =>
         group.toUpperCase().replace("-", "").replace("_", "")
     )
 }

@@ -566,13 +566,13 @@ export class MemoryMempool {
                 )
             }
 
-            validationResult = await this.validator.validateUserOperation(
-                false,
-                op,
+            validationResult = await this.validator.validateUserOperation({
+                shouldCheckPrefund: false,
+                userOperation: op,
                 queuedUserOperations,
-                opInfo.entryPoint,
-                opInfo.referencedContracts
-            )
+                entryPoint: opInfo.entryPoint,
+                referencedContracts: opInfo.referencedContracts
+            })
         } catch (e) {
             this.logger.error(
                 {
