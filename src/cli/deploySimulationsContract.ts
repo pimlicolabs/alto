@@ -15,8 +15,6 @@ import {
 import type { CamelCasedProperties } from "./parseArgs"
 import type { IOptions } from "@alto/cli"
 
-const DETERMINISTIC_DEPLOYER = "0x4e59b44847b379578588920ca78fbf26c0b4956c"
-
 const isContractDeployed = async ({
     publicClient,
     address
@@ -60,7 +58,7 @@ export const deploySimulationsContract = async ({
     if (
         !(await isContractDeployed({
             publicClient,
-            address: DETERMINISTIC_DEPLOYER
+            address: args.deterministicDeployerAddress
         }))
     ) {
         const deterministicDeployHash = await walletClient.sendRawTransaction({
@@ -75,7 +73,7 @@ export const deploySimulationsContract = async ({
     const contractAddress = getContractAddress({
         opcode: "CREATE2",
         bytecode: PimlicoEntryPointSimulationsDeployBytecode,
-        from: DETERMINISTIC_DEPLOYER,
+        from: args.deterministicDeployerAddress,
         salt: "0x3132333400000000000000000000000000000000000000000000000000000000" as Hex
     })
 
@@ -85,7 +83,7 @@ export const deploySimulationsContract = async ({
 
     const deployHash = await walletClient.sendTransaction({
         chain: publicClient.chain,
-        to: DETERMINISTIC_DEPLOYER,
+        to: args.deterministicDeployerAddress,
         data: ENTRY_POINT_SIMULATIONS_CREATECALL
     })
 
