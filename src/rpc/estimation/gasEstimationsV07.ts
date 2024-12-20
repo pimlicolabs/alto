@@ -342,7 +342,7 @@ export class GasEstimatorV07 {
             functionName: "simulateCallData"
         })
 
-        let cause: readonly [Hex, Hex, null | Hex, Hex]
+        let cause: readonly [Hex, Hex, Hex | null, Hex]
 
         if (this.config.chainType === "hedera") {
             // due to Hedera specific restrictions, we can't combine these two calls.
@@ -375,7 +375,7 @@ export class GasEstimatorV07 {
                           stateOverrides,
                           authorizationList
                       })
-                    : [null],
+                    : null,
                 this.callPimlicoEntryPointSimulations({
                     entryPoint,
                     entryPointSimulationsCallData: [simulateCallData],
@@ -387,53 +387,56 @@ export class GasEstimatorV07 {
             cause = [
                 simulateHandleOpLastCause[0],
                 binarySearchVerificationGasLimitCause[0],
-                binarySearchPaymasterVerificationGasLimitCause[0],
+                binarySearchPaymasterVerificationGasLimitCause?.[0] ?? null,
                 simulateCallDataCause[0]
             ]
         } else {
-            const estimationsCause = binarySearchPaymasterVerificationGasLimit
-                ? await this.callPimlicoEntryPointSimulations({
-                      entryPoint,
-                      entryPointSimulationsCallData: [
-                          simulateHandleOpLast,
-                          binarySearchVerificationGasLimit,
-                          binarySearchPaymasterVerificationGasLimit,
-                          simulateCallData
-                      ],
-                      stateOverrides,
-                      authorizationList
-                  })
-                : await this.callPimlicoEntryPointSimulations({
-                      entryPoint,
-                      entryPointSimulationsCallData: [
-                          simulateHandleOpLast,
-                          binarySearchVerificationGasLimit,
-                          simulateCallData
-                      ],
-                      stateOverrides,
-                      authorizationList
-                  })
+            const [
+                handleOpAndBinarySearchVerificationGasLimits,
+                binarySearchCallDataGasLimits
+            ] = await Promise.all([
+                binarySearchPaymasterVerificationGasLimit
+                    ? await this.callPimlicoEntryPointSimulations({
+                          entryPoint,
+                          entryPointSimulationsCallData: [
+                              simulateHandleOpLast,
+                              binarySearchVerificationGasLimit,
+                              binarySearchPaymasterVerificationGasLimit
+                          ],
+                          stateOverrides,
+                          authorizationList
+                      })
+                    : await this.callPimlicoEntryPointSimulations({
+                          entryPoint,
+                          entryPointSimulationsCallData: [
+                              simulateHandleOpLast,
+                              binarySearchVerificationGasLimit
+                          ],
+                          stateOverrides,
+                          authorizationList
+                      }),
+                await this.callPimlicoEntryPointSimulations({
+                    entryPoint,
+                    entryPointSimulationsCallData: [simulateCallData],
+                    stateOverrides,
+                    authorizationList
+                })
+            ])
 
-            cause = binarySearchPaymasterVerificationGasLimit
-                ? [
-                      estimationsCause[0],
-                      estimationsCause[1],
-                      estimationsCause[2],
-                      estimationsCause[3]
-                  ]
-                : [
-                      estimationsCause[0],
-                      estimationsCause[1],
-                      null,
-                      estimationsCause[2]
-                  ]
+            cause = [
+                handleOpAndBinarySearchVerificationGasLimits[0],
+                handleOpAndBinarySearchVerificationGasLimits[1],
+                binarySearchPaymasterVerificationGasLimit
+                    ? handleOpAndBinarySearchVerificationGasLimits[2]
+                    : null,
+                binarySearchCallDataGasLimits[0]
+            ]
         }
 
         cause = cause.map((data: Hex | null) => {
             if (!data) {
                 return null
             }
-
             const decodedDelegateAndError = decodeErrorResult({
                 abi: EntryPointV07Abi,
                 data: data
@@ -447,14 +450,14 @@ export class GasEstimatorV07 {
             }
 
             return delegateAndRevertResponseBytes as Hex
-        }) as [Hex, Hex, null | Hex, Hex]
+        }) as [Hex, Hex, Hex | null, Hex]
 
         const [
             simulateHandleOpLastCause,
             binarySearchVerificationGasLimitCause,
             binarySearchPaymasterVerificationGasLimitCause,
             simulateCallDataCause
-        ] = cause as [Hex, Hex, null | Hex, Hex]
+        ] = cause
 
         try {
             const simulateHandleOpLastResult = getSimulateHandleOpResult(
