@@ -1,7 +1,4 @@
-import {
-    ENTRY_POINT_SIMULATIONS_CREATECALL,
-    PimlicoEntryPointSimulationsDeployBytecode
-} from "@alto/types"
+import { ENTRY_POINT_SIMULATIONS_CREATECALL } from "@alto/types"
 import {
     type Chain,
     createWalletClient,
