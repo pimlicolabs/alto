@@ -1,7 +1,12 @@
-import { PimlicoEntryPointSimulationsDeployBytecode } from "@alto/types"
+import {
+    DETERMINISTIC_DEPLOYER_TRANSACTION,
+    ENTRY_POINT_SIMULATIONS_CREATECALL,
+    PimlicoEntryPointSimulationsDeployBytecode
+} from "@alto/types"
 import {
     type Chain,
     createWalletClient,
+    getContractAddress,
     type Hex,
     http,
     type PublicClient,
@@ -9,6 +14,16 @@ import {
 } from "viem"
 import type { CamelCasedProperties } from "./parseArgs"
 import type { IOptions } from "@alto/cli"
+
+const isContractDeployed = async ({
+    publicClient,
+    address
+}: { publicClient: PublicClient<Transport, Chain>; address: Hex }) => {
+    const code = await publicClient.getCode({
+        address
+    })
+    return code !== undefined && code !== "0x"
+}
 
 export const deploySimulationsContract = async ({
     args,
@@ -24,36 +39,61 @@ export const deploySimulationsContract = async ({
         )
     }
 
-    if (args.entrypointSimulationContract) {
-        const simulations = args.entrypointSimulationContract
-        const simulationsCode = await publicClient.getCode({
-            address: simulations
-        })
-        if (simulationsCode !== undefined && simulationsCode !== "0x") {
-            return args.entrypointSimulationContract
-        }
-    }
+    // if (args.entrypointSimulationContract) {
+    //     if (
+    //         await isContractDeployed({
+    //             publicClient,
+    //             address: args.entrypointSimulationContract
+    //         })
+    //     ) {
+    //         return args.entrypointSimulationContract
+    //     }
+    // }
 
     const walletClient = createWalletClient({
         transport: http(args.rpcUrl),
         account: utilityPrivateKey
     })
 
-    const deployHash = await walletClient.deployContract({
-        chain: publicClient.chain,
-        abi: [],
-        bytecode: PimlicoEntryPointSimulationsDeployBytecode
+    if (
+        !(await isContractDeployed({
+            publicClient,
+            address: args.deterministicDeployerAddress
+        }))
+    ) {
+        const deterministicDeployHash = await walletClient.sendRawTransaction({
+            serializedTransaction: DETERMINISTIC_DEPLOYER_TRANSACTION
+        })
+
+        await publicClient.waitForTransactionReceipt({
+            hash: deterministicDeployHash
+        })
+    }
+
+    const contractAddress = getContractAddress({
+        opcode: "CREATE2",
+        bytecode: PimlicoEntryPointSimulationsDeployBytecode,
+        from: args.deterministicDeployerAddress,
+        salt: "0x3132333400000000000000000000000000000000000000000000000000000000" as Hex
     })
 
-    const receipt = await publicClient.waitForTransactionReceipt({
+    if (await isContractDeployed({ publicClient, address: contractAddress })) {
+        return contractAddress
+    }
+
+    const deployHash = await walletClient.sendTransaction({
+        chain: publicClient.chain,
+        to: args.deterministicDeployerAddress,
+        data: ENTRY_POINT_SIMULATIONS_CREATECALL
+    })
+
+    await publicClient.waitForTransactionReceipt({
         hash: deployHash
     })
 
-    const simulationsContract = receipt.contractAddress
-
-    if (simulationsContract === null || simulationsContract === undefined) {
-        throw new Error("Failed to deploy simulationsContract")
+    if (await isContractDeployed({ publicClient, address: contractAddress })) {
+        return contractAddress
     }
 
-    return simulationsContract
+    throw new Error("Failed to deploy simulationsContract")
 }

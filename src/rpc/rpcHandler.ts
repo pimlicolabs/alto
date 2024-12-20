@@ -1157,37 +1157,46 @@ export class RpcHandler implements IRpcEndpoint {
             authorizationList: authorization ? [authorization] : undefined
         })
 
-        let { verificationGasLimit, callGasLimit } =
-            calcVerificationGasAndCallGasLimit(
-                simulationUserOperation,
-                executionResult.data.executionResult,
-                this.config.publicClient.chain.id,
-                executionResult.data.callDataResult
-            )
+        let {
+            verificationGasLimit,
+            callGasLimit,
+            paymasterVerificationGasLimit
+        } = calcVerificationGasAndCallGasLimit(
+            simulationUserOperation,
+            executionResult.data.executionResult,
+            this.config.publicClient.chain.id,
+            executionResult.data
+        )
 
-        let paymasterVerificationGasLimit = 0n
         let paymasterPostOpGasLimit = 0n
 
+        const multiplier = Number(this.config.paymasterGasLimitMultiplier)
+
         if (
+            !paymasterVerificationGasLimit &&
             isVersion07(simulationUserOperation) &&
             simulationUserOperation.paymaster !== null &&
             "paymasterVerificationGasLimit" in
-                executionResult.data.executionResult &&
-            "paymasterPostOpGasLimit" in executionResult.data.executionResult
+                executionResult.data.executionResult
         ) {
             paymasterVerificationGasLimit =
                 executionResult.data.executionResult
                     .paymasterVerificationGasLimit || 1n
-            paymasterPostOpGasLimit =
-                executionResult.data.executionResult.paymasterPostOpGasLimit ||
-                1n
-
-            const multiplier = Number(this.config.paymasterGasLimitMultiplier)
 
             paymasterVerificationGasLimit = scaleBigIntByPercent(
                 paymasterVerificationGasLimit,
                 multiplier
             )
+        }
+
+        if (
+            isVersion07(simulationUserOperation) &&
+            simulationUserOperation.paymaster !== null &&
+            "paymasterPostOpGasLimit" in executionResult.data.executionResult
+        ) {
+            paymasterPostOpGasLimit =
+                executionResult.data.executionResult.paymasterPostOpGasLimit ||
+                1n
 
             paymasterPostOpGasLimit = scaleBigIntByPercent(
                 paymasterPostOpGasLimit,
