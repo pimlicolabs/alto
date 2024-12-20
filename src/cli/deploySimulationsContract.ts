@@ -39,16 +39,16 @@ export const deploySimulationsContract = async ({
         )
     }
 
-    if (args.entrypointSimulationContract) {
-        if (
-            await isContractDeployed({
-                publicClient,
-                address: args.entrypointSimulationContract
-            })
-        ) {
-            return args.entrypointSimulationContract
-        }
-    }
+    // if (args.entrypointSimulationContract) {
+    //     if (
+    //         await isContractDeployed({
+    //             publicClient,
+    //             address: args.entrypointSimulationContract
+    //         })
+    //     ) {
+    //         return args.entrypointSimulationContract
+    //     }
+    // }
 
     const walletClient = createWalletClient({
         transport: http(args.rpcUrl),
