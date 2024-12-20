@@ -1,4 +1,7 @@
-import { PimlicoEntryPointSimulationsDeployBytecode } from "@alto/types"
+import {
+    ENTRY_POINT_SIMULATIONS_CREATECALL,
+    PimlicoEntryPointSimulationsDeployBytecode
+} from "@alto/types"
 import {
     type Chain,
     createWalletClient,
@@ -9,6 +12,8 @@ import {
 } from "viem"
 import type { CamelCasedProperties } from "./parseArgs"
 import type { IOptions } from "@alto/cli"
+
+const DETERMINISTIC_DEPLOYER = "0x4e59b44847b379578588920ca78fbf26c0b4956c"
 
 export const deploySimulationsContract = async ({
     args,
@@ -39,10 +44,10 @@ export const deploySimulationsContract = async ({
         account: utilityPrivateKey
     })
 
-    const deployHash = await walletClient.deployContract({
+    const deployHash = await walletClient.sendTransaction({
         chain: publicClient.chain,
-        abi: [],
-        bytecode: PimlicoEntryPointSimulationsDeployBytecode
+        to: DETERMINISTIC_DEPLOYER,
+        data: ENTRY_POINT_SIMULATIONS_CREATECALL
     })
 
     const receipt = await publicClient.waitForTransactionReceipt({
