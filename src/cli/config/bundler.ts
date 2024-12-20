@@ -26,7 +26,6 @@ export const bundlerArgsSchema = z.object({
             )
             return validatedAddresses
         }),
-    "deterministic-deployer-address": addressSchema,
     "entrypoint-simulation-contract": z.preprocess(
         (v) => (v === "" ? undefined : v),
         addressSchema.optional()

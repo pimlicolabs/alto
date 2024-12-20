@@ -19,18 +19,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         alias: "e",
         require: true
     },
-    "deterministic-deployer-address": {
-        description: "Address of the deterministic deployer contract",
-        type: "string",
-        alias: "d",
-        require: false,
-        default: "0x4e59b44847b379578588920ca78fbf26c0b4956c"
-    },
     "entrypoint-simulation-contract": {
         description: "Address of the EntryPoint simulations contract",
         type: "string",
         alias: "c",
-        require: false
+        require: false,
+        default: "0xBbe8A301FbDb2a4CD58c4A37c262ecef8f889c47"
     },
     "refill-helper-contract": {
         description: "Address of the Executor refill helper contract",

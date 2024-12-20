@@ -6,11 +6,11 @@ import {
     PimlicoEntryPointSimulationsAbi,
     RpcError,
     type StateOverrides,
-    type BinarySearchCallResult,
+    type TargetCallResult,
     type UserOperationV07,
     ValidationErrors,
     type ValidationResultV07,
-    binarySearchCallResultSchema
+    targetCallResultSchema
 } from "@alto/types"
 import {
     addAuthorizationStateOverrides,
@@ -26,17 +26,15 @@ import {
     encodeFunctionData,
     slice,
     toFunctionSelector,
-    toHex,
-    zeroAddress
+    toHex
 } from "viem"
 import { AccountExecuteAbi } from "../../types/contracts/IAccountExecute"
 import {
-    type SimulateBinarySearchRetryResult,
     type SimulateHandleOpResult,
     simulationValidationResultStruct
 } from "./types"
 import type { AltoConfig } from "../../createConfig"
-import type { SignedAuthorizationList } from "viem/experimental"
+import { SignedAuthorizationList } from "viem/experimental"
 
 export class GasEstimatorV07 {
     private config: AltoConfig
@@ -139,27 +137,18 @@ export class GasEstimatorV07 {
         return simulateHandleOpCallData
     }
 
-    encodeBinarySearchGasLimit({
-        entryPoint,
+    encodeSimulateCallData({
         userOperation,
         queuedUserOperations,
-        target,
-        targetCallData,
+        entryPoint,
         gasAllowance = this.config.binarySearchGasAllowance,
-        initialMinGas = 0n,
-        functionName
+        initialMinGas = 0n
     }: {
-        entryPoint: Address
         userOperation: UserOperationV07
         queuedUserOperations: UserOperationV07[]
-        target: Address
-        targetCallData: Hex
-        gasAllowance?: bigint
+        entryPoint: Address
         initialMinGas?: bigint
-        functionName:
-            | "binarySearchPaymasterVerificationGasLimit"
-            | "binarySearchVerificationGasLimit"
-            | "simulateCallData"
+        gasAllowance?: bigint
     }): Hex {
         const queuedOps = queuedUserOperations.map((op) => ({
             op: toPackedUserOperation(op),
@@ -172,13 +161,16 @@ export class GasEstimatorV07 {
 
         const targetOp = {
             op: toPackedUserOperation(userOperation),
-            target,
-            targetCallData
+            target: userOperation.sender,
+            targetCallData: this.encodeUserOperationCalldata({
+                op: userOperation,
+                entryPoint
+            })
         }
 
-        const binarySearchVerificationGasLimit = encodeFunctionData({
+        const simulateTargetCallData = encodeFunctionData({
             abi: EntryPointV07SimulationsAbi,
-            functionName,
+            functionName: "simulateCallData",
             args: [
                 queuedOps,
                 targetOp,
@@ -189,20 +181,18 @@ export class GasEstimatorV07 {
             ]
         })
 
-        return binarySearchVerificationGasLimit
+        return simulateTargetCallData
     }
 
     // Try to get the calldata gas again if the initial simulation reverted due to hitting the eth_call gasLimit.
-    async retryBinarySearch({
+    async retryGetCallDataGas({
         entryPoint,
         optimalGas,
         minGas,
         targetOp,
-        target,
-        targetCallData,
-        functionName,
         queuedOps,
         stateOverrides,
+        simulateHandleOpLastResult,
         authorizationList
     }: {
         entryPoint: Address
@@ -210,15 +200,10 @@ export class GasEstimatorV07 {
         minGas: bigint
         targetOp: UserOperationV07
         queuedOps: UserOperationV07[]
-        target: Address
-        targetCallData: Hex
-        functionName:
-            | "binarySearchPaymasterVerificationGasLimit"
-            | "binarySearchVerificationGasLimit"
-            | "simulateCallData"
         stateOverrides?: StateOverrides | undefined
+        simulateHandleOpLastResult: SimulateHandleOpResult<"execution">
         authorizationList?: SignedAuthorizationList
-    }): Promise<SimulateBinarySearchRetryResult> {
+    }): Promise<SimulateHandleOpResult> {
         const maxRetries = 3
         let retryCount = 0
         let currentOptimalGas = optimalGas
@@ -228,15 +213,12 @@ export class GasEstimatorV07 {
             // OptimalGas represents the current lowest gasLimit, so we set the gasAllowance to search range minGas <-> optimalGas
             const gasAllowance = currentOptimalGas - currentMinGas
 
-            const simulateCallData = this.encodeBinarySearchGasLimit({
+            const simulateCallData = this.encodeSimulateCallData({
                 entryPoint,
                 userOperation: targetOp,
-                target,
-                targetCallData,
                 queuedUserOperations: queuedOps,
                 initialMinGas: currentMinGas,
-                gasAllowance,
-                functionName
+                gasAllowance
             })
 
             let cause = await this.callPimlicoEntryPointSimulations({
@@ -258,9 +240,8 @@ export class GasEstimatorV07 {
                 return decodedDelegateAndError.args[1] as Hex
             })
 
-            const simulateCallDataResult = validateBinarySearchDataResult(
-                cause[0],
-                functionName
+            const simulateCallDataResult = validateTargetCallDataResult(
+                cause[0]
             )
 
             if (simulateCallDataResult.result === "failed") {
@@ -276,8 +257,12 @@ export class GasEstimatorV07 {
 
             // If we reach here, it means we have a successful result
             return {
-                result: "success",
-                data: simulateCallDataResult.data
+                result: "execution",
+                data: {
+                    callDataResult: simulateCallDataResult.data,
+                    executionResult:
+                        simulateHandleOpLastResult.data.executionResult
+                }
             }
         }
 
@@ -308,135 +293,46 @@ export class GasEstimatorV07 {
             queuedUserOperations
         })
 
-        const binarySearchVerificationGasLimit =
-            this.encodeBinarySearchGasLimit({
-                entryPoint,
-                userOperation,
-                queuedUserOperations,
-                target: zeroAddress,
-                targetCallData: "0x" as Hex,
-                functionName: "binarySearchVerificationGasLimit"
-            })
-
-        const binarySearchPaymasterVerificationGasLimit =
-            userOperation.paymaster
-                ? this.encodeBinarySearchGasLimit({
-                      entryPoint,
-                      userOperation,
-                      queuedUserOperations,
-                      target: zeroAddress,
-                      targetCallData: "0x" as Hex,
-                      functionName: "binarySearchPaymasterVerificationGasLimit"
-                  })
-                : null
-
-        const simulateCallData = this.encodeBinarySearchGasLimit({
+        const simulateCallData = this.encodeSimulateCallData({
             entryPoint,
             userOperation,
-            queuedUserOperations,
-            target: userOperation.sender,
-            targetCallData: this.encodeUserOperationCalldata({
-                op: userOperation,
-                entryPoint
-            }),
-            functionName: "simulateCallData"
+            queuedUserOperations
         })
 
-        let cause: readonly [Hex, Hex, Hex | null, Hex]
+        let cause: readonly Hex[]
 
         if (this.config.chainType === "hedera") {
             // due to Hedera specific restrictions, we can't combine these two calls.
-            const [
-                simulateHandleOpLastCause,
-                binarySearchVerificationGasLimitCause,
-                binarySearchPaymasterVerificationGasLimitCause,
-                simulateCallDataCause
-            ] = await Promise.all([
-                this.callPimlicoEntryPointSimulations({
-                    entryPoint,
-                    entryPointSimulationsCallData: [simulateHandleOpLast],
-                    stateOverrides,
-                    authorizationList
-                }),
-                this.callPimlicoEntryPointSimulations({
-                    entryPoint,
-                    entryPointSimulationsCallData: [
-                        binarySearchVerificationGasLimit
-                    ],
-                    stateOverrides,
-                    authorizationList
-                }),
-                binarySearchPaymasterVerificationGasLimit
-                    ? this.callPimlicoEntryPointSimulations({
-                          entryPoint,
-                          entryPointSimulationsCallData: [
-                              binarySearchPaymasterVerificationGasLimit
-                          ],
-                          stateOverrides,
-                          authorizationList
-                      })
-                    : null,
-                this.callPimlicoEntryPointSimulations({
-                    entryPoint,
-                    entryPointSimulationsCallData: [simulateCallData],
-                    stateOverrides,
-                    authorizationList
-                })
-            ])
+            const [simulateHandleOpLastCause, simulateCallDataCause] =
+                await Promise.all([
+                    this.callPimlicoEntryPointSimulations({
+                        entryPoint,
+                        entryPointSimulationsCallData: [simulateHandleOpLast],
+                        stateOverrides,
+                        authorizationList
+                    }),
+                    this.callPimlicoEntryPointSimulations({
+                        entryPoint,
+                        entryPointSimulationsCallData: [simulateCallData],
+                        stateOverrides,
+                        authorizationList
+                    })
+                ])
 
-            cause = [
-                simulateHandleOpLastCause[0],
-                binarySearchVerificationGasLimitCause[0],
-                binarySearchPaymasterVerificationGasLimitCause?.[0] ?? null,
-                simulateCallDataCause[0]
-            ]
+            cause = [simulateHandleOpLastCause[0], simulateCallDataCause[0]]
         } else {
-            const [
-                handleOpAndBinarySearchVerificationGasLimits,
-                binarySearchCallDataGasLimits
-            ] = await Promise.all([
-                binarySearchPaymasterVerificationGasLimit
-                    ? await this.callPimlicoEntryPointSimulations({
-                          entryPoint,
-                          entryPointSimulationsCallData: [
-                              simulateHandleOpLast,
-                              binarySearchVerificationGasLimit,
-                              binarySearchPaymasterVerificationGasLimit
-                          ],
-                          stateOverrides,
-                          authorizationList
-                      })
-                    : await this.callPimlicoEntryPointSimulations({
-                          entryPoint,
-                          entryPointSimulationsCallData: [
-                              simulateHandleOpLast,
-                              binarySearchVerificationGasLimit
-                          ],
-                          stateOverrides,
-                          authorizationList
-                      }),
-                await this.callPimlicoEntryPointSimulations({
-                    entryPoint,
-                    entryPointSimulationsCallData: [simulateCallData],
-                    stateOverrides,
-                    authorizationList
-                })
-            ])
-
-            cause = [
-                handleOpAndBinarySearchVerificationGasLimits[0],
-                handleOpAndBinarySearchVerificationGasLimits[1],
-                binarySearchPaymasterVerificationGasLimit
-                    ? handleOpAndBinarySearchVerificationGasLimits[2]
-                    : null,
-                binarySearchCallDataGasLimits[0]
-            ]
+            cause = await this.callPimlicoEntryPointSimulations({
+                entryPoint,
+                entryPointSimulationsCallData: [
+                    simulateHandleOpLast,
+                    simulateCallData
+                ],
+                stateOverrides,
+                authorizationList
+            })
         }
 
-        cause = cause.map((data: Hex | null) => {
-            if (!data) {
-                return null
-            }
+        cause = cause.map((data: Hex) => {
             const decodedDelegateAndError = decodeErrorResult({
                 abi: EntryPointV07Abi,
                 data: data
@@ -450,170 +346,43 @@ export class GasEstimatorV07 {
             }
 
             return delegateAndRevertResponseBytes as Hex
-        }) as [Hex, Hex, Hex | null, Hex]
-
-        const [
-            simulateHandleOpLastCause,
-            binarySearchVerificationGasLimitCause,
-            binarySearchPaymasterVerificationGasLimitCause,
-            simulateCallDataCause
-        ] = cause
+        })
 
         try {
             const simulateHandleOpLastResult = getSimulateHandleOpResult(
-                simulateHandleOpLastCause
+                cause[0]
             )
 
             if (simulateHandleOpLastResult.result === "failed") {
-                return simulateHandleOpLastResult as SimulateHandleOpResult<"failed">
+                return simulateHandleOpLastResult
             }
 
-            const binarySearchVerificationGasLimitResult =
-                validateBinarySearchDataResult(
-                    binarySearchVerificationGasLimitCause,
-                    "binarySearchVerificationGasLimit"
-                )
-
-            let verificationGasLimit = 0n
-
-            if (binarySearchVerificationGasLimitResult.result === "success") {
-                verificationGasLimit =
-                    binarySearchVerificationGasLimitResult.data.gasUsed
-            }
-
-            if (binarySearchVerificationGasLimitResult.result === "failed") {
-                return binarySearchVerificationGasLimitResult
-            }
-
-            if (binarySearchVerificationGasLimitResult.result === "retry") {
-                const { optimalGas, minGas } =
-                    binarySearchVerificationGasLimitResult
-                const binarySearchResult = await this.retryBinarySearch({
-                    entryPoint,
-                    optimalGas,
-                    minGas,
-                    targetOp: userOperation,
-                    target: zeroAddress,
-                    targetCallData: "0x" as Hex,
-                    functionName: "binarySearchVerificationGasLimit",
-                    queuedOps: queuedUserOperations,
-                    stateOverrides
-                })
-
-                if (binarySearchResult.result === "failed") {
-                    return binarySearchResult as SimulateBinarySearchRetryResult<"failed">
-                }
-
-                verificationGasLimit = (
-                    binarySearchResult as SimulateBinarySearchRetryResult<"success">
-                ).data.gasUsed
-            }
-
-            const binarySearchPaymasterVerificationGasLimitResult =
-                binarySearchPaymasterVerificationGasLimitCause
-                    ? validateBinarySearchDataResult(
-                          binarySearchPaymasterVerificationGasLimitCause,
-                          "binarySearchPaymasterVerificationGasLimit"
-                      )
-                    : ({
-                          result: "success",
-                          data: {
-                              gasUsed: 0n,
-                              success: true,
-                              returnData: "0x" as Hex
-                          }
-                      } as { result: "success"; data: BinarySearchCallResult })
-
-            let paymasterVerificationGasLimit = 0n
-
-            if (
-                binarySearchPaymasterVerificationGasLimitResult.result ===
-                "success"
-            ) {
-                paymasterVerificationGasLimit =
-                    binarySearchPaymasterVerificationGasLimitResult.data.gasUsed
-            }
-
-            if (
-                binarySearchPaymasterVerificationGasLimitResult.result ===
-                "failed"
-            ) {
-                return binarySearchPaymasterVerificationGasLimitResult
-            }
-
-            if (
-                binarySearchPaymasterVerificationGasLimitResult.result ===
-                "retry"
-            ) {
-                const { optimalGas, minGas } =
-                    binarySearchPaymasterVerificationGasLimitResult
-                const binarySearchResult = await this.retryBinarySearch({
-                    entryPoint,
-                    optimalGas,
-                    minGas,
-                    targetOp: userOperation,
-                    target: zeroAddress,
-                    targetCallData: "0x" as Hex,
-                    functionName: "binarySearchPaymasterVerificationGasLimit",
-                    queuedOps: queuedUserOperations,
-                    stateOverrides
-                })
-
-                if (binarySearchResult.result === "failed") {
-                    return binarySearchResult as SimulateBinarySearchRetryResult<"failed">
-                }
-
-                paymasterVerificationGasLimit = (
-                    binarySearchResult as SimulateBinarySearchRetryResult<"success">
-                ).data.gasUsed
-            }
-
-            const simulateCallDataResult = validateBinarySearchDataResult(
-                simulateCallDataCause,
-                "simulateCallData"
+            const simulateCallDataResult = validateTargetCallDataResult(
+                cause[1]
             )
 
-            let callGasLimit = 0n
-
-            if (simulateCallDataResult.result === "success") {
-                callGasLimit = simulateCallDataResult.data.gasUsed
-            }
             if (simulateCallDataResult.result === "failed") {
                 return simulateCallDataResult
             }
 
             if (simulateCallDataResult.result === "retry") {
                 const { optimalGas, minGas } = simulateCallDataResult
-                const binarySearchResult = await this.retryBinarySearch({
+                return await this.retryGetCallDataGas({
                     entryPoint,
                     optimalGas,
                     minGas,
                     targetOp: userOperation,
-                    target: userOperation.sender,
-                    targetCallData: this.encodeUserOperationCalldata({
-                        op: userOperation,
-                        entryPoint
-                    }),
-                    functionName: "simulateCallData",
                     queuedOps: queuedUserOperations,
+                    simulateHandleOpLastResult:
+                        simulateHandleOpLastResult as SimulateHandleOpResult<"execution">,
                     stateOverrides
                 })
-
-                if (binarySearchResult.result === "failed") {
-                    return binarySearchResult as SimulateBinarySearchRetryResult<"failed">
-                }
-
-                callGasLimit = (
-                    binarySearchResult as SimulateBinarySearchRetryResult<"success">
-                ).data.gasUsed
             }
 
             return {
                 result: "execution",
                 data: {
-                    callGasLimit,
-                    verificationGasLimit,
-                    paymasterVerificationGasLimit,
+                    callDataResult: simulateCallDataResult.data,
                     executionResult: (
                         simulateHandleOpLastResult as SimulateHandleOpResult<"execution">
                     ).data.executionResult
@@ -811,16 +580,10 @@ export function getSimulateValidationResult(errorData: Hex): {
     )
 }
 
-function validateBinarySearchDataResult(
-    data: Hex,
-    fnName:
-        | "simulateCallData"
-        | "binarySearchVerificationGasLimit"
-        | "binarySearchPaymasterVerificationGasLimit"
-):
+function validateTargetCallDataResult(data: Hex):
     | {
           result: "success"
-          data: BinarySearchCallResult
+          data: TargetCallResult
       }
     | {
           result: "failed"
@@ -836,12 +599,12 @@ function validateBinarySearchDataResult(
     try {
         const targetCallResult = decodeFunctionResult({
             abi: EntryPointV07SimulationsAbi,
-            functionName: fnName,
+            functionName: "simulateCallData",
             data: data
         })
 
         const parsedTargetCallResult =
-            binarySearchCallResultSchema.parse(targetCallResult)
+            targetCallResultSchema.parse(targetCallResult)
 
         if (parsedTargetCallResult.success) {
             return {

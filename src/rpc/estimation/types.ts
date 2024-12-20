@@ -2,7 +2,7 @@ import type {
     Address,
     ExecutionResult,
     PackedUserOperation,
-    BinarySearchCallResult
+    TargetCallResult
 } from "@alto/types"
 import type { Hex } from "viem"
 
@@ -13,19 +13,9 @@ export type SimulateHandleOpResult<
     data: TypeResult extends "failed"
         ? string
         : {
-              callGasLimit?: bigint
-              verificationGasLimit?: bigint
-              paymasterVerificationGasLimit?: bigint
+              callDataResult?: TargetCallResult
               executionResult: ExecutionResult
           }
-    code?: TypeResult extends "failed" ? number : undefined
-}
-
-export type SimulateBinarySearchRetryResult<
-    TypeResult extends "failed" | "success" = "failed" | "success"
-> = {
-    result: TypeResult
-    data: TypeResult extends "failed" ? string : BinarySearchCallResult
     code?: TypeResult extends "failed" ? number : undefined
 }
 

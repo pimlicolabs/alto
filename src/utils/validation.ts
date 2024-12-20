@@ -358,21 +358,17 @@ export function calcVerificationGasAndCallGasLimit(
         paid: bigint
     },
     chainId: number,
-    gasLimits?: {
-        callGasLimit?: bigint
-        verificationGasLimit?: bigint
-        paymasterVerificationGasLimit?: bigint
+    callDataResult?: {
+        gasUsed: bigint
     }
 ) {
-    const verificationGasLimit =
-        gasLimits?.verificationGasLimit ??
-        scaleBigIntByPercent(
-            executionResult.preOpGas - userOperation.preVerificationGas,
-            150
-        )
+    const verificationGasLimit = scaleBigIntByPercent(
+        executionResult.preOpGas - userOperation.preVerificationGas,
+        150
+    )
 
     const calculatedCallGasLimit =
-        gasLimits?.callGasLimit ??
+        callDataResult?.gasUsed ??
         executionResult.paid / userOperation.maxFeePerGas -
             executionResult.preOpGas
 
@@ -387,12 +383,7 @@ export function calcVerificationGasAndCallGasLimit(
         callGasLimit = scaleBigIntByPercent(callGasLimit, 110)
     }
 
-    return {
-        verificationGasLimit,
-        callGasLimit,
-        paymasterVerificationGasLimit:
-            gasLimits?.paymasterVerificationGasLimit ?? 0n
-    }
+    return { verificationGasLimit, callGasLimit }
 }
 
 /**
