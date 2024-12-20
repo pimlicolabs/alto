@@ -454,6 +454,176 @@ export const EntryPointV07SimulationsAbi = [
     },
     {
         type: "function",
+        name: "binarySearchGasLimit",
+        inputs: [
+            {
+                name: "queuedUserOps",
+                type: "tuple[]",
+                internalType: "struct SimulationArgs[]",
+                components: [
+                    {
+                        name: "op",
+                        type: "tuple",
+                        internalType: "struct PackedUserOperation",
+                        components: [
+                            {
+                                name: "sender",
+                                type: "address",
+                                internalType: "address"
+                            },
+                            {
+                                name: "nonce",
+                                type: "uint256",
+                                internalType: "uint256"
+                            },
+                            {
+                                name: "initCode",
+                                type: "bytes",
+                                internalType: "bytes"
+                            },
+                            {
+                                name: "callData",
+                                type: "bytes",
+                                internalType: "bytes"
+                            },
+                            {
+                                name: "accountGasLimits",
+                                type: "bytes32",
+                                internalType: "bytes32"
+                            },
+                            {
+                                name: "preVerificationGas",
+                                type: "uint256",
+                                internalType: "uint256"
+                            },
+                            {
+                                name: "gasFees",
+                                type: "bytes32",
+                                internalType: "bytes32"
+                            },
+                            {
+                                name: "paymasterAndData",
+                                type: "bytes",
+                                internalType: "bytes"
+                            },
+                            {
+                                name: "signature",
+                                type: "bytes",
+                                internalType: "bytes"
+                            }
+                        ]
+                    },
+                    {
+                        name: "target",
+                        type: "address",
+                        internalType: "address"
+                    },
+                    {
+                        name: "targetCallData",
+                        type: "bytes",
+                        internalType: "bytes"
+                    }
+                ]
+            },
+            {
+                name: "targetUserOp",
+                type: "tuple",
+                internalType: "struct SimulationArgs",
+                components: [
+                    {
+                        name: "op",
+                        type: "tuple",
+                        internalType: "struct PackedUserOperation",
+                        components: [
+                            {
+                                name: "sender",
+                                type: "address",
+                                internalType: "address"
+                            },
+                            {
+                                name: "nonce",
+                                type: "uint256",
+                                internalType: "uint256"
+                            },
+                            {
+                                name: "initCode",
+                                type: "bytes",
+                                internalType: "bytes"
+                            },
+                            {
+                                name: "callData",
+                                type: "bytes",
+                                internalType: "bytes"
+                            },
+                            {
+                                name: "accountGasLimits",
+                                type: "bytes32",
+                                internalType: "bytes32"
+                            },
+                            {
+                                name: "preVerificationGas",
+                                type: "uint256",
+                                internalType: "uint256"
+                            },
+                            {
+                                name: "gasFees",
+                                type: "bytes32",
+                                internalType: "bytes32"
+                            },
+                            {
+                                name: "paymasterAndData",
+                                type: "bytes",
+                                internalType: "bytes"
+                            },
+                            {
+                                name: "signature",
+                                type: "bytes",
+                                internalType: "bytes"
+                            }
+                        ]
+                    },
+                    {
+                        name: "target",
+                        type: "address",
+                        internalType: "address"
+                    },
+                    {
+                        name: "targetCallData",
+                        type: "bytes",
+                        internalType: "bytes"
+                    }
+                ]
+            },
+            { name: "entryPoint", type: "address", internalType: "address" },
+            { name: "initialMinGas", type: "uint256", internalType: "uint256" },
+            {
+                name: "toleranceDelta",
+                type: "uint256",
+                internalType: "uint256"
+            },
+            { name: "gasAllowance", type: "uint256", internalType: "uint256" },
+            { name: "payload", type: "bytes", internalType: "bytes" }
+        ],
+        outputs: [
+            {
+                name: "",
+                type: "tuple",
+                internalType: "struct IEntryPointSimulations.TargetCallResult",
+                components: [
+                    {
+                        name: "gasUsed",
+                        type: "uint256",
+                        internalType: "uint256"
+                    },
+                    { name: "success", type: "bool", internalType: "bool" },
+                    { name: "returnData", type: "bytes", internalType: "bytes" }
+                ]
+            }
+        ],
+        stateMutability: "nonpayable"
+    },
+    {
+        type: "function",
         name: "binarySearchPaymasterVerificationGasLimit",
         inputs: [
             {
