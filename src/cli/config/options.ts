@@ -204,6 +204,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
             "Should the bundler enable the pimlico_experimental_sendUserOperation7702 and pimlico_experimental_estimateUserOperationGas7702 endpoint",
         type: "boolean",
         default: false
+    },
+    "enable-fastlane": {
+        description:
+            "Should the bundler send bundling txs through fastlane (Polygon only)",
+        type: "boolean",
+        default: false
     }
 }
 

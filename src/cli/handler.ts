@@ -23,6 +23,7 @@ import { type AltoConfig, createConfig } from "../createConfig"
 import { parseArgs } from "./parseArgs"
 import { deploySimulationsContract } from "./deploySimulationsContract"
 import { eip7702Actions } from "viem/experimental"
+import { polygon } from "viem/chains"
 
 const preFlightChecks = async (config: AltoConfig): Promise<void> => {
     for (const entrypoint of config.entrypoints) {
@@ -127,7 +128,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
             )
         })
 
-    const walletClient = createWalletClient({
+    let walletClient = createWalletClient({
         transport: args.sendTransactionRpcUrl
             ? fallback(
                   [
@@ -139,6 +140,10 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
             : createWalletTransport(args.rpcUrl),
         chain
     }).extend(eip7702Actions())
+
+    if (args.enableFastlane && chain.id === polygon.id) {
+        //walletClient = walletClient.extend()
+    }
 
     // if flag is set, use utility wallet to deploy the simulations contract
     if (args.deploySimulationsContract) {
