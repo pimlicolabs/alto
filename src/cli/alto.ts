@@ -25,7 +25,12 @@ if (process.env.DOTENV_CONFIG_PATH) {
 if (process.env.SENTRY_DSN) {
     sentry.init({
         dsn: process.env.SENTRY_DSN,
-        environment: process.env.ENVIRONMENT
+        environment: process.env.ENVIRONMENT,
+        ignoreErrors: [
+            "RpcRequestError",
+            "ResourceNotFoundRpcError",
+            "HttpRequestError",
+        ]
     })
 }
 
