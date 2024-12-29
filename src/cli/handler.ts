@@ -24,7 +24,7 @@ import { parseArgs } from "./parseArgs"
 import { deploySimulationsContract } from "./deploySimulationsContract"
 import { eip7702Actions } from "viem/experimental"
 import { polygon } from "viem/chains"
-import { fastlaneActions } from "../executor/fastlaneAction"
+import { fastlaneActions } from "../executor/fastlane/fastlaneAction"
 
 const preFlightChecks = async (config: AltoConfig): Promise<void> => {
     for (const entrypoint of config.entrypoints) {
@@ -143,9 +143,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     }).extend(eip7702Actions())
 
     if (args.enableFastlane && chain.id === polygon.id) {
-        walletClient = walletClient.extend(
-            fastlaneActions(walletClient, publicClient)
-        )
+        walletClient = walletClient.extend(fastlaneActions(publicClient))
     }
 
     // if flag is set, use utility wallet to deploy the simulations contract
