@@ -10,7 +10,8 @@ import {
     type Hex,
     http,
     type PublicClient,
-    type Transport
+    type Transport,
+    pad
 } from "viem"
 import type { CamelCasedProperties } from "./parseArgs"
 import type { IOptions } from "@alto/cli"
@@ -39,17 +40,6 @@ export const deploySimulationsContract = async ({
         )
     }
 
-    // if (args.entrypointSimulationContract) {
-    //     if (
-    //         await isContractDeployed({
-    //             publicClient,
-    //             address: args.entrypointSimulationContract
-    //         })
-    //     ) {
-    //         return args.entrypointSimulationContract
-    //     }
-    // }
-
     const walletClient = createWalletClient({
         transport: http(args.rpcUrl),
         account: utilityPrivateKey
@@ -74,7 +64,7 @@ export const deploySimulationsContract = async ({
         opcode: "CREATE2",
         bytecode: PimlicoEntryPointSimulationsDeployBytecode,
         from: args.deterministicDeployerAddress,
-        salt: "0x3132333400000000000000000000000000000000000000000000000000000000" as Hex
+        salt: pad("0x31323334")
     })
 
     if (await isContractDeployed({ publicClient, address: contractAddress })) {
