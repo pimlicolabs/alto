@@ -46,8 +46,7 @@ import {
     type Account,
     type Hex,
     BaseError,
-    NonceTooHighError,
-    serializeTransaction
+    NonceTooHighError
 } from "viem"
 import {
     type CompressedFilterOpsAndEstimateGasParams,
@@ -61,8 +60,7 @@ import {
 import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { SendTransactionOptions } from "./types"
-import { sendPflConditional } from "./fastlaneAction"
-import { getAction } from "viem/utils"
+import { sendPflConditional } from "./fastlane"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -598,13 +596,13 @@ export class Executor {
         while (attempts < maxAttempts) {
             try {
                 if (this.config.enableFastlane) {
-                    const serializedTransaction = serializeTransaction(request)
-                    transactionHash = await getAction(
-                        this.config.walletClient,
-                        sendPflConditional,
-                        "sendPflConditional"
-                    )({
-                        serializedTransaction
+                    const serializedTransaction =
+                        await this.config.walletClient.signTransaction(request)
+
+                    transactionHash = await sendPflConditional({
+                        serializedTransaction,
+                        walletClient: this.config.walletClient,
+                        publicClient: this.config.publicClient
                     })
 
                     break
