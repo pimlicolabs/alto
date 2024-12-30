@@ -5,27 +5,25 @@ import {
     Hex,
     createClient,
     http,
-    SendRawTransactionReturnType
+    SendRawTransactionReturnType,
+    Account
 } from "viem"
 import { sendRawTransaction as sendRawTransaction_ } from "viem/actions"
 import { getAction } from "viem/utils"
 
 type SendPflConditionalArgs<
-    transport extends Transport = Transport,
-    chain extends Chain | undefined = Chain | undefined
+    chain extends Chain | undefined = Chain | undefined,
+    transport extends Transport = Transport
 > = {
     serializedTransaction: Hex
     pflClient: Client<transport, chain>
 }
 
-export type FastlaneActions<
-    transport extends Transport = Transport,
-    chain extends Chain | undefined = Chain | undefined
-> = {
-    sendPflConditional: (
-        client: Client<transport, chain>,
-        { serializedTransaction, pflClient }: SendPflConditionalArgs
-    ) => Promise<SendRawTransactionReturnType>
+export type FastlaneActions = {
+    sendPflConditional: ({
+        serializedTransaction,
+        pflClient
+    }: SendPflConditionalArgs) => Promise<SendRawTransactionReturnType>
 }
 
 export async function sendPflConditional<chain extends Chain | undefined>(
@@ -49,23 +47,26 @@ export async function sendPflConditional<chain extends Chain | undefined>(
     }
 }
 
-export function fastlaneActions<
-    transport extends Transport = Transport,
-    chain extends Chain | undefined = Chain | undefined
->(): FastlaneActions<transport, chain> {
-    const pflClient = createClient({
-        transport: http("https://polygon-rpc.fastlane.xyz")
-    })
+export function fastlaneActions() {
+    return <
+        transport extends Transport = Transport,
+        chain extends Chain | undefined = Chain | undefined,
+        account extends Account | undefined = Account | undefined
+    >(
+        client: Client<transport, chain, account>
+    ): FastlaneActions => {
+        const pflClient = createClient({
+            transport: http("https://polygon-rpc.fastlane.xyz")
+        })
 
-    return {
-        // Currently only supports sending userOperations to EntryPoint v0.6
-        sendPflConditional: async (
-            client: Client<transport, chain>,
-            { serializedTransaction }: SendPflConditionalArgs
-        ) =>
-            await sendPflConditional(client, {
-                pflClient,
+        return {
+            sendPflConditional: ({
                 serializedTransaction
-            })
+            }: SendPflConditionalArgs) =>
+                sendPflConditional(client, {
+                    pflClient,
+                    serializedTransaction
+                })
+        }
     }
 }
