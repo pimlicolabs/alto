@@ -1,5 +1,11 @@
 # @pimlico/alto
 
+## 0.0.11
+
+### Patch Changes
+
+- aee3c93b25a054d238390b3a89b38a85e698e72e: Added bull library as dependency
+
 ## 0.0.10
 
 ### Patch Changes
