@@ -242,7 +242,7 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
                 "UserOperation's callGasLimit used during gas estimation simulations",
             type: "string",
             require: true,
-            default: "10000000"
+            default: "20000000"
         },
         "simulation-verification-gas-limit": {
             description:
