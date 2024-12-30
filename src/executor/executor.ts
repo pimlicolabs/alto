@@ -60,6 +60,7 @@ import {
 import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { SendTransactionOptions } from "./types"
+import { fastlaneActions } from "./fastlaneAction"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -594,6 +595,10 @@ export class Executor {
         // Try sending the transaction and updating relevant fields if there is an error.
         while (attempts < maxAttempts) {
             try {
+                if (this.config.enableFastlane) {
+                    this.config.walletClient.send
+                }
+
                 transactionHash =
                     await this.config.walletClient.sendTransaction(request)
 
