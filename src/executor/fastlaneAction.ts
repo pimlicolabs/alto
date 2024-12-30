@@ -6,31 +6,27 @@ import {
     createClient,
     http,
     SendRawTransactionReturnType,
-    Account
+    Account,
+    SendRawTransactionParameters
 } from "viem"
 import { sendRawTransaction as sendRawTransaction_ } from "viem/actions"
 import { getAction } from "viem/utils"
 
-type SendPflConditionalArgs<
-    chain extends Chain | undefined = Chain | undefined,
-    transport extends Transport = Transport
-> = {
-    serializedTransaction: Hex
-    pflClient: Client<transport, chain>
-}
-
 export type FastlaneActions = {
     sendPflConditional: ({
-        serializedTransaction,
-        pflClient
-    }: SendPflConditionalArgs) => Promise<SendRawTransactionReturnType>
+        serializedTransaction
+    }: SendRawTransactionParameters) => Promise<SendRawTransactionReturnType>
 }
 
 export async function sendPflConditional<chain extends Chain | undefined>(
     client: Client<Transport, chain>,
-    { serializedTransaction, pflClient }: SendPflConditionalArgs
+    { serializedTransaction }: SendRawTransactionParameters
 ): Promise<SendRawTransactionReturnType> {
     try {
+        const pflClient = createClient({
+            transport: http("https://polygon-rpc.fastlane.xyz")
+        })
+
         const txHash = (await pflClient.request({
             // @ts-ignore
             method: "pfl_sendRawTransactionConditional",
@@ -40,6 +36,7 @@ export async function sendPflConditional<chain extends Chain | undefined>(
         return txHash
     } catch (e) {
         return getAction(
+        console.log()
             client,
             sendRawTransaction_,
             "sendRawTransaction"
@@ -55,18 +52,9 @@ export function fastlaneActions() {
     >(
         client: Client<transport, chain, account>
     ): FastlaneActions => {
-        const pflClient = createClient({
-            transport: http("https://polygon-rpc.fastlane.xyz")
-        })
-
         return {
-            sendPflConditional: ({
-                serializedTransaction
-            }: SendPflConditionalArgs) =>
-                sendPflConditional(client, {
-                    pflClient,
-                    serializedTransaction
-                })
+            sendPflConditional: (args: SendRawTransactionParameters) =>
+                sendPflConditional(client, args)
         }
     }
 }
