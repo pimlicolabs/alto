@@ -1,11 +1,11 @@
 import type { EntryPointVersion } from "viem/account-abstraction"
-import { beforeEach, describe, expect, test } from "vitest"
-import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils"
+import { beforeEach, describe, expect, inject, test } from "vitest"
+import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils/index.js"
 import {
     getRevertCall,
     deployRevertingContract
-} from "../src/revertingContract"
-import { Address, BaseError } from "viem"
+} from "../src/revertingContract.js"
+import { type Address, BaseError } from "viem"
 
 describe.each([
     {
@@ -19,14 +19,21 @@ describe.each([
     ({ entryPointVersion }) => {
         let revertingContract: Address
 
+        const anvilRpc = inject("anvilRpc")
+        const altoRpc = inject("altoRpc")
+
         beforeEach(async () => {
-            revertingContract = await deployRevertingContract()
-            await beforeEachCleanUp()
+            revertingContract = await deployRevertingContract({
+                anvilRpc
+            })
+            await beforeEachCleanUp({ anvilRpc, altoRpc })
         })
 
         test("Can estimate with empty gasLimit values", async () => {
             const smartAccountClient = await getSmartAccountClient({
-                entryPointVersion
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
             })
 
             const gasParams = await smartAccountClient.estimateUserOperationGas(
@@ -51,7 +58,9 @@ describe.each([
 
         test("Throws if gasPrices are set to zero", async () => {
             const smartAccountClient = await getSmartAccountClient({
-                entryPointVersion
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
             })
 
             await expect(async () =>
@@ -77,7 +86,9 @@ describe.each([
             }
 
             const smartAccountClient = await getSmartAccountClient({
-                entryPointVersion
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
             })
 
             try {
@@ -104,7 +115,9 @@ describe.each([
             }
 
             const smartAccountClient = await getSmartAccountClient({
-                entryPointVersion
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
             })
 
             const estimation =
@@ -124,7 +137,9 @@ describe.each([
 
         test("Should throw revert reason if simulation reverted during callphase", async () => {
             const smartAccountClient = await getSmartAccountClient({
-                entryPointVersion
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
             })
 
             try {

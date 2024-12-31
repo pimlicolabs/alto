@@ -7,19 +7,12 @@ import {
     entryPoint07Address
 } from "viem/account-abstraction"
 import { foundry } from "viem/chains"
-import { beforeEach, describe, expect, test } from "vitest"
-import { ANVIL_RPC } from "../src/constants"
+import { beforeEach, describe, expect, inject, test } from "vitest"
 import {
     beforeEachCleanUp,
     getPimlicoClient,
     getSmartAccountClient
-} from "../src/utils"
-
-const anvilClient = createTestClient({
-    chain: foundry,
-    mode: "anvil",
-    transport: http(ANVIL_RPC)
-})
+} from "../src/utils/index.js"
 
 describe.each([
     {
@@ -33,13 +26,23 @@ describe.each([
 ])(
     "$entryPointVersion supports eth_getUserOperationByHash",
     ({ entryPoint, entryPointVersion }) => {
+        const anvilRpc = inject("anvilRpc")
+        const altoRpc = inject("altoRpc")
+
+        const anvilClient = createTestClient({
+            chain: foundry,
+            mode: "anvil",
+            transport: http(anvilRpc)
+        })
+
         beforeEach(async () => {
-            await beforeEachCleanUp()
+            await beforeEachCleanUp({ anvilRpc, altoRpc })
         })
 
         test("Return null if hash not found", async () => {
             const bundlerClient = getPimlicoClient({
-                entryPointVersion
+                entryPointVersion,
+                altoRpc
             })
 
             const hash =
@@ -54,7 +57,9 @@ describe.each([
 
         test("Pending UserOperation should return null", async () => {
             const smartAccountClient = await getSmartAccountClient({
-                entryPointVersion
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
             })
 
             await anvilClient.setAutomine(false)
@@ -83,7 +88,9 @@ describe.each([
 
         test("Return userOperation, entryPoint, blockNum, blockHash, txHash for mined tx", async () => {
             const smartAccountClient = await getSmartAccountClient({
-                entryPointVersion
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
             })
 
             const hash = await smartAccountClient.sendUserOperation({

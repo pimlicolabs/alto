@@ -14,80 +14,85 @@ import {
     UserOperationReceiptNotFoundError
 } from "viem/account-abstraction"
 import { foundry } from "viem/chains"
-import { beforeAll, beforeEach, describe, expect, test } from "vitest"
-import { ANVIL_RPC } from "../src/constants"
+import { beforeAll, beforeEach, describe, expect, inject, test } from "vitest"
 import {
     beforeEachCleanUp,
     getPimlicoClient,
     getSmartAccountClient,
     sendBundleNow,
     setBundlingMode
-} from "../src/utils"
-
-const publicClient = createPublicClient({
-    transport: http(ANVIL_RPC),
-    chain: foundry
-})
-
-const anvilClient = createTestClient({
-    chain: foundry,
-    mode: "anvil",
-    transport: http(ANVIL_RPC)
-})
-
-const SIMPLE_INFLATOR_CONTRACT = getContract({
-    address: "0x92d2f9ef7b520d91a34501fbb31e5428ab2fd5df",
-    abi: [
-        {
-            type: "function",
-            name: "compress",
-            inputs: [
-                {
-                    name: "op",
-                    type: "tuple",
-                    components: [
-                        { name: "sender", type: "address" },
-                        { name: "nonce", type: "uint256" },
-                        { name: "initCode", type: "bytes" },
-                        { name: "callData", type: "bytes" },
-                        { name: "callGasLimit", type: "uint256" },
-                        { name: "verificationGasLimit", type: "uint256" },
-                        { name: "preVerificationGas", type: "uint256" },
-                        { name: "maxFeePerGas", type: "uint256" },
-                        { name: "maxPriorityFeePerGas", type: "uint256" },
-                        { name: "paymasterAndData", type: "bytes" },
-                        { name: "signature", type: "bytes" }
-                    ]
-                }
-            ],
-            outputs: [
-                {
-                    name: "compressed",
-                    type: "bytes"
-                }
-            ],
-            stateMutability: "pure"
-        }
-    ] as const,
-    client: publicClient
-})
+} from "../src/utils/index.js"
 
 describe("V0.6 pimlico_sendCompressedUserOperation", () => {
     let pimlicoBundlerClient: PimlicoClient
 
+    const anvilRpc = inject("anvilRpc")
+    const altoRpc = inject("altoRpc")
+
+    const publicClient = createPublicClient({
+        transport: http(anvilRpc),
+        chain: foundry
+    })
+
+    const anvilClient = createTestClient({
+        chain: foundry,
+        mode: "anvil",
+        transport: http(anvilRpc)
+    })
+
+    const SIMPLE_INFLATOR_CONTRACT = getContract({
+        address: "0x92d2f9ef7b520d91a34501fbb31e5428ab2fd5df",
+        abi: [
+            {
+                type: "function",
+                name: "compress",
+                inputs: [
+                    {
+                        name: "op",
+                        type: "tuple",
+                        components: [
+                            { name: "sender", type: "address" },
+                            { name: "nonce", type: "uint256" },
+                            { name: "initCode", type: "bytes" },
+                            { name: "callData", type: "bytes" },
+                            { name: "callGasLimit", type: "uint256" },
+                            { name: "verificationGasLimit", type: "uint256" },
+                            { name: "preVerificationGas", type: "uint256" },
+                            { name: "maxFeePerGas", type: "uint256" },
+                            { name: "maxPriorityFeePerGas", type: "uint256" },
+                            { name: "paymasterAndData", type: "bytes" },
+                            { name: "signature", type: "bytes" }
+                        ]
+                    }
+                ],
+                outputs: [
+                    {
+                        name: "compressed",
+                        type: "bytes"
+                    }
+                ],
+                stateMutability: "pure"
+            }
+        ] as const,
+        client: publicClient
+    })
+
     beforeAll(() => {
         pimlicoBundlerClient = getPimlicoClient({
-            entryPointVersion: "0.6"
+            entryPointVersion: "0.6",
+            altoRpc
         })
     })
 
     beforeEach(async () => {
-        await beforeEachCleanUp()
+        await beforeEachCleanUp({ anvilRpc, altoRpc })
     })
 
     test("Send compressed UserOperation", async () => {
         const smartAccountClient = await getSmartAccountClient({
-            entryPointVersion: "0.6"
+            entryPointVersion: "0.6",
+            anvilRpc,
+            altoRpc
         })
 
         const to = "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5"
@@ -134,7 +139,9 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
 
     test("Replace mempool transaction", async () => {
         const smartAccountClient = await getSmartAccountClient({
-            entryPointVersion: "0.6"
+            entryPointVersion: "0.6",
+            anvilRpc,
+            altoRpc
         })
         const smartAccount = smartAccountClient.account
 
@@ -204,10 +211,14 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
 
     test("Send multiple compressedOps", async () => {
         const firstClient = await getSmartAccountClient({
-            entryPointVersion: "0.6"
+            entryPointVersion: "0.6",
+            anvilRpc,
+            altoRpc
         })
         const secondClient = await getSmartAccountClient({
-            entryPointVersion: "0.6"
+            entryPointVersion: "0.6",
+            anvilRpc,
+            altoRpc
         })
 
         const to = "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5"
@@ -240,7 +251,10 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
         secondOp.signature =
             await secondClient.account.signUserOperation(secondOp)
 
-        await setBundlingMode("manual")
+        await setBundlingMode({
+            mode: "manual",
+            altoRpc
+        })
 
         const firstCompressedOp = await SIMPLE_INFLATOR_CONTRACT.read.compress([
             // @ts-ignore: we know that firstOp is properly typed
@@ -272,7 +286,7 @@ describe("V0.6 pimlico_sendCompressedUserOperation", () => {
             })
         }).rejects.toThrow(UserOperationReceiptNotFoundError)
 
-        await sendBundleNow()
+        await sendBundleNow({ altoRpc })
 
         const firstReceipt =
             await pimlicoBundlerClient.waitForUserOperationReceipt({

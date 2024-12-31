@@ -26,20 +26,21 @@ import {
     privateKeyToAccount
 } from "viem/accounts"
 import { foundry } from "viem/chains"
-import { ALTO_RPC, ANVIL_RPC } from "./constants"
-
-const anvilClient = createTestClient({
-    transport: http(ANVIL_RPC),
-    chain: foundry,
-    mode: "anvil"
-})
 
 export type AAParamType = {
     entryPointVersion: EntryPointVersion
+    anvilRpc: string
+    altoRpc: string
     privateKey?: Hex
 }
 
-export const getAnvilWalletClient = (addressIndex: number) => {
+export const getAnvilWalletClient = ({
+    addressIndex,
+    anvilRpc
+}: {
+    addressIndex: number
+    anvilRpc: string
+}) => {
     return createWalletClient({
         account: mnemonicToAccount(
             "test test test test test test test test test test test junk",
@@ -48,14 +49,16 @@ export const getAnvilWalletClient = (addressIndex: number) => {
             }
         ),
         chain: foundry,
-        transport: http(ANVIL_RPC)
+        transport: http(anvilRpc)
     })
 }
 
 export const getPimlicoClient = <EntryPointVersion extends "0.6" | "0.7">({
-    entryPointVersion
+    entryPointVersion,
+    altoRpc
 }: {
     entryPointVersion: EntryPointVersion
+    altoRpc: string
 }) =>
     createPimlicoClient({
         chain: foundry,
@@ -67,7 +70,7 @@ export const getPimlicoClient = <EntryPointVersion extends "0.6" | "0.7">({
                 : typeof entryPoint07Address,
             version: entryPointVersion
         },
-        transport: http(ALTO_RPC)
+        transport: http(altoRpc)
     })
 
 export const getPublicClient = (anvilRpc: string) => {
@@ -88,12 +91,14 @@ export const getSmartAccountClient = async <
     EntryPointVersion extends "0.6" | "0.7"
 >({
     entryPointVersion,
+    anvilRpc,
+    altoRpc,
     privateKey = generatePrivateKey()
 }: AAParamType): Promise<
     SmartAccountClient<Transport, Chain, SmartAccount>
 > => {
     const account = await toSimpleSmartAccount<EntryPointVersion>({
-        client: getPublicClient(ANVIL_RPC),
+        client: getPublicClient(anvilRpc),
         entryPoint: {
             address:
                 entryPointVersion === "0.6"
@@ -106,6 +111,12 @@ export const getSmartAccountClient = async <
         owner: privateKeyToAccount(privateKey)
     })
 
+    const anvilClient = createTestClient({
+        transport: http(anvilRpc),
+        chain: foundry,
+        mode: "anvil"
+    })
+
     await anvilClient.setBalance({
         address: account.address,
         value: parseEther("100")
@@ -114,20 +125,27 @@ export const getSmartAccountClient = async <
     return createSmartAccountClient({
         account,
         chain: foundry,
-        bundlerTransport: http(ALTO_RPC),
+        bundlerTransport: http(altoRpc),
         userOperation: {
             estimateFeesPerGas: async () =>
                 (
                     await getPimlicoClient({
-                        entryPointVersion
+                        entryPointVersion,
+                        altoRpc
                     }).getUserOperationGasPrice()
                 ).fast
         }
     })
 }
 
-export const setBundlingMode = async (mode: "auto" | "manual") => {
-    await fetch(ALTO_RPC, {
+export const setBundlingMode = async ({
+    mode,
+    altoRpc
+}: {
+    mode: "auto" | "manual"
+    altoRpc: string
+}) => {
+    await fetch(altoRpc, {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
@@ -141,8 +159,8 @@ export const setBundlingMode = async (mode: "auto" | "manual") => {
     })
 }
 
-export const sendBundleNow = async () => {
-    await fetch(ALTO_RPC, {
+export const sendBundleNow = async ({ altoRpc }: { altoRpc: string }) => {
+    await fetch(altoRpc, {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
@@ -156,8 +174,8 @@ export const sendBundleNow = async () => {
     })
 }
 
-export const clearBundlerState = async () => {
-    await fetch(ALTO_RPC, {
+export const clearBundlerState = async ({ altoRpc }: { altoRpc: string }) => {
+    await fetch(altoRpc, {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
@@ -171,16 +189,36 @@ export const clearBundlerState = async () => {
     })
 }
 
-export const beforeEachCleanUp = async () => {
-    await clearBundlerState()
-    await setBundlingMode("auto")
+export const beforeEachCleanUp = async ({
+    anvilRpc,
+    altoRpc
+}: {
+    anvilRpc: string
+    altoRpc: string
+}) => {
+    const anvilClient = createTestClient({
+        transport: http(anvilRpc),
+        chain: foundry,
+        mode: "anvil"
+    })
+
+    await clearBundlerState({ altoRpc })
+    await setBundlingMode({ mode: "auto", altoRpc })
 
     await anvilClient.setAutomine(true)
     await anvilClient.mine({ blocks: 1 })
 }
 
 // force a cannot decode zero data 0x error by skipping 4337 module deployment
-export const deploySafeContracts = async () => {
+export const deploySafeContracts = async ({
+    anvilRpc
+}: { anvilRpc: string }) => {
+    const anvilClient = createTestClient({
+        transport: http(anvilRpc),
+        chain: foundry,
+        mode: "anvil"
+    })
+
     // safe singleton
     await anvilClient.setCode({
         address: "0x41675C099F32341bf84BFc5382aF534df5C7461a",

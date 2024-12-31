@@ -18,18 +18,20 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
+    - name: Install Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: 22
+
+    - name: Set up foundry
+      uses: foundry-rs/foundry-toolchain@v1
+
     - name: Install dependencies
       uses: ./.github/actions/install-dependencies
 
     - name: Install test dependencies
-      run: cd test/e2e && pnpm install .
-
-    - name: Start Docker
-      run: docker compose -f "test/e2e/docker-compose.yml" up -d
+      run: pnpm install
 
     - name: Start tests
-      run: cd test/e2e && pnpm run test:ci
+      run: pnpm run test:ci
 
-    - name: Stop containers
-      if: always()
-      run: docker compose -f "test/e2e/docker-compose.yml" down

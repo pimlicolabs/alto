@@ -7,9 +7,8 @@ import {
     entryPoint06Address,
     entryPoint07Address
 } from "viem/account-abstraction"
-import { beforeEach, describe, expect, test } from "vitest"
-import { ALTO_RPC } from "../src/constants"
-import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils"
+import { beforeEach, describe, expect, inject, test } from "vitest"
+import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils/index.js"
 
 describe.each([
     {
@@ -23,13 +22,18 @@ describe.each([
 ])(
     "$entryPointVersion supports pimlico_sendUserOperationNow",
     ({ entryPoint, entryPointVersion }) => {
+        const anvilRpc = inject("anvilRpc")
+        const altoRpc = inject("altoRpc")
+
         beforeEach(async () => {
-            await beforeEachCleanUp()
+            await beforeEachCleanUp({ anvilRpc, altoRpc })
         })
 
         test("Send instant userOperation", async () => {
             const smartAccountClient = await getSmartAccountClient({
-                entryPointVersion
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
             })
 
             const op = (await smartAccountClient.prepareUserOperation({
@@ -45,7 +49,7 @@ describe.each([
                 await smartAccountClient.account.signUserOperation(op)
 
             const bundlerClient = createClient({
-                transport: http(ALTO_RPC)
+                transport: http(altoRpc)
             })
 
             const receipt = (await bundlerClient.request({

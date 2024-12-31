@@ -1,4 +1,6 @@
 import { defineConfig } from "vitest/config"
+import { join } from "node:path"
+import { config } from "dotenv"
 
 export default defineConfig({
     test: {
@@ -13,10 +15,14 @@ export default defineConfig({
                 "**/_types/**"
             ]
         },
+        env: {
+            ...config({ path: join(__dirname, "../.env") }).parsed
+        },
         sequence: {
             concurrent: false
         },
         fileParallelism: false,
+        globalSetup: join(__dirname, "./setup.ts"),
         environment: "node",
         testTimeout: 60_000,
         hookTimeout: 45_000

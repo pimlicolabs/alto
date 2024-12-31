@@ -1,6 +1,7 @@
 {
     "name": "e2e",
     "version": "0.0.0",
+    "type": "module",
     "private": true,
     "scripts": {
         "test": "vitest dev -c ./vitest.config.ts",
@@ -9,8 +10,11 @@
     "dependencies": {
         "@pimlico/alto": "workspace:./src/",
         "@types/node": "^18.16.3",
+        "dotenv": "^16.0.3",
         "e2e": "link:",
+        "execa": "^9.5.2",
         "permissionless": "^0.2.1",
+        "prool": "^0.0.16",
         "ts-node": "^10.9.2",
         "viem": "^2.9.5",
         "vitest": "^1.6.0",

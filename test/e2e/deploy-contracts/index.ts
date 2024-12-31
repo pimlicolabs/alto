@@ -8,7 +8,8 @@ import {
     getContract,
     getCreate2Address,
     parseAbi,
-    sliceHex
+    sliceHex,
+    type PublicClient
 } from "viem"
 import { mnemonicToAccount } from "viem/accounts"
 import { foundry } from "viem/chains"
@@ -25,7 +26,10 @@ import {
 
 const DETERMINISTIC_DEPLOYER = "0x4e59b44847b379578588920ca78fbf26c0b4956c"
 
-const verifyDeployed = async (addresses: Address[]) => {
+const verifyDeployed = async ({
+    addresses,
+    client
+}: { addresses: Address[]; client: PublicClient }) => {
     for (const address of addresses) {
         const bytecode = await client.getBytecode({
             address
@@ -38,20 +42,20 @@ const verifyDeployed = async (addresses: Address[]) => {
     }
 }
 
-const walletClient = createWalletClient({
-    account: mnemonicToAccount(
-        "test test test test test test test test test test test junk"
-    ),
-    chain: foundry,
-    transport: http(process.env.ANVIL_RPC)
-})
-
-const client = createPublicClient({
-    transport: http(process.env.ANVIL_RPC)
-})
-
-const main = async () => {
+export async function setupContracts({ anvilRpc }: { anvilRpc: string }) {
     let nonce = 0
+
+    const walletClient = createWalletClient({
+        account: mnemonicToAccount(
+            "test test test test test test test test test test test junk"
+        ),
+        chain: foundry,
+        transport: http(anvilRpc)
+    })
+
+    const client = createPublicClient({
+        transport: http(anvilRpc)
+    })
 
     walletClient
         .sendTransaction({
@@ -221,15 +225,16 @@ const main = async () => {
         nonce: nonce++
     })
 
-    await verifyDeployed([
-        "0x4e59b44847b379578588920ca78fbf26c0b4956c",
-        "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
-        "0x91E60e0613810449d098b0b5Ec8b51A0FE8c8985",
-        "0xe1b9bcD4DbfAE61585691bdB9A100fbaAF6C8dB0", // 0.7 Simulations Contract
-        BUNDLE_BULKER_ADDRESS,
-        PER_OP_INFLATOR_ADDRESS,
-        SIMPLE_INFLATOR_ADDRESS
-    ])
+    await verifyDeployed({
+        client,
+        addresses: [
+            "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+            "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+            "0x91E60e0613810449d098b0b5Ec8b51A0FE8c8985",
+            "0xe1b9bcD4DbfAE61585691bdB9A100fbaAF6C8dB0", // 0.7 Simulations Contract
+            BUNDLE_BULKER_ADDRESS,
+            PER_OP_INFLATOR_ADDRESS,
+            SIMPLE_INFLATOR_ADDRESS
+        ]
+    })
 }
-
-main()
