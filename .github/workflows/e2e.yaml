@@ -18,6 +18,11 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
+    - name: Install Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: 22
+
     - name: Install dependencies
       uses: ./.github/actions/install-dependencies
 
