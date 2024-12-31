@@ -22,7 +22,7 @@ jobs:
       uses: ./.github/actions/install-dependencies
 
     - name: Install test dependencies
-      run: pnpm install .
+      run: pnpm install
 
     - name: Start tests
       run: pnpm run test:ci
