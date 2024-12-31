@@ -7,7 +7,7 @@ import {
     getContract,
     parseEther,
     parseGwei,
-    Address,
+    type Address,
     concat
 } from "viem"
 import {
@@ -15,34 +15,20 @@ import {
     UserOperationReceiptNotFoundError,
     entryPoint06Address,
     entryPoint07Address,
-    UserOperation,
-    UserOperationSignatureError,
-    UserOperationExecutionError
+    type UserOperation
 } from "viem/account-abstraction"
 import { generatePrivateKey } from "viem/accounts"
 import { foundry } from "viem/chains"
-import { beforeEach, describe, expect, test } from "vitest"
-import { ANVIL_RPC } from "../src/constants"
+import { beforeEach, describe, expect, inject, test } from "vitest"
 import {
     beforeEachCleanUp,
     getSmartAccountClient,
     sendBundleNow,
     setBundlingMode
-} from "../src/utils"
-import { ENTRYPOINT_V06_ABI, ENTRYPOINT_V07_ABI } from "./utils/abi"
-import { getNonceKeyAndValue } from "./utils/userop"
-import { deployPaymaster } from "../src/testPaymaster"
-
-const anvilClient = createTestClient({
-    chain: foundry,
-    mode: "anvil",
-    transport: http(ANVIL_RPC)
-})
-
-const publicClient = createPublicClient({
-    transport: http(ANVIL_RPC),
-    chain: foundry
-})
+} from "../src/utils/index.js"
+import { ENTRYPOINT_V06_ABI, ENTRYPOINT_V07_ABI } from "../src/utils/abi.js"
+import { getNonceKeyAndValue } from "../src/utils/userop.js"
+import { deployPaymaster } from "../src/testPaymaster.js"
 
 describe.each([
     {
@@ -60,14 +46,33 @@ describe.each([
         const VALUE = parseEther("0.15")
         let paymaster: Address
 
+        const anvilRpc = inject("anvilRpc")
+        const altoRpc = inject("altoRpc")
+
+        const anvilClient = createTestClient({
+            chain: foundry,
+            mode: "anvil",
+            transport: http(anvilRpc)
+        })
+
+        const publicClient = createPublicClient({
+            transport: http(anvilRpc),
+            chain: foundry
+        })
+
         beforeEach(async () => {
-            await beforeEachCleanUp()
-            paymaster = await deployPaymaster(entryPoint)
+            await beforeEachCleanUp({ anvilRpc, altoRpc })
+            paymaster = await deployPaymaster({
+                entryPoint,
+                anvilRpc
+            })
         })
 
         test("Send UserOperation", async () => {
             const client = await getSmartAccountClient({
-                entryPointVersion
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
             })
 
             const hash = await client.sendUserOperation({
@@ -91,7 +96,9 @@ describe.each([
 
         test("Replace mempool transaction", async () => {
             const client = await getSmartAccountClient({
-                entryPointVersion
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
             })
 
             await anvilClient.setAutomine(false)
@@ -139,13 +146,20 @@ describe.each([
 
         test("Send multiple UserOperations", async () => {
             const firstClient = await getSmartAccountClient({
-                entryPointVersion
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
             })
             const secondClient = await getSmartAccountClient({
-                entryPointVersion
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
             })
 
-            await setBundlingMode("manual")
+            await setBundlingMode({
+                mode: "manual",
+                altoRpc
+            })
 
             const firstHash = await firstClient.sendUserOperation({
                 calls: [
@@ -177,7 +191,7 @@ describe.each([
                 })
             }).rejects.toThrow(UserOperationReceiptNotFoundError)
 
-            await sendBundleNow()
+            await sendBundleNow({ altoRpc })
 
             expect(
                 (
@@ -202,7 +216,10 @@ describe.each([
         test("Send parallel UserOperations", async () => {
             const nonceKeys = [10n, 12n, 4n, 1n]
 
-            await setBundlingMode("manual")
+            await setBundlingMode({
+                mode: "manual",
+                altoRpc
+            })
 
             const privateKey = generatePrivateKey()
 
@@ -220,6 +237,8 @@ describe.each([
             // Needs to deploy user op first
             const client = await getSmartAccountClient({
                 entryPointVersion,
+                anvilRpc,
+                altoRpc,
                 privateKey
             })
 
@@ -233,7 +252,7 @@ describe.each([
                 ]
             })
 
-            await sendBundleNow()
+            await sendBundleNow({ altoRpc })
 
             const opHashes = await Promise.all(
                 nonceKeys.map((nonceKey) =>
@@ -253,7 +272,7 @@ describe.each([
                 )
             )
 
-            await sendBundleNow()
+            await sendBundleNow({ altoRpc })
 
             const receipts = await Promise.all(
                 opHashes.map(async (hash) => {
@@ -297,7 +316,10 @@ describe.each([
                 return
             }
 
-            await setBundlingMode("manual")
+            await setBundlingMode({
+                mode: "manual",
+                altoRpc
+            })
 
             const entryPointContract = getContract({
                 address: entryPoint,
@@ -316,6 +338,8 @@ describe.each([
             // Needs to deploy user op first
             const client = await getSmartAccountClient({
                 entryPointVersion,
+                anvilRpc,
+                altoRpc,
                 privateKey
             })
 
@@ -329,7 +353,7 @@ describe.each([
                 ]
             })
 
-            await sendBundleNow()
+            await sendBundleNow({ altoRpc })
 
             const nonceKey = 100n
             const nonceValueDiffs = [0n, 1n, 2n]
@@ -358,7 +382,7 @@ describe.each([
                 opHashes.push(await sendUserOperation(nonceValueDiff))
             }
 
-            await sendBundleNow()
+            await sendBundleNow({ altoRpc })
 
             const receipts = await Promise.all(
                 opHashes.map(async (hash) => {
@@ -383,7 +407,9 @@ describe.each([
 
         test("Should throw 'already known' if same userOperation is sent twice", async () => {
             const client = await getSmartAccountClient({
-                entryPointVersion
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
             })
 
             const op = (await client.prepareUserOperation({
@@ -410,7 +436,9 @@ describe.each([
 
         test("Should throw AA24 if signature is invalid", async () => {
             const client = await getSmartAccountClient({
-                entryPointVersion
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
             })
 
             const op = (await client.prepareUserOperation({
@@ -438,7 +466,9 @@ describe.each([
 
         test("Should throw AA34 if paymaster signature is invalid", async () => {
             const client = await getSmartAccountClient({
-                entryPointVersion
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
             })
 
             const op = (await client.prepareUserOperation({

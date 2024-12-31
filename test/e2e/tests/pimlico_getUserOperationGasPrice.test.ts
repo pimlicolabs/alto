@@ -2,14 +2,8 @@ import type { PimlicoClient } from "permissionless/clients/pimlico"
 import { http, createPublicClient } from "viem"
 import type { EntryPointVersion } from "viem/account-abstraction"
 import { foundry } from "viem/chains"
-import { beforeAll, beforeEach, describe, expect, test } from "vitest"
-import { ANVIL_RPC } from "../src/constants"
-import { beforeEachCleanUp, getPimlicoClient } from "../src/utils"
-
-const publicClient = createPublicClient({
-    transport: http(ANVIL_RPC),
-    chain: foundry
-})
+import { beforeAll, beforeEach, describe, expect, inject, test } from "vitest"
+import { beforeEachCleanUp, getPimlicoClient } from "../src/utils/index.js"
 
 describe.each([
     { entryPointVersion: "0.6" as EntryPointVersion },
@@ -18,13 +12,23 @@ describe.each([
     "$entryPointVersion supports eth_sendUserOperation",
     ({ entryPointVersion }) => {
         let pimlicoBundlerClient: PimlicoClient
+        const anvilRpc = inject("anvilRpc")
+        const altoRpc = inject("altoRpc")
+
+        const publicClient = createPublicClient({
+            transport: http(anvilRpc),
+            chain: foundry
+        })
 
         beforeAll(() => {
-            pimlicoBundlerClient = getPimlicoClient({ entryPointVersion })
+            pimlicoBundlerClient = getPimlicoClient({
+                entryPointVersion,
+                altoRpc
+            })
         })
 
         beforeEach(async () => {
-            await beforeEachCleanUp()
+            await beforeEachCleanUp({ anvilRpc, altoRpc })
         })
 
         test("Get gasPrice", async () => {

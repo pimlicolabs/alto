@@ -1,26 +1,19 @@
-import {
-    parseGwei,
-    type Address,
-    type Hex,
-    getContract,
-    parseEther,
-    concat
-} from "viem"
+import { parseGwei, type Address, type Hex, concat } from "viem"
 import {
     type EntryPointVersion,
     entryPoint06Address,
     entryPoint07Address,
-    UserOperation,
+    type UserOperation,
     getUserOperationHash
 } from "viem/account-abstraction"
-import { beforeAll, beforeEach, describe, expect, test } from "vitest"
+import { beforeAll, beforeEach, describe, expect, inject, test } from "vitest"
 import {
     decodeRevert,
     deployRevertingContract,
     getRevertCall
-} from "../src/revertingContract"
-import { deployPaymaster } from "../src/testPaymaster"
-import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils"
+} from "../src/revertingContract.js"
+import { deployPaymaster } from "../src/testPaymaster.js"
+import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils/index.js"
 import { deepHexlify } from "permissionless"
 import { foundry } from "viem/chains"
 
@@ -39,19 +32,29 @@ describe.each([
         let revertingContract: Address
         let paymaster: Address
 
+        const anvilRpc = inject("anvilRpc")
+        const altoRpc = inject("altoRpc")
+
         beforeAll(async () => {
-            revertingContract = await deployRevertingContract()
-            paymaster = await deployPaymaster(entryPoint)
+            revertingContract = await deployRevertingContract({
+                anvilRpc
+            })
+            paymaster = await deployPaymaster({
+                entryPoint,
+                anvilRpc
+            })
         })
 
         beforeEach(async () => {
-            await beforeEachCleanUp()
+            await beforeEachCleanUp({ anvilRpc, altoRpc })
         })
 
         // uses pimlico_sendUserOperationNow to force send a reverting op (because it skips validation)
         test("Returns revert bytes when UserOperation reverts", async () => {
             const smartAccountClient = await getSmartAccountClient({
-                entryPointVersion
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
             })
 
             const { factory, factoryData } =
@@ -128,7 +131,9 @@ describe.each([
 
         test("Returns paymaster when one is used", async () => {
             const smartAccountClient = await getSmartAccountClient({
-                entryPointVersion
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
             })
 
             let hash: Hex

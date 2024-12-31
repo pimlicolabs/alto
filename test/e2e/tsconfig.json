@@ -1,17 +1,27 @@
 {
     "compilerOptions": {
-        "target": "ES2022",
-        "module": "CommonJS",
-        "strict": true,
-        "allowJs": true,
-        "moduleResolution": "node",
-        "skipLibCheck": true,
-        "resolveJsonModule": true,
+        "module": "NodeNext",
+        "target": "ESNext",
+        "sourceMap": true,
+        "outDir": "./build",
+        "rootDir": "./",
+        //"moduleResolution": "node",
         "esModuleInterop": true,
-        "emitDecoratorMetadata": true,
-        "experimentalDecorators": true,
-        "allowSyntheticDefaultImports": true,
-        "suppressImplicitAnyIndexErrors": true,
-        "declaration": false
+        "strict": true,
+        "strictNullChecks": true,
+        "resolveJsonModule": true,
+        "noImplicitAny": false,
+        "skipLibCheck": true,
+        // "types": [
+        //     "bun-types"
+        // ]
+    },
+    "noErrorTruncation": true,
+    "exclude": [
+        "node_modules",
+    ],
+    //"files": ["./hardhat.config.ts"],
+    "ts-node": {
+        "swc": true
     }
 }
