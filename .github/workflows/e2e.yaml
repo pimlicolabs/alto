@@ -23,6 +23,9 @@ jobs:
       with:
         node-version: 22
 
+    - name: Set up foundry
+      uses: foundry-rs/foundry-toolchain@v1
+
     - name: Install dependencies
       uses: ./.github/actions/install-dependencies
 
