@@ -15,7 +15,7 @@ import {
     polygonMumbai
 } from "viem/chains"
 import type { AltoConfig } from "../createConfig"
-import { TimedQueue } from "../utils/timedQueue"
+import { SlidingWindowTimedQueue } from "../utils/slidingWindowTimedQueue"
 import { ArbitrumManager } from "./arbitrumGasPriceManager"
 import { MantleManager } from "./mantleGasPriceManager"
 
@@ -41,9 +41,9 @@ function getGasStationUrl(chainId: ChainId.Polygon | ChainId.Mumbai): string {
 
 export class GasPriceManager {
     private readonly config: AltoConfig
-    private baseFeePerGasQueue: TimedQueue
-    private maxFeePerGasQueue: TimedQueue
-    private maxPriorityFeePerGasQueue: TimedQueue
+    private baseFeePerGasQueue: SlidingWindowTimedQueue
+    private maxFeePerGasQueue: SlidingWindowTimedQueue
+    private maxPriorityFeePerGasQueue: SlidingWindowTimedQueue
     private logger: Logger
 
     public arbitrumManager: ArbitrumManager
@@ -60,9 +60,11 @@ export class GasPriceManager {
 
         const queueValidity = this.config.gasPriceExpiry * 1_000
 
-        this.baseFeePerGasQueue = new TimedQueue(queueValidity)
-        this.maxFeePerGasQueue = new TimedQueue(queueValidity)
-        this.maxPriorityFeePerGasQueue = new TimedQueue(queueValidity)
+        this.baseFeePerGasQueue = new SlidingWindowTimedQueue(queueValidity)
+        this.maxFeePerGasQueue = new SlidingWindowTimedQueue(queueValidity)
+        this.maxPriorityFeePerGasQueue = new SlidingWindowTimedQueue(
+            queueValidity
+        )
 
         // Periodically update gas prices if specified
         if (this.config.gasPriceRefreshInterval > 0) {

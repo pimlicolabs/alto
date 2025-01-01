@@ -1,16 +1,18 @@
-import { TimedQueue } from "../utils/timedQueue"
+import { SlidingWindowTimedQueue } from "../utils/slidingWindowTimedQueue"
 
 export class MantleManager {
-    private tokenRatioQueue: TimedQueue
-    private scalarQueue: TimedQueue
-    private rollupDataGasAndOverheadQueue: TimedQueue
-    private l1GasPriceQueue: TimedQueue
+    private tokenRatioQueue: SlidingWindowTimedQueue
+    private scalarQueue: SlidingWindowTimedQueue
+    private rollupDataGasAndOverheadQueue: SlidingWindowTimedQueue
+    private l1GasPriceQueue: SlidingWindowTimedQueue
 
     constructor(queueValidity: number) {
-        this.tokenRatioQueue = new TimedQueue(queueValidity)
-        this.scalarQueue = new TimedQueue(queueValidity)
-        this.rollupDataGasAndOverheadQueue = new TimedQueue(queueValidity)
-        this.l1GasPriceQueue = new TimedQueue(queueValidity)
+        this.tokenRatioQueue = new SlidingWindowTimedQueue(queueValidity)
+        this.scalarQueue = new SlidingWindowTimedQueue(queueValidity)
+        this.l1GasPriceQueue = new SlidingWindowTimedQueue(queueValidity)
+        this.rollupDataGasAndOverheadQueue = new SlidingWindowTimedQueue(
+            queueValidity
+        )
     }
 
     public getMinMantleOracleValues() {
