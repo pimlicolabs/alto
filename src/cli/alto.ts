@@ -14,6 +14,7 @@ import {
     serverOptions
 } from "./config"
 import { registerCommandToYargs } from "./util"
+import { TimeoutError, HttpRequestError, InternalRpcError } from "viem"
 
 // Load environment variables from .env file
 if (process.env.DOTENV_CONFIG_PATH) {
@@ -23,14 +24,26 @@ if (process.env.DOTENV_CONFIG_PATH) {
 }
 
 if (process.env.SENTRY_DSN) {
+    const SENTRY_IGNORE_ERRORS = [
+        InternalRpcError,
+        HttpRequestError,
+        TimeoutError
+    ]
+
     sentry.init({
         dsn: process.env.SENTRY_DSN,
         environment: process.env.ENVIRONMENT,
-        ignoreErrors: [
-            "RpcRequestError",
-            "ResourceNotFoundRpcError",
-            "HttpRequestError",
-        ]
+        beforeSend(event, hint) {
+            if (
+                SENTRY_IGNORE_ERRORS.some(
+                    (error) => hint.originalException instanceof error
+                )
+            ) {
+                return null
+            }
+
+            return event
+        }
     })
 }
 

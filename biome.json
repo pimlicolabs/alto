@@ -14,7 +14,8 @@
             "pnpm-lock.yaml",
             "src/lib",
             ".nyc_output",
-            "test/spec-tests"
+            "test/spec-tests",
+            "contracts"
         ]
     },
     "organizeImports": {
