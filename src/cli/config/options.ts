@@ -221,7 +221,7 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
                 "Added to the initial minimum gas to determine the upper bound of the binary search",
             type: "string",
             require: false,
-            default: "30000000"
+            default: "20000000"
         },
         "call-gas-limit-multiplier": {
             description:
