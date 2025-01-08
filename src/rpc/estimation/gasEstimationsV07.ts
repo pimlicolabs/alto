@@ -310,6 +310,7 @@ export class GasEstimatorV07 {
 
         const binarySearchVerificationGasLimit =
             this.encodeBinarySearchGasLimit({
+                initialMinGas: 1_000n,
                 entryPoint,
                 userOperation,
                 queuedUserOperations,
@@ -321,6 +322,7 @@ export class GasEstimatorV07 {
         const binarySearchPaymasterVerificationGasLimit =
             userOperation.paymaster
                 ? this.encodeBinarySearchGasLimit({
+                      initialMinGas: 1_000n,
                       entryPoint,
                       userOperation,
                       queuedUserOperations,
@@ -331,6 +333,7 @@ export class GasEstimatorV07 {
                 : null
 
         const simulateCallData = this.encodeBinarySearchGasLimit({
+            initialMinGas: 1_000n,
             entryPoint,
             userOperation,
             queuedUserOperations,
