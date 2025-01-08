@@ -344,6 +344,14 @@ export class GasEstimatorV07 {
 
         let cause: readonly [Hex, Hex, Hex | null, Hex]
 
+        console.log(
+            encodeFunctionData({
+                abi: PimlicoEntryPointSimulationsAbi,
+                functionName: "simulateEntryPoint",
+                args: [entryPoint, [simulateCallData]]
+            })
+        )
+
         if (this.config.chainType === "hedera") {
             // due to Hedera specific restrictions, we can't combine these two calls.
             const [
@@ -607,6 +615,12 @@ export class GasEstimatorV07 {
                     binarySearchResult as SimulateBinarySearchRetryResult<"success">
                 ).data.gasUsed
             }
+
+            console.log({
+                callGasLimit,
+                verificationGasLimit,
+                paymasterVerificationGasLimit
+            })
 
             return {
                 result: "execution",
