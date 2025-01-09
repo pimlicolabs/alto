@@ -615,11 +615,17 @@ export async function calcOptimismPreVerificationGas(
     })
 
     const [l1Fee, baseFeePerGas] = await Promise.all([
-        opGasPriceOracle.read.getL1Fee([serializedTx]),
+        validate
+            ? gasPriceManager.optimismManager.getMinL1Fee()
+            : opGasPriceOracle.read.getL1Fee([serializedTx]),
         validate
             ? gasPriceManager.getMaxBaseFeePerGas()
             : gasPriceManager.getBaseFee()
     ])
+
+    if (!validate) {
+        gasPriceManager.optimismManager.saveL1FeeValue(l1Fee)
+    }
 
     if (op.maxFeePerGas <= 1n || op.maxPriorityFeePerGas <= 1n) {
         // if user didn't provide gasPrice values, fetch current going price rate
