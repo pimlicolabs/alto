@@ -21,7 +21,7 @@ import {
     type UserOperationV07,
     type UserOperationWithHash,
     deriveUserOperation,
-    GasPriceParameters
+    type GasPriceParameters
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import {
@@ -59,7 +59,7 @@ import {
 } from "./utils"
 import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
-import { SendTransactionOptions } from "./types"
+import type { SendTransactionOptions } from "./types"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
