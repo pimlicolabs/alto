@@ -432,6 +432,27 @@ export class GasPriceManager {
         return maxBaseFeePerGas
     }
 
+    public async getHighestMaxFeePerGas(): Promise<bigint> {
+        let highestMaxFeePerGas = this.maxFeePerGasQueue.getMaxValue()
+        if (!highestMaxFeePerGas) {
+            const gasPrice = await this.getGasPrice()
+            highestMaxFeePerGas = gasPrice.maxFeePerGas
+        }
+
+        return highestMaxFeePerGas
+    }
+
+    public async getHighestMaxPriorityFeePerGas(): Promise<bigint> {
+        let highestMaxPriorityFeePerGas =
+            this.maxPriorityFeePerGasQueue.getMaxValue()
+        if (!highestMaxPriorityFeePerGas) {
+            const gasPrice = await this.getGasPrice()
+            highestMaxPriorityFeePerGas = gasPrice.maxPriorityFeePerGas
+        }
+
+        return highestMaxPriorityFeePerGas
+    }
+
     private async getMinMaxFeePerGas(): Promise<bigint> {
         let minMaxFeePerGas = this.maxFeePerGasQueue.getMinValue()
         if (!minMaxFeePerGas) {

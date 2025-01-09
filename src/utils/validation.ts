@@ -628,9 +628,15 @@ export async function calcOptimismPreVerificationGas(
         op.maxFeePerGas = gasPrices.maxFeePerGas
     }
 
-    const l2MaxFee = op.maxFeePerGas
+    const l2MaxFee = validate
+        ? await gasPriceManager.getHighestMaxFeePerGas()
+        : op.maxFeePerGas
 
-    const l2PriorityFee = baseFeePerGas + op.maxPriorityFeePerGas
+    const l2PriorityFee =
+        baseFeePerGas +
+        (validate
+            ? await gasPriceManager.getHighestMaxPriorityFeePerGas()
+            : op.maxPriorityFeePerGas)
 
     const l2price = minBigInt(l2MaxFee, l2PriorityFee)
 
