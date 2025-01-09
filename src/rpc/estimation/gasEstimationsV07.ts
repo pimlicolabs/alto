@@ -159,7 +159,7 @@ export class GasEstimatorV07 {
         functionName:
             | "binarySearchPaymasterVerificationGasLimit"
             | "binarySearchVerificationGasLimit"
-            | "binarySearchCallGasLimit"
+            | "simulateCallData"
     }): Hex {
         const queuedOps = queuedUserOperations.map((op) => ({
             op: toPackedUserOperation(op),
@@ -215,7 +215,7 @@ export class GasEstimatorV07 {
         functionName:
             | "binarySearchPaymasterVerificationGasLimit"
             | "binarySearchVerificationGasLimit"
-            | "binarySearchCallGasLimit"
+            | "simulateCallData"
         stateOverrides?: StateOverrides | undefined
         authorizationList?: SignedAuthorizationList
     }): Promise<SimulateBinarySearchRetryResult> {
@@ -228,7 +228,7 @@ export class GasEstimatorV07 {
             // OptimalGas represents the current lowest gasLimit, so we set the gasAllowance to search range minGas <-> optimalGas
             const gasAllowance = currentOptimalGas - currentMinGas
 
-            const binarySearchCallGasLimit = this.encodeBinarySearchGasLimit({
+            const simulateCallData = this.encodeBinarySearchGasLimit({
                 entryPoint,
                 userOperation: targetOp,
                 target,
@@ -241,7 +241,7 @@ export class GasEstimatorV07 {
 
             let cause = await this.callPimlicoEntryPointSimulations({
                 entryPoint,
-                entryPointSimulationsCallData: [binarySearchCallGasLimit],
+                entryPointSimulationsCallData: [simulateCallData],
                 stateOverrides,
                 authorizationList
             })
@@ -258,18 +258,18 @@ export class GasEstimatorV07 {
                 return decodedDelegateAndError.args[1] as Hex
             })
 
-            const callGasLimitResult = validateBinarySearchDataResult(
+            const simulateCallDataResult = validateBinarySearchDataResult(
                 cause[0],
                 functionName
             )
 
-            if (callGasLimitResult.result === "failed") {
-                return callGasLimitResult
+            if (simulateCallDataResult.result === "failed") {
+                return simulateCallDataResult
             }
 
-            if (callGasLimitResult.result === "retry") {
-                currentOptimalGas = callGasLimitResult.optimalGas
-                currentMinGas = callGasLimitResult.minGas
+            if (simulateCallDataResult.result === "retry") {
+                currentOptimalGas = simulateCallDataResult.optimalGas
+                currentMinGas = simulateCallDataResult.minGas
                 retryCount++
                 continue
             }
@@ -277,7 +277,7 @@ export class GasEstimatorV07 {
             // If we reach here, it means we have a successful result
             return {
                 result: "success",
-                data: callGasLimitResult.data
+                data: simulateCallDataResult.data
             }
         }
 
@@ -310,7 +310,6 @@ export class GasEstimatorV07 {
 
         const binarySearchVerificationGasLimit =
             this.encodeBinarySearchGasLimit({
-                initialMinGas: 9_000n,
                 entryPoint,
                 userOperation,
                 queuedUserOperations,
@@ -322,7 +321,6 @@ export class GasEstimatorV07 {
         const binarySearchPaymasterVerificationGasLimit =
             userOperation.paymaster
                 ? this.encodeBinarySearchGasLimit({
-                      initialMinGas: 9_000n,
                       entryPoint,
                       userOperation,
                       queuedUserOperations,
@@ -332,8 +330,7 @@ export class GasEstimatorV07 {
                   })
                 : null
 
-        const binarySearchCallGasLimit = this.encodeBinarySearchGasLimit({
-            initialMinGas: 9_000n,
+        const simulateCallData = this.encodeBinarySearchGasLimit({
             entryPoint,
             userOperation,
             queuedUserOperations,
@@ -342,7 +339,7 @@ export class GasEstimatorV07 {
                 op: userOperation,
                 entryPoint
             }),
-            functionName: "binarySearchCallGasLimit"
+            functionName: "simulateCallData"
         })
 
         let cause: readonly [Hex, Hex, Hex | null, Hex]
@@ -353,7 +350,7 @@ export class GasEstimatorV07 {
                 simulateHandleOpLastCause,
                 binarySearchVerificationGasLimitCause,
                 binarySearchPaymasterVerificationGasLimitCause,
-                binarySearchCallGasLimitCause
+                simulateCallDataCause
             ] = await Promise.all([
                 this.callPimlicoEntryPointSimulations({
                     entryPoint,
@@ -381,7 +378,7 @@ export class GasEstimatorV07 {
                     : null,
                 this.callPimlicoEntryPointSimulations({
                     entryPoint,
-                    entryPointSimulationsCallData: [binarySearchCallGasLimit],
+                    entryPointSimulationsCallData: [simulateCallData],
                     stateOverrides,
                     authorizationList
                 })
@@ -391,7 +388,7 @@ export class GasEstimatorV07 {
                 simulateHandleOpLastCause[0],
                 binarySearchVerificationGasLimitCause[0],
                 binarySearchPaymasterVerificationGasLimitCause?.[0] ?? null,
-                binarySearchCallGasLimitCause[0]
+                simulateCallDataCause[0]
             ]
         } else {
             const [
@@ -420,7 +417,7 @@ export class GasEstimatorV07 {
                       }),
                 await this.callPimlicoEntryPointSimulations({
                     entryPoint,
-                    entryPointSimulationsCallData: [binarySearchCallGasLimit],
+                    entryPointSimulationsCallData: [simulateCallData],
                     stateOverrides,
                     authorizationList
                 })
@@ -459,7 +456,7 @@ export class GasEstimatorV07 {
             simulateHandleOpLastCause,
             binarySearchVerificationGasLimitCause,
             binarySearchPaymasterVerificationGasLimitCause,
-            binarySearchCallGasLimitCause
+            simulateCallDataCause
         ] = cause
 
         try {
@@ -471,23 +468,26 @@ export class GasEstimatorV07 {
                 return simulateHandleOpLastResult as SimulateHandleOpResult<"failed">
             }
 
-            const verificationGasLimitResult = validateBinarySearchDataResult(
-                binarySearchVerificationGasLimitCause,
-                "binarySearchVerificationGasLimit"
-            )
+            const binarySearchVerificationGasLimitResult =
+                validateBinarySearchDataResult(
+                    binarySearchVerificationGasLimitCause,
+                    "binarySearchVerificationGasLimit"
+                )
 
             let verificationGasLimit = 0n
 
-            if (verificationGasLimitResult.result === "success") {
-                verificationGasLimit = verificationGasLimitResult.data.gasUsed
+            if (binarySearchVerificationGasLimitResult.result === "success") {
+                verificationGasLimit =
+                    binarySearchVerificationGasLimitResult.data.gasUsed
             }
 
-            if (verificationGasLimitResult.result === "failed") {
-                return verificationGasLimitResult
+            if (binarySearchVerificationGasLimitResult.result === "failed") {
+                return binarySearchVerificationGasLimitResult
             }
 
-            if (verificationGasLimitResult.result === "retry") {
-                const { optimalGas, minGas } = verificationGasLimitResult
+            if (binarySearchVerificationGasLimitResult.result === "retry") {
+                const { optimalGas, minGas } =
+                    binarySearchVerificationGasLimitResult
                 const binarySearchResult = await this.retryBinarySearch({
                     entryPoint,
                     optimalGas,
@@ -509,7 +509,7 @@ export class GasEstimatorV07 {
                 ).data.gasUsed
             }
 
-            const paymasterVerificationGasLimitResult =
+            const binarySearchPaymasterVerificationGasLimitResult =
                 binarySearchPaymasterVerificationGasLimitCause
                     ? validateBinarySearchDataResult(
                           binarySearchPaymasterVerificationGasLimitCause,
@@ -526,18 +526,27 @@ export class GasEstimatorV07 {
 
             let paymasterVerificationGasLimit = 0n
 
-            if (paymasterVerificationGasLimitResult.result === "success") {
+            if (
+                binarySearchPaymasterVerificationGasLimitResult.result ===
+                "success"
+            ) {
                 paymasterVerificationGasLimit =
-                    paymasterVerificationGasLimitResult.data.gasUsed
+                    binarySearchPaymasterVerificationGasLimitResult.data.gasUsed
             }
 
-            if (paymasterVerificationGasLimitResult.result === "failed") {
-                return paymasterVerificationGasLimitResult
+            if (
+                binarySearchPaymasterVerificationGasLimitResult.result ===
+                "failed"
+            ) {
+                return binarySearchPaymasterVerificationGasLimitResult
             }
 
-            if (paymasterVerificationGasLimitResult.result === "retry") {
+            if (
+                binarySearchPaymasterVerificationGasLimitResult.result ===
+                "retry"
+            ) {
                 const { optimalGas, minGas } =
-                    paymasterVerificationGasLimitResult
+                    binarySearchPaymasterVerificationGasLimitResult
                 const binarySearchResult = await this.retryBinarySearch({
                     entryPoint,
                     optimalGas,
@@ -559,22 +568,22 @@ export class GasEstimatorV07 {
                 ).data.gasUsed
             }
 
-            const callGasLimitResult = validateBinarySearchDataResult(
-                binarySearchCallGasLimitCause,
-                "binarySearchCallGasLimit"
+            const simulateCallDataResult = validateBinarySearchDataResult(
+                simulateCallDataCause,
+                "simulateCallData"
             )
 
             let callGasLimit = 0n
 
-            if (callGasLimitResult.result === "success") {
-                callGasLimit = callGasLimitResult.data.gasUsed
+            if (simulateCallDataResult.result === "success") {
+                callGasLimit = simulateCallDataResult.data.gasUsed
             }
-            if (callGasLimitResult.result === "failed") {
-                return callGasLimitResult
+            if (simulateCallDataResult.result === "failed") {
+                return simulateCallDataResult
             }
 
-            if (callGasLimitResult.result === "retry") {
-                const { optimalGas, minGas } = callGasLimitResult
+            if (simulateCallDataResult.result === "retry") {
+                const { optimalGas, minGas } = simulateCallDataResult
                 const binarySearchResult = await this.retryBinarySearch({
                     entryPoint,
                     optimalGas,
@@ -585,7 +594,7 @@ export class GasEstimatorV07 {
                         op: userOperation,
                         entryPoint
                     }),
-                    functionName: "binarySearchCallGasLimit",
+                    functionName: "simulateCallData",
                     queuedOps: queuedUserOperations,
                     stateOverrides
                 })
@@ -805,7 +814,7 @@ export function getSimulateValidationResult(errorData: Hex): {
 function validateBinarySearchDataResult(
     data: Hex,
     fnName:
-        | "binarySearchCallGasLimit"
+        | "simulateCallData"
         | "binarySearchVerificationGasLimit"
         | "binarySearchPaymasterVerificationGasLimit"
 ):

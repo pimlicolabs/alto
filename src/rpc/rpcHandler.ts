@@ -394,7 +394,7 @@ export class RpcHandler implements IRpcEndpoint {
         entryPoint: Address,
         stateOverrides?: StateOverrides
     ): Promise<EstimateUserOperationGasResponseResult> {
-        return await this.estimateGas({
+        return await this.doEstimateGas({
             apiVersion,
             userOperation,
             entryPoint,
@@ -799,7 +799,7 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
 
-        return await this.estimateGas({
+        return await this.doEstimateGas({
             apiVersion,
             userOperation,
             authorization,
@@ -1054,7 +1054,7 @@ export class RpcHandler implements IRpcEndpoint {
         return currentNonceValue
     }
 
-    async estimateGas({
+    async doEstimateGas({
         apiVersion,
         userOperation,
         entryPoint,
