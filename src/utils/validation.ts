@@ -538,6 +538,9 @@ function getOpStackHandleOpsCallData(
     entryPoint: Address,
     verify: boolean
 ) {
+    let modifiedOp = {
+        ...op
+    }
     // Only randomize signature during estimations.
     if (!verify) {
         const randomizeBytes = (length: number) =>
@@ -546,34 +549,34 @@ function getOpStackHandleOpsCallData(
         const sigLength = size(op.signature)
         let newSignature: `0x${string}`
 
-        if (sigLength < 32) {
+        if (sigLength < 65) {
             // For short signatures, randomize the entire thing
             newSignature = randomizeBytes(sigLength)
         } else {
-            // For longer signatures, only randomize the last 32 bytes
-            const originalPart = slice(op.signature, 0, sigLength - 32)
-            const randomPart = randomizeBytes(32)
+            // For longer signatures, only randomize the last 65 bytes
+            const originalPart = slice(op.signature, 0, sigLength - 65)
+            const randomPart = randomizeBytes(65)
             newSignature = concat([originalPart, randomPart])
         }
 
-        op = {
+        modifiedOp = {
             ...op,
             signature: newSignature
         }
     }
 
-    if (isVersion07(op)) {
+    if (isVersion07(modifiedOp)) {
         return encodeFunctionData({
             abi: EntryPointV07Abi,
             functionName: "handleOps",
-            args: [[toPackedUserOperation(op)], entryPoint]
+            args: [[toPackedUserOperation(modifiedOp)], entryPoint]
         })
     }
 
     return encodeFunctionData({
         abi: EntryPointV06Abi,
         functionName: "handleOps",
-        args: [[op], entryPoint]
+        args: [[modifiedOp], entryPoint]
     })
 }
 
