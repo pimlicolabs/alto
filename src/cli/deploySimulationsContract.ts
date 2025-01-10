@@ -1,7 +1,7 @@
 import {
     DETERMINISTIC_DEPLOYER_TRANSACTION,
-    pimlicoEntrypointSimulationsDeployBytecode,
-    pimlicoEntrypointSimulationsSalt
+    ENTRY_POINT_SIMULATIONS_CREATECALL,
+    PimlicoEntryPointSimulationsDeployBytecode
 } from "@alto/types"
 import {
     type Chain,
@@ -10,8 +10,7 @@ import {
     type Hex,
     http,
     type PublicClient,
-    type Transport,
-    concat
+    type Transport
 } from "viem"
 import type { CamelCasedProperties } from "./parseArgs"
 import type { IOptions } from "@alto/cli"
@@ -73,9 +72,9 @@ export const deploySimulationsContract = async ({
 
     const contractAddress = getContractAddress({
         opcode: "CREATE2",
-        bytecode: pimlicoEntrypointSimulationsDeployBytecode,
-        salt: pimlicoEntrypointSimulationsSalt,
-        from: args.deterministicDeployerAddress
+        bytecode: PimlicoEntryPointSimulationsDeployBytecode,
+        from: args.deterministicDeployerAddress,
+        salt: "0x3132333400000000000000000000000000000000000000000000000000000000" as Hex
     })
 
     if (await isContractDeployed({ publicClient, address: contractAddress })) {
@@ -85,10 +84,7 @@ export const deploySimulationsContract = async ({
     const deployHash = await walletClient.sendTransaction({
         chain: publicClient.chain,
         to: args.deterministicDeployerAddress,
-        data: concat([
-            pimlicoEntrypointSimulationsSalt,
-            pimlicoEntrypointSimulationsDeployBytecode
-        ])
+        data: ENTRY_POINT_SIMULATIONS_CREATECALL
     })
 
     await publicClient.waitForTransactionReceipt({
