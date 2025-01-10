@@ -394,7 +394,7 @@ export class RpcHandler implements IRpcEndpoint {
         entryPoint: Address,
         stateOverrides?: StateOverrides
     ): Promise<EstimateUserOperationGasResponseResult> {
-        return await this.doEstimateGas({
+        return await this.estimateGas({
             apiVersion,
             userOperation,
             entryPoint,
@@ -799,7 +799,7 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
 
-        return await this.doEstimateGas({
+        return await this.estimateGas({
             apiVersion,
             userOperation,
             authorization,
@@ -1054,7 +1054,7 @@ export class RpcHandler implements IRpcEndpoint {
         return currentNonceValue
     }
 
-    async doEstimateGas({
+    async estimateGas({
         apiVersion,
         userOperation,
         entryPoint,
@@ -1225,7 +1225,22 @@ export class RpcHandler implements IRpcEndpoint {
         if (isVersion06(simulationUserOperation)) {
             callGasLimit = scaleBigIntByPercent(
                 callGasLimit,
-                Number(this.config.callGasLimitMultiplier)
+                Number(this.config.v6CallGasLimitMultiplier)
+            )
+        }
+
+        if (isVersion07(simulationUserOperation)) {
+            verificationGasLimit = scaleBigIntByPercent(
+                verificationGasLimit,
+                Number(this.config.v7VerificationGasLimitMultiplier)
+            )
+            paymasterVerificationGasLimit = scaleBigIntByPercent(
+                paymasterVerificationGasLimit,
+                Number(this.config.v7PaymasterVerificationGasLimitMultiplier)
+            )
+            callGasLimit = scaleBigIntByPercent(
+                callGasLimit,
+                Number(this.config.v7CallGasLimitMultiplier)
             )
         }
 

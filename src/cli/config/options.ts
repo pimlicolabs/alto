@@ -221,14 +221,35 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
                 "Added to the initial minimum gas to determine the upper bound of the binary search",
             type: "string",
             require: false,
-            default: "1000000"
+            default: "30000000"
         },
-        "call-gas-limit-multiplier": {
+        "v6-call-gas-limit-multiplier": {
             description:
-                "Amount to multiply the call gas limits fetched from simulations",
+                "Amount to multiply the callGasLimits fetched from simulations for v6 userOperations",
             type: "string",
             require: true,
             default: "100"
+        },
+        "v7-call-gas-limit-multiplier": {
+            description:
+                "Amount to multiply the callGasLimit fetched from simulations for v7 userOperations",
+            type: "string",
+            require: true,
+            default: "100"
+        },
+        "v7-verification-gas-limit-multiplier": {
+            description:
+                "Amount to multiply the verificationGasLimits fetched from simulations for v7 userOperations",
+            type: "string",
+            require: true,
+            default: "130"
+        },
+        "v7-paymaster-verification-gas-limit-multiplier": {
+            description:
+                "Amount to multiply the paymasterVerificationGas limits fetched from simulations for v7 userOperations",
+            type: "string",
+            require: true,
+            default: "130"
         },
         "paymaster-gas-limit-multiplier": {
             description:
