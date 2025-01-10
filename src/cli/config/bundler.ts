@@ -212,6 +212,7 @@ export const gasEstimationArgsSchema = z.object({
         .transform((val) => BigInt(val))
         .default("1000000"),
     "v6-call-gas-limit-multiplier": z.string().transform((val) => BigInt(val)),
+    "v7-call-gas-limit-multiplier": z.string().transform((val) => BigInt(val)),
     "v7-verification-gas-limit-multiplier": z
         .string()
         .transform((val) => BigInt(val)),

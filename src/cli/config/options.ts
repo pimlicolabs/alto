@@ -225,21 +225,28 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
         },
         "v6-call-gas-limit-multiplier": {
             description:
-                "Amount to multiply the call gas limits fetched from simulations for v6 userOperations",
+                "Amount to multiply the callGasLimits fetched from simulations for v6 userOperations",
+            type: "string",
+            require: true,
+            default: "100"
+        },
+        "v7-call-gas-limit-multiplier": {
+            description:
+                "Amount to multiply the callGasLimit fetched from simulations for v7 userOperations",
             type: "string",
             require: true,
             default: "100"
         },
         "v7-verification-gas-limit-multiplier": {
             description:
-                "Amount to multiply the verification gas limits fetched from simulations for v7 userOperations",
+                "Amount to multiply the verificationGasLimits fetched from simulations for v7 userOperations",
             type: "string",
             require: true,
             default: "130"
         },
         "v7-paymaster-verification-gas-limit-multiplier": {
             description:
-                "Amount to multiply the paymaster verification gas limits fetched from simulations for v7 userOperations",
+                "Amount to multiply the paymasterVerificationGas limits fetched from simulations for v7 userOperations",
             type: "string",
             require: true,
             default: "130"

@@ -1238,6 +1238,10 @@ export class RpcHandler implements IRpcEndpoint {
                 paymasterVerificationGasLimit,
                 Number(this.config.v7PaymasterVerificationGasLimitMultiplier)
             )
+            callGasLimit = scaleBigIntByPercent(
+                callGasLimit,
+                Number(this.config.v7CallGasLimitMultiplier)
+            )
         }
 
         let preVerificationGas = await calcPreVerificationGas({
