@@ -18,6 +18,7 @@ import type { AltoConfig } from "../createConfig"
 import { SlidingWindowTimedQueue } from "../utils/slidingWindowTimedQueue"
 import { ArbitrumManager } from "./arbitrumGasPriceManager"
 import { MantleManager } from "./mantleGasPriceManager"
+import { OptimismManager } from "./optimismManager"
 
 enum ChainId {
     Goerli = 5,
@@ -48,6 +49,7 @@ export class GasPriceManager {
 
     public arbitrumManager: ArbitrumManager
     public mantleManager: MantleManager
+    public optimismManager: OptimismManager
 
     constructor(config: AltoConfig) {
         this.config = config
@@ -79,6 +81,7 @@ export class GasPriceManager {
 
         this.arbitrumManager = new ArbitrumManager(queueValidity)
         this.mantleManager = new MantleManager(queueValidity)
+        this.optimismManager = new OptimismManager(queueValidity)
     }
 
     public init() {
@@ -430,6 +433,27 @@ export class GasPriceManager {
         }
 
         return maxBaseFeePerGas
+    }
+
+    public async getHighestMaxFeePerGas(): Promise<bigint> {
+        let highestMaxFeePerGas = this.maxFeePerGasQueue.getMaxValue()
+        if (!highestMaxFeePerGas) {
+            const gasPrice = await this.getGasPrice()
+            highestMaxFeePerGas = gasPrice.maxFeePerGas
+        }
+
+        return highestMaxFeePerGas
+    }
+
+    public async getHighestMaxPriorityFeePerGas(): Promise<bigint> {
+        let highestMaxPriorityFeePerGas =
+            this.maxPriorityFeePerGasQueue.getMaxValue()
+        if (!highestMaxPriorityFeePerGas) {
+            const gasPrice = await this.getGasPrice()
+            highestMaxPriorityFeePerGas = gasPrice.maxPriorityFeePerGas
+        }
+
+        return highestMaxPriorityFeePerGas
     }
 
     private async getMinMaxFeePerGas(): Promise<bigint> {
