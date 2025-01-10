@@ -498,10 +498,6 @@ export class ExecutorManager {
                 (transactionInfo.transactionRequest.gas * multiplier) / 100n
             transactionInfo.transactionRequest.nonce += 1
 
-            opInfos.map(({ userOperationHash }) => {
-                this.mempool.removeSubmitted(userOperationHash)
-            })
-
             await this.replaceTransaction(transactionInfo, "AA95")
         } else {
             await Promise.all(

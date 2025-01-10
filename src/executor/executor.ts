@@ -665,7 +665,7 @@ export class Executor {
         if (isTransactionUnderPriced) {
             await this.handleTransactionUnderPriced({
                 nonce: request.nonce,
-                executor: request.from
+                executor: request.account
             })
         }
 
@@ -681,7 +681,7 @@ export class Executor {
     async handleTransactionUnderPriced({
         nonce,
         executor
-    }: { nonce: number; executor: Address }) {
+    }: { nonce: number; executor: Account }) {
         const submitted = this.mempool.dumpSubmittedOps()
 
         const conflictingOps = submitted
@@ -689,7 +689,7 @@ export class Executor {
                 const tx = submitted.transactionInfo
 
                 return (
-                    tx.executor.address === executor &&
+                    tx.executor.address === executor.address &&
                     tx.transactionRequest.nonce === nonce
                 )
             })
@@ -702,6 +702,10 @@ export class Executor {
             this.mempool.removeSubmitted(op.userOperationHash)
             this.mempool.add(op.mempoolUserOperation, op.entryPoint)
         })
+
+        if (conflictingOps.length > 0) {
+            this.markWalletProcessed(executor)
+        }
     }
 
     async bundle(
