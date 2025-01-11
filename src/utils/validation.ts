@@ -626,26 +626,19 @@ export async function calcOptimismPreVerificationGas(
             : gasPriceManager.getBaseFee()
     ])
 
-    if (!validate) {
-        gasPriceManager.optimismManager.saveL1FeeValue(l1Fee)
-    }
+    let l2MaxFee: bigint
+    let l2PriorityFee: bigint
 
-    if (op.maxFeePerGas <= 1n || op.maxPriorityFeePerGas <= 1n) {
-        // if user didn't provide gasPrice values, fetch current going price rate
+    if (validate) {
+        l2MaxFee = await gasPriceManager.getHighestMaxFeePerGas()
+        l2PriorityFee =
+            baseFeePerGas +
+            (await gasPriceManager.getHighestMaxPriorityFeePerGas())
+    } else {
         const gasPrices = await gasPriceManager.getGasPrice()
-        op.maxPriorityFeePerGas = gasPrices.maxPriorityFeePerGas
-        op.maxFeePerGas = gasPrices.maxFeePerGas
+        l2MaxFee = gasPrices.maxFeePerGas
+        l2PriorityFee = baseFeePerGas + gasPrices.maxPriorityFeePerGas
     }
-
-    const l2MaxFee = validate
-        ? await gasPriceManager.getHighestMaxFeePerGas()
-        : op.maxFeePerGas
-
-    const l2PriorityFee =
-        baseFeePerGas +
-        (validate
-            ? await gasPriceManager.getHighestMaxPriorityFeePerGas()
-            : op.maxPriorityFeePerGas)
 
     const l2price = minBigInt(l2MaxFee, l2PriorityFee)
 
