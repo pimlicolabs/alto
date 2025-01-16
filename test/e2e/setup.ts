@@ -116,7 +116,8 @@ export default async function setup({ provide }) {
 
     const anvilInstance = anvil({
         chainId: foundry.id,
-        port: 8485
+        port: 8485,
+        codeSizeLimit: 1000_000
     })
     await anvilInstance.start()
     const anvilRpc = `http://${anvilInstance.host}:${anvilInstance.port}`

@@ -48,6 +48,11 @@ function getTransactionsFromUserOperationEntries(
     )
 }
 
+const MIN_INTERVAL = 100 // 0.1 seconds (100ms)
+const MAX_INTERVAL = 1000 // Capped at 1 second (1000ms)
+const SCALE_FACTOR = 10 // Interval increases by 5ms per task per minute
+const RPM_WINDOW = 60000 // 1 minute window in ms
+
 export class ExecutorManager {
     private config: AltoConfig
     private executor: Executor
@@ -58,9 +63,10 @@ export class ExecutorManager {
     private reputationManager: InterfaceReputationManager
     private unWatch: WatchBlocksReturnType | undefined
     private currentlyHandlingBlock = false
-    private timer?: NodeJS.Timer
     private gasPriceManager: GasPriceManager
     private eventManager: EventManager
+    private opsCount: number[] = []
+    private bundlingMode: BundlingMode
 
     constructor({
         config,
@@ -96,22 +102,74 @@ export class ExecutorManager {
         this.gasPriceManager = gasPriceManager
         this.eventManager = eventManager
 
-        if (this.config.bundleMode === "auto") {
-            this.timer = setInterval(async () => {
-                await this.bundle()
-            }, this.config.maxBundleWait) as NodeJS.Timer
+        this.bundlingMode = this.config.bundleMode
+
+        if (this.bundlingMode === "auto") {
+            this.autoScalingBundling()
         }
     }
 
-    setBundlingMode(bundleMode: BundlingMode): void {
-        if (bundleMode === "auto" && !this.timer) {
-            this.timer = setInterval(async () => {
-                await this.bundle()
-            }, this.config.maxBundleWait) as NodeJS.Timer
-        } else if (bundleMode === "manual" && this.timer) {
-            clearInterval(this.timer)
-            this.timer = undefined
+    async setBundlingMode(bundleMode: BundlingMode): Promise<void> {
+        this.bundlingMode = bundleMode
+
+        if (bundleMode === "manual") {
+            await new Promise((resolve) =>
+                setTimeout(resolve, 2 * MAX_INTERVAL)
+            )
         }
+
+        if (bundleMode === "auto") {
+            this.autoScalingBundling()
+        }
+    }
+
+    async autoScalingBundling() {
+        const now = Date.now()
+        this.opsCount = this.opsCount.filter(
+            (timestamp) => now - timestamp < RPM_WINDOW
+        )
+
+        const opsToBundle = await this.getOpsToBundle()
+
+        if (opsToBundle.length > 0) {
+            const opsCount: number = opsToBundle.length
+            const timestamp: number = Date.now()
+            this.opsCount.push(...Array(opsCount).fill(timestamp)) // Add timestamps for each task
+
+            await this.bundle(opsToBundle)
+        }
+
+        const rpm: number = this.opsCount.length
+        // Calculate next interval with linear scaling
+        const nextInterval: number = Math.min(
+            MIN_INTERVAL + rpm * SCALE_FACTOR, // Linear scaling
+            MAX_INTERVAL // Cap at 1000ms
+        )
+        if (this.bundlingMode === "auto") {
+            setTimeout(this.autoScalingBundling.bind(this), nextInterval)
+        }
+    }
+
+    async getOpsToBundle() {
+        const opsToBundle: UserOperationInfo[][] = []
+
+        while (true) {
+            const ops = await this.mempool.process(
+                this.config.maxGasPerBundle,
+                1
+            )
+            if (ops?.length > 0) {
+                opsToBundle.push(ops)
+            } else {
+                break
+            }
+        }
+
+        if (opsToBundle.length === 0) {
+            return []
+        }
+
+        return opsToBundle
     }
 
     async bundleNow(): Promise<Hash[]> {
@@ -285,25 +343,7 @@ export class ExecutorManager {
         return txHash
     }
 
-    async bundle() {
-        const opsToBundle: UserOperationInfo[][] = []
-
-        while (true) {
-            const ops = await this.mempool.process(
-                this.config.maxGasPerBundle,
-                1
-            )
-            if (ops?.length > 0) {
-                opsToBundle.push(ops)
-            } else {
-                break
-            }
-        }
-
-        if (opsToBundle.length === 0) {
-            return
-        }
-
+    async bundle(opsToBundle: UserOperationInfo[][] = []) {
         await Promise.all(
             opsToBundle.map(async (ops) => {
                 const opEntryPointMap = new Map<
