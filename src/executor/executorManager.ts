@@ -67,6 +67,7 @@ export class ExecutorManager {
     private eventManager: EventManager
     private opsCount: number[] = []
     private bundlingMode: BundlingMode
+    private timer: NodeJS.Timeout | undefined
 
     constructor({
         config,
@@ -112,6 +113,10 @@ export class ExecutorManager {
     setBundlingMode(bundleMode: BundlingMode): void {
         this.bundlingMode = bundleMode
 
+        if (this.timer && this.bundlingMode === "manual") {
+            clearTimeout(this.timer)
+        }
+
         if (bundleMode === "auto") {
             this.autoScalingBundling()
         }
@@ -140,7 +145,10 @@ export class ExecutorManager {
             MAX_INTERVAL // Cap at 1000ms
         )
         if (this.bundlingMode === "auto") {
-            setTimeout(this.autoScalingBundling.bind(this), nextInterval)
+            this.timer = setTimeout(
+                this.autoScalingBundling.bind(this),
+                nextInterval
+            )
         }
     }
 

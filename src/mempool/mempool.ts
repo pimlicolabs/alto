@@ -671,31 +671,7 @@ export class MemoryMempool {
         maxGasLimit: bigint,
         minOps?: number
     ): Promise<UserOperationInfo[]> {
-        const submittingOps = this.store
-            .dumpSubmitted()
-            .slice()
-            .reduce(
-                (acc, op) => {
-                    const sender = deriveUserOperation(
-                        op.userOperation.mempoolUserOperation
-                    ).sender
-                    acc[sender] = op
-                    return acc
-                },
-                {} as Record<Hex, SubmittedUserOperation>
-            )
-        const outstandingUserOperations = this.store
-            .dumpOutstanding()
-            .slice()
-            .filter((op) => {
-                const sender = deriveUserOperation(
-                    op.mempoolUserOperation
-                ).sender
-                if (submittingOps[sender]) {
-                    return false
-                }
-                return true
-            })
+        const outstandingUserOperations = this.store.dumpOutstanding().slice()
 
         // Sort userops before the execution
         // Decide the order of the userops based on the sender and nonce
