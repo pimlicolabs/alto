@@ -847,12 +847,7 @@ function validateBinarySearchDataResult(
             code: ExecutionErrors.UserOperationReverted
         } as const
     } catch (_e) {
-        // Check if the result hit eth_call gasLimit.
-        const simulationOutOfGasSelector = toFunctionSelector(
-            "SimulationOutOfGas(uint256 optimalGas, uint256 minGas, uint256 maxGas)"
-        )
-
-        if (slice(data, 0, 4) === simulationOutOfGasSelector) {
+        try {
             const res = decodeErrorResult({
                 abi: EntryPointV07SimulationsAbi,
                 data: data
@@ -868,14 +863,20 @@ function validateBinarySearchDataResult(
                     maxGas
                 } as const
             }
-        }
 
-        // no error we go the result
-        return {
-            result: "failed",
-            data: "Unknown error, could not parse target call data result.",
-            code: ExecutionErrors.UserOperationReverted
-        } as const
+            return {
+                result: "failed",
+                data,
+                code: ExecutionErrors.UserOperationReverted
+            }
+        } catch {
+            // no error we go the result
+            return {
+                result: "failed",
+                data: "Unknown error, could not parse target call data result.",
+                code: ExecutionErrors.UserOperationReverted
+            } as const
+        }
     }
 }
 
