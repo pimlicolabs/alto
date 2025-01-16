@@ -48,7 +48,7 @@ function getTransactionsFromUserOperationEntries(
     )
 }
 
-const MIN_INTERVAL = 200 // 0.2 seconds (200ms)
+const MIN_INTERVAL = 100 // 0.1 seconds (100ms)
 const MAX_INTERVAL = 1000 // Capped at 1 second (1000ms)
 const SCALE_FACTOR = 10 // Interval increases by 5ms per task per minute
 const RPM_WINDOW = 60000 // 1 minute window in ms
