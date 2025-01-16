@@ -20,5 +20,6 @@
     "mempool-max-queued-ops": 10,
     "enforce-unique-senders-per-bundle": false,
     "code-override-support": true,
-    "enable-instant-bundling-endpoint": true
+    "enable-instant-bundling-endpoint": true,
+    "bundling-mode": "manual"
 }

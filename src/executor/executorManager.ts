@@ -63,10 +63,10 @@ export class ExecutorManager {
     private reputationManager: InterfaceReputationManager
     private unWatch: WatchBlocksReturnType | undefined
     private currentlyHandlingBlock = false
-    private timer?: NodeJS.Timer
     private gasPriceManager: GasPriceManager
     private eventManager: EventManager
     private opsCount: number[] = []
+    private bundlingMode: BundlingMode
 
     constructor({
         config,
@@ -102,17 +102,18 @@ export class ExecutorManager {
         this.gasPriceManager = gasPriceManager
         this.eventManager = eventManager
 
-        if (this.config.bundleMode === "auto") {
+        this.bundlingMode = this.config.bundleMode
+
+        if (this.bundlingMode === "auto") {
             this.autoScalingBundling()
         }
     }
 
     setBundlingMode(bundleMode: BundlingMode): void {
-        if (bundleMode === "auto" && !this.timer) {
+        this.bundlingMode = bundleMode
+
+        if (bundleMode === "auto") {
             this.autoScalingBundling()
-        } else if (bundleMode === "manual" && this.timer) {
-            clearInterval(this.timer)
-            this.timer = undefined
         }
     }
 
@@ -138,7 +139,9 @@ export class ExecutorManager {
             MIN_INTERVAL + rpm * SCALE_FACTOR, // Linear scaling
             MAX_INTERVAL // Cap at 1000ms
         )
-        setTimeout(this.autoScalingBundling.bind(this), nextInterval)
+        if (this.bundlingMode === "auto") {
+            setTimeout(this.autoScalingBundling.bind(this), nextInterval)
+        }
     }
 
     async getOpsToBundle() {

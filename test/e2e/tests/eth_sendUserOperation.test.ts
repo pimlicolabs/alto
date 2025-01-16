@@ -359,12 +359,7 @@ describe.each([
             const nonceValueDiffs = [0n, 1n, 2n]
 
             // Send 3 sequential user ops
-            const sendUserOperation = async (nonceValueDiff: bigint) => {
-                const nonce = (await entryPointContract.read.getNonce([
-                    client.account.address,
-                    nonceKey
-                ])) as bigint
-
+            const sendUserOperation = (nonce: bigint) => {
                 return client.sendUserOperation({
                     calls: [
                         {
@@ -373,13 +368,17 @@ describe.each([
                             data: "0x"
                         }
                     ],
-                    nonce: nonce + nonceValueDiff
+                    nonce: nonce
                 })
             }
             const opHashes: Hex[] = []
+            const nonce = (await entryPointContract.read.getNonce([
+                client.account.address,
+                nonceKey
+            ])) as bigint
 
             for (const nonceValueDiff of nonceValueDiffs) {
-                opHashes.push(await sendUserOperation(nonceValueDiff))
+                opHashes.push(await sendUserOperation(nonce + nonceValueDiff))
             }
 
             await sendBundleNow({ altoRpc })

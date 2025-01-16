@@ -28,7 +28,7 @@ import {
     isVersion06,
     isVersion07
 } from "@alto/utils"
-import { type Address, getAddress, getContract } from "viem"
+import { type Address, getAddress, getContract, type Hex } from "viem"
 import type { Monitor } from "./monitoring"
 import {
     type InterfaceReputationManager,
@@ -671,7 +671,31 @@ export class MemoryMempool {
         maxGasLimit: bigint,
         minOps?: number
     ): Promise<UserOperationInfo[]> {
-        const outstandingUserOperations = this.store.dumpOutstanding().slice()
+        const submittingOps = this.store
+            .dumpSubmitted()
+            .slice()
+            .reduce(
+                (acc, op) => {
+                    const sender = deriveUserOperation(
+                        op.userOperation.mempoolUserOperation
+                    ).sender
+                    acc[sender] = op
+                    return acc
+                },
+                {} as Record<Hex, SubmittedUserOperation>
+            )
+        const outstandingUserOperations = this.store
+            .dumpOutstanding()
+            .slice()
+            .filter((op) => {
+                const sender = deriveUserOperation(
+                    op.mempoolUserOperation
+                ).sender
+                if (submittingOps[sender]) {
+                    return false
+                }
+                return true
+            })
 
         // Sort userops before the execution
         // Decide the order of the userops based on the sender and nonce
