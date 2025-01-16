@@ -82,7 +82,10 @@ import {
 import { base, baseSepolia, optimism } from "viem/chains"
 import type { NonceQueuer } from "./nonceQueuer"
 import type { AltoConfig } from "../createConfig"
-import { SignedAuthorization, SignedAuthorizationList } from "viem/experimental"
+import type {
+    SignedAuthorization,
+    SignedAuthorizationList
+} from "viem/experimental"
 
 export interface IRpcEndpoint {
     handleMethod(
