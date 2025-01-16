@@ -166,7 +166,7 @@ export class Executor {
     ): Promise<ReplaceTransactionResult> {
         const newRequest = { ...transactionInfo.transactionRequest }
 
-        let gasPriceParameters: GasPriceParameters
+        let gasPriceParameters
         try {
             gasPriceParameters =
                 await this.gasPriceManager.tryGetNetworkGasPrice()

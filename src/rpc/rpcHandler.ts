@@ -82,10 +82,7 @@ import {
 import { base, baseSepolia, optimism } from "viem/chains"
 import type { NonceQueuer } from "./nonceQueuer"
 import type { AltoConfig } from "../createConfig"
-import type {
-    SignedAuthorization,
-    SignedAuthorizationList
-} from "viem/experimental"
+import { SignedAuthorization, SignedAuthorizationList } from "viem/experimental"
 
 export interface IRpcEndpoint {
     handleMethod(
@@ -251,7 +248,7 @@ export class RpcHandler implements IRpcEndpoint {
             case "debug_bundler_setBundlingMode":
                 return {
                     method,
-                    result: await this.debug_bundler_setBundlingMode(
+                    result: this.debug_bundler_setBundlingMode(
                         ...request.params
                     )
                 }
@@ -591,12 +588,12 @@ export class RpcHandler implements IRpcEndpoint {
         return transactions[0]
     }
 
-    async debug_bundler_setBundlingMode(
+    debug_bundler_setBundlingMode(
         bundlingMode: BundlingMode
-    ): Promise<BundlerSetBundlingModeResponseResult> {
+    ): BundlerSetBundlingModeResponseResult {
         this.ensureDebugEndpointsAreEnabled("debug_bundler_setBundlingMode")
 
-        await this.executorManager.setBundlingMode(bundlingMode)
+        this.executorManager.setBundlingMode(bundlingMode)
         return "ok"
     }
 

@@ -180,16 +180,16 @@ describe.each([
                 ]
             })
 
-            await expect(() =>
-                firstClient.getUserOperationReceipt({
+            await expect(async () => {
+                await firstClient.getUserOperationReceipt({
                     hash: firstHash
                 })
-            ).rejects.toThrow(UserOperationReceiptNotFoundError)
-            await expect(() =>
-                secondClient.getUserOperationReceipt({
+            }).rejects.toThrow(UserOperationReceiptNotFoundError)
+            await expect(async () => {
+                await secondClient.getUserOperationReceipt({
                     hash: secondHash
                 })
-            ).rejects.toThrow(UserOperationReceiptNotFoundError)
+            }).rejects.toThrow(UserOperationReceiptNotFoundError)
 
             await sendBundleNow({ altoRpc })
 
@@ -359,7 +359,12 @@ describe.each([
             const nonceValueDiffs = [0n, 1n, 2n]
 
             // Send 3 sequential user ops
-            const sendUserOperation = (nonce: bigint) => {
+            const sendUserOperation = async (nonceValueDiff: bigint) => {
+                const nonce = (await entryPointContract.read.getNonce([
+                    client.account.address,
+                    nonceKey
+                ])) as bigint
+
                 return client.sendUserOperation({
                     calls: [
                         {
@@ -368,17 +373,13 @@ describe.each([
                             data: "0x"
                         }
                     ],
-                    nonce: nonce
+                    nonce: nonce + nonceValueDiff
                 })
             }
             const opHashes: Hex[] = []
-            const nonce = (await entryPointContract.read.getNonce([
-                client.account.address,
-                nonceKey
-            ])) as bigint
 
             for (const nonceValueDiff of nonceValueDiffs) {
-                opHashes.push(await sendUserOperation(nonce + nonceValueDiff))
+                opHashes.push(await sendUserOperation(nonceValueDiff))
             }
 
             await sendBundleNow({ altoRpc })
