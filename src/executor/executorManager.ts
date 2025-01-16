@@ -124,15 +124,13 @@ export class ExecutorManager {
 
         const opsToBundle = await this.getOpsToBundle()
 
-        if (opsToBundle.length === 0) {
-            return
+        if (opsToBundle.length > 0) {
+            const opsCount: number = opsToBundle.length
+            const timestamp: number = Date.now()
+            this.opsCount.push(...Array(opsCount).fill(timestamp)) // Add timestamps for each task
+
+            await this.bundle(opsToBundle)
         }
-
-        const opsCount: number = opsToBundle.length
-        const timestamp: number = Date.now()
-        this.opsCount.push(...Array(opsCount).fill(timestamp)) // Add timestamps for each task
-
-        await this.bundle(opsToBundle)
 
         const rpm: number = this.opsCount.length
         // Calculate next interval with linear scaling
