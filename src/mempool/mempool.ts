@@ -28,7 +28,7 @@ import {
     isVersion06,
     isVersion07
 } from "@alto/utils"
-import { type Address, getAddress, getContract, type Hex } from "viem"
+import { type Address, getAddress, getContract } from "viem"
 import type { Monitor } from "./monitoring"
 import {
     type InterfaceReputationManager,
