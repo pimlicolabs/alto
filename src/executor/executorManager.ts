@@ -138,7 +138,7 @@ export class ExecutorManager {
             MIN_INTERVAL + rpm * SCALE_FACTOR, // Linear scaling
             MAX_INTERVAL // Cap at 1000ms
         )
-        setTimeout(this.autoScalingBundling, nextInterval)
+        setTimeout(this.autoScalingBundling.bind(this), nextInterval)
     }
 
     async getOpsToBundle() {
