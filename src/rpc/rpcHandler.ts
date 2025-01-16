@@ -251,7 +251,7 @@ export class RpcHandler implements IRpcEndpoint {
             case "debug_bundler_setBundlingMode":
                 return {
                     method,
-                    result: this.debug_bundler_setBundlingMode(
+                    result: await this.debug_bundler_setBundlingMode(
                         ...request.params
                     )
                 }
@@ -591,12 +591,12 @@ export class RpcHandler implements IRpcEndpoint {
         return transactions[0]
     }
 
-    debug_bundler_setBundlingMode(
+    async debug_bundler_setBundlingMode(
         bundlingMode: BundlingMode
-    ): BundlerSetBundlingModeResponseResult {
+    ): Promise<BundlerSetBundlingModeResponseResult> {
         this.ensureDebugEndpointsAreEnabled("debug_bundler_setBundlingMode")
 
-        this.executorManager.setBundlingMode(bundlingMode)
+        await this.executorManager.setBundlingMode(bundlingMode)
         return "ok"
     }
 

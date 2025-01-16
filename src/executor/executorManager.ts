@@ -48,9 +48,9 @@ function getTransactionsFromUserOperationEntries(
     )
 }
 
-const MIN_INTERVAL = 100 // 0.1 seconds (100ms)
+const MIN_INTERVAL = 200 // 0.2 seconds (200ms)
 const MAX_INTERVAL = 1000 // Capped at 1 second (1000ms)
-const SCALE_FACTOR = 5 // Interval increases by 5ms per task per minute
+const SCALE_FACTOR = 10 // Interval increases by 5ms per task per minute
 const RPM_WINDOW = 60000 // 1 minute window in ms
 
 export class ExecutorManager {
@@ -66,8 +66,7 @@ export class ExecutorManager {
     private gasPriceManager: GasPriceManager
     private eventManager: EventManager
     private opsCount: number[] = []
-    private bundleMode: BundlingMode
-    private timers: NodeJS.Timeout[] = []
+    private bundlingMode: BundlingMode
 
     constructor({
         config,
@@ -103,24 +102,23 @@ export class ExecutorManager {
         this.gasPriceManager = gasPriceManager
         this.eventManager = eventManager
 
-        this.bundleMode = this.config.bundleMode
+        this.bundlingMode = this.config.bundleMode
 
-        if (this.bundleMode === "auto") {
+        if (this.bundlingMode === "auto") {
             this.autoScalingBundling()
         }
     }
 
-    setBundlingMode(bundleMode: BundlingMode): void {
-        this.bundleMode = bundleMode
+    async setBundlingMode(bundleMode: BundlingMode): Promise<void> {
+        this.bundlingMode = bundleMode
 
-        if (this.timers.length > 0 && this.bundleMode === "manual") {
-            for (const timer of this.timers) {
-                clearTimeout(timer)
-            }
-            this.timers = []
+        if (bundleMode === "manual") {
+            await new Promise((resolve) =>
+                setTimeout(resolve, 2 * MAX_INTERVAL)
+            )
         }
 
-        if (this.bundleMode === "auto") {
+        if (bundleMode === "auto") {
             this.autoScalingBundling()
         }
     }
@@ -147,10 +145,8 @@ export class ExecutorManager {
             MIN_INTERVAL + rpm * SCALE_FACTOR, // Linear scaling
             MAX_INTERVAL // Cap at 1000ms
         )
-        if (this.bundleMode === "auto") {
-            this.timers.push(
-                setTimeout(this.autoScalingBundling.bind(this), nextInterval)
-            )
+        if (this.bundlingMode === "auto") {
+            setTimeout(this.autoScalingBundling.bind(this), nextInterval)
         }
     }
 
