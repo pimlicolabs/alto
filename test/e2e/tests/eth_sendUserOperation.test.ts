@@ -180,16 +180,16 @@ describe.each([
                 ]
             })
 
-            await expect(async () => {
-                await firstClient.getUserOperationReceipt({
+            await expect(() =>
+                firstClient.getUserOperationReceipt({
                     hash: firstHash
                 })
-            }).rejects.toThrow(UserOperationReceiptNotFoundError)
-            await expect(async () => {
-                await secondClient.getUserOperationReceipt({
+            ).rejects.toThrow(UserOperationReceiptNotFoundError)
+            await expect(() =>
+                secondClient.getUserOperationReceipt({
                     hash: secondHash
                 })
-            }).rejects.toThrow(UserOperationReceiptNotFoundError)
+            ).rejects.toThrow(UserOperationReceiptNotFoundError)
 
             await sendBundleNow({ altoRpc })
 

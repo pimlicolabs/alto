@@ -66,8 +66,8 @@ export class ExecutorManager {
     private gasPriceManager: GasPriceManager
     private eventManager: EventManager
     private opsCount: number[] = []
-    private bundlingMode: BundlingMode
-    private timer: NodeJS.Timeout | undefined
+    private bundleMode: BundlingMode
+    private timers: NodeJS.Timeout[] = []
 
     constructor({
         config,
@@ -103,21 +103,24 @@ export class ExecutorManager {
         this.gasPriceManager = gasPriceManager
         this.eventManager = eventManager
 
-        this.bundlingMode = this.config.bundleMode
+        this.bundleMode = this.config.bundleMode
 
-        if (this.bundlingMode === "auto") {
+        if (this.bundleMode === "auto") {
             this.autoScalingBundling()
         }
     }
 
     setBundlingMode(bundleMode: BundlingMode): void {
-        this.bundlingMode = bundleMode
+        this.bundleMode = bundleMode
 
-        if (this.timer && this.bundlingMode === "manual") {
-            clearTimeout(this.timer)
+        if (this.timers.length > 0 && this.bundleMode === "manual") {
+            for (const timer of this.timers) {
+                clearTimeout(timer)
+            }
+            this.timers = []
         }
 
-        if (bundleMode === "auto") {
+        if (this.bundleMode === "auto") {
             this.autoScalingBundling()
         }
     }
@@ -144,10 +147,9 @@ export class ExecutorManager {
             MIN_INTERVAL + rpm * SCALE_FACTOR, // Linear scaling
             MAX_INTERVAL // Cap at 1000ms
         )
-        if (this.bundlingMode === "auto") {
-            this.timer = setTimeout(
-                this.autoScalingBundling.bind(this),
-                nextInterval
+        if (this.bundleMode === "auto") {
+            this.timers.push(
+                setTimeout(this.autoScalingBundling.bind(this), nextInterval)
             )
         }
     }
