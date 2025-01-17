@@ -715,6 +715,13 @@ export class MemoryMempool {
         for (const opInfo of outstandingUserOperations) {
             const op = deriveUserOperation(opInfo.mempoolUserOperation)
             gasUsed += op.callGasLimit + op.verificationGasLimit
+
+            if (isVersion07(op)) {
+                gasUsed +=
+                    (op.paymasterPostOpGasLimit ?? 0n) +
+                    (op.paymasterVerificationGasLimit ?? 0n)
+            }
+
             if (gasUsed > maxGasLimit && opsTaken >= (minOps || 0)) {
                 break
             }
