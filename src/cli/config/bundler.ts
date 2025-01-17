@@ -92,7 +92,7 @@ export const bundlerArgsSchema = z.object({
     "max-gas-per-bundle": z
         .string()
         .transform((val) => BigInt(val))
-        .default("5000000"),
+        .default("20000000"),
     "rpc-methods": z
         .string()
         .nullable()
