@@ -400,7 +400,9 @@ export class RpcHandler implements IRpcEndpoint {
             const gasLimits =
                 userOperation.callGasLimit + userOperation.verificationGasLimit
 
-            if (gasLimits > this.config.maxGasPerBundle) {
+            const maxGasPerBundle = (this.config.maxGasPerBundle * 130n) / 100n
+
+            if (gasLimits > maxGasPerBundle) {
                 throw new RpcError(
                     `User operation gas limits exceed the max gas per bundle: ${gasLimits} > ${this.config.maxGasPerBundle}`
                 )
