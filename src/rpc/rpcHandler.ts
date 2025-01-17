@@ -381,6 +381,31 @@ export class RpcHandler implements IRpcEndpoint {
             this.eventManager.emitFailedValidation(opHash, reason)
             throw new RpcError(reason)
         }
+
+        if (isVersion07(userOperation)) {
+            const gasLimits =
+                userOperation.callGasLimit +
+                userOperation.verificationGasLimit +
+                (userOperation.paymasterPostOpGasLimit ?? 0n) +
+                (userOperation.paymasterVerificationGasLimit ?? 0n)
+
+            if (gasLimits > this.config.maxGasPerBundle) {
+                throw new RpcError(
+                    `User operation gas limits exceed the max gas per bundle: ${gasLimits} > ${this.config.maxGasPerBundle}`
+                )
+            }
+        }
+
+        if (isVersion06(userOperation)) {
+            const gasLimits =
+                userOperation.callGasLimit + userOperation.verificationGasLimit
+
+            if (gasLimits > this.config.maxGasPerBundle) {
+                throw new RpcError(
+                    `User operation gas limits exceed the max gas per bundle: ${gasLimits} > ${this.config.maxGasPerBundle}`
+                )
+            }
+        }
     }
 
     eth_chainId(): ChainIdResponseResult {
