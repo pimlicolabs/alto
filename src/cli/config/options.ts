@@ -1,7 +1,6 @@
 import { bundlerHandler } from "../handler"
 import type { CliCommand, CliCommandOptions } from "../util"
 import type {
-    IBundleCompressionArgsInput,
     IBundlerArgsInput,
     ICompatibilityArgsInput,
     IDebugArgsInput,
@@ -415,20 +414,6 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         default: false
     }
 }
-
-export const bundleCompressionOptions: CliCommandOptions<IBundleCompressionArgsInput> =
-    {
-        "bundle-bulker-address": {
-            description: "Address of the BundleBulker contract",
-            type: "string",
-            require: false
-        },
-        "per-op-inflator-address": {
-            description: "Address of the PerOpInflator contract",
-            type: "string",
-            require: false
-        }
-    }
 
 export const logOptions: CliCommandOptions<ILogArgsInput> = {
     "redis-queue-endpoint": {

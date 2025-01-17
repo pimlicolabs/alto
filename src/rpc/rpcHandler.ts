@@ -1,9 +1,5 @@
 import type { Executor, ExecutorManager } from "@alto/executor"
-import type {
-    CompressionHandler,
-    EventManager,
-    GasPriceManager
-} from "@alto/handlers"
+import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
     MemoryMempool,
@@ -32,14 +28,12 @@ import {
     type BundlerSetReputationsRequestParams,
     type BundlingMode,
     type ChainIdResponseResult,
-    type CompressedUserOperation,
     EntryPointV06Abi,
     EntryPointV07Abi,
     type EstimateUserOperationGasResponseResult,
     type GetUserOperationByHashResponseResult,
     type GetUserOperationReceiptResponseResult,
     type HexData32,
-    IOpInflatorAbi,
     type InterfaceValidator,
     type MempoolUserOperation,
     type PimlicoGetUserOperationGasPriceResponseResult,
@@ -124,7 +118,6 @@ export class RpcHandler implements IRpcEndpoint {
     metrics: Metrics
     executorManager: ExecutorManager
     reputationManager: InterfaceReputationManager
-    compressionHandler: CompressionHandler | null
     gasPriceManager: GasPriceManager
     eventManager: EventManager
 
@@ -138,7 +131,6 @@ export class RpcHandler implements IRpcEndpoint {
         executorManager,
         reputationManager,
         metrics,
-        compressionHandler,
         gasPriceManager,
         eventManager
     }: {
@@ -151,7 +143,6 @@ export class RpcHandler implements IRpcEndpoint {
         executorManager: ExecutorManager
         reputationManager: InterfaceReputationManager
         metrics: Metrics
-        compressionHandler: CompressionHandler | null
         eventManager: EventManager
         gasPriceManager: GasPriceManager
     }) {
@@ -170,7 +161,6 @@ export class RpcHandler implements IRpcEndpoint {
         this.metrics = metrics
         this.executorManager = executorManager
         this.reputationManager = reputationManager
-        this.compressionHandler = compressionHandler
         this.gasPriceManager = gasPriceManager
         this.eventManager = eventManager
     }
@@ -283,14 +273,6 @@ export class RpcHandler implements IRpcEndpoint {
                 return {
                     method,
                     result: await this.pimlico_getUserOperationGasPrice(
-                        ...request.params
-                    )
-                }
-            case "pimlico_sendCompressedUserOperation":
-                return {
-                    method,
-                    result: await this.pimlico_sendCompressedUserOperation(
-                        apiVersion,
                         ...request.params
                     )
                 }
@@ -924,112 +906,6 @@ export class RpcHandler implements IRpcEndpoint {
         const userOperationReceipt = parseUserOperationReceipt(opHash, receipt)
 
         return userOperationReceipt
-    }
-
-    async pimlico_sendCompressedUserOperation(
-        apiVersion: ApiVersion,
-        compressedCalldata: Hex,
-        inflatorAddress: Address,
-        entryPoint: Address
-    ) {
-        const receivedTimestamp = Date.now()
-        let status: "added" | "queued" | "rejected" = "rejected"
-        try {
-            const { inflatedOp, inflatorId } =
-                await this.validateAndInflateCompressedUserOperation(
-                    inflatorAddress,
-                    compressedCalldata
-                )
-
-            const hash = getUserOperationHash(
-                inflatedOp,
-                entryPoint,
-                this.config.publicClient.chain.id
-            )
-
-            this.eventManager.emitReceived(hash, receivedTimestamp)
-
-            const compressedUserOp: CompressedUserOperation = {
-                compressedCalldata,
-                inflatedOp,
-                inflatorAddress,
-                inflatorId
-            }
-
-            // check userOps inputs.
-            status = await this.addToMempoolIfValid(
-                compressedUserOp,
-                entryPoint,
-                apiVersion
-            )
-
-            return hash
-        } catch (error) {
-            status = "rejected"
-            throw error
-        } finally {
-            this.metrics.userOperationsReceived
-                .labels({
-                    status,
-                    type: "compressed"
-                })
-                .inc()
-        }
-    }
-
-    private async validateAndInflateCompressedUserOperation(
-        inflatorAddress: Address,
-        compressedCalldata: Hex
-    ): Promise<{ inflatedOp: UserOperation; inflatorId: number }> {
-        // check if inflator is registered with our PerOpInflator.
-        if (this.compressionHandler === null) {
-            throw new RpcError("Endpoint not supported")
-        }
-
-        const inflatorId =
-            await this.compressionHandler.getInflatorRegisteredId(
-                inflatorAddress,
-                this.config.publicClient
-            )
-
-        if (inflatorId === 0) {
-            throw new RpcError(
-                `Inflator ${inflatorAddress} is not registered`,
-                ValidationErrors.InvalidFields
-            )
-        }
-
-        // infalte + start to validate user op.
-        const inflatorContract = getContract({
-            address: inflatorAddress,
-            abi: IOpInflatorAbi,
-            client: {
-                public: this.config.publicClient
-            }
-        })
-
-        let inflatedOp: UserOperation
-        try {
-            inflatedOp = await inflatorContract.read.inflate([
-                compressedCalldata
-            ])
-        } catch (e) {
-            throw new RpcError(
-                `Inflator ${inflatorAddress} failed to inflate calldata ${compressedCalldata}, due to ${e}`,
-                ValidationErrors.InvalidFields
-            )
-        }
-
-        // check if perUseropIsRegisterd to target BundleBulker
-        const perOpInflatorId = this.compressionHandler.perOpInflatorId
-
-        if (perOpInflatorId === 0) {
-            throw new RpcError(
-                `PerUserOp ${this.compressionHandler.perOpInflatorAddress} has not been registered with BundelBulker`,
-                ValidationErrors.InvalidFields
-            )
-        }
-        return { inflatedOp, inflatorId }
     }
 
     async getNonceValue(userOperation: UserOperation, entryPoint: Address) {

@@ -1,7 +1,6 @@
 import type { InterfaceReputationManager } from "@alto/mempool"
 import {
     type BundleResult,
-    type CompressedUserOperation,
     EntryPointV06Abi,
     EntryPointV07Abi,
     type FailedOp,
@@ -38,10 +37,7 @@ import {
     type PublicClient,
     type Transport,
     type WalletClient,
-    concat,
     decodeErrorResult,
-    hexToBytes,
-    numberToHex,
     BaseError
 } from "viem"
 import { SignedAuthorizationList } from "viem/experimental"
@@ -103,52 +99,17 @@ export function simulatedOpsToResults(
     })
 }
 
-export type DefaultFilterOpsAndEstimateGasParams = {
+export type DefaultFilterOpsAndEstimateGasParams = {}
+
+export async function filterOpsAndEstimateGas(
+    entryPoint: Address,
     ep: GetContractReturnType<
         typeof EntryPointV06Abi | typeof EntryPointV07Abi,
         {
             public: PublicClient
             wallet: WalletClient
         }
-    >
-    type: "default"
-}
-
-export type CompressedFilterOpsAndEstimateGasParams = {
-    publicClient: PublicClient
-    bundleBulker: Address
-    perOpInflatorId: number
-    type: "compressed"
-}
-
-export function createCompressedCalldata(
-    compressedOps: CompressedUserOperation[],
-    perOpInflatorId: number
-): Hex {
-    const bundleBulkerPayload = numberToHex(perOpInflatorId, { size: 4 }) // bytes used in BundleBulker
-    const perOpInflatorPayload = numberToHex(compressedOps.length, { size: 1 }) // bytes used in perOpInflator
-
-    return compressedOps.reduce(
-        (currentCallData, op) => {
-            const nextCallData = concat([
-                numberToHex(op.inflatorId, { size: 4 }),
-                numberToHex(hexToBytes(op.compressedCalldata).length, {
-                    size: 2
-                }),
-                op.compressedCalldata
-            ])
-
-            return concat([currentCallData, nextCallData])
-        },
-        concat([bundleBulkerPayload, perOpInflatorPayload])
-    )
-}
-
-export async function filterOpsAndEstimateGas(
-    entryPoint: Address,
-    callContext:
-        | DefaultFilterOpsAndEstimateGasParams
-        | CompressedFilterOpsAndEstimateGasParams,
+    >,
     wallet: Account,
     ops: UserOperationWithHash[],
     nonce: number,
@@ -170,10 +131,9 @@ export async function filterOpsAndEstimateGas(
 
     let gasLimit: bigint
 
-    // TODO compressed ops are not supported in V07
-    const isUserOpV06 =
-        callContext.type !== "default" || // All compressed ops are v6 by default
-        isVersion06(simulatedOps[0].owh.mempoolUserOperation as UserOperation)
+    const isUserOpV06 = isVersion06(
+        simulatedOps[0].owh.mempoolUserOperation as UserOperation
+    )
 
     const gasOptions = onlyPre1559
         ? { gasPrice: maxFeePerGas }
@@ -184,57 +144,31 @@ export async function filterOpsAndEstimateGas(
 
     while (simulatedOps.filter((op) => op.reason === undefined).length > 0) {
         try {
-            if (callContext.type === "default") {
-                const { ep } = callContext
+            const opsToSend = simulatedOps
+                .filter((op) => op.reason === undefined)
+                .map(({ owh }) => {
+                    const op = deriveUserOperation(owh.mempoolUserOperation)
+                    return isUserOpV06
+                        ? op
+                        : toPackedUserOperation(op as UserOperationV07)
+                })
 
-                const opsToSend = simulatedOps
-                    .filter((op) => op.reason === undefined)
-                    .map(({ owh }) => {
-                        const op = deriveUserOperation(owh.mempoolUserOperation)
-                        return isUserOpV06
-                            ? op
-                            : toPackedUserOperation(op as UserOperationV07)
-                    })
-
-                gasLimit = await ep.estimateGas.handleOps(
-                    // @ts-ignore - ep is set correctly for opsToSend, but typescript doesn't know that
-                    [opsToSend, wallet.address],
-                    {
-                        account: wallet,
-                        nonce: nonce,
-                        blockTag: blockTag,
-                        ...(fixedEstimationGasLimit !== undefined && {
-                            gas: fixedEstimationGasLimit
-                        }),
-                        ...(authorizationList !== undefined && {
-                            authorizationList
-                        }),
-                        ...gasOptions
-                    }
-                )
-            } else {
-                const { publicClient, bundleBulker, perOpInflatorId } =
-                    callContext
-                const opsToSend = simulatedOps
-                    .filter((op) => op.reason === undefined)
-                    .map(
-                        (op) =>
-                            op.owh
-                                .mempoolUserOperation as CompressedUserOperation
-                    )
-
-                gasLimit = await publicClient.estimateGas({
-                    to: bundleBulker,
+            gasLimit = await ep.estimateGas.handleOps(
+                // @ts-ignore - ep is set correctly for opsToSend, but typescript doesn't know that
+                [opsToSend, wallet.address],
+                {
                     account: wallet,
-                    data: createCompressedCalldata(opsToSend, perOpInflatorId),
+                    nonce: nonce,
+                    blockTag: blockTag,
                     ...(fixedEstimationGasLimit !== undefined && {
                         gas: fixedEstimationGasLimit
                     }),
-                    nonce: nonce,
-                    blockTag: blockTag,
+                    ...(authorizationList !== undefined && {
+                        authorizationList
+                    }),
                     ...gasOptions
-                })
-            }
+                }
+            )
 
             return { simulatedOps, gasLimit }
         } catch (err: unknown) {

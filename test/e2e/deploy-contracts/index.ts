@@ -104,44 +104,6 @@ export async function setupContracts({ anvilRpc }: { anvilRpc: string }) {
         })
         .then(() => console.log("[V0.6 CORE] Deploying SimpleAccountFactory"))
 
-    // ==== DEPLOY COMPRESSION RELATED ==== //
-
-    // deploy bundle bulker.
-    walletClient
-        .sendTransaction({
-            to: DETERMINISTIC_DEPLOYER,
-            data: BUNDLER_BULKER_CREATECALL,
-            gas: 15_000_000n,
-            nonce: nonce++
-        })
-        .then(() => console.log("[COMPRESSION] Deploying BundleBulker"))
-
-    // deploy per op inflator.
-    walletClient
-        .sendTransaction({
-            to: DETERMINISTIC_DEPLOYER,
-            data: concat([
-                PER_OP_INFLATOR_CREATECALL,
-                encodeAbiParameters(
-                    [{ name: "owner", type: "address" }],
-                    [walletClient.account.address]
-                )
-            ]),
-            gas: 15_000_000n,
-            nonce: nonce++
-        })
-        .then(() => console.log("[COMPRESSION] Deploying PerOpInflator"))
-
-    // deploy simple inflator.
-    walletClient
-        .sendTransaction({
-            to: DETERMINISTIC_DEPLOYER,
-            data: SIMPLE_INFLATOR_CREATECALL,
-            gas: 15_000_000n,
-            nonce: nonce++
-        })
-        .then(() => console.log("[COMPRESSION] Deploying SimpleInflator"))
-
     // Wait for all deploy/setup txs to be mined.
     let onchainNonce = 0
     do {

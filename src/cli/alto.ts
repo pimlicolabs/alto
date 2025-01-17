@@ -3,7 +3,6 @@ import dotenv from "dotenv"
 import yargs from "yargs"
 import { hideBin } from "yargs/helpers"
 import {
-    bundleCompressionOptions,
     bundlerCommand,
     bundlerOptions,
     compatibilityOptions,
@@ -74,11 +73,6 @@ export function getAltoCli(): yargs.Argv {
         .group(Object.keys(serverOptions), "Server Options:")
         .options(rpcOptions)
         .group(Object.keys(rpcOptions), "RPC Options:")
-        .options(bundleCompressionOptions)
-        .group(
-            Object.keys(bundleCompressionOptions),
-            "Bundle Compression Options:"
-        )
         .options(logOptions)
         .group(Object.keys(logOptions), "Logging Options:")
         .options(debugOptions)
