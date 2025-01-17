@@ -153,9 +153,13 @@ export class ExecutorManager {
     async getOpsToBundle() {
         const opsToBundle: UserOperationInfo[][] = []
 
+        const blockInfo = await this.config.publicClient.getBlock()
+
         while (true) {
             const ops = await this.mempool.process(
-                this.config.maxGasPerBundle,
+                this.config.maxGasPerBundle < blockInfo.gasLimit
+                    ? this.config.maxGasPerBundle
+                    : blockInfo.gasLimit,
                 1
             )
             if (ops?.length > 0) {
