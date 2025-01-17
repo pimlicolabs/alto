@@ -266,7 +266,7 @@ const main = async () => {
     }
 
     // biome-ignore lint/suspicious/noConsoleLog:
-    console.log("Succesfully Resimulated All UserOperations")
+    console.log("Successfully Resimulated All UserOperations")
     process.exit(0)
 }
 
