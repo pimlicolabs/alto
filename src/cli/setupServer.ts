@@ -1,10 +1,6 @@
 import type { SenderManager } from "@alto/executor"
 import { Executor, ExecutorManager } from "@alto/executor"
-import {
-    CompressionHandler,
-    EventManager,
-    type GasPriceManager
-} from "@alto/handlers"
+import { EventManager, type GasPriceManager } from "@alto/handlers"
 import {
     type InterfaceReputationManager,
     MemoryMempool,
@@ -98,30 +94,12 @@ const getEventManager = ({
     return new EventManager({ config, metrics })
 }
 
-const getCompressionHandler = async (
-    config: AltoConfig
-): Promise<CompressionHandler | null> => {
-    let compressionHandler: CompressionHandler | null = null
-    if (
-        config.bundleBulkerAddress !== undefined &&
-        config.perOpInflatorAddress !== undefined
-    ) {
-        compressionHandler = await CompressionHandler.createAsync(
-            config.bundleBulkerAddress,
-            config.perOpInflatorAddress,
-            config.publicClient
-        )
-    }
-    return compressionHandler
-}
-
 const getExecutor = ({
     mempool,
     config,
     senderManager,
     reputationManager,
     metrics,
-    compressionHandler,
     gasPriceManager,
     eventManager
 }: {
@@ -130,7 +108,6 @@ const getExecutor = ({
     senderManager: SenderManager
     reputationManager: InterfaceReputationManager
     metrics: Metrics
-    compressionHandler: CompressionHandler | null
     gasPriceManager: GasPriceManager
     eventManager: EventManager
 }): Executor => {
@@ -140,7 +117,6 @@ const getExecutor = ({
         senderManager,
         reputationManager,
         metrics,
-        compressionHandler,
         gasPriceManager,
         eventManager
     })
@@ -203,7 +179,6 @@ const getRpcHandler = ({
     executorManager,
     reputationManager,
     metrics,
-    compressionHandler,
     gasPriceManager,
     eventManager
 }: {
@@ -216,7 +191,6 @@ const getRpcHandler = ({
     executorManager: ExecutorManager
     reputationManager: InterfaceReputationManager
     metrics: Metrics
-    compressionHandler: CompressionHandler | null
     eventManager: EventManager
     gasPriceManager: GasPriceManager
 }) => {
@@ -230,7 +204,6 @@ const getRpcHandler = ({
         executorManager,
         reputationManager,
         metrics,
-        compressionHandler,
         gasPriceManager,
         eventManager
     })
@@ -276,8 +249,6 @@ export const setupServer = async ({
     })
     const reputationManager = getReputationManager(config)
 
-    const compressionHandler = await getCompressionHandler(config)
-
     const eventManager = getEventManager({
         config,
         metrics
@@ -307,7 +278,6 @@ export const setupServer = async ({
         senderManager,
         reputationManager,
         metrics,
-        compressionHandler,
         gasPriceManager,
         eventManager
     })
@@ -339,7 +309,6 @@ export const setupServer = async ({
         executorManager,
         reputationManager,
         metrics,
-        compressionHandler,
         gasPriceManager,
         eventManager
     })

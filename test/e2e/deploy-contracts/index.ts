@@ -1,27 +1,18 @@
 import {
     http,
     type Address,
-    concat,
     createPublicClient,
     createWalletClient,
-    encodeAbiParameters,
-    getContract,
-    getCreate2Address,
-    parseAbi,
-    sliceHex,
     type PublicClient
 } from "viem"
 import { mnemonicToAccount } from "viem/accounts"
 import { foundry } from "viem/chains"
 import {
-    BUNDLER_BULKER_CREATECALL,
     ENTRY_POINT_SIMULATIONS_CREATECALL,
     ENTRY_POINT_V06_CREATECALL,
     ENTRY_POINT_V07_CREATECALL,
-    PER_OP_INFLATOR_CREATECALL,
     SIMPLE_ACCOUNT_FACTORY_V06_CREATECALL,
-    SIMPLE_ACCOUNT_FACTORY_V07_CREATECALL,
-    SIMPLE_INFLATOR_CREATECALL
+    SIMPLE_ACCOUNT_FACTORY_V07_CREATECALL
 } from "./constants.js"
 
 const DETERMINISTIC_DEPLOYER = "0x4e59b44847b379578588920ca78fbf26c0b4956c"
@@ -31,7 +22,7 @@ const verifyDeployed = async ({
     client
 }: { addresses: Address[]; client: PublicClient }) => {
     for (const address of addresses) {
-        const bytecode = await client.getBytecode({
+        const bytecode = await client.getCode({
             address
         })
 
@@ -104,44 +95,6 @@ export async function setupContracts({ anvilRpc }: { anvilRpc: string }) {
         })
         .then(() => console.log("[V0.6 CORE] Deploying SimpleAccountFactory"))
 
-    // ==== DEPLOY COMPRESSION RELATED ==== //
-
-    // deploy bundle bulker.
-    walletClient
-        .sendTransaction({
-            to: DETERMINISTIC_DEPLOYER,
-            data: BUNDLER_BULKER_CREATECALL,
-            gas: 15_000_000n,
-            nonce: nonce++
-        })
-        .then(() => console.log("[COMPRESSION] Deploying BundleBulker"))
-
-    // deploy per op inflator.
-    walletClient
-        .sendTransaction({
-            to: DETERMINISTIC_DEPLOYER,
-            data: concat([
-                PER_OP_INFLATOR_CREATECALL,
-                encodeAbiParameters(
-                    [{ name: "owner", type: "address" }],
-                    [walletClient.account.address]
-                )
-            ]),
-            gas: 15_000_000n,
-            nonce: nonce++
-        })
-        .then(() => console.log("[COMPRESSION] Deploying PerOpInflator"))
-
-    // deploy simple inflator.
-    walletClient
-        .sendTransaction({
-            to: DETERMINISTIC_DEPLOYER,
-            data: SIMPLE_INFLATOR_CREATECALL,
-            gas: 15_000_000n,
-            nonce: nonce++
-        })
-        .then(() => console.log("[COMPRESSION] Deploying SimpleInflator"))
-
     // Wait for all deploy/setup txs to be mined.
     let onchainNonce = 0
     do {
@@ -153,88 +106,13 @@ export async function setupContracts({ anvilRpc }: { anvilRpc: string }) {
 
     console.log("okay")
 
-    const bundleBulkerCreateByteCode = sliceHex(
-        BUNDLER_BULKER_CREATECALL,
-        32,
-        undefined
-    )
-    const BUNDLE_BULKER_ADDRESS = getCreate2Address({
-        salt: "0x0000000000000000000000000000000000000000000000000000000000000000",
-        bytecode: bundleBulkerCreateByteCode,
-        from: DETERMINISTIC_DEPLOYER
-    })
-
-    const perOpInflatorCreateByteCode = sliceHex(
-        PER_OP_INFLATOR_CREATECALL,
-        32,
-        undefined
-    )
-    const PER_OP_INFLATOR_ADDRESS = getCreate2Address({
-        salt: "0x0000000000000000000000000000000000000000000000000000000000000000",
-        bytecode: concat([
-            perOpInflatorCreateByteCode,
-            encodeAbiParameters(
-                [{ name: "owner", type: "address" }],
-                [walletClient.account.address]
-            )
-        ]),
-        from: DETERMINISTIC_DEPLOYER
-    })
-
-    const simpleInflatorCreateByteCode = sliceHex(
-        SIMPLE_INFLATOR_CREATECALL,
-        32,
-        undefined
-    )
-    const SIMPLE_INFLATOR_ADDRESS = getCreate2Address({
-        salt: "0x0000000000000000000000000000000000000000000000000000000000000000",
-        bytecode: simpleInflatorCreateByteCode,
-        from: DETERMINISTIC_DEPLOYER
-    })
-
-    // register our passthrough inflator with perOpInflator.
-    const perOpInflator = getContract({
-        address: PER_OP_INFLATOR_ADDRESS,
-        abi: parseAbi([
-            "function registerOpInflator(uint32 inflatorId, address inflator) public",
-            "function setBeneficiary(address) public"
-        ]),
-        client: {
-            wallet: walletClient
-        }
-    })
-
-    await perOpInflator.write.registerOpInflator(
-        [1337, SIMPLE_INFLATOR_ADDRESS],
-        { nonce: nonce++ }
-    )
-    await perOpInflator.write.setBeneficiary([walletClient.account.address], {
-        nonce: nonce++
-    })
-
-    // register our perOpInflator with the bundleBulker.
-    const bundleBulker = getContract({
-        address: BUNDLE_BULKER_ADDRESS,
-        abi: parseAbi([
-            "function registerInflator(uint32 inflatorId, address inflator) public"
-        ]),
-        client: { wallet: walletClient }
-    })
-
-    await bundleBulker.write.registerInflator([4337, PER_OP_INFLATOR_ADDRESS], {
-        nonce: nonce++
-    })
-
     await verifyDeployed({
         client,
         addresses: [
             "0x4e59b44847b379578588920ca78fbf26c0b4956c",
             "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
             "0x91E60e0613810449d098b0b5Ec8b51A0FE8c8985",
-            "0xe1b9bcD4DbfAE61585691bdB9A100fbaAF6C8dB0", // 0.7 Simulations Contract
-            BUNDLE_BULKER_ADDRESS,
-            PER_OP_INFLATOR_ADDRESS,
-            SIMPLE_INFLATOR_ADDRESS
+            "0xe1b9bcD4DbfAE61585691bdB9A100fbaAF6C8dB0" // 0.7 Simulations Contract
         ]
     })
 }

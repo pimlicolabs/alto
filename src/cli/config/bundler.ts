@@ -173,11 +173,6 @@ export const rpcArgsSchema = z.object({
     "code-override-support": z.boolean().optional().default(false)
 })
 
-export const bundleCopmressionArgsSchema = z.object({
-    "bundle-bulker-address": addressSchema.optional(),
-    "per-op-inflator-address": addressSchema.optional()
-})
-
 export const logArgsSchema = z.object({
     "redis-queue-endpoint": z.string().optional(),
     "redis-event-manager-queue-name": z.string().optional(),
@@ -244,11 +239,6 @@ export type IServerArgsInput = z.input<typeof serverArgsSchema>
 export type IRpcArgs = z.infer<typeof rpcArgsSchema>
 export type IRpcArgsInput = z.input<typeof rpcArgsSchema>
 
-export type IBundleCompressionArgs = z.infer<typeof bundleCopmressionArgsSchema>
-export type IBundleCompressionArgsInput = z.input<
-    typeof bundleCopmressionArgsSchema
->
-
 export type ILogArgs = z.infer<typeof logArgsSchema>
 export type ILogArgsInput = z.input<typeof logArgsSchema>
 
@@ -264,7 +254,6 @@ export const optionArgsSchema = z.object({
     ...logArgsSchema.shape,
     ...serverArgsSchema.shape,
     ...rpcArgsSchema.shape,
-    ...bundleCopmressionArgsSchema.shape,
     ...debugArgsSchema.shape,
     ...gasEstimationArgsSchema.shape
 })

@@ -188,13 +188,6 @@ export type UserOperation7702 = {
     authorization: SignedAuthorization
 }
 
-export type CompressedUserOperation = {
-    compressedCalldata: Hex
-    inflatedOp: UserOperation
-    inflatorAddress: Address
-    inflatorId: number
-}
-
 export type UserOperationRequest = {
     userOperation: UserOperation
     entryPoint: Address
@@ -354,11 +347,6 @@ const pimlicoGetUserOperationGasPriceRequestSchema = z.object({
     params: z.tuple([])
 })
 
-const pimlicoSendCompressedUserOperationRequestSchema = z.object({
-    method: z.literal("pimlico_sendCompressedUserOperation"),
-    params: z.tuple([hexDataSchema, addressSchema, addressSchema])
-})
-
 const pimlicoSendUserOperationNowRequestSchema = z.object({
     method: z.literal("pimlico_sendUserOperationNow"),
     params: z.tuple([userOperationSchema, addressSchema])
@@ -410,7 +398,6 @@ const bundlerRequestSchema = z.discriminatedUnion("method", [
     pimlicoGetStakeStatusRequestSchema,
     pimlicoGetUserOperationStatusRequestSchema,
     pimlicoGetUserOperationGasPriceRequestSchema,
-    pimlicoSendCompressedUserOperationRequestSchema,
     pimlicoSendUserOperationNowRequestSchema,
     pimlicoExperimentalSendUserOperation7702RequestSchema,
     pimlicoExperimentalEstimateUserOperationGas7702RequestSchema
@@ -617,11 +604,6 @@ const pimlicoGetUserOperationGasPriceResponseSchema = z.object({
     result: gasPriceSchema
 })
 
-const pimlicoSendCompressedUserOperationResponseSchema = z.object({
-    method: z.literal("pimlico_sendCompressedUserOperation"),
-    result: hexData32Schema
-})
-
 const pimlicoSendUserOperationNowResponseSchema = z.object({
     method: z.literal("pimlico_sendUserOperationNow"),
     result: userOperationReceiptSchema
@@ -668,7 +650,6 @@ const bundlerResponseSchema = z.discriminatedUnion("method", [
     bundlerDumpReputationsResponseSchema,
     pimlicoGetUserOperationStatusResponseSchema,
     pimlicoGetUserOperationGasPriceResponseSchema,
-    pimlicoSendCompressedUserOperationResponseSchema,
     pimlicoSendUserOperationNowResponseSchema,
     pimlicoExperimentalSendUserOperation7702ResponseSchema,
     pimlicoExperimentalEstimateUserOperation7702ResponseSchema

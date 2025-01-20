@@ -1,17 +1,9 @@
-import type {
-    DefaultFilterOpsAndEstimateGasParams,
-    SenderManager
-} from "@alto/executor"
-import type {
-    CompressionHandler,
-    EventManager,
-    GasPriceManager
-} from "@alto/handlers"
+import type { SenderManager } from "@alto/executor"
+import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type { InterfaceReputationManager, MemoryMempool } from "@alto/mempool"
 import {
     type Address,
     type BundleResult,
-    type CompressedUserOperation,
     EntryPointV06Abi,
     EntryPointV07Abi,
     type HexData32,
@@ -19,7 +11,6 @@ import {
     type TransactionInfo,
     type UserOperation,
     type UserOperationV07,
-    type UserOperationWithHash,
     deriveUserOperation,
     type GasPriceParameters
 } from "@alto/types"
@@ -49,8 +40,6 @@ import {
     NonceTooHighError
 } from "viem"
 import {
-    type CompressedFilterOpsAndEstimateGasParams,
-    createCompressedCalldata,
     filterOpsAndEstimateGas,
     flushStuckTransaction,
     simulatedOpsToResults,
@@ -67,17 +56,11 @@ export interface GasEstimateResult {
     callGasLimit: bigint
 }
 
-export type HandleOpsTxParam =
-    | {
-          type: "default"
-          ops: PackedUserOperation[]
-          isUserOpVersion06: boolean
-          entryPoint: Address
-      }
-    | {
-          type: "compressed"
-          compressedOps: CompressedUserOperation[]
-      }
+export type HandleOpsTxParam = {
+    ops: PackedUserOperation[]
+    isUserOpVersion06: boolean
+    entryPoint: Address
+}
 
 export type ReplaceTransactionResult =
     | {
@@ -98,7 +81,6 @@ export class Executor {
     logger: Logger
     metrics: Metrics
     reputationManager: InterfaceReputationManager
-    compressionHandler: CompressionHandler | null
     gasPriceManager: GasPriceManager
     mutex: Mutex
     mempool: MemoryMempool
@@ -110,7 +92,6 @@ export class Executor {
         senderManager,
         reputationManager,
         metrics,
-        compressionHandler,
         gasPriceManager,
         eventManager
     }: {
@@ -119,7 +100,6 @@ export class Executor {
         senderManager: SenderManager
         reputationManager: InterfaceReputationManager
         metrics: Metrics
-        compressionHandler: CompressionHandler | null
         gasPriceManager: GasPriceManager
         eventManager: EventManager
     }) {
@@ -134,20 +114,10 @@ export class Executor {
             }
         )
         this.metrics = metrics
-        this.compressionHandler = compressionHandler
         this.gasPriceManager = gasPriceManager
         this.eventManager = eventManager
 
         this.mutex = new Mutex()
-    }
-
-    getCompressionHandler(): CompressionHandler {
-        if (!this.compressionHandler) {
-            throw new Error(
-                "Support for compressed bundles has not initialized"
-            )
-        }
-        return this.compressionHandler
     }
 
     cancelOps(_entryPoint: Address, _ops: UserOperation[]): Promise<void> {
@@ -202,61 +172,39 @@ export class Executor {
             }
         )
 
-        let callContext:
-            | DefaultFilterOpsAndEstimateGasParams
-            | CompressedFilterOpsAndEstimateGasParams
-
-        if (transactionInfo.transactionType === "default") {
-            const [isUserOpVersion06, entryPoint] = opsWithHashes.reduce(
-                (acc, op) => {
-                    if (
-                        acc[0] !==
-                            isVersion06(
-                                op.mempoolUserOperation as UserOperation
-                            ) ||
-                        acc[1] !== op.entryPoint
-                    ) {
-                        throw new Error(
-                            "All user operations must be of the same version"
-                        )
-                    }
-                    return acc
-                },
-                [
-                    isVersion06(
-                        opsWithHashes[0].mempoolUserOperation as UserOperation
-                    ),
-                    opsWithHashes[0].entryPoint
-                ]
-            )
-
-            const ep = getContract({
-                abi: isUserOpVersion06 ? EntryPointV06Abi : EntryPointV07Abi,
-                address: entryPoint,
-                client: {
-                    public: this.config.publicClient,
-                    wallet: this.config.walletClient
+        const [isUserOpVersion06, entryPoint] = opsWithHashes.reduce(
+            (acc, op) => {
+                if (
+                    acc[0] !==
+                        isVersion06(op.mempoolUserOperation as UserOperation) ||
+                    acc[1] !== op.entryPoint
+                ) {
+                    throw new Error(
+                        "All user operations must be of the same version"
+                    )
                 }
-            })
+                return acc
+            },
+            [
+                isVersion06(
+                    opsWithHashes[0].mempoolUserOperation as UserOperation
+                ),
+                opsWithHashes[0].entryPoint
+            ]
+        )
 
-            callContext = {
-                ep,
-                type: "default"
+        const ep = getContract({
+            abi: isUserOpVersion06 ? EntryPointV06Abi : EntryPointV07Abi,
+            address: entryPoint,
+            client: {
+                public: this.config.publicClient,
+                wallet: this.config.walletClient
             }
-        } else {
-            const compressionHandler = this.getCompressionHandler()
-
-            callContext = {
-                publicClient: this.config.publicClient,
-                bundleBulker: compressionHandler.bundleBulkerAddress,
-                perOpInflatorId: compressionHandler.perOpInflatorId,
-                type: "compressed"
-            }
-        }
+        })
 
         let { simulatedOps, gasLimit } = await filterOpsAndEstimateGas(
             transactionInfo.entryPoint,
-            callContext,
+            ep,
             transactionInfo.executor,
             opsWithHashes,
             newRequest.nonce,
@@ -347,47 +295,19 @@ export class Executor {
 
         // update calldata to include only ops that pass simulation
         let txParam: HandleOpsTxParam
-        if (transactionInfo.transactionType === "default") {
-            const isUserOpVersion06 = opsWithHashes.reduce(
-                (acc, op) => {
-                    if (
-                        acc !==
-                        isVersion06(op.mempoolUserOperation as UserOperation)
-                    ) {
-                        throw new Error(
-                            "All user operations must be of the same version"
-                        )
-                    }
-                    return acc
-                },
-                isVersion06(
-                    opsWithHashes[0].mempoolUserOperation as UserOperation
-                )
-            )
 
-            const userOps = opsToBundle.map((op) =>
-                isUserOpVersion06
-                    ? op.mempoolUserOperation
-                    : toPackedUserOperation(
-                          op.mempoolUserOperation as UserOperationV07
-                      )
-            ) as PackedUserOperation[]
+        const userOps = opsToBundle.map((op) =>
+            isUserOpVersion06
+                ? op.mempoolUserOperation
+                : toPackedUserOperation(
+                      op.mempoolUserOperation as UserOperationV07
+                  )
+        ) as PackedUserOperation[]
 
-            txParam = {
-                type: "default",
-                isUserOpVersion06,
-                ops: userOps,
-                entryPoint: transactionInfo.entryPoint
-            }
-        } else {
-            const compressedOps = opsToBundle.map(
-                ({ mempoolUserOperation }) => mempoolUserOperation
-            ) as CompressedUserOperation[]
-
-            txParam = {
-                type: "compressed",
-                compressedOps: compressedOps
-            }
+        txParam = {
+            isUserOpVersion06,
+            ops: userOps,
+            entryPoint: transactionInfo.entryPoint
         }
 
         try {
@@ -561,23 +481,13 @@ export class Executor {
         let data: Hex
         let to: Address
 
-        if (txParam.type === "default") {
-            const { isUserOpVersion06, ops, entryPoint } = txParam
-            data = encodeFunctionData({
-                abi: isUserOpVersion06 ? EntryPointV06Abi : EntryPointV07Abi,
-                functionName: "handleOps",
-                args: [ops, opts.account.address]
-            })
-            to = entryPoint
-        } else {
-            const { compressedOps } = txParam
-            const compressionHandler = this.getCompressionHandler()
-            data = createCompressedCalldata(
-                compressedOps,
-                compressionHandler.perOpInflatorId
-            )
-            to = compressionHandler.bundleBulkerAddress
-        }
+        const { isUserOpVersion06, ops, entryPoint } = txParam
+        data = encodeFunctionData({
+            abi: isUserOpVersion06 ? EntryPointV06Abi : EntryPointV07Abi,
+            functionName: "handleOps",
+            args: [ops, opts.account.address]
+        })
+        to = entryPoint
 
         const request =
             await this.config.walletClient.prepareTransactionRequest({
@@ -785,14 +695,9 @@ export class Executor {
             })
         }
 
-        const callContext: DefaultFilterOpsAndEstimateGasParams = {
-            ep,
-            type: "default"
-        }
-
         let { gasLimit, simulatedOps } = await filterOpsAndEstimateGas(
             entryPoint,
-            callContext,
+            ep,
             wallet,
             opsWithHashes,
             nonce,
@@ -946,7 +851,6 @@ export class Executor {
 
             transactionHash = await this.sendHandleOpsTransaction({
                 txParam: {
-                    type: "default",
                     ops: userOps,
                     isUserOpVersion06,
                     entryPoint
@@ -1013,7 +917,6 @@ export class Executor {
         const transactionInfo: TransactionInfo = {
             entryPoint,
             isVersion06: isUserOpVersion06,
-            transactionType: "default",
             transactionHash: transactionHash,
             previousTransactionHashes: [],
             transactionRequest: {
@@ -1047,234 +950,6 @@ export class Executor {
                 opHashes: opsWithHashToBundle.map(
                     (owh) => owh.userOperationHash
                 )
-            },
-            "submitted bundle transaction"
-        )
-
-        return userOperationResults
-    }
-
-    async bundleCompressed(
-        entryPoint: Address,
-        compressedOps: CompressedUserOperation[]
-    ): Promise<BundleResult[]> {
-        const compressionHandler = this.getCompressionHandler()
-        const wallet = await this.senderManager.getWallet()
-
-        const childLogger = this.logger.child({
-            compressedUserOperations: compressedOps,
-            entryPoint: entryPoint
-        })
-        childLogger.debug("bundling compressed user operation")
-
-        let nonce: number
-        let gasPriceParameters: GasPriceParameters
-        try {
-            ;[gasPriceParameters, nonce] = await Promise.all([
-                this.gasPriceManager.tryGetNetworkGasPrice(),
-                this.config.publicClient.getTransactionCount({
-                    address: wallet.address,
-                    blockTag: "pending"
-                })
-            ])
-        } catch (err) {
-            childLogger.error(
-                { error: err },
-                "Failed to get parameters for bundling"
-            )
-            this.markWalletProcessed(wallet)
-            return compressedOps.map((compressedOp) => {
-                const userOpHash = getUserOperationHash(
-                    compressedOp.inflatedOp,
-                    entryPoint,
-                    this.config.walletClient.chain.id
-                )
-                return {
-                    status: "resubmit",
-                    info: {
-                        entryPoint,
-                        userOpHash,
-                        userOperation: compressedOp,
-                        reason: "Failed to get parameters for bundling"
-                    }
-                }
-            })
-        }
-
-        const callContext: CompressedFilterOpsAndEstimateGasParams = {
-            publicClient: this.config.publicClient,
-            bundleBulker: compressionHandler.bundleBulkerAddress,
-            perOpInflatorId: compressionHandler.perOpInflatorId,
-            type: "compressed"
-        }
-
-        let { gasLimit, simulatedOps } = await filterOpsAndEstimateGas(
-            entryPoint,
-            callContext,
-            wallet,
-            compressedOps.map((compressedOp) => {
-                return {
-                    mempoolUserOperation: compressedOp,
-                    userOperationHash: getUserOperationHash(
-                        compressedOp.inflatedOp,
-                        entryPoint,
-                        this.config.walletClient.chain.id
-                    )
-                }
-            }),
-            nonce,
-            gasPriceParameters.maxFeePerGas,
-            gasPriceParameters.maxPriorityFeePerGas,
-            this.config.blockTagSupport ? "pending" : undefined,
-            this.config.legacyTransactions,
-            this.config.fixedGasLimitForEstimation,
-            this.reputationManager,
-            childLogger
-        )
-
-        gasLimit += 10_000n
-
-        if (simulatedOps.length === 0) {
-            childLogger.warn("no ops to bundle")
-            this.markWalletProcessed(wallet)
-            return compressedOps.map((compressedOp) => {
-                const userOpHash = getUserOperationHash(
-                    compressedOp.inflatedOp,
-                    entryPoint,
-                    this.config.walletClient.chain.id
-                )
-
-                return {
-                    status: "failure",
-                    error: {
-                        entryPoint,
-                        userOpHash,
-                        userOperation: compressedOp,
-                        reason: "INTERNAL FAILURE"
-                    }
-                }
-            })
-        }
-
-        // if not all succeeded, return error
-        if (
-            simulatedOps.some((simulatedOp) => simulatedOp.reason !== undefined)
-        ) {
-            childLogger.warn("some ops failed simulation")
-            this.markWalletProcessed(wallet)
-            return simulatedOps.map(({ reason, owh }) => {
-                return {
-                    status: "failure",
-                    error: {
-                        entryPoint,
-                        userOpHash: owh.userOperationHash,
-                        userOperation: owh.mempoolUserOperation,
-                        reason: reason as string
-                    }
-                }
-            })
-        }
-
-        const opsToBundle: UserOperationWithHash[] = simulatedOps
-            .filter((simulatedOp) => simulatedOp.reason === undefined)
-            .map((simulatedOp) => simulatedOp.owh)
-
-        let transactionHash: HexData32
-        try {
-            const gasOptions = this.config.legacyTransactions
-                ? {
-                      gasPrice: gasPriceParameters.maxFeePerGas
-                  }
-                : {
-                      maxFeePerGas: gasPriceParameters.maxFeePerGas,
-                      maxPriorityFeePerGas:
-                          gasPriceParameters.maxPriorityFeePerGas
-                  }
-
-            const compressedOpsToBundle = opsToBundle.map(
-                ({ mempoolUserOperation }) => {
-                    const compressedOp = mempoolUserOperation
-                    return compressedOp as CompressedUserOperation
-                }
-            )
-
-            transactionHash = await this.sendHandleOpsTransaction({
-                txParam: {
-                    type: "compressed",
-                    compressedOps: compressedOpsToBundle
-                },
-                opts: { ...gasOptions, gas: gasLimit, account: wallet, nonce }
-            })
-
-            opsToBundle.map(({ userOperationHash }) => {
-                this.eventManager.emitSubmitted(
-                    userOperationHash,
-                    transactionHash
-                )
-            })
-        } catch (err: unknown) {
-            sentry.captureException(err)
-            childLogger.error(
-                { error: JSON.stringify(err) },
-                "error submitting bundle transaction"
-            )
-            this.markWalletProcessed(wallet)
-            return opsToBundle.map(
-                ({ userOperationHash, mempoolUserOperation }) => {
-                    return {
-                        status: "failure",
-                        error: {
-                            entryPoint,
-                            userOpHash: userOperationHash,
-                            userOperation: mempoolUserOperation,
-                            reason: "INTERNAL FAILURE"
-                        }
-                    }
-                }
-            )
-        }
-
-        const userOperationInfos = opsToBundle.map((owh) => {
-            return {
-                entryPoint,
-                mempoolUserOperation: owh.mempoolUserOperation,
-                userOperationHash: owh.userOperationHash,
-                lastReplaced: Date.now(),
-                firstSubmitted: Date.now()
-            }
-        })
-
-        const transactionInfo: TransactionInfo = {
-            entryPoint,
-            isVersion06: true, //TODO: compressed bundles are always v06
-            transactionType: "compressed",
-            transactionHash,
-            previousTransactionHashes: [],
-            transactionRequest: {
-                to: compressionHandler.bundleBulkerAddress,
-                gas: gasLimit,
-                account: wallet,
-                chain: this.config.walletClient.chain,
-                maxFeePerGas: gasPriceParameters.maxFeePerGas,
-                maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
-                nonce: nonce
-            },
-            executor: wallet,
-            userOperationInfos,
-            lastReplaced: Date.now(),
-            firstSubmitted: Date.now(),
-            timesPotentiallyIncluded: 0
-        }
-
-        const userOperationResults: BundleResult[] = simulatedOpsToResults(
-            simulatedOps,
-            transactionInfo
-        )
-
-        childLogger.info(
-            {
-                txHash: transactionHash,
-                opHashes: opsToBundle.map((owh) => owh.userOperationHash)
             },
             "submitted bundle transaction"
         )

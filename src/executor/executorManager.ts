@@ -7,7 +7,6 @@ import type {
 import {
     type BundleResult,
     type BundlingMode,
-    type CompressedUserOperation,
     EntryPointV06Abi,
     type HexData32,
     type MempoolUserOperation,
@@ -15,8 +14,7 @@ import {
     type TransactionInfo,
     type UserOperation,
     type UserOperationInfo,
-    deriveUserOperation,
-    isCompressedType
+    deriveUserOperation
 } from "@alto/types"
 import type { BundlingStatus, Logger, Metrics } from "@alto/utils"
 import {
@@ -216,22 +214,11 @@ export class ExecutorManager {
         entryPoint: Address,
         mempoolOps: MempoolUserOperation[]
     ) {
-        const ops = mempoolOps
-            .filter((op) => !isCompressedType(op))
-            .map((op) => op as UserOperation)
-
-        const compressedOps = mempoolOps
-            .filter((op) => isCompressedType(op))
-            .map((op) => op as CompressedUserOperation)
+        const ops = mempoolOps.map((op) => op as UserOperation)
 
         const bundles: BundleResult[][] = []
         if (ops.length > 0) {
             bundles.push(await this.executor.bundle(entryPoint, ops))
-        }
-        if (compressedOps.length > 0) {
-            bundles.push(
-                await this.executor.bundleCompressed(entryPoint, compressedOps)
-            )
         }
 
         for (const bundle of bundles) {
