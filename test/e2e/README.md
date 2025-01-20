@@ -6,10 +6,6 @@ E2E test will reconstruct a close to mainnet environment by deploying the follow
 - SimpleAccountFactory V0.7 to `0x91E60e0613810449d098b0b5Ec8b51A0FE8c8985`.
 - SimpleAccountFactory V0.6 to `0x9406Cc6185a346906296840746125a0E44976454`.
 - EntryPoint Simulation to `0xf93dA0397eAEB3dA615ab8869b10634fe92c4327`.
-- BundleBulker to `0x09aeBCF1DF7d4D0FBf26073e79A6B250f458fFB8`.
-- PerOpInflator to `0x79741195EA18e1ed7deD6C224e9037d673cE9484`.
-- SimpleInflator to `0x92d2f9ef7b520d91a34501fbb31e5428ab2fd5df`.
-- PerOpInflator is registered with BundleBulker under id 4337.
 
 ## Testing locally
 
