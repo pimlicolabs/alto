@@ -125,8 +125,6 @@ export const bundlerArgsSchema = z.object({
     "enable-experimental-7702-endpoints": z.boolean()
 })
 
-export const executorArgsSchema = z.object({})
-
 export const compatibilityArgsSchema = z.object({
     "chain-type": z.enum([
         "default",
