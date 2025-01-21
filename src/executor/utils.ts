@@ -198,7 +198,7 @@ export async function filterOpsAndEstimateGas(
                         retriesLeft--
                         fixedEstimationGasLimit = scaleBigIntByPercent(
                             fixedEstimationGasLimit || BigInt(30_000_000),
-                            110
+                            110n
                         )
                         continue
                     }
@@ -260,20 +260,20 @@ export async function filterOpsAndEstimateGas(
                     if ("gasPrice" in gasOptions) {
                         gasOptions.gasPrice = scaleBigIntByPercent(
                             gasOptions.gasPrice || maxFeePerGas,
-                            125
+                            125n
                         )
                     }
                     if ("maxFeePerGas" in gasOptions) {
                         gasOptions.maxFeePerGas = scaleBigIntByPercent(
                             gasOptions.maxFeePerGas || maxFeePerGas,
-                            125
+                            125n
                         )
                     }
                     if ("maxPriorityFeePerGas" in gasOptions) {
                         gasOptions.maxPriorityFeePerGas = scaleBigIntByPercent(
                             gasOptions.maxPriorityFeePerGas ||
                                 maxPriorityFeePerGas,
-                            125
+                            125n
                         )
                     }
                     continue

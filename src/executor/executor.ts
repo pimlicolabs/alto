@@ -496,6 +496,11 @@ export class Executor {
                 ...opts
             })
 
+        request.gas = scaleBigIntByPercent(
+            request.gas,
+            this.config.executorGasMultiplier
+        )
+
         let isTransactionUnderPriced = false
         let attempts = 0
         let transactionHash: Hex | undefined
@@ -518,11 +523,11 @@ export class Executor {
 
                         request.maxFeePerGas = scaleBigIntByPercent(
                             request.maxFeePerGas,
-                            150
+                            150n
                         )
                         request.maxPriorityFeePerGas = scaleBigIntByPercent(
                             request.maxPriorityFeePerGas,
-                            150
+                            150n
                         )
                         isErrorHandled = true
                         isTransactionUnderPriced = true
@@ -549,7 +554,7 @@ export class Executor {
 
                     if (cause instanceof IntrinsicGasTooLowError) {
                         this.logger.warn("Intrinsic gas too low, retrying")
-                        request.gas = scaleBigIntByPercent(request.gas, 150)
+                        request.gas = scaleBigIntByPercent(request.gas, 150n)
                         isErrorHandled = true
                     }
 

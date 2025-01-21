@@ -368,7 +368,7 @@ export function calcVerificationGasAndCallGasLimit(
         gasLimits?.verificationGasLimit ??
         scaleBigIntByPercent(
             executionResult.preOpGas - userOperation.preVerificationGas,
-            150
+            150n
         )
 
     const calculatedCallGasLimit =
@@ -387,7 +387,7 @@ export function calcVerificationGasAndCallGasLimit(
         chainId === baseSepolia.id ||
         chainId === base.id
     ) {
-        callGasLimit = scaleBigIntByPercent(callGasLimit, 110)
+        callGasLimit = scaleBigIntByPercent(callGasLimit, 110n)
     }
 
     return {

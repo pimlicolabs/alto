@@ -63,6 +63,7 @@ export const bundlerArgsSchema = z.object({
         .transform((val) => BigInt(val))
         .optional(),
     "executor-refill-interval": z.number().int().min(0),
+    "executor-gas-multiplier": z.string().transform((val) => BigInt(val)),
 
     "min-entity-stake": z.number().int().min(0),
     "min-entity-unstake-delay": z.number().int().min(0),
@@ -123,6 +124,8 @@ export const bundlerArgsSchema = z.object({
     "enable-instant-bundling-endpoint": z.boolean(),
     "enable-experimental-7702-endpoints": z.boolean()
 })
+
+export const executorArgsSchema = z.object({})
 
 export const compatibilityArgsSchema = z.object({
     "chain-type": z.enum([
