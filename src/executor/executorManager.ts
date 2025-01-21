@@ -20,7 +20,8 @@ import type { BundlingStatus, Logger, Metrics } from "@alto/utils"
 import {
     getAAError,
     getBundleStatus,
-    parseUserOperationReceipt
+    parseUserOperationReceipt,
+    scaleBigIntByPercent
 } from "@alto/utils"
 import {
     type Address,
@@ -520,9 +521,10 @@ export class ExecutorManager {
             bundlingStatus.isAA95
         ) {
             // resubmit with more gas when bundler encounters AA95
-            const multiplier = this.config.aa95GasMultiplier
-            transactionInfo.transactionRequest.gas =
-                (transactionInfo.transactionRequest.gas * multiplier) / 100n
+            transactionInfo.transactionRequest.gas = scaleBigIntByPercent(
+                transactionInfo.transactionRequest.gas,
+                this.config.aa95GasMultiplier
+            )
             transactionInfo.transactionRequest.nonce += 1
 
             await this.replaceTransaction(transactionInfo, "AA95")

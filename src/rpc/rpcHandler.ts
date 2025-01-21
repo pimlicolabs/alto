@@ -1076,8 +1076,6 @@ export class RpcHandler implements IRpcEndpoint {
 
         let paymasterPostOpGasLimit = 0n
 
-        const multiplier = Number(this.config.paymasterGasLimitMultiplier)
-
         if (
             !paymasterVerificationGasLimit &&
             isVersion07(simulationUserOperation) &&
@@ -1091,7 +1089,7 @@ export class RpcHandler implements IRpcEndpoint {
 
             paymasterVerificationGasLimit = scaleBigIntByPercent(
                 paymasterVerificationGasLimit,
-                multiplier
+                this.config.paymasterGasLimitMultiplier
             )
         }
 
@@ -1106,7 +1104,7 @@ export class RpcHandler implements IRpcEndpoint {
 
             paymasterPostOpGasLimit = scaleBigIntByPercent(
                 paymasterPostOpGasLimit,
-                multiplier
+                this.config.paymasterGasLimitMultiplier
             )
         }
 
@@ -1131,22 +1129,22 @@ export class RpcHandler implements IRpcEndpoint {
         if (isVersion06(simulationUserOperation)) {
             callGasLimit = scaleBigIntByPercent(
                 callGasLimit,
-                Number(this.config.v6CallGasLimitMultiplier)
+                this.config.v6CallGasLimitMultiplier
             )
         }
 
         if (isVersion07(simulationUserOperation)) {
             verificationGasLimit = scaleBigIntByPercent(
                 verificationGasLimit,
-                Number(this.config.v7VerificationGasLimitMultiplier)
+                this.config.v7VerificationGasLimitMultiplier
             )
             paymasterVerificationGasLimit = scaleBigIntByPercent(
                 paymasterVerificationGasLimit,
-                Number(this.config.v7PaymasterVerificationGasLimitMultiplier)
+                this.config.v7PaymasterVerificationGasLimitMultiplier
             )
             callGasLimit = scaleBigIntByPercent(
                 callGasLimit,
-                Number(this.config.v7CallGasLimitMultiplier)
+                this.config.v7CallGasLimitMultiplier
             )
         }
 
@@ -1163,7 +1161,7 @@ export class RpcHandler implements IRpcEndpoint {
             gasPriceManager: this.gasPriceManager,
             validate: false
         })
-        preVerificationGas = scaleBigIntByPercent(preVerificationGas, 110)
+        preVerificationGas = scaleBigIntByPercent(preVerificationGas, 110n)
 
         // Check if userOperation passes without estimation balance overrides
         if (isVersion06(simulationUserOperation)) {

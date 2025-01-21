@@ -11,7 +11,7 @@ export const maxBigInt = (a: bigint, b: bigint) => {
 /// Scale a BigInt by a certain percentage.
 export const scaleBigIntByPercent = (
     value: bigint,
-    percent: number
+    percent: bigint
 ): bigint => {
-    return (value * BigInt(percent)) / 100n
+    return (value * percent) / 100n
 }

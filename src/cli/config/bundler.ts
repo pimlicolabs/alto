@@ -63,6 +63,7 @@ export const bundlerArgsSchema = z.object({
         .transform((val) => BigInt(val))
         .optional(),
     "executor-refill-interval": z.number().int().min(0),
+    "executor-gas-multiplier": z.string().transform((val) => BigInt(val)),
 
     "min-entity-stake": z.number().int().min(0),
     "min-entity-unstake-delay": z.number().int().min(0),
