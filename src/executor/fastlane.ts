@@ -1,5 +1,4 @@
 import { Logger } from "@alto/utils"
-import { join } from "path"
 import {
     Hex,
     createClient,
