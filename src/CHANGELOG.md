@@ -1,5 +1,11 @@
 # @pimlico/alto
 
+## 0.0.12
+
+### Patch Changes
+
+- f6aeb6fba01e4b75b190a9ccbe45e406147835b6: Fixed nonceQueue bug where onchain nonce was checked against nonce sequence
+
 ## 0.0.11
 
 ### Patch Changes
