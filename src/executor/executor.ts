@@ -48,6 +48,7 @@ import {
 import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { SendTransactionOptions } from "./types"
+import { sendPflConditional } from "./fastlane"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -58,6 +59,7 @@ export interface GasEstimateResult {
 export type HandleOpsTxParam = {
     ops: PackedUserOperation[]
     isUserOpVersion06: boolean
+    isReplacementTx: boolean
     entryPoint: Address
 }
 
@@ -298,6 +300,7 @@ export class Executor {
 
         txParam = {
             isUserOpVersion06,
+            isReplacementTx: true,
             ops: userOps,
             entryPoint: transactionInfo.entryPoint
         }
@@ -500,13 +503,31 @@ export class Executor {
         // Try sending the transaction and updating relevant fields if there is an error.
         while (attempts < maxAttempts) {
             try {
+                if (
+                    this.config.enableFastlane &&
+                    isUserOpVersion06 &&
+                    !txParam.isReplacementTx &&
+                    attempts === 0
+                ) {
+                    const serializedTransaction =
+                        await this.config.walletClient.signTransaction(request)
+
+                    transactionHash = await sendPflConditional({
+                        serializedTransaction,
+                        publicClient: this.config.publicClient,
+                        walletClient: this.config.walletClient,
+                        logger: this.logger
+                    })
+
+                    break
+                }
+
                 transactionHash =
                     await this.config.walletClient.sendTransaction(request)
 
                 break
             } catch (e: unknown) {
                 isTransactionUnderPriced = false
-                let isErrorHandled = false
 
                 if (e instanceof BaseError) {
                     if (isTransactionUnderpricedError(e)) {
@@ -520,7 +541,6 @@ export class Executor {
                             request.maxPriorityFeePerGas,
                             150n
                         )
-                        isErrorHandled = true
                         isTransactionUnderPriced = true
                     }
                 }
@@ -540,13 +560,11 @@ export class Executor {
                                 address: request.from,
                                 blockTag: "pending"
                             })
-                        isErrorHandled = true
                     }
 
                     if (cause instanceof IntrinsicGasTooLowError) {
                         this.logger.warn("Intrinsic gas too low, retrying")
                         request.gas = scaleBigIntByPercent(request.gas, 150n)
-                        isErrorHandled = true
                     }
 
                     // This is thrown by OP-Stack chains that use proxyd.
@@ -556,11 +574,10 @@ export class Executor {
                             "no backends avaiable error, retrying after 500ms"
                         )
                         await new Promise((resolve) => setTimeout(resolve, 500))
-                        isErrorHandled = true
                     }
                 }
 
-                if (attempts === maxAttempts || !isErrorHandled) {
+                if (attempts === maxAttempts) {
                     throw error
                 }
 
@@ -832,6 +849,7 @@ export class Executor {
             transactionHash = await this.sendHandleOpsTransaction({
                 txParam: {
                     ops: userOps,
+                    isReplacementTx: false,
                     isUserOpVersion06,
                     entryPoint
                 },

@@ -208,6 +208,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description: "Amount to scale the gas estimations used for bundling",
         type: "string",
         default: "100"
+    },
+    "enable-fastlane": {
+        description:
+            "Enable bundling v0.6 userOperations using the pfl_sendRawTransactionConditional endpoint",
+        type: "boolean",
+        default: false
     }
 }
 
