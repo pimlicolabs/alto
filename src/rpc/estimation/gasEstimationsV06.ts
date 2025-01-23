@@ -19,10 +19,8 @@ import {
 import { z } from "zod"
 import type { SimulateHandleOpResult } from "./types"
 import type { AltoConfig } from "../../createConfig"
-import { deepHexlify } from "../../utils/userop"
 import { parseFailedOpWithRevert } from "./gasEstimationsV07"
-import { SignedAuthorizationList } from "viem/experimental"
-import { addAuthorizationStateOverrides } from "@alto/utils"
+import { deepHexlify, addAuthorizationStateOverrides } from "@alto/utils"
 
 export class GasEstimatorV06 {
     private config: AltoConfig
@@ -116,14 +114,12 @@ export class GasEstimatorV06 {
         targetCallData,
         entryPoint,
         useCodeOverride = true,
-        authorizationList,
         stateOverrides = undefined
     }: {
         userOperation: UserOperationV06
         targetAddress: Address
         targetCallData: Hex
         entryPoint: Address
-        authorizationList?: SignedAuthorizationList
         useCodeOverride?: boolean
         stateOverrides?: StateOverrides | undefined
     }): Promise<SimulateHandleOpResult> {
@@ -146,17 +142,17 @@ export class GasEstimatorV06 {
             }
         }
 
-        if (authorizationList) {
-            stateOverrides = await addAuthorizationStateOverrides({
-                stateOverrides,
-                authorizationList,
-                publicClient
-            })
-        }
-
         // Remove state override if not supported by network.
         if (!this.config.balanceOverride) {
             stateOverrides = undefined
+        }
+
+        if (userOperation.eip7702Auth) {
+            stateOverrides = await addAuthorizationStateOverrides({
+                stateOverrides,
+                authorizationList: [userOperation.eip7702Auth],
+                publicClient
+            })
         }
 
         try {

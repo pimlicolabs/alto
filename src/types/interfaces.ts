@@ -8,11 +8,9 @@ import type {
     UserOperationV07
 } from "./schemas"
 import type * as validation from "./validation"
-import { SignedAuthorizationList } from "viem/experimental"
 
 export interface InterfaceValidator {
     getExecutionResult(args: {
-        authorizationList?: SignedAuthorizationList
         userOperation: UserOperation
         entryPoint: Address
         queuedUserOperations: UserOperation[]
@@ -24,7 +22,6 @@ export interface InterfaceValidator {
         userOperation: UserOperationV06
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
-        authorizationList?: SignedAuthorizationList
     }): Promise<
         (
             | validation.ValidationResult
@@ -40,7 +37,6 @@ export interface InterfaceValidator {
         queuedUserOperations: UserOperation[]
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
-        authorizationList?: SignedAuthorizationList
     }): Promise<
         (
             | validation.ValidationResult
@@ -56,7 +52,6 @@ export interface InterfaceValidator {
         queuedUserOperations: UserOperation[]
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
-        authorizationList?: SignedAuthorizationList
     }): Promise<
         (
             | validation.ValidationResult
@@ -78,7 +73,6 @@ export interface InterfaceValidator {
         queuedUserOperations: UserOperation[]
         entryPoint: Address
         referencedContracts?: ReferencedCodeHashes
-        authorizationList?: SignedAuthorizationList
     }): Promise<
         (
             | validation.ValidationResult

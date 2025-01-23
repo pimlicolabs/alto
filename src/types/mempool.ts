@@ -1,6 +1,6 @@
 import type { Address, Chain } from "viem"
 import type { Account } from "viem/accounts"
-import type { HexData32, UserOperation, UserOperation7702 } from "."
+import type { HexData32, UserOperation } from "."
 
 export interface ReferencedCodeHashes {
     // addresses accessed during this user operation
@@ -9,24 +9,6 @@ export interface ReferencedCodeHashes {
     // keccak over the code of all referenced addresses
     hash: string
 }
-
-export const deriveUserOperation = (
-    op: MempoolUserOperation
-): UserOperation => {
-    if (is7702Type(op)) {
-        return (op as UserOperation7702).userOperation
-    }
-
-    return op as UserOperation
-}
-
-export const is7702Type = (
-    op: MempoolUserOperation
-): op is UserOperation7702 => {
-    return "authorization" in op
-}
-
-export type MempoolUserOperation = UserOperation | UserOperation7702
 
 export type TransactionInfo = {
     transactionHash: HexData32
@@ -50,7 +32,7 @@ export type TransactionInfo = {
 }
 
 export type UserOperationInfo = {
-    mempoolUserOperation: MempoolUserOperation
+    userOperation: UserOperation
     entryPoint: Address
     userOperationHash: HexData32
     lastReplaced: number
@@ -96,12 +78,12 @@ export type BundleResult = Result<
         reason: string
         userOpHash: HexData32
         entryPoint: Address
-        userOperation: MempoolUserOperation
+        userOperation: UserOperation
     },
     {
         reason: string
         userOpHash: HexData32
         entryPoint: Address
-        userOperation: MempoolUserOperation
+        userOperation: UserOperation
     }
 >

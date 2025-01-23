@@ -35,7 +35,6 @@ import {
     type GetUserOperationReceiptResponseResult,
     type HexData32,
     type InterfaceValidator,
-    type MempoolUserOperation,
     type PimlicoGetUserOperationGasPriceResponseResult,
     type PimlicoGetUserOperationStatusResponseResult,
     RpcError,
@@ -43,9 +42,7 @@ import {
     type SupportedEntryPointsResponseResult,
     type UserOperation,
     ValidationErrors,
-    bundlerGetStakeStatusResponseSchema,
-    deriveUserOperation,
-    is7702Type
+    bundlerGetStakeStatusResponseSchema
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import {
@@ -76,10 +73,6 @@ import {
 import { base, baseSepolia, optimism } from "viem/chains"
 import type { NonceQueuer } from "./nonceQueuer"
 import type { AltoConfig } from "../createConfig"
-import type {
-    SignedAuthorization,
-    SignedAuthorizationList
-} from "viem/experimental"
 
 export interface IRpcEndpoint {
     handleMethod(
@@ -299,8 +292,7 @@ export class RpcHandler implements IRpcEndpoint {
                         apiVersion,
                         request.params[0],
                         request.params[1],
-                        request.params[2],
-                        request.params[3]
+                        request.params[2]
                     )
                 }
         }
@@ -588,9 +580,7 @@ export class RpcHandler implements IRpcEndpoint {
 
         return this.mempool
             .dumpOutstanding()
-            .map((userOpInfo) =>
-                deriveUserOperation(userOpInfo.mempoolUserOperation)
-            )
+            .map(({ userOperation }) => userOperation)
     }
 
     async debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
@@ -678,13 +668,12 @@ export class RpcHandler implements IRpcEndpoint {
 
     // check if we want to bundle userOperation. If yes, add to mempool
     async addToMempoolIfValid(
-        op: MempoolUserOperation,
+        userOperation: UserOperation,
         entryPoint: Address,
         apiVersion: ApiVersion
     ): Promise<"added" | "queued"> {
         this.ensureEntryPointIsSupported(entryPoint)
 
-        const userOperation = deriveUserOperation(op)
         const opHash = getUserOperationHash(
             userOperation,
             entryPoint,
@@ -735,12 +724,15 @@ export class RpcHandler implements IRpcEndpoint {
             userOperationNonceValue >
             currentNonceValue + BigInt(queuedUserOperations.length)
         ) {
-            this.nonceQueuer.add(op, entryPoint)
+            this.nonceQueuer.add(userOperation, entryPoint)
             return "queued"
         }
 
         if (this.config.dangerousSkipUserOperationValidation) {
-            const [success, errorReason] = this.mempool.add(op, entryPoint)
+            const [success, errorReason] = this.mempool.add(
+                userOperation,
+                entryPoint
+            )
             if (!success) {
                 this.eventManager.emitFailedValidation(
                     opHash,
@@ -759,17 +751,11 @@ export class RpcHandler implements IRpcEndpoint {
             })
         }
 
-        let authorizationList: SignedAuthorizationList | undefined
-        if (is7702Type(op)) {
-            authorizationList = [op.authorization]
-        }
-
         const validationResult = await this.validator.validateUserOperation({
             shouldCheckPrefund: apiVersion !== "v1",
             userOperation,
             queuedUserOperations,
-            entryPoint,
-            authorizationList
+            entryPoint
         })
 
         await this.reputationManager.checkReputation(
@@ -781,7 +767,7 @@ export class RpcHandler implements IRpcEndpoint {
         await this.mempool.checkEntityMultipleRoleViolation(userOperation)
 
         const [success, errorReason] = this.mempool.add(
-            op,
+            userOperation,
             entryPoint,
             validationResult.referencedContracts
         )
@@ -801,7 +787,6 @@ export class RpcHandler implements IRpcEndpoint {
         apiVersion: ApiVersion,
         userOperation: UserOperation,
         entryPoint: Address,
-        authorization: SignedAuthorization,
         stateOverrides?: StateOverrides
     ) {
         if (!this.config.enableExperimental7702Endpoints) {
@@ -814,7 +799,6 @@ export class RpcHandler implements IRpcEndpoint {
         return await this.estimateGas({
             apiVersion,
             userOperation,
-            authorization,
             entryPoint,
             stateOverrides
         })
@@ -823,8 +807,7 @@ export class RpcHandler implements IRpcEndpoint {
     async pimlico_experimental_sendUserOperation7702(
         apiVersion: ApiVersion,
         userOperation: UserOperation,
-        entryPoint: Address,
-        authorizationSignature: SignedAuthorization
+        entryPoint: Address
     ) {
         if (!this.config.enableExperimental7702Endpoints) {
             throw new RpcError(
@@ -837,10 +820,7 @@ export class RpcHandler implements IRpcEndpoint {
 
         try {
             await this.addToMempoolIfValid(
-                {
-                    userOperation,
-                    authorization: authorizationSignature
-                },
+                userOperation,
                 entryPoint,
                 apiVersion
             )
@@ -964,14 +944,12 @@ export class RpcHandler implements IRpcEndpoint {
         apiVersion,
         userOperation,
         entryPoint,
-        stateOverrides,
-        authorization
+        stateOverrides
     }: {
         apiVersion: ApiVersion
         userOperation: UserOperation
         entryPoint: Address
         stateOverrides?: StateOverrides
-        authorization?: SignedAuthorization
     }) {
         this.ensureEntryPointIsSupported(entryPoint)
 
@@ -1059,8 +1037,7 @@ export class RpcHandler implements IRpcEndpoint {
             entryPoint,
             queuedUserOperations,
             addSenderBalanceOverride: true,
-            stateOverrides: deepHexlify(stateOverrides),
-            authorizationList: authorization ? [authorization] : undefined
+            stateOverrides: deepHexlify(stateOverrides)
         })
 
         let {
@@ -1177,8 +1154,7 @@ export class RpcHandler implements IRpcEndpoint {
                 entryPoint,
                 queuedUserOperations,
                 addSenderBalanceOverride: false,
-                stateOverrides: deepHexlify(stateOverrides),
-                authorizationList: authorization ? [authorization] : undefined
+                stateOverrides: deepHexlify(stateOverrides)
             })
         }
 
