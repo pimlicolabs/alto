@@ -81,12 +81,11 @@ export class NonceQueuer {
             return
         }
 
-        this.queuedUserOperations = this.queuedUserOperations.filter(
-            (qop) =>
-                !availableOps.find(
-                    (op) => op.userOperationHash === qop.userOperationHash
-                )
-        )
+        this.queuedUserOperations = this.queuedUserOperations.filter((qop) => {
+            return !availableOps.some((op) => {
+                return op.userOperationHash === qop.userOperationHash
+            })
+        })
 
         availableOps.map((op) => {
             this.resubmitUserOperation(op.mempoolUserOperation, op.entryPoint)
