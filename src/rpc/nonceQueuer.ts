@@ -105,7 +105,7 @@ export class NonceQueuer {
         this.queuedUserOperations.push({
             entryPoint,
             userOperationHash,
-            userOperation: userOperation,
+            userOperation,
             nonceKey,
             nonceSequence,
             addedAt: Date.now()

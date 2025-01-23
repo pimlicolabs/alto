@@ -56,7 +56,8 @@ const userOperationV06Schema = z
         maxPriorityFeePerGas: hexNumberSchema,
         maxFeePerGas: hexNumberSchema,
         paymasterAndData: hexDataSchema,
-        signature: hexDataSchema
+        signature: hexDataSchema,
+        eip7702Auth: signedAuthorizationSchema.optional()
     })
     .strict()
     .transform((val) => {
@@ -115,7 +116,8 @@ const partialUserOperationV06Schema = z
         maxPriorityFeePerGas: hexNumberSchema.default(1n),
         maxFeePerGas: hexNumberSchema.default(1n),
         paymasterAndData: hexDataSchema,
-        signature: hexDataSchema
+        signature: hexDataSchema,
+        eip7702Auth: signedAuthorizationSchema.optional()
     })
     .strict()
     .transform((val) => {

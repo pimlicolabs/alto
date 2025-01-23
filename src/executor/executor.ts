@@ -172,10 +172,10 @@ export class Executor {
         )
 
         const [isUserOpVersion06, entryPoint] = opsWithHashes.reduce(
-            (acc, op) => {
+            (acc, owh) => {
                 if (
-                    acc[0] !== isVersion06(op.userOperation) ||
-                    acc[1] !== op.entryPoint
+                    acc[0] !== isVersion06(owh.userOperation) ||
+                    acc[1] !== owh.entryPoint
                 ) {
                     throw new Error(
                         "All user operations must be of the same version"
@@ -672,13 +672,13 @@ export class Executor {
                 "Failed to get parameters for bundling"
             )
             this.markWalletProcessed(wallet)
-            return opsWithHashes.map(({ userOperation, userOperationHash }) => {
+            return opsWithHashes.map((owh) => {
                 return {
                     status: "resubmit",
                     info: {
                         entryPoint,
-                        userOpHash: userOperationHash,
-                        userOperation,
+                        userOpHash: owh.userOperationHash,
+                        userOperation: owh.userOperation,
                         reason: "Failed to get parameters for bundling"
                     }
                 }
@@ -708,13 +708,13 @@ export class Executor {
                 "gas limit simulation encountered unexpected failure"
             )
             this.markWalletProcessed(wallet)
-            return opsWithHashes.map(({ userOperationHash, userOperation }) => {
+            return opsWithHashes.map((owh) => {
                 return {
                     status: "failure",
                     error: {
                         entryPoint,
-                        userOpHash: userOperationHash,
-                        userOperation,
+                        userOpHash: owh.userOperationHash,
+                        userOperation: owh.userOperation,
                         reason: "INTERNAL FAILURE"
                     }
                 }
@@ -871,13 +871,13 @@ export class Executor {
                 "error submitting bundle transaction"
             )
             this.markWalletProcessed(wallet)
-            return opsWithHashes.map(({ userOperationHash, userOperation }) => {
+            return opsWithHashes.map((owh) => {
                 return {
                     status: "failure",
                     error: {
                         entryPoint,
-                        userOpHash: userOperationHash,
-                        userOperation,
+                        userOpHash: owh.userOperationHash,
+                        userOperation: owh.userOperation,
                         reason: "INTERNAL FAILURE"
                     }
                 }

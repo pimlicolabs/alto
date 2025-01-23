@@ -266,14 +266,13 @@ export class MemoryMempool {
         }
 
         if (
-            processedOrSubmittedOps.find(
-                ({ userOperation: existingUserOperation }) => {
-                    return (
-                        existingUserOperation.sender === userOperation.sender &&
-                        existingUserOperation.nonce === userOperation.nonce
-                    )
-                }
-            )
+            processedOrSubmittedOps.find((opInfo) => {
+                const mempoolUserOp = opInfo.userOperation
+                return (
+                    mempoolUserOp.sender === userOperation.sender &&
+                    mempoolUserOp.nonce === userOperation.nonce
+                )
+            })
         ) {
             return [
                 false,
@@ -286,42 +285,44 @@ export class MemoryMempool {
             entryPoint
         )
         const oldUserOp = [...outstandingOps, ...processedOrSubmittedOps].find(
-            ({ userOperation: existingUserOperation }) => {
+            (opInfo) => {
+                const mempoolUserOp = opInfo.userOperation
+
                 const isSameSender =
-                    existingUserOperation.sender === userOperation.sender
+                    mempoolUserOp.sender === userOperation.sender
 
                 if (
                     isSameSender &&
-                    existingUserOperation.nonce === userOperation.nonce
+                    mempoolUserOp.nonce === userOperation.nonce
                 ) {
                     return true
                 }
 
                 // Check if there is already a userOperation with initCode + same sender (stops rejected ops due to AA10).
                 if (
-                    isVersion06(existingUserOperation) &&
+                    isVersion06(mempoolUserOp) &&
                     isVersion06(userOperation) &&
                     userOperation.initCode &&
                     userOperation.initCode !== "0x"
                 ) {
                     return (
                         isSameSender &&
-                        existingUserOperation.initCode &&
-                        existingUserOperation.initCode !== "0x"
+                        mempoolUserOp.initCode &&
+                        mempoolUserOp.initCode !== "0x"
                     )
                 }
 
                 // Check if there is already a userOperation with factory + same sender (stops rejected ops due to AA10).
                 if (
-                    isVersion07(existingUserOperation) &&
+                    isVersion07(mempoolUserOp) &&
                     isVersion07(userOperation) &&
                     userOperation.factory &&
                     userOperation.factory !== "0x"
                 ) {
                     return (
                         isSameSender &&
-                        existingUserOperation.factory &&
-                        existingUserOperation.factory !== "0x"
+                        mempoolUserOp.factory &&
+                        mempoolUserOp.factory !== "0x"
                     )
                 }
 
@@ -813,13 +814,13 @@ export class MemoryMempool {
         const outstanding = this.store
             .dumpOutstanding()
             .map(({ userOperation }) => userOperation)
-            .filter((existingUserOperation: UserOperation) => {
+            .filter((mempoolUserOp) => {
                 const [opNonceKey, opNonceValue] = getNonceKeyAndValue(
-                    existingUserOperation.nonce
+                    mempoolUserOp.nonce
                 )
 
                 return (
-                    existingUserOperation.sender === userOperation.sender &&
+                    mempoolUserOp.sender === userOperation.sender &&
                     opNonceKey === nonceKey &&
                     opNonceValue >= currentNonceValue &&
                     opNonceValue < userOperationNonceValue

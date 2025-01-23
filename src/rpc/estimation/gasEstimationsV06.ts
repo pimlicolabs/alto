@@ -19,8 +19,8 @@ import {
 import { z } from "zod"
 import type { SimulateHandleOpResult } from "./types"
 import type { AltoConfig } from "../../createConfig"
-import { deepHexlify } from "../../utils/userop"
 import { parseFailedOpWithRevert } from "./gasEstimationsV07"
+import { deepHexlify, addAuthorizationStateOverrides } from "@alto/utils"
 
 export class GasEstimatorV06 {
     private config: AltoConfig
@@ -145,6 +145,14 @@ export class GasEstimatorV06 {
         // Remove state override if not supported by network.
         if (!this.config.balanceOverride) {
             stateOverrides = undefined
+        }
+
+        if (userOperation.eip7702Auth) {
+            stateOverrides = await addAuthorizationStateOverrides({
+                stateOverrides,
+                authorizationList: [userOperation.eip7702Auth],
+                publicClient
+            })
         }
 
         try {

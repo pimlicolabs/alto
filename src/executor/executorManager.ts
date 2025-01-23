@@ -462,43 +462,43 @@ export class ExecutorManager {
             const { userOperationDetails } = bundlingStatus
             opInfos.map((opInfo) => {
                 const {
-                    userOperation: mUserOperation,
-                    userOperationHash: userOpHash,
+                    userOperation,
+                    userOperationHash,
                     entryPoint,
                     firstSubmitted
                 } = opInfo
-                const opDetails = userOperationDetails[userOpHash]
+                const opDetails = userOperationDetails[userOperationHash]
 
                 this.metrics.userOperationInclusionDuration.observe(
                     (Date.now() - firstSubmitted) / 1000
                 )
-                this.mempool.removeSubmitted(userOpHash)
+                this.mempool.removeSubmitted(userOperationHash)
                 this.reputationManager.updateUserOperationIncludedStatus(
-                    mUserOperation,
+                    userOperation,
                     entryPoint,
                     opDetails.accountDeployed
                 )
                 if (opDetails.status === "succesful") {
                     this.eventManager.emitIncludedOnChain(
-                        userOpHash,
+                        userOperationHash,
                         transactionHash,
                         blockNumber as bigint
                     )
                 } else {
                     this.eventManager.emitExecutionRevertedOnChain(
-                        userOpHash,
+                        userOperationHash,
                         transactionHash,
                         opDetails.revertReason || "0x",
                         blockNumber as bigint
                     )
                 }
-                this.monitor.setUserOperationStatus(userOpHash, {
+                this.monitor.setUserOperationStatus(userOperationHash, {
                     status: "included",
                     transactionHash
                 })
                 this.logger.info(
                     {
-                        userOpHash,
+                        userOperationHash,
                         transactionHash
                     },
                     "user op included"

@@ -51,7 +51,7 @@ export const getAuthorizationList = (
 ): SignedAuthorizationList | undefined => {
     const authorizationList = userOperations
         .map((op) => {
-            if (isVersion07(op) && op.eip7702Auth) {
+            if (op.eip7702Auth) {
                 return op.eip7702Auth
             }
             return undefined
