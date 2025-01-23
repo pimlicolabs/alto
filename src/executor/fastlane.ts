@@ -28,10 +28,10 @@ export async function sendPflConditional({
 }): Promise<SendRawTransactionReturnType> {
     try {
         const blockNumberMin = await publicClient.getBlockNumber()
-        const blockNumberMax = blockNumberMin + 25n
+        const blockNumberMax = blockNumberMin + 30n
 
         const timestampMin = Date.now() / 1000
-        const timestampMax = timestampMin + 500
+        const timestampMax = timestampMin + 60
 
         const opts = {
             //knownAccounts: {}

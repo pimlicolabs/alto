@@ -506,7 +506,8 @@ export class Executor {
                 if (
                     this.config.enableFastlane &&
                     isUserOpVersion06 &&
-                    !txParam.isReplacementTx
+                    !txParam.isReplacementTx &&
+                    attempts === 0
                 ) {
                     const serializedTransaction =
                         await this.config.walletClient.signTransaction(request)
@@ -527,7 +528,6 @@ export class Executor {
                 break
             } catch (e: unknown) {
                 isTransactionUnderPriced = false
-                let isErrorHandled = false
 
                 if (e instanceof BaseError) {
                     if (isTransactionUnderpricedError(e)) {
@@ -541,7 +541,6 @@ export class Executor {
                             request.maxPriorityFeePerGas,
                             150n
                         )
-                        isErrorHandled = true
                         isTransactionUnderPriced = true
                     }
                 }
@@ -561,13 +560,11 @@ export class Executor {
                                 address: request.from,
                                 blockTag: "pending"
                             })
-                        isErrorHandled = true
                     }
 
                     if (cause instanceof IntrinsicGasTooLowError) {
                         this.logger.warn("Intrinsic gas too low, retrying")
                         request.gas = scaleBigIntByPercent(request.gas, 150n)
-                        isErrorHandled = true
                     }
 
                     // This is thrown by OP-Stack chains that use proxyd.
@@ -577,11 +574,10 @@ export class Executor {
                             "no backends avaiable error, retrying after 500ms"
                         )
                         await new Promise((resolve) => setTimeout(resolve, 500))
-                        isErrorHandled = true
                     }
                 }
 
-                if (attempts === maxAttempts || !isErrorHandled) {
+                if (attempts === maxAttempts) {
                     throw error
                 }
 
