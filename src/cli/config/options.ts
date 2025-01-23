@@ -208,6 +208,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description: "Amount to scale the gas estimations used for bundling",
         type: "string",
         default: "100"
+    },
+    "enable-fastlane": {
+        description:
+            "Enable bundling v0.6 userOperations through the fastlane ERC-4337 mempool",
+        type: "boolean",
+        default: false
     }
 }
 

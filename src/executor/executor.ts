@@ -48,6 +48,7 @@ import {
 import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { SendTransactionOptions } from "./types"
+import { sendPflConditional } from "./fastlane"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -58,6 +59,7 @@ export interface GasEstimateResult {
 export type HandleOpsTxParam = {
     ops: PackedUserOperation[]
     isUserOpVersion06: boolean
+    isReplacementTx: boolean
     entryPoint: Address
 }
 
@@ -298,6 +300,7 @@ export class Executor {
 
         txParam = {
             isUserOpVersion06,
+            isReplacementTx: true,
             ops: userOps,
             entryPoint: transactionInfo.entryPoint
         }
@@ -500,6 +503,24 @@ export class Executor {
         // Try sending the transaction and updating relevant fields if there is an error.
         while (attempts < maxAttempts) {
             try {
+                if (
+                    this.config.enableFastlane &&
+                    isUserOpVersion06 &&
+                    !txParam.isReplacementTx
+                ) {
+                    const serializedTransaction =
+                        await this.config.walletClient.signTransaction(request)
+
+                    transactionHash = await sendPflConditional({
+                        serializedTransaction,
+                        publicClient: this.config.publicClient,
+                        walletClient: this.config.walletClient,
+                        logger: this.logger
+                    })
+
+                    break
+                }
+
                 transactionHash =
                     await this.config.walletClient.sendTransaction(request)
 
@@ -832,6 +853,7 @@ export class Executor {
             transactionHash = await this.sendHandleOpsTransaction({
                 txParam: {
                     ops: userOps,
+                    isReplacementTx: false,
                     isUserOpVersion06,
                     entryPoint
                 },
