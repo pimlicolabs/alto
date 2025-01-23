@@ -3,8 +3,7 @@ import type { MemoryMempool } from "@alto/mempool"
 import {
     EntryPointV06Abi,
     EntryPointV07Abi,
-    type MempoolUserOperation,
-    deriveUserOperation
+    type MempoolUserOperation
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
@@ -97,21 +96,20 @@ export class NonceQueuer {
         )
     }
 
-    add(mempoolUserOperation: MempoolUserOperation, entryPoint: Address) {
-        const userOperation = deriveUserOperation(mempoolUserOperation)
+    add(userOperation: MempoolUserOperation, entryPoint: Address) {
         const [nonceKey, nonceSequence] = getNonceKeyAndValue(
             userOperation.nonce
         )
 
         const userOperationHash = getUserOperationHash(
-            deriveUserOperation(mempoolUserOperation),
+            userOperation,
             entryPoint,
             this.config.publicClient.chain.id
         )
         this.queuedUserOperations.push({
             entryPoint,
             userOperationHash,
-            mempoolUserOperation,
+            mempoolUserOperation: userOperation,
             nonceKey,
             nonceSequence,
             addedAt: Date.now()
@@ -148,9 +146,7 @@ export class NonceQueuer {
         try {
             results = await publicClient.multicall({
                 contracts: queuedUserOperations.map((qop) => {
-                    const userOperation = deriveUserOperation(
-                        qop.mempoolUserOperation
-                    )
+                    const userOperation = qop.mempoolUserOperation
 
                     const isUserOpV06 = isVersion06(userOperation)
 
@@ -171,9 +167,7 @@ export class NonceQueuer {
 
             results = await Promise.all(
                 queuedUserOperations.map(async (qop) => {
-                    const userOperation = deriveUserOperation(
-                        qop.mempoolUserOperation
-                    )
+                    const userOperation = qop.mempoolUserOperation
                     try {
                         const isUserOpV06 = isVersion06(userOperation)
 

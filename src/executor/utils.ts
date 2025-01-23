@@ -9,11 +9,9 @@ import {
     type UserOperation,
     type UserOperationV07,
     type UserOperationWithHash,
-    deriveUserOperation,
     failedOpErrorSchema,
     failedOpWithRevertErrorSchema,
-    MempoolUserOperation,
-    is7702Type
+    MempoolUserOperation
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
@@ -53,10 +51,9 @@ export const getAuthorizationList = (
 ): SignedAuthorizationList | undefined => {
     const authorizationList = mempoolUserOperations
         .map((op) => {
-            if (is7702Type(op)) {
-                return op.authorization
+            if (op.eip7702Auth) {
+                return op.eip7702Auth
             }
-
             return undefined
         })
         .filter((auth) => auth !== undefined) as SignedAuthorizationList
@@ -147,7 +144,7 @@ export async function filterOpsAndEstimateGas(
             const opsToSend = simulatedOps
                 .filter((op) => op.reason === undefined)
                 .map(({ owh }) => {
-                    const op = deriveUserOperation(owh.mempoolUserOperation)
+                    const op = owh.mempoolUserOperation
                     return isUserOpV06
                         ? op
                         : toPackedUserOperation(op as UserOperationV07)
@@ -224,7 +221,7 @@ export async function filterOpsAndEstimateGas(
                     }`
 
                     reputationManager.crashedHandleOps(
-                        deriveUserOperation(failingOp.owh.mempoolUserOperation),
+                        failingOp.owh.mempoolUserOperation,
                         entryPoint,
                         failingOp.reason
                     )

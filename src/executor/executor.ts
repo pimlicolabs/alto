@@ -11,7 +11,6 @@ import {
     type TransactionInfo,
     type UserOperation,
     type UserOperationV07,
-    deriveUserOperation,
     type GasPriceParameters
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
@@ -159,7 +158,7 @@ export class Executor {
 
         const opsWithHashes = transactionInfo.userOperationInfos.map(
             (opInfo) => {
-                const op = deriveUserOperation(opInfo.mempoolUserOperation)
+                const op = opInfo.mempoolUserOperation
                 return {
                     mempoolUserOperation: opInfo.mempoolUserOperation,
                     userOperationHash: getUserOperationHash(
@@ -263,9 +262,7 @@ export class Executor {
 
         if (this.config.localGasLimitCalculation) {
             gasLimit = opsToBundle.reduce((acc, opInfo) => {
-                const userOperation = deriveUserOperation(
-                    opInfo.mempoolUserOperation
-                )
+                const userOperation = opInfo.mempoolUserOperation
                 return (
                     acc +
                     userOperation.preVerificationGas +
@@ -278,7 +275,7 @@ export class Executor {
         // https://github.com/eth-infinitism/account-abstraction/blob/fa61290d37d079e928d92d53a122efcc63822214/contracts/core/EntryPoint.sol#L236
         let innerHandleOpFloor = 0n
         for (const owh of opsToBundle) {
-            const op = deriveUserOperation(owh.mempoolUserOperation)
+            const op = owh.mempoolUserOperation
             innerHandleOpFloor +=
                 op.callGasLimit + op.verificationGasLimit + 5000n
         }
@@ -345,7 +342,7 @@ export class Executor {
             })
 
             opsToBundle.map(({ entryPoint, mempoolUserOperation }) => {
-                const op = deriveUserOperation(mempoolUserOperation)
+                const op = mempoolUserOperation
                 const chainId = this.config.publicClient.chain?.id
                 const opHash = getUserOperationHash(
                     op,
@@ -633,7 +630,7 @@ export class Executor {
             return {
                 mempoolUserOperation: op,
                 userOperationHash: getUserOperationHash(
-                    deriveUserOperation(op),
+                    op,
                     entryPoint,
                     this.config.walletClient.chain.id
                 )
@@ -771,7 +768,7 @@ export class Executor {
         let innerHandleOpFloor = 0n
         let totalBeneficiaryFees = 0n
         for (const owh of opsWithHashToBundle) {
-            const op = deriveUserOperation(owh.mempoolUserOperation)
+            const op = owh.mempoolUserOperation
             innerHandleOpFloor +=
                 op.callGasLimit + op.verificationGasLimit + 5000n
 
@@ -844,7 +841,7 @@ export class Executor {
 
             const userOps = opsWithHashToBundle.map(
                 ({ mempoolUserOperation }) => {
-                    const op = deriveUserOperation(mempoolUserOperation)
+                    const op = mempoolUserOperation
 
                     if (isUserOpVersion06) {
                         return op

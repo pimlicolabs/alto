@@ -15,8 +15,7 @@ import {
     type UserOperation,
     type UserOperationInfo,
     ValidationErrors,
-    type ValidationResult,
-    deriveUserOperation
+    type ValidationResult
 } from "@alto/types"
 import type { HexData32 } from "@alto/types"
 import type { Metrics } from "@alto/utils"
@@ -210,7 +209,7 @@ export class MemoryMempool {
         }
 
         for (const mempoolOp of allOps) {
-            const op = deriveUserOperation(mempoolOp.mempoolUserOperation)
+            const op = mempoolOp.mempoolUserOperation
             entities.sender.add(op.sender)
 
             const isUserOpV06 = isVersion06(op)
@@ -242,7 +241,7 @@ export class MemoryMempool {
         entryPoint: Address,
         referencedContracts?: ReferencedCodeHashes
     ): [boolean, string] {
-        const op = deriveUserOperation(mempoolUserOperation)
+        const op = mempoolUserOperation
         const opHash = getUserOperationHash(
             op,
             entryPoint,
@@ -270,7 +269,7 @@ export class MemoryMempool {
 
         if (
             processedOrSubmittedOps.find(({ mempoolUserOperation }) => {
-                const userOperation = deriveUserOperation(mempoolUserOperation)
+                const userOperation = mempoolUserOperation
                 return (
                     userOperation.sender === op.sender &&
                     userOperation.nonce === op.nonce
@@ -286,7 +285,7 @@ export class MemoryMempool {
         this.reputationManager.updateUserOperationSeenStatus(op, entryPoint)
         const oldUserOp = [...outstandingOps, ...processedOrSubmittedOps].find(
             ({ mempoolUserOperation }) => {
-                const userOperation = deriveUserOperation(mempoolUserOperation)
+                const userOperation = mempoolUserOperation
 
                 const isSameSender = userOperation.sender === op.sender
 
@@ -331,7 +330,7 @@ export class MemoryMempool {
         )
 
         if (oldUserOp) {
-            const oldOp = deriveUserOperation(oldUserOp.mempoolUserOperation)
+            const oldOp = oldUserOp.mempoolUserOperation
 
             let reason =
                 "AA10 sender already constructed: A conflicting userOperation with initCode for this sender is already in the mempool. bump the gas price by minimum 10%"
@@ -371,9 +370,7 @@ export class MemoryMempool {
         const parallelUserOperationsCount = this.store
             .dumpOutstanding()
             .filter((userOpInfo) => {
-                const userOp = deriveUserOperation(
-                    userOpInfo.mempoolUserOperation
-                )
+                const userOp = userOpInfo.mempoolUserOperation
                 return userOp.sender === op.sender
             }).length
 
@@ -389,9 +386,7 @@ export class MemoryMempool {
         const queuedUserOperationsCount = this.store
             .dumpOutstanding()
             .filter((userOpInfo) => {
-                const userOp = deriveUserOperation(
-                    userOpInfo.mempoolUserOperation
-                )
+                const userOp = userOpInfo.mempoolUserOperation
                 const [opNonceKey] = getNonceKeyAndValue(userOp.nonce)
 
                 return userOp.sender === op.sender && opNonceKey === nonceKey
@@ -445,7 +440,7 @@ export class MemoryMempool {
         senders: Set<string>
         storageMap: StorageMap
     }> {
-        const op = deriveUserOperation(opInfo.mempoolUserOperation)
+        const op = opInfo.mempoolUserOperation
         if (!this.config.safeMode) {
             return {
                 skip: false,
@@ -677,8 +672,8 @@ export class MemoryMempool {
         // Decide the order of the userops based on the sender and nonce
         // If sender is the same, sort by nonce key
         outstandingUserOperations.sort((a, b) => {
-            const aUserOp = deriveUserOperation(a.mempoolUserOperation)
-            const bUserOp = deriveUserOperation(b.mempoolUserOperation)
+            const aUserOp = a.mempoolUserOperation
+            const bUserOp = b.mempoolUserOperation
 
             if (aUserOp.sender === bUserOp.sender) {
                 const [aNonceKey, aNonceValue] = getNonceKeyAndValue(
@@ -713,7 +708,7 @@ export class MemoryMempool {
         let storageMap: StorageMap = {}
 
         for (const opInfo of outstandingUserOperations) {
-            const op = deriveUserOperation(opInfo.mempoolUserOperation)
+            const op = opInfo.mempoolUserOperation
             gasUsed += op.callGasLimit + op.verificationGasLimit
 
             if (isVersion07(op)) {
@@ -757,16 +752,14 @@ export class MemoryMempool {
             .dumpOutstanding()
             .find((op) => op.userOperationHash === opHash)
         if (outstanding) {
-            return deriveUserOperation(outstanding.mempoolUserOperation)
+            return outstanding.mempoolUserOperation
         }
 
         const submitted = this.store
             .dumpSubmitted()
             .find((op) => op.userOperation.userOperationHash === opHash)
         if (submitted) {
-            return deriveUserOperation(
-                submitted.userOperation.mempoolUserOperation
-            )
+            return submitted.userOperation.mempoolUserOperation
         }
 
         return null
@@ -811,9 +804,7 @@ export class MemoryMempool {
 
         const outstanding = this.store
             .dumpOutstanding()
-            .map((userOpInfo) =>
-                deriveUserOperation(userOpInfo.mempoolUserOperation)
-            )
+            .map(({ mempoolUserOperation }) => mempoolUserOperation)
             .filter((uo: UserOperation) => {
                 const [opNonceKey, opNonceValue] = getNonceKeyAndValue(uo.nonce)
 

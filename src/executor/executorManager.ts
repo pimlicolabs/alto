@@ -13,8 +13,7 @@ import {
     type SubmittedUserOperation,
     type TransactionInfo,
     type UserOperation,
-    type UserOperationInfo,
-    deriveUserOperation
+    type UserOperationInfo
 } from "@alto/types"
 import type { BundlingStatus, Logger, Metrics } from "@alto/utils"
 import {
@@ -484,7 +483,7 @@ export class ExecutorManager {
                 )
                 this.mempool.removeSubmitted(userOpHash)
                 this.reputationManager.updateUserOperationIncludedStatus(
-                    deriveUserOperation(mUserOperation),
+                    mUserOperation,
                     entryPoint,
                     opDetails.accountDeployed
                 )
@@ -859,9 +858,7 @@ export class ExecutorManager {
 
         if (replaceResult.status === "failed") {
             txInfo.userOperationInfos.map((opInfo) => {
-                const userOperation = deriveUserOperation(
-                    opInfo.mempoolUserOperation
-                )
+                const userOperation = opInfo.mempoolUserOperation
 
                 this.eventManager.emitDropped(
                     opInfo.userOperationHash,

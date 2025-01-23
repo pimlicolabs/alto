@@ -197,11 +197,6 @@ export type PackedUserOperation = z.infer<typeof packerUserOperationSchema>
 
 export type UserOperation = z.infer<typeof userOperationSchema>
 
-export type UserOperation7702 = {
-    userOperation: UserOperation
-    authorization: SignedAuthorization
-}
-
 export type UserOperationRequest = {
     userOperation: UserOperation
     entryPoint: Address

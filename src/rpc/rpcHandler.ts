@@ -43,8 +43,7 @@ import {
     type SupportedEntryPointsResponseResult,
     type UserOperation,
     ValidationErrors,
-    bundlerGetStakeStatusResponseSchema,
-    deriveUserOperation
+    bundlerGetStakeStatusResponseSchema
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import {
@@ -582,9 +581,7 @@ export class RpcHandler implements IRpcEndpoint {
 
         return this.mempool
             .dumpOutstanding()
-            .map((userOpInfo) =>
-                deriveUserOperation(userOpInfo.mempoolUserOperation)
-            )
+            .map(({ mempoolUserOperation }) => mempoolUserOperation)
     }
 
     async debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
@@ -672,13 +669,12 @@ export class RpcHandler implements IRpcEndpoint {
 
     // check if we want to bundle userOperation. If yes, add to mempool
     async addToMempoolIfValid(
-        op: MempoolUserOperation,
+        userOperation: MempoolUserOperation,
         entryPoint: Address,
         apiVersion: ApiVersion
     ): Promise<"added" | "queued"> {
         this.ensureEntryPointIsSupported(entryPoint)
 
-        const userOperation = deriveUserOperation(op)
         const opHash = getUserOperationHash(
             userOperation,
             entryPoint,
@@ -729,12 +725,15 @@ export class RpcHandler implements IRpcEndpoint {
             userOperationNonceValue >
             currentNonceValue + BigInt(queuedUserOperations.length)
         ) {
-            this.nonceQueuer.add(op, entryPoint)
+            this.nonceQueuer.add(userOperation, entryPoint)
             return "queued"
         }
 
         if (this.config.dangerousSkipUserOperationValidation) {
-            const [success, errorReason] = this.mempool.add(op, entryPoint)
+            const [success, errorReason] = this.mempool.add(
+                userOperation,
+                entryPoint
+            )
             if (!success) {
                 this.eventManager.emitFailedValidation(
                     opHash,
@@ -769,7 +768,7 @@ export class RpcHandler implements IRpcEndpoint {
         await this.mempool.checkEntityMultipleRoleViolation(userOperation)
 
         const [success, errorReason] = this.mempool.add(
-            op,
+            userOperation,
             entryPoint,
             validationResult.referencedContracts
         )
