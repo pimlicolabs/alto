@@ -530,9 +530,16 @@ export const getUserOperationHash = (
 
 export const getNonceKeyAndValue = (nonce: bigint) => {
     const nonceKey = nonce >> 64n // first 192 bits of nonce
-    const userOperationNonceValue = nonce & 0xffffffffffffffffn // last 64 bits of nonce
+    const nonceSequence = nonce & 0xffffffffffffffffn // last 64 bits of nonce
 
-    return [nonceKey, userOperationNonceValue]
+    return [nonceKey, nonceSequence]
+}
+
+export const encodeNonce = ({
+    nonceKey,
+    nonceSequence
+}: { nonceKey: bigint; nonceSequence: bigint }) => {
+    return (nonceKey << 64n) | nonceSequence
 }
 
 export function toUnpackedUserOperation(
