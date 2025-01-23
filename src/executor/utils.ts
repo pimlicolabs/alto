@@ -17,6 +17,7 @@ import type { Logger } from "@alto/utils"
 import {
     getRevertErrorData,
     isVersion06,
+    isVersion07,
     parseViemError,
     scaleBigIntByPercent,
     toPackedUserOperation
@@ -51,7 +52,7 @@ export const getAuthorizationList = (
 ): SignedAuthorizationList | undefined => {
     const authorizationList = mempoolUserOperations
         .map((op) => {
-            if (op.eip7702Auth) {
+            if (isVersion07(op) && op.eip7702Auth) {
                 return op.eip7702Auth
             }
             return undefined

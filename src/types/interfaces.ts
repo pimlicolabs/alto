@@ -8,7 +8,6 @@ import type {
     UserOperationV07
 } from "./schemas"
 import type * as validation from "./validation"
-import { SignedAuthorizationList } from "viem/experimental"
 
 export interface InterfaceValidator {
     getExecutionResult(args: {

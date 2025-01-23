@@ -1,7 +1,6 @@
 import { type Hash, type Hex, getAddress, maxUint256 } from "viem"
 import { z } from "zod"
 import type { MempoolUserOperation } from "./mempool"
-import { SignedAuthorization } from "viem/experimental"
 
 const hexDataPattern = /^0x[0-9A-Fa-f]*$/
 const addressPattern = /^0x[0-9,a-f,A-F]{40}$/
@@ -58,8 +57,7 @@ const userOperationV06Schema = z
         maxPriorityFeePerGas: hexNumberSchema,
         maxFeePerGas: hexNumberSchema,
         paymasterAndData: hexDataSchema,
-        signature: hexDataSchema,
-        eip7702Auth: signedAuthorizationSchema.optional()
+        signature: hexDataSchema
     })
     .strict()
     .transform((val) => {
@@ -118,8 +116,7 @@ const partialUserOperationV06Schema = z
         maxPriorityFeePerGas: hexNumberSchema.default(1n),
         maxFeePerGas: hexNumberSchema.default(1n),
         paymasterAndData: hexDataSchema,
-        signature: hexDataSchema,
-        eip7702Auth: signedAuthorizationSchema.optional()
+        signature: hexDataSchema
     })
     .strict()
     .transform((val) => {
