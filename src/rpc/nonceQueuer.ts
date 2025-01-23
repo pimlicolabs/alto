@@ -8,6 +8,7 @@ import {
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
+    encodeNonce,
     getNonceKeyAndValue,
     getUserOperationHash,
     isVersion06
@@ -26,7 +27,7 @@ type QueuedUserOperation = {
     userOperationHash: Hash
     mempoolUserOperation: MempoolUserOperation
     nonceKey: bigint
-    nonceValue: bigint
+    nonceSequence: bigint
     addedAt: number
 }
 
@@ -98,23 +99,25 @@ export class NonceQueuer {
 
     add(mempoolUserOperation: MempoolUserOperation, entryPoint: Address) {
         const userOperation = deriveUserOperation(mempoolUserOperation)
-        const [nonceKey, nonceValue] = getNonceKeyAndValue(userOperation.nonce)
+        const [nonceKey, nonceSequence] = getNonceKeyAndValue(
+            userOperation.nonce
+        )
 
-        const hash = getUserOperationHash(
+        const userOperationHash = getUserOperationHash(
             deriveUserOperation(mempoolUserOperation),
             entryPoint,
             this.config.publicClient.chain.id
         )
         this.queuedUserOperations.push({
             entryPoint,
-            userOperationHash: hash,
-            mempoolUserOperation: mempoolUserOperation,
-            nonceKey: nonceKey,
-            nonceValue: nonceValue,
+            userOperationHash,
+            mempoolUserOperation,
+            nonceKey,
+            nonceSequence,
             addedAt: Date.now()
         })
 
-        this.eventManager.emitQueued(hash)
+        this.eventManager.emitQueued(userOperationHash)
     }
 
     resubmitUserOperation(
@@ -227,9 +230,13 @@ export class NonceQueuer {
                 continue
             }
 
-            const onchainNonceValue = result.result
+            const onchainNonce = result.result
+            const qopNonce = encodeNonce({
+                nonceSequence: qop.nonceSequence,
+                nonceKey: qop.nonceKey
+            })
 
-            if (onchainNonceValue === qop.nonceValue) {
+            if (onchainNonce === qopNonce) {
                 currentOutstandingOps.push(qop)
             }
         }
