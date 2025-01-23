@@ -10,8 +10,7 @@ import {
     type UserOperationV07,
     type UserOperationWithHash,
     failedOpErrorSchema,
-    failedOpWithRevertErrorSchema,
-    MempoolUserOperation
+    failedOpWithRevertErrorSchema
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
@@ -48,9 +47,9 @@ export const isTransactionUnderpricedError = (e: BaseError) => {
 }
 
 export const getAuthorizationList = (
-    mempoolUserOperations: MempoolUserOperation[]
+    userOperations: UserOperation[]
 ): SignedAuthorizationList | undefined => {
-    const authorizationList = mempoolUserOperations
+    const authorizationList = userOperations
         .map((op) => {
             if (isVersion07(op) && op.eip7702Auth) {
                 return op.eip7702Auth
@@ -76,7 +75,7 @@ export function simulatedOpsToResults(
                 value: {
                     userOperation: {
                         entryPoint: transactionInfo.entryPoint,
-                        mempoolUserOperation: owh.mempoolUserOperation,
+                        userOperation: owh.userOperation,
                         userOperationHash: owh.userOperationHash,
                         lastReplaced: Date.now(),
                         firstSubmitted: Date.now()
@@ -89,7 +88,7 @@ export function simulatedOpsToResults(
             status: "failure",
             error: {
                 entryPoint: transactionInfo.entryPoint,
-                userOperation: owh.mempoolUserOperation,
+                userOperation: owh.userOperation,
                 userOpHash: owh.userOperationHash,
                 reason: reason as string
             }
@@ -130,7 +129,7 @@ export async function filterOpsAndEstimateGas(
     let gasLimit: bigint
 
     const isUserOpV06 = isVersion06(
-        simulatedOps[0].owh.mempoolUserOperation as UserOperation
+        simulatedOps[0].owh.userOperation as UserOperation
     )
 
     const gasOptions = onlyPre1559
@@ -145,7 +144,7 @@ export async function filterOpsAndEstimateGas(
             const opsToSend = simulatedOps
                 .filter((op) => op.reason === undefined)
                 .map(({ owh }) => {
-                    const op = owh.mempoolUserOperation
+                    const op = owh.userOperation
                     return isUserOpV06
                         ? op
                         : toPackedUserOperation(op as UserOperationV07)
@@ -222,7 +221,7 @@ export async function filterOpsAndEstimateGas(
                     }`
 
                     reputationManager.crashedHandleOps(
-                        failingOp.owh.mempoolUserOperation,
+                        failingOp.owh.userOperation,
                         entryPoint,
                         failingOp.reason
                     )

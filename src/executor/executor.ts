@@ -158,9 +158,9 @@ export class Executor {
 
         const opsWithHashes = transactionInfo.userOperationInfos.map(
             (opInfo) => {
-                const op = opInfo.mempoolUserOperation
+                const op = opInfo.userOperation
                 return {
-                    mempoolUserOperation: opInfo.mempoolUserOperation,
+                    userOperation: opInfo.userOperation,
                     userOperationHash: getUserOperationHash(
                         op,
                         transactionInfo.entryPoint,
@@ -174,8 +174,7 @@ export class Executor {
         const [isUserOpVersion06, entryPoint] = opsWithHashes.reduce(
             (acc, op) => {
                 if (
-                    acc[0] !==
-                        isVersion06(op.mempoolUserOperation as UserOperation) ||
+                    acc[0] !== isVersion06(op.userOperation) ||
                     acc[1] !== op.entryPoint
                 ) {
                     throw new Error(
@@ -185,9 +184,7 @@ export class Executor {
                 return acc
             },
             [
-                isVersion06(
-                    opsWithHashes[0].mempoolUserOperation as UserOperation
-                ),
+                isVersion06(opsWithHashes[0].userOperation),
                 opsWithHashes[0].entryPoint
             ]
         )
@@ -262,7 +259,7 @@ export class Executor {
 
         if (this.config.localGasLimitCalculation) {
             gasLimit = opsToBundle.reduce((acc, opInfo) => {
-                const userOperation = opInfo.mempoolUserOperation
+                const userOperation = opInfo.userOperation
                 return (
                     acc +
                     userOperation.preVerificationGas +
@@ -275,7 +272,7 @@ export class Executor {
         // https://github.com/eth-infinitism/account-abstraction/blob/fa61290d37d079e928d92d53a122efcc63822214/contracts/core/EntryPoint.sol#L236
         let innerHandleOpFloor = 0n
         for (const owh of opsToBundle) {
-            const op = owh.mempoolUserOperation
+            const op = owh.userOperation
             innerHandleOpFloor +=
                 op.callGasLimit + op.verificationGasLimit + 5000n
         }
@@ -295,10 +292,8 @@ export class Executor {
 
         const userOps = opsToBundle.map((op) =>
             isUserOpVersion06
-                ? op.mempoolUserOperation
-                : toPackedUserOperation(
-                      op.mempoolUserOperation as UserOperationV07
-                  )
+                ? op.userOperation
+                : toPackedUserOperation(op.userOperation as UserOperationV07)
         ) as PackedUserOperation[]
 
         txParam = {
@@ -341,11 +336,10 @@ export class Executor {
                       }
             })
 
-            opsToBundle.map(({ entryPoint, mempoolUserOperation }) => {
-                const op = mempoolUserOperation
+            opsToBundle.map(({ entryPoint, userOperation }) => {
                 const chainId = this.config.publicClient.chain?.id
                 const opHash = getUserOperationHash(
-                    op,
+                    userOperation,
                     entryPoint,
                     chainId as number
                 )
@@ -365,7 +359,7 @@ export class Executor {
                 userOperationInfos: opsToBundle.map((opInfo) => {
                     return {
                         entryPoint: opInfo.entryPoint,
-                        mempoolUserOperation: opInfo.mempoolUserOperation,
+                        userOperation: opInfo.userOperation,
                         userOperationHash: opInfo.userOperationHash,
                         lastReplaced: Date.now(),
                         firstSubmitted: opInfo.firstSubmitted
@@ -612,7 +606,7 @@ export class Executor {
                 `Resubmitting ${op.userOperationHash} due to transaction underpriced`
             )
             this.mempool.removeSubmitted(op.userOperationHash)
-            this.mempool.add(op.mempoolUserOperation, op.entryPoint)
+            this.mempool.add(op.userOperation, op.entryPoint)
         })
 
         if (conflictingOps.length > 0) {
@@ -626,31 +620,25 @@ export class Executor {
     ): Promise<BundleResult[]> {
         const wallet = await this.senderManager.getWallet()
 
-        const opsWithHashes = ops.map((op) => {
+        const opsWithHashes = ops.map((userOperation) => {
             return {
-                mempoolUserOperation: op,
+                userOperation,
                 userOperationHash: getUserOperationHash(
-                    op,
+                    userOperation,
                     entryPoint,
                     this.config.walletClient.chain.id
                 )
             }
         })
 
-        const isUserOpVersion06 = opsWithHashes.reduce(
-            (acc, op) => {
-                if (
-                    acc !==
-                    isVersion06(op.mempoolUserOperation as UserOperation)
-                ) {
-                    throw new Error(
-                        "All user operations must be of the same version"
-                    )
-                }
-                return acc
-            },
-            isVersion06(opsWithHashes[0].mempoolUserOperation as UserOperation)
-        )
+        const isUserOpVersion06 = opsWithHashes.reduce((acc, op) => {
+            if (acc !== isVersion06(op.userOperation)) {
+                throw new Error(
+                    "All user operations must be of the same version"
+                )
+            }
+            return acc
+        }, isVersion06(opsWithHashes[0].userOperation))
 
         const ep = getContract({
             abi: isUserOpVersion06 ? EntryPointV06Abi : EntryPointV07Abi,
@@ -684,13 +672,13 @@ export class Executor {
                 "Failed to get parameters for bundling"
             )
             this.markWalletProcessed(wallet)
-            return opsWithHashes.map((owh) => {
+            return opsWithHashes.map(({ userOperation, userOperationHash }) => {
                 return {
                     status: "resubmit",
                     info: {
                         entryPoint,
-                        userOpHash: owh.userOperationHash,
-                        userOperation: owh.mempoolUserOperation,
+                        userOpHash: userOperationHash,
+                        userOperation,
                         reason: "Failed to get parameters for bundling"
                     }
                 }
@@ -711,9 +699,7 @@ export class Executor {
             this.reputationManager,
             childLogger,
             getAuthorizationList(
-                opsWithHashes.map(
-                    ({ mempoolUserOperation }) => mempoolUserOperation
-                )
+                opsWithHashes.map(({ userOperation }) => userOperation)
             )
         )
 
@@ -722,19 +708,17 @@ export class Executor {
                 "gas limit simulation encountered unexpected failure"
             )
             this.markWalletProcessed(wallet)
-            return opsWithHashes.map(
-                ({ userOperationHash, mempoolUserOperation }) => {
-                    return {
-                        status: "failure",
-                        error: {
-                            entryPoint,
-                            userOpHash: userOperationHash,
-                            userOperation: mempoolUserOperation,
-                            reason: "INTERNAL FAILURE"
-                        }
+            return opsWithHashes.map(({ userOperationHash, userOperation }) => {
+                return {
+                    status: "failure",
+                    error: {
+                        entryPoint,
+                        userOpHash: userOperationHash,
+                        userOperation,
+                        reason: "INTERNAL FAILURE"
                     }
                 }
-            )
+            })
         }
 
         if (simulatedOps.every((op) => op.reason !== undefined)) {
@@ -746,7 +730,7 @@ export class Executor {
                     error: {
                         entryPoint,
                         userOpHash: owh.userOperationHash,
-                        userOperation: owh.mempoolUserOperation,
+                        userOperation: owh.userOperation,
                         reason: reason as string
                     }
                 }
@@ -768,7 +752,7 @@ export class Executor {
         let innerHandleOpFloor = 0n
         let totalBeneficiaryFees = 0n
         for (const owh of opsWithHashToBundle) {
-            const op = owh.mempoolUserOperation
+            const op = owh.userOperation
             innerHandleOpFloor +=
                 op.callGasLimit + op.verificationGasLimit + 5000n
 
@@ -802,9 +786,7 @@ export class Executor {
             }
 
             const authorizationList = getAuthorizationList(
-                opsWithHashToBundle.map(
-                    ({ mempoolUserOperation }) => mempoolUserOperation
-                )
+                opsWithHashToBundle.map(({ userOperation }) => userOperation)
             )
 
             let opts: SendTransactionOptions
@@ -839,17 +821,13 @@ export class Executor {
                 }
             }
 
-            const userOps = opsWithHashToBundle.map(
-                ({ mempoolUserOperation }) => {
-                    const op = mempoolUserOperation
-
-                    if (isUserOpVersion06) {
-                        return op
-                    }
-
-                    return toPackedUserOperation(op as UserOperationV07)
+            const userOps = opsWithHashToBundle.map(({ userOperation }) => {
+                if (isUserOpVersion06) {
+                    return userOperation
                 }
-            ) as PackedUserOperation[]
+
+                return toPackedUserOperation(userOperation as UserOperationV07)
+            }) as PackedUserOperation[]
 
             transactionHash = await this.sendHandleOpsTransaction({
                 txParam: {
@@ -880,7 +858,7 @@ export class Executor {
                         info: {
                             entryPoint,
                             userOpHash: owh.userOperationHash,
-                            userOperation: owh.mempoolUserOperation,
+                            userOperation: owh.userOperation,
                             reason: InsufficientFundsError.name
                         }
                     }
@@ -893,13 +871,13 @@ export class Executor {
                 "error submitting bundle transaction"
             )
             this.markWalletProcessed(wallet)
-            return opsWithHashes.map((owh) => {
+            return opsWithHashes.map(({ userOperationHash, userOperation }) => {
                 return {
                     status: "failure",
                     error: {
                         entryPoint,
-                        userOpHash: owh.userOperationHash,
-                        userOperation: owh.mempoolUserOperation,
+                        userOpHash: userOperationHash,
+                        userOperation,
                         reason: "INTERNAL FAILURE"
                     }
                 }
@@ -909,7 +887,7 @@ export class Executor {
         const userOperationInfos = opsWithHashToBundle.map((op) => {
             return {
                 entryPoint,
-                mempoolUserOperation: op.mempoolUserOperation,
+                userOperation: op.userOperation,
                 userOperationHash: op.userOperationHash,
                 lastReplaced: Date.now(),
                 firstSubmitted: Date.now()

@@ -9,10 +9,9 @@ import {
     type BundlingMode,
     EntryPointV06Abi,
     type HexData32,
-    type MempoolUserOperation,
+    type UserOperation,
     type SubmittedUserOperation,
     type TransactionInfo,
-    type UserOperation,
     type UserOperationInfo
 } from "@alto/types"
 import type { BundlingStatus, Logger, Metrics } from "@alto/utils"
@@ -176,13 +175,13 @@ export class ExecutorManager {
             throw new Error("no ops to bundle")
         }
 
-        const opEntryPointMap = new Map<Address, MempoolUserOperation[]>()
+        const opEntryPointMap = new Map<Address, UserOperation[]>()
 
         for (const op of ops) {
             if (!opEntryPointMap.has(op.entryPoint)) {
                 opEntryPointMap.set(op.entryPoint, [])
             }
-            opEntryPointMap.get(op.entryPoint)?.push(op.mempoolUserOperation)
+            opEntryPointMap.get(op.entryPoint)?.push(op.userOperation)
         }
 
         const txHashes: Hash[] = []
@@ -210,10 +209,7 @@ export class ExecutorManager {
         return txHashes
     }
 
-    async sendToExecutor(
-        entryPoint: Address,
-        mempoolOps: MempoolUserOperation[]
-    ) {
+    async sendToExecutor(entryPoint: Address, mempoolOps: UserOperation[]) {
         const ops = mempoolOps.map((op) => op as UserOperation)
 
         const bundles: BundleResult[][] = []
@@ -333,18 +329,13 @@ export class ExecutorManager {
     async bundle(opsToBundle: UserOperationInfo[][] = []) {
         await Promise.all(
             opsToBundle.map(async (ops) => {
-                const opEntryPointMap = new Map<
-                    Address,
-                    MempoolUserOperation[]
-                >()
+                const opEntryPointMap = new Map<Address, UserOperation[]>()
 
                 for (const op of ops) {
                     if (!opEntryPointMap.has(op.entryPoint)) {
                         opEntryPointMap.set(op.entryPoint, [])
                     }
-                    opEntryPointMap
-                        .get(op.entryPoint)
-                        ?.push(op.mempoolUserOperation)
+                    opEntryPointMap.get(op.entryPoint)?.push(op.userOperation)
                 }
 
                 await Promise.all(
@@ -471,7 +462,7 @@ export class ExecutorManager {
             const { userOperationDetails } = bundlingStatus
             opInfos.map((opInfo) => {
                 const {
-                    mempoolUserOperation: mUserOperation,
+                    userOperation: mUserOperation,
                     userOperationHash: userOpHash,
                     entryPoint,
                     firstSubmitted
@@ -858,7 +849,7 @@ export class ExecutorManager {
 
         if (replaceResult.status === "failed") {
             txInfo.userOperationInfos.map((opInfo) => {
-                const userOperation = opInfo.mempoolUserOperation
+                const userOperation = opInfo.userOperation
 
                 this.eventManager.emitDropped(
                     opInfo.userOperationHash,

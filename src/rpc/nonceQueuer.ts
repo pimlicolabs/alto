@@ -1,10 +1,6 @@
 import type { EventManager } from "@alto/handlers"
 import type { MemoryMempool } from "@alto/mempool"
-import {
-    EntryPointV06Abi,
-    EntryPointV07Abi,
-    type MempoolUserOperation
-} from "@alto/types"
+import { EntryPointV06Abi, EntryPointV07Abi, UserOperation } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
     encodeNonce,
@@ -24,7 +20,7 @@ import type { AltoConfig } from "../createConfig"
 type QueuedUserOperation = {
     entryPoint: Address
     userOperationHash: Hash
-    mempoolUserOperation: MempoolUserOperation
+    userOperation: UserOperation
     nonceKey: bigint
     nonceSequence: bigint
     addedAt: number
@@ -87,7 +83,7 @@ export class NonceQueuer {
         })
 
         availableOps.map((op) => {
-            this.resubmitUserOperation(op.mempoolUserOperation, op.entryPoint)
+            this.resubmitUserOperation(op.userOperation, op.entryPoint)
         })
 
         this.logger.info(
@@ -96,7 +92,7 @@ export class NonceQueuer {
         )
     }
 
-    add(userOperation: MempoolUserOperation, entryPoint: Address) {
+    add(userOperation: UserOperation, entryPoint: Address) {
         const [nonceKey, nonceSequence] = getNonceKeyAndValue(
             userOperation.nonce
         )
@@ -109,7 +105,7 @@ export class NonceQueuer {
         this.queuedUserOperations.push({
             entryPoint,
             userOperationHash,
-            mempoolUserOperation: userOperation,
+            userOperation: userOperation,
             nonceKey,
             nonceSequence,
             addedAt: Date.now()
@@ -118,16 +114,12 @@ export class NonceQueuer {
         this.eventManager.emitQueued(userOperationHash)
     }
 
-    resubmitUserOperation(
-        mempoolUserOperation: MempoolUserOperation,
-        entryPoint: Address
-    ) {
-        const userOperation = mempoolUserOperation
+    resubmitUserOperation(userOperation: UserOperation, entryPoint: Address) {
         this.logger.info(
             { userOperation: userOperation },
             "submitting user operation from nonce queue"
         )
-        const result = this.mempool.add(mempoolUserOperation, entryPoint)
+        const result = this.mempool.add(userOperation, entryPoint)
         if (result) {
             this.logger.info(
                 { userOperation: userOperation, result: result },
@@ -146,7 +138,7 @@ export class NonceQueuer {
         try {
             results = await publicClient.multicall({
                 contracts: queuedUserOperations.map((qop) => {
-                    const userOperation = qop.mempoolUserOperation
+                    const userOperation = qop.userOperation
 
                     const isUserOpV06 = isVersion06(userOperation)
 
@@ -167,7 +159,7 @@ export class NonceQueuer {
 
             results = await Promise.all(
                 queuedUserOperations.map(async (qop) => {
-                    const userOperation = qop.mempoolUserOperation
+                    const userOperation = qop.userOperation
                     try {
                         const isUserOpV06 = isVersion06(userOperation)
 

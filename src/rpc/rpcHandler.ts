@@ -35,7 +35,6 @@ import {
     type GetUserOperationReceiptResponseResult,
     type HexData32,
     type InterfaceValidator,
-    type MempoolUserOperation,
     type PimlicoGetUserOperationGasPriceResponseResult,
     type PimlicoGetUserOperationStatusResponseResult,
     RpcError,
@@ -581,7 +580,7 @@ export class RpcHandler implements IRpcEndpoint {
 
         return this.mempool
             .dumpOutstanding()
-            .map(({ mempoolUserOperation }) => mempoolUserOperation)
+            .map(({ userOperation }) => userOperation)
     }
 
     async debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
@@ -669,7 +668,7 @@ export class RpcHandler implements IRpcEndpoint {
 
     // check if we want to bundle userOperation. If yes, add to mempool
     async addToMempoolIfValid(
-        userOperation: MempoolUserOperation,
+        userOperation: UserOperation,
         entryPoint: Address,
         apiVersion: ApiVersion
     ): Promise<"added" | "queued"> {

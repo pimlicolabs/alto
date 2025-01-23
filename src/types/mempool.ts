@@ -10,8 +10,6 @@ export interface ReferencedCodeHashes {
     hash: string
 }
 
-export type MempoolUserOperation = UserOperation
-
 export type TransactionInfo = {
     transactionHash: HexData32
     previousTransactionHashes: HexData32[]
@@ -34,7 +32,7 @@ export type TransactionInfo = {
 }
 
 export type UserOperationInfo = {
-    mempoolUserOperation: MempoolUserOperation
+    userOperation: UserOperation
     entryPoint: Address
     userOperationHash: HexData32
     lastReplaced: number
@@ -80,12 +78,12 @@ export type BundleResult = Result<
         reason: string
         userOpHash: HexData32
         entryPoint: Address
-        userOperation: MempoolUserOperation
+        userOperation: UserOperation
     },
     {
         reason: string
         userOpHash: HexData32
         entryPoint: Address
-        userOperation: MempoolUserOperation
+        userOperation: UserOperation
     }
 >
