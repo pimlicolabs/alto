@@ -44,8 +44,7 @@ import {
     type UserOperation,
     ValidationErrors,
     bundlerGetStakeStatusResponseSchema,
-    deriveUserOperation,
-    is7702Type
+    deriveUserOperation
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import {
@@ -76,10 +75,6 @@ import {
 import { base, baseSepolia, optimism } from "viem/chains"
 import type { NonceQueuer } from "./nonceQueuer"
 import type { AltoConfig } from "../createConfig"
-import type {
-    SignedAuthorization,
-    SignedAuthorizationList
-} from "viem/experimental"
 
 export interface IRpcEndpoint {
     handleMethod(
@@ -299,8 +294,7 @@ export class RpcHandler implements IRpcEndpoint {
                         apiVersion,
                         request.params[0],
                         request.params[1],
-                        request.params[2],
-                        request.params[3]
+                        request.params[2]
                     )
                 }
         }
@@ -759,17 +753,11 @@ export class RpcHandler implements IRpcEndpoint {
             })
         }
 
-        let authorizationList: SignedAuthorizationList | undefined
-        if (is7702Type(op)) {
-            authorizationList = [op.authorization]
-        }
-
         const validationResult = await this.validator.validateUserOperation({
             shouldCheckPrefund: apiVersion !== "v1",
             userOperation,
             queuedUserOperations,
-            entryPoint,
-            authorizationList
+            entryPoint
         })
 
         await this.reputationManager.checkReputation(
@@ -801,7 +789,6 @@ export class RpcHandler implements IRpcEndpoint {
         apiVersion: ApiVersion,
         userOperation: UserOperation,
         entryPoint: Address,
-        authorization: SignedAuthorization,
         stateOverrides?: StateOverrides
     ) {
         if (!this.config.enableExperimental7702Endpoints) {
@@ -814,7 +801,6 @@ export class RpcHandler implements IRpcEndpoint {
         return await this.estimateGas({
             apiVersion,
             userOperation,
-            authorization,
             entryPoint,
             stateOverrides
         })
@@ -823,8 +809,7 @@ export class RpcHandler implements IRpcEndpoint {
     async pimlico_experimental_sendUserOperation7702(
         apiVersion: ApiVersion,
         userOperation: UserOperation,
-        entryPoint: Address,
-        authorizationSignature: SignedAuthorization
+        entryPoint: Address
     ) {
         if (!this.config.enableExperimental7702Endpoints) {
             throw new RpcError(
@@ -837,10 +822,7 @@ export class RpcHandler implements IRpcEndpoint {
 
         try {
             await this.addToMempoolIfValid(
-                {
-                    userOperation,
-                    authorization: authorizationSignature
-                },
+                userOperation,
                 entryPoint,
                 apiVersion
             )
@@ -964,14 +946,12 @@ export class RpcHandler implements IRpcEndpoint {
         apiVersion,
         userOperation,
         entryPoint,
-        stateOverrides,
-        authorization
+        stateOverrides
     }: {
         apiVersion: ApiVersion
         userOperation: UserOperation
         entryPoint: Address
         stateOverrides?: StateOverrides
-        authorization?: SignedAuthorization
     }) {
         this.ensureEntryPointIsSupported(entryPoint)
 
@@ -1059,8 +1039,7 @@ export class RpcHandler implements IRpcEndpoint {
             entryPoint,
             queuedUserOperations,
             addSenderBalanceOverride: true,
-            stateOverrides: deepHexlify(stateOverrides),
-            authorizationList: authorization ? [authorization] : undefined
+            stateOverrides: deepHexlify(stateOverrides)
         })
 
         let {
@@ -1177,8 +1156,7 @@ export class RpcHandler implements IRpcEndpoint {
                 entryPoint,
                 queuedUserOperations,
                 addSenderBalanceOverride: false,
-                stateOverrides: deepHexlify(stateOverrides),
-                authorizationList: authorization ? [authorization] : undefined
+                stateOverrides: deepHexlify(stateOverrides)
             })
         }
 

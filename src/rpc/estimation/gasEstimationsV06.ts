@@ -116,14 +116,12 @@ export class GasEstimatorV06 {
         targetCallData,
         entryPoint,
         useCodeOverride = true,
-        authorizationList,
         stateOverrides = undefined
     }: {
         userOperation: UserOperationV06
         targetAddress: Address
         targetCallData: Hex
         entryPoint: Address
-        authorizationList?: SignedAuthorizationList
         useCodeOverride?: boolean
         stateOverrides?: StateOverrides | undefined
     }): Promise<SimulateHandleOpResult> {
@@ -146,10 +144,10 @@ export class GasEstimatorV06 {
             }
         }
 
-        if (authorizationList) {
+        if (userOperation.eip7702Auth) {
             stateOverrides = await addAuthorizationStateOverrides({
                 stateOverrides,
-                authorizationList,
+                authorizationList: [userOperation.eip7702Auth],
                 publicClient
             })
         }

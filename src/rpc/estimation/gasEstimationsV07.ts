@@ -48,13 +48,11 @@ export class GasEstimatorV07 {
     async simulateValidation({
         entryPoint,
         userOperation,
-        queuedUserOperations,
-        authorizationList
+        queuedUserOperations
     }: {
         entryPoint: Address
         userOperation: UserOperationV07
         queuedUserOperations: UserOperationV07[]
-        authorizationList?: SignedAuthorizationList
     }) {
         const userOperations = [...queuedUserOperations, userOperation]
         const packedUserOperations = userOperations.map((uo) =>
@@ -66,6 +64,11 @@ export class GasEstimatorV07 {
             functionName: "simulateValidationLast",
             args: [packedUserOperations]
         })
+
+        let authorizationList: SignedAuthorizationList = []
+        if (userOperation.eip7702Auth) {
+            authorizationList = [userOperation.eip7702Auth]
+        }
 
         const errorResult = await this.callPimlicoEntryPointSimulations({
             entryPoint,
@@ -202,8 +205,7 @@ export class GasEstimatorV07 {
         targetCallData,
         functionName,
         queuedOps,
-        stateOverrides,
-        authorizationList
+        stateOverrides
     }: {
         entryPoint: Address
         optimalGas: bigint
@@ -217,7 +219,6 @@ export class GasEstimatorV07 {
             | "binarySearchVerificationGasLimit"
             | "binarySearchCallGasLimit"
         stateOverrides?: StateOverrides | undefined
-        authorizationList?: SignedAuthorizationList
     }): Promise<SimulateBinarySearchRetryResult> {
         const maxRetries = 3
         let retryCount = 0
@@ -238,6 +239,11 @@ export class GasEstimatorV07 {
                 gasAllowance,
                 functionName
             })
+
+            let authorizationList: SignedAuthorizationList = []
+            if (targetOp.eip7702Auth) {
+                authorizationList = [targetOp.eip7702Auth]
+            }
 
             let cause = await this.callPimlicoEntryPointSimulations({
                 entryPoint,
@@ -293,14 +299,12 @@ export class GasEstimatorV07 {
         entryPoint,
         userOperation,
         queuedUserOperations,
-        stateOverrides = undefined,
-        authorizationList
+        stateOverrides = undefined
     }: {
         entryPoint: Address
         userOperation: UserOperationV07
         queuedUserOperations: UserOperationV07[]
         stateOverrides?: StateOverrides | undefined
-        authorizationList?: SignedAuthorizationList
     }): Promise<SimulateHandleOpResult> {
         const simulateHandleOpLast = this.encodeSimulateHandleOpLast({
             entryPoint,
@@ -344,6 +348,11 @@ export class GasEstimatorV07 {
             }),
             functionName: "binarySearchCallGasLimit"
         })
+
+        let authorizationList: SignedAuthorizationList = []
+        if (userOperation.eip7702Auth) {
+            authorizationList = [userOperation.eip7702Auth]
+        }
 
         let cause: readonly [Hex, Hex, Hex | null, Hex]
 

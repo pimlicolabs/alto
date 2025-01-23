@@ -36,6 +36,16 @@ export type HexNumber = z.infer<typeof hexNumberSchema>
 export type HexData = z.infer<typeof hexDataSchema>
 export type HexData32 = z.infer<typeof hexData32Schema>
 
+const signedAuthorizationSchema = z.object({
+    contractAddress: addressSchema,
+    chainId: hexNumberSchema.transform((val) => Number(val)),
+    nonce: hexNumberSchema.transform((val) => Number(val)),
+    r: hexData32Schema.transform((val) => val as Hex),
+    s: hexData32Schema.transform((val) => val as Hex),
+    v: hexNumberSchema,
+    yParity: hexNumberSchema.transform((val) => Number(val))
+})
+
 const userOperationV06Schema = z
     .object({
         sender: addressSchema,
@@ -48,7 +58,8 @@ const userOperationV06Schema = z
         maxPriorityFeePerGas: hexNumberSchema,
         maxFeePerGas: hexNumberSchema,
         paymasterAndData: hexDataSchema,
-        signature: hexDataSchema
+        signature: hexDataSchema,
+        eip7702Auth: signedAuthorizationSchema.optional()
     })
     .strict()
     .transform((val) => {
@@ -89,7 +100,8 @@ const userOperationV07Schema = z
             .nullable()
             .optional()
             .transform((val) => val ?? null),
-        signature: hexDataSchema
+        signature: hexDataSchema,
+        eip7702Auth: signedAuthorizationSchema.optional()
     })
     .strict()
     .transform((val) => val)
@@ -106,7 +118,8 @@ const partialUserOperationV06Schema = z
         maxPriorityFeePerGas: hexNumberSchema.default(1n),
         maxFeePerGas: hexNumberSchema.default(1n),
         paymasterAndData: hexDataSchema,
-        signature: hexDataSchema
+        signature: hexDataSchema,
+        eip7702Auth: signedAuthorizationSchema.optional()
     })
     .strict()
     .transform((val) => {
@@ -147,7 +160,8 @@ const partialUserOperationV07Schema = z
             .nullable()
             .optional()
             .transform((val) => val ?? null),
-        signature: hexDataSchema
+        signature: hexDataSchema,
+        eip7702Auth: signedAuthorizationSchema.optional()
     })
     .strict()
     .transform((val) => val)
@@ -238,16 +252,6 @@ const stateOverridesSchema = z.record(
         stateDiff: z.record(hexData32Schema, hexData32Schema).optional()
     })
 )
-
-const signedAuthorizationSchema = z.object({
-    contractAddress: addressSchema,
-    chainId: hexNumberSchema.transform((val) => Number(val)),
-    nonce: hexNumberSchema.transform((val) => Number(val)),
-    r: hexData32Schema.transform((val) => val as Hex),
-    s: hexData32Schema.transform((val) => val as Hex),
-    v: hexNumberSchema,
-    yParity: hexNumberSchema.transform((val) => Number(val))
-})
 
 export type StateOverrides = z.infer<typeof stateOverridesSchema>
 
@@ -355,15 +359,10 @@ const pimlicoSendUserOperationNowRequestSchema = z.object({
 const pimlicoExperimentalEstimateUserOperationGas7702RequestSchema = z.object({
     method: z.literal("pimlico_experimental_estimateUserOperationGas7702"),
     params: z.union([
+        z.tuple([partialUserOperationSchema, addressSchema]),
         z.tuple([
             partialUserOperationSchema,
             addressSchema,
-            signedAuthorizationSchema // authorization
-        ]),
-        z.tuple([
-            partialUserOperationSchema,
-            addressSchema,
-            signedAuthorizationSchema, // authorization
             stateOverridesSchema
         ])
     ])
@@ -371,11 +370,7 @@ const pimlicoExperimentalEstimateUserOperationGas7702RequestSchema = z.object({
 
 const pimlicoExperimentalSendUserOperation7702RequestSchema = z.object({
     method: z.literal("pimlico_experimental_sendUserOperation7702"),
-    params: z.tuple([
-        userOperationSchema,
-        addressSchema,
-        signedAuthorizationSchema
-    ])
+    params: z.tuple([userOperationSchema, addressSchema])
 })
 
 export const altoVersions = z.enum(["v1", "v2"])

@@ -26,7 +26,7 @@ export const is7702Type = (
     return "authorization" in op
 }
 
-export type MempoolUserOperation = UserOperation | UserOperation7702
+export type MempoolUserOperation = UserOperation
 
 export type TransactionInfo = {
     transactionHash: HexData32
