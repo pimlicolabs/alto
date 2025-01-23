@@ -211,7 +211,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
     },
     "enable-fastlane": {
         description:
-            "Enable bundling v0.6 userOperations through the fastlane ERC-4337 mempool",
+            "Enable bundling v0.6 userOperations using the pfl_sendRawTransactionConditional endpoint",
         type: "boolean",
         default: false
     }
