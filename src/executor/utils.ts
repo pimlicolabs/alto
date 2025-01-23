@@ -16,7 +16,6 @@ import type { Logger } from "@alto/utils"
 import {
     getRevertErrorData,
     isVersion06,
-    isVersion07,
     parseViemError,
     scaleBigIntByPercent,
     toPackedUserOperation
