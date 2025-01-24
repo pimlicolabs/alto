@@ -135,7 +135,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
             "Should the bundler enable the pimlico_experimental_sendUserOperation7702 and pimlico_experimental_estimateUserOperationGas7702 endpoint",
         type: "boolean",
         default: false
-    }
+    },
+    "executor-gas-multiplier": {
+        description: "Amount to scale the gas estimations used for bundling",
+        type: "string",
+        default: "100"
+    },
 }
 
 export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
@@ -226,6 +231,12 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
     }
 
 export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
+    "enable-fastlane": {
+        description:
+            "Enable bundling v0.6 userOperations using the pfl_sendRawTransactionConditional endpoint",
+        type: "boolean",
+        default: false
+    },
     "resubmit-stuck-timeout": {
         description:
             "Amount of time before retrying a failed userOperation (in ms)",
