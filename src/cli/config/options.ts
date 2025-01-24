@@ -135,12 +135,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
             "Should the bundler enable the pimlico_experimental_sendUserOperation7702 and pimlico_experimental_estimateUserOperationGas7702 endpoint",
         type: "boolean",
         default: false
-    },
-    "executor-gas-multiplier": {
-        description: "Amount to scale the gas estimations used for bundling",
-        type: "string",
-        default: "100"
-    },
+    }
 }
 
 export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
