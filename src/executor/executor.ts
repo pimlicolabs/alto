@@ -176,14 +176,14 @@ export class Executor {
             return { status: "failed" }
         }
 
-        newRequest.maxFeePerGas = maxBigInt(
+        newRequest.maxFeePerGas = scaleBigIntByPercent(
             gasPriceParameters.maxFeePerGas,
-            (newRequest.maxFeePerGas * 11n + 9n) / 10n
+            115n
         )
 
-        newRequest.maxPriorityFeePerGas = maxBigInt(
+        newRequest.maxPriorityFeePerGas = scaleBigIntByPercent(
             gasPriceParameters.maxPriorityFeePerGas,
-            (newRequest.maxPriorityFeePerGas * 11n + 9n) / 10n
+            115n
         )
         newRequest.account = transactionInfo.executor
 
