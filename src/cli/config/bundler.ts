@@ -27,43 +27,7 @@ export const bundlerArgsSchema = z.object({
             return validatedAddresses
         }),
     "deterministic-deployer-address": addressSchema,
-    "entrypoint-simulation-contract": z.preprocess(
-        (v) => (v === "" ? undefined : v),
-        addressSchema.optional()
-    ),
-    "refill-helper-contract": addressSchema.optional(),
-    "no-profit-bundling": z.boolean(),
     "safe-mode": z.boolean(),
-    "utility-private-key": hexData32Schema
-        .transform((val) => privateKeyToAccount(val) satisfies Account)
-        .optional(),
-    "utility-wallet-monitor": z.boolean(),
-    "utility-wallet-monitor-interval": z.number(),
-    "executor-private-keys": z.union([
-        z
-            .array(hexData32Schema)
-            .transform((vals) =>
-                vals.map((val) => privateKeyToAccount(val) satisfies Account)
-            ),
-        z
-            .string()
-            .regex(/^0x(?:[0-9a-f]{2}){32}(?:,0x(?:[0-9a-f]{2}){32})*$/)
-            .transform((val) =>
-                val
-                    .split(",")
-                    .map(
-                        (val) =>
-                            privateKeyToAccount(val as Hex) satisfies Account
-                    )
-            )
-    ]),
-    "max-executors": z.number().int().min(0).optional(),
-    "min-executor-balance": z
-        .string()
-        .transform((val) => BigInt(val))
-        .optional(),
-    "executor-refill-interval": z.number().int().min(0),
-    "executor-gas-multiplier": z.string().transform((val) => BigInt(val)),
 
     "min-entity-stake": z.number().int().min(0),
     "min-entity-unstake-delay": z.number().int().min(0),
@@ -119,11 +83,47 @@ export const bundlerArgsSchema = z.object({
                 ","
             )}`
         ),
-    "refilling-wallets": z.boolean().default(true),
-    "aa95-gas-multiplier": z.string().transform((val) => BigInt(val)),
-    "enable-fastlane": z.boolean(),
     "enable-instant-bundling-endpoint": z.boolean(),
     "enable-experimental-7702-endpoints": z.boolean()
+})
+
+export const executorArgsSchema = z.object({
+    "enable-fastlane": z.boolean(),
+    "resubmit-stuck-timeout": z.number().int().min(0).default(15_000),
+    "refilling-wallets": z.boolean().default(true),
+    "aa95-gas-multiplier": z.string().transform((val) => BigInt(val)),
+    "refill-helper-contract": addressSchema.optional(),
+    "no-profit-bundling": z.boolean(),
+    "utility-private-key": hexData32Schema
+        .transform((val) => privateKeyToAccount(val) satisfies Account)
+        .optional(),
+    "utility-wallet-monitor": z.boolean(),
+    "utility-wallet-monitor-interval": z.number(),
+    "executor-private-keys": z.union([
+        z
+            .array(hexData32Schema)
+            .transform((vals) =>
+                vals.map((val) => privateKeyToAccount(val) satisfies Account)
+            ),
+        z
+            .string()
+            .regex(/^0x(?:[0-9a-f]{2}){32}(?:,0x(?:[0-9a-f]{2}){32})*$/)
+            .transform((val) =>
+                val
+                    .split(",")
+                    .map(
+                        (val) =>
+                            privateKeyToAccount(val as Hex) satisfies Account
+                    )
+            )
+    ]),
+    "max-executors": z.number().int().min(0).optional(),
+    "min-executor-balance": z
+        .string()
+        .transform((val) => BigInt(val))
+        .optional(),
+    "executor-refill-interval": z.number().int().min(0),
+    "executor-gas-multiplier": z.string().transform((val) => BigInt(val))
 })
 
 export const compatibilityArgsSchema = z.object({
@@ -200,6 +200,10 @@ export const debugArgsSchema = z.object({
 })
 
 export const gasEstimationArgsSchema = z.object({
+    "entrypoint-simulation-contract": z.preprocess(
+        (v) => (v === "" ? undefined : v),
+        addressSchema.optional()
+    ),
     "binary-search-tolerance-delta": z
         .string()
         .transform((val) => BigInt(val))
@@ -235,6 +239,9 @@ export type IBundlerArgsInput = z.input<typeof bundlerArgsSchema>
 export type ICompatibilityArgs = z.infer<typeof compatibilityArgsSchema>
 export type ICompatibilityArgsInput = z.input<typeof compatibilityArgsSchema>
 
+export type IExecutorArgs = z.infer<typeof executorArgsSchema>
+export type IExecutorArgsInput = z.input<typeof executorArgsSchema>
+
 export type IServerArgs = z.infer<typeof serverArgsSchema>
 export type IServerArgsInput = z.input<typeof serverArgsSchema>
 
@@ -257,7 +264,8 @@ export const optionArgsSchema = z.object({
     ...serverArgsSchema.shape,
     ...rpcArgsSchema.shape,
     ...debugArgsSchema.shape,
-    ...gasEstimationArgsSchema.shape
+    ...gasEstimationArgsSchema.shape,
+    ...executorArgsSchema.shape
 })
 
 export type IOptions = z.infer<typeof optionArgsSchema>

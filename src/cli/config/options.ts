@@ -4,6 +4,7 @@ import type {
     IBundlerArgsInput,
     ICompatibilityArgsInput,
     IDebugArgsInput,
+    IExecutorArgsInput,
     IGasEstimationArgsInput,
     ILogArgsInput,
     IOptionsInput,
@@ -24,56 +25,6 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         alias: "d",
         require: false,
         default: "0x4e59b44847b379578588920ca78fbf26c0b4956c"
-    },
-    "entrypoint-simulation-contract": {
-        description: "Address of the EntryPoint simulations contract",
-        type: "string",
-        alias: "c",
-        require: false
-    },
-    "refill-helper-contract": {
-        description: "Address of the Executor refill helper contract",
-        type: "string",
-        require: false
-    },
-    "executor-private-keys": {
-        description: "Private keys of the executor accounts split by commas",
-        type: "string",
-        alias: "x",
-        require: true
-    },
-    "utility-private-key": {
-        description: "Private key of the utility account",
-        type: "string",
-        alias: "u",
-        require: false
-    },
-    "utility-wallet-monitor": {
-        description: "Either to enable utility wallet monitor or not",
-        type: "boolean",
-        default: true
-    },
-    "utility-wallet-monitor-interval": {
-        description: "Interval for checking utility wallet balance",
-        type: "number",
-        default: 15 * 1000 // 15 seconds
-    },
-    "max-executors": {
-        description:
-            "Maximum number of executor accounts to use from the list of executor private keys",
-        type: "number",
-        require: false
-    },
-    "min-executor-balance": {
-        description:
-            "Minimum balance required for each executor account (below which the utility account will refill)",
-        type: "string"
-    },
-    "executor-refill-interval": {
-        description: "Interval to refill the signer balance (seconds)",
-        type: "number",
-        require: true,
-        default: 60 * 20
     },
     "min-entity-stake": {
         description: "Minimum stake required for a relay (in 10e18)",
@@ -111,12 +62,6 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "string",
         require: false,
         default: "100"
-    },
-    "no-profit-bundling": {
-        description:
-            "Bundle tx such that all beneficiary fees are spent on gas fees",
-        type: "boolean",
-        default: false
     },
     "gas-price-floor-percent": {
         description:
@@ -179,19 +124,6 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: null
     },
-    "refilling-wallets": {
-        description: "Enable refilling wallets",
-        type: "boolean",
-        require: false,
-        default: true
-    },
-    "aa95-gas-multiplier": {
-        description:
-            "Amount to multiply the current gas limit by if the bundling tx fails due to AA95",
-        type: "string",
-        require: false,
-        default: "125"
-    },
     "enable-instant-bundling-endpoint": {
         description:
             "Should the bundler enable the pimlico_sendUserOperationNow endpoint",
@@ -203,22 +135,17 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
             "Should the bundler enable the pimlico_experimental_sendUserOperation7702 and pimlico_experimental_estimateUserOperationGas7702 endpoint",
         type: "boolean",
         default: false
-    },
-    "executor-gas-multiplier": {
-        description: "Amount to scale the gas estimations used for bundling",
-        type: "string",
-        default: "100"
-    },
-    "enable-fastlane": {
-        description:
-            "Enable bundling v0.6 userOperations using the pfl_sendRawTransactionConditional endpoint",
-        type: "boolean",
-        default: false
     }
 }
 
 export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
     {
+        "entrypoint-simulation-contract": {
+            description: "Address of the EntryPoint simulations contract",
+            type: "string",
+            alias: "c",
+            require: false
+        },
         "binary-search-tolerance-delta": {
             description:
                 "Defines the threshold for when to stop the gas estimation binary search",
@@ -297,6 +224,90 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
             default: "2000000"
         }
     }
+
+export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
+    "enable-fastlane": {
+        description:
+            "Enable bundling v0.6 userOperations using the pfl_sendRawTransactionConditional endpoint",
+        type: "boolean",
+        default: false
+    },
+    "resubmit-stuck-timeout": {
+        description:
+            "Amount of time before retrying a failed userOperation (in ms)",
+        type: "number",
+        require: true,
+        default: 10_000
+    },
+    "aa95-gas-multiplier": {
+        description:
+            "Amount to multiply the current gas limit by if the bundling tx fails due to AA95",
+        type: "string",
+        require: false,
+        default: "125"
+    },
+    "refilling-wallets": {
+        description: "Enable refilling wallets",
+        type: "boolean",
+        require: false,
+        default: true
+    },
+    "executor-gas-multiplier": {
+        description: "Amount to scale the gas estimations used for bundling",
+        type: "string",
+        default: "100"
+    },
+    "no-profit-bundling": {
+        description:
+            "Bundle tx such that all beneficiary fees are spent on gas fees",
+        type: "boolean",
+        default: false
+    },
+    "refill-helper-contract": {
+        description: "Address of the Executor refill helper contract",
+        type: "string",
+        require: false
+    },
+    "executor-private-keys": {
+        description: "Private keys of the executor accounts split by commas",
+        type: "string",
+        alias: "x",
+        require: true
+    },
+    "utility-private-key": {
+        description: "Private key of the utility account",
+        type: "string",
+        alias: "u",
+        require: false
+    },
+    "utility-wallet-monitor": {
+        description: "Either to enable utility wallet monitor or not",
+        type: "boolean",
+        default: true
+    },
+    "utility-wallet-monitor-interval": {
+        description: "Interval for checking utility wallet balance",
+        type: "number",
+        default: 15 * 1000 // 15 seconds
+    },
+    "max-executors": {
+        description:
+            "Maximum number of executor accounts to use from the list of executor private keys",
+        type: "number",
+        require: false
+    },
+    "min-executor-balance": {
+        description:
+            "Minimum balance required for each executor account (below which the utility account will refill)",
+        type: "string"
+    },
+    "executor-refill-interval": {
+        description: "Interval to refill the signer balance (seconds)",
+        type: "number",
+        require: true,
+        default: 60 * 20
+    }
+}
 
 export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
     {
