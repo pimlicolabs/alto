@@ -824,7 +824,7 @@ export class ExecutorManager {
             transactionInfos2.map(async (txInfo) => {
                 if (
                     Date.now() - txInfo.lastReplaced <
-                    this.config.resubmitTimeout
+                    this.config.resubmitStuckTimeout
                 ) {
                     return
                 }

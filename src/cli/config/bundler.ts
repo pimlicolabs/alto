@@ -88,7 +88,7 @@ export const bundlerArgsSchema = z.object({
 })
 
 export const executorArgsSchema = z.object({
-    "resubmit-timeout": z.number().int().min(0).default(15_000),
+    "resubmit-stuck-timeout": z.number().int().min(0).default(15_000),
     "refilling-wallets": z.boolean().default(true),
     "aa95-gas-multiplier": z.string().transform((val) => BigInt(val)),
     "refill-helper-contract": addressSchema.optional(),

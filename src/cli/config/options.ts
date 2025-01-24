@@ -226,7 +226,7 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
     }
 
 export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
-    "resubmit-timeout": {
+    "resubmit-stuck-timeout": {
         description:
             "Amount of time before retrying a failed userOperation (in ms)",
         type: "number",
