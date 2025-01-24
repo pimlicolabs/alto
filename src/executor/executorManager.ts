@@ -822,7 +822,10 @@ export class ExecutorManager {
         )
         await Promise.all(
             transactionInfos2.map(async (txInfo) => {
-                if (Date.now() - txInfo.lastReplaced < 5 * 60 * 1000) {
+                if (
+                    Date.now() - txInfo.lastReplaced <
+                    this.config.resubmitTimeout
+                ) {
                     return
                 }
 
