@@ -237,7 +237,7 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
             "Amount of time before retrying a failed userOperation (in ms)",
         type: "number",
         require: true,
-        default: 15_000
+        default: 10_000
     },
     "aa95-gas-multiplier": {
         description:
