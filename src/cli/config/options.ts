@@ -222,6 +222,13 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
             type: "string",
             require: true,
             default: "2000000"
+        },
+        "eth-call-sender-address": {
+            description:
+                "For permissioned chains, eth_call simulations require a whitelisted address as the sender",
+            type: "string",
+            require: true,
+            default: "2000000"
         }
     }
 
@@ -315,14 +322,7 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             description:
                 "Indicates what type of chain the bundler is running on",
             type: "string",
-            choices: [
-                "default",
-                "op-stack",
-                "arbitrum",
-                "hedera",
-                "mantle",
-                "skale"
-            ],
+            choices: ["default", "op-stack", "arbitrum", "hedera", "mantle"],
             default: "default"
         },
         "legacy-transactions": {
