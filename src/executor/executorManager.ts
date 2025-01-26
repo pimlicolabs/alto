@@ -209,12 +209,10 @@ export class ExecutorManager {
         return txHashes
     }
 
-    async sendToExecutor(entryPoint: Address, mempoolOps: UserOperation[]) {
-        const ops = mempoolOps.map((op) => op as UserOperation)
-
+    async sendToExecutor(entryPoint: Address, userOps: UserOperation[]) {
         const bundles: BundleResult[][] = []
-        if (ops.length > 0) {
-            bundles.push(await this.executor.bundle(entryPoint, ops))
+        if (userOps.length > 0) {
+            bundles.push(await this.executor.bundle(entryPoint, userOps))
         }
 
         for (const bundle of bundles) {
@@ -244,7 +242,7 @@ export class ExecutorManager {
 
         const results = bundles.flat()
 
-        const filteredOutOps = mempoolOps.length - results.length
+        const filteredOutOps = userOps.length - results.length
         if (filteredOutOps > 0) {
             this.logger.debug(
                 { filteredOutOps },
@@ -870,6 +868,7 @@ export class ExecutorManager {
                     "user operation rejected"
                 )
 
+                this.executor.markWalletProcessed(txInfo.executor)
                 this.mempool.removeSubmitted(opInfo.userOperationHash)
             })
 

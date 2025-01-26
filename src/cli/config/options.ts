@@ -339,13 +339,6 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             require: true,
             default: true
         },
-        "local-gas-limit-calculation": {
-            description:
-                "Calculate the bundle transaction gas limits locally instead of using the RPC gas limit estimation",
-            type: "boolean",
-            require: true,
-            default: false
-        },
         "flush-stuck-transactions-during-startup": {
             description:
                 "Flush stuck transactions with old nonces during bundler startup",

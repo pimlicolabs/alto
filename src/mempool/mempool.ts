@@ -671,6 +671,7 @@ export class MemoryMempool {
         }
     }
 
+    // Returns a bundle of userOperations in array format.
     async process(
         maxGasLimit: bigint,
         minOps?: number
@@ -737,15 +738,15 @@ export class MemoryMempool {
                 senders,
                 storageMap
             )
+            if (skipResult.skip) {
+                continue
+            }
+
             paymasterDeposit = skipResult.paymasterDeposit
             stakedEntityCount = skipResult.stakedEntityCount
             knownEntities = skipResult.knownEntities
             senders = skipResult.senders
             storageMap = skipResult.storageMap
-
-            if (skipResult.skip) {
-                continue
-            }
 
             this.reputationManager.decreaseUserOperationCount(op)
             this.store.removeOutstanding(opInfo.userOperationHash)

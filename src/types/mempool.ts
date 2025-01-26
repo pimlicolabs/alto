@@ -33,8 +33,8 @@ export type TransactionInfo = {
 
 export type UserOperationInfo = {
     userOperation: UserOperation
-    entryPoint: Address
     userOperationHash: HexData32
+    entryPoint: Address
     lastReplaced: number
     firstSubmitted: number
     referencedContracts?: ReferencedCodeHashes
@@ -52,38 +52,20 @@ export type SubmittedUserOperation = {
     transactionInfo: TransactionInfo
 }
 
-type Result<T, E, R> = Success<T> | Failure<E> | Resubmit<R>
-
-interface Success<T> {
-    status: "success"
-    value: T
-}
-
-interface Failure<E> {
-    status: "failure"
-    error: E
-}
-
-interface Resubmit<R> {
-    status: "resubmit"
-    info: R
-}
-
-export type BundleResult = Result<
-    {
-        userOperation: UserOperationInfo
-        transactionInfo: TransactionInfo
-    },
-    {
-        reason: string
-        userOpHash: HexData32
-        entryPoint: Address
-        userOperation: UserOperation
-    },
-    {
-        reason: string
-        userOpHash: HexData32
-        entryPoint: Address
-        userOperation: UserOperation
-    }
->
+export type BundleResult =
+    | {
+          status: "success"
+          userOperations: UserOperation[]
+          rejectedUserOperations: UserOperation[]
+          transactionInfo: TransactionInfo
+      }
+    | {
+          status: "failure"
+          reason: string
+          userOperations: UserOperation[]
+      }
+    | {
+          status: "resubmit"
+          reason: string
+          userOperations: UserOperation[]
+      }

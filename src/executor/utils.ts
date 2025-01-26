@@ -1,11 +1,9 @@
 import type { InterfaceReputationManager } from "@alto/mempool"
 import {
-    type BundleResult,
     EntryPointV06Abi,
     EntryPointV07Abi,
     type FailedOp,
     type FailedOpWithRevert,
-    type TransactionInfo,
     type UserOperation,
     type UserOperationV07,
     type UserOperationWithHash,
@@ -15,7 +13,6 @@ import {
 import type { Logger } from "@alto/utils"
 import {
     getRevertErrorData,
-    isVersion06,
     parseViemError,
     scaleBigIntByPercent,
     toPackedUserOperation
@@ -24,7 +21,6 @@ import {
 import * as sentry from "@sentry/node"
 import {
     type Account,
-    type Address,
     type Chain,
     ContractFunctionRevertedError,
     EstimateGasExecutionError,
@@ -38,6 +34,8 @@ import {
     BaseError
 } from "viem"
 import { SignedAuthorizationList } from "viem/experimental"
+import { AltoConfig } from "../createConfig"
+import { z } from "zod"
 
 export const isTransactionUnderpricedError = (e: BaseError) => {
     return e?.details
@@ -60,194 +58,165 @@ export const getAuthorizationList = (
     return authorizationList.length > 0 ? authorizationList : undefined
 }
 
-export function simulatedOpsToResults(
-    simulatedOps: {
-        owh: UserOperationWithHash
-        reason: string | undefined
-    }[],
-    transactionInfo: TransactionInfo
-): BundleResult[] {
-    return simulatedOps.map(({ reason, owh }) => {
-        if (reason === undefined) {
-            return {
-                status: "success",
-                value: {
-                    userOperation: {
-                        entryPoint: transactionInfo.entryPoint,
-                        userOperation: owh.userOperation,
-                        userOperationHash: owh.userOperationHash,
-                        lastReplaced: Date.now(),
-                        firstSubmitted: Date.now()
-                    },
-                    transactionInfo
-                }
-            }
-        }
-        return {
-            status: "failure",
-            error: {
-                entryPoint: transactionInfo.entryPoint,
-                userOperation: owh.userOperation,
-                userOpHash: owh.userOperationHash,
-                reason: reason as string
-            }
-        }
-    })
+type FailedOpWithReason = {
+    userOperationWithHash: UserOperationWithHash
+    reason: string
 }
 
-export type DefaultFilterOpsAndEstimateGasParams = {}
+export type FilterOpsAndEstimateGasResult =
+    | {
+          status: "success"
+          opsToBundle: UserOperationWithHash[]
+          failedOps: FailedOpWithReason[]
+          gasLimit: bigint
+      }
+    | {
+          status: "unexpectedFailure"
+          reason: string
+      }
 
-export async function filterOpsAndEstimateGas(
-    entryPoint: Address,
+// Attempt to create a handleOps bundle + estimate bundling tx gas.
+export async function filterOpsAndEstimateGas({
+    ep,
+    isUserOpV06,
+    wallet,
+    ops,
+    nonce,
+    maxFeePerGas,
+    maxPriorityFeePerGas,
+    reputationManager,
+    config,
+    logger
+}: {
     ep: GetContractReturnType<
         typeof EntryPointV06Abi | typeof EntryPointV07Abi,
         {
             public: PublicClient
             wallet: WalletClient
         }
-    >,
-    wallet: Account,
-    ops: UserOperationWithHash[],
-    nonce: number,
-    maxFeePerGas: bigint,
-    maxPriorityFeePerGas: bigint,
-    blockTag: "latest" | "pending" | undefined,
-    onlyPre1559: boolean,
-    fixedGasLimitForEstimation: bigint | undefined,
-    reputationManager: InterfaceReputationManager,
-    logger: Logger,
-    authorizationList?: SignedAuthorizationList
-) {
-    const simulatedOps: {
-        owh: UserOperationWithHash
-        reason: string | undefined
-    }[] = ops.map((owh) => {
-        return { owh, reason: undefined }
-    })
+    >
+    isUserOpV06: boolean
+    wallet: Account
+    ops: UserOperationWithHash[]
+    nonce: number
+    maxFeePerGas: bigint
+    maxPriorityFeePerGas: bigint
+    reputationManager: InterfaceReputationManager
+    config: AltoConfig
+    logger: Logger
+}): Promise<FilterOpsAndEstimateGasResult> {
+    let { legacyTransactions, fixedGasLimitForEstimation, blockTagSupport } =
+        config
 
-    let gasLimit: bigint
+    // Keep track of invalid and valid ops
+    const opsToBundle = [...ops]
+    const failedOps: FailedOpWithReason[] = []
 
-    const isUserOpV06 = isVersion06(
-        simulatedOps[0].owh.userOperation as UserOperation
-    )
-
-    const gasOptions = onlyPre1559
+    // Prepare bundling tx params
+    const gasOptions = legacyTransactions
         ? { gasPrice: maxFeePerGas }
         : { maxFeePerGas, maxPriorityFeePerGas }
+    const blockTag = blockTagSupport ? "latest" : undefined
 
-    let fixedEstimationGasLimit: bigint | undefined = fixedGasLimitForEstimation
+    let gasLimit: bigint
     let retriesLeft = 5
 
-    while (simulatedOps.filter((op) => op.reason === undefined).length > 0) {
+    while (opsToBundle.length > 0 && retriesLeft > 0) {
         try {
-            const opsToSend = simulatedOps
-                .filter((op) => op.reason === undefined)
-                .map(({ owh }) => {
-                    const op = owh.userOperation
-                    return isUserOpV06
-                        ? op
-                        : toPackedUserOperation(op as UserOperationV07)
-                })
+            const encodedOps = opsToBundle.map(({ userOperation }) => {
+                return isUserOpV06
+                    ? userOperation
+                    : toPackedUserOperation(userOperation as UserOperationV07)
+            })
+
+            const authorizationList = getAuthorizationList(
+                opsToBundle.map((owh) => owh.userOperation)
+            )
 
             gasLimit = await ep.estimateGas.handleOps(
                 // @ts-ignore - ep is set correctly for opsToSend, but typescript doesn't know that
-                [opsToSend, wallet.address],
+                [encodedOps, wallet.address],
                 {
                     account: wallet,
                     nonce: nonce,
-                    blockTag: blockTag,
-                    ...(fixedEstimationGasLimit !== undefined && {
-                        gas: fixedEstimationGasLimit
+                    blockTag,
+                    ...(fixedGasLimitForEstimation && {
+                        gas: fixedGasLimitForEstimation
                     }),
-                    ...(authorizationList !== undefined && {
+                    ...(authorizationList && {
                         authorizationList
                     }),
                     ...gasOptions
                 }
             )
 
-            return { simulatedOps, gasLimit }
+            return {
+                status: "success",
+                opsToBundle,
+                failedOps,
+                gasLimit
+            }
         } catch (err: unknown) {
-            logger.error({ err, blockTag }, "error estimating gas")
+            logger.error({ err, blockTag }, "handling error estimating gas")
             const e = parseViemError(err)
 
             if (e instanceof ContractFunctionRevertedError) {
-                const failedOpError = failedOpErrorSchema.safeParse(e.data)
-                const failedOpWithRevertError =
-                    failedOpWithRevertErrorSchema.safeParse(e.data)
+                let parseResult = z
+                    .union([failedOpErrorSchema, failedOpWithRevertErrorSchema])
+                    .safeParse(e.data)
 
-                let errorData: FailedOp | FailedOpWithRevert | undefined =
-                    undefined
-
-                if (failedOpError.success) {
-                    errorData = failedOpError.data.args
-                }
-                if (failedOpWithRevertError.success) {
-                    errorData = failedOpWithRevertError.data.args
-                }
-
-                if (errorData) {
-                    if (
-                        errorData.reason.indexOf("AA95 out of gas") !== -1 &&
-                        retriesLeft > 0
-                    ) {
-                        retriesLeft--
-                        fixedEstimationGasLimit = scaleBigIntByPercent(
-                            fixedEstimationGasLimit || BigInt(30_000_000),
-                            110n
-                        )
-                        continue
-                    }
-
-                    logger.debug(
-                        {
-                            errorData,
-                            userOpHashes: simulatedOps
-                                .filter((op) => op.reason === undefined)
-                                .map((op) => op.owh.userOperationHash)
-                        },
-                        "user op in batch invalid"
-                    )
-
-                    const failingOp = simulatedOps.filter(
-                        (op) => op.reason === undefined
-                    )[Number(errorData.opIndex)]
-
-                    failingOp.reason = `${errorData.reason}${
-                        (errorData as FailedOpWithRevert)?.inner
-                            ? ` - ${(errorData as FailedOpWithRevert).inner}`
-                            : ""
-                    }`
-
-                    reputationManager.crashedHandleOps(
-                        failingOp.owh.userOperation,
-                        entryPoint,
-                        failingOp.reason
-                    )
-                }
-
-                if (
-                    !(failedOpError.success || failedOpWithRevertError.success)
-                ) {
+                if (!parseResult.success) {
                     sentry.captureException(err)
                     logger.error(
                         {
-                            error: `${failedOpError.error} ${failedOpWithRevertError.error}`
+                            error: parseResult.error
                         },
                         "failed to parse failedOpError"
                     )
                     return {
-                        simulatedOps: [],
-                        gasLimit: 0n
+                        status: "unexpectedFailure",
+                        reason: "failed to parse failedOpError"
                     }
+                }
+
+                const errorData = parseResult.data.args
+
+                if (errorData) {
+                    if (errorData.reason.includes("AA95 out of gas")) {
+                        fixedGasLimitForEstimation = scaleBigIntByPercent(
+                            fixedGasLimitForEstimation || BigInt(30_000_000),
+                            110n
+                        )
+                        retriesLeft--
+                        continue
+                    }
+
+                    const failingOp = {
+                        userOperationWithHash:
+                            opsToBundle[Number(errorData.opIndex)],
+                        reason: `${errorData.reason}${
+                            (errorData as FailedOpWithRevert)?.inner
+                                ? ` - ${
+                                      (errorData as FailedOpWithRevert).inner
+                                  }`
+                                : ""
+                        }`
+                    }
+                    opsToBundle.splice(Number(errorData.opIndex), 1)
+
+                    reputationManager.crashedHandleOps(
+                        failingOp.userOperationWithHash.userOperation,
+                        ep.address,
+                        failingOp.reason
+                    )
+
+                    failedOps.push(failingOp)
                 }
             } else if (
                 e instanceof EstimateGasExecutionError ||
                 err instanceof EstimateGasExecutionError
             ) {
-                if (e?.cause instanceof FeeCapTooLowError && retriesLeft > 0) {
-                    retriesLeft--
-
+                if (e?.cause instanceof FeeCapTooLowError) {
                     logger.info(
                         { error: e.shortMessage },
                         "error estimating gas due to max fee < basefee"
@@ -272,6 +241,7 @@ export async function filterOpsAndEstimateGas(
                             125n
                         )
                     }
+                    retriesLeft--
                     continue
                 }
 
@@ -287,16 +257,6 @@ export async function filterOpsAndEstimateGas(
                         abi: isUserOpV06 ? EntryPointV06Abi : EntryPointV07Abi,
                         data: errorHexData
                     })
-                    logger.debug(
-                        {
-                            errorName: errorResult.errorName,
-                            args: errorResult.args,
-                            userOpHashes: simulatedOps
-                                .filter((op) => op.reason === undefined)
-                                .map((op) => op.owh.userOperationHash)
-                        },
-                        "user op in batch invalid"
-                    )
 
                     if (
                         errorResult.errorName !== "FailedOpWithRevert" &&
@@ -310,24 +270,29 @@ export async function filterOpsAndEstimateGas(
                             "unexpected error result"
                         )
                         return {
-                            simulatedOps: [],
-                            gasLimit: 0n
+                            status: "unexpectedFailure",
+                            reason: "unexpected error result"
                         }
                     }
 
-                    const failingOp = simulatedOps.filter(
-                        (op) => op.reason === undefined
-                    )[Number(errorResult.args[0])]
+                    const failedOpIndex = Number(errorResult.args[0])
+                    const failingOp = {
+                        userOperationWithHash: opsToBundle[failedOpIndex],
+                        reason: errorResult.args[1]
+                    }
 
-                    failingOp.reason = errorResult.args[1]
+                    failedOps.push(failingOp)
+                    opsToBundle.splice(Number(errorResult.args[0]), 1)
+
+                    continue
                 } catch (e: unknown) {
                     logger.error(
                         { error: JSON.stringify(err) },
                         "failed to parse error result"
                     )
                     return {
-                        simulatedOps: [],
-                        gasLimit: 0n
+                        status: "unexpectedFailure",
+                        reason: "failed to parse error result"
                     }
                 }
             } else {
@@ -336,11 +301,15 @@ export async function filterOpsAndEstimateGas(
                     { error: JSON.stringify(err), blockTag },
                     "error estimating gas"
                 )
-                return { simulatedOps: [], gasLimit: 0n }
+                return {
+                    status: "unexpectedFailure",
+                    reason: "error estimating gas"
+                }
             }
         }
     }
-    return { simulatedOps, gasLimit: 0n }
+
+    return { status: "unexpectedFailure", reason: "All ops failed simulation" }
 }
 
 export async function flushStuckTransaction(
