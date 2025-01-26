@@ -16,7 +16,6 @@ import {
 import type { Logger, Metrics } from "@alto/utils"
 import {
     getUserOperationHash,
-    isVersion06,
     maxBigInt,
     parseViemError,
     scaleBigIntByPercent,
@@ -118,14 +117,11 @@ export class Executor {
     async replaceTransaction(
         transactionInfo: TransactionInfo
     ): Promise<ReplaceTransactionResult> {
-        const {
-            isVersion06,
-            entryPoint,
-            transactionRequest,
-            userOperationInfos,
-            executor,
-            transactionHash
-        } = transactionInfo
+        const { transactionRequest, executor, transactionHash, bundle } =
+            transactionInfo
+
+        const { userOperations, version, entryPoint } = bundle
+        const isVersion06 = version === "0.6"
 
         let gasPriceParameters: GasPriceParameters
         try {
@@ -148,9 +144,7 @@ export class Executor {
             )
         }
 
-        const opsToResubmit = userOperationInfos.map(
-            (optr) => optr.userOperation
-        )
+        const opsToResubmit = userOperations
 
         const ep = getContract({
             abi: isVersion06 ? EntryPointV06Abi : EntryPointV07Abi,
@@ -223,7 +217,7 @@ export class Executor {
             isUserOpVersion06: isVersion06,
             isReplacementTx: true,
             ops: userOps,
-            entryPoint: transactionInfo.entryPoint
+            entryPoint: transactionInfo.bundle.entryPoint
         }
 
         try {
@@ -272,13 +266,10 @@ export class Executor {
                     ...transactionInfo.previousTransactionHashes
                 ],
                 lastReplaced: Date.now(),
-                userOperationInfos: opsToBundle.map((op) => {
-                    return {
-                        entryPoint,
-                        userOperation: op,
-                        userOperationHash: this.getOpHashes([op])[0]
-                    }
-                })
+                bundle: {
+                    ...transactionInfo.bundle,
+                    userOperations: opsToBundle
+                }
             }
 
             return {
@@ -693,19 +684,12 @@ export class Executor {
             }
         }
 
-        const userOperationInfos = opsToBundle.map((op) => {
-            return {
-                entryPoint,
-                userOperation: op,
-                userOperationHash: this.getOpHashes([op])[0],
-                lastReplaced: Date.now(),
-                firstSubmitted: Date.now()
-            }
-        })
-
         const transactionInfo: TransactionInfo = {
-            entryPoint,
-            isVersion06: version === "0.6",
+            bundle: {
+                entryPoint,
+                version,
+                userOperations: opsToBundle
+            },
             transactionHash: transactionHash,
             previousTransactionHashes: [],
             transactionRequest: {
@@ -716,7 +700,6 @@ export class Executor {
                 nonce: nonce
             },
             executor: wallet,
-            userOperationInfos,
             lastReplaced: Date.now(),
             timesPotentiallyIncluded: 0
         }

@@ -13,8 +13,6 @@ export interface ReferencedCodeHashes {
 export type TransactionInfo = {
     transactionHash: HexData32
     previousTransactionHashes: HexData32[]
-    entryPoint: Address
-    isVersion06: boolean
     transactionRequest: {
         gas: bigint
         chain: Chain
@@ -22,8 +20,8 @@ export type TransactionInfo = {
         maxPriorityFeePerGas: bigint
         nonce: number
     }
+    bundle: UserOperationBundle
     executor: Account
-    userOperationInfos: UserOperationInfo[]
     lastReplaced: number
     timesPotentiallyIncluded: number
 }
