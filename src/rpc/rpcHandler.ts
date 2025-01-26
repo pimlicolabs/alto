@@ -901,7 +901,8 @@ export class RpcHandler implements IRpcEndpoint {
             }
         }
 
-        this.executor.markWalletProcessed(res.value.transactionInfo.executor)
+        const txSender = res.value.transactionInfo.transactionRequest.account
+        this.executor.markWalletProcessed(txSender)
 
         // wait for receipt
         const receipt =

@@ -137,7 +137,6 @@ export class Executor {
             isVersion06,
             entryPoint,
             transactionRequest,
-            executor,
             userOperationInfos
         } = transactionInfo
 
@@ -152,7 +151,6 @@ export class Executor {
 
         const newRequest = {
             ...transactionRequest,
-            account: executor,
             maxFeePerGas: scaleBigIntByPercent(
                 gasPriceParameters.maxFeePerGas,
                 115n
@@ -178,7 +176,7 @@ export class Executor {
 
         const childLogger = this.logger.child({
             transactionHash: transactionInfo.transactionHash,
-            executor: transactionInfo.executor.address
+            executor: transactionInfo.transactionRequest.account.address
         })
 
         let bundleResult = await filterOpsAndEstimateGas({
@@ -273,10 +271,10 @@ export class Executor {
                       }
             })
 
-            this.eventManager.emitSubmitted(
-                this.getOpHashes(opsToBundle),
-                txHash
-            )
+            this.eventManager.emitSubmitted({
+                userOpHashes: this.getOpHashes(opsToBundle),
+                transactionHash: txHash
+            })
 
             const newTxInfo: TransactionInfo = {
                 ...transactionInfo,
@@ -546,9 +544,10 @@ export class Executor {
         const conflictingOps = submitted
             .filter((submitted) => {
                 const tx = submitted.transactionInfo
+                const txSender = tx.transactionRequest.account.address
 
                 return (
-                    tx.executor.address === executor.address &&
+                    txSender === executor.address &&
                     tx.transactionRequest.nonce === nonce
                 )
             })
@@ -616,9 +615,9 @@ export class Executor {
             )
             this.markWalletProcessed(wallet)
             return {
-                status: "resubmit",
+                status: "bundle_resubmit",
                 reason: "Failed to get parameters for bundling",
-                userOperations: ops
+                userOpsBundled: ops
             }
         }
 
@@ -641,9 +640,9 @@ export class Executor {
             )
             this.markWalletProcessed(wallet)
             return {
-                status: "failure",
+                status: "bundle_failure",
                 reason: "INTERNAL FAILURE",
-                userOperations: ops
+                userOpsBundled: ops
             }
         }
 
@@ -653,13 +652,14 @@ export class Executor {
             childLogger.warn("all ops failed simulation")
             this.markWalletProcessed(wallet)
             return {
-                status: "failure",
+                status: "bundle_failure",
                 reason: "INTERNAL FAILURE",
                 // TODO: we want to log the failure reason
-                userOperations: ops
+                userOpsBundled: ops
             }
         }
 
+        // Update child logger with userOperations being sent for bundling.
         childLogger = this.logger.child({
             userOperations: this.getOpHashes(opsToBundle),
             entryPoint
@@ -723,10 +723,10 @@ export class Executor {
                 opts
             })
 
-            this.eventManager.emitSubmitted(
-                this.getOpHashes(opsToBundle),
+            this.eventManager.emitSubmitted({
+                userOpHashes: this.getOpHashes(opsToBundle),
                 transactionHash
-            )
+            })
         } catch (err: unknown) {
             const e = parseViemError(err)
             if (e instanceof InsufficientFundsError) {
@@ -736,9 +736,9 @@ export class Executor {
                 )
                 this.markWalletProcessed(wallet)
                 return {
-                    status: "resubmit",
+                    status: "bundle_resubmit",
                     reason: InsufficientFundsError.name,
-                    userOperations: ops
+                    userOpsBundled: ops
                 }
             }
 
@@ -749,9 +749,9 @@ export class Executor {
             )
             this.markWalletProcessed(wallet)
             return {
-                status: "failure",
+                status: "bundle_failure",
                 reason: "INTERNAL FAILURE",
-                userOperations: ops
+                userOpsBundled: ops
             }
         }
 
@@ -779,7 +779,6 @@ export class Executor {
                 maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
                 nonce: nonce
             },
-            executor: wallet,
             userOperationInfos,
             lastReplaced: Date.now(),
             firstSubmitted: Date.now(),
@@ -787,9 +786,12 @@ export class Executor {
         }
 
         const userOperationResults: BundleResult = {
-            status: "success",
-            userOperations: opsToBundle,
-            rejectedUserOperations: failedOps.map((sop) => sop.userOperation),
+            status: "bundle_success",
+            userOpsBundled: opsToBundle,
+            rejectedUserOperations: failedOps.map((sop) => ({
+                userOperation: sop.userOperation,
+                reason: sop.reason
+            })),
             transactionInfo
         }
 

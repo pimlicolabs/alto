@@ -164,8 +164,11 @@ export class EventManager {
     }
 
     // emits when the userOperation has been submitted to the network
-    async emitSubmitted(userOperationHashes: Hex[], transactionHash: Hex) {
-        for (const userOperationHash of userOperationHashes) {
+    async emitSubmitted({
+        userOpHashes,
+        transactionHash
+    }: { userOpHashes: Hex[]; transactionHash: Hex }) {
+        for (const userOperationHash of userOpHashes) {
             await this.emitEvent({
                 userOperationHash,
                 event: {

@@ -24,7 +24,6 @@ export type TransactionInfo = {
         maxPriorityFeePerGas: bigint
         nonce: number
     }
-    executor: Account
     userOperationInfos: UserOperationInfo[]
     lastReplaced: number
     firstSubmitted: number
@@ -52,20 +51,28 @@ export type SubmittedUserOperation = {
     transactionInfo: TransactionInfo
 }
 
+export type RejectedUserOperation = {
+    userOperation: UserOperation
+    reason: string
+}
+
 export type BundleResult =
     | {
-          status: "success"
-          userOperations: UserOperation[]
-          rejectedUserOperations: UserOperation[]
+          // Successfully bundled user operations.
+          status: "bundle_success"
+          userOpsBundled: UserOperation[]
+          rejectedUserOperations: RejectedUserOperation[]
           transactionInfo: TransactionInfo
       }
     | {
-          status: "failure"
+          // Encountered error whilst trying to bundle user operations.
+          status: "bundle_failure"
           reason: string
-          userOperations: UserOperation[]
+          userOpsBundled: UserOperation[]
       }
     | {
-          status: "resubmit"
+          // Encountered recoverable error whilst trying to bundle user operations.
+          status: "bundle_resubmit"
           reason: string
-          userOperations: UserOperation[]
+          userOpsBundled: UserOperation[]
       }
