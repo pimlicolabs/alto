@@ -16,7 +16,6 @@ import {
     ValidationErrors,
     type ValidationResult
 } from "@alto/types"
-import type { HexData32 } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import type { Logger } from "@alto/utils"
 import {
@@ -412,8 +411,6 @@ export class MemoryMempool {
             userOperation,
             entryPoint,
             userOperationHash: opHash,
-            firstSubmitted: oldUserOp ? oldUserOp.firstSubmitted : Date.now(),
-            lastReplaced: Date.now(),
             referencedContracts
         })
         this.monitor.setUserOperationStatus(opHash, {
@@ -672,107 +669,119 @@ export class MemoryMempool {
     }
 
     // Returns a bundle of userOperations in array format.
-    async process(
-        maxGasLimit: bigint,
-        minOps?: number
-    ): Promise<UserOperationInfo[]> {
-        const outstandingUserOperations = this.store.dumpOutstanding().slice()
+    async process({
+        maxGasLimit,
+        entryPoint,
+        minOpsPerBundle,
+        maxBundleCount
+    }: {
+        maxGasLimit: bigint
+        entryPoint: Address
+        minOpsPerBundle: number
+        maxBundleCount?: number
+    }): Promise<UserOperationInfo[][]> {
+        let outstandingUserOperations = this.store
+            .dumpOutstanding()
+            .filter((op) => op.entryPoint === entryPoint)
+            .sort((a, b) => {
+                // Sort userops before the execution
+                // Decide the order of the userops based on the sender and nonce
+                // If sender is the same, sort by nonce key
+                const aUserOp = a.userOperation
+                const bUserOp = b.userOperation
 
-        // Sort userops before the execution
-        // Decide the order of the userops based on the sender and nonce
-        // If sender is the same, sort by nonce key
-        outstandingUserOperations.sort((a, b) => {
-            const aUserOp = a.userOperation
-            const bUserOp = b.userOperation
+                if (aUserOp.sender === bUserOp.sender) {
+                    const [aNonceKey, aNonceValue] = getNonceKeyAndValue(
+                        aUserOp.nonce
+                    )
+                    const [bNonceKey, bNonceValue] = getNonceKeyAndValue(
+                        bUserOp.nonce
+                    )
 
-            if (aUserOp.sender === bUserOp.sender) {
-                const [aNonceKey, aNonceValue] = getNonceKeyAndValue(
-                    aUserOp.nonce
-                )
-                const [bNonceKey, bNonceValue] = getNonceKeyAndValue(
-                    bUserOp.nonce
-                )
+                    if (aNonceKey === bNonceKey) {
+                        return Number(aNonceValue - bNonceValue)
+                    }
 
-                if (aNonceKey === bNonceKey) {
-                    return Number(aNonceValue - bNonceValue)
+                    return Number(aNonceKey - bNonceKey)
                 }
 
-                return Number(aNonceKey - bNonceKey)
-            }
+                return 0
+            })
+            .slice()
 
-            return 0
-        })
+        const bundles: UserOperationInfo[][] = []
 
-        let opsTaken = 0
-        let gasUsed = 0n
-        const result: UserOperationInfo[] = []
-
-        // paymaster deposit should be enough for all UserOps in the bundle.
-        let paymasterDeposit: { [paymaster: string]: bigint } = {}
-        // throttled paymasters and factories are allowed only small UserOps per bundle.
-        let stakedEntityCount: { [addr: string]: number } = {}
-        // each sender is allowed only once per bundle
-        let senders = new Set<string>()
-        let knownEntities = this.getKnownEntities()
-
-        let storageMap: StorageMap = {}
-
-        for (const opInfo of outstandingUserOperations) {
-            const op = opInfo.userOperation
-            gasUsed += op.callGasLimit + op.verificationGasLimit
-
-            if (isVersion07(op)) {
-                gasUsed +=
-                    (op.paymasterPostOpGasLimit ?? 0n) +
-                    (op.paymasterVerificationGasLimit ?? 0n)
-            }
-
-            if (gasUsed > maxGasLimit && opsTaken >= (minOps || 0)) {
+        // Process all outstanding ops.
+        while (outstandingUserOperations.length > 0) {
+            // If maxBundles is set and we reached the limit, break.
+            if (maxBundleCount && bundles.length >= maxBundleCount) {
                 break
             }
-            const skipResult = await this.shouldSkip(
-                opInfo,
-                paymasterDeposit,
-                stakedEntityCount,
-                knownEntities,
-                senders,
-                storageMap
-            )
-            if (skipResult.skip) {
-                continue
+
+            // Reset state per bundle
+            const currentBundle: UserOperationInfo[] = []
+            let gasUsed = 0n
+
+            let paymasterDeposit: { [paymaster: string]: bigint } = {} // paymaster deposit should be enough for all UserOps in the bundle.
+            let stakedEntityCount: { [addr: string]: number } = {} // throttled paymasters and factories are allowed only small UserOps per bundle.
+            let senders = new Set<string>() // each sender is allowed only once per bundle
+            let knownEntities = this.getKnownEntities()
+            let storageMap: StorageMap = {}
+
+            // Keep adding ops to current bundle.
+            while (outstandingUserOperations.length > 0) {
+                const opInfo = outstandingUserOperations.shift()
+                if (!opInfo) break
+
+                const skipResult = await this.shouldSkip(
+                    opInfo,
+                    paymasterDeposit,
+                    stakedEntityCount,
+                    knownEntities,
+                    senders,
+                    storageMap
+                )
+                if (skipResult.skip) continue
+
+                const op = opInfo.userOperation
+                gasUsed +=
+                    op.callGasLimit +
+                    op.verificationGasLimit +
+                    (isVersion07(op)
+                        ? (op.paymasterPostOpGasLimit || 0n) +
+                          (op.paymasterVerificationGasLimit || 0n)
+                        : 0n)
+
+                // Only break on gas limit if we've hit minOpsPerBundle.
+                if (
+                    gasUsed > maxGasLimit &&
+                    currentBundle.length >= minOpsPerBundle
+                ) {
+                    outstandingUserOperations.unshift(opInfo) // re-add op to front of queue
+                    break
+                }
+
+                // Update state based on skip result
+                paymasterDeposit = skipResult.paymasterDeposit
+                stakedEntityCount = skipResult.stakedEntityCount
+                knownEntities = skipResult.knownEntities
+                senders = skipResult.senders
+                storageMap = skipResult.storageMap
+
+                this.reputationManager.decreaseUserOperationCount(op)
+                this.store.removeOutstanding(opInfo.userOperationHash)
+                this.store.addProcessing(opInfo)
+
+                // Add op to current bundle
+                currentBundle.push(opInfo)
             }
 
-            paymasterDeposit = skipResult.paymasterDeposit
-            stakedEntityCount = skipResult.stakedEntityCount
-            knownEntities = skipResult.knownEntities
-            senders = skipResult.senders
-            storageMap = skipResult.storageMap
-
-            this.reputationManager.decreaseUserOperationCount(op)
-            this.store.removeOutstanding(opInfo.userOperationHash)
-            this.store.addProcessing(opInfo)
-            result.push(opInfo)
-            opsTaken++
-        }
-        return result
-    }
-
-    get(opHash: HexData32): UserOperation | null {
-        const outstanding = this.store
-            .dumpOutstanding()
-            .find((op) => op.userOperationHash === opHash)
-        if (outstanding) {
-            return outstanding.userOperation
+            if (currentBundle.length > 0) {
+                bundles.push(currentBundle)
+            }
         }
 
-        const submitted = this.store
-            .dumpSubmitted()
-            .find((op) => op.userOperation.userOperationHash === opHash)
-        if (submitted) {
-            return submitted.userOperation.userOperation
-        }
-
-        return null
+        return bundles
     }
 
     // For a specfic user operation, get all the queued user operations

@@ -16,7 +16,6 @@ export type TransactionInfo = {
     entryPoint: Address
     isVersion06: boolean
     transactionRequest: {
-        to: Address
         gas: bigint
         chain: Chain
         maxFeePerGas: bigint
@@ -26,7 +25,6 @@ export type TransactionInfo = {
     executor: Account
     userOperationInfos: UserOperationInfo[]
     lastReplaced: number
-    firstSubmitted: number
     timesPotentiallyIncluded: number
 }
 
@@ -34,8 +32,6 @@ export type UserOperationInfo = {
     userOperation: UserOperation
     userOperationHash: HexData32
     entryPoint: Address
-    lastReplaced: number
-    firstSubmitted: number
     referencedContracts?: ReferencedCodeHashes
 }
 
@@ -76,3 +72,5 @@ export type BundleResult =
           reason: string
           userOps: UserOperation[]
       }
+
+export type BundleRequest = {}

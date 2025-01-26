@@ -275,9 +275,7 @@ export class Executor {
                     return {
                         entryPoint,
                         userOperation: op,
-                        userOperationHash: this.getOpHashes([op])[0],
-                        lastReplaced: Date.now(),
-                        firstSubmitted: transactionInfo.firstSubmitted
+                        userOperationHash: this.getOpHashes([op])[0]
                     }
                 })
             }
@@ -517,7 +515,7 @@ export class Executor {
 
         if (conflictingOps.length > 0) {
             // TODO: what to do here?
-            this.markWalletProcessed(executor)
+            // this.markWalletProcessed(executor)
         }
     }
 
@@ -719,7 +717,6 @@ export class Executor {
             transactionHash: transactionHash,
             previousTransactionHashes: [],
             transactionRequest: {
-                to: ep.address,
                 gas: gasLimit,
                 chain: this.config.walletClient.chain,
                 maxFeePerGas: gasPriceParameters.maxFeePerGas,
@@ -729,7 +726,6 @@ export class Executor {
             executor: wallet,
             userOperationInfos,
             lastReplaced: Date.now(),
-            firstSubmitted: Date.now(),
             timesPotentiallyIncluded: 0
         }
 

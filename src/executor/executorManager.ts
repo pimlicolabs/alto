@@ -135,14 +135,16 @@ export class ExecutorManager {
             (timestamp) => now - timestamp < RPM_WINDOW
         )
 
-        const opsToBundle = await this.getOpsToBundle()
+        const bundles = await this.getMempoolBundles()
 
-        if (opsToBundle.length > 0) {
-            const opsCount: number = opsToBundle.length
+        if (bundles.length > 0) {
+            const opsCount: number = bundles
+                .map(({ userOperations }) => userOperations.length)
+                .reduce((a, b) => a + b)
             const timestamp: number = Date.now()
             this.opsCount.push(...Array(opsCount).fill(timestamp)) // Add timestamps for each task
 
-            await this.bundle(opsToBundle)
+            await this.sendBundles(bundles)
         }
 
         const rpm: number = this.opsCount.length
@@ -151,71 +153,55 @@ export class ExecutorManager {
             MIN_INTERVAL + rpm * SCALE_FACTOR, // Linear scaling
             MAX_INTERVAL // Cap at 1000ms
         )
+
         if (this.bundlingMode === "auto") {
             setTimeout(this.autoScalingBundling.bind(this), nextInterval)
         }
     }
 
-    async getOpsToBundle() {
-        const opsToBundle: UserOperationInfo[][] = []
+    async getMempoolBundles(maxBundleCount?: number) {
+        const bundlePromises = this.config.entrypoints.map(
+            async (entryPoint) => {
+                const mempoolBundles = await this.mempool.process({
+                    entryPoint,
+                    maxGasLimit: this.config.maxGasPerBundle,
+                    minOpsPerBundle: 1,
+                    maxBundleCount
+                })
 
-        while (true) {
-            const ops = await this.mempool.process(
-                this.config.maxGasPerBundle,
-                1
-            )
-            if (ops?.length > 0) {
-                opsToBundle.push(ops)
-            } else {
-                break
+                return mempoolBundles.map((userOperations) => ({
+                    entryPoint,
+                    userOperations
+                }))
             }
-        }
+        )
 
-        if (opsToBundle.length === 0) {
-            return []
-        }
+        const bundlesNested = await Promise.all(bundlePromises)
+        const bundles = bundlesNested.flat()
 
-        return opsToBundle
+        return bundles
     }
 
-    async bundleNow(): Promise<Hash[]> {
-        const ops = await this.mempool.process(this.config.maxGasPerBundle, 1)
-        if (ops.length === 0) {
+    // Debug endpoint
+    async sendBundleNow(): Promise<Hash> {
+        const bundle = (await this.getMempoolBundles(1))[0]
+
+        const { entryPoint, userOperations } = bundle
+        if (userOperations.length === 0) {
             throw new Error("no ops to bundle")
         }
 
-        const opEntryPointMap = new Map<Address, UserOperation[]>()
+        const txHashes = await this.sendBundleToExecutor(
+            entryPoint,
+            userOperations.map((op) => op.userOperation)
+        )
+        const txHash = txHashes[0]
 
-        for (const op of ops) {
-            if (!opEntryPointMap.has(op.entryPoint)) {
-                opEntryPointMap.set(op.entryPoint, [])
-            }
-            opEntryPointMap.get(op.entryPoint)?.push(op.userOperation)
+        if (!txHash) {
+            throw new Error("no tx hash")
         }
 
-        const bundleTxHashes: Hash[] = []
-
-        await Promise.all(
-            this.config.entrypoints.map(async (entryPoint) => {
-                const ops = opEntryPointMap.get(entryPoint)
-                if (ops) {
-                    const txHashes = await this.sendToExecutor(entryPoint, ops)
-
-                    if (txHashes.length === 0) {
-                        throw new Error("no tx hash")
-                    }
-
-                    bundleTxHashes.push(...txHashes)
-                } else {
-                    this.logger.warn(
-                        { entryPoint },
-                        "no user operations for entry point"
-                    )
-                }
-            })
-        )
-
-        return bundleTxHashes
+        return txHash
     }
 
     getOpHash(userOperation: UserOperation): HexData32 {
@@ -226,11 +212,11 @@ export class ExecutorManager {
         )
     }
 
-    async sendToExecutor(
-        entryPoint: Address,
+    async sendBundleToExecutor(bundle: {
+        entryPoint: Address
         userOps: UserOperation[]
-    ): Promise<Hex[]> {
-        if (userOps.length === 0) {
+    }): Promise<Hex[]> {
+        if (bundle.userOps.length === 0) {
             return []
         }
 
@@ -306,33 +292,18 @@ export class ExecutorManager {
         return txHashes
     }
 
-    async bundle(opsToBundle: UserOperationInfo[][] = []) {
+    async sendBundles(
+        bundles: {
+            entryPoint: Address
+            userOperations: UserOperationInfo[]
+        }[] = []
+    ) {
         await Promise.all(
-            opsToBundle.map(async (ops) => {
-                const opEntryPointMap = new Map<Address, UserOperation[]>()
-
-                for (const op of ops) {
-                    if (!opEntryPointMap.has(op.entryPoint)) {
-                        opEntryPointMap.set(op.entryPoint, [])
-                    }
-                    opEntryPointMap.get(op.entryPoint)?.push(op.userOperation)
-                }
-
-                await Promise.all(
-                    this.config.entrypoints.map(async (entryPoint) => {
-                        const userOperations = opEntryPointMap.get(entryPoint)
-                        if (userOperations) {
-                            await this.sendToExecutor(
-                                entryPoint,
-                                userOperations
-                            )
-                        } else {
-                            this.logger.warn(
-                                { entryPoint },
-                                "no user operations for entry point"
-                            )
-                        }
-                    })
+            bundles.map(async (bundle) => {
+                const { entryPoint, userOperations } = bundle
+                await this.sendBundleToExecutor(
+                    entryPoint,
+                    userOperations.map((op) => op.userOperation)
                 )
             })
         )
@@ -429,17 +400,13 @@ export class ExecutorManager {
 
             const { userOperationDetails } = bundlingStatus
             opInfos.map((opInfo) => {
-                const {
-                    userOperation,
-                    userOperationHash,
-                    entryPoint,
-                    firstSubmitted
-                } = opInfo
+                const { userOperation, userOperationHash, entryPoint } = opInfo
                 const opDetails = userOperationDetails[userOperationHash]
 
-                this.metrics.userOperationInclusionDuration.observe(
-                    (Date.now() - firstSubmitted) / 1000
-                )
+                // TODO: keep this metric
+                //this.metrics.userOperationInclusionDuration.observe(
+                //    (Date.now() - firstSubmitted) / 1000
+                //)
                 this.mempool.removeSubmitted(userOperationHash)
                 this.reputationManager.updateUserOperationIncludedStatus(
                     userOperation,

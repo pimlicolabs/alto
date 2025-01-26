@@ -585,9 +585,8 @@ export class RpcHandler implements IRpcEndpoint {
 
     async debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
         this.ensureDebugEndpointsAreEnabled("debug_bundler_sendBundleNow")
-
-        const transactions = await this.executorManager.bundleNow()
-        return transactions[0]
+        const transaction = await this.executorManager.sendBundleNow()
+        return transaction
     }
 
     async debug_bundler_setBundlingMode(

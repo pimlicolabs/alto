@@ -168,9 +168,9 @@ export class EventManager {
         userOpHashes,
         transactionHash
     }: { userOpHashes: Hex[]; transactionHash: Hex }) {
-        for (const userOperationHash of userOpHashes) {
+        for (const hash of userOpHashes) {
             await this.emitEvent({
-                userOperationHash,
+                userOperationHash: hash,
                 event: {
                     eventType: "submitted",
                     transactionHash
