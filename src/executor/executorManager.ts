@@ -262,6 +262,14 @@ export class ExecutorManager {
                     break
             }
 
+            // Free wallet if the wallet did not make a succesful bundle tx.
+            if (
+                bundle.status === "bundle_failure" ||
+                bundle.status === "bundle_resubmit"
+            ) {
+                this.senderManager.markWalletProcessed(wallet)
+            }
+
             if (bundle.status === "bundle_resubmit") {
                 const { userOpsBundled: userOperations, reason } = bundle
 

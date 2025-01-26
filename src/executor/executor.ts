@@ -588,7 +588,6 @@ export class Executor {
             childLogger.error(
                 "gas limit simulation encountered unexpected failure"
             )
-            this.markWalletProcessed(wallet)
             return {
                 status: "bundle_failure",
                 reason: "INTERNAL FAILURE",
@@ -600,7 +599,6 @@ export class Executor {
 
         if (opsToBundle.length === 0) {
             childLogger.warn("all ops failed simulation")
-            this.markWalletProcessed(wallet)
             return {
                 status: "bundle_failure",
                 reason: "INTERNAL FAILURE",
@@ -683,7 +681,6 @@ export class Executor {
                     { error: e },
                     "insufficient funds, not submitting transaction"
                 )
-                this.markWalletProcessed(wallet)
                 return {
                     status: "bundle_resubmit",
                     reason: InsufficientFundsError.name,
@@ -696,7 +693,6 @@ export class Executor {
                 { error: JSON.stringify(err) },
                 "error submitting bundle transaction"
             )
-            this.markWalletProcessed(wallet)
             return {
                 status: "bundle_failure",
                 reason: "INTERNAL FAILURE",
