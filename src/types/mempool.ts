@@ -16,7 +16,6 @@ export type TransactionInfo = {
     entryPoint: Address
     isVersion06: boolean
     transactionRequest: {
-        account: Account
         to: Address
         gas: bigint
         chain: Chain
@@ -24,6 +23,7 @@ export type TransactionInfo = {
         maxPriorityFeePerGas: bigint
         nonce: number
     }
+    executor: Account
     userOperationInfos: UserOperationInfo[]
     lastReplaced: number
     firstSubmitted: number
@@ -68,11 +68,11 @@ export type BundleResult =
           // Encountered error whilst trying to bundle user operations.
           status: "bundle_failure"
           reason: string
-          userOpsBundled: UserOperation[]
+          userOps: UserOperation[]
       }
     | {
           // Encountered recoverable error whilst trying to bundle user operations.
           status: "bundle_resubmit"
           reason: string
-          userOpsBundled: UserOperation[]
+          userOps: UserOperation[]
       }

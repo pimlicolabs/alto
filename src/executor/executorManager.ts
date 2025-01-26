@@ -12,7 +12,8 @@ import {
     type UserOperation,
     type SubmittedUserOperation,
     type TransactionInfo,
-    type UserOperationInfo
+    type UserOperationInfo,
+    RejectedUserOperation
 } from "@alto/types"
 import type { BundlingStatus, Logger, Metrics } from "@alto/utils"
 import {
@@ -271,105 +272,34 @@ export class ExecutorManager {
             }
 
             if (bundle.status === "bundle_resubmit") {
-                const { userOpsBundled: userOperations, reason } = bundle
-
-                userOperations.map((op) => {
-                    this.logger.info(
-                        {
-                            userOpHash: this.getOpHash(op),
-                            reason
-                        },
-                        "resubmitting user operation"
-                    )
-                    this.mempool.removeProcessing(this.getOpHash(op))
-                    this.mempool.add(op, entryPoint)
-                    this.metrics.userOperationsResubmitted.inc()
-                })
+                const { userOps: userOperations, reason } = bundle
+                this.resubmitUserOperations(userOperations, entryPoint, reason)
             }
 
             if (bundle.status === "bundle_failure") {
-                const { userOpsBundled: userOperations, reason } = bundle
+                const { userOps, reason } = bundle
 
-                userOperations.map((op) => {
-                    const userOpHash = this.getOpHash(op)
-                    this.mempool.removeProcessing(userOpHash)
-                    this.eventManager.emitDropped(
-                        userOpHash,
-                        reason,
-                        getAAError(reason)
-                    )
-                    this.monitor.setUserOperationStatus(userOpHash, {
-                        status: "rejected",
-                        transactionHash: null
-                    })
-                    this.logger.warn(
-                        {
-                            userOperation: JSON.stringify(op, (_k, v) =>
-                                typeof v === "bigint" ? v.toString() : v
-                            ),
-                            userOpHash,
-                            reason
-                        },
-                        "user operation rejected"
-                    )
-                    this.metrics.userOperationsSubmitted
-                        .labels({ status: "failed" })
-                        .inc()
-                })
+                const droppedUserOperations = userOps.map((op) => ({
+                    userOperation: op,
+                    reason
+                }))
+                this.dropUserOperations(droppedUserOperations)
             }
 
             if (bundle.status === "bundle_success") {
                 const {
-                    userOpsBundled: userOperations,
+                    userOpsBundled,
                     rejectedUserOperations,
                     transactionInfo
                 } = bundle
                 txHashes.push(transactionInfo.transactionHash)
 
-                userOperations.map((op) => {
-                    const opHash = this.getOpHash(op)
+                this.markUserOperationsAsSubmitted(
+                    userOpsBundled,
+                    transactionInfo
+                )
 
-                    this.mempool.markSubmitted(opHash, transactionInfo)
-
-                    this.monitor.setUserOperationStatus(opHash, {
-                        status: "submitted",
-                        transactionHash: transactionInfo.transactionHash
-                    })
-
-                    this.startWatchingBlocks(this.handleBlock.bind(this))
-                    this.metrics.userOperationsSubmitted
-                        .labels({ status: "success" })
-                        .inc()
-                })
-
-                rejectedUserOperations.map(({ userOperation, reason }) => {
-                    const userOpHash = this.getOpHash(userOperation)
-                    this.mempool.removeProcessing(userOpHash)
-                    this.eventManager.emitDropped(
-                        userOpHash,
-                        reason,
-                        getAAError(reason)
-                    )
-                    this.monitor.setUserOperationStatus(userOpHash, {
-                        status: "rejected",
-                        transactionHash: null
-                    })
-                    this.logger.warn(
-                        {
-                            userOperation: JSON.stringify(
-                                userOperation,
-                                (_k, v) =>
-                                    typeof v === "bigint" ? v.toString() : v
-                            ),
-                            userOpHash,
-                            reason
-                        },
-                        "user operation rejected"
-                    )
-                    this.metrics.userOperationsSubmitted
-                        .labels({ status: "failed" })
-                        .inc()
-                })
+                this.dropUserOperations(rejectedUserOperations)
             }
         }
 
@@ -414,18 +344,6 @@ export class ExecutorManager {
         }
         this.unWatch = this.config.publicClient.watchBlocks({
             onBlock: handleBlock,
-            // onBlock: async (block) => {
-            //     // Use an arrow function to ensure correct binding of `this`
-            //     this.checkAndReplaceTransactions(block)
-            //         .then(() => {
-            //             this.logger.trace("block handled")
-            //             // Handle the resolution of the promise here, if needed
-            //         })
-            //         .catch((error) => {
-            //             // Handle any errors that occur during the execution of the promise
-            //             this.logger.error({ error }, "error while handling block")
-            //         })
-            // },
             onError: (error) => {
                 this.logger.error({ error }, "error while watching blocks")
             },
@@ -555,8 +473,7 @@ export class ExecutorManager {
                 )
             })
 
-            const txSender = transactionInfo.transactionRequest.account
-            this.executor.markWalletProcessed(txSender)
+            this.senderManager.markWalletProcessed(transactionInfo.executor)
         } else if (
             bundlingStatus.status === "reverted" &&
             bundlingStatus.isAA95
@@ -583,8 +500,7 @@ export class ExecutorManager {
             opInfos.map(({ userOperationHash }) => {
                 this.mempool.removeSubmitted(userOperationHash)
             })
-            const txSender = transactionInfo.transactionRequest.account
-            this.executor.markWalletProcessed(txSender)
+            this.senderManager.markWalletProcessed(transactionInfo.executor)
         }
     }
 
@@ -903,35 +819,19 @@ export class ExecutorManager {
         }
 
         if (replaceResult.status === "failed") {
-            txInfo.userOperationInfos.map((opInfo) => {
-                const userOperation = opInfo.userOperation
-
-                this.eventManager.emitDropped(
-                    opInfo.userOperationHash,
-                    "Failed to replace transaction"
-                )
-
-                this.logger.warn(
-                    {
-                        userOperation: JSON.stringify(userOperation, (_k, v) =>
-                            typeof v === "bigint" ? v.toString() : v
-                        ),
-                        userOpHash: opInfo.userOperationHash,
-                        reason
-                    },
-                    "user operation rejected"
-                )
-
-                const txSender = txInfo.transactionRequest.account
-                this.executor.markWalletProcessed(txSender)
-                this.mempool.removeSubmitted(opInfo.userOperationHash)
-            })
-
             this.logger.warn(
                 { oldTxHash: txInfo.transactionHash, reason },
                 "failed to replace transaction"
             )
 
+            const droppedUserOperations = txInfo.userOperationInfos.map(
+                (opInfo) => ({
+                    userOperation: opInfo.userOperation,
+                    reason: "Failed to replace transaction"
+                })
+            )
+            this.dropUserOperations(droppedUserOperations)
+            this.senderManager.markWalletProcessed(txInfo.executor)
             return
         }
 
@@ -946,9 +846,8 @@ export class ExecutorManager {
                 txInfo.userOperationInfos.map((opInfo) => {
                     this.mempool.removeSubmitted(opInfo.userOperationHash)
                 })
-                const txSender = txInfo.transactionRequest.account
-                this.executor.markWalletProcessed(txSender)
-
+                const txSender = txInfo.executor
+                this.senderManager.markWalletProcessed(txSender)
                 this.logger.warn(
                     { oldTxHash: txInfo.transactionHash, reason },
                     "transaction potentially already included too many times, removing"
@@ -999,5 +898,74 @@ export class ExecutorManager {
         )
 
         return
+    }
+
+    markUserOperationsAsSubmitted(
+        userOperations: UserOperation[],
+        transactionInfo: TransactionInfo
+    ) {
+        userOperations.map((op) => {
+            const opHash = this.getOpHash(op)
+
+            this.mempool.markSubmitted(opHash, transactionInfo)
+
+            this.monitor.setUserOperationStatus(opHash, {
+                status: "submitted",
+                transactionHash: transactionInfo.transactionHash
+            })
+
+            this.startWatchingBlocks(this.handleBlock.bind(this))
+            this.metrics.userOperationsSubmitted
+                .labels({ status: "success" })
+                .inc()
+        })
+    }
+
+    resubmitUserOperations(
+        userOperations: UserOperation[],
+        entryPoint: Address,
+        reason: string
+    ) {
+        userOperations.map((op) => {
+            this.logger.info(
+                {
+                    userOpHash: this.getOpHash(op),
+                    reason
+                },
+                "resubmitting user operation"
+            )
+            this.mempool.removeProcessing(this.getOpHash(op))
+            this.mempool.add(op, entryPoint)
+            this.metrics.userOperationsResubmitted.inc()
+        })
+    }
+
+    dropUserOperations(rejectedUserOperations: RejectedUserOperation[]) {
+        rejectedUserOperations.map(({ userOperation, reason }) => {
+            const userOpHash = this.getOpHash(userOperation)
+            this.mempool.removeProcessing(userOpHash)
+            this.eventManager.emitDropped(
+                userOpHash,
+                reason,
+                getAAError(reason)
+            )
+            this.monitor.setUserOperationStatus(userOpHash, {
+                status: "rejected",
+                transactionHash: null
+            })
+            this.logger.warn(
+                {
+                    userOperation: JSON.stringify(userOperation, (_k, v) =>
+                        typeof v === "bigint" ? v.toString() : v
+                    ),
+                    userOpHash,
+                    reason
+                },
+                "user operation rejected"
+            )
+            this.metrics.userOperationsSubmitted
+                .labels({ status: "failed" })
+                .inc()
+        })
     }
 }

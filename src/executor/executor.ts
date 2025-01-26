@@ -121,7 +121,9 @@ export class Executor {
             isVersion06,
             entryPoint,
             transactionRequest,
-            userOperationInfos
+            userOperationInfos,
+            executor,
+            transactionHash
         } = transactionInfo
 
         let gasPriceParameters: GasPriceParameters
@@ -159,14 +161,14 @@ export class Executor {
         })
 
         const childLogger = this.logger.child({
-            transactionHash: transactionInfo.transactionHash,
-            executor: transactionInfo.transactionRequest.account.address
+            transactionHash,
+            executor: executor
         })
 
         let bundleResult = await filterOpsAndEstimateGas({
             ep,
             isUserOpV06: isVersion06,
-            wallet: newRequest.account,
+            wallet: executor,
             ops: opsToResubmit,
             nonce: newRequest.nonce,
             maxFeePerGas: newRequest.maxFeePerGas,
@@ -231,7 +233,7 @@ export class Executor {
                         abi: undefined,
                         chain: undefined
                     },
-                    executor: newRequest.account.address,
+                    executor,
                     userOperations: this.getOpHashes(opsToBundle)
                 },
                 "replacing transaction"
@@ -241,13 +243,13 @@ export class Executor {
                 txParam,
                 opts: this.config.legacyTransactions
                     ? {
-                          account: newRequest.account,
+                          account: executor,
                           gasPrice: newRequest.maxFeePerGas,
                           gas: newRequest.gas,
                           nonce: newRequest.nonce
                       }
                     : {
-                          account: newRequest.account,
+                          account: executor,
                           maxFeePerGas: newRequest.maxFeePerGas,
                           maxPriorityFeePerGas: newRequest.maxPriorityFeePerGas,
                           gas: newRequest.gas,
@@ -495,12 +497,12 @@ export class Executor {
 
         const conflictingOps = submitted
             .filter((submitted) => {
-                const tx = submitted.transactionInfo
-                const txSender = tx.transactionRequest.account.address
+                const txInfo = submitted.transactionInfo
+                const txSender = txInfo.executor.address
 
                 return (
                     txSender === executor.address &&
-                    tx.transactionRequest.nonce === nonce
+                    txInfo.transactionRequest.nonce === nonce
                 )
             })
             .map(({ userOperation }) => userOperation)
@@ -514,6 +516,7 @@ export class Executor {
         })
 
         if (conflictingOps.length > 0) {
+            // TODO: what to do here?
             this.markWalletProcessed(executor)
         }
     }
@@ -567,7 +570,7 @@ export class Executor {
             return {
                 status: "bundle_resubmit",
                 reason: "Failed to get parameters for bundling",
-                userOpsBundled: ops
+                userOps: ops
             }
         }
 
@@ -591,7 +594,7 @@ export class Executor {
             return {
                 status: "bundle_failure",
                 reason: "INTERNAL FAILURE",
-                userOpsBundled: ops
+                userOps: ops
             }
         }
 
@@ -602,7 +605,7 @@ export class Executor {
             return {
                 status: "bundle_failure",
                 reason: "INTERNAL FAILURE",
-                userOpsBundled: ops
+                userOps: ops
             }
         }
 
@@ -684,7 +687,7 @@ export class Executor {
                 return {
                     status: "bundle_resubmit",
                     reason: InsufficientFundsError.name,
-                    userOpsBundled: ops
+                    userOps: ops
                 }
             }
 
@@ -696,7 +699,7 @@ export class Executor {
             return {
                 status: "bundle_failure",
                 reason: "INTERNAL FAILURE",
-                userOpsBundled: ops
+                userOps: ops
             }
         }
 
@@ -716,7 +719,6 @@ export class Executor {
             transactionHash: transactionHash,
             previousTransactionHashes: [],
             transactionRequest: {
-                account: wallet,
                 to: ep.address,
                 gas: gasLimit,
                 chain: this.config.walletClient.chain,
@@ -724,6 +726,7 @@ export class Executor {
                 maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
                 nonce: nonce
             },
+            executor: wallet,
             userOperationInfos,
             lastReplaced: Date.now(),
             firstSubmitted: Date.now(),
