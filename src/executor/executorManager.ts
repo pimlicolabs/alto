@@ -5,15 +5,14 @@ import type {
     Monitor
 } from "@alto/mempool"
 import {
-    type BundleResult,
     type BundlingMode,
     EntryPointV06Abi,
     type HexData32,
     type UserOperation,
     type SubmittedUserOperation,
     type TransactionInfo,
-    type UserOperationInfo,
-    RejectedUserOperation
+    RejectedUserOperation,
+    UserOperationBundle
 } from "@alto/types"
 import type { BundlingStatus, Logger, Metrics } from "@alto/utils"
 import {
@@ -31,8 +30,7 @@ import {
     TransactionReceiptNotFoundError,
     type WatchBlocksReturnType,
     getAbiItem,
-    Hex,
-    Account
+    Hex
 } from "viem"
 import type { Executor, ReplaceTransactionResult } from "./executor"
 import type { AltoConfig } from "../createConfig"
@@ -141,10 +139,17 @@ export class ExecutorManager {
             const opsCount: number = bundles
                 .map(({ userOperations }) => userOperations.length)
                 .reduce((a, b) => a + b)
-            const timestamp: number = Date.now()
-            this.opsCount.push(...Array(opsCount).fill(timestamp)) // Add timestamps for each task
 
-            await this.sendBundles(bundles)
+            // Add timestamps for each task
+            const timestamp = Date.now()
+            this.opsCount.push(...Array(opsCount).fill(timestamp))
+
+            // Send bundles to executor
+            await Promise.all(
+                bundles.map(async (bundle) => {
+                    await this.sendBundleToExecutor(bundle)
+                })
+            )
         }
 
         const rpm: number = this.opsCount.length
@@ -159,20 +164,17 @@ export class ExecutorManager {
         }
     }
 
-    async getMempoolBundles(maxBundleCount?: number) {
+    async getMempoolBundles(
+        maxBundleCount?: number
+    ): Promise<UserOperationBundle[]> {
         const bundlePromises = this.config.entrypoints.map(
             async (entryPoint) => {
-                const mempoolBundles = await this.mempool.process({
+                return await this.mempool.process({
                     entryPoint,
                     maxGasLimit: this.config.maxGasPerBundle,
                     minOpsPerBundle: 1,
                     maxBundleCount
                 })
-
-                return mempoolBundles.map((userOperations) => ({
-                    entryPoint,
-                    userOperations
-                }))
             }
         )
 
@@ -186,16 +188,11 @@ export class ExecutorManager {
     async sendBundleNow(): Promise<Hash> {
         const bundle = (await this.getMempoolBundles(1))[0]
 
-        const { entryPoint, userOperations } = bundle
-        if (userOperations.length === 0) {
+        if (bundle.userOperations.length === 0) {
             throw new Error("no ops to bundle")
         }
 
-        const txHashes = await this.sendBundleToExecutor(
-            entryPoint,
-            userOperations.map((op) => op.userOperation)
-        )
-        const txHash = txHashes[0]
+        const txHash = await this.sendBundleToExecutor(bundle)
 
         if (!txHash) {
             throw new Error("no tx hash")
@@ -212,101 +209,67 @@ export class ExecutorManager {
         )
     }
 
-    async sendBundleToExecutor(bundle: {
-        entryPoint: Address
-        userOps: UserOperation[]
-    }): Promise<Hex[]> {
-        if (bundle.userOps.length === 0) {
-            return []
+    async sendBundleToExecutor(
+        bundleToSend: UserOperationBundle
+    ): Promise<Hex | undefined> {
+        const { entryPoint, userOperations } = bundleToSend
+        if (userOperations.length === 0) {
+            return undefined
         }
 
-        const bundles: { wallet: Account; bundle: BundleResult }[] = []
-        if (userOps.length > 0) {
-            const wallet = await this.senderManager.getWallet()
-            bundles.push({
-                wallet,
-                bundle: await this.executor.bundle(wallet, entryPoint, userOps)
-            })
+        const wallet = await this.senderManager.getWallet()
+        const bundle = await this.executor.bundle(wallet, bundleToSend)
+
+        switch (bundle.status) {
+            case "bundle_success":
+                this.metrics.bundlesSubmitted
+                    .labels({ status: "success" })
+                    .inc()
+                break
+            case "bundle_failure":
+                this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
+                break
+            case "bundle_resubmit":
+                this.metrics.bundlesSubmitted
+                    .labels({ status: "resubmit" })
+                    .inc()
+                break
         }
 
-        let txHashes: Hex[] = []
-        for (const { wallet, bundle } of bundles) {
-            switch (bundle.status) {
-                case "bundle_success":
-                    this.metrics.bundlesSubmitted
-                        .labels({ status: "success" })
-                        .inc()
-                    break
-                case "bundle_failure":
-                    this.metrics.bundlesSubmitted
-                        .labels({ status: "failed" })
-                        .inc()
-                    break
-                case "bundle_resubmit":
-                    this.metrics.bundlesSubmitted
-                        .labels({ status: "resubmit" })
-                        .inc()
-                    break
-            }
-
-            // Free wallet if the wallet did not make a succesful bundle tx.
-            if (
-                bundle.status === "bundle_failure" ||
-                bundle.status === "bundle_resubmit"
-            ) {
-                this.senderManager.markWalletProcessed(wallet)
-            }
-
-            if (bundle.status === "bundle_resubmit") {
-                const { userOps: userOperations, reason } = bundle
-                this.resubmitUserOperations(userOperations, entryPoint, reason)
-            }
-
-            if (bundle.status === "bundle_failure") {
-                const { userOps, reason } = bundle
-
-                const droppedUserOperations = userOps.map((op) => ({
-                    userOperation: op,
-                    reason
-                }))
-                this.dropUserOperations(droppedUserOperations)
-            }
-
-            if (bundle.status === "bundle_success") {
-                const {
-                    userOpsBundled,
-                    rejectedUserOperations,
-                    transactionInfo
-                } = bundle
-                txHashes.push(transactionInfo.transactionHash)
-
-                this.markUserOperationsAsSubmitted(
-                    userOpsBundled,
-                    transactionInfo
-                )
-
-                this.dropUserOperations(rejectedUserOperations)
-            }
+        // Free wallet if the wallet did not make a succesful bundle tx.
+        if (
+            bundle.status === "bundle_failure" ||
+            bundle.status === "bundle_resubmit"
+        ) {
+            this.senderManager.markWalletProcessed(wallet)
         }
 
-        return txHashes
-    }
+        if (bundle.status === "bundle_resubmit") {
+            const { userOps: userOperations, reason } = bundle
+            this.resubmitUserOperations(userOperations, entryPoint, reason)
+        }
 
-    async sendBundles(
-        bundles: {
-            entryPoint: Address
-            userOperations: UserOperationInfo[]
-        }[] = []
-    ) {
-        await Promise.all(
-            bundles.map(async (bundle) => {
-                const { entryPoint, userOperations } = bundle
-                await this.sendBundleToExecutor(
-                    entryPoint,
-                    userOperations.map((op) => op.userOperation)
-                )
-            })
-        )
+        if (bundle.status === "bundle_failure") {
+            const { userOps, reason } = bundle
+
+            const droppedUserOperations = userOps.map((op) => ({
+                userOperation: op,
+                reason
+            }))
+            this.dropUserOperations(droppedUserOperations)
+        }
+
+        if (bundle.status === "bundle_success") {
+            const { userOpsBundled, rejectedUserOperations, transactionInfo } =
+                bundle
+
+            this.markUserOperationsAsSubmitted(userOpsBundled, transactionInfo)
+            this.dropUserOperations(rejectedUserOperations)
+
+            return transactionInfo.transactionHash
+        }
+
+        return undefined
     }
 
     startWatchingBlocks(handleBlock: (block: Block) => void): void {

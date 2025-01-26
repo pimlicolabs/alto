@@ -28,6 +28,12 @@ export type TransactionInfo = {
     timesPotentiallyIncluded: number
 }
 
+export type UserOperationBundle = {
+    entryPoint: Address
+    version: "0.6" | "0.7"
+    userOperations: UserOperation[]
+}
+
 export type UserOperationInfo = {
     userOperation: UserOperation
     userOperationHash: HexData32

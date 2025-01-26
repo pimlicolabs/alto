@@ -14,7 +14,8 @@ import {
     type UserOperation,
     type UserOperationInfo,
     ValidationErrors,
-    type ValidationResult
+    type ValidationResult,
+    UserOperationBundle
 } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import type { Logger } from "@alto/utils"
@@ -679,7 +680,7 @@ export class MemoryMempool {
         entryPoint: Address
         minOpsPerBundle: number
         maxBundleCount?: number
-    }): Promise<UserOperationInfo[][]> {
+    }): Promise<UserOperationBundle[]> {
         let outstandingUserOperations = this.store
             .dumpOutstanding()
             .filter((op) => op.entryPoint === entryPoint)
@@ -709,7 +710,18 @@ export class MemoryMempool {
             })
             .slice()
 
-        const bundles: UserOperationInfo[][] = []
+        // Get EntryPoint version. (Ideally version should be derived from EntryPoint)
+        const isV6 = isVersion06(outstandingUserOperations[0].userOperation)
+        const allSameVersion = outstandingUserOperations.every(
+            ({ userOperation }) => isVersion06(userOperation) === isV6
+        )
+        if (!allSameVersion) {
+            throw new Error(
+                "All user operations from same EntryPoint must be of the same version"
+            )
+        }
+
+        const bundles: UserOperationBundle[] = []
 
         // Process all outstanding ops.
         while (outstandingUserOperations.length > 0) {
@@ -718,8 +730,12 @@ export class MemoryMempool {
                 break
             }
 
-            // Reset state per bundle
-            const currentBundle: UserOperationInfo[] = []
+            // Setup for next bundle.
+            const currentBundle: UserOperationBundle = {
+                entryPoint,
+                version: isV6 ? "0.6" : "0.7",
+                userOperations: []
+            }
             let gasUsed = 0n
 
             let paymasterDeposit: { [paymaster: string]: bigint } = {} // paymaster deposit should be enough for all UserOps in the bundle.
@@ -755,7 +771,7 @@ export class MemoryMempool {
                 // Only break on gas limit if we've hit minOpsPerBundle.
                 if (
                     gasUsed > maxGasLimit &&
-                    currentBundle.length >= minOpsPerBundle
+                    currentBundle.userOperations.length >= minOpsPerBundle
                 ) {
                     outstandingUserOperations.unshift(opInfo) // re-add op to front of queue
                     break
@@ -773,10 +789,10 @@ export class MemoryMempool {
                 this.store.addProcessing(opInfo)
 
                 // Add op to current bundle
-                currentBundle.push(opInfo)
+                currentBundle.userOperations.push(op)
             }
 
-            if (currentBundle.length > 0) {
+            if (currentBundle.userOperations.length > 0) {
                 bundles.push(currentBundle)
             }
         }

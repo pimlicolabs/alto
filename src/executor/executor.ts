@@ -10,7 +10,8 @@ import {
     type TransactionInfo,
     type UserOperation,
     type UserOperationV07,
-    type GasPriceParameters
+    type GasPriceParameters,
+    UserOperationBundle
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import {
@@ -521,21 +522,12 @@ export class Executor {
 
     async bundle(
         wallet: Account,
-        entryPoint: Address,
-        ops: UserOperation[]
+        bundle: UserOperationBundle
     ): Promise<BundleResult> {
-        // Find bundle EntryPoint version.
-        const firstOpVersion = isVersion06(ops[0])
-        const allSameVersion = ops.every(
-            (op) => isVersion06(op) === firstOpVersion
-        )
-        if (!allSameVersion) {
-            throw new Error("All user operations must be of the same version")
-        }
-        const isUserOpV06 = firstOpVersion
+        const { entryPoint, userOperations, version } = bundle
 
         const ep = getContract({
-            abi: isUserOpV06 ? EntryPointV06Abi : EntryPointV07Abi,
+            abi: version === "0.6" ? EntryPointV06Abi : EntryPointV07Abi,
             address: entryPoint,
             client: {
                 public: this.config.publicClient,
@@ -544,7 +536,7 @@ export class Executor {
         })
 
         let childLogger = this.logger.child({
-            userOperations: this.getOpHashes(ops),
+            userOperations: this.getOpHashes(userOperations),
             entryPoint
         })
         childLogger.debug("bundling user operation")
@@ -568,15 +560,15 @@ export class Executor {
             return {
                 status: "bundle_resubmit",
                 reason: "Failed to get parameters for bundling",
-                userOps: ops
+                userOps: userOperations
             }
         }
 
         let estimateResult = await filterOpsAndEstimateGas({
-            isUserOpV06,
+            isUserOpV06: version === "0.6",
+            ops: userOperations,
             ep,
             wallet,
-            ops,
             nonce,
             maxFeePerGas: gasPriceParameters.maxFeePerGas,
             maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
@@ -592,7 +584,7 @@ export class Executor {
             return {
                 status: "bundle_failure",
                 reason: "INTERNAL FAILURE",
-                userOps: ops
+                userOps: userOperations
             }
         }
 
@@ -603,7 +595,7 @@ export class Executor {
             return {
                 status: "bundle_failure",
                 reason: "INTERNAL FAILURE",
-                userOps: ops
+                userOps: userOperations
             }
         }
 
@@ -655,7 +647,7 @@ export class Executor {
 
             // TODO: move this to a seperate utility
             const userOps = opsToBundle.map((op) => {
-                if (isUserOpV06) {
+                if (version === "0.6") {
                     return op
                 }
                 return toPackedUserOperation(op as UserOperationV07)
@@ -665,7 +657,7 @@ export class Executor {
                 txParam: {
                     ops: userOps,
                     isReplacementTx: false,
-                    isUserOpVersion06: isUserOpV06,
+                    isUserOpVersion06: version === "0.6",
                     entryPoint
                 },
                 opts
@@ -685,7 +677,7 @@ export class Executor {
                 return {
                     status: "bundle_resubmit",
                     reason: InsufficientFundsError.name,
-                    userOps: ops
+                    userOps: userOperations
                 }
             }
 
@@ -697,7 +689,7 @@ export class Executor {
             return {
                 status: "bundle_failure",
                 reason: "INTERNAL FAILURE",
-                userOps: ops
+                userOps: userOperations
             }
         }
 
@@ -713,7 +705,7 @@ export class Executor {
 
         const transactionInfo: TransactionInfo = {
             entryPoint,
-            isVersion06: isUserOpV06,
+            isVersion06: version === "0.6",
             transactionHash: transactionHash,
             previousTransactionHashes: [],
             transactionRequest: {
