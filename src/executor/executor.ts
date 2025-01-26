@@ -38,7 +38,6 @@ import {
     NonceTooHighError
 } from "viem"
 import {
-    filterOpsAndEstimateGas,
     flushStuckTransaction,
     isTransactionUnderpricedError,
     getAuthorizationList
@@ -47,6 +46,7 @@ import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { SendTransactionOptions } from "./types"
 import { sendPflConditional } from "./fastlane"
+import { filterOpsAndEstimateGas } from "./filterOpsAndEStimateGas"
 
 export interface GasEstimateResult {
     preverificationGas: bigint
@@ -133,7 +133,13 @@ export class Executor {
     async replaceTransaction(
         transactionInfo: TransactionInfo
     ): Promise<ReplaceTransactionResult> {
-        const newRequest = { ...transactionInfo.transactionRequest }
+        const {
+            isVersion06,
+            entryPoint,
+            transactionRequest,
+            executor,
+            userOperationInfos
+        } = transactionInfo
 
         let gasPriceParameters: GasPriceParameters
         try {
@@ -144,51 +150,25 @@ export class Executor {
             return { status: "failed" }
         }
 
-        newRequest.maxFeePerGas = scaleBigIntByPercent(
-            gasPriceParameters.maxFeePerGas,
-            115n
-        )
-        newRequest.maxPriorityFeePerGas = scaleBigIntByPercent(
-            gasPriceParameters.maxPriorityFeePerGas,
-            115n
-        )
-        newRequest.account = transactionInfo.executor
+        const newRequest = {
+            ...transactionRequest,
+            account: executor,
+            maxFeePerGas: scaleBigIntByPercent(
+                gasPriceParameters.maxFeePerGas,
+                115n
+            ),
+            maxPriorityFeePerGas: scaleBigIntByPercent(
+                gasPriceParameters.maxPriorityFeePerGas,
+                115n
+            )
+        }
 
-        const opsWithHashes = transactionInfo.userOperationInfos.map(
-            (opInfo) => {
-                const op = opInfo.userOperation
-                return {
-                    userOperation: opInfo.userOperation,
-                    userOperationHash: getUserOperationHash(
-                        op,
-                        transactionInfo.entryPoint,
-                        this.config.walletClient.chain.id
-                    ),
-                    entryPoint: opInfo.entryPoint
-                }
-            }
-        )
-
-        const [isUserOpV06, entryPoint] = opsWithHashes.reduce(
-            (acc, owh) => {
-                if (
-                    acc[0] !== isVersion06(owh.userOperation) ||
-                    acc[1] !== owh.entryPoint
-                ) {
-                    throw new Error(
-                        "All user operations must be of the same version"
-                    )
-                }
-                return acc
-            },
-            [
-                isVersion06(opsWithHashes[0].userOperation),
-                opsWithHashes[0].entryPoint
-            ]
+        const opsToResubmit = userOperationInfos.map(
+            (optr) => optr.userOperation
         )
 
         const ep = getContract({
-            abi: isUserOpV06 ? EntryPointV06Abi : EntryPointV07Abi,
+            abi: isVersion06 ? EntryPointV06Abi : EntryPointV07Abi,
             address: entryPoint,
             client: {
                 public: this.config.publicClient,
@@ -203,9 +183,9 @@ export class Executor {
 
         let bundleResult = await filterOpsAndEstimateGas({
             ep,
-            isUserOpV06,
+            isUserOpV06: isVersion06,
             wallet: newRequest.account,
-            ops: opsWithHashes,
+            ops: opsToResubmit,
             nonce: newRequest.nonce,
             maxFeePerGas: newRequest.maxFeePerGas,
             maxPriorityFeePerGas: newRequest.maxPriorityFeePerGas,
@@ -251,13 +231,11 @@ export class Executor {
         let txParam: HandleOpsTxParam
 
         const userOps = opsToBundle.map((op) =>
-            isUserOpV06
-                ? op.userOperation
-                : toPackedUserOperation(op.userOperation as UserOperationV07)
+            isVersion06 ? op : toPackedUserOperation(op as UserOperationV07)
         ) as PackedUserOperation[]
 
         txParam = {
-            isUserOpVersion06: isUserOpV06,
+            isUserOpVersion06: isVersion06,
             isReplacementTx: true,
             ops: userOps,
             entryPoint: transactionInfo.entryPoint
@@ -272,9 +250,7 @@ export class Executor {
                         chain: undefined
                     },
                     executor: newRequest.account.address,
-                    ooooops: opsToBundle.map(
-                        (opInfo) => opInfo.userOperationHash
-                    )
+                    userOperations: this.getOpHashes(opsToBundle)
                 },
                 "replacing transaction"
             )
@@ -298,7 +274,7 @@ export class Executor {
             })
 
             this.eventManager.emitSubmitted(
-                opsToBundle.map((op) => op.userOperationHash),
+                this.getOpHashes(opsToBundle),
                 txHash
             )
 
@@ -311,13 +287,13 @@ export class Executor {
                     ...transactionInfo.previousTransactionHashes
                 ],
                 lastReplaced: Date.now(),
-                userOperationInfos: opsToBundle.map((opInfo) => {
+                userOperationInfos: opsToBundle.map((op) => {
                     return {
-                        entryPoint: opInfo.entryPoint,
-                        userOperation: opInfo.userOperation,
-                        userOperationHash: opInfo.userOperationHash,
+                        entryPoint,
+                        userOperation: op,
+                        userOperationHash: this.getOpHashes([op])[0],
                         lastReplaced: Date.now(),
-                        firstSubmitted: opInfo.firstSubmitted
+                        firstSubmitted: transactionInfo.firstSubmitted
                     }
                 })
             }
@@ -365,6 +341,16 @@ export class Executor {
             childLogger.warn({ error: e }, "error replacing transaction")
             return { status: "failed" }
         }
+    }
+
+    getOpHashes(userOperations: UserOperation[]): HexData32[] {
+        return userOperations.map((userOperation) => {
+            return getUserOperationHash(
+                userOperation,
+                this.config.entrypoints[0],
+                this.config.publicClient.chain.id
+            )
+        })
     }
 
     async flushStuckTransactions(): Promise<void> {
@@ -587,17 +573,6 @@ export class Executor {
     ): Promise<BundleResult> {
         const wallet = await this.senderManager.getWallet()
 
-        const opsWithHashes = ops.map((userOperation) => {
-            return {
-                userOperation,
-                userOperationHash: getUserOperationHash(
-                    userOperation,
-                    entryPoint,
-                    this.config.walletClient.chain.id
-                )
-            }
-        })
-
         // Find bundle EntryPoint version.
         const firstOpVersion = isVersion06(ops[0])
         const allSameVersion = ops.every(
@@ -618,7 +593,7 @@ export class Executor {
         })
 
         let childLogger = this.logger.child({
-            userOperations: opsWithHashes.map((oh) => oh.userOperationHash),
+            userOperations: this.getOpHashes(ops),
             entryPoint
         })
         childLogger.debug("bundling user operation")
@@ -643,7 +618,7 @@ export class Executor {
             return {
                 status: "resubmit",
                 reason: "Failed to get parameters for bundling",
-                userOperations: opsWithHashes.map((owh) => owh.userOperation)
+                userOperations: ops
             }
         }
 
@@ -651,7 +626,7 @@ export class Executor {
             isUserOpV06,
             ep,
             wallet,
-            ops: opsWithHashes,
+            ops,
             nonce,
             maxFeePerGas: gasPriceParameters.maxFeePerGas,
             maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
@@ -686,7 +661,7 @@ export class Executor {
         }
 
         childLogger = this.logger.child({
-            userOperations: opsToBundle.map((owh) => owh.userOperationHash),
+            userOperations: this.getOpHashes(opsToBundle),
             entryPoint
         })
 
@@ -696,9 +671,7 @@ export class Executor {
         let transactionHash: HexData32
         try {
             const isLegacyTransaction = this.config.legacyTransactions
-            const authorizationList = getAuthorizationList(
-                opsToBundle.map(({ userOperation }) => userOperation)
-            )
+            const authorizationList = getAuthorizationList(opsToBundle)
 
             let opts: SendTransactionOptions
             if (isLegacyTransaction) {
@@ -732,12 +705,12 @@ export class Executor {
                 }
             }
 
-            const userOps = opsToBundle.map(({ userOperation }) => {
+            // TODO: move this to a seperate utility
+            const userOps = opsToBundle.map((op) => {
                 if (isUserOpV06) {
-                    return userOperation
+                    return op
                 }
-
-                return toPackedUserOperation(userOperation as UserOperationV07)
+                return toPackedUserOperation(op as UserOperationV07)
             }) as PackedUserOperation[]
 
             transactionHash = await this.sendHandleOpsTransaction({
@@ -750,12 +723,10 @@ export class Executor {
                 opts
             })
 
-            opsToBundle.map(({ userOperationHash }) => {
-                this.eventManager.emitSubmitted(
-                    userOperationHash,
-                    transactionHash
-                )
-            })
+            this.eventManager.emitSubmitted(
+                this.getOpHashes(opsToBundle),
+                transactionHash
+            )
         } catch (err: unknown) {
             const e = parseViemError(err)
             if (e instanceof InsufficientFundsError) {
@@ -767,7 +738,7 @@ export class Executor {
                 return {
                     status: "resubmit",
                     reason: InsufficientFundsError.name,
-                    userOperations: opsToBundle.map((owh) => owh.userOperation)
+                    userOperations: ops
                 }
             }
 
@@ -780,15 +751,15 @@ export class Executor {
             return {
                 status: "failure",
                 reason: "INTERNAL FAILURE",
-                userOperations: opsWithHashes.map((owh) => owh.userOperation)
+                userOperations: ops
             }
         }
 
         const userOperationInfos = opsToBundle.map((op) => {
             return {
                 entryPoint,
-                userOperation: op.userOperation,
-                userOperationHash: op.userOperationHash,
+                userOperation: op,
+                userOperationHash: this.getOpHashes([op])[0],
                 lastReplaced: Date.now(),
                 firstSubmitted: Date.now()
             }
@@ -817,10 +788,8 @@ export class Executor {
 
         const userOperationResults: BundleResult = {
             status: "success",
-            userOperations: opsToBundle.map((sop) => sop.userOperation),
-            rejectedUserOperations: failedOps.map(
-                (sop) => sop.userOperationWithHash.userOperation
-            ),
+            userOperations: opsToBundle,
+            rejectedUserOperations: failedOps.map((sop) => sop.userOperation),
             transactionInfo
         }
 
@@ -831,7 +800,7 @@ export class Executor {
                     abi: undefined
                 },
                 txHash: transactionHash,
-                opHashes: opsToBundle.map((owh) => owh.userOperationHash)
+                opHashes: this.getOpHashes(opsToBundle)
             },
             "submitted bundle transaction"
         )
