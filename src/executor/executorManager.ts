@@ -30,10 +30,12 @@ import {
     TransactionReceiptNotFoundError,
     type WatchBlocksReturnType,
     getAbiItem,
-    Hex
+    Hex,
+    Account
 } from "viem"
 import type { Executor, ReplaceTransactionResult } from "./executor"
 import type { AltoConfig } from "../createConfig"
+import { SenderManager } from "./senderManager"
 
 function getTransactionsFromUserOperationEntries(
     entries: SubmittedUserOperation[]
@@ -53,6 +55,7 @@ const SCALE_FACTOR = 10 // Interval increases by 5ms per task per minute
 const RPM_WINDOW = 60000 // 1 minute window in ms
 
 export class ExecutorManager {
+    private senderManager: SenderManager
     private config: AltoConfig
     private executor: Executor
     private mempool: MemoryMempool
@@ -75,7 +78,8 @@ export class ExecutorManager {
         reputationManager,
         metrics,
         gasPriceManager,
-        eventManager
+        eventManager,
+        senderManager
     }: {
         config: AltoConfig
         executor: Executor
@@ -85,6 +89,7 @@ export class ExecutorManager {
         metrics: Metrics
         gasPriceManager: GasPriceManager
         eventManager: EventManager
+        senderManager: SenderManager
     }) {
         this.config = config
         this.reputationManager = reputationManager
@@ -100,6 +105,7 @@ export class ExecutorManager {
         this.metrics = metrics
         this.gasPriceManager = gasPriceManager
         this.eventManager = eventManager
+        this.senderManager = senderManager
 
         this.bundlingMode = this.config.bundleMode
 
@@ -223,13 +229,21 @@ export class ExecutorManager {
         entryPoint: Address,
         userOps: UserOperation[]
     ): Promise<Hex[]> {
-        const bundles: BundleResult[] = []
+        if (userOps.length === 0) {
+            return []
+        }
+
+        const bundles: { wallet: Account; bundle: BundleResult }[] = []
         if (userOps.length > 0) {
-            bundles.push(await this.executor.bundle(entryPoint, userOps))
+            const wallet = await this.senderManager.getWallet()
+            bundles.push({
+                wallet,
+                bundle: await this.executor.bundle(wallet, entryPoint, userOps)
+            })
         }
 
         let txHashes: Hex[] = []
-        for (const bundle of bundles) {
+        for (const { wallet, bundle } of bundles) {
             switch (bundle.status) {
                 case "bundle_success":
                     this.metrics.bundlesSubmitted

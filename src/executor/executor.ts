@@ -1,4 +1,3 @@
-import type { SenderManager } from "@alto/executor"
 import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type { InterfaceReputationManager, MemoryMempool } from "@alto/mempool"
 import {
@@ -37,11 +36,7 @@ import {
     BaseError,
     NonceTooHighError
 } from "viem"
-import {
-    flushStuckTransaction,
-    isTransactionUnderpricedError,
-    getAuthorizationList
-} from "./utils"
+import { isTransactionUnderpricedError, getAuthorizationList } from "./utils"
 import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { SendTransactionOptions } from "./types"
@@ -76,7 +71,6 @@ export type ReplaceTransactionResult =
 export class Executor {
     // private unWatch: WatchBlocksReturnType | undefined
     config: AltoConfig
-    senderManager: SenderManager
     logger: Logger
     metrics: Metrics
     reputationManager: InterfaceReputationManager
@@ -88,7 +82,6 @@ export class Executor {
     constructor({
         config,
         mempool,
-        senderManager,
         reputationManager,
         metrics,
         gasPriceManager,
@@ -96,7 +89,6 @@ export class Executor {
     }: {
         config: AltoConfig
         mempool: MemoryMempool
-        senderManager: SenderManager
         reputationManager: InterfaceReputationManager
         metrics: Metrics
         gasPriceManager: GasPriceManager
@@ -104,7 +96,6 @@ export class Executor {
     }) {
         this.config = config
         this.mempool = mempool
-        this.senderManager = senderManager
         this.reputationManager = reputationManager
         this.logger = config.getLogger(
             { module: "executor" },
@@ -121,13 +112,6 @@ export class Executor {
 
     cancelOps(_entryPoint: Address, _ops: UserOperation[]): Promise<void> {
         throw new Error("Method not implemented.")
-    }
-
-    markWalletProcessed(executor: Account) {
-        if (!this.senderManager.availableWallets.includes(executor)) {
-            this.senderManager.pushWallet(executor)
-        }
-        return Promise.resolve()
     }
 
     async replaceTransaction(
@@ -351,38 +335,6 @@ export class Executor {
         })
     }
 
-    async flushStuckTransactions(): Promise<void> {
-        const allWallets = new Set(this.senderManager.wallets)
-
-        const utilityWallet = this.senderManager.utilityAccount
-        if (utilityWallet) {
-            allWallets.add(utilityWallet)
-        }
-
-        const wallets = Array.from(allWallets)
-
-        const gasPrice = await this.gasPriceManager.tryGetNetworkGasPrice()
-
-        const promises = wallets.map((wallet) => {
-            try {
-                flushStuckTransaction(
-                    this.config.publicClient,
-                    this.config.walletClient,
-                    wallet,
-                    gasPrice.maxFeePerGas * 5n,
-                    this.logger
-                )
-            } catch (e) {
-                this.logger.error(
-                    { error: e },
-                    "error flushing stuck transaction"
-                )
-            }
-        })
-
-        await Promise.all(promises)
-    }
-
     async sendHandleOpsTransaction({
         txParam,
         opts
@@ -567,11 +519,10 @@ export class Executor {
     }
 
     async bundle(
+        wallet: Account,
         entryPoint: Address,
         ops: UserOperation[]
     ): Promise<BundleResult> {
-        const wallet = await this.senderManager.getWallet()
-
         // Find bundle EntryPoint version.
         const firstOpVersion = isVersion06(ops[0])
         const allSameVersion = ops.every(
@@ -613,7 +564,6 @@ export class Executor {
                 { error: err },
                 "Failed to get parameters for bundling"
             )
-            this.markWalletProcessed(wallet)
             return {
                 status: "bundle_resubmit",
                 reason: "Failed to get parameters for bundling",
@@ -654,7 +604,6 @@ export class Executor {
             return {
                 status: "bundle_failure",
                 reason: "INTERNAL FAILURE",
-                // TODO: we want to log the failure reason
                 userOpsBundled: ops
             }
         }
