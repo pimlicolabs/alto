@@ -38,6 +38,7 @@ import {
 import type { Executor } from "./executor"
 import type { AltoConfig } from "../createConfig"
 import { SenderManager } from "./senderManager"
+import { BaseError } from "abitype"
 
 function getTransactionsFromUserOperationEntries(
     entries: SubmittedUserOperation[]
@@ -518,7 +519,7 @@ export class ExecutorManager {
                             .inc(1)
                     } else {
                         this.monitor.setUserOperationStatus(userOperationHash, {
-                            status: "rejected",
+                            status: "failed",
                             transactionHash
                         })
                         this.eventManager.emitFailedOnChain(
@@ -533,7 +534,6 @@ export class ExecutorManager {
                             },
                             "user op failed onchain"
                         )
-
                         this.metrics.userOperationsOnChain
                             .labels({ status: "reverted" })
                             .inc(1)
@@ -773,26 +773,22 @@ export class ExecutorManager {
         txInfo: TransactionInfo,
         reason: string
     ): Promise<void> {
-        const { logger, gasPriceManager } = this
-
         let gasPriceParameters: GasPriceParameters
         try {
-            gasPriceParameters = await gasPriceManager.tryGetNetworkGasPrice()
+            gasPriceParameters =
+                await this.gasPriceManager.tryGetNetworkGasPrice()
         } catch (err) {
-            logger.error({ error: err }, "Failed to get network gas price")
             const { transactionHash, bundle } = txInfo
-
-            this.logger.warn(
-                { oldTxHash: transactionHash, reason },
-                "failed to replace transaction"
-            )
-            const droppedUserOperations = bundle.userOperations.map(
-                (userOperation) => ({
-                    userOperation,
-                    reason: "Failed to replace transaction"
-                })
-            )
-            this.dropUserOperations(droppedUserOperations)
+            this.failedToReplaceTransaction({
+                oldTxHash: transactionHash,
+                reason: "Failed to get network gas price",
+                rejectedUserOperations: bundle.userOperations.map(
+                    (userOperation) => ({
+                        userOperation,
+                        reason: "Failed to replace transaction"
+                    })
+                )
+            })
             this.senderManager.markWalletProcessed(txInfo.executor)
             return
         }
@@ -836,20 +832,18 @@ export class ExecutorManager {
         }
 
         if (bundleResult.status === "unhandled_simulation_failure") {
-            const { transactionHash, bundle } = txInfo
+            const { transactionHash } = txInfo
 
-            this.logger.warn(
-                { oldTxHash: transactionHash, reason },
-                "failed to replace transaction"
-            )
-
-            const droppedUserOperations = bundle.userOperations.map(
-                (userOperation) => ({
-                    userOperation,
-                    reason: "Failed to replace transaction"
-                })
-            )
-            this.dropUserOperations(droppedUserOperations)
+            this.failedToReplaceTransaction({
+                oldTxHash: transactionHash,
+                reason: bundleResult.reason,
+                rejectedUserOperations: bundleResult.userOps.map(
+                    (userOperation) => ({
+                        userOperation,
+                        reason: "Failed to replace transaction"
+                    })
+                )
+            })
             return
         }
 
@@ -863,20 +857,11 @@ export class ExecutorManager {
             )
 
             if (!potentiallyIncluded) {
-                this.logger.warn(
-                    { oldTxHash: txInfo.transactionHash, reason },
-                    "failed to replace transaction"
-                )
-
-                const droppedUserOperations = bundle.userOperations.map(
-                    (userOperation) => ({
-                        userOperation,
-                        reason: "Failed to replace transaction"
-                    })
-                )
-
-                this.dropUserOperations(droppedUserOperations)
-
+                this.failedToReplaceTransaction({
+                    oldTxHash: txInfo.transactionHash,
+                    reason: "all ops failed simulation",
+                    rejectedUserOperations: bundleResult.rejectedUserOps
+                })
                 return
             }
 
@@ -924,19 +909,19 @@ export class ExecutorManager {
                 return
             }
 
-            this.logger.warn(
-                { oldTxHash: txInfo.transactionHash, reason },
-                "failed to replace transaction"
-            )
-
-            const droppedUserOperations = bundle.userOperations.map(
-                (userOperation) => ({
-                    userOperation,
-                    reason: "Failed to replace transaction"
-                })
-            )
-
-            this.dropUserOperations(droppedUserOperations)
+            this.failedToReplaceTransaction({
+                oldTxHash: txInfo.transactionHash,
+                reason:
+                    bundleResult.reason instanceof BaseError
+                        ? bundleResult.reason.name
+                        : "INTERNAL FAILURE",
+                rejectedUserOperations: bundle.userOperations.map(
+                    (userOperation) => ({
+                        userOperation,
+                        reason: "Failed to replace transaction"
+                    })
+                )
+            })
 
             return
         }
@@ -945,13 +930,13 @@ export class ExecutorManager {
             rejectedUserOperations,
             userOpsBundled,
             transactionRequest: newTransactionRequest,
-            transactionHash
+            transactionHash: newTransactionHash
         } = bundleResult
 
         const newTxInfo: TransactionInfo = {
             ...txInfo,
             transactionRequest: newTransactionRequest,
-            transactionHash,
+            transactionHash: newTransactionHash,
             previousTransactionHashes: [
                 txInfo.transactionHash,
                 ...txInfo.previousTransactionHashes
@@ -972,18 +957,7 @@ export class ExecutorManager {
             this.mempool.replaceSubmitted(userOperationInfo, newTxInfo)
         })
 
-        rejectedUserOperations.map((opInfo) => {
-            const userOpHash = opInfo.userOperation.hash
-            this.mempool.removeSubmitted(userOpHash)
-            this.logger.warn(
-                {
-                    oldTxHash: txInfo.transactionHash,
-                    newTxHash: newTxInfo.transactionHash,
-                    reason
-                },
-                "rejected during replacement"
-            )
-        })
+        this.dropUserOperations(rejectedUserOperations)
 
         this.logger.info(
             {
@@ -1031,11 +1005,25 @@ export class ExecutorManager {
         })
     }
 
+    failedToReplaceTransaction({
+        oldTxHash,
+        reason,
+        rejectedUserOperations
+    }: {
+        oldTxHash: Hex
+        reason: string
+        rejectedUserOperations: RejectedUserOperation[]
+    }) {
+        this.logger.warn({ oldTxHash, reason }, "failed to replace transaction")
+        this.dropUserOperations(rejectedUserOperations)
+    }
+
     dropUserOperations(rejectedUserOperations: RejectedUserOperation[]) {
         rejectedUserOperations.map((rejectedUserOperation) => {
             const { userOperation, reason } = rejectedUserOperation
             const userOpHash = userOperation.hash
             this.mempool.removeProcessing(userOpHash)
+            this.mempool.removeSubmitted(userOpHash)
             this.eventManager.emitDropped(
                 userOpHash,
                 reason,
