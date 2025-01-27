@@ -214,24 +214,23 @@ export class ExecutorManager {
 
         const wallet = await this.senderManager.getWallet()
 
-        let nonce: number
-        let gasPriceParameters: GasPriceParameters
-        try {
-            ;[gasPriceParameters, nonce] = await Promise.all([
-                this.gasPriceManager.tryGetNetworkGasPrice(),
-                this.config.publicClient.getTransactionCount({
-                    address: wallet.address,
-                    blockTag: "latest"
-                })
-            ])
-        } catch (err) {
-            this.logger.error(
-                { error: err },
+        const [gasPriceParameters, nonce] = await Promise.all([
+            this.gasPriceManager.tryGetNetworkGasPrice(),
+            this.config.publicClient.getTransactionCount({
+                address: wallet.address,
+                blockTag: "latest"
+            })
+        ]).catch((_) => {
+            this.resubmitUserOperations(
+                bundle.userOperations,
+                bundle.entryPoint,
                 "Failed to get parameters for bundling"
             )
             this.senderManager.markWalletProcessed(wallet)
-            return undefined
-        }
+            return []
+        })
+
+        if (!gasPriceParameters || nonce === undefined) return undefined
 
         const bundleResult = await this.executor.bundle({
             wallet,
@@ -252,7 +251,7 @@ export class ExecutorManager {
             return undefined
         }
 
-        // Unhandled error during simulation
+        // Unhandled error during simulation.
         if (bundleResult.status === "unhandled_simulation_failure") {
             const { reason, userOps } = bundleResult
             const rejectedUserOps = userOps.map((op) => ({
@@ -275,7 +274,7 @@ export class ExecutorManager {
             return undefined
         }
 
-        // All other bundle submission errors are unhandled.
+        // Encountered unhandled error during bundle simulation.
         if (bundleResult.status === "bundle_submission_failure") {
             const { userOps } = bundleResult
             const droppedUserOperations = userOps.map((op) => ({
@@ -712,7 +711,6 @@ export class ExecutorManager {
         }
 
         this.currentlyHandlingBlock = true
-
         this.logger.debug({ blockNumber: block.number }, "handling block")
 
         const submittedEntries = this.mempool.dumpSubmittedOps()
@@ -735,33 +733,27 @@ export class ExecutorManager {
 
         await Promise.all(
             transactionInfos.map(async (txInfo) => {
-                if (
-                    txInfo.transactionRequest.maxFeePerGas >=
-                        gasPriceParameters.maxFeePerGas &&
-                    txInfo.transactionRequest.maxPriorityFeePerGas >=
-                        gasPriceParameters.maxPriorityFeePerGas
-                ) {
-                    return
-                }
+                const isMaxFeeTooLow =
+                    txInfo.transactionRequest.maxFeePerGas <
+                    gasPriceParameters.maxFeePerGas
 
-                await this.replaceTransaction(txInfo, "gas_price")
-            })
-        )
+                const isPriorityFeeTooLow =
+                    txInfo.transactionRequest.maxPriorityFeePerGas <
+                    gasPriceParameters.maxPriorityFeePerGas
 
-        // for any left check if enough time has passed, if so replace
-        const transactionInfos2 = getTransactionsFromUserOperationEntries(
-            this.mempool.dumpSubmittedOps()
-        )
-        await Promise.all(
-            transactionInfos2.map(async (txInfo) => {
-                if (
-                    Date.now() - txInfo.lastReplaced <
+                const isStuck =
+                    Date.now() - txInfo.lastReplaced >
                     this.config.resubmitStuckTimeout
-                ) {
+
+                if (isMaxFeeTooLow || isPriorityFeeTooLow) {
+                    await this.replaceTransaction(txInfo, "gas_price")
                     return
                 }
 
-                await this.replaceTransaction(txInfo, "stuck")
+                if (isStuck) {
+                    await this.replaceTransaction(txInfo, "stuck")
+                    return
+                }
             })
         )
 
@@ -772,18 +764,18 @@ export class ExecutorManager {
         txInfo: TransactionInfo,
         reason: string
     ): Promise<void> {
-        let gasPriceParameters: GasPriceParameters
-        try {
-            gasPriceParameters =
-                await this.gasPriceManager.tryGetNetworkGasPrice()
-        } catch (err) {
-            this.failedToReplaceTransaction({
-                txInfo,
-                reason: "Failed to get network gas price"
+        const gasPriceParameters = await this.gasPriceManager
+            .tryGetNetworkGasPrice()
+            .catch((_) => {
+                this.failedToReplaceTransaction({
+                    txInfo,
+                    reason: "Failed to get network gas price"
+                })
+                this.senderManager.markWalletProcessed(txInfo.executor)
+                return
             })
-            this.senderManager.markWalletProcessed(txInfo.executor)
-            return
-        }
+
+        if (!gasPriceParameters) return
 
         const { bundle, executor, transactionRequest } = txInfo
 
@@ -831,6 +823,7 @@ export class ExecutorManager {
             return
         }
 
+        // Free wallet if no bundle was sent.
         if (bundleResult.status !== "bundle_success") {
             this.senderManager.markWalletProcessed(txInfo.executor)
         }
