@@ -797,6 +797,8 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
 
+        await this.validateEip7702Auth(userOperation)
+
         return await this.estimateGas({
             apiVersion,
             userOperation,
