@@ -1,4 +1,4 @@
-import type { Address } from "viem"
+import type { Address, BaseError } from "viem"
 import type { Account } from "viem/accounts"
 import type { HexData32, UserOperation } from "."
 
@@ -83,7 +83,7 @@ export type BundleResult =
     | {
           // Encountered error whilst trying to bundle user operations.
           status: "bundle_submission_failure"
-          reason: string
+          reason: BaseError | "INTERNAL FAILURE"
           userOps: UserOperation[]
       }
 

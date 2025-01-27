@@ -114,205 +114,6 @@ export class Executor {
         throw new Error("Method not implemented.")
     }
 
-    async replaceTransaction(
-        transactionInfo: TransactionInfo
-    ): Promise<ReplaceTransactionResult> {
-        const { transactionRequest, executor, transactionHash, bundle } =
-            transactionInfo
-
-        const { userOperations, version, entryPoint } = bundle
-        const isVersion06 = version === "0.6"
-
-        let gasPriceParameters: GasPriceParameters
-        try {
-            gasPriceParameters =
-                await this.gasPriceManager.tryGetNetworkGasPrice()
-        } catch (err) {
-            this.logger.error({ error: err }, "Failed to get network gas price")
-            return { status: "failed" }
-        }
-
-        const newRequest = {
-            ...transactionRequest,
-            maxFeePerGas: scaleBigIntByPercent(
-                gasPriceParameters.maxFeePerGas,
-                115n
-            ),
-            maxPriorityFeePerGas: scaleBigIntByPercent(
-                gasPriceParameters.maxPriorityFeePerGas,
-                115n
-            )
-        }
-
-        const opsToResubmit = userOperations
-
-        const ep = getContract({
-            abi: isVersion06 ? EntryPointV06Abi : EntryPointV07Abi,
-            address: entryPoint,
-            client: {
-                public: this.config.publicClient,
-                wallet: this.config.walletClient
-            }
-        })
-
-        const childLogger = this.logger.child({
-            transactionHash,
-            executor: executor
-        })
-
-        let bundleResult = await filterOpsAndEstimateGas({
-            ep,
-            isUserOpV06: isVersion06,
-            wallet: executor,
-            ops: opsToResubmit,
-            nonce: newRequest.nonce,
-            maxFeePerGas: newRequest.maxFeePerGas,
-            maxPriorityFeePerGas: newRequest.maxPriorityFeePerGas,
-            reputationManager: this.reputationManager,
-            config: this.config,
-            logger: childLogger
-        })
-
-        if (bundleResult.status === "unexpectedFailure") {
-            return { status: "failed" }
-        }
-
-        let { opsToBundle, failedOps, gasLimit } = bundleResult
-
-        const allOpsFailed = (opsToBundle.length = 0)
-        const potentiallyIncluded = failedOps.every(
-            (op) =>
-                op.reason === "AA25 invalid account nonce" ||
-                op.reason === "AA10 sender already constructed"
-        )
-
-        if (allOpsFailed && potentiallyIncluded) {
-            childLogger.trace(
-                { reasons: failedOps.map((sop) => sop.reason) },
-                "all ops failed simulation with nonce error"
-            )
-            return { status: "potentially_already_included" }
-        }
-
-        if (allOpsFailed) {
-            childLogger.warn("no ops to bundle")
-            childLogger.warn("all ops failed simulation")
-            return { status: "failed" }
-        }
-
-        // sometimes the estimation rounds down, adding a fixed constant accounts for this
-        gasLimit += 10_000n
-
-        // ensures that we don't submit again with too low of a gas value
-        newRequest.gas = maxBigInt(newRequest.gas, gasLimit)
-
-        // update calldata to include only ops that pass simulation
-        let txParam: HandleOpsTxParam
-
-        txParam = {
-            isUserOpVersion06: isVersion06,
-            isReplacementTx: true,
-            ops: opsToBundle,
-            entryPoint: transactionInfo.bundle.entryPoint
-        }
-
-        try {
-            childLogger.info(
-                {
-                    newRequest: {
-                        ...newRequest,
-                        abi: undefined,
-                        chain: undefined
-                    },
-                    executor,
-                    userOperations: this.getOpHashes(opsToBundle)
-                },
-                "replacing transaction"
-            )
-
-            const txHash = await this.sendHandleOpsTransaction({
-                txParam,
-                opts: this.config.legacyTransactions
-                    ? {
-                          account: executor,
-                          gasPrice: newRequest.maxFeePerGas,
-                          gas: newRequest.gas,
-                          nonce: newRequest.nonce
-                      }
-                    : {
-                          account: executor,
-                          maxFeePerGas: newRequest.maxFeePerGas,
-                          maxPriorityFeePerGas: newRequest.maxPriorityFeePerGas,
-                          gas: newRequest.gas,
-                          nonce: newRequest.nonce
-                      }
-            })
-
-            this.eventManager.emitSubmitted({
-                userOpHashes: this.getOpHashes(opsToBundle),
-                transactionHash: txHash
-            })
-
-            const newTxInfo: TransactionInfo = {
-                ...transactionInfo,
-                transactionRequest: newRequest,
-                transactionHash: txHash,
-                previousTransactionHashes: [
-                    transactionInfo.transactionHash,
-                    ...transactionInfo.previousTransactionHashes
-                ],
-                lastReplaced: Date.now(),
-                bundle: {
-                    ...transactionInfo.bundle,
-                    userOperations: opsToBundle
-                }
-            }
-
-            return {
-                status: "replaced",
-                transactionInfo: newTxInfo
-            }
-        } catch (err: unknown) {
-            const e = parseViemError(err)
-            if (!e) {
-                sentry.captureException(err)
-                childLogger.error(
-                    { error: err },
-                    "unknown error replacing transaction"
-                )
-            }
-
-            if (e instanceof NonceTooLowError) {
-                childLogger.trace(
-                    { error: e },
-                    "nonce too low, potentially already included"
-                )
-                return { status: "potentially_already_included" }
-            }
-
-            if (e instanceof FeeCapTooLowError) {
-                childLogger.warn({ error: e }, "fee cap too low, not replacing")
-            }
-
-            if (e instanceof InsufficientFundsError) {
-                childLogger.warn(
-                    { error: e },
-                    "insufficient funds, not replacing"
-                )
-            }
-
-            if (e instanceof IntrinsicGasTooLowError) {
-                childLogger.warn(
-                    { error: e },
-                    "intrinsic gas too low, not replacing"
-                )
-            }
-
-            childLogger.warn({ error: e }, "error replacing transaction")
-            return { status: "failed" }
-        }
-    }
-
     getOpHashes(userOperations: UserOperation[]): HexData32[] {
         return userOperations.map((userOperation) => {
             return getUserOperationHash(
@@ -515,12 +316,14 @@ export class Executor {
         wallet,
         bundle,
         nonce,
-        gasPriceParameters
+        gasPriceParameters,
+        gasLimitSuggestion
     }: {
         wallet: Account
         bundle: UserOperationBundle
         nonce: number
         gasPriceParameters: GasPriceParameters
+        gasLimitSuggestion?: bigint
     }): Promise<BundleResult> {
         const { entryPoint, userOperations, version } = bundle
 
@@ -580,6 +383,9 @@ export class Executor {
 
         // sometimes the estimation rounds down, adding a fixed constant accounts for this
         gasLimit += 10_000n
+        gasLimit = gasLimitSuggestion
+            ? maxBigInt(gasLimit, gasLimitSuggestion)
+            : gasLimit
 
         let transactionHash: HexData32
         try {
@@ -634,14 +440,10 @@ export class Executor {
             })
         } catch (err: unknown) {
             const e = parseViemError(err)
-            if (e instanceof InsufficientFundsError) {
-                childLogger.error(
-                    { error: e },
-                    "insufficient funds, not submitting transaction"
-                )
+            if (e) {
                 return {
                     status: "bundle_submission_failure",
-                    reason: InsufficientFundsError.name,
+                    reason: e,
                     userOps: userOperations
                 }
             }
