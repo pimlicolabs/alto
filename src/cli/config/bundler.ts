@@ -132,8 +132,7 @@ export const compatibilityArgsSchema = z.object({
         "op-stack",
         "arbitrum",
         "hedera",
-        "mantle",
-        "skale"
+        "mantle"
     ]),
     "legacy-transactions": z.boolean(),
     "api-version": z
@@ -230,7 +229,10 @@ export const gasEstimationArgsSchema = z.object({
     "simulation-paymaster-post-op-gas-limit": z
         .string()
         .transform((val) => BigInt(val)),
-    "paymaster-gas-limit-multiplier": z.string().transform((val) => BigInt(val))
+    "paymaster-gas-limit-multiplier": z
+        .string()
+        .transform((val) => BigInt(val)),
+    "eth-call-sender-address": addressSchema.optional()
 })
 
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>
