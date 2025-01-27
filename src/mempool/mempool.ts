@@ -695,6 +695,8 @@ export class MemoryMempool {
             })
             .slice()
 
+        if (outstandingUserOperations.length === 0) return []
+
         // Get EntryPoint version. (Ideally version should be derived from CLI flags)
         const isV6 = isVersion06(outstandingUserOperations[0])
         const allSameVersion = outstandingUserOperations.every(

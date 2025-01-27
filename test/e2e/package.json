@@ -16,7 +16,7 @@
         "permissionless": "^0.2.1",
         "prool": "^0.0.16",
         "ts-node": "^10.9.2",
-        "viem": "^2.9.5",
+        "viem": "^2.22.15",
         "vitest": "^1.6.0",
         "wait-port": "^1.1.0"
     }
