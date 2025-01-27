@@ -226,9 +226,7 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
         "eth-call-sender-address": {
             description:
                 "For permissioned chains, eth_call simulations require a whitelisted address as the sender",
-            type: "string",
-            require: true,
-            default: "2000000"
+            type: "string"
         }
     }
 
