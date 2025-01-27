@@ -736,6 +736,8 @@ export class MemoryMempool {
                 const userOperation = outstandingUserOperations.shift()
                 if (!userOperation) break
 
+                // NOTE: currently if a userOp is skipped due to sender enforceUniqueSendersPerBundle it will be picked up
+                // again the next time mempool.process is called.
                 const skipResult = await this.shouldSkip(
                     userOperation,
                     paymasterDeposit,

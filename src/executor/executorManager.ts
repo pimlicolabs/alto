@@ -223,7 +223,7 @@ export class ExecutorManager {
             this.resubmitUserOperations(
                 bundle.userOperations,
                 bundle.entryPoint,
-                "Failed to get parameters for bundling"
+                "Failed to get nonce and gas parameters for bundling"
             )
             this.senderManager.markWalletProcessed(wallet)
             return []
