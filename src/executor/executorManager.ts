@@ -12,7 +12,6 @@ import {
     type TransactionInfo,
     RejectedUserOperation,
     UserOperationBundle,
-    GasPriceParameters,
     UserOperationWithHash
 } from "@alto/types"
 import type { BundlingStatus, Logger, Metrics } from "@alto/utils"
