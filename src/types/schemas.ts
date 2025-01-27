@@ -200,11 +200,6 @@ export type UserOperationRequest = {
     entryPoint: Address
 }
 
-export type UserOperationWithHash = {
-    userOperation: UserOperation
-    userOperationHash: HexData32
-}
-
 const jsonRpcSchema = z
     .object({
         jsonrpc: z.literal("2.0"),

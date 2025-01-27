@@ -9,8 +9,6 @@ import type {
     ApiVersion,
     PackedUserOperation,
     StateOverrides,
-    TransactionInfo,
-    UserOperationInfo,
     UserOperationV06,
     UserOperationV07
 } from "@alto/types"
@@ -839,69 +837,61 @@ export class RpcHandler implements IRpcEndpoint {
         userOperation: UserOperation,
         entryPoint: Address
     ) {
-        //if (!this.config.enableInstantBundlingEndpoint) {
-        //    throw new RpcError(
-        //        "pimlico_sendUserOperationNow endpoint is not enabled",
-        //        ValidationErrors.InvalidFields
-        //    )
-        //}
-        //this.ensureEntryPointIsSupported(entryPoint)
-        //const opHash = getUserOperationHash(
-        //    userOperation,
-        //    entryPoint,
-        //    this.config.publicClient.chain.id
-        //)
-        //await this.preMempoolChecks(
-        //    opHash,
-        //    userOperation,
-        //    apiVersion,
-        //    entryPoint
-        //)
-        //const result = (
-        //    await this.executor.bundle(entryPoint, [userOperation])
-        //)[0]
-        //if (result.status === "failure") {
-        //    const { userOpHash, reason } = result.error
-        //    this.monitor.setUserOperationStatus(userOpHash, {
-        //        status: "rejected",
-        //        transactionHash: null
-        //    })
-        //    this.logger.warn(
-        //        {
-        //            userOperation: JSON.stringify(
-        //                result.error.userOperation,
-        //                (_k, v) => (typeof v === "bigint" ? v.toString() : v)
-        //            ),
-        //            userOpHash,
-        //            reason
-        //        },
-        //        "user operation rejected"
-        //    )
-        //    this.metrics.userOperationsSubmitted
-        //        .labels({ status: "failed" })
-        //        .inc()
-        //    const { error } = result
-        //    throw new RpcError(
-        //        `userOperation reverted during simulation with reason: ${error.reason}`
-        //    )
-        //}
-        //const res = result as unknown as {
-        //    status: "success"
-        //    value: {
-        //        userOperation: UserOperationInfo
-        //        transactionInfo: TransactionInfo
-        //    }
-        //}
-        //const txSender = res.value.transactionInfo.executor.address
-        //this.executor.markWalletProcessed(txSender)
-        //// wait for receipt
-        //const receipt =
-        //    await this.config.publicClient.waitForTransactionReceipt({
-        //        hash: res.value.transactionInfo.transactionHash,
-        //        pollingInterval: 100
-        //    })
-        //const userOperationReceipt = parseUserOperationReceipt(opHash, receipt)
-        //return userOperationReceipt
+        if (!this.config.enableInstantBundlingEndpoint) {
+            throw new RpcError(
+                "pimlico_sendUserOperationNow endpoint is not enabled",
+                ValidationErrors.InvalidFields
+            )
+        }
+
+        this.ensureEntryPointIsSupported(entryPoint)
+        const opHash = getUserOperationHash(
+            userOperation,
+            entryPoint,
+            this.config.publicClient.chain.id
+        )
+
+        await this.preMempoolChecks(
+            opHash,
+            userOperation,
+            apiVersion,
+            entryPoint
+        )
+
+        // Prepare bundle
+        const userOperationWithHash = {
+            ...userOperation,
+            hash: getUserOperationHash(
+                userOperation,
+                entryPoint,
+                this.config.publicClient.chain.id
+            )
+        }
+        const bundle = {
+            entryPoint,
+            userOperations: [userOperationWithHash],
+            version: isVersion06(userOperation)
+                ? ("0.6" as const)
+                : ("0.7" as const)
+        }
+        const result = await this.executorManager.sendBundleToExecutor(bundle)
+
+        if (!result) {
+            throw new RpcError(
+                "unhandled error during bundle submission",
+                ValidationErrors.InvalidFields
+            )
+        }
+
+        // Wait for receipt.
+        const receipt =
+            await this.config.publicClient.waitForTransactionReceipt({
+                hash: result,
+                pollingInterval: 100
+            })
+
+        const userOperationReceipt = parseUserOperationReceipt(opHash, receipt)
+        return userOperationReceipt
     }
 
     async getNonceValue(userOperation: UserOperation, entryPoint: Address) {

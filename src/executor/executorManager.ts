@@ -305,6 +305,7 @@ export class ExecutorManager {
                 },
                 previousTransactionHashes: [],
                 lastReplaced: Date.now(),
+                firstSubmitted: Date.now(),
                 timesPotentiallyIncluded: 0
             }
 
@@ -399,15 +400,15 @@ export class ExecutorManager {
                 .labels({ status: bundlingStatus.status })
                 .inc(userOperations.length)
 
+            const firstSubmitted = transactionInfo.firstSubmitted
             const { userOperationDetails } = bundlingStatus
             userOperations.map((userOperation) => {
                 const userOpHash = userOperation.hash
                 const opDetails = userOperationDetails[userOpHash]
 
-                // TODO: keep this metric
-                //this.metrics.userOperationInclusionDuration.observe(
-                //    (Date.now() - firstSubmitted) / 1000
-                //)
+                this.metrics.userOperationInclusionDuration.observe(
+                    (Date.now() - firstSubmitted) / 1000
+                )
                 this.mempool.removeSubmitted(userOpHash)
                 this.reputationManager.updateUserOperationIncludedStatus(
                     userOperation,
@@ -728,10 +729,6 @@ export class ExecutorManager {
         // for all still not included check if needs to be replaced (based on gas price)
         const gasPriceParameters =
             await this.gasPriceManager.tryGetNetworkGasPrice()
-        this.logger.trace(
-            { gasPriceParameters },
-            "fetched gas price parameters"
-        )
 
         const transactionInfos = getTransactionsFromUserOperationEntries(
             this.mempool.dumpSubmittedOps()
@@ -966,7 +963,6 @@ export class ExecutorManager {
             }
         }
 
-        // TODO: FIX THIS USING BUDNLE_RESULT SUCCESS opsBundles + opsRejected
         userOpsBundled.map((userOperation) => {
             const userOperationInfo = {
                 userOperation,
@@ -985,7 +981,7 @@ export class ExecutorManager {
                     newTxHash: newTxInfo.transactionHash,
                     reason
                 },
-                "Rejected during replacement"
+                "rejected during replacement"
             )
         })
 
