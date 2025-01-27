@@ -789,7 +789,10 @@ export class MemoryMempool {
                 this.store.addProcessing(opInfo)
 
                 // Add op to current bundle
-                currentBundle.userOperations.push(op)
+                const chainId = this.config.publicClient.chain.id
+                const opHash = getUserOperationHash(op, entryPoint, chainId)
+                const opWithHash = { ...op, hash: opHash }
+                currentBundle.userOperations.push(opWithHash)
             }
 
             if (currentBundle.userOperations.length > 0) {

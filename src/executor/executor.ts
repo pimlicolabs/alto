@@ -15,7 +15,6 @@ import {
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import {
-    getUserOperationHash,
     maxBigInt,
     parseViemError,
     scaleBigIntByPercent,
@@ -24,8 +23,6 @@ import {
 import * as sentry from "@sentry/node"
 import { Mutex } from "async-mutex"
 import {
-    FeeCapTooLowError,
-    InsufficientFundsError,
     IntrinsicGasTooLowError,
     NonceTooLowError,
     TransactionExecutionError,
@@ -33,10 +30,9 @@ import {
     getContract,
     type Account,
     type Hex,
-    BaseError,
     NonceTooHighError
 } from "viem"
-import { isTransactionUnderpricedError, getAuthorizationList } from "./utils"
+import { getAuthorizationList } from "./utils"
 import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { SendTransactionOptions } from "./types"
@@ -114,16 +110,6 @@ export class Executor {
         throw new Error("Method not implemented.")
     }
 
-    getOpHashes(userOperations: UserOperation[]): HexData32[] {
-        return userOperations.map((userOperation) => {
-            return getUserOperationHash(
-                userOperation,
-                this.config.entrypoints[0],
-                this.config.publicClient.chain.id
-            )
-        })
-    }
-
     async sendHandleOpsTransaction({
         txParam,
         opts
@@ -174,7 +160,6 @@ export class Executor {
             this.config.executorGasMultiplier
         )
 
-        let isTransactionUnderPriced = false
         let attempts = 0
         let transactionHash: Hex | undefined
         const maxAttempts = 3
@@ -206,24 +191,6 @@ export class Executor {
 
                 break
             } catch (e: unknown) {
-                isTransactionUnderPriced = false
-
-                if (e instanceof BaseError) {
-                    if (isTransactionUnderpricedError(e)) {
-                        this.logger.warn("Transaction underpriced, retrying")
-
-                        request.maxFeePerGas = scaleBigIntByPercent(
-                            request.maxFeePerGas,
-                            150n
-                        )
-                        request.maxPriorityFeePerGas = scaleBigIntByPercent(
-                            request.maxPriorityFeePerGas,
-                            150n
-                        )
-                        isTransactionUnderPriced = true
-                    }
-                }
-
                 const error = e as SendTransactionErrorType
 
                 if (error instanceof TransactionExecutionError) {
@@ -264,52 +231,12 @@ export class Executor {
             }
         }
 
-        if (isTransactionUnderPriced) {
-            await this.handleTransactionUnderPriced({
-                nonce: request.nonce,
-                executor: request.account
-            })
-        }
-
         // needed for TS
         if (!transactionHash) {
             throw new Error("Transaction hash not assigned")
         }
 
         return transactionHash as Hex
-    }
-
-    // Occurs when tx was sent with conflicting nonce, we want to resubmit all conflicting ops
-    async handleTransactionUnderPriced({
-        nonce,
-        executor
-    }: { nonce: number; executor: Account }) {
-        const submitted = this.mempool.dumpSubmittedOps()
-
-        const conflictingOps = submitted
-            .filter((submitted) => {
-                const txInfo = submitted.transactionInfo
-                const txSender = txInfo.executor.address
-
-                return (
-                    txSender === executor.address &&
-                    txInfo.transactionRequest.nonce === nonce
-                )
-            })
-            .map(({ userOperation }) => userOperation)
-
-        conflictingOps.map((op) => {
-            this.logger.info(
-                `Resubmitting ${op.userOperationHash} due to transaction underpriced`
-            )
-            this.mempool.removeSubmitted(op.userOperationHash)
-            this.mempool.add(op.userOperation, op.entryPoint)
-        })
-
-        if (conflictingOps.length > 0) {
-            // TODO: what to do here?
-            // this.markWalletProcessed(executor)
-        }
     }
 
     async bundle({
@@ -337,7 +264,7 @@ export class Executor {
         })
 
         let childLogger = this.logger.child({
-            userOperations: this.getOpHashes(userOperations),
+            userOperations: userOperations.map((op) => op.hash),
             entryPoint
         })
 
@@ -377,7 +304,7 @@ export class Executor {
 
         // Update child logger with userOperations being sent for bundling.
         childLogger = this.logger.child({
-            userOperations: this.getOpHashes(opsToBundle),
+            userOperations: opsToBundle.map((op) => op.hash),
             entryPoint
         })
 
@@ -435,7 +362,7 @@ export class Executor {
             })
 
             this.eventManager.emitSubmitted({
-                userOpHashes: this.getOpHashes(opsToBundle),
+                userOpHashes: opsToBundle.map((op) => op.hash),
                 transactionHash
             })
         } catch (err: unknown) {
@@ -477,7 +404,7 @@ export class Executor {
             {
                 transactionRequest: bundleResult.transactionRequest,
                 txHash: transactionHash,
-                opHashes: this.getOpHashes(opsToBundle)
+                opHashes: opsToBundle.map((op) => op.hash)
             },
             "submitted bundle transaction"
         )

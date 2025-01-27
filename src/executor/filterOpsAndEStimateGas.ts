@@ -3,8 +3,8 @@ import {
     EntryPointV06Abi,
     EntryPointV07Abi,
     FailedOpWithRevert,
-    UserOperation,
     UserOperationV07,
+    UserOperationWithHash,
     failedOpErrorSchema,
     failedOpWithRevertErrorSchema
 } from "@alto/types"
@@ -32,14 +32,14 @@ import { getAuthorizationList } from "./utils"
 import * as sentry from "@sentry/node"
 
 type FailedOpWithReason = {
-    userOperation: UserOperation
+    userOperation: UserOperationWithHash
     reason: string
 }
 
 export type FilterOpsAndEstimateGasResult =
     | {
           status: "success"
-          opsToBundle: UserOperation[]
+          opsToBundle: UserOperationWithHash[]
           failedOps: FailedOpWithReason[]
           gasLimit: bigint
       }
@@ -74,7 +74,7 @@ export async function filterOpsAndEstimateGas({
     >
     isUserOpV06: boolean
     wallet: Account
-    ops: UserOperation[]
+    ops: UserOperationWithHash[]
     nonce: number
     maxFeePerGas: bigint
     maxPriorityFeePerGas: bigint

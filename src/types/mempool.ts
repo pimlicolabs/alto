@@ -1,4 +1,4 @@
-import type { Address, BaseError } from "viem"
+import type { Address, BaseError, Hex } from "viem"
 import type { Account } from "viem/accounts"
 import type { HexData32, UserOperation } from "."
 
@@ -28,7 +28,11 @@ export type TransactionInfo = {
 export type UserOperationBundle = {
     entryPoint: Address
     version: "0.6" | "0.7"
-    userOperations: UserOperation[]
+    userOperations: UserOperationWithHash[]
+}
+
+export type UserOperationWithHash = UserOperation & {
+    hash: Hex
 }
 
 export type UserOperationInfo = {
@@ -51,15 +55,15 @@ export type SubmittedUserOperation = {
 }
 
 export type RejectedUserOperation = {
-    userOperation: UserOperation
+    userOperation: UserOperationWithHash
     reason: string
 }
 
 export type BundleResult =
     | {
-          // Successfully bundled user operations.
+          // Successfully sent bundle.
           status: "bundle_success"
-          userOpsBundled: UserOperation[]
+          userOpsBundled: UserOperationWithHash[]
           rejectedUserOperations: RejectedUserOperation[]
           transactionHash: HexData32
           transactionRequest: {
@@ -73,18 +77,16 @@ export type BundleResult =
           // Encountered unhandled error during bundle simulation.
           status: "unhandled_simulation_failure"
           reason: string
-          userOps: UserOperation[]
+          userOps: UserOperationWithHash[]
       }
     | {
-          // All user operations failed simulation.
+          // All user operations failed during simulation.
           status: "all_ops_failed_simulation"
           rejectedUserOps: RejectedUserOperation[]
       }
     | {
-          // Encountered error whilst trying to bundle user operations.
+          // Encountered error whilst trying to send bundle.
           status: "bundle_submission_failure"
           reason: BaseError | "INTERNAL FAILURE"
-          userOps: UserOperation[]
+          userOps: UserOperationWithHash[]
       }
-
-export type BundleRequest = {}
