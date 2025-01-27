@@ -13,7 +13,6 @@ import {
     RejectedUserOperation,
     UserOperationBundle,
     GasPriceParameters,
-    BundleResult,
     UserOperationWithHash
 } from "@alto/types"
 import type { BundlingStatus, Logger, Metrics } from "@alto/utils"
@@ -249,7 +248,7 @@ export class ExecutorManager {
         // All ops failed simulation, drop them and return.
         if (bundleResult.status === "all_ops_failed_simulation") {
             const { rejectedUserOps } = bundleResult
-            this.dropUserOperations(rejectedUserOps)
+            this.dropUserOps(rejectedUserOps)
             return undefined
         }
 
@@ -260,7 +259,7 @@ export class ExecutorManager {
                 userOperation: op,
                 reason
             }))
-            this.dropUserOperations(rejectedUserOps)
+            this.dropUserOps(rejectedUserOps)
             this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
             return undefined
         }
@@ -283,7 +282,7 @@ export class ExecutorManager {
                 userOperation: op,
                 reason: "INTERNAL FAILURE"
             }))
-            this.dropUserOperations(droppedUserOperations)
+            this.dropUserOps(droppedUserOperations)
             this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
         }
 
@@ -311,7 +310,7 @@ export class ExecutorManager {
             }
 
             this.markUserOperationsAsSubmitted(userOpsBundled, transactionInfo)
-            this.dropUserOperations(rejectedUserOperations)
+            this.dropUserOps(rejectedUserOperations)
             this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
 
             return transactionHash
@@ -778,16 +777,9 @@ export class ExecutorManager {
             gasPriceParameters =
                 await this.gasPriceManager.tryGetNetworkGasPrice()
         } catch (err) {
-            const { transactionHash, bundle } = txInfo
             this.failedToReplaceTransaction({
-                oldTxHash: transactionHash,
-                reason: "Failed to get network gas price",
-                rejectedUserOperations: bundle.userOperations.map(
-                    (userOperation) => ({
-                        userOperation,
-                        reason: "Failed to replace transaction"
-                    })
-                )
+                txInfo,
+                reason: "Failed to get network gas price"
             })
             this.senderManager.markWalletProcessed(txInfo.executor)
             return
@@ -795,132 +787,80 @@ export class ExecutorManager {
 
         const { bundle, executor, transactionRequest } = txInfo
 
-        let bundleResult: BundleResult | undefined = undefined
+        const bundleResult = await this.executor.bundle({
+            wallet: executor,
+            bundle,
+            nonce: transactionRequest.nonce,
+            gasPriceParameters: {
+                maxFeePerGas: scaleBigIntByPercent(
+                    gasPriceParameters.maxFeePerGas,
+                    115n
+                ),
+                maxPriorityFeePerGas: scaleBigIntByPercent(
+                    gasPriceParameters.maxPriorityFeePerGas,
+                    115n
+                )
+            },
+            gasLimitSuggestion: transactionRequest.gas
+        })
 
-        try {
-            bundleResult = await this.executor.bundle({
-                wallet: executor,
-                bundle,
-                nonce: transactionRequest.nonce,
-                gasPriceParameters: {
-                    maxFeePerGas: scaleBigIntByPercent(
-                        gasPriceParameters.maxFeePerGas,
-                        115n
-                    ),
-                    maxPriorityFeePerGas: scaleBigIntByPercent(
-                        gasPriceParameters.maxPriorityFeePerGas,
-                        115n
-                    )
-                },
-                gasLimitSuggestion: transactionRequest.gas
-            })
-        } finally {
-            const replaceStatus =
-                bundleResult && bundleResult.status === "bundle_success"
-                    ? "succeeded"
-                    : "failed"
+        const replaceStatus =
+            bundleResult && bundleResult.status === "bundle_success"
+                ? "succeeded"
+                : "failed"
 
-            this.metrics.replacedTransactions
-                .labels({ reason, status: replaceStatus })
-                .inc()
+        this.metrics.replacedTransactions
+            .labels({ reason, status: replaceStatus })
+            .inc()
+
+        // Check if the transaction is potentially included.
+        const nonceTooLow =
+            bundleResult.status === "bundle_submission_failure" &&
+            bundleResult.reason instanceof NonceTooLowError
+        const allOpsFailedSimulation =
+            bundleResult.status === "all_ops_failed_simulation" &&
+            bundleResult.rejectedUserOps.every(
+                (op) =>
+                    op.reason === "AA25 invalid account nonce" ||
+                    op.reason === "AA10 sender already constructed"
+            )
+        const potentiallyIncluded = nonceTooLow || allOpsFailedSimulation
+
+        if (potentiallyIncluded) {
+            this.handlePotentiallyIncluded({ txInfo })
+            return
         }
 
-        // Mark wallet processed if failed to bundle.
         if (bundleResult.status !== "bundle_success") {
-            // TODO: only mark processed if not potentially included.
             this.senderManager.markWalletProcessed(txInfo.executor)
         }
 
         if (bundleResult.status === "unhandled_simulation_failure") {
-            const { transactionHash } = txInfo
-
             this.failedToReplaceTransaction({
-                oldTxHash: transactionHash,
-                reason: bundleResult.reason,
-                rejectedUserOperations: bundleResult.userOps.map(
-                    (userOperation) => ({
-                        userOperation,
-                        reason: "Failed to replace transaction"
-                    })
-                )
+                txInfo,
+                reason: bundleResult.reason
             })
             return
         }
 
         if (bundleResult.status === "all_ops_failed_simulation") {
-            const { rejectedUserOps } = bundleResult
-
-            const potentiallyIncluded = rejectedUserOps.every(
-                (op) =>
-                    op.reason === "AA25 invalid account nonce" ||
-                    op.reason === "AA10 sender already constructed"
-            )
-
-            if (!potentiallyIncluded) {
-                this.failedToReplaceTransaction({
-                    oldTxHash: txInfo.transactionHash,
-                    reason: "all ops failed simulation",
-                    rejectedUserOperations: bundleResult.rejectedUserOps
-                })
-                return
-            }
-
-            this.logger.info(
-                { oldTxHash: txInfo.transactionHash, reason },
-                "transaction potentially already included"
-            )
-            txInfo.timesPotentiallyIncluded += 1
-
-            if (txInfo.timesPotentiallyIncluded >= 3) {
-                txInfo.bundle.userOperations.map((userOperation) => {
-                    this.mempool.removeSubmitted(userOperation.hash)
-                })
-                const txSender = txInfo.executor
-                this.senderManager.markWalletProcessed(txSender)
-                this.logger.warn(
-                    { oldTxHash: txInfo.transactionHash, reason },
-                    "transaction potentially already included too many times, removing"
-                )
-            }
-
+            this.failedToReplaceTransaction({
+                txInfo,
+                reason: "all ops failed simulation",
+                rejectedUserOperations: bundleResult.rejectedUserOps
+            })
             return
         }
 
         if (bundleResult.status === "bundle_submission_failure") {
-            if (bundleResult.reason instanceof NonceTooLowError) {
-                this.logger.info(
-                    { oldTxHash: txInfo.transactionHash, reason },
-                    "transaction potentially already included"
-                )
-                txInfo.timesPotentiallyIncluded += 1
-
-                if (txInfo.timesPotentiallyIncluded >= 3) {
-                    txInfo.bundle.userOperations.map((userOperation) => {
-                        this.mempool.removeSubmitted(userOperation.hash)
-                    })
-                    const txSender = txInfo.executor
-                    this.senderManager.markWalletProcessed(txSender)
-                    this.logger.warn(
-                        { oldTxHash: txInfo.transactionHash, reason },
-                        "transaction potentially already included too many times, removing"
-                    )
-                }
-
-                return
-            }
+            const reason =
+                bundleResult.reason instanceof BaseError
+                    ? bundleResult.reason.name
+                    : "INTERNAL FAILURE"
 
             this.failedToReplaceTransaction({
-                oldTxHash: txInfo.transactionHash,
-                reason:
-                    bundleResult.reason instanceof BaseError
-                        ? bundleResult.reason.name
-                        : "INTERNAL FAILURE",
-                rejectedUserOperations: bundle.userOperations.map(
-                    (userOperation) => ({
-                        userOperation,
-                        reason: "Failed to replace transaction"
-                    })
-                )
+                txInfo,
+                reason
             })
 
             return
@@ -957,7 +897,8 @@ export class ExecutorManager {
             this.mempool.replaceSubmitted(userOperationInfo, newTxInfo)
         })
 
-        this.dropUserOperations(rejectedUserOperations)
+        // Drop all userOperations that were rejected during simulation.
+        this.dropUserOps(rejectedUserOperations)
 
         this.logger.info(
             {
@@ -1005,20 +946,54 @@ export class ExecutorManager {
         })
     }
 
-    failedToReplaceTransaction({
-        oldTxHash,
-        reason,
-        rejectedUserOperations
+    handlePotentiallyIncluded({
+        txInfo
     }: {
-        oldTxHash: Hex
-        reason: string
-        rejectedUserOperations: RejectedUserOperation[]
+        txInfo: TransactionInfo
     }) {
-        this.logger.warn({ oldTxHash, reason }, "failed to replace transaction")
-        this.dropUserOperations(rejectedUserOperations)
+        const { bundle, transactionHash: oldTxHash, executor } = txInfo
+
+        this.logger.info(
+            { oldTxHash },
+            "transaction potentially already included"
+        )
+        txInfo.timesPotentiallyIncluded += 1
+
+        if (txInfo.timesPotentiallyIncluded >= 3) {
+            bundle.userOperations.map((userOperation) => {
+                this.mempool.removeSubmitted(userOperation.hash)
+            })
+            this.logger.warn(
+                { oldTxHash },
+                "transaction potentially already included too many times, removing"
+            )
+            this.senderManager.markWalletProcessed(executor)
+        }
     }
 
-    dropUserOperations(rejectedUserOperations: RejectedUserOperation[]) {
+    failedToReplaceTransaction({
+        txInfo,
+        rejectedUserOperations,
+        reason
+    }: {
+        txInfo: TransactionInfo
+        rejectedUserOperations?: RejectedUserOperation[]
+        reason: string
+    }) {
+        const { executor, transactionHash: oldTxHash } = txInfo
+        this.logger.warn({ oldTxHash, reason }, "failed to replace transaction")
+        this.senderManager.markWalletProcessed(executor)
+
+        const opsToDrop =
+            rejectedUserOperations ??
+            txInfo.bundle.userOperations.map((userOperation) => ({
+                userOperation,
+                reason: "Failed to replace transaction"
+            }))
+        this.dropUserOps(opsToDrop)
+    }
+
+    dropUserOps(rejectedUserOperations: RejectedUserOperation[]) {
         rejectedUserOperations.map((rejectedUserOperation) => {
             const { userOperation, reason } = rejectedUserOperation
             const userOpHash = userOperation.hash
