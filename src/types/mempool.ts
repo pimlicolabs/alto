@@ -1,4 +1,4 @@
-import type { Address, Chain } from "viem"
+import type { Address } from "viem"
 import type { Account } from "viem/accounts"
 import type { HexData32, UserOperation } from "."
 
@@ -15,7 +15,6 @@ export type TransactionInfo = {
     previousTransactionHashes: HexData32[]
     transactionRequest: {
         gas: bigint
-        chain: Chain
         maxFeePerGas: bigint
         maxPriorityFeePerGas: bigint
         nonce: number
@@ -62,17 +61,28 @@ export type BundleResult =
           status: "bundle_success"
           userOpsBundled: UserOperation[]
           rejectedUserOperations: RejectedUserOperation[]
-          transactionInfo: TransactionInfo
+          transactionHash: HexData32
+          transactionRequest: {
+              gas: bigint
+              maxFeePerGas: bigint
+              maxPriorityFeePerGas: bigint
+              nonce: number
+          }
       }
     | {
-          // Encountered error whilst trying to bundle user operations.
-          status: "bundle_failure"
+          // Encountered unhandled error during bundle simulation.
+          status: "unhandled_simulation_failure"
           reason: string
           userOps: UserOperation[]
       }
     | {
-          // Encountered recoverable error whilst trying to bundle user operations.
-          status: "bundle_resubmit"
+          // All user operations failed simulation.
+          status: "all_ops_failed_simulation"
+          rejectedUserOps: RejectedUserOperation[]
+      }
+    | {
+          // Encountered error whilst trying to bundle user operations.
+          status: "bundle_submission_failure"
           reason: string
           userOps: UserOperation[]
       }

@@ -12,7 +12,8 @@ import {
     type SubmittedUserOperation,
     type TransactionInfo,
     RejectedUserOperation,
-    UserOperationBundle
+    UserOperationBundle,
+    GasPriceParameters
 } from "@alto/types"
 import type { BundlingStatus, Logger, Metrics } from "@alto/utils"
 import {
@@ -30,7 +31,8 @@ import {
     TransactionReceiptNotFoundError,
     type WatchBlocksReturnType,
     getAbiItem,
-    Hex
+    Hex,
+    InsufficientFundsError
 } from "viem"
 import type { Executor, ReplaceTransactionResult } from "./executor"
 import type { AltoConfig } from "../createConfig"
@@ -210,63 +212,101 @@ export class ExecutorManager {
     }
 
     async sendBundleToExecutor(
-        bundleToSend: UserOperationBundle
+        bundle: UserOperationBundle
     ): Promise<Hex | undefined> {
-        const { entryPoint, userOperations } = bundleToSend
+        const { entryPoint, userOperations, version } = bundle
         if (userOperations.length === 0) {
             return undefined
         }
 
         const wallet = await this.senderManager.getWallet()
-        const bundle = await this.executor.bundle(wallet, bundleToSend)
 
-        switch (bundle.status) {
-            case "bundle_success":
-                this.metrics.bundlesSubmitted
-                    .labels({ status: "success" })
-                    .inc()
-                break
-            case "bundle_failure":
-                this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
-                break
-            case "bundle_resubmit":
-                this.metrics.bundlesSubmitted
-                    .labels({ status: "resubmit" })
-                    .inc()
-                break
+        let nonce: number
+        let gasPriceParameters: GasPriceParameters
+        try {
+            ;[gasPriceParameters, nonce] = await Promise.all([
+                this.gasPriceManager.tryGetNetworkGasPrice(),
+                this.config.publicClient.getTransactionCount({
+                    address: wallet.address,
+                    blockTag: "latest"
+                })
+            ])
+        } catch (err) {
+            this.logger.error(
+                { error: err },
+                "Failed to get parameters for bundling"
+            )
+            this.senderManager.markWalletProcessed(wallet)
+            return undefined
         }
 
-        // Free wallet if the wallet did not make a succesful bundle tx.
-        if (
-            bundle.status === "bundle_failure" ||
-            bundle.status === "bundle_resubmit"
-        ) {
+        const bundleResult = await this.executor.bundle({
+            wallet,
+            bundle,
+            nonce,
+            gasPriceParameters
+        })
+
+        // Free wallet if no bundle was sent.
+        if (bundleResult.status !== "bundle_success") {
             this.senderManager.markWalletProcessed(wallet)
         }
 
-        if (bundle.status === "bundle_resubmit") {
-            const { userOps: userOperations, reason } = bundle
-            this.resubmitUserOperations(userOperations, entryPoint, reason)
+        // All ops failed simulation, drop them and return.
+        if (bundleResult.status === "all_ops_failed_simulation") {
+            const { rejectedUserOps } = bundleResult
+            this.dropUserOperations(rejectedUserOps, entryPoint)
+            return undefined
         }
 
-        if (bundle.status === "bundle_failure") {
-            const { userOps, reason } = bundle
+        // Resubmit if chosen executor has insufficient funds.
+        if (
+            bundleResult.status === "bundle_submission_failure" &&
+            bundleResult.reason === InsufficientFundsError.name
+        ) {
+            const { userOps: userOperations, reason } = bundleResult
+            this.resubmitUserOperations(userOperations, entryPoint, reason)
+            this.metrics.bundlesSubmitted.labels({ status: "resubmit" }).inc()
+            return undefined
+        }
 
+        if (bundleResult.status === "bundle_submission_failure") {
+            const { userOps } = bundleResult
             const droppedUserOperations = userOps.map((op) => ({
                 userOperation: op,
-                reason
+                reason: "INTERNAL FAILURE"
             }))
             this.dropUserOperations(droppedUserOperations, entryPoint)
+            this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
         }
 
-        if (bundle.status === "bundle_success") {
-            const { userOpsBundled, rejectedUserOperations, transactionInfo } =
-                bundle
+        if (bundleResult.status === "bundle_success") {
+            const {
+                userOpsBundled,
+                rejectedUserOperations,
+                transactionRequest,
+                transactionHash
+            } = bundleResult
+
+            const transactionInfo: TransactionInfo = {
+                executor: wallet,
+                transactionHash,
+                transactionRequest,
+                bundle: {
+                    entryPoint,
+                    version,
+                    userOperations: userOpsBundled
+                },
+                previousTransactionHashes: [],
+                lastReplaced: Date.now(),
+                timesPotentiallyIncluded: 0
+            }
 
             this.markUserOperationsAsSubmitted(userOpsBundled, transactionInfo)
             this.dropUserOperations(rejectedUserOperations, entryPoint)
+            this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
 
-            return transactionInfo.transactionHash
+            return transactionHash
         }
 
         return undefined
@@ -841,14 +881,7 @@ export class ExecutorManager {
     ) {
         userOperations.map((op) => {
             const opHash = this.getOpHash(op, transactionInfo.bundle.entryPoint)
-
             this.mempool.markSubmitted(opHash, transactionInfo)
-
-            this.monitor.setUserOperationStatus(opHash, {
-                status: "submitted",
-                transactionHash: transactionInfo.transactionHash
-            })
-
             this.startWatchingBlocks(this.handleBlock.bind(this))
             this.metrics.userOperationsSubmitted
                 .labels({ status: "success" })

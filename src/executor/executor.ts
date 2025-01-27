@@ -50,7 +50,7 @@ export interface GasEstimateResult {
 }
 
 export type HandleOpsTxParam = {
-    ops: PackedUserOperation[]
+    ops: UserOperation[]
     isUserOpVersion06: boolean
     isReplacementTx: boolean
     entryPoint: Address
@@ -209,14 +209,10 @@ export class Executor {
         // update calldata to include only ops that pass simulation
         let txParam: HandleOpsTxParam
 
-        const userOps = opsToBundle.map((op) =>
-            isVersion06 ? op : toPackedUserOperation(op as UserOperationV07)
-        ) as PackedUserOperation[]
-
         txParam = {
             isUserOpVersion06: isVersion06,
             isReplacementTx: true,
-            ops: userOps,
+            ops: opsToBundle,
             entryPoint: transactionInfo.bundle.entryPoint
         }
 
@@ -350,20 +346,24 @@ export class Executor {
                   nonce: number
               }
     }) {
-        let data: Hex
-        let to: Address
-
         const { isUserOpVersion06, ops, entryPoint } = txParam
-        data = encodeFunctionData({
+
+        const packedOps = ops.map((op) => {
+            if (isUserOpVersion06) {
+                return op
+            }
+            return toPackedUserOperation(op as UserOperationV07)
+        }) as PackedUserOperation[]
+
+        const data = encodeFunctionData({
             abi: isUserOpVersion06 ? EntryPointV06Abi : EntryPointV07Abi,
             functionName: "handleOps",
-            args: [ops, opts.account.address]
+            args: [packedOps, opts.account.address]
         })
-        to = entryPoint
 
         const request =
             await this.config.walletClient.prepareTransactionRequest({
-                to,
+                to: entryPoint,
                 data,
                 ...opts
             })
@@ -511,10 +511,17 @@ export class Executor {
         }
     }
 
-    async bundle(
-        wallet: Account,
+    async bundle({
+        wallet,
+        bundle,
+        nonce,
+        gasPriceParameters
+    }: {
+        wallet: Account
         bundle: UserOperationBundle
-    ): Promise<BundleResult> {
+        nonce: number
+        gasPriceParameters: GasPriceParameters
+    }): Promise<BundleResult> {
         const { entryPoint, userOperations, version } = bundle
 
         const ep = getContract({
@@ -530,30 +537,6 @@ export class Executor {
             userOperations: this.getOpHashes(userOperations),
             entryPoint
         })
-        childLogger.debug("bundling user operation")
-
-        // These calls can throw, so we try/catch them to mark wallet as processed in event of error.
-        let nonce: number
-        let gasPriceParameters: GasPriceParameters
-        try {
-            ;[gasPriceParameters, nonce] = await Promise.all([
-                this.gasPriceManager.tryGetNetworkGasPrice(),
-                this.config.publicClient.getTransactionCount({
-                    address: wallet.address,
-                    blockTag: "pending"
-                })
-            ])
-        } catch (err) {
-            childLogger.error(
-                { error: err },
-                "Failed to get parameters for bundling"
-            )
-            return {
-                status: "bundle_resubmit",
-                reason: "Failed to get parameters for bundling",
-                userOps: userOperations
-            }
-        }
 
         let estimateResult = await filterOpsAndEstimateGas({
             isUserOpV06: version === "0.6",
@@ -573,22 +556,21 @@ export class Executor {
                 "gas limit simulation encountered unexpected failure"
             )
             return {
-                status: "bundle_failure",
+                status: "unhandled_simulation_failure",
                 reason: "INTERNAL FAILURE",
                 userOps: userOperations
+            }
+        }
+
+        if (estimateResult.status === "allOpsFailedSimulation") {
+            childLogger.warn("all ops failed simulation")
+            return {
+                status: "all_ops_failed_simulation",
+                rejectedUserOps: estimateResult.failedOps
             }
         }
 
         let { gasLimit, opsToBundle, failedOps } = estimateResult
-
-        if (opsToBundle.length === 0) {
-            childLogger.warn("all ops failed simulation")
-            return {
-                status: "bundle_failure",
-                reason: "INTERNAL FAILURE",
-                userOps: userOperations
-            }
-        }
 
         // Update child logger with userOperations being sent for bundling.
         childLogger = this.logger.child({
@@ -636,17 +618,9 @@ export class Executor {
                 }
             }
 
-            // TODO: move this to a seperate utility
-            const userOps = opsToBundle.map((op) => {
-                if (version === "0.6") {
-                    return op
-                }
-                return toPackedUserOperation(op as UserOperationV07)
-            }) as PackedUserOperation[]
-
             transactionHash = await this.sendHandleOpsTransaction({
                 txParam: {
-                    ops: userOps,
+                    ops: opsToBundle,
                     isReplacementTx: false,
                     isUserOpVersion06: version === "0.6",
                     entryPoint
@@ -666,7 +640,7 @@ export class Executor {
                     "insufficient funds, not submitting transaction"
                 )
                 return {
-                    status: "bundle_resubmit",
+                    status: "bundle_submission_failure",
                     reason: InsufficientFundsError.name,
                     userOps: userOperations
                 }
@@ -678,54 +652,34 @@ export class Executor {
                 "error submitting bundle transaction"
             )
             return {
-                status: "bundle_failure",
+                status: "bundle_submission_failure",
                 reason: "INTERNAL FAILURE",
                 userOps: userOperations
             }
         }
 
-        const transactionInfo: TransactionInfo = {
-            bundle: {
-                entryPoint,
-                version,
-                userOperations: opsToBundle
-            },
-            transactionHash: transactionHash,
-            previousTransactionHashes: [],
-            transactionRequest: {
-                gas: gasLimit,
-                chain: this.config.walletClient.chain,
-                maxFeePerGas: gasPriceParameters.maxFeePerGas,
-                maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
-                nonce: nonce
-            },
-            executor: wallet,
-            lastReplaced: Date.now(),
-            timesPotentiallyIncluded: 0
-        }
-
-        const userOperationResults: BundleResult = {
+        const bundleResult: BundleResult = {
             status: "bundle_success",
             userOpsBundled: opsToBundle,
-            rejectedUserOperations: failedOps.map((sop) => ({
-                userOperation: sop.userOperation,
-                reason: sop.reason
-            })),
-            transactionInfo
+            rejectedUserOperations: failedOps,
+            transactionHash,
+            transactionRequest: {
+                gas: gasLimit,
+                maxFeePerGas: gasPriceParameters.maxFeePerGas,
+                maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
+                nonce
+            }
         }
 
         childLogger.info(
             {
-                transactionRequest: {
-                    ...transactionInfo.transactionRequest,
-                    abi: undefined
-                },
+                transactionRequest: bundleResult.transactionRequest,
                 txHash: transactionHash,
                 opHashes: this.getOpHashes(opsToBundle)
             },
             "submitted bundle transaction"
         )
 
-        return userOperationResults
+        return bundleResult
     }
 }

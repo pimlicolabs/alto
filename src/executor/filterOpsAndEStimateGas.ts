@@ -47,6 +47,10 @@ export type FilterOpsAndEstimateGasResult =
           status: "unexpectedFailure"
           reason: string
       }
+    | {
+          status: "allOpsFailedSimulation"
+          failedOps: FailedOpWithReason[]
+      }
 
 // Attempt to create a handleOps bundle + estimate bundling tx gas.
 export async function filterOpsAndEstimateGas({
@@ -210,6 +214,7 @@ export async function filterOpsAndEstimateGas({
                             125n
                         )
                     }
+
                     retriesLeft--
                     continue
                 }
@@ -278,5 +283,5 @@ export async function filterOpsAndEstimateGas({
         }
     }
 
-    return { status: "unexpectedFailure", reason: "All ops failed simulation" }
+    return { status: "allOpsFailedSimulation", failedOps }
 }
