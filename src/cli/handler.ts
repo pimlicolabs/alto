@@ -107,7 +107,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         chain
     })
 
-    // Some permissioned chains require a permission to make deployments.
+    // Some permissioned chains require a whitelisted address to make deployments.
     // In order for simulations to work, we need to make our eth_call's from a whitelisted address.
     if (args.ethCallSenderAddress) {
         const whitelistedSender = args.ethCallSenderAddress
