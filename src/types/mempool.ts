@@ -29,16 +29,11 @@ export type TransactionInfo = {
 export type UserOperationBundle = {
     entryPoint: Address
     version: "0.6" | "0.7"
-    userOperations: UserOperationWithHash[]
+    userOperations: UserOperationInfo[]
 }
 
-export type UserOperationWithHash = UserOperation & {
+export type UserOperationInfo = UserOperation & {
     hash: Hex
-}
-
-export type UserOperationInfo = {
-    userOperation: UserOperation
-    userOperationHash: HexData32
     entryPoint: Address
     referencedContracts?: ReferencedCodeHashes
 }
@@ -56,7 +51,7 @@ export type SubmittedUserOperation = {
 }
 
 export type RejectedUserOperation = {
-    userOperation: UserOperationWithHash
+    userOperation: UserOperationInfo
     reason: string
 }
 
@@ -64,7 +59,7 @@ export type BundleResult =
     | {
           // Successfully sent bundle.
           status: "bundle_success"
-          userOpsBundled: UserOperationWithHash[]
+          userOpsBundled: UserOperationInfo[]
           rejectedUserOperations: RejectedUserOperation[]
           transactionHash: HexData32
           transactionRequest: {
@@ -78,7 +73,7 @@ export type BundleResult =
           // Encountered unhandled error during bundle simulation.
           status: "unhandled_simulation_failure"
           reason: string
-          userOps: UserOperationWithHash[]
+          userOps: UserOperationInfo[]
       }
     | {
           // All user operations failed during simulation.
@@ -89,5 +84,5 @@ export type BundleResult =
           // Encountered error whilst trying to send bundle.
           status: "bundle_submission_failure"
           reason: BaseError | "INTERNAL FAILURE"
-          userOps: UserOperationWithHash[]
+          userOps: UserOperationInfo[]
       }

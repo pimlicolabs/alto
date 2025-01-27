@@ -576,9 +576,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.ensureDebugEndpointsAreEnabled("debug_bundler_dumpMempool")
         this.ensureEntryPointIsSupported(entryPoint)
 
-        return this.mempool
-            .dumpOutstanding()
-            .map(({ userOperation }) => userOperation)
+        return this.mempool.dumpOutstanding()
     }
 
     async debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
@@ -859,8 +857,9 @@ export class RpcHandler implements IRpcEndpoint {
         )
 
         // Prepare bundle
-        const userOperationWithHash = {
+        const userOperationInfo = {
             ...userOperation,
+            entryPoint,
             hash: getUserOperationHash(
                 userOperation,
                 entryPoint,
@@ -869,7 +868,7 @@ export class RpcHandler implements IRpcEndpoint {
         }
         const bundle = {
             entryPoint,
-            userOperations: [userOperationWithHash],
+            userOperations: [userOperationInfo],
             version: isVersion06(userOperation)
                 ? ("0.6" as const)
                 : ("0.7" as const)

@@ -25,7 +25,7 @@ export class MemoryStore {
 
         store.push(op)
         this.logger.debug(
-            { userOpHash: op.userOperationHash, store: "outstanding" },
+            { userOpHash: op.hash, store: "outstanding" },
             "added user op to mempool"
         )
         this.metrics.userOperationsInMempool
@@ -40,7 +40,7 @@ export class MemoryStore {
 
         store.push(op)
         this.logger.debug(
-            { userOpHash: op.userOperationHash, store: "processing" },
+            { userOpHash: op.hash, store: "processing" },
             "added user op to mempool"
         )
         this.metrics.userOperationsInMempool
@@ -50,13 +50,14 @@ export class MemoryStore {
             .inc()
     }
 
-    addSubmitted(op: SubmittedUserOperation) {
+    addSubmitted(submittedInfo: SubmittedUserOperation) {
+        const { userOperation } = submittedInfo
         const store = this.submittedUserOperations
 
-        store.push(op)
+        store.push(submittedInfo)
         this.logger.debug(
             {
-                userOpHash: op.userOperation.userOperationHash,
+                userOpHash: userOperation.hash,
                 store: "submitted"
             },
             "added user op to submitted mempool"
@@ -70,7 +71,7 @@ export class MemoryStore {
 
     removeOutstanding(userOpHash: HexData32) {
         const index = this.outstandingUserOperations.findIndex(
-            (op) => op.userOperationHash === userOpHash
+            (op) => op.hash === userOpHash
         )
         if (index === -1) {
             this.logger.warn(
@@ -94,7 +95,7 @@ export class MemoryStore {
 
     removeProcessing(userOpHash: HexData32) {
         const index = this.processingUserOperations.findIndex(
-            (op) => op.userOperationHash === userOpHash
+            (op) => op.hash === userOpHash
         )
         if (index === -1) {
             this.logger.warn(
@@ -118,7 +119,7 @@ export class MemoryStore {
 
     removeSubmitted(userOpHash: HexData32) {
         const index = this.submittedUserOperations.findIndex(
-            (op) => op.userOperation.userOperationHash === userOpHash
+            (op) => op.userOperation.hash === userOpHash
         )
         if (index === -1) {
             this.logger.warn(

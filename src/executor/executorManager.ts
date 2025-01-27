@@ -12,7 +12,7 @@ import {
     type TransactionInfo,
     RejectedUserOperation,
     UserOperationBundle,
-    UserOperationWithHash
+    UserOperationInfo
 } from "@alto/types"
 import type { BundlingStatus, Logger, Metrics } from "@alto/utils"
 import {
@@ -881,12 +881,7 @@ export class ExecutorManager {
         }
 
         userOpsBundled.map((userOperation) => {
-            const userOperationInfo = {
-                userOperation,
-                userOperationHash: userOperation.hash,
-                entryPoint: txInfo.bundle.entryPoint
-            }
-            this.mempool.replaceSubmitted(userOperationInfo, newTxInfo)
+            this.mempool.replaceSubmitted(userOperation, newTxInfo)
         })
 
         // Drop all userOperations that were rejected during simulation.
@@ -905,7 +900,7 @@ export class ExecutorManager {
     }
 
     markUserOperationsAsSubmitted(
-        userOperations: UserOperationWithHash[],
+        userOperations: UserOperationInfo[],
         transactionInfo: TransactionInfo
     ) {
         userOperations.map((op) => {
@@ -919,7 +914,7 @@ export class ExecutorManager {
     }
 
     resubmitUserOperations(
-        userOperations: UserOperationWithHash[],
+        userOperations: UserOperationInfo[],
         entryPoint: Address,
         reason: string
     ) {
