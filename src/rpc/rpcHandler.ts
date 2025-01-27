@@ -937,6 +937,23 @@ export class RpcHandler implements IRpcEndpoint {
                 ValidationErrors.InvalidFields
             )
         }
+
+        if (isVersion06(userOperation) && userOperation.initCode) {
+            throw new RpcError(
+                "Invalid EIP-7702 authorization: UserOperation cannot contain initCode.",
+                ValidationErrors.InvalidFields
+            )
+        }
+
+        if (
+            isVersion07(userOperation) &&
+            (userOperation.factoryData || userOperation.factory)
+        ) {
+            throw new RpcError(
+                "Invalid EIP-7702 authorization: UserOperation cannot contain factory or factoryData.",
+                ValidationErrors.InvalidFields
+            )
+        }
     }
 
     async getNonceValue(userOperation: UserOperation, entryPoint: Address) {
