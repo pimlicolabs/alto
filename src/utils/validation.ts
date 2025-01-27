@@ -426,8 +426,14 @@ export function calcDefaultPreVerificationGas(
     const callDataCost = packed
         .map((x) => (x === 0 ? ov.zeroByte : ov.nonZeroByte))
         .reduce((sum, x) => sum + x)
+
+    const authorizationCost = userOperation.eip7702Auth
+        ? 37500 // overhead for PER_EMPTY_ACCOUNT_COST + PER_AUTH_BASE_COST
+        : 0
+
     const ret = Math.round(
-        callDataCost +
+        authorizationCost +
+            callDataCost +
             ov.fixed / ov.bundleSize +
             ov.perUserOp +
             ov.perUserOpWord * lengthInWord

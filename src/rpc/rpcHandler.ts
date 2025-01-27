@@ -73,6 +73,7 @@ import {
 import { base, baseSepolia, optimism } from "viem/chains"
 import type { NonceQueuer } from "./nonceQueuer"
 import type { AltoConfig } from "../createConfig"
+import { recoverAuthorizationAddress } from "viem/experimental"
 
 export interface IRpcEndpoint {
     handleMethod(
@@ -796,6 +797,8 @@ export class RpcHandler implements IRpcEndpoint {
             )
         }
 
+        await this.validateEip7702Auth(userOperation)
+
         return await this.estimateGas({
             apiVersion,
             userOperation,
@@ -817,6 +820,7 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         this.ensureEntryPointIsSupported(entryPoint)
+        await this.validateEip7702Auth(userOperation)
 
         try {
             await this.addToMempoolIfValid(
@@ -913,6 +917,43 @@ export class RpcHandler implements IRpcEndpoint {
         const userOperationReceipt = parseUserOperationReceipt(opHash, receipt)
 
         return userOperationReceipt
+    }
+
+    async validateEip7702Auth(userOperation: UserOperation) {
+        if (!userOperation.eip7702Auth) {
+            throw new RpcError(
+                "UserOperation is missing eip7702Auth",
+                ValidationErrors.InvalidFields
+            )
+        }
+
+        // Check that auth is valid.
+        const sender = await recoverAuthorizationAddress({
+            authorization: userOperation.eip7702Auth
+        })
+        if (sender !== userOperation.sender) {
+            throw new RpcError(
+                "Invalid EIP-7702 authorization: The recovered signer address does not match the userOperation sender address",
+                ValidationErrors.InvalidFields
+            )
+        }
+
+        if (isVersion06(userOperation) && userOperation.initCode) {
+            throw new RpcError(
+                "Invalid EIP-7702 authorization: UserOperation cannot contain initCode.",
+                ValidationErrors.InvalidFields
+            )
+        }
+
+        if (
+            isVersion07(userOperation) &&
+            (userOperation.factoryData || userOperation.factory)
+        ) {
+            throw new RpcError(
+                "Invalid EIP-7702 authorization: UserOperation cannot contain factory or factoryData.",
+                ValidationErrors.InvalidFields
+            )
+        }
     }
 
     async getNonceValue(userOperation: UserOperation, entryPoint: Address) {
