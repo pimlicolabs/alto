@@ -36,8 +36,10 @@ if (process.env.SENTRY_DSN) {
         dsn: process.env.SENTRY_DSN,
         environment: process.env.ENVIRONMENT,
         beforeSend(event, hint) {
+            const errorType = event.exception?.values?.[0]?.type
+
             const shouldIgnore = SENTRY_IGNORE_ERRORS.some(
-                (error) => hint.originalException instanceof error
+                (error) => hint.originalException instanceof error || errorType === error.name
             )
 
             const logger = initProductionLogger("debug")
