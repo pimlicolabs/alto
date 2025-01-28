@@ -423,7 +423,7 @@ export class Executor {
         const bundleResult: BundleResult = {
             status: "bundle_success",
             userOpsBundled: opsToBundle,
-            rejectedUserOperations: failedOps,
+            rejectedUserOps: failedOps,
             transactionHash,
             transactionRequest: {
                 gas: gasLimit,
