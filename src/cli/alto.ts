@@ -15,7 +15,7 @@ import {
 } from "./config"
 import { registerCommandToYargs } from "./util"
 import { TimeoutError, HttpRequestError, InternalRpcError } from "viem"
-import { initDebugLogger, initProductionLogger } from "@alto/utils"
+import { initProductionLogger } from "@alto/utils"
 
 // Load environment variables from .env file
 if (process.env.DOTENV_CONFIG_PATH) {
