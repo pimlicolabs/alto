@@ -1,59 +1,54 @@
 {
-  "name": "root",
-  "version": "0.0.1",
-  "description": "A performant and modular ERC-4337 Bundler written in Typescript",
-  "repository": "https://github.com/pimlicolabs/alto.git",
-  "author": "Pimlico",
-  "license": "GPL-3.0-or-later",
-  "bin": {
-    "alto": "./src/lib/cli/alto.js"
-  },
-  "scripts": {
-    "prepare": "pnpm run build",
-    "clean": "rm -rf ./src/lib ./src/*.tsbuildinfo",
-    "clean-modules": "rm -rf ./src/node_modules node_modules",
-    "build": "pnpm -r run build",
-    "build:esm": "pnpm -r run build:esm",
-    "start": "node src/lib/cli/alto.js run",
-    "dev": "nodemon --ext ts,js,json --watch src --exec DOTENV_CONFIG_PATH=$(pwd)/.env ts-node --project src/tsconfig.json -r tsconfig-paths/register src/cli/alto.ts run",
-    "test": "pnpm --filter e2e run test",
-    "test:ci": "pnpm --filter e2e run test:ci",
-    "test:spec": "./test/spec-tests/run-spec-tests.sh",
-    "lint": "biome check .",
-    "lint:fix": "pnpm run lint --apply",
-    "format": "biome format . --write",
-    "bull": "^4.15.1",
-    "changeset": "changeset",
-    "changeset:release": "changeset publish",
-    "changeset:version": "changeset version && pnpm install --lockfile-only",
-    "sentry:sourcemaps": "sentry-cli sourcemaps inject --org pimlico --project alto ./src/lib && sentry-cli sourcemaps upload --org pimlico --project alto ./src/lib"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^1.5.1",
-    "@changesets/changelog-git": "^0.1.14",
-    "@changesets/changelog-github": "^0.4.8",
-    "@changesets/cli": "^2.26.2",
-    "@swc/core": "^1.3.102",
-    "@types/mocha": "^10.0.6",
-    "earl": "^1.1.0",
-    "mocha": "^10.2.0",
-    "nodemon": "^3.0.3",
-    "nyc": "^15.1.0",
-    "rome": "^12.1.3",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
-  },
-  "private": true,
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "workspaces": [
-    "src/",
-    "test/e2e/*",
-    "scripts/localDeployer"
-  ],
-  "packageManager": "pnpm@8.15.4+sha256.cea6d0bdf2de3a0549582da3983c70c92ffc577ff4410cbf190817ddc35137c2",
-  "dependencies": {
-    "@sentry/cli": "^2.41.1"
-  }
+    "name": "root",
+    "version": "0.0.1",
+    "description": "A performant and modular ERC-4337 Bundler written in Typescript",
+    "repository": "https://github.com/pimlicolabs/alto.git",
+    "author": "Pimlico",
+    "license": "GPL-3.0-or-later",
+    "bin": {
+        "alto": "./src/lib/cli/alto.js"
+    },
+    "scripts": {
+        "prepare": "pnpm run build",
+        "clean": "rm -rf ./src/lib ./src/*.tsbuildinfo",
+        "clean-modules": "rm -rf ./src/node_modules node_modules",
+        "build": "pnpm -r run build",
+        "build:esm": "pnpm -r run build:esm",
+        "start": "node src/lib/cli/alto.js run",
+        "dev": "nodemon --ext ts,js,json --watch src --exec DOTENV_CONFIG_PATH=$(pwd)/.env ts-node --project src/tsconfig.json -r tsconfig-paths/register src/cli/alto.ts run",
+        "test": "pnpm --filter e2e run test",
+        "test:ci": "pnpm --filter e2e run test:ci",
+        "test:spec": "./test/spec-tests/run-spec-tests.sh",
+        "lint": "biome check .",
+        "lint:fix": "pnpm run lint --apply",
+        "format": "biome format . --write",
+        "bull": "^4.15.1",
+        "changeset": "changeset",
+        "changeset:release": "changeset publish",
+        "changeset:version": "changeset version && pnpm install --lockfile-only",
+        "sentry:sourcemaps": "sentry-cli sourcemaps inject --org pimlico --project alto ./src/lib && sentry-cli sourcemaps upload --org pimlico --project alto ./src/lib"
+    },
+    "devDependencies": {
+        "@biomejs/biome": "^1.9.4",
+        "@changesets/changelog-git": "^0.1.14",
+        "@changesets/changelog-github": "^0.4.8",
+        "@changesets/cli": "^2.26.2",
+        "@swc/core": "^1.3.102",
+        "@types/mocha": "^10.0.6",
+        "earl": "^1.1.0",
+        "mocha": "^10.2.0",
+        "nodemon": "^3.0.3",
+        "nyc": "^15.1.0",
+        "rome": "^12.1.3",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.3.3"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "workspaces": ["src/", "test/e2e/*", "scripts/localDeployer"],
+    "packageManager": "pnpm@8.15.4+sha256.cea6d0bdf2de3a0549582da3983c70c92ffc577ff4410cbf190817ddc35137c2",
+    "dependencies": {
+        "@sentry/cli": "^2.41.1"
+    }
 }
