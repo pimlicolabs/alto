@@ -9,20 +9,14 @@ import {
     getAbiItem,
     isHex,
     slice,
-    Hex
+    type Hex
 } from "viem"
-import { formatAbiItem, rpc } from "viem/utils"
+import { formatAbiItem, getHttpRpcClient } from "viem/utils"
 import {
     EntryPointV06Abi,
     EntryPointV06SimulationsAbi
 } from "../types/contracts"
-
-export type RpcRequest = {
-    jsonrpc?: "2.0" | undefined
-    method: string
-    params?: any | undefined
-    id?: number | undefined
-}
+import type { RpcResponse, RpcRequest } from "viem/types/rpc"
 
 const EXECUTION_RESULT_SELECTOR = toFunctionSelector(
     formatAbiItem(
@@ -87,18 +81,23 @@ export function customTransport(
                 key,
                 name,
                 async request({ method, params }) {
-                    const body = { method, params }
-                    const fn = async (body: RpcRequest) => {
-                        return [
-                            await rpc.http(url, {
-                                body,
-                                fetchOptions,
-                                timeout
-                            })
-                        ]
-                    }
+                    let body: RpcRequest = { method, params }
+                    let rawResponse: RpcResponse | undefined = undefined
 
-                    const [{ error, result }] = await fn(body)
+                    const { error, result } = await getHttpRpcClient(
+                        url
+                    ).request({
+                        body: body,
+                        fetchOptions,
+                        timeout,
+                        onRequest: async (request) => {
+                            body = await request.clone().json()
+                        },
+                        onResponse: async (response) => {
+                            rawResponse = await response.clone().json()
+                        }
+                    })
+
                     if (error) {
                         let loggerFn = logger.error.bind(logger)
 
@@ -120,6 +119,7 @@ export function customTransport(
                         loggerFn(
                             {
                                 err: error,
+                                rawResponse: rawResponse ?? {},
                                 body
                             },
                             "received error response"
