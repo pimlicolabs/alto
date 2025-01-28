@@ -41,11 +41,14 @@ if (process.env.SENTRY_DSN) {
 
             const logger = initDebugLogger()
 
-            logger.info("sentry", {
-                event,
-                hint,
-                shouldIgnore
-            })
+            logger.info(
+                {
+                    event,
+                    hint,
+                    shouldIgnore
+                },
+                "sentry"
+            )
 
             if (shouldIgnore) {
                 return null
