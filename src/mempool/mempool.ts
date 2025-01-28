@@ -657,6 +657,26 @@ export class MemoryMempool {
         }
     }
 
+    public async getBundles(
+        maxBundleCount?: number
+    ): Promise<UserOperationBundle[]> {
+        const bundlePromises = this.config.entrypoints.map(
+            async (entryPoint) => {
+                return await this.process({
+                    entryPoint,
+                    maxGasLimit: this.config.maxGasPerBundle,
+                    minOpsPerBundle: 1,
+                    maxBundleCount
+                })
+            }
+        )
+
+        const bundlesNested = await Promise.all(bundlePromises)
+        const bundles = bundlesNested.flat()
+
+        return bundles
+    }
+
     // Returns a bundle of userOperations in array format.
     async process({
         maxGasLimit,

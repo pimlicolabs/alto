@@ -60,7 +60,7 @@ export type BundleResult =
           // Successfully sent bundle.
           status: "bundle_success"
           userOpsBundled: UserOperationInfo[]
-          rejectedUserOperations: RejectedUserOperation[]
+          rejectedUserOps: RejectedUserOperation[]
           transactionHash: HexData32
           transactionRequest: {
               gas: bigint
@@ -73,7 +73,6 @@ export type BundleResult =
           // Encountered unhandled error during bundle simulation.
           status: "unhandled_simulation_failure"
           reason: string
-          userOps: UserOperationInfo[]
       }
     | {
           // All user operations failed during simulation.
@@ -84,5 +83,6 @@ export type BundleResult =
           // Encountered error whilst trying to send bundle.
           status: "bundle_submission_failure"
           reason: BaseError | "INTERNAL FAILURE"
-          userOps: UserOperationInfo[]
+          userOpsToBundle: UserOperationInfo[]
+          rejectedUserOps: RejectedUserOperation[]
       }

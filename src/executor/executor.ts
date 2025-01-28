@@ -30,9 +30,10 @@ import {
     getContract,
     type Account,
     type Hex,
-    NonceTooHighError
+    NonceTooHighError,
+    BaseError
 } from "viem"
-import { getAuthorizationList } from "./utils"
+import { getAuthorizationList, isTransactionUnderpricedError } from "./utils"
 import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { SendTransactionOptions } from "./types"
@@ -47,7 +48,7 @@ export interface GasEstimateResult {
 
 export type HandleOpsTxParam = {
     ops: UserOperation[]
-    isUserOpVersion06: boolean
+    isUserOpV06: boolean
     isReplacementTx: boolean
     entryPoint: Address
 }
@@ -109,6 +110,7 @@ export class Executor {
     cancelOps(_entryPoint: Address, _ops: UserOperation[]): Promise<void> {
         throw new Error("Method not implemented.")
     }
+
     async sendHandleOpsTransaction({
         txParam,
         opts
@@ -132,17 +134,17 @@ export class Executor {
                   nonce: number
               }
     }) {
-        const { isUserOpVersion06, ops, entryPoint } = txParam
+        const { isUserOpV06, ops, entryPoint } = txParam
 
         const packedOps = ops.map((op) => {
-            if (isUserOpVersion06) {
+            if (isUserOpV06) {
                 return op
             }
             return toPackedUserOperation(op as UserOperationV07)
         }) as PackedUserOperation[]
 
         const data = encodeFunctionData({
-            abi: isUserOpVersion06 ? EntryPointV06Abi : EntryPointV07Abi,
+            abi: isUserOpV06 ? EntryPointV06Abi : EntryPointV07Abi,
             functionName: "handleOps",
             args: [packedOps, opts.account.address]
         })
@@ -168,7 +170,7 @@ export class Executor {
             try {
                 if (
                     this.config.enableFastlane &&
-                    isUserOpVersion06 &&
+                    isUserOpV06 &&
                     !txParam.isReplacementTx &&
                     attempts === 0
                 ) {
@@ -190,6 +192,21 @@ export class Executor {
 
                 break
             } catch (e: unknown) {
+                if (e instanceof BaseError) {
+                    if (isTransactionUnderpricedError(e)) {
+                        this.logger.warn("Transaction underpriced, retrying")
+
+                        request.maxFeePerGas = scaleBigIntByPercent(
+                            request.maxFeePerGas,
+                            150n
+                        )
+                        request.maxPriorityFeePerGas = scaleBigIntByPercent(
+                            request.maxPriorityFeePerGas,
+                            150n
+                        )
+                    }
+                }
+
                 const error = e as SendTransactionErrorType
 
                 if (error instanceof TransactionExecutionError) {
@@ -243,18 +260,21 @@ export class Executor {
         bundle,
         nonce,
         gasPriceParameters,
-        gasLimitSuggestion
+        gasLimitSuggestion,
+        isReplacementTx
     }: {
         wallet: Account
         bundle: UserOperationBundle
         nonce: number
         gasPriceParameters: GasPriceParameters
         gasLimitSuggestion?: bigint
+        isReplacementTx: boolean
     }): Promise<BundleResult> {
         const { entryPoint, userOperations, version } = bundle
 
+        const isUserOpV06 = version === "0.6"
         const ep = getContract({
-            abi: version === "0.6" ? EntryPointV06Abi : EntryPointV07Abi,
+            abi: isUserOpV06 ? EntryPointV06Abi : EntryPointV07Abi,
             address: entryPoint,
             client: {
                 public: this.config.publicClient,
@@ -268,7 +288,7 @@ export class Executor {
         })
 
         let estimateResult = await filterOpsAndEstimateGas({
-            isUserOpV06: version === "0.6",
+            isUserOpV06,
             ops: userOperations,
             ep,
             wallet,
@@ -280,18 +300,17 @@ export class Executor {
             logger: childLogger
         })
 
-        if (estimateResult.status === "unexpectedFailure") {
+        if (estimateResult.status === "unexpected_failure") {
             childLogger.error(
                 "gas limit simulation encountered unexpected failure"
             )
             return {
                 status: "unhandled_simulation_failure",
-                reason: "INTERNAL FAILURE",
-                userOps: userOperations
+                reason: "INTERNAL FAILURE"
             }
         }
 
-        if (estimateResult.status === "allOpsFailedSimulation") {
+        if (estimateResult.status === "all_ops_failed_simulation") {
             childLogger.warn("all ops failed simulation")
             return {
                 status: "all_ops_failed_simulation",
@@ -306,6 +325,17 @@ export class Executor {
             userOperations: opsToBundle.map((op) => op.hash),
             entryPoint
         })
+
+        // https://github.com/eth-infinitism/account-abstraction/blob/fa61290d37d079e928d92d53a122efcc63822214/contracts/core/EntryPoint.sol#L236
+        let innerHandleOpFloor = 0n
+        for (const op of opsToBundle) {
+            innerHandleOpFloor +=
+                op.callGasLimit + op.verificationGasLimit + 5000n
+        }
+
+        if (gasLimit < innerHandleOpFloor) {
+            gasLimit += innerHandleOpFloor
+        }
 
         // sometimes the estimation rounds down, adding a fixed constant accounts for this
         gasLimit += 10_000n
@@ -353,8 +383,8 @@ export class Executor {
             transactionHash = await this.sendHandleOpsTransaction({
                 txParam: {
                     ops: opsToBundle,
-                    isReplacementTx: false,
-                    isUserOpVersion06: version === "0.6",
+                    isReplacementTx,
+                    isUserOpV06,
                     entryPoint
                 },
                 opts
@@ -366,11 +396,14 @@ export class Executor {
             })
         } catch (err: unknown) {
             const e = parseViemError(err)
+
+            const { failedOps, opsToBundle } = estimateResult
             if (e) {
                 return {
+                    rejectedUserOps: failedOps,
+                    userOpsToBundle: opsToBundle,
                     status: "bundle_submission_failure",
-                    reason: e,
-                    userOps: userOperations
+                    reason: e
                 }
             }
 
@@ -380,9 +413,10 @@ export class Executor {
                 "error submitting bundle transaction"
             )
             return {
+                rejectedUserOps: failedOps,
+                userOpsToBundle: opsToBundle,
                 status: "bundle_submission_failure",
-                reason: "INTERNAL FAILURE",
-                userOps: userOperations
+                reason: "INTERNAL FAILURE"
             }
         }
 

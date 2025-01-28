@@ -44,11 +44,11 @@ export type FilterOpsAndEstimateGasResult =
           gasLimit: bigint
       }
     | {
-          status: "unexpectedFailure"
+          status: "unexpected_failure"
           reason: string
       }
     | {
-          status: "allOpsFailedSimulation"
+          status: "all_ops_failed_simulation"
           failedOps: FailedOpWithReason[]
       }
 
@@ -149,7 +149,7 @@ export async function filterOpsAndEstimateGas({
                         "failed to parse failedOpError"
                     )
                     return {
-                        status: "unexpectedFailure",
+                        status: "unexpected_failure",
                         reason: "failed to parse failedOpError"
                     }
                 }
@@ -244,7 +244,7 @@ export async function filterOpsAndEstimateGas({
                             "unexpected error result"
                         )
                         return {
-                            status: "unexpectedFailure",
+                            status: "unexpected_failure",
                             reason: "unexpected error result"
                         }
                     }
@@ -265,7 +265,7 @@ export async function filterOpsAndEstimateGas({
                         "failed to parse error result"
                     )
                     return {
-                        status: "unexpectedFailure",
+                        status: "unexpected_failure",
                         reason: "failed to parse error result"
                     }
                 }
@@ -276,12 +276,12 @@ export async function filterOpsAndEstimateGas({
                     "error estimating gas"
                 )
                 return {
-                    status: "unexpectedFailure",
+                    status: "unexpected_failure",
                     reason: "error estimating gas"
                 }
             }
         }
     }
 
-    return { status: "allOpsFailedSimulation", failedOps }
+    return { status: "all_ops_failed_simulation", failedOps }
 }
