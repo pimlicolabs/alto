@@ -34,15 +34,24 @@ export type HexNumber = z.infer<typeof hexNumberSchema>
 export type HexData = z.infer<typeof hexDataSchema>
 export type HexData32 = z.infer<typeof hexData32Schema>
 
-const signedAuthorizationSchema = z.object({
-    contractAddress: addressSchema,
-    chainId: hexNumberSchema.transform((val) => Number(val)),
-    nonce: hexNumberSchema.transform((val) => Number(val)),
-    r: hexData32Schema.transform((val) => val as Hex),
-    s: hexData32Schema.transform((val) => val as Hex),
-    v: hexNumberSchema,
-    yParity: hexNumberSchema.transform((val) => Number(val))
-})
+const signedAuthorizationSchema = z.union([
+    z.object({
+        contractAddress: addressSchema,
+        chainId: hexNumberSchema.transform((val) => Number(val)),
+        nonce: hexNumberSchema.transform((val) => Number(val)),
+        r: hexData32Schema.transform((val) => val as Hex),
+        s: hexData32Schema.transform((val) => val as Hex),
+        v: hexNumberSchema
+    }),
+    z.object({
+        contractAddress: addressSchema,
+        chainId: hexNumberSchema.transform((val) => Number(val)),
+        nonce: hexNumberSchema.transform((val) => Number(val)),
+        r: hexData32Schema.transform((val) => val as Hex),
+        s: hexData32Schema.transform((val) => val as Hex),
+        yParity: hexNumberSchema.transform((val) => Number(val))
+    })
+])
 
 const userOperationV06Schema = z
     .object({

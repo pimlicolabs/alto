@@ -63,12 +63,17 @@ import {
     type Hex,
     type Transaction,
     TransactionNotFoundError,
+    concatHex,
     decodeFunctionData,
     getAbiItem,
     getAddress,
     getContract,
+    keccak256,
+    numberToHex,
+    recoverAddress,
     slice,
-    toFunctionSelector
+    toFunctionSelector,
+    toRlp
 } from "viem"
 import { base, baseSepolia, optimism } from "viem/chains"
 import type { NonceQueuer } from "./nonceQueuer"
@@ -928,12 +933,25 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         // Check that auth is valid.
-        const sender = await recoverAuthorizationAddress({
-            authorization: userOperation.eip7702Auth
+        const sender = await recoverAddress({
+            hash: keccak256(
+                concatHex([
+                    "0x05",
+                    toRlp([
+                        numberToHex(this.config.publicClient.chain.id),
+                        userOperation.eip7702Auth.contractAddress,
+                        userOperation.eip7702Auth.nonce !== undefined
+                            ? numberToHex(userOperation.eip7702Auth.nonce)
+                            : "0x"
+                    ])
+                ])
+            ),
+            signature: userOperation.eip7702Auth
         })
+
         if (sender !== userOperation.sender) {
             throw new RpcError(
-                "Invalid EIP-7702 authorization: The recovered signer address does not match the userOperation sender address",
+                `Invalid EIP-7702 authorization: The recovered signer address does not match the userOperation sender address. Expected: ${userOperation.sender} Recovered: ${sender}`,
                 ValidationErrors.InvalidFields
             )
         }
