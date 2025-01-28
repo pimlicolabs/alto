@@ -41,11 +41,28 @@ if (process.env.SENTRY_DSN) {
 
             const logger = initDebugLogger()
 
+            let eventJson: string
+            let hintJson: string
+
+            try {
+                eventJson = JSON.stringify(event)
+            } catch (error) {
+                eventJson = "Error parsing event"
+            }
+
+            try {
+                hintJson = JSON.stringify(hint)
+            } catch (error) {
+                hintJson = "Error parsing hint"
+            }
+
             logger.info(
                 {
                     // event,
                     originalException: (hint.originalException as Error).message,
-                    shouldIgnore
+                    shouldIgnore,
+                    eventJson,
+                    hintJson
                 },
                 "sentry"
             )
