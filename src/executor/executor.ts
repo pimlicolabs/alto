@@ -109,7 +109,6 @@ export class Executor {
     cancelOps(_entryPoint: Address, _ops: UserOperation[]): Promise<void> {
         throw new Error("Method not implemented.")
     }
-
     async sendHandleOpsTransaction({
         txParam,
         opts

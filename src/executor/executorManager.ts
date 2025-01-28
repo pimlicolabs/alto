@@ -723,8 +723,20 @@ export class ExecutorManager {
         await this.refreshUserOperationStatuses()
 
         // for all still not included check if needs to be replaced (based on gas price)
-        const gasPriceParameters =
-            await this.gasPriceManager.tryGetNetworkGasPrice()
+        let gasPriceParameters: {
+            maxFeePerGas: bigint
+            maxPriorityFeePerGas: bigint
+        }
+
+        try {
+            gasPriceParameters =
+                await this.gasPriceManager.tryGetNetworkGasPrice()
+        } catch {
+            gasPriceParameters = {
+                maxFeePerGas: 0n,
+                maxPriorityFeePerGas: 0n
+            }
+        }
 
         const transactionInfos = getTransactionsFromUserOperationEntries(
             this.mempool.dumpSubmittedOps()

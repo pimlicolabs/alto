@@ -107,12 +107,14 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         chain
     })
 
-    if (args.chainType === "skale") {
-        // SKALE only allows white listed addresses to deploy contracts.
+    // Some permissioned chains require a whitelisted address to make deployments.
+    // In order for simulations to work, we need to make our eth_call's from a whitelisted address.
+    if (args.ethCallSenderAddress) {
+        const whitelistedSender = args.ethCallSenderAddress
         publicClient = publicClient
             .extend((client) => ({
                 async call(args: CallParameters) {
-                    args.account = "0x4337000c2828F5260d8921fD25829F606b9E8680"
+                    args.account = whitelistedSender
                     return await client.call(args)
                 }
             }))

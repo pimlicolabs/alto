@@ -146,8 +146,18 @@ export class SenderManager {
         this.metrics.utilityWalletInsufficientBalance.set(0)
 
         if (Object.keys(balancesMissing).length > 0) {
-            const { maxFeePerGas, maxPriorityFeePerGas } =
-                await this.gasPriceManager.tryGetNetworkGasPrice()
+            let maxFeePerGas: bigint
+            let maxPriorityFeePerGas: bigint
+            try {
+                const gasPriceParameters =
+                    await this.gasPriceManager.tryGetNetworkGasPrice()
+
+                maxFeePerGas = gasPriceParameters.maxFeePerGas
+                maxPriorityFeePerGas = gasPriceParameters.maxPriorityFeePerGas
+            } catch (e) {
+                this.logger.error(e, "No gas price available")
+                return
+            }
 
             if (this.config.refillHelperContract) {
                 const instructions = []
@@ -280,7 +290,17 @@ export class SenderManager {
 
         const wallets = Array.from(allWallets)
 
-        const gasPrice = await this.gasPriceManager.tryGetNetworkGasPrice()
+        let gasPrice: {
+            maxFeePerGas: bigint
+            maxPriorityFeePerGas: bigint
+        }
+
+        try {
+            gasPrice = await this.gasPriceManager.tryGetNetworkGasPrice()
+        } catch (e) {
+            this.logger.error({ error: e }, "error flushing stuck transaction")
+            return
+        }
 
         const promises = wallets.map((wallet) => {
             try {
