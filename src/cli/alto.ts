@@ -43,8 +43,8 @@ if (process.env.SENTRY_DSN) {
 
             logger.info(
                 {
-                    event,
-                    hint,
+                    // event,
+                    originalException: (hint.originalException as Error).message,
                     shouldIgnore
                 },
                 "sentry"
