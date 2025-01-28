@@ -15,7 +15,7 @@ import {
 } from "./config"
 import { registerCommandToYargs } from "./util"
 import { TimeoutError, HttpRequestError, InternalRpcError } from "viem"
-import { initDebugLogger } from "@alto/utils"
+import { initDebugLogger, initProductionLogger } from "@alto/utils"
 
 // Load environment variables from .env file
 if (process.env.DOTENV_CONFIG_PATH) {
@@ -39,7 +39,7 @@ if (process.env.SENTRY_DSN) {
                 (error) => hint.originalException instanceof error
             )
 
-            const logger = initDebugLogger()
+            const logger = initProductionLogger("debug")
 
             let eventJson: string
             let hintJson: string
