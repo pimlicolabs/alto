@@ -266,8 +266,8 @@ export class ExecutorManager {
         // Encountered unhandled error during bundle simulation.
         if (bundleResult.status === "bundle_submission_failure") {
             const { rejectedUserOps, userOpsToBundle, reason } = bundleResult
-            // NOTE: these ops passed validation but dropped due to error during bundling
             this.dropUserOps(rejectedUserOps)
+            // NOTE: these ops passed validation, so we can try resubmitting them
             this.resubmitUserOperations(
                 userOpsToBundle,
                 entryPoint,
