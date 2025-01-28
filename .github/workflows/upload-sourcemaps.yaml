@@ -1,0 +1,34 @@
+name: Upload source maps to Sentry
+
+on:
+  push:
+    branches:
+      - main
+      - sp/sentry-sourcemaps
+  workflow_dispatch:
+
+jobs:
+  upload-sourcemaps:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-dependencies
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: build
+        run: pnpm run build
+
+      - name: Upload source maps to Sentry
+        run: pnpm run sentry:sourcemaps
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
