@@ -157,10 +157,6 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     await gasPriceManager.init()
 
     const registry = new Registry()
-    registry.setDefaultLabels({
-        network: chain.name,
-        chainId
-    })
     const metrics = createMetrics(registry)
 
     await preFlightChecks(config)
