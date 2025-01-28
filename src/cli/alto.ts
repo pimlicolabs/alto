@@ -14,8 +14,11 @@ import {
     serverOptions
 } from "./config"
 import { registerCommandToYargs } from "./util"
-import { TimeoutError, HttpRequestError, InternalRpcError, RpcError } from "viem"
-import { initProductionLogger } from "@alto/utils"
+import {
+    TimeoutError,
+    HttpRequestError,
+    InternalRpcError,
+} from "viem"
 
 // Load environment variables from .env file
 if (process.env.DOTENV_CONFIG_PATH) {
@@ -29,7 +32,6 @@ if (process.env.SENTRY_DSN) {
         InternalRpcError,
         HttpRequestError,
         TimeoutError,
-        RpcError
     ]
 
     sentry.init({
@@ -39,35 +41,9 @@ if (process.env.SENTRY_DSN) {
             const errorType = event.exception?.values?.[0]?.type
 
             const shouldIgnore = SENTRY_IGNORE_ERRORS.some(
-                (error) => hint.originalException instanceof error || errorType === error.name
-            )
-
-            const logger = initProductionLogger("debug")
-
-            let eventJson: string
-            let hintJson: string
-
-            try {
-                eventJson = JSON.stringify(event)
-            } catch (error) {
-                eventJson = "Error parsing event"
-            }
-
-            try {
-                hintJson = JSON.stringify(hint)
-            } catch (error) {
-                hintJson = "Error parsing hint"
-            }
-
-            logger.info(
-                {
-                    // event,
-                    originalException: (hint.originalException as Error).message,
-                    shouldIgnore,
-                    eventJson,
-                    hintJson
-                },
-                "sentry"
+                (error) =>
+                    hint.originalException instanceof error ||
+                    errorType === error.name
             )
 
             if (shouldIgnore) {
