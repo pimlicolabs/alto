@@ -15,6 +15,7 @@ import {
 } from "./config"
 import { registerCommandToYargs } from "./util"
 import { TimeoutError, HttpRequestError, InternalRpcError } from "viem"
+import { initDebugLogger } from "@alto/utils"
 
 // Load environment variables from .env file
 if (process.env.DOTENV_CONFIG_PATH) {
@@ -34,11 +35,19 @@ if (process.env.SENTRY_DSN) {
         dsn: process.env.SENTRY_DSN,
         environment: process.env.ENVIRONMENT,
         beforeSend(event, hint) {
-            if (
-                SENTRY_IGNORE_ERRORS.some(
-                    (error) => hint.originalException instanceof error
-                )
-            ) {
+            const shouldIgnore = SENTRY_IGNORE_ERRORS.some(
+                (error) => hint.originalException instanceof error
+            )
+
+            const logger = initDebugLogger()
+
+            logger.info("sentry", {
+                event,
+                hint,
+                shouldIgnore
+            })
+
+            if (shouldIgnore) {
                 return null
             }
 
