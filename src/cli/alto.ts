@@ -14,7 +14,7 @@ import {
     serverOptions
 } from "./config"
 import { registerCommandToYargs } from "./util"
-import { TimeoutError, HttpRequestError, InternalRpcError } from "viem"
+import { TimeoutError, HttpRequestError, InternalRpcError, RpcError } from "viem"
 import { initProductionLogger } from "@alto/utils"
 
 // Load environment variables from .env file
@@ -28,7 +28,8 @@ if (process.env.SENTRY_DSN) {
     const SENTRY_IGNORE_ERRORS = [
         InternalRpcError,
         HttpRequestError,
-        TimeoutError
+        TimeoutError,
+        RpcError
     ]
 
     sentry.init({
