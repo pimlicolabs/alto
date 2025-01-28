@@ -15,7 +15,6 @@ import {
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import {
-    isVersion07,
     maxBigInt,
     parseViemError,
     scaleBigIntByPercent,
@@ -326,26 +325,6 @@ export class Executor {
             userOperations: opsToBundle.map((op) => op.hash),
             entryPoint
         })
-
-        // Ensure that we don't submit with gas too low leading to AA95.
-        // V6 source: https://github.com/eth-infinitism/account-abstraction/blob/fa61290d37d079e928d92d53a122efcc63822214/contracts/core/EntryPoint.sol#L236
-        // V7 source: https://github.com/eth-infinitism/account-abstraction/blob/releases/v0.7/contracts/core/EntryPoint.sol
-        let gasFloor = 0n
-        for (const op of opsToBundle) {
-            if (isVersion07(op)) {
-                const totalGas =
-                    op.callGasLimit +
-                    (op.paymasterPostOpGasLimit || 0n) +
-                    10_000n
-                gasFloor += (totalGas * 64n) / 63n
-            } else {
-                gasFloor += op.callGasLimit + op.verificationGasLimit + 5000n
-            }
-        }
-
-        if (gasLimit < gasFloor) {
-            gasLimit += gasFloor
-        }
 
         // sometimes the estimation rounds down, adding a fixed constant accounts for this
         gasLimit += 10_000n
