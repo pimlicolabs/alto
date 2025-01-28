@@ -78,7 +78,6 @@ import {
 import { base, baseSepolia, optimism } from "viem/chains"
 import type { NonceQueuer } from "./nonceQueuer"
 import type { AltoConfig } from "../createConfig"
-import { recoverAuthorizationAddress } from "viem/experimental"
 
 export interface IRpcEndpoint {
     handleMethod(
