@@ -14,8 +14,9 @@ import {
     serverOptions
 } from "./config"
 import { registerCommandToYargs } from "./util"
-import { TimeoutError, HttpRequestError, InternalRpcError } from "viem"
+import { TimeoutError, HttpRequestError, InternalRpcError, createPublicClient, http } from "viem"
 import { initProductionLogger } from "@alto/utils"
+import { mainnet } from "viem/chains"
 
 // Load environment variables from .env file
 if (process.env.DOTENV_CONFIG_PATH) {
@@ -35,8 +36,10 @@ if (process.env.SENTRY_DSN) {
         dsn: process.env.SENTRY_DSN,
         environment: process.env.ENVIRONMENT,
         beforeSend(event, hint) {
+            const originalException = hint.originalException as Error
             const shouldIgnore = SENTRY_IGNORE_ERRORS.some(
-                (error) => hint.originalException instanceof error
+                (ErrorClass) => originalException instanceof ErrorClass || 
+                              originalException.constructor.name === ErrorClass.name
             )
 
             const logger = initProductionLogger("debug")
@@ -58,8 +61,7 @@ if (process.env.SENTRY_DSN) {
 
             logger.info(
                 {
-                    // event,
-                    originalException: (hint.originalException as Error).message,
+                    originalException: originalException.message,
                     shouldIgnore,
                     eventJson,
                     hintJson
@@ -75,6 +77,23 @@ if (process.env.SENTRY_DSN) {
         }
     })
 }
+
+const test = async () => {
+    const publicClient = createPublicClient({
+        transport: http("https://eth-mainnet.g.alchemy.com/v2/demo"),
+        chain: mainnet
+    })
+
+    await publicClient.getBalance({
+        address: "0xinvalidaddress" as `0x${string}`
+    })
+}
+
+test().catch((error) => {
+    // console.log("error", error)
+    sentry.captureException(error)
+    // process.exit(1)
+})
 
 export const yarg = yargs(
     (hideBin as (args: string[]) => string[])(process.argv)
