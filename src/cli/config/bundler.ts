@@ -178,7 +178,6 @@ export const logArgsSchema = z.object({
     "redis-queue-endpoint": z.string().optional(),
     "redis-event-manager-queue-name": z.string().optional(),
     json: z.boolean(),
-    "network-name": z.string(),
     "log-level": logLevel,
     "public-client-log-level": logLevel.optional(),
     "wallet-client-log-level": logLevel.optional(),

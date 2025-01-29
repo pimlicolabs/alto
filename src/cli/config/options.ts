@@ -453,12 +453,6 @@ export const logOptions: CliCommandOptions<ILogArgsInput> = {
         require: true,
         default: false
     },
-    "network-name": {
-        description: "Name of the network (used for metrics)",
-        type: "string",
-        require: true,
-        default: "localhost"
-    },
     "log-level": {
         description: "Default log level",
         type: "string",
