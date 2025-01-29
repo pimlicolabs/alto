@@ -1,324 +1,211 @@
-import type { GasPriceManager } from "@alto/handlers"
-import {
-    type Address,
-    CallEngineAbi,
-    type HexData,
-    type HexData32
-} from "@alto/types"
-import type { Logger, Metrics } from "@alto/utils"
+import type { Metrics } from "@alto/utils"
 import { Semaphore } from "async-mutex"
-import {
-    type Account,
-    type PublicClient,
-    type TransactionReceipt,
-    formatEther,
-    getContract
-} from "viem"
+import { type Account } from "viem"
 import type { AltoConfig } from "../createConfig"
-import { flushStuckTransaction } from "./utils"
+import Redis from "ioredis"
 
-const waitForTransactionReceipt = async (
-    publicClient: PublicClient,
-    tx: HexData32
-): Promise<TransactionReceipt> => {
-    try {
-        return await publicClient.waitForTransactionReceipt({ hash: tx })
-    } catch {
-        return await waitForTransactionReceipt(publicClient, tx)
+export type SenderManager = {
+    getWalletsInUse: () => Account[]
+    getAllWallets: () => Account[]
+    getWallet: () => Promise<Account>
+    pushWallet: (wallet: Account) => void
+}
+
+export const getAvailableWallets = (config: AltoConfig): Account[] => {
+    let availableWallets: Account[] = []
+
+    if (config.maxExecutors !== undefined) {
+        availableWallets = config.executorPrivateKeys.slice(
+            0,
+            config.maxExecutors
+        )
+    } else {
+        availableWallets = config.executorPrivateKeys
+    }
+
+    return availableWallets
+}
+
+const createLocalSenderManager = ({
+    config,
+    metrics
+}: {
+    config: AltoConfig
+    metrics: Metrics
+}): SenderManager => {
+    const wallets = getAvailableWallets(config)
+    const availableWallets = [...wallets]
+
+    const semaphore: Semaphore = new Semaphore(availableWallets.length)
+
+    const logger = config.getLogger(
+        { module: "sender-manager" },
+        {
+            level: config.executorLogLevel || config.logLevel
+        }
+    )
+
+    return {
+        getAllWallets: () => [...wallets],
+        getWalletsInUse: () => [...availableWallets],
+        async getWallet() {
+            logger.trace("waiting for semaphore ")
+            await semaphore.acquire()
+
+            const wallet = availableWallets.shift()
+
+            // should never happen because of semaphore
+            if (!wallet) {
+                semaphore.release()
+                logger.error("no more wallets")
+                throw new Error("no more wallets")
+            }
+
+            logger.trace(
+                { executor: wallet.address },
+                "got wallet from sender manager"
+            )
+
+            metrics.walletsAvailable.set(availableWallets.length)
+
+            return wallet
+        },
+        pushWallet(wallet: Account) {
+            if (!availableWallets.includes(wallet)) {
+                availableWallets.push(wallet)
+            }
+
+            semaphore.release()
+            logger.trace(
+                { executor: wallet.address },
+                "pushed wallet to sender manager"
+            )
+
+            metrics.walletsAvailable.set(availableWallets.length)
+            return
+        }
     }
 }
 
-export class SenderManager {
-    private config: AltoConfig
-    wallets: Account[]
-    utilityAccount: Account | undefined
-    availableWallets: Account[]
-    private metrics: Metrics
-    private semaphore: Semaphore
-    private gasPriceManager: GasPriceManager
-    private logger: Logger
-    private walletProcessingTime: Map<Address, Date> = new Map()
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-    constructor({
-        config,
-        metrics,
-        gasPriceManager
-    }: {
-        config: AltoConfig
-        metrics: Metrics
-        gasPriceManager: GasPriceManager
-    }) {
-        this.config = config
-        this.logger = config.getLogger(
-            { module: "executor" },
-            {
-                level: config.executorLogLevel || config.logLevel
-            }
-        )
+async function createRedisQueue({
+    redis,
+    name,
+    entries
+}: {
+    redis: Redis
+    name: string
+    entries: string[]
+}) {
+    const hasElements = await redis.llen(name)
 
-        const maxSigners = config.maxExecutors
-        const wallets = config.executorPrivateKeys
-
-        if (maxSigners !== undefined && wallets.length > maxSigners) {
-            this.wallets = wallets.slice(0, maxSigners)
-            this.availableWallets = wallets.slice(0, maxSigners)
-        } else {
-            this.wallets = wallets
-            this.availableWallets = wallets
-        }
-
-        this.utilityAccount = this.config.utilityPrivateKey
-        this.metrics = metrics
-        metrics.walletsAvailable.set(this.availableWallets.length)
-        metrics.walletsTotal.set(this.wallets.length)
-        this.semaphore = new Semaphore(this.availableWallets.length)
-        this.gasPriceManager = gasPriceManager
+    if (hasElements === 0) {
+        const pipeline = redis.pipeline()
+        pipeline.del(name)
+        pipeline.lpush(name, ...entries)
+        await pipeline.exec()
     }
 
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: <explanation>
-    async validateAndRefillWallets(): Promise<void> {
-        const minBalance = this.config.minExecutorBalance
+    return {
+        llen: () => redis.llen(name),
+        pop: () => redis.rpop(name),
+        push: (entry: string) => redis.rpush(name, entry)
+    }
+}
 
-        if (!(minBalance && this.utilityAccount)) {
-            return
+const createRedisSenderManager = async ({
+    config,
+    metrics
+}: {
+    config: AltoConfig
+    metrics: Metrics
+}): Promise<SenderManager> => {
+    if (!config.redisQueueEndpoint) {
+        throw new Error("redisQueueEndpoint is required")
+    }
+
+    const wallets = getAvailableWallets(config)
+    const walletsInUse: Record<string, Account> = {}
+
+    const logger = config.getLogger(
+        { module: "sender-manager" },
+        {
+            level: config.executorLogLevel || config.logLevel
         }
+    )
 
-        const utilityWalletBalance = await this.config.publicClient.getBalance({
-            address: this.utilityAccount.address
-        })
+    const redis = new Redis(config.redisQueueEndpoint)
+    const redisQueue = await createRedisQueue({
+        redis,
+        name: `sender-manager-${config.publicClient.chain.id}`,
+        entries: wallets.map((w) => w.address)
+    })
 
-        const balancesMissing: Record<Address, bigint> = {}
+    return {
+        getAllWallets: () => [...wallets],
+        getWalletsInUse: () => Object.values(walletsInUse),
+        getWallet: async () => {
+            logger.trace("waiting for wallet ")
 
-        const balanceRequestPromises = this.availableWallets.map(
-            async (wallet) => {
-                const balance = await this.config.publicClient.getBalance({
-                    address: wallet.address
-                })
+            let walletAddress: string | null = null
 
-                this.metrics.executorWalletsBalances.set(
-                    {
-                        wallet: wallet.address
-                    },
-                    Number.parseFloat(formatEther(balance))
-                )
-
-                if (balance < minBalance) {
-                    const missingBalance = (minBalance * 6n) / 5n - balance
-                    balancesMissing[wallet.address] = missingBalance
-                }
+            while (!walletAddress) {
+                walletAddress = await redisQueue.pop()
+                await delay(100)
             }
-        )
 
-        await Promise.all(balanceRequestPromises)
+            const wallet = wallets.find((w) => w.address === walletAddress)
 
-        const totalBalanceMissing = Object.values(balancesMissing).reduce(
-            (a, b) => a + b,
-            0n
-        )
-        if (utilityWalletBalance < (totalBalanceMissing * 11n) / 10n) {
-            this.logger.info(
-                { balancesMissing, totalBalanceMissing },
-                "balances missing"
+            // should never happen
+            if (!wallet) {
+                throw new Error("wallet not found")
+            }
+
+            logger.trace(
+                { executor: wallet.address },
+                "got wallet from sender manager"
             )
-            this.metrics.utilityWalletInsufficientBalance.set(1)
-            this.logger.error(
-                {
-                    minBalance: formatEther(minBalance),
-                    utilityWalletBalance: formatEther(utilityWalletBalance),
-                    totalBalanceMissing: formatEther(totalBalanceMissing),
-                    minRefillAmount: formatEther(
-                        totalBalanceMissing - utilityWalletBalance
-                    ),
-                    utilityAccount: this.utilityAccount.address
-                },
-                "utility wallet has insufficient balance to refill wallets"
-            )
-            return
-            // throw new Error(
-            //     `utility wallet ${
-            //         this.utilityAccount.address
-            //     } has insufficient balance ${formatEther(
-            //         utilityWalletBalance
-            //     )} < ${formatEther(totalBalanceMissing)}`
-            // )
-        }
 
-        this.metrics.utilityWalletInsufficientBalance.set(0)
+            redisQueue.llen().then((len) => {
+                metrics.walletsAvailable.set(len)
+            })
+            walletsInUse[wallet.address] = wallet
 
-        if (Object.keys(balancesMissing).length > 0) {
-            let maxFeePerGas: bigint
-            let maxPriorityFeePerGas: bigint
-            try {
-                const gasPriceParameters =
-                    await this.gasPriceManager.tryGetNetworkGasPrice()
-
-                maxFeePerGas = gasPriceParameters.maxFeePerGas
-                maxPriorityFeePerGas = gasPriceParameters.maxPriorityFeePerGas
-            } catch (e) {
-                this.logger.error(e, "No gas price available")
-                return
-            }
-
-            if (this.config.refillHelperContract) {
-                const instructions = []
-                for (const [address, missingBalance] of Object.entries(
-                    balancesMissing
-                )) {
-                    instructions.push({
-                        to: address as Address,
-                        value: missingBalance,
-                        data: "0x" as HexData
-                    })
-                }
-
-                const callEngine = getContract({
-                    abi: CallEngineAbi,
-                    address: this.config.refillHelperContract,
-                    client: {
-                        public: this.config.publicClient,
-                        wallet: this.config.walletClient
-                    }
+            return wallet
+        },
+        pushWallet: (wallet: Account) => {
+            redisQueue.push(wallet.address).then(() => {
+                redisQueue.llen().then((len) => {
+                    metrics.walletsAvailable.set(len)
                 })
-                const tx = await callEngine.write.execute([instructions], {
-                    account: this.utilityAccount,
-                    value: totalBalanceMissing,
-                    maxFeePerGas: maxFeePerGas * 2n,
-                    maxPriorityFeePerGas: maxPriorityFeePerGas * 2n
-                })
+            })
 
-                await waitForTransactionReceipt(this.config.publicClient, tx)
-
-                for (const [address, missingBalance] of Object.entries(
-                    balancesMissing
-                )) {
-                    this.logger.info(
-                        { tx, executor: address, missingBalance },
-                        "refilled wallet"
-                    )
-                }
-            } else {
-                for (const [address, missingBalance] of Object.entries(
-                    balancesMissing
-                )) {
-                    const tx = await this.config.walletClient.sendTransaction({
-                        account: this.utilityAccount,
-                        // @ts-ignore
-                        to: address,
-                        value: missingBalance,
-                        maxFeePerGas: this.config.legacyTransactions
-                            ? undefined
-                            : maxFeePerGas,
-                        maxPriorityFeePerGas: this.config.legacyTransactions
-                            ? undefined
-                            : maxPriorityFeePerGas,
-                        gasPrice: this.config.legacyTransactions
-                            ? maxFeePerGas
-                            : undefined
-                    })
-
-                    await waitForTransactionReceipt(
-                        this.config.publicClient,
-                        tx
-                    )
-                    this.logger.info(
-                        { tx, executor: address, missingBalance },
-                        "refilled wallet"
-                    )
-                }
+            if (walletsInUse[wallet.address]) {
+                delete walletsInUse[wallet.address]
             }
-        } else {
-            this.logger.info("no wallets need to be refilled")
         }
     }
+}
 
-    async getWallet(): Promise<Account> {
-        this.logger.trace(
-            `waiting for semaphore with count ${this.semaphore.getValue()}`
-        )
-        await this.semaphore.waitForUnlock()
-        await this.semaphore.acquire()
-        const wallet = this.availableWallets.shift()
-
-        // should never happen because of semaphore
-        if (!wallet) {
-            this.semaphore.release()
-            this.logger.error("no more wallets")
-            throw new Error("no more wallets")
-        }
-
-        this.logger.trace(
-            { executor: wallet.address },
-            "got wallet from sender manager"
-        )
-
-        this.metrics.walletsAvailable.set(this.availableWallets.length)
-        this.walletProcessingTime.set(wallet.address, new Date())
-        return wallet
-    }
-
-    pushWallet(wallet: Account): void {
-        this.availableWallets.push(wallet)
-        this.semaphore.release()
-        this.logger.trace(
-            { executor: wallet.address },
-            "pushed wallet to sender manager"
-        )
-        const processingTime = this.walletProcessingTime.get(wallet.address)
-        if (processingTime) {
-            const time = Date.now() - processingTime.getTime()
-            this.metrics.walletsProcessingTime.observe(time / 1000)
-            this.walletProcessingTime.delete(wallet.address)
-        }
-        this.metrics.walletsAvailable.set(this.availableWallets.length)
-        return
-    }
-
-    public markWalletProcessed(executor: Account) {
-        if (!this.availableWallets.includes(executor)) {
-            this.pushWallet(executor)
-        }
-        return Promise.resolve()
-    }
-
-    async flushOnStartUp(): Promise<void> {
-        const allWallets = new Set(this.wallets)
-
-        const utilityWallet = this.utilityAccount
-        if (utilityWallet) {
-            allWallets.add(utilityWallet)
-        }
-
-        const wallets = Array.from(allWallets)
-
-        let gasPrice: {
-            maxFeePerGas: bigint
-            maxPriorityFeePerGas: bigint
-        }
-
-        try {
-            gasPrice = await this.gasPriceManager.tryGetNetworkGasPrice()
-        } catch (e) {
-            this.logger.error({ error: e }, "error flushing stuck transaction")
-            return
-        }
-
-        const promises = wallets.map((wallet) => {
-            try {
-                flushStuckTransaction(
-                    this.config.publicClient,
-                    this.config.walletClient,
-                    wallet,
-                    gasPrice.maxFeePerGas * 5n,
-                    this.logger
-                )
-            } catch (e) {
-                this.logger.error(
-                    { error: e },
-                    "error flushing stuck transaction"
-                )
-            }
+export const createSenderManager = ({
+    config,
+    metrics
+}: {
+    config: AltoConfig
+    metrics: Metrics
+}): Promise<SenderManager> => {
+    if (config.redisQueueEndpoint) {
+        return createRedisSenderManager({
+            config,
+            metrics
         })
-
-        await Promise.all(promises)
     }
+
+    return Promise.resolve(
+        createLocalSenderManager({
+            config,
+            metrics
+        })
+    )
 }

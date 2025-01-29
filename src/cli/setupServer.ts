@@ -3,10 +3,10 @@ import { Executor, ExecutorManager } from "@alto/executor"
 import { EventManager, type GasPriceManager } from "@alto/handlers"
 import {
     type InterfaceReputationManager,
-    MemoryMempool,
     Monitor,
     NullReputationManager,
-    ReputationManager
+    ReputationManager,
+    Mempool
 } from "@alto/mempool"
 import {
     NonceQueuer,
@@ -19,6 +19,11 @@ import type { InterfaceValidator } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import type { Registry } from "prom-client"
 import type { AltoConfig } from "../createConfig"
+import { createMemoryStore, createRedisStore, type Store } from "@alto/store"
+import {
+    flushOnStartUp,
+    validateAndRefillWallets
+} from "../executor/executorActions"
 
 const getReputationManager = (
     config: AltoConfig
@@ -73,14 +78,28 @@ const getMempool = ({
     validator: InterfaceValidator
     metrics: Metrics
     eventManager: EventManager
-}): MemoryMempool => {
-    return new MemoryMempool({
+}): Mempool => {
+    let store: Store
+
+    if (config.redisMempoolUrl) {
+        store = createRedisStore({
+            config,
+            metrics
+        })
+    } else {
+        store = createMemoryStore({
+            config,
+            metrics
+        })
+    }
+
+    return new Mempool({
         config,
         monitor,
         reputationManager,
         validator,
-        metrics,
-        eventManager
+        eventManager,
+        store
     })
 }
 
@@ -102,7 +121,7 @@ const getExecutor = ({
     gasPriceManager,
     eventManager
 }: {
-    mempool: MemoryMempool
+    mempool: Mempool
     config: AltoConfig
     reputationManager: InterfaceReputationManager
     metrics: Metrics
@@ -132,7 +151,7 @@ const getExecutorManager = ({
 }: {
     config: AltoConfig
     executor: Executor
-    mempool: MemoryMempool
+    mempool: Mempool
     monitor: Monitor
     reputationManager: InterfaceReputationManager
     senderManager: SenderManager
@@ -159,7 +178,7 @@ const getNonceQueuer = ({
     eventManager
 }: {
     config: AltoConfig
-    mempool: MemoryMempool
+    mempool: Mempool
     eventManager: EventManager
 }) => {
     return new NonceQueuer({
@@ -184,7 +203,7 @@ const getRpcHandler = ({
 }: {
     config: AltoConfig
     validator: InterfaceValidator
-    mempool: MemoryMempool
+    mempool: Mempool
     executor: Executor
     monitor: Monitor
     nonceQueuer: NonceQueuer
@@ -255,10 +274,10 @@ export const setupServer = async ({
     })
 
     if (config.refillingWallets) {
-        await senderManager.validateAndRefillWallets()
+        await validateAndRefillWallets({ config, gasPriceManager, metrics })
 
         setInterval(async () => {
-            await senderManager.validateAndRefillWallets()
+            await validateAndRefillWallets({ config, gasPriceManager, metrics })
         }, config.executorRefillInterval * 1000)
     }
 
@@ -314,7 +333,11 @@ export const setupServer = async ({
     })
 
     if (config.flushStuckTransactionsDuringStartup) {
-        senderManager.flushOnStartUp()
+        await flushOnStartUp({
+            senderManager,
+            config,
+            gasPriceManager
+        })
     }
 
     const rootLogger = config.getLogger(
@@ -323,7 +346,7 @@ export const setupServer = async ({
     )
 
     rootLogger.info(
-        `Initialized ${senderManager.wallets.length} executor wallets`
+        `Initialized ${senderManager.getAllWallets().length} executor wallets`
     )
 
     const server = getServer({
@@ -341,11 +364,11 @@ export const setupServer = async ({
         await server.stop()
         rootLogger.info("server stopped")
 
-        const outstanding = mempool.dumpOutstanding().length
-        const submitted = mempool.dumpSubmittedOps().length
-        const processing = mempool.dumpProcessing().length
+        //const outstanding = mempool.dumpOutstanding().length
+        const submitted = (await mempool.dumpSubmittedOps()).length
+        const processing = (await mempool.dumpProcessing()).length
         rootLogger.info(
-            { outstanding, submitted, processing },
+            { submitted, processing },
             "dumping mempool before shutdown"
         )
 

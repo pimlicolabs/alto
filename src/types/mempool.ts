@@ -1,6 +1,7 @@
-import type { Address, BaseError, Hex } from "viem"
+import type { Address, BaseError } from "viem"
 import type { Account } from "viem/accounts"
-import type { HexData32, UserOperation } from "."
+import type { HexData32, userOperationInfoSchema } from "."
+import { z } from "zod"
 
 export interface ReferencedCodeHashes {
     // addresses accessed during this user operation
@@ -32,11 +33,7 @@ export type UserOperationBundle = {
     userOperations: UserOperationInfo[]
 }
 
-export type UserOperationInfo = UserOperation & {
-    hash: Hex
-    entryPoint: Address
-    referencedContracts?: ReferencedCodeHashes
-}
+export type UserOperationInfo = z.infer<typeof userOperationInfoSchema>
 
 export enum SubmissionStatus {
     NotSubmitted = "not_submitted",

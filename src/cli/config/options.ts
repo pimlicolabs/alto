@@ -7,6 +7,7 @@ import type {
     IExecutorArgsInput,
     IGasEstimationArgsInput,
     ILogArgsInput,
+    IMempoolArgsInput,
     IOptionsInput,
     IRpcArgsInput,
     IServerArgsInput
@@ -91,27 +92,6 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: 0
     },
-    "mempool-max-parallel-ops": {
-        description:
-            "Maximum amount of parallel user ops to keep in the meempool (same sender, different nonce keys)",
-        type: "number",
-        require: false,
-        default: 10
-    },
-    "mempool-max-queued-ops": {
-        description:
-            "Maximum amount of sequential user ops to keep in the mempool (same sender and nonce key, different nonce values)",
-        type: "number",
-        require: false,
-        default: 0
-    },
-    "enforce-unique-senders-per-bundle": {
-        description:
-            "Include user ops with the same sender in the single bundle",
-        type: "boolean",
-        require: false,
-        default: true
-    },
     "max-gas-per-bundle": {
         description: "Maximum amount of gas per bundle",
         type: "string",
@@ -135,6 +115,54 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
             "Should the bundler enable the pimlico_experimental_sendUserOperation7702 and pimlico_experimental_estimateUserOperationGas7702 endpoint",
         type: "boolean",
         default: false
+    }
+}
+
+export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
+    "redis-mempool-url": {
+        description:
+            "Redis connection URL (required if redis-mempool is enabled)",
+        type: "string",
+        require: false
+    },
+    "redis-mempool-concurrency": {
+        description: "Number of concurrent jobs to process",
+        type: "number",
+        require: false,
+        default: 10
+    },
+    "redis-mempool-queue-name": {
+        description: "Redis mempool queue name",
+        type: "string",
+        require: false,
+        default: "outstanding-mempool-v2"
+    },
+    "redis-gas-price-queue-name": {
+        description: "Queue name to store gas prices",
+        type: "string",
+        require: false,
+        default: "gas-price-queue"
+    },
+    "mempool-max-parallel-ops": {
+        description:
+            "Maximum amount of parallel user ops to keep in the mempool (same sender, different nonce keys)",
+        type: "number",
+        require: false,
+        default: 10
+    },
+    "mempool-max-queued-ops": {
+        description:
+            "Maximum amount of sequential user ops to keep in the mempool (same sender and nonce key, different nonce values)",
+        type: "number",
+        require: false,
+        default: 0
+    },
+    "enforce-unique-senders-per-bundle": {
+        description:
+            "Include user ops with the same sender in the single bundle",
+        type: "boolean",
+        require: false,
+        default: true
     }
 }
 

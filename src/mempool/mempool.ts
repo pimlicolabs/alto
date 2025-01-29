@@ -17,7 +17,6 @@ import {
     type ValidationResult,
     UserOperationBundle
 } from "@alto/types"
-import type { Metrics } from "@alto/utils"
 import type { Logger } from "@alto/utils"
 import {
     getAddressFromInitCodeOrPaymasterAndData,
@@ -32,14 +31,14 @@ import {
     type InterfaceReputationManager,
     ReputationStatuses
 } from "./reputationManager"
-import { MemoryStore } from "./store"
 import type { AltoConfig } from "../createConfig"
+import { Store } from "@alto/store"
 
-export class MemoryMempool {
+export class Mempool {
     private config: AltoConfig
     private monitor: Monitor
     private reputationManager: InterfaceReputationManager
-    private store: MemoryStore
+    private store: Store
     private throttledEntityBundleCount: number
     private logger: Logger
     private validator: InterfaceValidator
@@ -50,14 +49,14 @@ export class MemoryMempool {
         monitor,
         reputationManager,
         validator,
-        metrics,
+        store,
         eventManager
     }: {
         config: AltoConfig
         monitor: Monitor
         reputationManager: InterfaceReputationManager
         validator: InterfaceValidator
-        metrics: Metrics
+        store: Store
         eventManager: EventManager
     }) {
         this.config = config
@@ -70,18 +69,18 @@ export class MemoryMempool {
                 level: config.logLevel
             }
         )
-        this.store = new MemoryStore(this.logger, metrics)
+        this.store = store
         this.throttledEntityBundleCount = 4 // we don't have any config for this as of now
         this.eventManager = eventManager
     }
 
-    replaceSubmitted(
+    async replaceSubmitted(
         userOperation: UserOperationInfo,
         transactionInfo: TransactionInfo
-    ): void {
-        const op = this.store
-            .dumpSubmitted()
-            .find((op) => op.userOperation.hash === userOperation.hash)
+    ): Promise<void> {
+        const op = (await this.store.dumpSubmitted()).find(
+            (op) => op.userOperation.hash === userOperation.hash
+        )
         if (op) {
             this.store.removeSubmitted(userOperation.hash)
             this.store.addSubmitted({
@@ -95,13 +94,13 @@ export class MemoryMempool {
         }
     }
 
-    markSubmitted(
+    async markSubmitted(
         userOpHash: `0x${string}`,
         transactionInfo: TransactionInfo
-    ): void {
-        const op = this.store
-            .dumpProcessing()
-            .find((op) => op.hash === userOpHash)
+    ): Promise<void> {
+        const op = (await this.store.dumpProcessing()).find(
+            (op) => op.hash === userOpHash
+        )
         if (op) {
             this.store.removeProcessing(userOpHash)
             this.store.addSubmitted({
@@ -115,32 +114,32 @@ export class MemoryMempool {
         }
     }
 
-    dumpOutstanding(): UserOperation[] {
-        return this.store.dumpOutstanding()
+    async dumpOutstanding(): Promise<UserOperation[]> {
+        return await this.store.dumpOutstanding()
     }
 
-    dumpProcessing(): UserOperationInfo[] {
-        return this.store.dumpProcessing()
+    async dumpProcessing(): Promise<UserOperationInfo[]> {
+        return await this.store.dumpProcessing()
     }
 
-    dumpSubmittedOps(): SubmittedUserOperation[] {
-        return this.store.dumpSubmitted()
+    async dumpSubmittedOps(): Promise<SubmittedUserOperation[]> {
+        return await this.store.dumpSubmitted()
     }
 
-    removeSubmitted(userOpHash: `0x${string}`): void {
-        this.store.removeSubmitted(userOpHash)
+    async removeSubmitted(userOpHash: `0x${string}`): Promise<void> {
+        await this.store.removeSubmitted(userOpHash)
     }
 
-    removeProcessing(userOpHash: `0x${string}`): void {
-        this.store.removeProcessing(userOpHash)
+    async removeProcessing(userOpHash: `0x${string}`): Promise<void> {
+        await this.store.removeProcessing(userOpHash)
     }
 
-    checkEntityMultipleRoleViolation(op: UserOperation): Promise<void> {
+    async checkEntityMultipleRoleViolation(op: UserOperation): Promise<void> {
         if (!this.config.safeMode) {
             return Promise.resolve()
         }
 
-        const knownEntities = this.getKnownEntities()
+        const knownEntities = await this.getKnownEntities()
 
         if (
             knownEntities.paymasters.has(op.sender) ||
@@ -183,12 +182,12 @@ export class MemoryMempool {
         return Promise.resolve()
     }
 
-    getKnownEntities(): {
+    async getKnownEntities(): Promise<{
         sender: Set<Address>
         paymasters: Set<Address>
         factories: Set<Address>
-    } {
-        const allOps = [...this.store.dumpOutstanding()]
+    }> {
+        const allOps = await this.store.dumpOutstanding()
 
         const entities: {
             sender: Set<Address>
@@ -227,24 +226,24 @@ export class MemoryMempool {
 
     // TODO: add check for adding a userop with conflicting nonce
     // In case of concurrent requests
-    add(
+    async add(
         userOperation: UserOperation,
         entryPoint: Address,
         referencedContracts?: ReferencedCodeHashes
-    ): [boolean, string] {
+    ): Promise<[boolean, string]> {
         const opHash = getUserOperationHash(
             userOperation,
             entryPoint,
             this.config.publicClient.chain.id
         )
 
-        const outstandingOps = [...this.store.dumpOutstanding()]
+        const outstandingOps = await this.store.dumpOutstanding()
 
         const processedOrSubmittedOps = [
-            ...this.store.dumpProcessing(),
-            ...this.store
-                .dumpSubmitted()
-                .map(({ userOperation }) => userOperation)
+            ...(await this.store.dumpProcessing()),
+            ...(await this.store.dumpSubmitted()).map(
+                ({ userOperation }) => userOperation
+            )
         ]
 
         // Check if the exact same userOperation is already in the mempool.
@@ -359,11 +358,11 @@ export class MemoryMempool {
         }
 
         // Check if mempool already includes max amount of parallel user operations
-        const parallelUserOperationsCount = this.store
-            .dumpOutstanding()
-            .filter((userOp) => {
-                return userOp.sender === userOperation.sender
-            }).length
+        const parallelUserOperationsCount = (
+            await this.store.dumpOutstanding()
+        ).filter((userOp) => {
+            return userOp.sender === userOperation.sender
+        }).length
 
         if (parallelUserOperationsCount > this.config.mempoolMaxParallelOps) {
             return [
@@ -374,16 +373,16 @@ export class MemoryMempool {
 
         // Check if mempool already includes max amount of queued user operations
         const [nonceKey] = getNonceKeyAndValue(userOperation.nonce)
-        const queuedUserOperationsCount = this.store
-            .dumpOutstanding()
-            .filter((userOp) => {
-                const [opNonceKey] = getNonceKeyAndValue(userOp.nonce)
+        const queuedUserOperationsCount = (
+            await this.store.dumpOutstanding()
+        ).filter((userOp) => {
+            const [opNonceKey] = getNonceKeyAndValue(userOp.nonce)
 
-                return (
-                    userOp.sender === userOperation.sender &&
-                    opNonceKey === nonceKey
-                )
-            }).length
+            return (
+                userOp.sender === userOperation.sender &&
+                opNonceKey === nonceKey
+            )
+        }).length
 
         if (queuedUserOperationsCount > this.config.mempoolMaxQueuedOps) {
             return [
@@ -689,8 +688,7 @@ export class MemoryMempool {
         minOpsPerBundle: number
         maxBundleCount?: number
     }): Promise<UserOperationBundle[]> {
-        let outstandingUserOperations = this.store
-            .dumpOutstanding()
+        let outstandingUserOperations = (await this.store.dumpOutstanding())
             .filter((op) => op.entryPoint === entryPoint)
             .sort((aUserOp, bUserOp) => {
                 // Sort userops before the execution
@@ -748,7 +746,7 @@ export class MemoryMempool {
             let paymasterDeposit: { [paymaster: string]: bigint } = {} // paymaster deposit should be enough for all UserOps in the bundle.
             let stakedEntityCount: { [addr: string]: number } = {} // throttled paymasters and factories are allowed only small UserOps per bundle.
             let senders = new Set<string>() // each sender is allowed only once per bundle
-            let knownEntities = this.getKnownEntities()
+            let knownEntities = await this.getKnownEntities()
             let storageMap: StorageMap = {}
 
             // Keep adding ops to current bundle.
@@ -845,9 +843,8 @@ export class MemoryMempool {
             currentNonceValue = getNonceKeyAndValue(getNonceResult)[1]
         }
 
-        const outstanding = this.store
-            .dumpOutstanding()
-            .filter((mempoolUserOp) => {
+        const outstanding = (await this.store.dumpOutstanding()).filter(
+            (mempoolUserOp) => {
                 const [opNonceKey, opNonceValue] = getNonceKeyAndValue(
                     mempoolUserOp.nonce
                 )
@@ -858,7 +855,8 @@ export class MemoryMempool {
                     opNonceValue >= currentNonceValue &&
                     opNonceValue < userOperationNonceValue
                 )
-            })
+            }
+        )
 
         outstanding.sort((a, b) => {
             const [, aNonceValue] = getNonceKeyAndValue(a.nonce)

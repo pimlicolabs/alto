@@ -5,6 +5,7 @@ import { hideBin } from "yargs/helpers"
 import {
     bundlerCommand,
     bundlerOptions,
+    mempoolOptions,
     compatibilityOptions,
     debugOptions,
     executorOptions,
@@ -68,6 +69,8 @@ export function getAltoCli(): yargs.Argv {
         })
         .options(bundlerOptions)
         .group(Object.keys(bundlerOptions), "Options:")
+        .options(mempoolOptions)
+        .group(Object.keys(mempoolOptions), "Options:")
         .options(compatibilityOptions)
         .group(Object.keys(compatibilityOptions), "Compatibility Options:")
         .options(serverOptions)

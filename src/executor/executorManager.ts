@@ -1,7 +1,7 @@
 import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
-    MemoryMempool,
+    Mempool,
     Monitor
 } from "@alto/mempool"
 import {
@@ -59,7 +59,7 @@ export class ExecutorManager {
     private senderManager: SenderManager
     private config: AltoConfig
     private executor: Executor
-    private mempool: MemoryMempool
+    private mempool: Mempool
     private monitor: Monitor
     private logger: Logger
     private metrics: Metrics
@@ -84,7 +84,7 @@ export class ExecutorManager {
     }: {
         config: AltoConfig
         executor: Executor
-        mempool: MemoryMempool
+        mempool: Mempool
         monitor: Monitor
         reputationManager: InterfaceReputationManager
         metrics: Metrics

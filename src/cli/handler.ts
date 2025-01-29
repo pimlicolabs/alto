@@ -1,4 +1,4 @@
-import { SenderManager } from "@alto/executor"
+import { SenderManager, createSenderManager } from "@alto/executor"
 import { GasPriceManager } from "@alto/handlers"
 import {
     createMetrics,
@@ -165,10 +165,9 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
 
     await preFlightChecks(config)
 
-    const senderManager = new SenderManager({
+    const senderManager = await createSenderManager({
         config,
-        metrics,
-        gasPriceManager
+        metrics
     })
 
     const utilityWalletAddress = config.utilityPrivateKey?.address

@@ -189,6 +189,22 @@ const userOperationSchema = z.union([
     userOperationV07Schema
 ])
 
+const extensionSchema = z.object({
+    hash: hexDataSchema,
+    entryPoint: addressSchema,
+    referencedContracts: z
+        .object({
+            hash: z.string(),
+            addresses: z.array(z.string())
+        })
+        .optional()
+})
+
+export const userOperationInfoSchema = z.union([
+    z.intersection(userOperationV06Schema, extensionSchema),
+    z.intersection(userOperationV07Schema, extensionSchema)
+])
+
 export type UserOperationV06 = z.infer<typeof userOperationV06Schema>
 export type UserOperationV07 = z.infer<typeof userOperationV07Schema>
 export type PackedUserOperation = z.infer<typeof packerUserOperationSchema>
