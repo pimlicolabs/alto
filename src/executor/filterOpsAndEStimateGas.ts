@@ -98,7 +98,14 @@ export async function filterOpsAndEstimateGas({
     let gasLimit: bigint
     let retriesLeft = 5
 
-    while (opsToBundle.length > 0 && retriesLeft > 0) {
+    while (opsToBundle.length > 0) {
+        if (retriesLeft === 0) {
+            return {
+                status: "unexpected_failure",
+                reason: "max retries reached"
+            }
+        }
+
         try {
             const encodedOps = opsToBundle.map((userOperation) => {
                 return isUserOpV06
