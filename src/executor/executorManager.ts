@@ -406,7 +406,7 @@ export class ExecutorManager {
                 userOps.map((userOpInfo) => {
                     const { userOpHash } = userOpInfo
                     this.checkFrontrun({
-                        userOpHash: userOpHash,
+                        userOpHash,
                         transactionHash,
                         blockNumber
                     })
@@ -451,7 +451,7 @@ export class ExecutorManager {
 
                         this.logger.info(
                             {
-                                userOpHash: userOpHash,
+                                userOpHash,
                                 transactionHash
                             },
                             "user op frontrun onchain"
@@ -472,7 +472,7 @@ export class ExecutorManager {
                         )
                         this.logger.info(
                             {
-                                userOpHash: userOpHash,
+                                userOpHash,
                                 transactionHash
                             },
                             "user op failed onchain"
@@ -871,12 +871,12 @@ export class ExecutorManager {
     }
 
     resubmitUserOperations(
-        mempoolUserOps: UserOpInfo[],
+        userOps: UserOpInfo[],
         entryPoint: Address,
         reason: string
     ) {
-        mempoolUserOps.map((mempoolUserOp) => {
-            const { userOpHash, userOp } = mempoolUserOp
+        userOps.map((userOpInfo) => {
+            const { userOpHash, userOp } = userOpInfo
             this.logger.info(
                 {
                     userOpHash,
@@ -903,9 +903,9 @@ export class ExecutorManager {
         this.dropUserOps(rejectedUserOps)
     }
 
-    removeSubmitted(mempoolUserOps: UserOpInfo[]) {
-        mempoolUserOps.map((mempoolOp) => {
-            const { userOpHash } = mempoolOp
+    removeSubmitted(userOps: UserOpInfo[]) {
+        userOps.map((userOpInfo) => {
+            const { userOpHash } = userOpInfo
             this.mempool.removeSubmitted(userOpHash)
         })
     }

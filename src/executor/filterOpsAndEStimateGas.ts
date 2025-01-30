@@ -79,7 +79,7 @@ export async function filterOpsAndEstimateGas({
     config: AltoConfig
     logger: Logger
 }): Promise<FilterOpsAndEstimateGasResult> {
-    const { userOps: userOperations, version, entryPoint } = userOpBundle
+    const { userOps, version, entryPoint } = userOpBundle
     let {
         fixedGasLimitForEstimation,
         legacyTransactions,
@@ -99,7 +99,7 @@ export async function filterOpsAndEstimateGas({
     })
 
     // Keep track of invalid and valid ops
-    const userOpsToBundle = [...userOperations]
+    const userOpsToBundle = [...userOps]
     const rejectedUserOps: RejectedUserOp[] = []
 
     // Prepare bundling tx params
@@ -287,6 +287,8 @@ export async function filterOpsAndEstimateGas({
 
                     rejectedUserOps.push(rejectUserOp(failingUserOp, reason))
                     userOpsToBundle.splice(failedOpIndex, 1)
+
+                    continue
                 } catch (e: unknown) {
                     logger.error(
                         { error: JSON.stringify(err) },
