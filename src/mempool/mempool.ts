@@ -9,22 +9,23 @@ import {
     type ReferencedCodeHashes,
     RpcError,
     type StorageMap,
-    type SubmittedUserOperation,
+    type SubmittedUserOp,
     type TransactionInfo,
     type UserOperation,
-    type UserOperationInfo,
     ValidationErrors,
     type ValidationResult,
-    UserOperationBundle
+    UserOperationBundle,
+    UserOpInfo
 } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import type { Logger } from "@alto/utils"
 import {
     getAddressFromInitCodeOrPaymasterAndData,
-    getNonceKeyAndValue,
+    getNonceKeyAndSequence,
     getUserOperationHash,
     isVersion06,
-    isVersion07
+    isVersion07,
+    scaleBigIntByPercent
 } from "@alto/utils"
 import { type Address, getAddress, getContract } from "viem"
 import type { Monitor } from "./monitoring"
@@ -76,19 +77,21 @@ export class MemoryMempool {
     }
 
     replaceSubmitted(
-        userOperation: UserOperationInfo,
+        userOpInfo: UserOpInfo,
         transactionInfo: TransactionInfo
     ): void {
-        const op = this.store
+        const { userOpHash } = userOpInfo
+        const existingUserOpToReplace = this.store
             .dumpSubmitted()
-            .find((op) => op.userOperation.hash === userOperation.hash)
-        if (op) {
-            this.store.removeSubmitted(userOperation.hash)
+            .find((userOpInfo) => userOpInfo.userOpHash === userOpHash)
+
+        if (existingUserOpToReplace) {
+            this.store.removeSubmitted(userOpHash)
             this.store.addSubmitted({
-                userOperation,
+                ...existingUserOpToReplace,
                 transactionInfo
             })
-            this.monitor.setUserOperationStatus(userOperation.hash, {
+            this.monitor.setUserOperationStatus(userOpHash, {
                 status: "submitted",
                 transactionHash: transactionInfo.transactionHash
             })
@@ -99,13 +102,14 @@ export class MemoryMempool {
         userOpHash: `0x${string}`,
         transactionInfo: TransactionInfo
     ): void {
-        const op = this.store
+        const processingUserOp = this.store
             .dumpProcessing()
-            .find((op) => op.hash === userOpHash)
-        if (op) {
+            .find((userOpInfo) => userOpInfo.userOpHash === userOpHash)
+
+        if (processingUserOp) {
             this.store.removeProcessing(userOpHash)
             this.store.addSubmitted({
-                userOperation: op,
+                ...processingUserOp,
                 transactionInfo
             })
             this.monitor.setUserOperationStatus(userOpHash, {
@@ -116,14 +120,16 @@ export class MemoryMempool {
     }
 
     dumpOutstanding(): UserOperation[] {
-        return this.store.dumpOutstanding()
+        return this.store
+            .dumpOutstanding()
+            .map((userOpInfo) => userOpInfo.userOp)
     }
 
-    dumpProcessing(): UserOperationInfo[] {
+    dumpProcessing(): UserOpInfo[] {
         return this.store.dumpProcessing()
     }
 
-    dumpSubmittedOps(): SubmittedUserOperation[] {
+    dumpSubmittedOps(): SubmittedUserOp[] {
         return this.store.dumpSubmitted()
     }
 
@@ -200,22 +206,25 @@ export class MemoryMempool {
             factories: new Set()
         }
 
-        for (const op of allOps) {
-            entities.sender.add(op.sender)
+        for (const userOpInfo of allOps) {
+            const { userOp } = userOpInfo
+            entities.sender.add(userOp.sender)
 
-            const isUserOpV06 = isVersion06(op)
+            const isUserOpV06 = isVersion06(userOp)
 
             const paymaster = isUserOpV06
-                ? getAddressFromInitCodeOrPaymasterAndData(op.paymasterAndData)
-                : op.paymaster
+                ? getAddressFromInitCodeOrPaymasterAndData(
+                      userOp.paymasterAndData
+                  )
+                : userOp.paymaster
 
             if (paymaster) {
                 entities.paymasters.add(paymaster)
             }
 
             const factory = isUserOpV06
-                ? getAddressFromInitCodeOrPaymasterAndData(op.initCode)
-                : op.factory
+                ? getAddressFromInitCodeOrPaymasterAndData(userOp.initCode)
+                : userOp.factory
 
             if (factory) {
                 entities.factories.add(factory)
@@ -228,12 +237,12 @@ export class MemoryMempool {
     // TODO: add check for adding a userop with conflicting nonce
     // In case of concurrent requests
     add(
-        userOperation: UserOperation,
+        userOp: UserOperation,
         entryPoint: Address,
         referencedContracts?: ReferencedCodeHashes
     ): [boolean, string] {
         const opHash = getUserOperationHash(
-            userOperation,
+            userOp,
             entryPoint,
             this.config.publicClient.chain.id
         )
@@ -242,26 +251,25 @@ export class MemoryMempool {
 
         const processedOrSubmittedOps = [
             ...this.store.dumpProcessing(),
-            ...this.store
-                .dumpSubmitted()
-                .map(({ userOperation }) => userOperation)
+            ...this.store.dumpSubmitted()
         ]
 
         // Check if the exact same userOperation is already in the mempool.
         const existingUserOperation = [
             ...outstandingOps,
             ...processedOrSubmittedOps
-        ].find((userOperation) => userOperation.hash === opHash)
+        ].find((userOpInfo) => userOpInfo.userOpHash === opHash)
 
         if (existingUserOperation) {
             return [false, "Already known"]
         }
 
         if (
-            processedOrSubmittedOps.find((mempoolUserOp) => {
+            processedOrSubmittedOps.find((userOpInfo) => {
+                const { userOp: mempoolUserOp } = userOpInfo
                 return (
-                    mempoolUserOp.sender === userOperation.sender &&
-                    mempoolUserOp.nonce === userOperation.nonce
+                    mempoolUserOp.sender === userOp.sender &&
+                    mempoolUserOp.nonce === userOp.nonce
                 )
             })
         ) {
@@ -271,63 +279,59 @@ export class MemoryMempool {
             ]
         }
 
-        this.reputationManager.updateUserOperationSeenStatus(
-            userOperation,
-            entryPoint
-        )
-        const oldUserOp = [...outstandingOps, ...processedOrSubmittedOps].find(
-            (mempoolUserOp) => {
-                const isSameSender =
-                    mempoolUserOp.sender === userOperation.sender
+        this.reputationManager.updateUserOperationSeenStatus(userOp, entryPoint)
+        const oldUserOpInfo = [
+            ...outstandingOps,
+            ...processedOrSubmittedOps
+        ].find((userOpInfo) => {
+            const { userOp: mempoolUserOp } = userOpInfo
 
-                if (
-                    isSameSender &&
-                    mempoolUserOp.nonce === userOperation.nonce
-                ) {
-                    return true
-                }
-
-                // Check if there is already a userOperation with initCode + same sender (stops rejected ops due to AA10).
-                if (
-                    isVersion06(mempoolUserOp) &&
-                    isVersion06(userOperation) &&
-                    userOperation.initCode &&
-                    userOperation.initCode !== "0x"
-                ) {
-                    return (
-                        isSameSender &&
-                        mempoolUserOp.initCode &&
-                        mempoolUserOp.initCode !== "0x"
-                    )
-                }
-
-                // Check if there is already a userOperation with factory + same sender (stops rejected ops due to AA10).
-                if (
-                    isVersion07(mempoolUserOp) &&
-                    isVersion07(userOperation) &&
-                    userOperation.factory &&
-                    userOperation.factory !== "0x"
-                ) {
-                    return (
-                        isSameSender &&
-                        mempoolUserOp.factory &&
-                        mempoolUserOp.factory !== "0x"
-                    )
-                }
-
-                return false
+            const isSameSender = mempoolUserOp.sender === userOp.sender
+            if (isSameSender && mempoolUserOp.nonce === userOp.nonce) {
+                return true
             }
-        )
+
+            // Check if there is already a userOperation with initCode + same sender (stops rejected ops due to AA10).
+            if (
+                isVersion06(mempoolUserOp) &&
+                isVersion06(userOp) &&
+                userOp.initCode &&
+                userOp.initCode !== "0x"
+            ) {
+                return (
+                    isSameSender &&
+                    mempoolUserOp.initCode &&
+                    mempoolUserOp.initCode !== "0x"
+                )
+            }
+
+            // Check if there is already a userOperation with factory + same sender (stops rejected ops due to AA10).
+            if (
+                isVersion07(mempoolUserOp) &&
+                isVersion07(userOp) &&
+                userOp.factory &&
+                userOp.factory !== "0x"
+            ) {
+                return (
+                    isSameSender &&
+                    mempoolUserOp.factory &&
+                    mempoolUserOp.factory !== "0x"
+                )
+            }
+
+            return false
+        })
 
         const isOldUserOpProcessingOrSubmitted = processedOrSubmittedOps.some(
-            (submittedOp) => submittedOp.hash === oldUserOp?.hash
+            (userOpInfo) => userOpInfo.userOpHash === oldUserOpInfo?.userOpHash
         )
 
-        if (oldUserOp) {
+        if (oldUserOpInfo) {
+            const { userOp: oldUserOp } = oldUserOpInfo
             let reason =
                 "AA10 sender already constructed: A conflicting userOperation with initCode for this sender is already in the mempool. bump the gas price by minimum 10%"
 
-            if (oldUserOp.nonce === userOperation.nonce) {
+            if (oldUserOp.nonce === userOp.nonce) {
                 reason =
                     "AA25 invalid account nonce: User operation already present in mempool, bump the gas price by minimum 10%"
             }
@@ -337,32 +341,32 @@ export class MemoryMempool {
                 return [false, reason]
             }
 
-            const oldMaxPriorityFeePerGas = oldUserOp.maxPriorityFeePerGas
-            const newMaxPriorityFeePerGas = userOperation.maxPriorityFeePerGas
-            const oldMaxFeePerGas = oldUserOp.maxFeePerGas
-            const newMaxFeePerGas = userOperation.maxFeePerGas
+            const oldOp = oldUserOp
+            const newOp = userOp
 
-            const incrementMaxPriorityFeePerGas =
-                (oldMaxPriorityFeePerGas * BigInt(10)) / BigInt(100)
-            const incrementMaxFeePerGas =
-                (oldMaxFeePerGas * BigInt(10)) / BigInt(100)
+            const hasHigherPriorityFee =
+                newOp.maxPriorityFeePerGas >=
+                scaleBigIntByPercent(oldOp.maxPriorityFeePerGas, 110n)
 
-            if (
-                newMaxPriorityFeePerGas <
-                    oldMaxPriorityFeePerGas + incrementMaxPriorityFeePerGas ||
-                newMaxFeePerGas < oldMaxFeePerGas + incrementMaxFeePerGas
-            ) {
+            const hasHigherMaxFee =
+                newOp.maxFeePerGas >=
+                scaleBigIntByPercent(oldOp.maxFeePerGas, 110n)
+
+            const hasHigherFees = hasHigherPriorityFee || hasHigherMaxFee
+
+            if (!hasHigherFees) {
                 return [false, reason]
             }
 
-            this.store.removeOutstanding(oldUserOp.hash)
+            this.store.removeOutstanding(oldUserOpInfo.userOpHash)
         }
 
         // Check if mempool already includes max amount of parallel user operations
         const parallelUserOperationsCount = this.store
             .dumpOutstanding()
-            .filter((userOp) => {
-                return userOp.sender === userOperation.sender
+            .filter((userOpInfo) => {
+                const { userOp: mempoolUserOp } = userOpInfo
+                return mempoolUserOp.sender === userOp.sender
             }).length
 
         if (parallelUserOperationsCount > this.config.mempoolMaxParallelOps) {
@@ -373,14 +377,15 @@ export class MemoryMempool {
         }
 
         // Check if mempool already includes max amount of queued user operations
-        const [nonceKey] = getNonceKeyAndValue(userOperation.nonce)
+        const [nonceKey] = getNonceKeyAndSequence(userOp.nonce)
         const queuedUserOperationsCount = this.store
             .dumpOutstanding()
-            .filter((userOp) => {
-                const [opNonceKey] = getNonceKeyAndValue(userOp.nonce)
+            .filter((userOpInfo) => {
+                const { userOp: mempoolUserOp } = userOpInfo
+                const [opNonceKey] = getNonceKeyAndSequence(mempoolUserOp.nonce)
 
                 return (
-                    userOp.sender === userOperation.sender &&
+                    mempoolUserOp.sender === userOp.sender &&
                     opNonceKey === nonceKey
                 )
             }).length
@@ -393,10 +398,11 @@ export class MemoryMempool {
         }
 
         this.store.addOutstanding({
-            ...userOperation,
+            userOp,
             entryPoint,
-            hash: opHash,
-            referencedContracts
+            userOpHash: opHash,
+            referencedContracts,
+            addedToMempool: Date.now()
         })
         this.monitor.setUserOperationStatus(opHash, {
             status: "not_submitted",
@@ -409,7 +415,7 @@ export class MemoryMempool {
 
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: <explanation>
     async shouldSkip(
-        userOperation: UserOperationInfo,
+        userOpInfo: UserOpInfo,
         paymasterDeposit: { [paymaster: string]: bigint },
         stakedEntityCount: { [addr: string]: number },
         knownEntities: {
@@ -442,22 +448,23 @@ export class MemoryMempool {
             }
         }
 
-        const isUserOpV06 = isVersion06(userOperation)
+        const { userOp, entryPoint, userOpHash, referencedContracts } =
+            userOpInfo
+
+        const isUserOpV06 = isVersion06(userOp)
 
         const paymaster = isUserOpV06
-            ? getAddressFromInitCodeOrPaymasterAndData(
-                  userOperation.paymasterAndData
-              )
-            : userOperation.paymaster
+            ? getAddressFromInitCodeOrPaymasterAndData(userOp.paymasterAndData)
+            : userOp.paymaster
         const factory = isUserOpV06
-            ? getAddressFromInitCodeOrPaymasterAndData(userOperation.initCode)
-            : userOperation.factory
+            ? getAddressFromInitCodeOrPaymasterAndData(userOp.initCode)
+            : userOp.factory
         const paymasterStatus = this.reputationManager.getStatus(
-            userOperation.entryPoint,
+            entryPoint,
             paymaster
         )
         const factoryStatus = this.reputationManager.getStatus(
-            userOperation.entryPoint,
+            entryPoint,
             factory
         )
 
@@ -465,7 +472,7 @@ export class MemoryMempool {
             paymasterStatus === ReputationStatuses.banned ||
             factoryStatus === ReputationStatuses.banned
         ) {
-            this.store.removeOutstanding(userOperation.hash)
+            this.store.removeOutstanding(userOpHash)
             return {
                 skip: true,
                 paymasterDeposit,
@@ -484,7 +491,7 @@ export class MemoryMempool {
             this.logger.trace(
                 {
                     paymaster,
-                    opHash: userOperation.hash
+                    userOpHash
                 },
                 "Throttled paymaster skipped"
             )
@@ -506,7 +513,7 @@ export class MemoryMempool {
             this.logger.trace(
                 {
                     factory,
-                    opHash: userOperation.hash
+                    userOpHash
                 },
                 "Throttled factory skipped"
             )
@@ -521,13 +528,13 @@ export class MemoryMempool {
         }
 
         if (
-            senders.has(userOperation.sender) &&
+            senders.has(userOp.sender) &&
             this.config.enforceUniqueSendersPerBundle
         ) {
             this.logger.trace(
                 {
-                    sender: userOperation.sender,
-                    opHash: userOperation.hash
+                    sender: userOp.sender,
+                    userOpHash
                 },
                 "Sender skipped because already included in bundle"
             )
@@ -548,27 +555,27 @@ export class MemoryMempool {
 
             if (!isUserOpV06) {
                 queuedUserOperations = await this.getQueuedUserOperations(
-                    userOperation,
-                    userOperation.entryPoint
+                    userOp,
+                    entryPoint
                 )
             }
 
             validationResult = await this.validator.validateUserOperation({
                 shouldCheckPrefund: false,
-                userOperation: userOperation,
+                userOperation: userOp,
                 queuedUserOperations,
-                entryPoint: userOperation.entryPoint,
-                referencedContracts: userOperation.referencedContracts
+                entryPoint,
+                referencedContracts
             })
         } catch (e) {
             this.logger.error(
                 {
-                    opHash: userOperation.hash,
+                    userOpHash,
                     error: JSON.stringify(e)
                 },
                 "2nd Validation error"
             )
-            this.store.removeOutstanding(userOperation.hash)
+            this.store.removeOutstanding(userOpHash)
             return {
                 skip: true,
                 paymasterDeposit,
@@ -583,13 +590,13 @@ export class MemoryMempool {
             const address = getAddress(storageAddress)
 
             if (
-                address !== userOperation.sender &&
+                address !== userOp.sender &&
                 knownEntities.sender.has(address)
             ) {
                 this.logger.trace(
                     {
                         storageAddress,
-                        opHash: userOperation.hash
+                        userOpHash
                     },
                     "Storage address skipped"
                 )
@@ -608,7 +615,7 @@ export class MemoryMempool {
             if (paymasterDeposit[paymaster] === undefined) {
                 const entryPointContract = getContract({
                     abi: isUserOpV06 ? EntryPointV06Abi : EntryPointV07Abi,
-                    address: userOperation.entryPoint,
+                    address: entryPoint,
                     client: {
                         public: this.config.publicClient
                     }
@@ -623,7 +630,7 @@ export class MemoryMempool {
                 this.logger.trace(
                     {
                         paymaster,
-                        opHash: userOperation.hash
+                        userOpHash
                     },
                     "Paymaster skipped because of insufficient balance left to sponsor all user ops in the bundle"
                 )
@@ -645,7 +652,7 @@ export class MemoryMempool {
             stakedEntityCount[factory] = (stakedEntityCount[factory] ?? 0) + 1
         }
 
-        senders.add(userOperation.sender)
+        senders.add(userOp.sender)
 
         return {
             skip: false,
@@ -689,18 +696,21 @@ export class MemoryMempool {
         minOpsPerBundle: number
         maxBundleCount?: number
     }): Promise<UserOperationBundle[]> {
-        let outstandingUserOperations = this.store
+        let outstandingUserOps = this.store
             .dumpOutstanding()
             .filter((op) => op.entryPoint === entryPoint)
-            .sort((aUserOp, bUserOp) => {
+            .sort((aUserOpInfo, bUserOpInfo) => {
                 // Sort userops before the execution
                 // Decide the order of the userops based on the sender and nonce
                 // If sender is the same, sort by nonce key
+                const aUserOp = aUserOpInfo.userOp
+                const bUserOp = bUserOpInfo.userOp
+
                 if (aUserOp.sender === bUserOp.sender) {
-                    const [aNonceKey, aNonceValue] = getNonceKeyAndValue(
+                    const [aNonceKey, aNonceValue] = getNonceKeyAndSequence(
                         aUserOp.nonce
                     )
-                    const [bNonceKey, bNonceValue] = getNonceKeyAndValue(
+                    const [bNonceKey, bNonceValue] = getNonceKeyAndSequence(
                         bUserOp.nonce
                     )
 
@@ -715,13 +725,14 @@ export class MemoryMempool {
             })
             .slice()
 
-        if (outstandingUserOperations.length === 0) return []
+        if (outstandingUserOps.length === 0) return []
 
         // Get EntryPoint version. (Ideally version should be derived from CLI flags)
-        const isV6 = isVersion06(outstandingUserOperations[0])
-        const allSameVersion = outstandingUserOperations.every(
-            (userOperation) => isVersion06(userOperation) === isV6
-        )
+        const isV6 = isVersion06(outstandingUserOps[0].userOp)
+        const allSameVersion = outstandingUserOps.every((userOpInfo) => {
+            const { userOp } = userOpInfo
+            return isVersion06(userOp) === isV6
+        })
         if (!allSameVersion) {
             throw new Error(
                 "All user operations from same EntryPoint must be of the same version"
@@ -731,7 +742,7 @@ export class MemoryMempool {
         const bundles: UserOperationBundle[] = []
 
         // Process all outstanding ops.
-        while (outstandingUserOperations.length > 0) {
+        while (outstandingUserOps.length > 0) {
             // If maxBundles is set and we reached the limit, break.
             if (maxBundleCount && bundles.length >= maxBundleCount) {
                 break
@@ -741,7 +752,7 @@ export class MemoryMempool {
             const currentBundle: UserOperationBundle = {
                 entryPoint,
                 version: isV6 ? "0.6" : "0.7",
-                userOperations: []
+                userOps: []
             }
             let gasUsed = 0n
 
@@ -752,14 +763,16 @@ export class MemoryMempool {
             let storageMap: StorageMap = {}
 
             // Keep adding ops to current bundle.
-            while (outstandingUserOperations.length > 0) {
-                const userOperation = outstandingUserOperations.shift()
-                if (!userOperation) break
+            while (outstandingUserOps.length > 0) {
+                const userOpInfo = outstandingUserOps.shift()
+                if (!userOpInfo) break
+
+                const { userOp, userOpHash } = userOpInfo
 
                 // NOTE: currently if a userOp is skipped due to sender enforceUniqueSendersPerBundle it will be picked up
                 // again the next time mempool.process is called.
                 const skipResult = await this.shouldSkip(
-                    userOperation,
+                    userOpInfo,
                     paymasterDeposit,
                     stakedEntityCount,
                     knownEntities,
@@ -769,19 +782,19 @@ export class MemoryMempool {
                 if (skipResult.skip) continue
 
                 gasUsed +=
-                    userOperation.callGasLimit +
-                    userOperation.verificationGasLimit +
-                    (isVersion07(userOperation)
-                        ? (userOperation.paymasterPostOpGasLimit || 0n) +
-                          (userOperation.paymasterVerificationGasLimit || 0n)
+                    userOp.callGasLimit +
+                    userOp.verificationGasLimit +
+                    (isVersion07(userOp)
+                        ? (userOp.paymasterPostOpGasLimit || 0n) +
+                          (userOp.paymasterVerificationGasLimit || 0n)
                         : 0n)
 
                 // Only break on gas limit if we've hit minOpsPerBundle.
                 if (
                     gasUsed > maxGasLimit &&
-                    currentBundle.userOperations.length >= minOpsPerBundle
+                    currentBundle.userOps.length >= minOpsPerBundle
                 ) {
-                    outstandingUserOperations.unshift(userOperation) // re-add op to front of queue
+                    outstandingUserOps.unshift(userOpInfo) // re-add op to front of queue
                     break
                 }
 
@@ -792,15 +805,15 @@ export class MemoryMempool {
                 senders = skipResult.senders
                 storageMap = skipResult.storageMap
 
-                this.reputationManager.decreaseUserOperationCount(userOperation)
-                this.store.removeOutstanding(userOperation.hash)
-                this.store.addProcessing(userOperation)
+                this.reputationManager.decreaseUserOperationCount(userOp)
+                this.store.removeOutstanding(userOpHash)
+                this.store.addProcessing(userOpInfo)
 
                 // Add op to current bundle
-                currentBundle.userOperations.push(userOperation)
+                currentBundle.userOps.push(userOpInfo)
             }
 
-            if (currentBundle.userOperations.length > 0) {
+            if (currentBundle.userOps.length > 0) {
                 bundles.push(currentBundle)
             }
         }
@@ -812,23 +825,19 @@ export class MemoryMempool {
     // They should be executed first, ordered by nonce value
     // If cuurentNonceValue is not provided, it will be fetched from the chain
     async getQueuedUserOperations(
-        userOperation: UserOperation,
+        userOp: UserOperation,
         entryPoint: Address,
         _currentNonceValue?: bigint
     ): Promise<UserOperation[]> {
         const entryPointContract = getContract({
             address: entryPoint,
-            abi: isVersion06(userOperation)
-                ? EntryPointV06Abi
-                : EntryPointV07Abi,
+            abi: isVersion06(userOp) ? EntryPointV06Abi : EntryPointV07Abi,
             client: {
                 public: this.config.publicClient
             }
         })
 
-        const [nonceKey, userOperationNonceValue] = getNonceKeyAndValue(
-            userOperation.nonce
-        )
+        const [nonceKey, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
 
         let currentNonceValue: bigint = BigInt(0)
 
@@ -836,38 +845,42 @@ export class MemoryMempool {
             currentNonceValue = _currentNonceValue
         } else {
             const getNonceResult = await entryPointContract.read.getNonce(
-                [userOperation.sender, nonceKey],
+                [userOp.sender, nonceKey],
                 {
                     blockTag: "latest"
                 }
             )
 
-            currentNonceValue = getNonceKeyAndValue(getNonceResult)[1]
+            currentNonceValue = getNonceKeyAndSequence(getNonceResult)[1]
         }
 
         const outstanding = this.store
             .dumpOutstanding()
-            .filter((mempoolUserOp) => {
-                const [opNonceKey, opNonceValue] = getNonceKeyAndValue(
-                    mempoolUserOp.nonce
-                )
+            .filter((userOpInfo) => {
+                const { userOp: mempoolUserOp } = userOpInfo
+
+                const [mempoolNonceKey, mempoolNonceSequence] =
+                    getNonceKeyAndSequence(mempoolUserOp.nonce)
 
                 return (
-                    mempoolUserOp.sender === userOperation.sender &&
-                    opNonceKey === nonceKey &&
-                    opNonceValue >= currentNonceValue &&
-                    opNonceValue < userOperationNonceValue
+                    mempoolUserOp.sender === userOp.sender &&
+                    mempoolNonceKey === nonceKey &&
+                    mempoolNonceSequence >= currentNonceValue &&
+                    mempoolNonceSequence < nonceSequence
                 )
             })
 
         outstanding.sort((a, b) => {
-            const [, aNonceValue] = getNonceKeyAndValue(a.nonce)
-            const [, bNonceValue] = getNonceKeyAndValue(b.nonce)
+            const aUserOp = a.userOp
+            const bUserOp = b.userOp
+
+            const [, aNonceValue] = getNonceKeyAndSequence(aUserOp.nonce)
+            const [, bNonceValue] = getNonceKeyAndSequence(bUserOp.nonce)
 
             return Number(aNonceValue - bNonceValue)
         })
 
-        return outstanding
+        return outstanding.map((userOpInfo) => userOpInfo.userOp)
     }
 
     clear(): void {

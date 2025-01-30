@@ -3,77 +3,74 @@ import type { InterfaceReputationManager, MemoryMempool } from "@alto/mempool"
 import {
     type Address,
     type BundleResult,
-    EntryPointV06Abi,
-    EntryPointV07Abi,
     type HexData32,
-    type PackedUserOperation,
-    type TransactionInfo,
     type UserOperation,
-    type UserOperationV07,
     type GasPriceParameters,
-    UserOperationBundle
+    UserOperationBundle,
+    UserOpInfo
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
-import {
-    isVersion07,
-    maxBigInt,
-    parseViemError,
-    scaleBigIntByPercent,
-    toPackedUserOperation
-} from "@alto/utils"
+import { maxBigInt, parseViemError, scaleBigIntByPercent } from "@alto/utils"
 import * as sentry from "@sentry/node"
-import { Mutex } from "async-mutex"
 import {
     IntrinsicGasTooLowError,
     NonceTooLowError,
     TransactionExecutionError,
-    encodeFunctionData,
-    getContract,
     type Account,
     type Hex,
     NonceTooHighError,
     BaseError
 } from "viem"
-import { getAuthorizationList, isTransactionUnderpricedError } from "./utils"
+import {
+    calculateAA95GasFloor,
+    encodeHandleOpsCalldata,
+    getAuthorizationList,
+    getUserOpHashes,
+    isTransactionUnderpricedError
+} from "./utils"
 import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
-import type { SendTransactionOptions } from "./types"
 import { sendPflConditional } from "./fastlane"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEStimateGas"
+import { SignedAuthorizationList } from "viem/experimental"
 
-export interface GasEstimateResult {
-    preverificationGas: bigint
-    verificationGasLimit: bigint
-    callGasLimit: bigint
-}
-
-export type HandleOpsTxParam = {
-    ops: UserOperation[]
+type HandleOpsTxParams = {
+    gas: bigint
+    account: Account
+    nonce: number
+    userOps: UserOpInfo[]
     isUserOpV06: boolean
     isReplacementTx: boolean
     entryPoint: Address
 }
 
-export type ReplaceTransactionResult =
+type HandleOpsGasParams =
     | {
-          status: "replaced"
-          transactionInfo: TransactionInfo
+          type: "legacy"
+          gasPrice: bigint
+          maxFeePerGas?: undefined
+          maxPriorityFeePerGas?: undefined
       }
     | {
-          status: "potentially_already_included"
+          type: "eip1559"
+          maxFeePerGas: bigint
+          maxPriorityFeePerGas: bigint
+          gasPrice?: undefined
       }
     | {
-          status: "failed"
+          type: "eip7702"
+          maxFeePerGas: bigint
+          maxPriorityFeePerGas: bigint
+          gasPrice?: undefined
+          authorizationList: SignedAuthorizationList
       }
 
 export class Executor {
-    // private unWatch: WatchBlocksReturnType | undefined
     config: AltoConfig
     logger: Logger
     metrics: Metrics
     reputationManager: InterfaceReputationManager
     gasPriceManager: GasPriceManager
-    mutex: Mutex
     mempool: MemoryMempool
     eventManager: EventManager
 
@@ -104,8 +101,6 @@ export class Executor {
         this.metrics = metrics
         this.gasPriceManager = gasPriceManager
         this.eventManager = eventManager
-
-        this.mutex = new Mutex()
     }
 
     cancelOps(_entryPoint: Address, _ops: UserOperation[]): Promise<void> {
@@ -114,47 +109,21 @@ export class Executor {
 
     async sendHandleOpsTransaction({
         txParam,
-        opts
+        gasOpts
     }: {
-        txParam: HandleOpsTxParam
-        opts:
-            | {
-                  gasPrice: bigint
-                  maxFeePerGas?: undefined
-                  maxPriorityFeePerGas?: undefined
-                  account: Account
-                  gas: bigint
-                  nonce: number
-              }
-            | {
-                  maxFeePerGas: bigint
-                  maxPriorityFeePerGas: bigint
-                  gasPrice?: undefined
-                  account: Account
-                  gas: bigint
-                  nonce: number
-              }
+        txParam: HandleOpsTxParams
+        gasOpts: HandleOpsGasParams
     }) {
-        const { isUserOpV06, ops, entryPoint } = txParam
+        const { isUserOpV06, entryPoint, userOps } = txParam
 
-        const packedOps = ops.map((op) => {
-            if (isUserOpV06) {
-                return op
-            }
-            return toPackedUserOperation(op as UserOperationV07)
-        }) as PackedUserOperation[]
-
-        const data = encodeFunctionData({
-            abi: isUserOpV06 ? EntryPointV06Abi : EntryPointV07Abi,
-            functionName: "handleOps",
-            args: [packedOps, opts.account.address]
-        })
+        const handleOpsCalldata = encodeHandleOpsCalldata(userOps, entryPoint)
 
         const request =
             await this.config.walletClient.prepareTransactionRequest({
                 to: entryPoint,
-                data,
-                ...opts
+                data: handleOpsCalldata,
+                ...txParam,
+                ...gasOpts
             })
 
         request.gas = scaleBigIntByPercent(
@@ -257,56 +226,47 @@ export class Executor {
     }
 
     async bundle({
-        wallet,
-        bundle,
+        executor,
+        userOpBundle,
         nonce,
-        gasPriceParameters,
+        gasPriceParams,
         gasLimitSuggestion,
         isReplacementTx
     }: {
-        wallet: Account
-        bundle: UserOperationBundle
+        executor: Account
+        userOpBundle: UserOperationBundle
         nonce: number
-        gasPriceParameters: GasPriceParameters
+        gasPriceParams: GasPriceParameters
         gasLimitSuggestion?: bigint
         isReplacementTx: boolean
     }): Promise<BundleResult> {
-        const { entryPoint, userOperations, version } = bundle
-
+        const { entryPoint, userOps, version } = userOpBundle
+        const { maxFeePerGas, maxPriorityFeePerGas } = gasPriceParams
         const isUserOpV06 = version === "0.6"
-        const ep = getContract({
-            abi: isUserOpV06 ? EntryPointV06Abi : EntryPointV07Abi,
-            address: entryPoint,
-            client: {
-                public: this.config.publicClient,
-                wallet: this.config.walletClient
-            }
-        })
 
         let childLogger = this.logger.child({
-            userOperations: userOperations.map((op) => op.hash),
+            userOperations: getUserOpHashes(userOps),
             entryPoint
         })
 
         let estimateResult = await filterOpsAndEstimateGas({
-            isUserOpV06,
-            ops: userOperations,
-            ep,
-            wallet,
+            userOpBundle,
+            executor,
             nonce,
-            maxFeePerGas: gasPriceParameters.maxFeePerGas,
-            maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
+            maxFeePerGas,
+            maxPriorityFeePerGas,
             reputationManager: this.reputationManager,
             config: this.config,
             logger: childLogger
         })
 
-        if (estimateResult.status === "unexpected_failure") {
+        if (estimateResult.status === "unhandled_failure") {
             childLogger.error(
                 "gas limit simulation encountered unexpected failure"
             )
             return {
                 status: "unhandled_simulation_failure",
+                rejectedUserOps: estimateResult.rejectedUserOps,
                 reason: "INTERNAL FAILURE"
             }
         }
@@ -315,36 +275,23 @@ export class Executor {
             childLogger.warn("all ops failed simulation")
             return {
                 status: "all_ops_failed_simulation",
-                rejectedUserOps: estimateResult.failedOps
+                rejectedUserOps: estimateResult.rejectedUserOps
             }
         }
 
-        let { gasLimit, opsToBundle, failedOps } = estimateResult
+        let { gasLimit, userOpsToBundle, rejectedUserOps } = estimateResult
 
         // Update child logger with userOperations being sent for bundling.
         childLogger = this.logger.child({
-            userOperations: opsToBundle.map((op) => op.hash),
+            userOperations: getUserOpHashes(userOpsToBundle),
             entryPoint
         })
 
         // Ensure that we don't submit with gas too low leading to AA95.
-        // V6 source: https://github.com/eth-infinitism/account-abstraction/blob/fa61290d37d079e928d92d53a122efcc63822214/contracts/core/EntryPoint.sol#L236
-        // V7 source: https://github.com/eth-infinitism/account-abstraction/blob/releases/v0.7/contracts/core/EntryPoint.sol
-        let gasFloor = 0n
-        for (const op of opsToBundle) {
-            if (isVersion07(op)) {
-                const totalGas =
-                    op.callGasLimit +
-                    (op.paymasterPostOpGasLimit || 0n) +
-                    10_000n
-                gasFloor += (totalGas * 64n) / 63n
-            } else {
-                gasFloor += op.callGasLimit + op.verificationGasLimit + 5000n
-            }
-        }
+        const aa95GasFloor = calculateAA95GasFloor(userOpsToBundle)
 
-        if (gasLimit < gasFloor) {
-            gasLimit += gasFloor
+        if (gasLimit < aa95GasFloor) {
+            gasLimit += aa95GasFloor
         }
 
         // sometimes the estimation rounds down, adding a fixed constant accounts for this
@@ -356,89 +303,85 @@ export class Executor {
         let transactionHash: HexData32
         try {
             const isLegacyTransaction = this.config.legacyTransactions
-            const authorizationList = getAuthorizationList(opsToBundle)
+            const authorizationList = getAuthorizationList(userOpsToBundle)
+            const { maxFeePerGas, maxPriorityFeePerGas } = gasPriceParams
 
-            let opts: SendTransactionOptions
+            let gasOpts: HandleOpsGasParams
             if (isLegacyTransaction) {
-                opts = {
+                gasOpts = {
                     type: "legacy",
-                    gasPrice: gasPriceParameters.maxFeePerGas,
-                    account: wallet,
-                    gas: gasLimit,
-                    nonce
+                    gasPrice: maxFeePerGas
                 }
             } else if (authorizationList) {
-                opts = {
+                gasOpts = {
                     type: "eip7702",
-                    maxFeePerGas: gasPriceParameters.maxFeePerGas,
-                    maxPriorityFeePerGas:
-                        gasPriceParameters.maxPriorityFeePerGas,
-                    account: wallet,
-                    gas: gasLimit,
-                    nonce,
+                    maxFeePerGas,
+                    maxPriorityFeePerGas,
                     authorizationList
                 }
             } else {
-                opts = {
+                gasOpts = {
                     type: "eip1559",
-                    maxFeePerGas: gasPriceParameters.maxFeePerGas,
-                    maxPriorityFeePerGas:
-                        gasPriceParameters.maxPriorityFeePerGas,
-                    account: wallet,
-                    gas: gasLimit,
-                    nonce
+                    maxFeePerGas,
+                    maxPriorityFeePerGas
                 }
             }
 
             transactionHash = await this.sendHandleOpsTransaction({
                 txParam: {
-                    ops: opsToBundle,
+                    account: executor,
+                    nonce,
+                    gas: gasLimit,
+                    userOps: userOpsToBundle,
                     isReplacementTx,
                     isUserOpV06,
                     entryPoint
                 },
-                opts
+                gasOpts
             })
 
             this.eventManager.emitSubmitted({
-                userOpHashes: opsToBundle.map((op) => op.hash),
+                userOpHashes: getUserOpHashes(userOpsToBundle),
                 transactionHash
             })
         } catch (err: unknown) {
             const e = parseViemError(err)
+            const { rejectedUserOps, userOpsToBundle } = estimateResult
 
-            const { failedOps, opsToBundle } = estimateResult
-            if (e) {
+            // if unknown error, return INTERNAL FAILURE
+            if (!e) {
+                sentry.captureException(err)
+                childLogger.error(
+                    { error: JSON.stringify(err) },
+                    "error submitting bundle transaction"
+                )
                 return {
-                    rejectedUserOps: failedOps,
-                    userOpsToBundle: opsToBundle,
+                    rejectedUserOps,
+                    userOpsToBundle,
                     status: "bundle_submission_failure",
-                    reason: e
+                    reason: "INTERNAL FAILURE"
                 }
             }
 
-            sentry.captureException(err)
-            childLogger.error(
-                { error: JSON.stringify(err) },
-                "error submitting bundle transaction"
-            )
             return {
-                rejectedUserOps: failedOps,
-                userOpsToBundle: opsToBundle,
+                rejectedUserOps,
+                userOpsToBundle,
                 status: "bundle_submission_failure",
-                reason: "INTERNAL FAILURE"
+                reason: e
             }
         }
 
+        const userOpsBundled = userOpsToBundle
+
         const bundleResult: BundleResult = {
             status: "bundle_success",
-            userOpsBundled: opsToBundle,
-            rejectedUserOps: failedOps,
+            userOpsBundled,
+            rejectedUserOps,
             transactionHash,
             transactionRequest: {
                 gas: gasLimit,
-                maxFeePerGas: gasPriceParameters.maxFeePerGas,
-                maxPriorityFeePerGas: gasPriceParameters.maxPriorityFeePerGas,
+                maxFeePerGas: gasPriceParams.maxFeePerGas,
+                maxPriorityFeePerGas: gasPriceParams.maxPriorityFeePerGas,
                 nonce
             }
         }
@@ -447,7 +390,7 @@ export class Executor {
             {
                 transactionRequest: bundleResult.transactionRequest,
                 txHash: transactionHash,
-                opHashes: opsToBundle.map((op) => op.hash)
+                opHashes: getUserOpHashes(userOpsBundled)
             },
             "submitted bundle transaction"
         )

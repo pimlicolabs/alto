@@ -1,5 +1,16 @@
-import { type UserOperation } from "@alto/types"
-import type { Logger } from "@alto/utils"
+import {
+    EntryPointV06Abi,
+    EntryPointV07Abi,
+    PackedUserOperation,
+    UserOpInfo,
+    UserOperationV07
+} from "@alto/types"
+import {
+    isVersion06,
+    toPackedUserOperation,
+    type Logger,
+    isVersion07
+} from "@alto/utils"
 // biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
 import * as sentry from "@sentry/node"
 import {
@@ -8,7 +19,10 @@ import {
     type PublicClient,
     type Transport,
     type WalletClient,
-    BaseError
+    BaseError,
+    encodeFunctionData,
+    Address,
+    Hex
 } from "viem"
 import { SignedAuthorizationList } from "viem/experimental"
 
@@ -18,19 +32,65 @@ export const isTransactionUnderpricedError = (e: BaseError) => {
         .includes("replacement transaction underpriced")
 }
 
-export const getAuthorizationList = (
-    userOperations: UserOperation[]
-): SignedAuthorizationList | undefined => {
-    const authorizationList = userOperations
-        .map((op) => {
-            if (op.eip7702Auth) {
-                return op.eip7702Auth
-            }
-            return undefined
-        })
-        .filter((auth) => auth !== undefined) as SignedAuthorizationList
+// V7 source: https://github.com/eth-infinitism/account-abstraction/blob/releases/v0.7/contracts/core/EntryPoint.sol
+// V6 source: https://github.com/eth-infinitism/account-abstraction/blob/fa61290d37d079e928d92d53a122efcc63822214/contracts/core/EntryPoint.sol#L236
+export function calculateAA95GasFloor(userOps: UserOpInfo[]): bigint {
+    let gasFloor = 0n
 
-    return authorizationList.length > 0 ? authorizationList : undefined
+    for (const userOpInfo of userOps) {
+        const { userOp } = userOpInfo
+        if (isVersion07(userOp)) {
+            const totalGas =
+                userOp.callGasLimit +
+                (userOp.paymasterPostOpGasLimit || 0n) +
+                10_000n
+            gasFloor += (totalGas * 64n) / 63n
+        } else {
+            gasFloor +=
+                userOp.callGasLimit + userOp.verificationGasLimit + 5000n
+        }
+    }
+
+    return gasFloor
+}
+
+export const getUserOpHashes = (userOpInfos: UserOpInfo[]) => {
+    return userOpInfos.map(({ userOpHash }) => userOpHash)
+}
+
+export const packUserOps = (userOpInfos: UserOpInfo[]) => {
+    const userOps = userOpInfos.map(({ userOp }) => userOp)
+    const isV06 = isVersion06(userOps[0])
+    const packedUserOps = isV06
+        ? userOps
+        : userOps.map((op) => toPackedUserOperation(op as UserOperationV07))
+    return packedUserOps as PackedUserOperation[]
+}
+
+export const encodeHandleOpsCalldata = (
+    userOpInfos: UserOpInfo[],
+    beneficiary: Address
+): Hex => {
+    const userOps = userOpInfos.map(({ userOp }) => userOp)
+    const isV06 = isVersion06(userOps[0])
+    const packedUserOps = packUserOps(userOpInfos)
+
+    return encodeFunctionData({
+        abi: isV06 ? EntryPointV06Abi : EntryPointV07Abi,
+        functionName: "handleOps",
+        args: [packedUserOps, beneficiary]
+    })
+}
+
+export const getAuthorizationList = (
+    userOpInfos: UserOpInfo[]
+): SignedAuthorizationList | undefined => {
+    const authList = userOpInfos
+        .map(({ userOp }) => userOp)
+        .map(({ eip7702Auth }) => eip7702Auth)
+        .filter(Boolean) as SignedAuthorizationList
+
+    return authList.length ? authList : undefined
 }
 
 export async function flushStuckTransaction(

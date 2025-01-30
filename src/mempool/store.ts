@@ -1,16 +1,12 @@
-import type {
-    HexData32,
-    SubmittedUserOperation,
-    UserOperationInfo
-} from "@alto/types"
+import type { HexData32, SubmittedUserOp, UserOpInfo } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import type { Logger } from "@alto/utils"
 
 export class MemoryStore {
     // private monitoredTransactions: Map<HexData32, TransactionInfo> = new Map() // tx hash to info
-    private outstandingUserOperations: UserOperationInfo[] = []
-    private processingUserOperations: UserOperationInfo[] = []
-    private submittedUserOperations: SubmittedUserOperation[] = []
+    private outstandingUserOperations: UserOpInfo[] = []
+    private processingUserOperations: UserOpInfo[] = []
+    private submittedUserOperations: SubmittedUserOp[] = []
 
     private logger: Logger
     private metrics: Metrics
@@ -20,12 +16,12 @@ export class MemoryStore {
         this.metrics = metrics
     }
 
-    addOutstanding(op: UserOperationInfo) {
+    addOutstanding(userOpInfo: UserOpInfo) {
         const store = this.outstandingUserOperations
 
-        store.push(op)
+        store.push(userOpInfo)
         this.logger.debug(
-            { userOpHash: op.hash, store: "outstanding" },
+            { userOpHash: userOpInfo.userOpHash, store: "outstanding" },
             "added user op to mempool"
         )
         this.metrics.userOperationsInMempool
@@ -35,12 +31,12 @@ export class MemoryStore {
             .inc()
     }
 
-    addProcessing(op: UserOperationInfo) {
+    addProcessing(userOpInfo: UserOpInfo) {
         const store = this.processingUserOperations
 
-        store.push(op)
+        store.push(userOpInfo)
         this.logger.debug(
-            { userOpHash: op.hash, store: "processing" },
+            { userOpHash: userOpInfo.userOpHash, store: "processing" },
             "added user op to mempool"
         )
         this.metrics.userOperationsInMempool
@@ -50,14 +46,14 @@ export class MemoryStore {
             .inc()
     }
 
-    addSubmitted(submittedInfo: SubmittedUserOperation) {
-        const { userOperation } = submittedInfo
+    addSubmitted(submittedInfo: SubmittedUserOp) {
+        const { userOpHash } = submittedInfo
         const store = this.submittedUserOperations
 
         store.push(submittedInfo)
         this.logger.debug(
             {
-                userOpHash: userOperation.hash,
+                userOpHash,
                 store: "submitted"
             },
             "added user op to submitted mempool"
@@ -71,7 +67,7 @@ export class MemoryStore {
 
     removeOutstanding(userOpHash: HexData32) {
         const index = this.outstandingUserOperations.findIndex(
-            (op) => op.hash === userOpHash
+            (userOpInfo) => userOpInfo.userOpHash === userOpHash
         )
         if (index === -1) {
             this.logger.warn(
@@ -95,7 +91,7 @@ export class MemoryStore {
 
     removeProcessing(userOpHash: HexData32) {
         const index = this.processingUserOperations.findIndex(
-            (op) => op.hash === userOpHash
+            (userOpInfo) => userOpInfo.userOpHash === userOpHash
         )
         if (index === -1) {
             this.logger.warn(
@@ -119,7 +115,7 @@ export class MemoryStore {
 
     removeSubmitted(userOpHash: HexData32) {
         const index = this.submittedUserOperations.findIndex(
-            (op) => op.userOperation.hash === userOpHash
+            (userOpInfo) => userOpInfo.userOpHash === userOpHash
         )
         if (index === -1) {
             this.logger.warn(
@@ -141,7 +137,7 @@ export class MemoryStore {
             .dec()
     }
 
-    dumpOutstanding(): UserOperationInfo[] {
+    dumpOutstanding(): UserOpInfo[] {
         this.logger.trace(
             {
                 store: "outstanding",
@@ -152,7 +148,7 @@ export class MemoryStore {
         return this.outstandingUserOperations
     }
 
-    dumpProcessing(): UserOperationInfo[] {
+    dumpProcessing(): UserOpInfo[] {
         this.logger.trace(
             {
                 store: "processing",
@@ -163,7 +159,7 @@ export class MemoryStore {
         return this.processingUserOperations
     }
 
-    dumpSubmitted(): SubmittedUserOperation[] {
+    dumpSubmitted(): SubmittedUserOp[] {
         this.logger.trace(
             { store: "submitted", length: this.submittedUserOperations.length },
             "dumping mempool"

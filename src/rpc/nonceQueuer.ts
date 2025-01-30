@@ -4,7 +4,7 @@ import { EntryPointV06Abi, EntryPointV07Abi, UserOperation } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
     encodeNonce,
-    getNonceKeyAndValue,
+    getNonceKeyAndSequence,
     getUserOperationHash,
     isVersion06
 } from "@alto/utils"
@@ -93,7 +93,7 @@ export class NonceQueuer {
     }
 
     add(userOperation: UserOperation, entryPoint: Address) {
-        const [nonceKey, nonceSequence] = getNonceKeyAndValue(
+        const [nonceKey, nonceSequence] = getNonceKeyAndSequence(
             userOperation.nonce
         )
 

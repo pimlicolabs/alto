@@ -9,6 +9,8 @@ import type {
     ApiVersion,
     PackedUserOperation,
     StateOverrides,
+    UserOpInfo,
+    UserOperationBundle,
     UserOperationV06,
     UserOperationV07
 } from "@alto/types"
@@ -48,7 +50,7 @@ import {
     calcVerificationGasAndCallGasLimit,
     deepHexlify,
     getAAError,
-    getNonceKeyAndValue,
+    getNonceKeyAndSequence,
     getUserOperationHash,
     isVersion06,
     isVersion07,
@@ -687,7 +689,7 @@ export class RpcHandler implements IRpcEndpoint {
             userOperation,
             entryPoint
         )
-        const [, userOperationNonceValue] = getNonceKeyAndValue(
+        const [, userOperationNonceValue] = getNonceKeyAndSequence(
             userOperation.nonce
         )
 
@@ -861,18 +863,19 @@ export class RpcHandler implements IRpcEndpoint {
         )
 
         // Prepare bundle
-        const userOperationInfo = {
-            ...userOperation,
+        const userOperationInfo: UserOpInfo = {
+            userOp: userOperation,
             entryPoint,
-            hash: getUserOperationHash(
+            userOpHash: getUserOperationHash(
                 userOperation,
                 entryPoint,
                 this.config.publicClient.chain.id
-            )
+            ),
+            addedToMempool: Date.now()
         }
-        const bundle = {
+        const bundle: UserOperationBundle = {
             entryPoint,
-            userOperations: [userOperationInfo],
+            userOps: [userOperationInfo],
             version: isVersion06(userOperation)
                 ? ("0.6" as const)
                 : ("0.7" as const)
@@ -945,7 +948,7 @@ export class RpcHandler implements IRpcEndpoint {
             }
         })
 
-        const [nonceKey] = getNonceKeyAndValue(userOperation.nonce)
+        const [nonceKey] = getNonceKeyAndSequence(userOperation.nonce)
 
         const getNonceResult = await entryPointContract.read.getNonce(
             [userOperation.sender, nonceKey],
@@ -954,7 +957,7 @@ export class RpcHandler implements IRpcEndpoint {
             }
         )
 
-        const [_, currentNonceValue] = getNonceKeyAndValue(getNonceResult)
+        const [_, currentNonceValue] = getNonceKeyAndSequence(getNonceResult)
 
         return currentNonceValue
     }
@@ -985,7 +988,7 @@ export class RpcHandler implements IRpcEndpoint {
             userOperation,
             entryPoint
         )
-        const [, userOperationNonceValue] = getNonceKeyAndValue(
+        const [, userOperationNonceValue] = getNonceKeyAndSequence(
             userOperation.nonce
         )
 

@@ -8,11 +8,11 @@ import {
     type BundlingMode,
     EntryPointV06Abi,
     type HexData32,
-    type SubmittedUserOperation,
+    type SubmittedUserOp,
     type TransactionInfo,
-    RejectedUserOperation,
+    RejectedUserOp,
     UserOperationBundle,
-    UserOperationInfo
+    UserOpInfo
 } from "@alto/types"
 import type { BundlingStatus, Logger, Metrics } from "@alto/utils"
 import {
@@ -39,15 +39,14 @@ import { SenderManager } from "./senderManager"
 import { BaseError } from "abitype"
 
 function getTransactionsFromUserOperationEntries(
-    entries: SubmittedUserOperation[]
+    submittedOps: SubmittedUserOp[]
 ): TransactionInfo[] {
-    return Array.from(
-        new Set(
-            entries.map((entry) => {
-                return entry.transactionInfo
-            })
-        )
+    const transactionInfos = submittedOps.map(
+        (userOpInfo) => userOpInfo.transactionInfo
     )
+
+    // Remove duplicates
+    return Array.from(new Set(transactionInfos))
 }
 
 const MIN_INTERVAL = 100 // 0.1 seconds (100ms)
@@ -139,7 +138,7 @@ export class ExecutorManager {
 
         if (bundles.length > 0) {
             const opsCount: number = bundles
-                .map(({ userOperations }) => userOperations.length)
+                .map(({ userOps }) => userOps.length)
                 .reduce((a, b) => a + b)
 
             // Add timestamps for each task
@@ -168,9 +167,10 @@ export class ExecutorManager {
 
     // Debug endpoint
     async sendBundleNow(): Promise<Hash> {
-        const bundle = (await this.mempool.getBundles(1))[0]
+        const bundles = await this.mempool.getBundles(1)
+        const bundle = bundles[0]
 
-        if (bundle.userOperations.length === 0) {
+        if (bundle.userOps.length === 0) {
             throw new Error("no ops to bundle")
         }
 
@@ -184,16 +184,16 @@ export class ExecutorManager {
     }
 
     async sendBundleToExecutor(
-        bundle: UserOperationBundle
+        userOpBundle: UserOperationBundle
     ): Promise<Hex | undefined> {
-        const { entryPoint, userOperations, version } = bundle
-        if (userOperations.length === 0) {
+        const { entryPoint, userOps, version } = userOpBundle
+        if (userOps.length === 0) {
             return undefined
         }
 
         const wallet = await this.senderManager.getWallet()
 
-        const [gasPriceParameters, nonce] = await Promise.all([
+        const [gasPriceParams, nonce] = await Promise.all([
             this.gasPriceManager.tryGetNetworkGasPrice(),
             this.config.publicClient.getTransactionCount({
                 address: wallet.address,
@@ -203,10 +203,10 @@ export class ExecutorManager {
             return []
         })
 
-        if (!gasPriceParameters || nonce === undefined) {
+        if (!gasPriceParams || nonce === undefined) {
             this.resubmitUserOperations(
-                bundle.userOperations,
-                bundle.entryPoint,
+                userOps,
+                entryPoint,
                 "Failed to get nonce and gas parameters for bundling"
             )
             // Free executor if failed to get initial params.
@@ -215,10 +215,10 @@ export class ExecutorManager {
         }
 
         const bundleResult = await this.executor.bundle({
-            wallet,
-            bundle,
+            executor: wallet,
+            userOpBundle,
             nonce,
-            gasPriceParameters,
+            gasPriceParams,
             isReplacementTx: false
         })
 
@@ -236,12 +236,7 @@ export class ExecutorManager {
 
         // Unhandled error during simulation, drop all ops.
         if (bundleResult.status === "unhandled_simulation_failure") {
-            const { reason } = bundleResult
-            const { userOperations } = bundle
-            const rejectedUserOps = userOperations.map((op) => ({
-                userOperation: op,
-                reason
-            }))
+            const { rejectedUserOps } = bundleResult
             this.dropUserOps(rejectedUserOps)
             this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
             return undefined
@@ -280,7 +275,7 @@ export class ExecutorManager {
         if (bundleResult.status === "bundle_success") {
             const {
                 userOpsBundled,
-                rejectedUserOps: rejectedUserOperations,
+                rejectedUserOps,
                 transactionRequest,
                 transactionHash
             } = bundleResult
@@ -292,7 +287,7 @@ export class ExecutorManager {
                 bundle: {
                     entryPoint,
                     version,
-                    userOperations: userOpsBundled
+                    userOps: userOpsBundled
                 },
                 previousTransactionHashes: [],
                 lastReplaced: Date.now(),
@@ -301,7 +296,7 @@ export class ExecutorManager {
             }
 
             this.markUserOperationsAsSubmitted(userOpsBundled, transactionInfo)
-            this.dropUserOps(rejectedUserOperations)
+            this.dropUserOps(rejectedUserOps)
             this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
 
             return transactionHash
@@ -338,28 +333,22 @@ export class ExecutorManager {
     // update the current status of the bundling transaction/s
     private async refreshTransactionStatus(transactionInfo: TransactionInfo) {
         const {
-            transactionHash: currentTransactionHash,
+            transactionHash: currentTxhash,
             bundle,
             previousTransactionHashes
         } = transactionInfo
-        const { userOperations, version, entryPoint } = bundle
-        const isVersion06 = version === "0.6"
 
-        const txHashesToCheck = [
-            currentTransactionHash,
-            ...previousTransactionHashes
-        ]
+        const { userOps, entryPoint } = bundle
+        const txHashesToCheck = [currentTxhash, ...previousTransactionHashes]
 
         const transactionDetails = await Promise.all(
             txHashesToCheck.map(async (transactionHash) => ({
                 transactionHash,
-                ...(await getBundleStatus(
-                    isVersion06,
-                    transactionHash,
-                    this.config.publicClient,
-                    this.logger,
-                    entryPoint
-                ))
+                ...(await getBundleStatus({
+                    transactionInfo,
+                    publicClient: this.config.publicClient,
+                    logger: this.logger
+                }))
             }))
         )
 
@@ -402,73 +391,37 @@ export class ExecutorManager {
         }
 
         if (bundlingStatus.status === "included") {
-            this.metrics.userOperationsOnChain
-                .labels({ status: bundlingStatus.status })
-                .inc(userOperations.length)
-
-            const firstSubmitted = transactionInfo.firstSubmitted
             const { userOperationDetails } = bundlingStatus
-            userOperations.map((userOperation) => {
-                const userOpHash = userOperation.hash
-                const opDetails = userOperationDetails[userOpHash]
-
-                this.metrics.userOperationInclusionDuration.observe(
-                    (Date.now() - firstSubmitted) / 1000
-                )
-                this.mempool.removeSubmitted(userOpHash)
-                this.reputationManager.updateUserOperationIncludedStatus(
-                    userOperation,
-                    entryPoint,
-                    opDetails.accountDeployed
-                )
-                if (opDetails.status === "succesful") {
-                    this.eventManager.emitIncludedOnChain(
-                        userOpHash,
-                        transactionHash,
-                        blockNumber as bigint
-                    )
-                } else {
-                    this.eventManager.emitExecutionRevertedOnChain(
-                        userOpHash,
-                        transactionHash,
-                        opDetails.revertReason || "0x",
-                        blockNumber as bigint
-                    )
-                }
-                this.monitor.setUserOperationStatus(userOpHash, {
-                    status: "included",
-                    transactionHash
-                })
-                this.logger.info(
-                    {
-                        opHash: userOpHash,
-                        transactionHash
-                    },
-                    "user op included"
-                )
-            })
+            this.markUserOpsIncluded(
+                userOps,
+                entryPoint,
+                blockNumber,
+                transactionHash,
+                userOperationDetails
+            )
         }
 
         if (bundlingStatus.status === "reverted") {
             await Promise.all(
-                userOperations.map((userOperation) => {
+                userOps.map((userOpInfo) => {
+                    const { userOpHash } = userOpInfo
                     this.checkFrontrun({
-                        userOperationHash: userOperation.hash,
+                        userOpHash: userOpHash,
                         transactionHash,
                         blockNumber
                     })
                 })
             )
-            this.removeSubmitted(userOperations)
+            this.removeSubmitted(userOps)
         }
     }
 
     checkFrontrun({
-        userOperationHash,
+        userOpHash,
         transactionHash,
         blockNumber
     }: {
-        userOperationHash: HexData32
+        userOpHash: HexData32
         transactionHash: Hash
         blockNumber: bigint
     }) {
@@ -476,7 +429,7 @@ export class ExecutorManager {
             onBlockNumber: async (currentBlockNumber) => {
                 if (currentBlockNumber > blockNumber + 1n) {
                     const userOperationReceipt =
-                        await this.getUserOperationReceipt(userOperationHash)
+                        await this.getUserOperationReceipt(userOpHash)
 
                     if (userOperationReceipt) {
                         const transactionHash =
@@ -484,20 +437,21 @@ export class ExecutorManager {
                         const blockNumber =
                             userOperationReceipt.receipt.blockNumber
 
-                        this.monitor.setUserOperationStatus(userOperationHash, {
+                        this.mempool.removeSubmitted(userOpHash)
+                        this.monitor.setUserOperationStatus(userOpHash, {
                             status: "included",
                             transactionHash
                         })
 
                         this.eventManager.emitFrontranOnChain(
-                            userOperationHash,
+                            userOpHash,
                             transactionHash,
                             blockNumber
                         )
 
                         this.logger.info(
                             {
-                                userOpHash: userOperationHash,
+                                userOpHash: userOpHash,
                                 transactionHash
                             },
                             "user op frontrun onchain"
@@ -507,18 +461,18 @@ export class ExecutorManager {
                             .labels({ status: "frontran" })
                             .inc(1)
                     } else {
-                        this.monitor.setUserOperationStatus(userOperationHash, {
+                        this.monitor.setUserOperationStatus(userOpHash, {
                             status: "failed",
                             transactionHash
                         })
                         this.eventManager.emitFailedOnChain(
-                            userOperationHash,
+                            userOpHash,
                             transactionHash,
                             blockNumber
                         )
                         this.logger.info(
                             {
-                                userOpHash: userOperationHash,
+                                userOpHash: userOpHash,
                                 transactionHash
                             },
                             "user op failed onchain"
@@ -695,12 +649,15 @@ export class ExecutorManager {
 
         await Promise.all(
             transactionInfos.map(async (txInfo) => {
+                const { transactionRequest } = txInfo
+                const { maxFeePerGas, maxPriorityFeePerGas } =
+                    transactionRequest
+
                 const isMaxFeeTooLow =
-                    txInfo.transactionRequest.maxFeePerGas <
-                    gasPriceParameters.maxFeePerGas
+                    maxFeePerGas < gasPriceParameters.maxFeePerGas
 
                 const isPriorityFeeTooLow =
-                    txInfo.transactionRequest.maxPriorityFeePerGas <
+                    maxPriorityFeePerGas <
                     gasPriceParameters.maxPriorityFeePerGas
 
                 const isStuck =
@@ -726,6 +683,10 @@ export class ExecutorManager {
         txInfo: TransactionInfo,
         reason: string
     ): Promise<void> {
+        // Setup vars
+        const { bundle, executor, transactionRequest } = txInfo
+        const oldTxHash = txInfo.transactionHash
+
         const gasPriceParameters = await this.gasPriceManager
             .tryGetNetworkGasPrice()
             .catch((_) => {
@@ -733,8 +694,15 @@ export class ExecutorManager {
             })
 
         if (!gasPriceParameters) {
+            const { bundle } = txInfo
+            const { userOps } = bundle
+            const rejectedUserOps = userOps.map((userOpInfo) => ({
+                ...userOpInfo,
+                reason: "Failed to get network gas price during replacement"
+            }))
             this.failedToReplaceTransaction({
-                txInfo,
+                rejectedUserOps,
+                oldTxHash,
                 reason: "Failed to get network gas price during replacement"
             })
             // Free executor if failed to get initial params.
@@ -742,15 +710,11 @@ export class ExecutorManager {
             return
         }
 
-        // Setup vars
-        const { bundle, executor, transactionRequest } = txInfo
-        const oldTxHash = txInfo.transactionHash
-
         const bundleResult = await this.executor.bundle({
-            wallet: executor,
-            bundle,
+            executor: executor,
+            userOpBundle: bundle,
             nonce: transactionRequest.nonce,
-            gasPriceParameters: {
+            gasPriceParams: {
                 maxFeePerGas: scaleBigIntByPercent(
                     gasPriceParameters.maxFeePerGas,
                     115n
@@ -763,6 +727,25 @@ export class ExecutorManager {
             gasLimitSuggestion: transactionRequest.gas,
             isReplacementTx: true
         })
+
+        // Free wallet and return if potentially included too many times.
+        if (txInfo.timesPotentiallyIncluded >= 3) {
+            if (txInfo.timesPotentiallyIncluded >= 3) {
+                this.removeSubmitted(bundle.userOps)
+                this.logger.warn(
+                    { oldTxHash },
+                    "transaction potentially already included too many times, removing"
+                )
+            }
+
+            this.senderManager.markWalletProcessed(txInfo.executor)
+            return
+        }
+
+        // Free wallet if no bundle was sent or potentially included.
+        if (bundleResult.status !== "bundle_success") {
+            this.senderManager.markWalletProcessed(txInfo.executor)
+        }
 
         // Log metrics.
         const replaceStatus =
@@ -795,68 +778,54 @@ export class ExecutorManager {
                 "transaction potentially already included"
             )
             txInfo.timesPotentiallyIncluded += 1
-
-            if (txInfo.timesPotentiallyIncluded >= 3) {
-                this.removeSubmitted(bundle.userOperations)
-                this.logger.warn(
-                    { oldTxHash },
-                    "transaction potentially already included too many times, removing"
-                )
-                this.senderManager.markWalletProcessed(executor)
-            }
-
             return
         }
 
-        // Free wallet if no bundle was sent.
-        if (bundleResult.status !== "bundle_success") {
-            this.senderManager.markWalletProcessed(txInfo.executor)
-        }
-
         if (bundleResult.status === "unhandled_simulation_failure") {
+            const { rejectedUserOps, reason } = bundleResult
             this.failedToReplaceTransaction({
-                txInfo,
-                reason: bundleResult.reason
+                oldTxHash,
+                reason,
+                rejectedUserOps
             })
-
             return
         }
 
         if (bundleResult.status === "all_ops_failed_simulation") {
             this.failedToReplaceTransaction({
-                txInfo,
+                oldTxHash,
                 reason: "all ops failed simulation",
-                rejectedUserOperations: bundleResult.rejectedUserOps
+                rejectedUserOps: bundleResult.rejectedUserOps
             })
-
             return
         }
 
         if (bundleResult.status === "bundle_submission_failure") {
-            const reason =
-                bundleResult.reason instanceof BaseError
-                    ? bundleResult.reason.name
-                    : "INTERNAL FAILURE"
+            const { reason, rejectedUserOps } = bundleResult
+            const submissionFailureReason =
+                reason instanceof BaseError ? reason.name : "INTERNAL FAILURE"
 
             this.failedToReplaceTransaction({
-                txInfo,
-                reason
+                oldTxHash,
+                rejectedUserOps,
+                reason: submissionFailureReason
             })
-
             return
         }
 
         const {
-            rejectedUserOps: rejectedUserOperations,
+            rejectedUserOps,
             userOpsBundled,
             transactionRequest: newTransactionRequest,
-            transactionHash: newTransactionHash
+            transactionHash: newTxHash
         } = bundleResult
+
+        const userOpsReplaced = userOpsBundled
 
         const newTxInfo: TransactionInfo = {
             ...txInfo,
             transactionRequest: newTransactionRequest,
-            transactionHash: newTransactionHash,
+            transactionHash: newTxHash,
             previousTransactionHashes: [
                 txInfo.transactionHash,
                 ...txInfo.previousTransactionHashes
@@ -864,21 +833,21 @@ export class ExecutorManager {
             lastReplaced: Date.now(),
             bundle: {
                 ...txInfo.bundle,
-                userOperations: userOpsBundled
+                userOps: userOpsReplaced
             }
         }
 
-        userOpsBundled.map((userOperation) => {
-            this.mempool.replaceSubmitted(userOperation, newTxInfo)
+        userOpsReplaced.map((userOp) => {
+            this.mempool.replaceSubmitted(userOp, newTxInfo)
         })
 
         // Drop all userOperations that were rejected during simulation.
-        this.dropUserOps(rejectedUserOperations)
+        this.dropUserOps(rejectedUserOps)
 
         this.logger.info(
             {
-                oldTxHash: txInfo.transactionHash,
-                newTxHash: newTxInfo.transactionHash,
+                oldTxHash,
+                newTxHash,
                 reason
             },
             "replaced transaction"
@@ -888,12 +857,12 @@ export class ExecutorManager {
     }
 
     markUserOperationsAsSubmitted(
-        userOperations: UserOperationInfo[],
+        userOpInfos: UserOpInfo[],
         transactionInfo: TransactionInfo
     ) {
-        userOperations.map((op) => {
-            const opHash = op.hash
-            this.mempool.markSubmitted(opHash, transactionInfo)
+        userOpInfos.map((userOpInfo) => {
+            const { userOpHash } = userOpInfo
+            this.mempool.markSubmitted(userOpHash, transactionInfo)
             this.startWatchingBlocks(this.handleBlock.bind(this))
             this.metrics.userOperationsSubmitted
                 .labels({ status: "success" })
@@ -902,12 +871,12 @@ export class ExecutorManager {
     }
 
     resubmitUserOperations(
-        userOperations: UserOperationInfo[],
+        mempoolUserOps: UserOpInfo[],
         entryPoint: Address,
         reason: string
     ) {
-        userOperations.map((op) => {
-            const userOpHash = op.hash
+        mempoolUserOps.map((mempoolUserOp) => {
+            const { userOpHash, userOp } = mempoolUserOp
             this.logger.info(
                 {
                     userOpHash,
@@ -916,42 +885,91 @@ export class ExecutorManager {
                 "resubmitting user operation"
             )
             this.mempool.removeProcessing(userOpHash)
-            this.mempool.add(op, entryPoint)
+            this.mempool.add(userOp, entryPoint)
             this.metrics.userOperationsResubmitted.inc()
         })
     }
 
     failedToReplaceTransaction({
-        txInfo,
-        rejectedUserOperations,
+        oldTxHash,
+        rejectedUserOps,
         reason
     }: {
-        txInfo: TransactionInfo
-        rejectedUserOperations?: RejectedUserOperation[]
+        oldTxHash: Hex
+        rejectedUserOps: RejectedUserOp[]
         reason: string
     }) {
-        const { transactionHash: oldTxHash } = txInfo
         this.logger.warn({ oldTxHash, reason }, "failed to replace transaction")
-
-        const opsToDrop =
-            rejectedUserOperations ??
-            txInfo.bundle.userOperations.map((userOperation) => ({
-                userOperation,
-                reason: "Failed to replace transaction"
-            }))
-        this.dropUserOps(opsToDrop)
+        this.dropUserOps(rejectedUserOps)
     }
 
-    removeSubmitted(userOperations: UserOperationInfo[]) {
-        userOperations.map((userOperation) => {
-            this.mempool.removeSubmitted(userOperation.hash)
+    removeSubmitted(mempoolUserOps: UserOpInfo[]) {
+        mempoolUserOps.map((mempoolOp) => {
+            const { userOpHash } = mempoolOp
+            this.mempool.removeSubmitted(userOpHash)
         })
     }
 
-    dropUserOps(rejectedUserOperations: RejectedUserOperation[]) {
-        rejectedUserOperations.map((rejectedUserOperation) => {
-            const { userOperation, reason } = rejectedUserOperation
-            const userOpHash = userOperation.hash
+    markUserOpsIncluded(
+        userOps: UserOpInfo[],
+        entryPoint: Address,
+        blockNumber: bigint,
+        transactionHash: Hash,
+        userOperationDetails: Record<string, any>
+    ) {
+        userOps.map((userOpInfo) => {
+            this.metrics.userOperationsOnChain
+                .labels({ status: "included" })
+                .inc()
+
+            const { userOpHash, userOp } = userOpInfo
+            const opDetails = userOperationDetails[userOpHash]
+
+            const firstSubmitted = userOpInfo.addedToMempool
+            this.metrics.userOperationInclusionDuration.observe(
+                (Date.now() - firstSubmitted) / 1000
+            )
+
+            this.mempool.removeSubmitted(userOpHash)
+            this.reputationManager.updateUserOperationIncludedStatus(
+                userOp,
+                entryPoint,
+                opDetails.accountDeployed
+            )
+
+            if (opDetails.status === "succesful") {
+                this.eventManager.emitIncludedOnChain(
+                    userOpHash,
+                    transactionHash,
+                    blockNumber as bigint
+                )
+            } else {
+                this.eventManager.emitExecutionRevertedOnChain(
+                    userOpHash,
+                    transactionHash,
+                    opDetails.revertReason || "0x",
+                    blockNumber as bigint
+                )
+            }
+
+            this.monitor.setUserOperationStatus(userOpHash, {
+                status: "included",
+                transactionHash
+            })
+
+            this.logger.info(
+                {
+                    opHash: userOpHash,
+                    transactionHash
+                },
+                "user op included"
+            )
+        })
+    }
+
+    dropUserOps(rejectedUserOps: RejectedUserOp[]) {
+        rejectedUserOps.map((rejectedUserOp) => {
+            const { userOp, reason, userOpHash } = rejectedUserOp
             this.mempool.removeProcessing(userOpHash)
             this.mempool.removeSubmitted(userOpHash)
             this.eventManager.emitDropped(
@@ -965,7 +983,7 @@ export class ExecutorManager {
             })
             this.logger.warn(
                 {
-                    userOperation: JSON.stringify(userOperation, (_k, v) =>
+                    userOperation: JSON.stringify(userOp, (_k, v) =>
                         typeof v === "bigint" ? v.toString() : v
                     ),
                     userOpHash,

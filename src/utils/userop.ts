@@ -2,13 +2,13 @@ import {
     EntryPointV06Abi,
     EntryPointV07Abi,
     type GetUserOperationReceiptResponseResult,
-    type HexData32,
     type PackedUserOperation,
     type UserOperation,
     type UserOperationV06,
     type UserOperationV07,
     logSchema,
-    receiptSchema
+    receiptSchema,
+    TransactionInfo
 } from "@alto/types"
 import * as sentry from "@sentry/node"
 import type { Logger } from "pino"
@@ -227,19 +227,25 @@ export type BundlingStatus =
       }
 
 // Return the status of the bundling transaction.
-export const getBundleStatus = async (
-    isVersion06: boolean,
-    txHash: HexData32,
-    publicClient: PublicClient,
-    logger: Logger,
-    entryPoint: Address
-): Promise<{
+export const getBundleStatus = async ({
+    transactionInfo,
+    publicClient,
+    logger
+}: {
+    transactionInfo: TransactionInfo
+    publicClient: PublicClient
+    logger: Logger
+}): Promise<{
     bundlingStatus: BundlingStatus
     blockNumber: bigint | undefined
 }> => {
     try {
+        const { transactionHash, bundle } = transactionInfo
+        const { entryPoint, version } = bundle
+        const isVersion06 = version === "0.6"
+
         const receipt = await publicClient.getTransactionReceipt({
-            hash: txHash
+            hash: transactionHash
         })
         const blockNumber = receipt.blockNumber
 
@@ -528,7 +534,7 @@ export const getUserOperationHash = (
     )
 }
 
-export const getNonceKeyAndValue = (nonce: bigint) => {
+export const getNonceKeyAndSequence = (nonce: bigint) => {
     const nonceKey = nonce >> 64n // first 192 bits of nonce
     const nonceSequence = nonce & 0xffffffffffffffffn // last 64 bits of nonce
 
