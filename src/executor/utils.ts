@@ -67,13 +67,16 @@ export const packUserOps = (userOpInfos: UserOpInfo[]) => {
     return packedUserOps as PackedUserOperation[]
 }
 
-export const encodeHandleOpsCalldata = (
-    userOpInfos: UserOpInfo[],
+export const encodeHandleOpsCalldata = ({
+    userOps,
+    beneficiary
+}: {
+    userOps: UserOpInfo[]
     beneficiary: Address
-): Hex => {
-    const userOps = userOpInfos.map(({ userOp }) => userOp)
-    const isV06 = isVersion06(userOps[0])
-    const packedUserOps = packUserOps(userOpInfos)
+}): Hex => {
+    const ops = userOps.map(({ userOp }) => userOp)
+    const isV06 = isVersion06(ops[0])
+    const packedUserOps = packUserOps(userOps)
 
     return encodeFunctionData({
         abi: isV06 ? EntryPointV06Abi : EntryPointV07Abi,

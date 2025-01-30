@@ -116,7 +116,10 @@ export class Executor {
     }) {
         const { isUserOpV06, entryPoint, userOps } = txParam
 
-        const handleOpsCalldata = encodeHandleOpsCalldata(userOps, entryPoint)
+        const handleOpsCalldata = encodeHandleOpsCalldata({
+            userOps,
+            beneficiary: txParam.account.address
+        })
 
         const request =
             await this.config.walletClient.prepareTransactionRequest({
