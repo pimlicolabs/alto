@@ -84,7 +84,8 @@ export const bundlerArgsSchema = z.object({
             )}`
         ),
     "enable-instant-bundling-endpoint": z.boolean(),
-    "enable-experimental-7702-endpoints": z.boolean()
+    "enable-experimental-7702-endpoints": z.boolean(),
+    "should-check-prefund": z.boolean()
 })
 
 export const executorArgsSchema = z.object({
