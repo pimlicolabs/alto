@@ -1,7 +1,4 @@
 import type { EventManager } from "@alto/handlers"
-// import { MongoClient, Collection, Filter } from "mongodb"
-// import { PublicClient, getContract } from "viem"
-// import { EntryPointAbi } from "../types/EntryPoint"
 import {
     EntryPointV06Abi,
     EntryPointV07Abi,
@@ -88,7 +85,7 @@ export class MemoryMempool {
         if (existingUserOpToReplace) {
             this.store.removeSubmitted(userOpHash)
             this.store.addSubmitted({
-                ...existingUserOpToReplace,
+                ...userOpInfo,
                 transactionInfo
             })
             this.monitor.setUserOperationStatus(userOpHash, {
@@ -120,9 +117,7 @@ export class MemoryMempool {
     }
 
     dumpOutstanding(): UserOperation[] {
-        return this.store
-            .dumpOutstanding()
-            .map((userOpInfo) => userOpInfo.userOp)
+        return this.store.dumpOutstanding().map(({ userOp }) => userOp)
     }
 
     dumpProcessing(): UserOpInfo[] {
@@ -241,7 +236,7 @@ export class MemoryMempool {
         entryPoint: Address,
         referencedContracts?: ReferencedCodeHashes
     ): [boolean, string] {
-        const opHash = getUserOperationHash(
+        const userOpHash = getUserOperationHash(
             userOp,
             entryPoint,
             this.config.publicClient.chain.id
@@ -258,7 +253,7 @@ export class MemoryMempool {
         const existingUserOperation = [
             ...outstandingOps,
             ...processedOrSubmittedOps
-        ].find((userOpInfo) => userOpInfo.userOpHash === opHash)
+        ].find((userOpInfo) => userOpInfo.userOpHash === userOpHash)
 
         if (existingUserOperation) {
             return [false, "Already known"]
@@ -400,16 +395,16 @@ export class MemoryMempool {
         this.store.addOutstanding({
             userOp,
             entryPoint,
-            userOpHash: opHash,
+            userOpHash: userOpHash,
             referencedContracts,
             addedToMempool: Date.now()
         })
-        this.monitor.setUserOperationStatus(opHash, {
+        this.monitor.setUserOperationStatus(userOpHash, {
             status: "not_submitted",
             transactionHash: null
         })
 
-        this.eventManager.emitAddedToMempool(opHash)
+        this.eventManager.emitAddedToMempool(userOpHash)
         return [true, ""]
     }
 
