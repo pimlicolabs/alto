@@ -752,10 +752,8 @@ export class RpcHandler implements IRpcEndpoint {
             })
         }
 
-        const shouldCheckPrefund =
-            apiVersion !== "v1" || this.config.shouldCheckPrefund
         const validationResult = await this.validator.validateUserOperation({
-            shouldCheckPrefund,
+            shouldCheckPrefund: apiVersion !== "v1",
             userOperation,
             queuedUserOperations,
             entryPoint

@@ -555,26 +555,30 @@ export class UnsafeValidator implements InterfaceValidator {
                         this.config.publicClient.chain.id
                     )
 
-                let mul = 1n
+                let requiredPreFund
+                if (isVersion07(userOperation)) {
+                    const requiredGas =
+                        verificationGasLimit +
+                        callGasLimit +
+                        (userOperation.paymasterVerificationGasLimit || 0n) +
+                        (userOperation.paymasterPostOpGasLimit || 0n) +
+                        userOperation.preVerificationGas
 
-                if (
-                    isVersion06(userOperation) &&
-                    userOperation.paymasterAndData
-                ) {
-                    mul = 3n
+                    requiredPreFund = requiredGas * userOperation.maxFeePerGas
+                } else {
+                    const multiplier =
+                        (userOperation.paymasterAndData?.length ?? 0) > 2
+                            ? BigInt(3)
+                            : BigInt(1)
+
+                    const requiredGas =
+                        callGasLimit +
+                        verificationGasLimit * multiplier +
+                        userOperation.preVerificationGas
+
+                    requiredPreFund =
+                        BigInt(requiredGas) * BigInt(userOperation.maxFeePerGas)
                 }
-
-                if (
-                    isVersion07(userOperation) &&
-                    userOperation.paymaster === "0x"
-                ) {
-                    mul = 3n
-                }
-
-                const requiredPreFund =
-                    callGasLimit +
-                    verificationGasLimit * mul +
-                    userOperation.preVerificationGas
 
                 if (requiredPreFund > prefund) {
                     throw new RpcError(
@@ -582,8 +586,6 @@ export class UnsafeValidator implements InterfaceValidator {
                         ValidationErrors.SimulateValidation
                     )
                 }
-
-                // TODO prefund should be greater than it costs us to add it to mempool
             }
 
             this.metrics.userOperationsValidationSuccess.inc()
