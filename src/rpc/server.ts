@@ -8,7 +8,6 @@ import {
     jsonRpcSchema
 } from "@alto/types"
 import type { Metrics } from "@alto/utils"
-import cors from "@fastify/cors"
 import websocket from "@fastify/websocket"
 import * as sentry from "@sentry/node"
 import Fastify, {
@@ -105,11 +104,6 @@ export class Server {
             options: {
                 maxPayload: config.websocketMaxPayloadSize
             }
-        })
-
-        this.fastify.register(cors, {
-            origin: "*",
-            methods: ["POST", "GET", "OPTIONS"]
         })
 
         this.fastify.decorateRequest("rpcMethod", null)

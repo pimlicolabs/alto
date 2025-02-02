@@ -135,6 +135,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
             "Should the bundler enable the pimlico_experimental_sendUserOperation7702 and pimlico_experimental_estimateUserOperationGas7702 endpoint",
         type: "boolean",
         default: false
+    },
+    "should-check-prefund": {
+        description:
+            "Should the bundler check userOp's prefund before accepting it",
+        type: "boolean",
+        default: true
     }
 }
 
@@ -452,12 +458,6 @@ export const logOptions: CliCommandOptions<ILogArgsInput> = {
         type: "boolean",
         require: true,
         default: false
-    },
-    "network-name": {
-        description: "Name of the network (used for metrics)",
-        type: "string",
-        require: true,
-        default: "localhost"
     },
     "log-level": {
         description: "Default log level",
