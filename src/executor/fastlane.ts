@@ -1,14 +1,14 @@
-import type { Logger } from "@alto/utils"
+import { Logger } from "@alto/utils"
 import {
-    http,
-    BaseError,
-    type Hash,
-    type Hex,
-    type PublicClient,
-    type SendRawTransactionReturnType,
-    type WalletClient,
+    Hex,
     createClient,
-    toHex
+    http,
+    SendRawTransactionReturnType,
+    Hash,
+    WalletClient,
+    PublicClient,
+    toHex,
+    BaseError
 } from "viem"
 
 const pflClient = createClient({

@@ -43,9 +43,9 @@ import {
     zeroAddress
 } from "viem"
 import { fromZodError } from "zod-validation-error"
-import type { AltoConfig } from "../../createConfig"
 import { GasEstimationHandler } from "../estimation/gasEstimationHandler"
 import type { SimulateHandleOpResult } from "../estimation/types"
+import type { AltoConfig } from "../../createConfig"
 
 export class UnsafeValidator implements InterfaceValidator {
     config: AltoConfig

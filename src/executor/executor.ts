@@ -6,12 +6,12 @@ import {
     type BundleResult,
     EntryPointV06Abi,
     EntryPointV07Abi,
-    type GasPriceParameters,
     type HexData32,
     type PackedUserOperation,
     type TransactionInfo,
     type UserOperation,
-    type UserOperationV07
+    type UserOperationV07,
+    type GasPriceParameters
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import {
@@ -26,29 +26,29 @@ import {
 import * as sentry from "@sentry/node"
 import { Mutex } from "async-mutex"
 import {
-    type Account,
-    BaseError,
     FeeCapTooLowError,
-    type Hex,
     InsufficientFundsError,
     IntrinsicGasTooLowError,
-    NonceTooHighError,
     NonceTooLowError,
     TransactionExecutionError,
     encodeFunctionData,
-    getContract
+    getContract,
+    type Account,
+    type Hex,
+    BaseError,
+    NonceTooHighError
 } from "viem"
-import type { SendTransactionErrorType } from "viem"
-import type { AltoConfig } from "../createConfig"
-import { sendPflConditional } from "./fastlane"
-import type { SendTransactionOptions } from "./types"
 import {
     filterOpsAndEstimateGas,
     flushStuckTransaction,
-    getAuthorizationList,
+    simulatedOpsToResults,
     isTransactionUnderpricedError,
-    simulatedOpsToResults
+    getAuthorizationList
 } from "./utils"
+import type { SendTransactionErrorType } from "viem"
+import type { AltoConfig } from "../createConfig"
+import type { SendTransactionOptions } from "./types"
+import { sendPflConditional } from "./fastlane"
 
 export interface GasEstimateResult {
     preverificationGas: bigint

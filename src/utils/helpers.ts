@@ -1,13 +1,13 @@
-import type { StateOverrides } from "@alto/types"
+import { StateOverrides } from "@alto/types"
 import {
     type Address,
     BaseError,
-    type PublicClient,
     type RawContractError,
-    getAddress
+    getAddress,
+    PublicClient
 } from "viem"
 import {
-    type SignedAuthorizationList,
+    SignedAuthorizationList,
     recoverAuthorizationAddress
 } from "viem/experimental"
 

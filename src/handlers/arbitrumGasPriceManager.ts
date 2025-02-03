@@ -19,17 +19,17 @@ export class ArbitrumManager {
     }
 
     public getMinL1BaseFee() {
-        const minL1BaseFee = this.l1BaseFeeQueue.getMinValue() || 1n
+        let minL1BaseFee = this.l1BaseFeeQueue.getMinValue() || 1n
         return minL1BaseFee
     }
 
     public getMaxL1BaseFee() {
-        const maxL1BaseFee = this.l1BaseFeeQueue.getMaxValue() || maxUint128
+        let maxL1BaseFee = this.l1BaseFeeQueue.getMaxValue() || maxUint128
         return maxL1BaseFee
     }
 
     public getMaxL2BaseFee() {
-        const maxL2BaseFee = this.l2BaseFeeQueue.getMaxValue() || maxUint128
+        let maxL2BaseFee = this.l2BaseFeeQueue.getMaxValue() || maxUint128
         return maxL2BaseFee
     }
 }

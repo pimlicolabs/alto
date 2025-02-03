@@ -1,10 +1,10 @@
 import type { Logger, Metrics } from "@alto/utils"
 import * as sentry from "@sentry/node"
-import Queue, { type Queue as QueueType } from "bull"
 import Redis from "ioredis"
 import type { Hex } from "viem"
-import type { AltoConfig } from "../createConfig"
 import type { OpEventType } from "../types/schemas"
+import type { AltoConfig } from "../createConfig"
+import Queue, { type Queue as QueueType } from "bull"
 
 type QueueMessage = OpEventType & {
     userOperationHash: Hex

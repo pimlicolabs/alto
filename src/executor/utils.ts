@@ -25,7 +25,6 @@ import * as sentry from "@sentry/node"
 import {
     type Account,
     type Address,
-    type BaseError,
     type Chain,
     ContractFunctionRevertedError,
     EstimateGasExecutionError,
@@ -35,9 +34,10 @@ import {
     type PublicClient,
     type Transport,
     type WalletClient,
-    decodeErrorResult
+    decodeErrorResult,
+    BaseError
 } from "viem"
-import type { SignedAuthorizationList } from "viem/experimental"
+import { SignedAuthorizationList } from "viem/experimental"
 
 export const isTransactionUnderpricedError = (e: BaseError) => {
     return e?.details

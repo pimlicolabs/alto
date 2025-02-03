@@ -27,13 +27,13 @@ import {
     isVersion07
 } from "@alto/utils"
 import { type Address, getAddress, getContract } from "viem"
-import type { AltoConfig } from "../createConfig"
 import type { Monitor } from "./monitoring"
 import {
     type InterfaceReputationManager,
     ReputationStatuses
 } from "./reputationManager"
 import { MemoryStore } from "./store"
+import type { AltoConfig } from "../createConfig"
 
 export class MemoryMempool {
     private config: AltoConfig

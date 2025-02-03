@@ -1,8 +1,8 @@
 import type {
     Address,
-    BinarySearchCallResult,
     ExecutionResult,
-    PackedUserOperation
+    PackedUserOperation,
+    BinarySearchCallResult
 } from "@alto/types"
 import type { Hex } from "viem"
 

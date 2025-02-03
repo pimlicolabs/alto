@@ -1,15 +1,14 @@
-import crypto from "crypto"
 import type { GasPriceManager } from "@alto/handlers"
 import {
     type Address,
     EntryPointV06Abi,
     EntryPointV07Abi,
-    MantleBvmGasPriceOracleAbi,
-    OpL1FeeAbi,
     type PackedUserOperation,
     type UserOperation,
     type UserOperationV06,
-    type UserOperationV07
+    type UserOperationV07,
+    MantleBvmGasPriceOracleAbi,
+    OpL1FeeAbi
 } from "@alto/types"
 import {
     type Chain,
@@ -18,31 +17,32 @@ import {
     EstimateGasExecutionError,
     FeeCapTooLowError,
     InsufficientFundsError,
-    InternalRpcError,
     IntrinsicGasTooLowError,
     NonceTooLowError,
     type PublicClient,
     TransactionExecutionError,
     type Transport,
     bytesToHex,
-    concat,
     encodeAbiParameters,
-    encodeFunctionData,
     getContract,
-    maxUint64,
-    maxUint256,
-    parseGwei,
     serializeTransaction,
-    size,
-    slice,
     toBytes,
-    toHex
+    InternalRpcError,
+    maxUint64,
+    encodeFunctionData,
+    parseGwei,
+    maxUint256,
+    toHex,
+    size,
+    concat,
+    slice
 } from "viem"
 import { base, baseGoerli, baseSepolia, lineaSepolia } from "viem/chains"
-import type { AltoConfig } from "../createConfig"
-import { ArbitrumL1FeeAbi } from "../types/contracts/ArbitrumL1FeeAbi"
 import { maxBigInt, minBigInt, scaleBigIntByPercent } from "./bigInt"
 import { isVersion06, isVersion07, toPackedUserOperation } from "./userop"
+import type { AltoConfig } from "../createConfig"
+import { ArbitrumL1FeeAbi } from "../types/contracts/ArbitrumL1FeeAbi"
+import crypto from "crypto"
 
 export interface GasOverheads {
     /**
@@ -309,7 +309,7 @@ export async function calcPreVerificationGas({
     validate: boolean // when calculating preVerificationGas for validation
     overheads?: GasOverheads
 }): Promise<bigint> {
-    const preVerificationGas = calcDefaultPreVerificationGas(
+    let preVerificationGas = calcDefaultPreVerificationGas(
         userOperation,
         overheads
     )

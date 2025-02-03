@@ -71,9 +71,9 @@ import {
     toFunctionSelector
 } from "viem"
 import { base, baseSepolia, optimism } from "viem/chains"
-import { recoverAuthorizationAddress } from "viem/experimental"
-import type { AltoConfig } from "../createConfig"
 import type { NonceQueuer } from "./nonceQueuer"
+import type { AltoConfig } from "../createConfig"
+import { recoverAuthorizationAddress } from "viem/experimental"
 
 export interface IRpcEndpoint {
     handleMethod(
