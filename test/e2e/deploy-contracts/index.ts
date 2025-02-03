@@ -1,9 +1,9 @@
 import {
     http,
     type Address,
+    type PublicClient,
     createPublicClient,
-    createWalletClient,
-    type PublicClient
+    createWalletClient
 } from "viem"
 import { mnemonicToAccount } from "viem/accounts"
 import { foundry } from "viem/chains"

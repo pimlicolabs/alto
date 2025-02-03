@@ -1,6 +1,10 @@
 import type { EventManager } from "@alto/handlers"
 import type { MemoryMempool } from "@alto/mempool"
-import { EntryPointV06Abi, EntryPointV07Abi, UserOperation } from "@alto/types"
+import {
+    EntryPointV06Abi,
+    EntryPointV07Abi,
+    type UserOperation
+} from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
     encodeNonce,

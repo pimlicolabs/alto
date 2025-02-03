@@ -1,14 +1,15 @@
+import crypto from "crypto"
 import type { GasPriceManager } from "@alto/handlers"
 import {
     type Address,
     EntryPointV06Abi,
     EntryPointV07Abi,
+    MantleBvmGasPriceOracleAbi,
+    OpL1FeeAbi,
     type PackedUserOperation,
     type UserOperation,
     type UserOperationV06,
-    type UserOperationV07,
-    MantleBvmGasPriceOracleAbi,
-    OpL1FeeAbi
+    type UserOperationV07
 } from "@alto/types"
 import {
     type Chain,
@@ -17,32 +18,31 @@ import {
     EstimateGasExecutionError,
     FeeCapTooLowError,
     InsufficientFundsError,
+    InternalRpcError,
     IntrinsicGasTooLowError,
     NonceTooLowError,
     type PublicClient,
     TransactionExecutionError,
     type Transport,
     bytesToHex,
-    encodeAbiParameters,
-    getContract,
-    serializeTransaction,
-    toBytes,
-    InternalRpcError,
-    maxUint64,
-    encodeFunctionData,
-    parseGwei,
-    maxUint256,
-    toHex,
-    size,
     concat,
-    slice
+    encodeAbiParameters,
+    encodeFunctionData,
+    getContract,
+    maxUint64,
+    maxUint256,
+    parseGwei,
+    serializeTransaction,
+    size,
+    slice,
+    toBytes,
+    toHex
 } from "viem"
 import { base, baseGoerli, baseSepolia, lineaSepolia } from "viem/chains"
-import { maxBigInt, minBigInt, scaleBigIntByPercent } from "./bigInt"
-import { isVersion06, isVersion07, toPackedUserOperation } from "./userop"
 import type { AltoConfig } from "../createConfig"
 import { ArbitrumL1FeeAbi } from "../types/contracts/ArbitrumL1FeeAbi"
-import crypto from "crypto"
+import { maxBigInt, minBigInt, scaleBigIntByPercent } from "./bigInt"
+import { isVersion06, isVersion07, toPackedUserOperation } from "./userop"
 
 export interface GasOverheads {
     /**
@@ -309,7 +309,7 @@ export async function calcPreVerificationGas({
     validate: boolean // when calculating preVerificationGas for validation
     overheads?: GasOverheads
 }): Promise<bigint> {
-    let preVerificationGas = calcDefaultPreVerificationGas(
+    const preVerificationGas = calcDefaultPreVerificationGas(
         userOperation,
         overheads
     )

@@ -1,10 +1,10 @@
-import { anvil } from "prool/instances"
 import { resolve } from "node:path"
-import { foundry } from "viem/chains"
-import { setupContracts } from "./deploy-contracts/index.js"
 import { defineInstance } from "prool"
-import { execa } from "./src/utils/execa.js"
+import { anvil } from "prool/instances"
+import { foundry } from "viem/chains"
 import altoConfig from "./alto-config.json"
+import { setupContracts } from "./deploy-contracts/index.js"
+import { execa } from "./src/utils/execa.js"
 
 export const ENTRY_POINT_SIMULATIONS_ADDRESS =
     "0x74Cb5e4eE81b86e70f9045036a1C5477de69eE87"

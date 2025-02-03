@@ -1,34 +1,34 @@
 import { encodeNonce } from "permissionless/utils"
 import {
     http,
+    type Address,
     type Hex,
+    concat,
     createPublicClient,
     createTestClient,
     getContract,
     parseEther,
-    parseGwei,
-    type Address,
-    concat
+    parseGwei
 } from "viem"
 import {
     type EntryPointVersion,
+    type UserOperation,
     UserOperationReceiptNotFoundError,
     entryPoint06Address,
-    entryPoint07Address,
-    type UserOperation
+    entryPoint07Address
 } from "viem/account-abstraction"
 import { generatePrivateKey } from "viem/accounts"
 import { foundry } from "viem/chains"
 import { beforeEach, describe, expect, inject, test } from "vitest"
+import { deployPaymaster } from "../src/testPaymaster.js"
+import { ENTRYPOINT_V06_ABI, ENTRYPOINT_V07_ABI } from "../src/utils/abi.js"
 import {
     beforeEachCleanUp,
     getSmartAccountClient,
     sendBundleNow,
     setBundlingMode
 } from "../src/utils/index.js"
-import { ENTRYPOINT_V06_ABI, ENTRYPOINT_V07_ABI } from "../src/utils/abi.js"
 import { getNonceKeyAndValue } from "../src/utils/userop.js"
-import { deployPaymaster } from "../src/testPaymaster.js"
 
 describe.each([
     {

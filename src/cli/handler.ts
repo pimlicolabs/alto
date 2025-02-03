@@ -7,22 +7,22 @@ import {
 } from "@alto/utils"
 import { Registry } from "prom-client"
 import {
+    type CallParameters,
     type Chain,
     createPublicClient,
     createWalletClient,
-    formatEther,
     fallback,
-    CallParameters,
+    formatEther,
     publicActions
 } from "viem"
+import { eip7702Actions } from "viem/experimental"
+import { type AltoConfig, createConfig } from "../createConfig"
 import { UtilityWalletMonitor } from "../executor/utilityWalletMonitor"
 import type { IOptionsInput } from "./config"
 import { customTransport } from "./customTransport"
-import { setupServer } from "./setupServer"
-import { type AltoConfig, createConfig } from "../createConfig"
-import { parseArgs } from "./parseArgs"
 import { deploySimulationsContract } from "./deploySimulationsContract"
-import { eip7702Actions } from "viem/experimental"
+import { parseArgs } from "./parseArgs"
+import { setupServer } from "./setupServer"
 
 const preFlightChecks = async (config: AltoConfig): Promise<void> => {
     for (const entrypoint of config.entrypoints) {
@@ -83,7 +83,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
 
     const chain: Chain = {
         id: chainId,
-        name: 'chain-name', // isn't important, never used
+        name: "chain-name", // isn't important, never used
         nativeCurrency: {
             name: "ETH",
             symbol: "ETH",

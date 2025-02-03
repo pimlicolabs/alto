@@ -1,11 +1,13 @@
-import { parseGwei, type Address, type Hex, concat } from "viem"
+import { deepHexlify } from "permissionless"
+import { type Address, type Hex, concat, parseGwei } from "viem"
 import {
     type EntryPointVersion,
+    type UserOperation,
     entryPoint06Address,
     entryPoint07Address,
-    type UserOperation,
     getUserOperationHash
 } from "viem/account-abstraction"
+import { foundry } from "viem/chains"
 import { beforeAll, beforeEach, describe, expect, inject, test } from "vitest"
 import {
     decodeRevert,
@@ -14,8 +16,6 @@ import {
 } from "../src/revertingContract.js"
 import { deployPaymaster } from "../src/testPaymaster.js"
 import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils/index.js"
-import { deepHexlify } from "permissionless"
-import { foundry } from "viem/chains"
 
 describe.each([
     {

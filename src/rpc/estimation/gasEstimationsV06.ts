@@ -8,19 +8,19 @@ import {
     hexDataSchema
 } from "@alto/types"
 import type { StateOverrides, UserOperationV06 } from "@alto/types"
+import { addAuthorizationStateOverrides, deepHexlify } from "@alto/utils"
 import type { Hex, RpcRequestErrorType } from "viem"
 import {
     type Address,
+    RpcRequestError,
     decodeErrorResult,
     encodeFunctionData,
-    toHex,
-    RpcRequestError
+    toHex
 } from "viem"
 import { z } from "zod"
-import type { SimulateHandleOpResult } from "./types"
 import type { AltoConfig } from "../../createConfig"
 import { parseFailedOpWithRevert } from "./gasEstimationsV07"
-import { deepHexlify, addAuthorizationStateOverrides } from "@alto/utils"
+import type { SimulateHandleOpResult } from "./types"
 
 export class GasEstimatorV06 {
     private config: AltoConfig

@@ -1,7 +1,7 @@
 import { toSimpleSmartAccount } from "permissionless/accounts"
 import { createSmartAccountClient } from "permissionless/clients"
 import { createPimlicoClient } from "permissionless/clients/pimlico"
-import { http, Hex, createPublicClient } from "viem"
+import { http, type Hex, createPublicClient } from "viem"
 import {
     entryPoint06Address,
     entryPoint07Address

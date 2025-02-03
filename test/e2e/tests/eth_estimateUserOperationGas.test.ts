@@ -1,11 +1,11 @@
+import { type Address, BaseError } from "viem"
 import type { EntryPointVersion } from "viem/account-abstraction"
 import { beforeEach, describe, expect, inject, test } from "vitest"
-import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils/index.js"
 import {
-    getRevertCall,
-    deployRevertingContract
+    deployRevertingContract,
+    getRevertCall
 } from "../src/revertingContract.js"
-import { type Address, BaseError } from "viem"
+import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils/index.js"
 
 describe.each([
     {

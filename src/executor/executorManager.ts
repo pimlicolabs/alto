@@ -9,9 +9,9 @@ import {
     type BundlingMode,
     EntryPointV06Abi,
     type HexData32,
-    type UserOperation,
     type SubmittedUserOperation,
     type TransactionInfo,
+    type UserOperation,
     type UserOperationInfo
 } from "@alto/types"
 import type { BundlingStatus, Logger, Metrics } from "@alto/utils"
@@ -30,8 +30,8 @@ import {
     type WatchBlocksReturnType,
     getAbiItem
 } from "viem"
-import type { Executor, ReplaceTransactionResult } from "./executor"
 import type { AltoConfig } from "../createConfig"
+import type { Executor, ReplaceTransactionResult } from "./executor"
 
 function getTransactionsFromUserOperationEntries(
     entries: SubmittedUserOperation[]

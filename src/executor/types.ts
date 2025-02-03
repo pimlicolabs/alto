@@ -1,5 +1,5 @@
-import { Account } from "viem"
-import { SignedAuthorizationList } from "viem/experimental"
+import type { Account } from "viem"
+import type { SignedAuthorizationList } from "viem/experimental"
 
 export type SendTransactionOptions =
     | {
