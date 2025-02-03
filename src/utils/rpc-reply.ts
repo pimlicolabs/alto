@@ -1,39 +1,40 @@
 import type { FastifyReply } from "fastify"
 import type * as WebSocket from "ws"
+import { RpcStatus } from "./fastify-rpc-decorators"
 
 class RpcReply {
-    private http: FastifyReply | null
+    private reply: FastifyReply | null
     private websocket: WebSocket.WebSocket | null
 
-    // Used only for HTTP response status code
-    private _status: number
-    private _rpcStatus: "failed" | "success"
-
     constructor(
-        http: FastifyReply | null,
+        reply: FastifyReply | null,
         websocket: WebSocket.WebSocket | null
     ) {
-        this.http = http
+        this.reply = reply
         this.websocket = websocket
-        this._status = 200
-        this._rpcStatus = "failed"
     }
 
     public status(status: number) {
-        this._status = status
+        this.reply?.status(status)
 
         return this
     }
 
     // biome-ignore lint/suspicious/useAwait:
     public async send(data: any) {
-        if (this.http) {
-            return this.http.status(this._status).send(data)
+        if (this.reply) {
+            return this.reply.send(data)
         }
 
         if (this.websocket) {
             return this.websocket.send(JSON.stringify(data))
         }
+    }
+
+    public setRpcStatus(status: RpcStatus): RpcReply {
+        this.reply?.setRpcStatus(status)
+
+        return this
     }
 
     static fromHttpReply(reply: FastifyReply) {
@@ -48,12 +49,8 @@ class RpcReply {
         return rpcReply
     }
 
-    set rpcStatus(status: "failed" | "success") {
-        this._rpcStatus = status
-    }
-
     get rpcStatus() {
-        return this._rpcStatus
+        return this.reply?.rpcStatus ?? RpcStatus.Unset
     }
 }
 

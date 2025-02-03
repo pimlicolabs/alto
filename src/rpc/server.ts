@@ -20,9 +20,10 @@ import type { Registry } from "prom-client"
 import { toHex } from "viem"
 import type * as WebSocket from "ws"
 import { fromZodError } from "zod-validation-error"
+import type { AltoConfig } from "../createConfig"
+import rpcDecorators, { RpcStatus } from "../utils/fastify-rpc-decorators"
 import RpcReply from "../utils/rpc-reply"
 import type { IRpcEndpoint } from "./rpcHandler"
-import type { AltoConfig } from "../createConfig"
 
 // jsonBigIntOverride.ts
 const originalJsonStringify = JSON.stringify
@@ -58,16 +59,6 @@ JSON.stringify = (
     return originalJsonStringify(value, wrapperReplacer, space)
 }
 
-declare module "fastify" {
-    interface FastifyRequest {
-        rpcMethod: string
-    }
-
-    interface FastifyReply {
-        rpcStatus: "failed" | "success"
-    }
-}
-
 export class Server {
     private config: AltoConfig
     private fastify: FastifyInstance
@@ -100,14 +91,13 @@ export class Server {
             disableRequestLogging: true
         })
 
+        this.fastify.register(rpcDecorators)
+
         this.fastify.register(websocket, {
             options: {
                 maxPayload: config.websocketMaxPayloadSize
             }
         })
-
-        this.fastify.decorateRequest("rpcMethod", null)
-        this.fastify.decorateReply("rpcStatus", null)
 
         this.fastify.addHook("onResponse", (request, reply) => {
             const ignoredRoutes = ["/health", "/metrics"]
@@ -215,7 +205,6 @@ export class Server {
     }
 
     private async rpc(request: FastifyRequest, reply: RpcReply): Promise<void> {
-        reply.rpcStatus = "failed" // default to failed
         let requestId: number | null = null
 
         const versionParsingResult = altoVersions.safeParse(
@@ -277,7 +266,6 @@ export class Server {
                     bundlerRequestParsing.error
                 )
 
-                //
                 if (
                     validationError.message.includes(
                         "Missing/invalid userOpHash"
@@ -325,8 +313,11 @@ export class Server {
                 result: result.result
             }
 
-            await reply.status(200).send(jsonRpcResponse)
-            reply.rpcStatus = "success"
+            await reply
+                .setRpcStatus(RpcStatus.Success)
+                .status(200)
+                .send(jsonRpcResponse)
+
             this.fastify.log.info(
                 {
                     data:
@@ -353,7 +344,10 @@ export class Server {
                         code: err.code
                     }
                 }
-                await reply.status(200).send(rpcError)
+                await reply
+                    .setRpcStatus(RpcStatus.ClientError)
+                    .status(200)
+                    .send(rpcError)
                 this.fastify.log.info(rpcError, "error reply")
             } else if (err instanceof Error) {
                 sentry.captureException(err)
@@ -365,7 +359,10 @@ export class Server {
                     }
                 }
 
-                await reply.status(500).send(rpcError)
+                await reply
+                    .setRpcStatus(RpcStatus.ServerError)
+                    .status(500)
+                    .send(rpcError)
                 this.fastify.log.error(err, "error reply (non-rpc)")
             } else {
                 const rpcError = {
@@ -376,7 +373,10 @@ export class Server {
                     }
                 }
 
-                await reply.status(500).send(rpcError)
+                await reply
+                    .setRpcStatus(RpcStatus.ServerError)
+                    .status(500)
+                    .send(rpcError)
                 this.fastify.log.error(
                     { err },
                     "error reply (unhandled error type)"
