@@ -347,7 +347,8 @@ export class ExecutorManager {
             txHashesToCheck.map(async (transactionHash) => ({
                 transactionHash,
                 ...(await getBundleStatus({
-                    transactionInfo,
+                    transactionHash,
+                    bundle: transactionInfo.bundle,
                     publicClient: this.config.publicClient,
                     logger: this.logger
                 }))

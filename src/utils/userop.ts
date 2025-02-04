@@ -8,7 +8,7 @@ import {
     type UserOperationV07,
     logSchema,
     receiptSchema,
-    TransactionInfo
+    UserOperationBundle
 } from "@alto/types"
 import * as sentry from "@sentry/node"
 import type { Logger } from "pino"
@@ -228,11 +228,13 @@ export type BundlingStatus =
 
 // Return the status of the bundling transaction.
 export const getBundleStatus = async ({
-    transactionInfo,
+    transactionHash,
     publicClient,
+    bundle,
     logger
 }: {
-    transactionInfo: TransactionInfo
+    transactionHash: Hex
+    bundle: UserOperationBundle
     publicClient: PublicClient
     logger: Logger
 }): Promise<{
@@ -240,7 +242,6 @@ export const getBundleStatus = async ({
     blockNumber: bigint | undefined
 }> => {
     try {
-        const { transactionHash, bundle } = transactionInfo
         const { entryPoint, version } = bundle
         const isVersion06 = version === "0.6"
 
