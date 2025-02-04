@@ -753,16 +753,6 @@ export class ExecutorManager {
             this.senderManager.markWalletProcessed(txInfo.executor)
         }
 
-        // Log metrics.
-        const replaceStatus =
-            bundleResult && bundleResult.status === "bundle_success"
-                ? "succeeded"
-                : "failed"
-
-        this.metrics.replacedTransactions
-            .labels({ reason, status: replaceStatus })
-            .inc()
-
         // Check if the transaction is potentially included.
         const nonceTooLow =
             bundleResult.status === "bundle_submission_failure" &&
@@ -777,6 +767,21 @@ export class ExecutorManager {
             )
 
         const potentiallyIncluded = nonceTooLow || allOpsFailedSimulation
+
+        // log metrics
+        const replaceStatus = (() => {
+            switch (true) {
+                case potentiallyIncluded:
+                    return "potentially_already_included"
+                case bundleResult?.status === "bundle_success":
+                    return "replaced"
+                default:
+                    return "failed"
+            }
+        })()
+        this.metrics.replacedTransactions
+            .labels({ reason, status: replaceStatus })
+            .inc()
 
         if (potentiallyIncluded) {
             this.logger.info(
