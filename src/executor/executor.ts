@@ -248,6 +248,7 @@ export class Executor {
         const isUserOpV06 = version === "0.6"
 
         let childLogger = this.logger.child({
+            isReplacementTx,
             userOperations: getUserOpHashes(userOps),
             entryPoint
         })
@@ -286,6 +287,7 @@ export class Executor {
 
         // Update child logger with userOperations being sent for bundling.
         childLogger = this.logger.child({
+            isReplacementTx,
             userOperations: getUserOpHashes(userOpsToBundle),
             entryPoint
         })

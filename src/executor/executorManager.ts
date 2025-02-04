@@ -266,7 +266,9 @@ export class ExecutorManager {
             this.resubmitUserOperations(
                 userOpsToBundle,
                 entryPoint,
-                reason instanceof BaseError ? reason.name : "INTERNAL FAILURE"
+                reason instanceof BaseError
+                    ? reason.name
+                    : "Encountered unhandled error during bundle simulation"
             )
             this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
             return undefined
