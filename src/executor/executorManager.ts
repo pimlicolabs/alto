@@ -37,6 +37,7 @@ import type { Executor } from "./executor"
 import type { AltoConfig } from "../createConfig"
 import { SenderManager } from "./senderManager"
 import { BaseError } from "abitype"
+import { getUserOpHashes } from "./utils"
 
 function getTransactionsFromUserOperationEntries(
     submittedOps: SubmittedUserOp[]
@@ -739,7 +740,10 @@ export class ExecutorManager {
             if (txInfo.timesPotentiallyIncluded >= 3) {
                 this.removeSubmitted(bundle.userOps)
                 this.logger.warn(
-                    { oldTxHash },
+                    {
+                        oldTxHash,
+                        userOps: getUserOpHashes(bundleResult.rejectedUserOps)
+                    },
                     "transaction potentially already included too many times, removing"
                 )
             }
@@ -785,7 +789,10 @@ export class ExecutorManager {
 
         if (potentiallyIncluded) {
             this.logger.info(
-                { oldTxHash },
+                {
+                    oldTxHash,
+                    userOpHashes: getUserOpHashes(bundleResult.rejectedUserOps)
+                },
                 "transaction potentially already included"
             )
             txInfo.timesPotentiallyIncluded += 1
