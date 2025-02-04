@@ -18,8 +18,6 @@ export function createMetrics(registry: Registry, register = true) {
         help: "Total number of requests",
         labelNames: [
             "route",
-            "network",
-            "chainId",
             "rpc_method",
             "rpc_status",
             "code",
@@ -33,8 +31,6 @@ export function createMetrics(registry: Registry, register = true) {
         help: "Duration of requests in seconds",
         labelNames: [
             "route",
-            "network",
-            "chainId",
             "rpc_method",
             "rpc_status",
             "code",
@@ -47,7 +43,7 @@ export function createMetrics(registry: Registry, register = true) {
     const userOperationsInMempool = new Gauge({
         name: "alto_user_operations_in_mempool_count",
         help: "Number of user operations in mempool",
-        labelNames: ["network", "chainId", "status"] as const,
+        labelNames: ["status"] as const,
         registers
     })
 

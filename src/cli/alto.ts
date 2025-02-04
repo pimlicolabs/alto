@@ -14,7 +14,11 @@ import {
     serverOptions
 } from "./config"
 import { registerCommandToYargs } from "./util"
-import { TimeoutError, HttpRequestError, InternalRpcError } from "viem"
+import {
+    TimeoutError,
+    HttpRequestError,
+    InternalRpcError,
+} from "viem"
 
 // Load environment variables from .env file
 if (process.env.DOTENV_CONFIG_PATH) {
@@ -27,18 +31,22 @@ if (process.env.SENTRY_DSN) {
     const SENTRY_IGNORE_ERRORS = [
         InternalRpcError,
         HttpRequestError,
-        TimeoutError
+        TimeoutError,
     ]
 
     sentry.init({
         dsn: process.env.SENTRY_DSN,
         environment: process.env.ENVIRONMENT,
         beforeSend(event, hint) {
-            if (
-                SENTRY_IGNORE_ERRORS.some(
-                    (error) => hint.originalException instanceof error
-                )
-            ) {
+            const errorType = event.exception?.values?.[0]?.type
+
+            const shouldIgnore = SENTRY_IGNORE_ERRORS.some(
+                (error) =>
+                    hint.originalException instanceof error ||
+                    errorType === error.name
+            )
+
+            if (shouldIgnore) {
                 return null
             }
 

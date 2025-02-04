@@ -84,7 +84,8 @@ export const bundlerArgsSchema = z.object({
             )}`
         ),
     "enable-instant-bundling-endpoint": z.boolean(),
-    "enable-experimental-7702-endpoints": z.boolean()
+    "enable-experimental-7702-endpoints": z.boolean(),
+    "should-check-prefund": z.boolean()
 })
 
 export const executorArgsSchema = z.object({
@@ -177,7 +178,6 @@ export const logArgsSchema = z.object({
     "redis-queue-endpoint": z.string().optional(),
     "redis-event-manager-queue-name": z.string().optional(),
     json: z.boolean(),
-    "network-name": z.string(),
     "log-level": logLevel,
     "public-client-log-level": logLevel.optional(),
     "wallet-client-log-level": logLevel.optional(),
