@@ -212,11 +212,11 @@ export class Executor {
                     }
                 }
 
+                attempts++
+
                 if (attempts === maxAttempts) {
                     throw error
                 }
-
-                attempts++
             }
         }
 
