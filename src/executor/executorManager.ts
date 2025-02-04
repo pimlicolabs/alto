@@ -687,8 +687,13 @@ export class ExecutorManager {
         reason: string
     ): Promise<void> {
         // Setup vars
-        const { bundle, executor, transactionRequest } = txInfo
-        const oldTxHash = txInfo.transactionHash
+        const {
+            bundle,
+            executor,
+            transactionRequest,
+            transactionHash: oldTxHash
+        } = txInfo
+        const { userOps } = bundle
 
         const gasPriceParameters = await this.gasPriceManager
             .tryGetNetworkGasPrice()
@@ -697,8 +702,6 @@ export class ExecutorManager {
             })
 
         if (!gasPriceParameters) {
-            const { bundle } = txInfo
-            const { userOps } = bundle
             const rejectedUserOps = userOps.map((userOpInfo) => ({
                 ...userOpInfo,
                 reason: "Failed to get network gas price during replacement"
