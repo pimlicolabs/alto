@@ -32,14 +32,10 @@ export const bundlerArgsSchema = z.object({
     "min-entity-stake": z.number().int().min(0),
     "min-entity-unstake-delay": z.number().int().min(0),
 
-    "max-bundle-wait": z.number().int().min(0),
-    "max-bundle-size": z.number().int().min(0),
-
     "gas-price-bump": z
         .string()
         .transform((val) => BigInt(val))
         .default("100"),
-    "gas-price-floor-percent": z.number().int().min(0),
     "gas-price-expiry": z.number().int().min(0),
     "gas-price-multipliers": z
         .string()
@@ -193,8 +189,7 @@ export const debugArgsSchema = z.object({
     "enable-debug-endpoints": z.boolean(),
     "expiration-check": z.boolean(),
     "dangerous-skip-user-operation-validation": z.boolean(),
-    "deploy-simulations-contract": z.boolean(),
-    tenderly: z.boolean()
+    "deploy-simulations-contract": z.boolean()
 })
 
 export const gasEstimationArgsSchema = z.object({

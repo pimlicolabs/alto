@@ -21,7 +21,6 @@ import {
     type UserOperation,
     ValidationErrors,
     type ValidationResultWithAggregation,
-    entryPointErrorsSchema,
     entryPointExecutionErrorSchemaV06,
     entryPointExecutionErrorSchemaV07
 } from "@alto/types"
@@ -79,8 +78,7 @@ export class UnsafeValidator implements InterfaceValidator {
         isVersion06: boolean,
         errorResult: unknown,
         logger: Logger,
-        simulationType: "validation" | "execution",
-        usingTenderly = false
+        simulationType: "validation" | "execution"
     ): Promise<
         ValidationResult | ValidationResultWithAggregation | ExecutionResult
     > {
@@ -88,9 +86,8 @@ export class UnsafeValidator implements InterfaceValidator {
             ? entryPointExecutionErrorSchemaV06
             : entryPointExecutionErrorSchemaV07
 
-        const entryPointErrorSchemaParsing = usingTenderly
-            ? entryPointErrorsSchema.safeParse(errorResult)
-            : entryPointExecutionErrorSchema.safeParse(errorResult)
+        const entryPointErrorSchemaParsing =
+            entryPointExecutionErrorSchema.safeParse(errorResult)
 
         if (!entryPointErrorSchemaParsing.success) {
             try {
@@ -236,8 +233,7 @@ export class UnsafeValidator implements InterfaceValidator {
                 isVersion06(userOperation),
                 simulateValidationResult,
                 this.logger,
-                "validation",
-                this.config.tenderly
+                "validation"
             )) as ValidationResultV06 | ValidationResultWithAggregationV06),
             storageMap: {}
         }
