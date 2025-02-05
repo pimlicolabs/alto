@@ -37,6 +37,8 @@ if (process.env.SENTRY_DSN) {
     sentry.init({
         dsn: process.env.SENTRY_DSN,
         environment: process.env.ENVIRONMENT,
+        tracesSampleRate: 0,
+        profilesSampleRate: 0,
         beforeSend(event, hint) {
             const errorType = event.exception?.values?.[0]?.type
 
