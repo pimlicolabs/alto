@@ -164,14 +164,19 @@ export class EventManager {
     }
 
     // emits when the userOperation has been submitted to the network
-    async emitSubmitted(userOperationHash: Hex, transactionHash: Hex) {
-        await this.emitEvent({
-            userOperationHash,
-            event: {
-                eventType: "submitted",
-                transactionHash
-            }
-        })
+    async emitSubmitted({
+        userOpHashes,
+        transactionHash
+    }: { userOpHashes: Hex[]; transactionHash: Hex }) {
+        for (const hash of userOpHashes) {
+            await this.emitEvent({
+                userOperationHash: hash,
+                event: {
+                    eventType: "submitted",
+                    transactionHash
+                }
+            })
+        }
     }
 
     // emits when the userOperation was dropped from the internal mempool

@@ -1,4 +1,4 @@
-import type { Address, Chain } from "viem"
+import type { Address, BaseError, Hex } from "viem"
 import type { Account } from "viem/accounts"
 import type { HexData32, UserOperation } from "."
 
@@ -13,31 +13,23 @@ export interface ReferencedCodeHashes {
 export type TransactionInfo = {
     transactionHash: HexData32
     previousTransactionHashes: HexData32[]
-    entryPoint: Address
-    isVersion06: boolean
     transactionRequest: {
-        account: Account
-        to: Address
         gas: bigint
-        chain: Chain
         maxFeePerGas: bigint
         maxPriorityFeePerGas: bigint
         nonce: number
     }
+    bundle: UserOperationBundle
     executor: Account
-    userOperationInfos: UserOperationInfo[]
     lastReplaced: number
     firstSubmitted: number
     timesPotentiallyIncluded: number
 }
 
-export type UserOperationInfo = {
-    userOperation: UserOperation
+export type UserOperationBundle = {
     entryPoint: Address
-    userOperationHash: HexData32
-    lastReplaced: number
-    firstSubmitted: number
-    referencedContracts?: ReferencedCodeHashes
+    version: "0.6" | "0.7"
+    userOps: UserOpInfo[]
 }
 
 export enum SubmissionStatus {
@@ -47,43 +39,55 @@ export enum SubmissionStatus {
     Included = "included"
 }
 
-export type SubmittedUserOperation = {
-    userOperation: UserOperationInfo
+export type UserOpDetails = {
+    userOpHash: Hex
+    entryPoint: Address
+    // timestamp when the bundling process begins (when it leaves outstanding mempool)
+    addedToMempool: number
+    referencedContracts?: ReferencedCodeHashes
+}
+
+export type UserOpInfo = {
+    userOp: UserOperation
+} & UserOpDetails
+
+export type SubmittedUserOp = UserOpInfo & {
     transactionInfo: TransactionInfo
 }
 
-type Result<T, E, R> = Success<T> | Failure<E> | Resubmit<R>
-
-interface Success<T> {
-    status: "success"
-    value: T
+export type RejectedUserOp = UserOpInfo & {
+    reason: string
 }
 
-interface Failure<E> {
-    status: "failure"
-    error: E
-}
-
-interface Resubmit<R> {
-    status: "resubmit"
-    info: R
-}
-
-export type BundleResult = Result<
-    {
-        userOperation: UserOperationInfo
-        transactionInfo: TransactionInfo
-    },
-    {
-        reason: string
-        userOpHash: HexData32
-        entryPoint: Address
-        userOperation: UserOperation
-    },
-    {
-        reason: string
-        userOpHash: HexData32
-        entryPoint: Address
-        userOperation: UserOperation
-    }
->
+export type BundleResult =
+    | {
+          // Successfully sent bundle.
+          status: "bundle_success"
+          userOpsBundled: UserOpInfo[]
+          rejectedUserOps: RejectedUserOp[]
+          transactionHash: HexData32
+          transactionRequest: {
+              gas: bigint
+              maxFeePerGas: bigint
+              maxPriorityFeePerGas: bigint
+              nonce: number
+          }
+      }
+    | {
+          // Encountered unhandled error during bundle simulation.
+          status: "unhandled_simulation_failure"
+          rejectedUserOps: RejectedUserOp[]
+          reason: string
+      }
+    | {
+          // All user operations failed during simulation.
+          status: "all_ops_failed_simulation"
+          rejectedUserOps: RejectedUserOp[]
+      }
+    | {
+          // Encountered error whilst trying to send bundle.
+          status: "bundle_submission_failure"
+          reason: BaseError | "INTERNAL FAILURE"
+          userOpsToBundle: UserOpInfo[]
+          rejectedUserOps: RejectedUserOp[]
+      }

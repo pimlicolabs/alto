@@ -22,7 +22,7 @@ const verifyDeployed = async ({
     client
 }: { addresses: Address[]; client: PublicClient }) => {
     for (const address of addresses) {
-        const bytecode = await client.getCode({
+        const bytecode = await client.getBytecode({
             address
         })
 

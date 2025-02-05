@@ -15,6 +15,7 @@ import {
     getContract
 } from "viem"
 import type { AltoConfig } from "../createConfig"
+import { flushStuckTransaction } from "./utils"
 
 const waitForTransactionReceipt = async (
     publicClient: PublicClient,
@@ -270,5 +271,54 @@ export class SenderManager {
         }
         this.metrics.walletsAvailable.set(this.availableWallets.length)
         return
+    }
+
+    public markWalletProcessed(executor: Account) {
+        if (!this.availableWallets.includes(executor)) {
+            this.pushWallet(executor)
+        }
+        return Promise.resolve()
+    }
+
+    async flushOnStartUp(): Promise<void> {
+        const allWallets = new Set(this.wallets)
+
+        const utilityWallet = this.utilityAccount
+        if (utilityWallet) {
+            allWallets.add(utilityWallet)
+        }
+
+        const wallets = Array.from(allWallets)
+
+        let gasPrice: {
+            maxFeePerGas: bigint
+            maxPriorityFeePerGas: bigint
+        }
+
+        try {
+            gasPrice = await this.gasPriceManager.tryGetNetworkGasPrice()
+        } catch (e) {
+            this.logger.error({ error: e }, "error flushing stuck transaction")
+            return
+        }
+
+        const promises = wallets.map((wallet) => {
+            try {
+                flushStuckTransaction(
+                    this.config.publicClient,
+                    this.config.walletClient,
+                    wallet,
+                    gasPrice.maxFeePerGas * 5n,
+                    this.logger
+                )
+            } catch (e) {
+                this.logger.error(
+                    { error: e },
+                    "error flushing stuck transaction"
+                )
+            }
+        })
+
+        await Promise.all(promises)
     }
 }

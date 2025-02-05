@@ -97,7 +97,6 @@ const getEventManager = ({
 const getExecutor = ({
     mempool,
     config,
-    senderManager,
     reputationManager,
     metrics,
     gasPriceManager,
@@ -105,7 +104,6 @@ const getExecutor = ({
 }: {
     mempool: MemoryMempool
     config: AltoConfig
-    senderManager: SenderManager
     reputationManager: InterfaceReputationManager
     metrics: Metrics
     gasPriceManager: GasPriceManager
@@ -114,7 +112,6 @@ const getExecutor = ({
     return new Executor({
         mempool,
         config,
-        senderManager,
         reputationManager,
         metrics,
         gasPriceManager,
@@ -127,6 +124,7 @@ const getExecutorManager = ({
     executor,
     mempool,
     monitor,
+    senderManager,
     reputationManager,
     metrics,
     gasPriceManager,
@@ -137,6 +135,7 @@ const getExecutorManager = ({
     mempool: MemoryMempool
     monitor: Monitor
     reputationManager: InterfaceReputationManager
+    senderManager: SenderManager
     metrics: Metrics
     gasPriceManager: GasPriceManager
     eventManager: EventManager
@@ -146,6 +145,7 @@ const getExecutorManager = ({
         executor,
         mempool,
         monitor,
+        senderManager,
         reputationManager,
         metrics,
         gasPriceManager,
@@ -275,7 +275,6 @@ export const setupServer = async ({
     const executor = getExecutor({
         mempool,
         config,
-        senderManager,
         reputationManager,
         metrics,
         gasPriceManager,
@@ -287,6 +286,7 @@ export const setupServer = async ({
         executor,
         mempool,
         monitor,
+        senderManager,
         reputationManager,
         metrics,
         gasPriceManager,
@@ -314,7 +314,7 @@ export const setupServer = async ({
     })
 
     if (config.flushStuckTransactionsDuringStartup) {
-        executor.flushStuckTransactions()
+        senderManager.flushOnStartUp()
     }
 
     const rootLogger = config.getLogger(

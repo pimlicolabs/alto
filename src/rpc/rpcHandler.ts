@@ -9,8 +9,8 @@ import type {
     ApiVersion,
     PackedUserOperation,
     StateOverrides,
-    TransactionInfo,
-    UserOperationInfo,
+    UserOpInfo,
+    UserOperationBundle,
     UserOperationV06,
     UserOperationV07
 } from "@alto/types"
@@ -50,7 +50,7 @@ import {
     calcVerificationGasAndCallGasLimit,
     deepHexlify,
     getAAError,
-    getNonceKeyAndValue,
+    getNonceKeyAndSequence,
     getUserOperationHash,
     isVersion06,
     isVersion07,
@@ -579,16 +579,13 @@ export class RpcHandler implements IRpcEndpoint {
         this.ensureDebugEndpointsAreEnabled("debug_bundler_dumpMempool")
         this.ensureEntryPointIsSupported(entryPoint)
 
-        return this.mempool
-            .dumpOutstanding()
-            .map(({ userOperation }) => userOperation)
+        return this.mempool.dumpOutstanding()
     }
 
     async debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
         this.ensureDebugEndpointsAreEnabled("debug_bundler_sendBundleNow")
-
-        const transactions = await this.executorManager.bundleNow()
-        return transactions[0]
+        const transaction = await this.executorManager.sendBundleNow()
+        return transaction
     }
 
     async debug_bundler_setBundlingMode(
@@ -692,7 +689,7 @@ export class RpcHandler implements IRpcEndpoint {
             userOperation,
             entryPoint
         )
-        const [, userOperationNonceValue] = getNonceKeyAndValue(
+        const [, userOperationNonceValue] = getNonceKeyAndSequence(
             userOperation.nonce
         )
 
@@ -854,7 +851,6 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         this.ensureEntryPointIsSupported(entryPoint)
-
         const opHash = getUserOperationHash(
             userOperation,
             entryPoint,
@@ -868,56 +864,41 @@ export class RpcHandler implements IRpcEndpoint {
             entryPoint
         )
 
-        const result = (
-            await this.executor.bundle(entryPoint, [userOperation])
-        )[0]
+        // Prepare bundle
+        const userOperationInfo: UserOpInfo = {
+            userOp: userOperation,
+            entryPoint,
+            userOpHash: getUserOperationHash(
+                userOperation,
+                entryPoint,
+                this.config.publicClient.chain.id
+            ),
+            addedToMempool: Date.now()
+        }
+        const bundle: UserOperationBundle = {
+            entryPoint,
+            userOps: [userOperationInfo],
+            version: isVersion06(userOperation)
+                ? ("0.6" as const)
+                : ("0.7" as const)
+        }
+        const result = await this.executorManager.sendBundleToExecutor(bundle)
 
-        if (result.status === "failure") {
-            const { userOpHash, reason } = result.error
-            this.monitor.setUserOperationStatus(userOpHash, {
-                status: "rejected",
-                transactionHash: null
-            })
-            this.logger.warn(
-                {
-                    userOperation: JSON.stringify(
-                        result.error.userOperation,
-                        (_k, v) => (typeof v === "bigint" ? v.toString() : v)
-                    ),
-                    userOpHash,
-                    reason
-                },
-                "user operation rejected"
-            )
-            this.metrics.userOperationsSubmitted
-                .labels({ status: "failed" })
-                .inc()
-
-            const { error } = result
+        if (!result) {
             throw new RpcError(
-                `userOperation reverted during simulation with reason: ${error.reason}`
+                "unhandled error during bundle submission",
+                ValidationErrors.InvalidFields
             )
         }
 
-        const res = result as unknown as {
-            status: "success"
-            value: {
-                userOperation: UserOperationInfo
-                transactionInfo: TransactionInfo
-            }
-        }
-
-        this.executor.markWalletProcessed(res.value.transactionInfo.executor)
-
-        // wait for receipt
+        // Wait for receipt.
         const receipt =
             await this.config.publicClient.waitForTransactionReceipt({
-                hash: res.value.transactionInfo.transactionHash,
+                hash: result,
                 pollingInterval: 100
             })
 
         const userOperationReceipt = parseUserOperationReceipt(opHash, receipt)
-
         return userOperationReceipt
     }
 
@@ -969,7 +950,7 @@ export class RpcHandler implements IRpcEndpoint {
             }
         })
 
-        const [nonceKey] = getNonceKeyAndValue(userOperation.nonce)
+        const [nonceKey] = getNonceKeyAndSequence(userOperation.nonce)
 
         const getNonceResult = await entryPointContract.read.getNonce(
             [userOperation.sender, nonceKey],
@@ -978,7 +959,7 @@ export class RpcHandler implements IRpcEndpoint {
             }
         )
 
-        const [_, currentNonceValue] = getNonceKeyAndValue(getNonceResult)
+        const [_, currentNonceValue] = getNonceKeyAndSequence(getNonceResult)
 
         return currentNonceValue
     }
@@ -1009,7 +990,7 @@ export class RpcHandler implements IRpcEndpoint {
             userOperation,
             entryPoint
         )
-        const [, userOperationNonceValue] = getNonceKeyAndValue(
+        const [, userOperationNonceValue] = getNonceKeyAndSequence(
             userOperation.nonce
         )
 
