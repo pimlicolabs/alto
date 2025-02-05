@@ -189,7 +189,6 @@ export class SafeValidator
 
     async getValidationResultV07({
         userOperation,
-        queuedUserOperations,
         entryPoint,
         preCodeHashes
     }: {
@@ -203,14 +202,6 @@ export class SafeValidator
             referencedContracts?: ReferencedCodeHashes
         }
     > {
-        if (this.config.tenderly) {
-            return super.getValidationResultV07({
-                userOperation,
-                queuedUserOperations,
-                entryPoint
-            })
-        }
-
         if (preCodeHashes && preCodeHashes.addresses.length > 0) {
             const { hash } = await this.getCodeHashes(preCodeHashes.addresses)
             if (hash !== preCodeHashes.hash) {
@@ -278,10 +269,6 @@ export class SafeValidator
             storageMap: StorageMap
         }
     > {
-        if (this.config.tenderly) {
-            return super.getValidationResultV06({ userOperation, entryPoint })
-        }
-
         if (preCodeHashes && preCodeHashes.addresses.length > 0) {
             const { hash } = await this.getCodeHashes(preCodeHashes.addresses)
             if (hash !== preCodeHashes.hash) {

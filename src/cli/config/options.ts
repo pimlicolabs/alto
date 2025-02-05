@@ -38,19 +38,6 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: true,
         default: 1
     },
-    "max-bundle-wait": {
-        description: "Maximum time to wait for a bundle to be submitted (ms)",
-        type: "number",
-        require: true,
-        default: 1000
-    },
-    "max-bundle-size": {
-        description:
-            "Maximum number of operations allowed in the mempool before a bundle is submitted",
-        type: "number",
-        require: true,
-        default: 10
-    },
     "safe-mode": {
         description: "Enable safe mode (enforcing all ERC-4337 rules)",
         type: "boolean",
@@ -62,13 +49,6 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "string",
         require: false,
         default: "100"
-    },
-    "gas-price-floor-percent": {
-        description:
-            "The minimum percentage of incoming user operation gas prices compared to the gas price used by the bundler to submit bundles",
-        type: "number",
-        require: true,
-        default: 101
     },
     "gas-price-expiry": {
         description:
@@ -417,6 +397,7 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
     "max-block-range": {
         description: "Max block range for getLogs calls",
         type: "number",
+        default: 2000,
         require: false
     },
     "block-tag-support": {
@@ -536,12 +517,6 @@ export const debugOptions: CliCommandOptions<IDebugArgsInput> = {
         type: "boolean",
         require: true,
         default: true
-    },
-    tenderly: {
-        description: "RPC url follows the tenderly format",
-        type: "boolean",
-        require: true,
-        default: false
     }
 }
 
