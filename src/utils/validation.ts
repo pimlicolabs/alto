@@ -537,7 +537,10 @@ export async function calcMantlePreVerificationGas(
         (rollupDataGasAndOverhead * l1GasPrice * tokenRatio * scalar) /
         mantleL1RollUpFeeDivisionFactor
 
-    const l2MaxFee = BigInt(op.maxFeePerGas)
+    const maxFeePerGas = await (verify
+        ? gasPriceManager.getHighestMaxFeePerGas()
+        : gasPriceManager.getGasPrice().then((res) => res.maxFeePerGas))
+    const l2MaxFee = BigInt(maxFeePerGas)
 
     return staticFee + l1RollupFee / l2MaxFee
 }
