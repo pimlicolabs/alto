@@ -822,15 +822,7 @@ export class RpcHandler implements IRpcEndpoint {
         this.ensureEntryPointIsSupported(entryPoint)
         await this.validateEip7702Auth(userOperation)
 
-        try {
-            await this.addToMempoolIfValid(
-                userOperation,
-                entryPoint,
-                apiVersion
-            )
-        } catch (e) {
-            this.logger.error(e)
-        }
+        await this.addToMempoolIfValid(userOperation, entryPoint, apiVersion)
 
         return getUserOperationHash(
             userOperation,
