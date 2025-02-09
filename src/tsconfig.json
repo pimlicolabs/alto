@@ -20,6 +20,9 @@
             "@alto/cli": [
                 "./cli"
             ],
+            "@alto/store": [
+                "./store"
+            ],
             "@alto/executor": [
                 "./executor"
             ],

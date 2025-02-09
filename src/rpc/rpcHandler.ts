@@ -2,7 +2,7 @@ import type { Executor, ExecutorManager } from "@alto/executor"
 import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
-    MemoryMempool,
+    Mempool,
     Monitor
 } from "@alto/mempool"
 import type {
@@ -104,7 +104,7 @@ export interface IRpcEndpoint {
 export class RpcHandler implements IRpcEndpoint {
     config: AltoConfig
     validator: InterfaceValidator
-    mempool: MemoryMempool
+    mempool: Mempool
     executor: Executor
     monitor: Monitor
     nonceQueuer: NonceQueuer
@@ -130,7 +130,7 @@ export class RpcHandler implements IRpcEndpoint {
     }: {
         config: AltoConfig
         validator: InterfaceValidator
-        mempool: MemoryMempool
+        mempool: Mempool
         executor: Executor
         monitor: Monitor
         nonceQueuer: NonceQueuer

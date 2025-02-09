@@ -10,15 +10,12 @@ import {
     executorOptions,
     gasEstimationOptions,
     logOptions,
+    mempoolOptions,
     rpcOptions,
     serverOptions
 } from "./config"
 import { registerCommandToYargs } from "./util"
-import {
-    TimeoutError,
-    HttpRequestError,
-    InternalRpcError,
-} from "viem"
+import { TimeoutError, HttpRequestError, InternalRpcError } from "viem"
 
 // Load environment variables from .env file
 if (process.env.DOTENV_CONFIG_PATH) {
@@ -31,7 +28,7 @@ if (process.env.SENTRY_DSN) {
     const SENTRY_IGNORE_ERRORS = [
         InternalRpcError,
         HttpRequestError,
-        TimeoutError,
+        TimeoutError
     ]
 
     sentry.init({
@@ -92,6 +89,8 @@ export function getAltoCli(): yargs.Argv {
         .group(Object.keys(debugOptions), "Debug Options:")
         .options(gasEstimationOptions)
         .group(Object.keys(gasEstimationOptions), "Gas Estimation Options:")
+        .options(mempoolOptions)
+        .group(Object.keys(mempoolOptions), "Mempool Options:")
         // blank scriptName so that help text doesn't display the cli name before each command
         .scriptName("")
         .demandCommand(1)

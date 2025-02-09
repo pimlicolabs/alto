@@ -3,7 +3,7 @@ import { Executor, ExecutorManager } from "@alto/executor"
 import { EventManager, type GasPriceManager } from "@alto/handlers"
 import {
     type InterfaceReputationManager,
-    MemoryMempool,
+    Mempool,
     Monitor,
     NullReputationManager,
     ReputationManager
@@ -19,6 +19,7 @@ import type { InterfaceValidator } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import type { Registry } from "prom-client"
 import type { AltoConfig } from "../createConfig"
+import { Store, createMemoryStore, createRedisStore } from "@alto/store"
 
 const getReputationManager = (
     config: AltoConfig
@@ -73,13 +74,27 @@ const getMempool = ({
     validator: InterfaceValidator
     metrics: Metrics
     eventManager: EventManager
-}): MemoryMempool => {
-    return new MemoryMempool({
+}): Mempool => {
+    let store: Store
+
+    if (config.redisMempoolUrl) {
+        store = createRedisStore({
+            config,
+            metrics
+        })
+    } else {
+        store = createMemoryStore({
+            config,
+            metrics
+        })
+    }
+
+    return new Mempool({
         config,
         monitor,
+        store,
         reputationManager,
         validator,
-        metrics,
         eventManager
     })
 }
@@ -102,7 +117,7 @@ const getExecutor = ({
     gasPriceManager,
     eventManager
 }: {
-    mempool: MemoryMempool
+    mempool: Mempool
     config: AltoConfig
     reputationManager: InterfaceReputationManager
     metrics: Metrics
@@ -132,7 +147,7 @@ const getExecutorManager = ({
 }: {
     config: AltoConfig
     executor: Executor
-    mempool: MemoryMempool
+    mempool: Mempool
     monitor: Monitor
     reputationManager: InterfaceReputationManager
     senderManager: SenderManager
@@ -159,7 +174,7 @@ const getNonceQueuer = ({
     eventManager
 }: {
     config: AltoConfig
-    mempool: MemoryMempool
+    mempool: Mempool
     eventManager: EventManager
 }) => {
     return new NonceQueuer({
@@ -184,7 +199,7 @@ const getRpcHandler = ({
 }: {
     config: AltoConfig
     validator: InterfaceValidator
-    mempool: MemoryMempool
+    mempool: Mempool
     executor: Executor
     monitor: Monitor
     nonceQueuer: NonceQueuer
@@ -341,9 +356,9 @@ export const setupServer = async ({
         await server.stop()
         rootLogger.info("server stopped")
 
-        const outstanding = mempool.dumpOutstanding().length
-        const submitted = mempool.dumpSubmittedOps().length
-        const processing = mempool.dumpProcessing().length
+        const outstanding = (await mempool.dumpOutstanding()).length
+        const submitted = (await mempool.dumpSubmittedOps()).length
+        const processing = (await mempool.dumpProcessing()).length
         rootLogger.info(
             { outstanding, submitted, processing },
             "dumping mempool before shutdown"

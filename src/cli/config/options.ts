@@ -124,6 +124,54 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
     }
 }
 
+export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
+    "redis-mempool-url": {
+        description:
+            "Redis connection URL (required if redis-mempool is enabled)",
+        type: "string",
+        require: false
+    },
+    "redis-mempool-concurrency": {
+        description: "Number of concurrent jobs to process",
+        type: "number",
+        require: false,
+        default: 10
+    },
+    "redis-mempool-queue-name": {
+        description: "Redis mempool queue name",
+        type: "string",
+        require: false,
+        default: "outstanding-mempool-v2"
+    },
+    "redis-gas-price-queue-name": {
+        description: "Queue name to store gas prices",
+        type: "string",
+        require: false,
+        default: "gas-price-queue"
+    },
+    "mempool-max-parallel-ops": {
+        description:
+            "Maximum amount of parallel user ops to keep in the mempool (same sender, different nonce keys)",
+        type: "number",
+        require: false,
+        default: 10
+    },
+    "mempool-max-queued-ops": {
+        description:
+            "Maximum amount of sequential user ops to keep in the mempool (same sender and nonce key, different nonce values)",
+        type: "number",
+        require: false,
+        default: 0
+    },
+    "enforce-unique-senders-per-bundle": {
+        description:
+            "Include user ops with the same sender in the single bundle",
+        type: "boolean",
+        require: false,
+        default: true
+    }
+}
+
 export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
     {
         "entrypoint-simulation-contract": {
