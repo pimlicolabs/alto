@@ -6,7 +6,7 @@
     "author": "Pimlico",
     "license": "GPL-3.0-or-later",
     "bin": {
-        "alto": "./src/lib/cli/alto.js"
+        "alto": "./src/esm/cli/alto.js"
     },
     "scripts": {
         "prepare": "pnpm run build",
