@@ -1,13 +1,13 @@
 import { maxUint128 } from "viem"
-import { SlidingWindowTimedQueue } from "../utils/slidingWindowTimedQueue"
+import { MinMaxQueue } from "../utils/slidingWindowTimedQueue"
 
 export class ArbitrumManager {
-    private l1BaseFeeQueue: SlidingWindowTimedQueue
-    private l2BaseFeeQueue: SlidingWindowTimedQueue
+    private l1BaseFeeQueue: MinMaxQueue
+    private l2BaseFeeQueue: MinMaxQueue
 
     constructor(queueValidity: number) {
-        this.l1BaseFeeQueue = new SlidingWindowTimedQueue(queueValidity)
-        this.l2BaseFeeQueue = new SlidingWindowTimedQueue(queueValidity)
+        this.l1BaseFeeQueue = new MinMaxQueue(queueValidity)
+        this.l2BaseFeeQueue = new MinMaxQueue(queueValidity)
     }
 
     public saveL1BaseFee(baseFee: bigint) {

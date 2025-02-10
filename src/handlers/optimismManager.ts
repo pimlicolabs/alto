@@ -1,10 +1,10 @@
-import { SlidingWindowTimedQueue } from "../utils/slidingWindowTimedQueue"
+import { MinMaxQueue } from "../utils/slidingWindowTimedQueue"
 
 export class OptimismManager {
-    private l1FeeQueue: SlidingWindowTimedQueue
+    private l1FeeQueue: MinMaxQueue
 
     constructor(queueValidity: number) {
-        this.l1FeeQueue = new SlidingWindowTimedQueue(queueValidity)
+        this.l1FeeQueue = new MinMaxQueue(queueValidity)
     }
 
     public getMinL1Fee() {
