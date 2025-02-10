@@ -1,4 +1,6 @@
+import { AltoConfig } from "../../createConfig"
 import { createMemoryMinMaxQueue } from "./createMemoryMinMaxQueue"
+import { createRedisMinMaxQueue } from "./createRedisMinMaxQueue"
 
 export interface MinMaxQueue {
     saveValue(value: bigint): Promise<void>
@@ -7,6 +9,16 @@ export interface MinMaxQueue {
     getMaxValue(): Promise<bigint | null>
 }
 
-export const createMinMaxQueue = (queueValidityMs: number): MinMaxQueue => {
+export const createMinMaxQueue = ({
+    config,
+    keyPrefix
+}: { config: AltoConfig; keyPrefix: string }): MinMaxQueue => {
+    if (config.redisMempoolUrl) {
+        return createRedisMinMaxQueue({
+            config,
+            keyPrefix
+        })
+    }
+
     return createMemoryMinMaxQueue(queueValidityMs)
 }

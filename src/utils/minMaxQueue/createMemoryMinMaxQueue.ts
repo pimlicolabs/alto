@@ -1,4 +1,5 @@
 import { MinMaxQueue } from "."
+import { AltoConfig } from "../../createConfig"
 
 type QueueEntry = { timestamp: number; value: bigint }
 
@@ -44,9 +45,11 @@ const updateQueues = (
     }
 }
 
-export const createMemoryMinMaxQueue = (
-    queueValidityMs: number
-): MinMaxQueue => {
+export const createMemoryMinMaxQueue = ({
+    config
+}: { config: AltoConfig }): MinMaxQueue => {
+    const queueValidityMs = config.gasPriceExpiry
+
     // Element 0 will always be the min.
     let minDeque: QueueEntry[] = []
     // Element 0 will always be the max.

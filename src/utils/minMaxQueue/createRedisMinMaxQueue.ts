@@ -1,5 +1,6 @@
 import Redis from "ioredis"
 import { MinMaxQueue } from "."
+import { AltoConfig } from "../../createConfig"
 
 // Sorted TTL queue, one queue to keep track of values and other queue to keep track of TTL.
 class SortedTtlSet {
@@ -19,9 +20,13 @@ class SortedTtlSet {
         this.queueValidity = queueValidity
     }
 
-    async add(value: bigint, ttl: number) {
+    async add(value: bigint) {
+        if (value === 0n) {
+            return
+        }
+
         const now = Date.now() / 1_000
-        const newExpiry = now + ttl
+        const newExpiry = now + this.queueValidity
         const valueStr = value.toString()
 
         // Check if value exists in the value set
@@ -62,48 +67,65 @@ class SortedTtlSet {
             await multi.exec()
         }
     }
+
+    async getMin(): Promise<bigint | null> {
+        // Prune expired entries
+        await this.pruneExpiredEntries()
+
+        // Get the smallest value from the value set
+        const values = await this.redis.zrange(this.valueKey, 0, 0)
+        if (!values.length) return null
+
+        return BigInt(values[0])
+    }
+
+    async getMax(): Promise<bigint | null> {
+        // Prune expired entries
+        await this.pruneExpiredEntries()
+
+        // Get the largest value from the value set (using reverse range)
+        const values = await this.redis.zrange(this.valueKey, -1, -1)
+        if (!values.length) return null
+
+        return BigInt(values[0])
+    }
+
+    async getLatestValue(): Promise<bigint | null> {
+        // Prune expired entries
+        await this.pruneExpiredEntries()
+
+        // Get the member with highest TTL (most recent timestamp)
+        const values = await this.redis.zrange(this.timestampKey, -1, -1)
+        if (!values.length) return null
+
+        return BigInt(values[0])
+    }
 }
 
 export const createRedisMinMaxQueue = ({
-    redis,
-    queueValidityMs,
+    config,
     keyPrefix
 }: {
-    redis: Redis
-    queueValidityMs: number
+    config: AltoConfig
     keyPrefix: string
 }): MinMaxQueue => {
-    const keys = {
-        minDeque: `${keyPrefix}:minDeque`,
-        maxDeque: `${keyPrefix}:maxDeque`,
-        latestValue: `${keyPrefix}:latestValue`
+    if (!config.redisMempoolUrl) {
+        throw new Error("Redis URL not provided")
     }
 
+    const redis = new Redis(config.redisMempoolUrl)
+    const queueValidity = config.gasPriceExpiry / 1_000
+
+    const outstanding = new SortedTtlSet({
+        redis,
+        queueValidity,
+        key: `${keyPrefix}:minMaxQueue`
+    })
+
     return {
-        saveValue: async (value: bigint) => {
-            if (value === 0n) {
-                return
-            }
-            await updateQueues({ redis, keys, value, queueValidityMs })
-        },
-
-        getLatestValue: async () => {
-            const value = await redis.get(keys.latestValue)
-            return value ? BigInt(value) : null
-        },
-
-        getMinValue: async () => {
-            const entries = await redis.zrange(keys.minDeque, 0, 0)
-            if (!entries.length) return null
-            const entry = JSON.parse(entries[0]) as QueueEntry
-            return BigInt(entry.value)
-        },
-
-        getMaxValue: async () => {
-            const entries = await redis.zrange(keys.maxDeque, 0, 0)
-            if (!entries.length) return null
-            const entry = JSON.parse(entries[0]) as QueueEntry
-            return BigInt(entry.value)
-        }
+        saveValue: async (value: bigint) => outstanding.add(value),
+        getLatestValue: async () => outstanding.getLatestValue(),
+        getMinValue: async () => outstanding.getMin(),
+        getMaxValue: async () => outstanding.getMax()
     }
 }
