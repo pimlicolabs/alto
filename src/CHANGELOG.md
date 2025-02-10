@@ -1,5 +1,11 @@
 # @pimlico/alto
 
+## 0.0.13
+
+### Patch Changes
+
+- 2d8116a08da748cbe3e32763680300cd86e34325: Added alto binary to the package release
+
 ## 0.0.12
 
 ### Patch Changes
