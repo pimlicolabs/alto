@@ -8,7 +8,7 @@
     "main": "lib/index.js",
     "types": "lib/index.d.ts",
     "bin": {
-        "alto": "./lib/cli/alto.js"
+        "alto": "./esm/cli/alto.js"
     },
     "files": [
         "esm/**/*.d.ts",
