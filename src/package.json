@@ -7,6 +7,9 @@
     "license": "GPL-3.0-or-later",
     "main": "lib/index.js",
     "types": "lib/index.d.ts",
+    "bin": {
+        "alto": "./lib/cli/alto.js"
+    },
     "files": [
         "esm/**/*.d.ts",
         "esm/**/*.js",
