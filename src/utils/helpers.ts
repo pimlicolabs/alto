@@ -25,6 +25,9 @@ export function getRevertErrorData(err: unknown) {
 
 // biome-ignore lint/style/useNamingConvention:
 export function getAAError(errorMsg: string) {
+    if (!errorMsg || errorMsg === undefined) {
+        return ""
+    }
     const uppercase = errorMsg.toUpperCase()
     const match = uppercase.match(/AA\d{2}/)
     return match ? match[0] : undefined
