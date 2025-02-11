@@ -513,7 +513,17 @@ export class Executor {
 
         const wallets = Array.from(allWallets)
 
-        const gasPrice = await this.gasPriceManager.tryGetNetworkGasPrice()
+        let gasPrice: {
+            maxFeePerGas: bigint
+            maxPriorityFeePerGas: bigint
+        }
+
+        try {
+            gasPrice = await this.gasPriceManager.tryGetNetworkGasPrice()
+        } catch (e) {
+            this.logger.error({ error: e }, "error flushing stuck transaction")
+            return
+        }
 
         const promises = wallets.map((wallet) => {
             try {

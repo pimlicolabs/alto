@@ -404,7 +404,12 @@ export class GasPriceManager {
 
     public async getGasPrice(): Promise<GasPriceParameters> {
         if (this.config.gasPriceRefreshInterval === 0) {
-            return await this.tryUpdateGasPrice()
+            try {
+                return await this.tryUpdateGasPrice()
+            } catch (e) {
+                this.logger.error(e, "No gas price available")
+                throw new RpcError("No gas price available")
+            }
         }
 
         const maxFeePerGas = this.maxFeePerGasQueue.getLatestValue()
