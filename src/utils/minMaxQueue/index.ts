@@ -20,5 +20,5 @@ export const createMinMaxQueue = ({
         })
     }
 
-    return createMemoryMinMaxQueue(queueValidityMs)
+    return createMemoryMinMaxQueue({ config })
 }

@@ -1,13 +1,20 @@
 import { maxUint128 } from "viem"
-import { MinMaxQueue } from "../utils/slidingWindowTimedQueue"
+import { MinMaxQueue, createMinMaxQueue } from "../utils/minMaxQueue"
+import { AltoConfig } from "../createConfig"
 
 export class ArbitrumManager {
     private l1BaseFeeQueue: MinMaxQueue
     private l2BaseFeeQueue: MinMaxQueue
 
-    constructor(queueValidity: number) {
-        this.l1BaseFeeQueue = new MinMaxQueue(queueValidity)
-        this.l2BaseFeeQueue = new MinMaxQueue(queueValidity)
+    constructor({ config }: { config: AltoConfig }) {
+        this.l1BaseFeeQueue = createMinMaxQueue({
+            keyPrefix: "l1-base-fee-queue",
+            config
+        })
+        this.l2BaseFeeQueue = createMinMaxQueue({
+            keyPrefix: "l2-base-fee-queue",
+            config
+        })
     }
 
     public saveL1BaseFee(baseFee: bigint) {

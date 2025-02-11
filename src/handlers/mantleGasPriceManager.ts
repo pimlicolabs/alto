@@ -1,4 +1,5 @@
-import { MinMaxQueue } from "../utils/slidingWindowTimedQueue"
+import { AltoConfig } from "../createConfig"
+import { MinMaxQueue, createMinMaxQueue } from "../utils/minMaxQueue"
 
 export class MantleManager {
     private tokenRatioQueue: MinMaxQueue
@@ -6,11 +7,23 @@ export class MantleManager {
     private rollupDataGasAndOverheadQueue: MinMaxQueue
     private l1GasPriceQueue: MinMaxQueue
 
-    constructor(queueValidity: number) {
-        this.tokenRatioQueue = new MinMaxQueue(queueValidity)
-        this.scalarQueue = new MinMaxQueue(queueValidity)
-        this.l1GasPriceQueue = new MinMaxQueue(queueValidity)
-        this.rollupDataGasAndOverheadQueue = new MinMaxQueue(queueValidity)
+    constructor({ config }: { config: AltoConfig }) {
+        this.tokenRatioQueue = createMinMaxQueue({
+            keyPrefix: "token-ratio-queue",
+            config
+        })
+        this.scalarQueue = createMinMaxQueue({
+            keyPrefix: "scalar-queue",
+            config
+        })
+        this.l1GasPriceQueue = createMinMaxQueue({
+            keyPrefix: "l1-gas-price-queue",
+            config
+        })
+        this.rollupDataGasAndOverheadQueue = createMinMaxQueue({
+            keyPrefix: "rollup-data-gas-and-overhead-queue",
+            config
+        })
     }
 
     public getMinMantleOracleValues() {
