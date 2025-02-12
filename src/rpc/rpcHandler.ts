@@ -1125,6 +1125,10 @@ export class RpcHandler implements IRpcEndpoint {
                 callGasLimit,
                 this.config.v6CallGasLimitMultiplier
             )
+            verificationGasLimit = scaleBigIntByPercent(
+                verificationGasLimit,
+                this.config.v6VerificationGasLimitMultiplier
+            )
         }
 
         if (isVersion07(simulationUserOperation)) {

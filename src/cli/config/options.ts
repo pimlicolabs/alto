@@ -153,6 +153,13 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
             require: true,
             default: "100"
         },
+        "v6-verification-gas-limit-multiplier": {
+            description:
+                "Amount to multiply the verificationGasLimit fetched from simulations for v6 userOperations",
+            type: "string",
+            require: true,
+            default: "100"
+        },
         "v7-call-gas-limit-multiplier": {
             description:
                 "Amount to multiply the callGasLimit fetched from simulations for v7 userOperations",
