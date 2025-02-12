@@ -213,6 +213,12 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
             description:
                 "For permissioned chains, eth_call simulations require a whitelisted address as the sender",
             type: "string"
+        },
+        "split-simulation-calls": {
+            description:
+                "Should the bundler split estimation simulations into smaller calls.",
+            type: "boolean",
+            default: false
         }
     }
 
