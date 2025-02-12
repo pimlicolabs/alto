@@ -356,7 +356,7 @@ export class GasEstimatorV07 {
 
         let cause: readonly [Hex, Hex, Hex | null, Hex]
 
-        if (this.config.chainType === "hedera") {
+        if (this.config.splitSimulationCalls) {
             // due to Hedera specific restrictions, we can't combine these two calls.
             const [
                 simulateHandleOpLastCause,

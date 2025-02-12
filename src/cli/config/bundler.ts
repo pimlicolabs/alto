@@ -226,7 +226,8 @@ export const gasEstimationArgsSchema = z.object({
     "paymaster-gas-limit-multiplier": z
         .string()
         .transform((val) => BigInt(val)),
-    "eth-call-sender-address": addressSchema.optional()
+    "eth-call-sender-address": addressSchema.optional(),
+    "split-simulation-calls": z.boolean()
 })
 
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>
