@@ -178,12 +178,12 @@ export class Executor {
 
         newRequest.maxFeePerGas = scaleBigIntByPercent(
             gasPriceParameters.maxFeePerGas,
-            115n
+            115
         )
 
         newRequest.maxPriorityFeePerGas = scaleBigIntByPercent(
             gasPriceParameters.maxPriorityFeePerGas,
-            115n
+            115
         )
         newRequest.account = transactionInfo.executor
 
