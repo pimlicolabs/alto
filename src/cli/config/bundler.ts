@@ -144,6 +144,7 @@ export const compatibilityArgsSchema = z.object({
         .transform((val) => val as ApiVersion),
     "balance-override": z.boolean(),
     "flush-stuck-transactions-during-startup": z.boolean(),
+    "is-gas-free-chain": z.boolean(),
     "fixed-gas-limit-for-estimation": z
         .string()
         .transform((val) => BigInt(val))

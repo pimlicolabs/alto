@@ -356,6 +356,12 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             require: true,
             default: "v1,v2"
         },
+        "is-gas-free-chain": {
+            description:
+                "Indicates if the chain uses 0 for maxFee/maxPriorityFee",
+            type: "boolean",
+            default: false
+        },
         "default-api-version": {
             description: "Default API version",
             type: "string",

@@ -981,7 +981,7 @@ export class RpcHandler implements IRpcEndpoint {
     }) {
         this.ensureEntryPointIsSupported(entryPoint)
 
-        if (userOperation.maxFeePerGas === 0n) {
+        if (userOperation.maxFeePerGas === 0n && !this.config.isGasFreeChain) {
             throw new RpcError(
                 "user operation max fee per gas must be larger than 0 during gas estimation"
             )
