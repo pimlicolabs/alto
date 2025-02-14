@@ -161,7 +161,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
 
     await preFlightChecks(config)
 
-    const senderManager = getSenderManager({
+    const senderManager = await getSenderManager({
         config,
         metrics
     })

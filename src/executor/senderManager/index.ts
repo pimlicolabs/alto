@@ -28,12 +28,12 @@ export type SenderManager = {
     pushWallet: (wallet: Account) => Promise<void>
 }
 
-export const getSenderManager = ({
+export const getSenderManager = async ({
     config,
     metrics
-}: { config: AltoConfig; metrics: Metrics }): SenderManager => {
+}: { config: AltoConfig; metrics: Metrics }): Promise<SenderManager> => {
     if (config.redisQueueEndpoint) {
-        return createRedisSenderManager({ config, metrics })
+        return await createRedisSenderManager({ config, metrics })
     }
 
     return createMemorySenderManager({ config, metrics })
