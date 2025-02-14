@@ -24,6 +24,7 @@ import {
     pad
 } from "viem"
 import type { BundlerTracerResult } from "./BundlerCollectorTracerV07"
+import { areAddressesEqual } from "@alto/utils"
 
 interface CallEntry {
     to: string
@@ -489,7 +490,6 @@ export function tracerResultParserV07(
         )
     }
 
-    const paymaster = userOperation.paymaster?.toLowerCase()
     const sender = userOperation.sender.toLowerCase()
     // stake info per "number" level (factory, sender, paymaster)
     // we only use stake info if we notice a memory reference that require stake
@@ -581,7 +581,7 @@ export function tracerResultParserV07(
 
         for (const [addr, { reads, writes }] of Object.entries(access)) {
             // testing read/write access on contract "addr"
-            if (addr === sender) {
+            if (areAddressesEqual(addr, userOperation.sender)) {
                 // allowed to access sender's storage
                 // [STO-010]
                 continue
@@ -614,8 +614,14 @@ export function tracerResultParserV07(
 
                         if (
                             !(
-                                (entityAddr === sender ||
-                                    entityAddr === paymaster) &&
+                                (areAddressesEqual(
+                                    entityAddr,
+                                    userOperation.sender
+                                ) ||
+                                    areAddressesEqual(
+                                        entityAddr,
+                                        userOperation.paymaster ?? ""
+                                    )) &&
                                 isStaked(stakeInfoEntities.factory)
                             )
                         ) {
@@ -658,9 +664,8 @@ export function tracerResultParserV07(
             // otherwise, return addr as-is
             function nameAddr(addr: string, _currentEntity: string): string {
                 const [title] =
-                    Object.entries(stakeInfoEntities).find(
-                        ([_title, info]) =>
-                            info?.addr?.toLowerCase() === addr.toLowerCase()
+                    Object.entries(stakeInfoEntities).find(([_title, info]) =>
+                        areAddressesEqual(info?.addr ?? "", addr)
                     ) ?? []
 
                 return title ?? addr
