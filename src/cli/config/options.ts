@@ -356,8 +356,9 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             require: true,
             default: "v1,v2"
         },
-        "is-chain-gasless": {
-            description: "does the chain have 0 gas fees",
+        "is-gas-free-chain": {
+            description:
+                "Indicates if the chain uses 0 for maxFee/maxPriorityFee",
             type: "boolean",
             default: false
         },

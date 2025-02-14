@@ -403,7 +403,7 @@ export class GasPriceManager {
     }
 
     public async getGasPrice(): Promise<GasPriceParameters> {
-        if (this.config.isChainGasless) {
+        if (this.config.isGasFreeChain) {
             return {
                 maxFeePerGas: 0n,
                 maxPriorityFeePerGas: 0n
