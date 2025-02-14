@@ -489,6 +489,7 @@ export function tracerResultParserV07(
         )
     }
 
+    const paymaster = userOperation.paymaster?.toLowerCase()
     const sender = userOperation.sender.toLowerCase()
     // stake info per "number" level (factory, sender, paymaster)
     // we only use stake info if we notice a memory reference that require stake
@@ -614,8 +615,7 @@ export function tracerResultParserV07(
                         if (
                             !(
                                 (entityAddr === sender ||
-                                    entityAddr ===
-                                        userOperation.paymaster?.toLowerCase()) &&
+                                    entityAddr === paymaster) &&
                                 isStaked(stakeInfoEntities.factory)
                             )
                         ) {
