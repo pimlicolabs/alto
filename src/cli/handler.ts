@@ -83,7 +83,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
 
     const chain: Chain = {
         id: chainId,
-        name: 'chain-name', // isn't important, never used
+        name: "chain-name", // isn't important, never used
         nativeCurrency: {
             name: "ETH",
             symbol: "ETH",

@@ -57,7 +57,7 @@ const userOperationV06Schema = z
         maxFeePerGas: hexNumberSchema,
         paymasterAndData: hexDataSchema,
         signature: hexDataSchema,
-        eip7702Auth: signedAuthorizationSchema.optional()
+        eip7702auth: signedAuthorizationSchema.optional().nullable()
     })
     .strict()
     .transform((val) => {
@@ -99,7 +99,7 @@ const userOperationV07Schema = z
             .optional()
             .transform((val) => val ?? null),
         signature: hexDataSchema,
-        eip7702Auth: signedAuthorizationSchema.optional()
+        eip7702auth: signedAuthorizationSchema.optional().nullable()
     })
     .strict()
     .transform((val) => val)
@@ -117,7 +117,7 @@ const partialUserOperationV06Schema = z
         maxFeePerGas: hexNumberSchema.default(1n),
         paymasterAndData: hexDataSchema,
         signature: hexDataSchema,
-        eip7702Auth: signedAuthorizationSchema.optional()
+        eip7702auth: signedAuthorizationSchema.optional()
     })
     .strict()
     .transform((val) => {
@@ -159,7 +159,7 @@ const partialUserOperationV07Schema = z
             .optional()
             .transform((val) => val ?? null),
         signature: hexDataSchema,
-        eip7702Auth: signedAuthorizationSchema.optional()
+        eip7702auth: signedAuthorizationSchema.optional().nullable()
     })
     .strict()
     .transform((val) => val)
@@ -324,6 +324,11 @@ const bundlerDumpReputationsRequestSchema = z.object({
     params: z.tuple([addressSchema])
 })
 
+const bundlerClearReputationRequestSchema = z.object({
+    method: z.literal("debug_bundler_clearReputation"),
+    params: z.tuple([])
+})
+
 const pimlicoGetStakeStatusRequestSchema = z.object({
     method: z.literal("debug_bundler_getStakeStatus"),
     params: z.tuple([addressSchema, addressSchema])
@@ -378,6 +383,7 @@ const bundlerRequestSchema = z.discriminatedUnion("method", [
     bundlerSetBundlingModeRequestSchema,
     bundlerSetReputationsRequestSchema,
     bundlerDumpReputationsRequestSchema,
+    bundlerClearReputationRequestSchema,
     pimlicoGetStakeStatusRequestSchema,
     pimlicoGetUserOperationStatusRequestSchema,
     pimlicoGetUserOperationGasPriceRequestSchema,
@@ -521,7 +527,7 @@ const bundlerGetStakeStatusResponseSchema = z.object({
 
 const bundlerSendBundleNowResponseSchema = z.object({
     method: z.literal("debug_bundler_sendBundleNow"),
-    result: hexData32Schema
+    result: z.literal("ok")
 })
 
 const bundlerSetBundlingModeResponseSchema = z.object({
@@ -545,6 +551,11 @@ const bundlerDumpReputationsResponseSchema = z.object({
             status: hexNumberSchema.optional()
         })
     )
+})
+
+const bundlerClearReputationResponseSchema = z.object({
+    method: z.literal("debug_bundler_clearReputation"),
+    result: z.literal("ok")
 })
 
 const userOperationStatus = z.object({
@@ -631,6 +642,7 @@ const bundlerResponseSchema = z.discriminatedUnion("method", [
     bundlerSetBundlingModeResponseSchema,
     bundlerSetReputationsResponseSchema,
     bundlerDumpReputationsResponseSchema,
+    bundlerClearReputationResponseSchema,
     pimlicoGetUserOperationStatusResponseSchema,
     pimlicoGetUserOperationGasPriceResponseSchema,
     pimlicoSendUserOperationNowResponseSchema,
@@ -728,6 +740,9 @@ export type BundlerSendBundleNowResponseResult = z.infer<
 >["result"]
 export type BundlerSetBundlingModeResponseResult = z.infer<
     typeof bundlerSetBundlingModeResponseSchema
+>["result"]
+export type BundlerClearReputationResponseResult = z.infer<
+    typeof bundlerClearReputationResponseSchema
 >["result"]
 export type BundlerSetReputationsResponseResult = z.infer<
     typeof bundlerSetReputationsResponseSchema

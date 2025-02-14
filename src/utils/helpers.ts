@@ -1,19 +1,22 @@
-import { StateOverrides } from "@alto/types"
+import type { StateOverrides } from "@alto/types"
 import {
-    type Address,
     BaseError,
     type RawContractError,
     getAddress,
-    PublicClient
+    type PublicClient
 } from "viem"
 import {
-    SignedAuthorizationList,
+    type SignedAuthorizationList,
     recoverAuthorizationAddress
 } from "viem/experimental"
 
 /// Ensure proper equality by converting both addresses into their checksum type
-export const areAddressesEqual = (a: Address, b: Address) => {
-    return getAddress(a) === getAddress(b)
+export const areAddressesEqual = (a: string, b: string) => {
+    try {
+        return getAddress(a) === getAddress(b)
+    } catch {
+        return false
+    }
 }
 
 export function getRevertErrorData(err: unknown) {

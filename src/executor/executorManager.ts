@@ -167,12 +167,12 @@ export class ExecutorManager {
     }
 
     // Debug endpoint
-    async sendBundleNow(): Promise<Hash> {
+    async sendBundleNow(): Promise<Hash | undefined> {
         const bundles = await this.mempool.getBundles(1)
         const bundle = bundles[0]
 
-        if (bundle.userOps.length === 0) {
-            throw new Error("no ops to bundle")
+        if (bundles.length === 0 || bundle.userOps.length === 0) {
+            return
         }
 
         const txHash = await this.sendBundleToExecutor(bundle)

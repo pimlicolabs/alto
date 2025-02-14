@@ -21,10 +21,19 @@ export interface InterfaceReputationManager {
         entryPoint: Address,
         validationResult: ValidationResult | ValidationResultWithAggregation
     ): Promise<void>
-    updateUserOperationSeenStatus(
+    increaseUserOperationSeenStatus(
         userOperation: UserOperation,
         entryPoint: Address
-    ): void
+    ): Promise<void>
+    replaceUserOperationSeenStatus(
+        userOperation: UserOperation,
+        entryPoint: Address
+    ): Promise<void>
+    decreaseUserOperationSeenStatus(
+        userOperation: UserOperation,
+        entryPoint: Address,
+        error: string
+    ): Promise<void>
     increaseUserOperationCount(userOperation: UserOperation): void
     decreaseUserOperationCount(userOperation: UserOperation): void
     getStatus(entryPoint: Address, address: Address | null): ReputationStatus
@@ -112,11 +121,26 @@ export class NullReputationManager implements InterfaceReputationManager {
         return
     }
 
-    updateUserOperationSeenStatus(
+    increaseUserOperationSeenStatus(
         _: UserOperation,
         _entryPoint: Address
-    ): void {
-        return
+    ): Promise<void> {
+        return Promise.resolve()
+    }
+
+    replaceUserOperationSeenStatus(
+        _: UserOperation,
+        _entryPoint: Address
+    ): Promise<void> {
+        return Promise.resolve()
+    }
+
+    decreaseUserOperationSeenStatus(
+        _: UserOperation,
+        _entryPoint: Address,
+        _error: string
+    ): Promise<void> {
+        return Promise.resolve()
     }
 
     updateUserOperationIncludedStatus(
@@ -350,17 +374,25 @@ export class ReputationManager implements InterfaceReputationManager {
         entry.opsSeen++
     }
 
+    decreaseSeen(entryPoint: Address, address: Address): void {
+        const entry = this.entries[entryPoint][address]
+        if (!entry) {
+            return
+        }
+        entry.opsSeen--
+    }
+
     updateCrashedHandleOps(entryPoint: Address, address: Address): void {
         const entry = this.entries[entryPoint][address]
         if (!entry) {
             this.entries[entryPoint][address] = {
                 address,
-                opsSeen: 1000n,
+                opsSeen: 10000n,
                 opsIncluded: 0n
             }
             return
         }
-        entry.opsSeen = 1000n
+        entry.opsSeen = 10000n
         entry.opsIncluded = 0n
     }
 
@@ -370,6 +402,7 @@ export class ReputationManager implements InterfaceReputationManager {
         reason: string
     ): void {
         const isUserOpV06 = isVersion06(op)
+
         if (reason.startsWith("AA3")) {
             // paymaster
             const paymaster = isUserOpV06
@@ -379,9 +412,17 @@ export class ReputationManager implements InterfaceReputationManager {
                 this.updateCrashedHandleOps(entryPoint, paymaster)
             }
         } else if (reason.startsWith("AA2")) {
-            // sender
-            const sender = op.sender
-            this.updateCrashedHandleOps(entryPoint, sender)
+            const factory = isUserOpV06
+                ? undefined
+                : (op.factory as Address | undefined)
+
+            if (factory) {
+                this.updateCrashedHandleOps(entryPoint, factory)
+            } else {
+                // sender
+                const sender = op.sender
+                this.updateCrashedHandleOps(entryPoint, sender)
+            }
         } else if (reason.startsWith("AA1")) {
             // init code
             const factory = isUserOpV06
@@ -438,12 +479,18 @@ export class ReputationManager implements InterfaceReputationManager {
         }
     }
 
-    updateUserOperationSeenStatus(
+    async increaseUserOperationSeenStatus(
         userOperation: UserOperation,
         entryPoint: Address
-    ): void {
+    ): Promise<void> {
         const sender = userOperation.sender
-        this.increaseSeen(entryPoint, sender)
+
+        const stakeInfo = await this.getStakeStatus(entryPoint, sender)
+
+        if (stakeInfo.isStaked) {
+            this.increaseSeen(entryPoint, sender)
+        }
+
         const isUserOpV06 = isVersion06(userOperation)
 
         const paymaster = isUserOpV06
@@ -465,11 +512,101 @@ export class ReputationManager implements InterfaceReputationManager {
 
         this.logger.debug(
             { userOperation, factory },
-            "updateUserOperationSeenStatus"
+            "increaseUserOperationSeenStatus"
         )
 
         if (factory) {
             this.increaseSeen(entryPoint, factory)
+        }
+    }
+
+    async replaceUserOperationSeenStatus(
+        userOperation: UserOperation,
+        entryPoint: Address
+    ): Promise<void> {
+        const sender = userOperation.sender
+
+        const stakeInfo = await this.getStakeStatus(entryPoint, sender)
+
+        if (stakeInfo.isStaked) {
+            this.decreaseSeen(entryPoint, sender)
+        }
+
+        const isUserOpV06 = isVersion06(userOperation)
+
+        const paymaster = isUserOpV06
+            ? getAddressFromInitCodeOrPaymasterAndData(
+                  userOperation.paymasterAndData
+              )
+            : (userOperation.paymaster as Address | undefined)
+        if (paymaster) {
+            this.decreaseSeen(entryPoint, paymaster)
+        }
+
+        const factory = (
+            isUserOpV06
+                ? getAddressFromInitCodeOrPaymasterAndData(
+                      userOperation.initCode
+                  )
+                : userOperation.factory
+        ) as Address | undefined
+
+        this.logger.debug(
+            { userOperation, factory },
+            "increaseUserOperationSeenStatus"
+        )
+
+        if (factory) {
+            this.decreaseSeen(entryPoint, factory)
+        }
+    }
+
+    async decreaseUserOperationSeenStatus(
+        userOperation: UserOperation,
+        entryPoint: Address,
+        errorReason: string
+    ): Promise<void> {
+        const sender = userOperation.sender
+
+        const senderStakeInfo = await this.getStakeStatus(entryPoint, sender)
+
+        if (!senderStakeInfo.isStaked) {
+            this.decreaseSeen(entryPoint, sender)
+        }
+
+        const isUserOpV06 = isVersion06(userOperation)
+
+        const paymaster = isUserOpV06
+            ? getAddressFromInitCodeOrPaymasterAndData(
+                  userOperation.paymasterAndData
+              )
+            : (userOperation.paymaster as Address | undefined)
+
+        // can decrease if senderStakeInfo.isStaked is true
+        // or when error does not include aa3
+        if (
+            paymaster &&
+            (senderStakeInfo.isStaked ||
+                !errorReason.toLowerCase().includes("aa3"))
+        ) {
+            this.decreaseSeen(entryPoint, paymaster)
+        }
+
+        const factory = (
+            isUserOpV06
+                ? getAddressFromInitCodeOrPaymasterAndData(
+                      userOperation.initCode
+                  )
+                : userOperation.factory
+        ) as Address | undefined
+
+        this.logger.debug(
+            { userOperation, factory },
+            "decreaseUserOperationSeenStatus"
+        )
+
+        if (factory) {
+            this.decreaseSeen(entryPoint, factory)
         }
     }
 
