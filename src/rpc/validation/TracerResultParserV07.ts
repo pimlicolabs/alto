@@ -437,18 +437,15 @@ export function tracerResultParserV07(
         "BASEFEE",
         "BLOCKHASH",
         "NUMBER",
-        "SELFBALANCE",
-        "BALANCE",
         "ORIGIN",
         "GAS",
-        "CREATE",
         "COINBASE",
         "SELFDESTRUCT",
         "RANDOM",
         "PREVRANDAO",
         "INVALID",
-        "TSTORE",
-        "TLOAD"
+        "SELFBALANCE",
+        "BALANCE"
     ])
 
     // eslint-disable-next-line @typescript-eslint/no-base-to-string
@@ -506,6 +503,8 @@ export function tracerResultParserV07(
         tracerResults.keccak as Hex[]
     )
 
+    let isCreateOpcodeUsed = false
+
     for (const [title, entStakes] of Object.entries(stakeInfoEntities)) {
         const entityTitle = title as keyof StakeInfoEntities
         const entityAddr = (entStakes?.addr ?? "").toLowerCase()
@@ -523,6 +522,7 @@ export function tracerResultParserV07(
             continue
         }
         const opcodes = currentNumLevel.opcodes
+
         const access = currentNumLevel.access // address => { reads, writes }
 
         // [OP-020]
@@ -535,32 +535,47 @@ export function tracerResultParserV07(
 
         // opcodes from [OP-011]
         for (const opcode of Object.keys(opcodes)) {
-            if (
-                bannedOpCodes.has(opcode) &&
-                !(
-                    (opcode === "BALANCE" || opcode === "SELFBALANCE") &&
-                    isStaked(entStakes)
-                )
-            ) {
+            if (bannedOpCodes.has(opcode) && !isStaked(entStakes)) {
                 throw new RpcError(
                     `${entityTitle} uses banned opcode: ${opcode}`,
                     ValidationErrors.OpcodeValidation
                 )
             }
         }
+
+        const createOpcode = (opcodes.CREATE2 ?? 0) + (opcodes.CREATE ?? 0)
+
+        if (isCreateOpcodeUsed && createOpcode > 1) {
+            throw new RpcError(
+                `${entityTitle} uses banned opcode: CREATE2`,
+                ValidationErrors.OpcodeValidation
+            )
+        }
+
         // [OP-031]
         if (entityTitle === "factory") {
-            if ((opcodes.CREATE2 ?? 0) > 1) {
+            if ((createOpcode ?? 0) > 1) {
                 throw new RpcError(
                     `${entityTitle} with too many CREATE2`,
                     ValidationErrors.OpcodeValidation
                 )
             }
-        } else if (opcodes.CREATE2) {
-            throw new RpcError(
-                `${entityTitle} uses banned opcode: CREATE2`,
-                ValidationErrors.OpcodeValidation
-            )
+        } else if (createOpcode) {
+            const isFactoryStaked =
+                stakeInfoEntities.factory && isStaked(stakeInfoEntities.factory)
+
+            const skip = stakeInfoEntities.factory && opcodes.CREATE
+
+            if (!(isFactoryStaked || skip)) {
+                throw new RpcError(
+                    `${entityTitle} uses banned opcode: CREATE2`,
+                    ValidationErrors.OpcodeValidation
+                )
+            }
+        }
+
+        if (createOpcode > 0) {
+            isCreateOpcodeUsed = true
         }
 
         for (const [addr, { reads, writes }] of Object.entries(access)) {
@@ -595,9 +610,12 @@ export function tracerResultParserV07(
                     if (userOperation.factory) {
                         // special case: account.validateUserOp is allowed to use assoc storage if factory is staked.
                         // [STO-022], [STO-021]
+
                         if (
                             !(
-                                entityAddr === sender &&
+                                (entityAddr === sender ||
+                                    entityAddr ===
+                                        userOperation.paymaster?.toLowerCase()) &&
                                 isStaked(stakeInfoEntities.factory)
                             )
                         ) {

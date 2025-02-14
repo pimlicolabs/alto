@@ -7,6 +7,7 @@ import type {
 } from "@alto/mempool"
 import type {
     ApiVersion,
+    BundlerClearReputationResponseResult,
     PackedUserOperation,
     StateOverrides,
     UserOpInfo,
@@ -239,6 +240,13 @@ export class RpcHandler implements IRpcEndpoint {
                         ...request.params
                     )
                 }
+            case "debug_bundler_clearReputation":
+                return {
+                    method,
+                    result: this.debug_bundler_clearReputation(
+                        ...request.params
+                    )
+                }
             case "debug_bundler_setReputation":
                 return {
                     method,
@@ -333,7 +341,7 @@ export class RpcHandler implements IRpcEndpoint {
             throw new RpcError(reason)
         }
 
-        if (apiVersion !== "v1") {
+        if (apiVersion !== "v1" && !this.config.safeMode) {
             await this.gasPriceManager.validateGasPrice({
                 maxFeePerGas: userOperation.maxFeePerGas,
                 maxPriorityFeePerGas: userOperation.maxPriorityFeePerGas
@@ -541,7 +549,9 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         const result: GetUserOperationByHashResponseResult = {
-            userOperation: op,
+            userOperation: Object.fromEntries(
+                Object.entries(op).filter(([_, v]) => v !== null)
+            ) as UserOperation,
             entryPoint: getAddress(tx.to),
             transactionHash: txHash,
             blockHash: tx.blockHash ?? "0x",
@@ -573,19 +583,19 @@ export class RpcHandler implements IRpcEndpoint {
         return "ok"
     }
 
-    async debug_bundler_dumpMempool(
+    debug_bundler_dumpMempool(
         entryPoint: Address
     ): Promise<BundlerDumpMempoolResponseResult> {
         this.ensureDebugEndpointsAreEnabled("debug_bundler_dumpMempool")
         this.ensureEntryPointIsSupported(entryPoint)
 
-        return this.mempool.dumpOutstanding()
+        return Promise.resolve(this.mempool.dumpOutstanding())
     }
 
     async debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
         this.ensureDebugEndpointsAreEnabled("debug_bundler_sendBundleNow")
-        const transaction = await this.executorManager.sendBundleNow()
-        return transaction
+        await this.executorManager.sendBundleNow()
+        return "ok"
     }
 
     async debug_bundler_setBundlingMode(
@@ -628,6 +638,13 @@ export class RpcHandler implements IRpcEndpoint {
         this.ensureDebugEndpointsAreEnabled("debug_bundler_setReputation")
 
         this.reputationManager.setReputation(args[1], args[0])
+        return "ok"
+    }
+
+    debug_bundler_clearReputation(): BundlerClearReputationResponseResult {
+        this.ensureDebugEndpointsAreEnabled("debug_bundler_clearReputation")
+
+        this.reputationManager.clear()
         return "ok"
     }
 
@@ -706,17 +723,12 @@ export class RpcHandler implements IRpcEndpoint {
             throw new RpcError(reason, ValidationErrors.InvalidFields)
         }
 
-        let queuedUserOperations: UserOperation[] = []
-        if (
-            userOperationNonceValue > currentNonceValue &&
-            isVersion07(userOperation)
-        ) {
-            queuedUserOperations = await this.mempool.getQueuedUserOperations(
+        const queuedUserOperations: UserOperation[] =
+            await this.mempool.getQueuedUserOperations(
                 userOperation,
                 entryPoint,
                 currentNonceValue
             )
-        }
 
         if (
             userOperationNonceValue >
@@ -748,6 +760,7 @@ export class RpcHandler implements IRpcEndpoint {
                 entryPoint
             })
         }
+        await this.mempool.checkEntityMultipleRoleViolation(userOperation)
 
         // V1 api doesn't check prefund.
         const shouldCheckPrefund =
@@ -764,8 +777,6 @@ export class RpcHandler implements IRpcEndpoint {
             entryPoint,
             validationResult
         )
-
-        await this.mempool.checkEntityMultipleRoleViolation(userOperation)
 
         const [success, errorReason] = this.mempool.add(
             userOperation,
@@ -896,16 +907,16 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async validateEip7702Auth(userOperation: UserOperation) {
-        if (!userOperation.eip7702Auth) {
+        if (!userOperation.eip7702auth) {
             throw new RpcError(
-                "UserOperation is missing eip7702Auth",
+                "UserOperation is missing eip7702auth",
                 ValidationErrors.InvalidFields
             )
         }
 
         // Check that auth is valid.
         const sender = await recoverAuthorizationAddress({
-            authorization: userOperation.eip7702Auth
+            authorization: userOperation.eip7702auth
         })
         if (sender !== userOperation.sender) {
             throw new RpcError(

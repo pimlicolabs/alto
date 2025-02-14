@@ -176,9 +176,15 @@ export class UnsafeValidator implements InterfaceValidator {
         })
 
         if (error.result === "failed") {
+            let errorCode: number = ExecutionErrors.UserOperationReverted
+
+            if (error.data.toString().includes("AA23")) {
+                errorCode = ValidationErrors.SimulateValidation
+            }
+
             throw new RpcError(
                 `UserOperation reverted during simulation with reason: ${error.data}`,
-                ExecutionErrors.UserOperationReverted
+                errorCode
             )
         }
 
