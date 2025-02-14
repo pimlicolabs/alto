@@ -347,7 +347,7 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             description: "Default API version",
             type: "string",
             require: false,
-            default: "v2"
+            default: "v1"
         }
     }
 
