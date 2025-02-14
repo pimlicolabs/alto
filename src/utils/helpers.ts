@@ -1,6 +1,5 @@
 import type { StateOverrides } from "@alto/types"
 import {
-    type Address,
     BaseError,
     type RawContractError,
     getAddress,
