@@ -211,7 +211,7 @@ export class ExecutorManager {
                 "Failed to get nonce and gas parameters for bundling"
             )
             // Free executor if failed to get initial params.
-            this.senderManager.markWalletProcessed(wallet)
+            this.senderManager.pushWallet(wallet)
             return undefined
         }
 
@@ -225,7 +225,7 @@ export class ExecutorManager {
 
         // Free wallet if no bundle was sent.
         if (bundleResult.status !== "bundle_success") {
-            this.senderManager.markWalletProcessed(wallet)
+            this.senderManager.pushWallet(wallet)
         }
 
         // All ops failed simulation, drop them and return.
@@ -391,7 +391,7 @@ export class ExecutorManager {
 
         // Free executor if tx landed onchain
         if (bundlingStatus.status !== "not_found") {
-            this.senderManager.markWalletProcessed(transactionInfo.executor)
+            await this.senderManager.pushWallet(transactionInfo.executor)
         }
 
         if (bundlingStatus.status === "included") {
@@ -625,7 +625,7 @@ export class ExecutorManager {
         this.currentlyHandlingBlock = true
         this.logger.debug({ blockNumber: block.number }, "handling block")
 
-        const submittedEntries = this.mempool.dumpSubmittedOps()
+        const submittedEntries = await this.mempool.dumpSubmittedOps()
         if (submittedEntries.length === 0) {
             this.stopWatchingBlocks()
             this.currentlyHandlingBlock = false
@@ -633,7 +633,7 @@ export class ExecutorManager {
         }
 
         // refresh op statuses
-        const ops = this.mempool.dumpSubmittedOps()
+        const ops = await this.mempool.dumpSubmittedOps()
         const txs = getTransactionsFromUserOperationEntries(ops)
         await Promise.all(
             txs.map((txInfo) => this.refreshTransactionStatus(txInfo))
@@ -648,7 +648,7 @@ export class ExecutorManager {
             }))
 
         const transactionInfos = getTransactionsFromUserOperationEntries(
-            this.mempool.dumpSubmittedOps()
+            await this.mempool.dumpSubmittedOps()
         )
 
         await Promise.all(
@@ -713,7 +713,7 @@ export class ExecutorManager {
                 reason: "Failed to get network gas price during replacement"
             })
             // Free executor if failed to get initial params.
-            this.senderManager.markWalletProcessed(txInfo.executor)
+            await this.senderManager.pushWallet(txInfo.executor)
             return
         }
 
@@ -748,13 +748,13 @@ export class ExecutorManager {
                 )
             }
 
-            this.senderManager.markWalletProcessed(txInfo.executor)
+            await this.senderManager.pushWallet(txInfo.executor)
             return
         }
 
         // Free wallet if no bundle was sent or potentially included.
         if (bundleResult.status !== "bundle_success") {
-            this.senderManager.markWalletProcessed(txInfo.executor)
+            this.senderManager.pushWallet(txInfo.executor)
         }
 
         // Check if the transaction is potentially included.

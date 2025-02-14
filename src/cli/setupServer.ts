@@ -1,5 +1,4 @@
-import type { SenderManager } from "@alto/executor"
-import { Executor, ExecutorManager } from "@alto/executor"
+import { Executor, ExecutorManager, type SenderManager } from "@alto/executor"
 import { EventManager, type GasPriceManager } from "@alto/handlers"
 import {
     type InterfaceReputationManager,
@@ -20,6 +19,8 @@ import type { Metrics } from "@alto/utils"
 import type { Registry } from "prom-client"
 import type { AltoConfig } from "../createConfig"
 import { Store, createMemoryStore, createRedisStore } from "@alto/store"
+import { validateAndRefillWallets } from "../executor/senderManager/validateAndRefill"
+import { flushOnStartUp } from "../executor/senderManager/flushOnStartUp"
 
 const getReputationManager = (
     config: AltoConfig
@@ -270,10 +271,20 @@ export const setupServer = async ({
     })
 
     if (config.refillingWallets) {
-        await senderManager.validateAndRefillWallets()
+        await validateAndRefillWallets({
+            metrics,
+            config,
+            senderManager,
+            gasPriceManager
+        })
 
         setInterval(async () => {
-            await senderManager.validateAndRefillWallets()
+            await validateAndRefillWallets({
+                metrics,
+                config,
+                senderManager,
+                gasPriceManager
+            })
         }, config.executorRefillInterval * 1000)
     }
 
@@ -329,7 +340,11 @@ export const setupServer = async ({
     })
 
     if (config.flushStuckTransactionsDuringStartup) {
-        senderManager.flushOnStartUp()
+        flushOnStartUp({
+            senderManager,
+            gasPriceManager,
+            config
+        })
     }
 
     const rootLogger = config.getLogger(
@@ -337,9 +352,8 @@ export const setupServer = async ({
         { level: config.logLevel }
     )
 
-    rootLogger.info(
-        `Initialized ${senderManager.wallets.length} executor wallets`
-    )
+    const walletsLength = senderManager.getAllWallets().length
+    rootLogger.info(`Initialized ${walletsLength} executor wallets`)
 
     const server = getServer({
         config,

@@ -25,18 +25,18 @@ export class ArbitrumManager {
         this.l2BaseFeeQueue.saveValue(baseFee)
     }
 
-    public getMinL1BaseFee() {
-        let minL1BaseFee = this.l1BaseFeeQueue.getMinValue() || 1n
-        return minL1BaseFee
+    public async getMinL1BaseFee() {
+        let minL1BaseFee = await this.l1BaseFeeQueue.getMinValue()
+        return minL1BaseFee || 1n
     }
 
-    public getMaxL1BaseFee() {
-        let maxL1BaseFee = this.l1BaseFeeQueue.getMaxValue() || maxUint128
-        return maxL1BaseFee
+    public async getMaxL1BaseFee() {
+        let maxL1BaseFee = await this.l1BaseFeeQueue.getMaxValue()
+        return maxL1BaseFee || maxUint128
     }
 
-    public getMaxL2BaseFee() {
-        let maxL2BaseFee = this.l2BaseFeeQueue.getMaxValue() || maxUint128
-        return maxL2BaseFee
+    public async getMaxL2BaseFee() {
+        let maxL2BaseFee = await this.l2BaseFeeQueue.getMaxValue()
+        return maxL2BaseFee || maxUint128
     }
 }

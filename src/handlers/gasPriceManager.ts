@@ -60,8 +60,6 @@ export class GasPriceManager {
             }
         )
 
-        const queueValidity = this.config.gasPriceExpiry * 1_000
-
         this.baseFeePerGasQueue = createMinMaxQueue({
             config,
             keyPrefix: "base-fee-per-gas-queue "
@@ -86,9 +84,9 @@ export class GasPriceManager {
             }, this.config.gasPriceRefreshInterval * 1000)
         }
 
-        this.arbitrumManager = new ArbitrumManager(queueValidity)
-        this.mantleManager = new MantleManager(queueValidity)
-        this.optimismManager = new OptimismManager(queueValidity)
+        this.arbitrumManager = new ArbitrumManager({ config })
+        this.mantleManager = new MantleManager({ config })
+        this.optimismManager = new OptimismManager({ config })
     }
 
     public init() {

@@ -9,7 +9,8 @@ import type {
     ILogArgsInput,
     IOptionsInput,
     IRpcArgsInput,
-    IServerArgsInput
+    IServerArgsInput,
+    IMempoolArgsInput
 } from "./bundler"
 
 export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {

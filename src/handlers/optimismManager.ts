@@ -11,8 +11,8 @@ export class OptimismManager {
         })
     }
 
-    public getMinL1Fee() {
-        return this.l1FeeQueue.getMinValue() || 1n
+    public async getMinL1Fee() {
+        return (await this.l1FeeQueue.getMinValue()) || 1n
     }
 
     public saveL1FeeValue(l1Fee: bigint) {

@@ -1,0 +1,40 @@
+import { Account } from "viem"
+import { AltoConfig } from "../../createConfig"
+import { createMemorySenderManager } from "./createMemorySenderManager"
+import { Metrics } from "@alto/utils"
+import { createRedisSenderManager } from "./createRedisSenderManager"
+
+export const getAvailableWallets = (config: AltoConfig) => {
+    let availableWallets: Account[] = []
+
+    if (
+        config.maxExecutors !== undefined &&
+        config.executorPrivateKeys.length > config.maxExecutors
+    ) {
+        availableWallets = config.executorPrivateKeys.slice(
+            0,
+            config.maxExecutors
+        )
+    } else {
+        availableWallets = config.executorPrivateKeys
+    }
+
+    return availableWallets
+}
+
+export type SenderManager = {
+    getAllWallets: () => Account[]
+    getWallet: () => Promise<Account>
+    pushWallet: (wallet: Account) => Promise<void>
+}
+
+export const getSenderManager = ({
+    config,
+    metrics
+}: { config: AltoConfig; metrics: Metrics }): SenderManager => {
+    if (config.redisQueueEndpoint) {
+        return createRedisSenderManager({ config, metrics })
+    }
+
+    return createMemorySenderManager({ config, metrics })
+}

@@ -727,7 +727,7 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         if (this.config.dangerousSkipUserOperationValidation) {
-            const [success, errorReason] = this.mempool.add(
+            const [success, errorReason] = await this.mempool.add(
                 userOperation,
                 entryPoint
             )
@@ -767,7 +767,7 @@ export class RpcHandler implements IRpcEndpoint {
 
         await this.mempool.checkEntityMultipleRoleViolation(userOperation)
 
-        const [success, errorReason] = this.mempool.add(
+        const [success, errorReason] = await this.mempool.add(
             userOperation,
             entryPoint,
             validationResult.referencedContracts

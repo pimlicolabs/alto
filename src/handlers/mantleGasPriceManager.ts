@@ -26,13 +26,13 @@ export class MantleManager {
         })
     }
 
-    public getMinMantleOracleValues() {
+    public async getMinMantleOracleValues() {
         return {
-            minTokenRatio: this.tokenRatioQueue.getMinValue() || 1n,
-            minScalar: this.scalarQueue.getMinValue() || 1n,
+            minTokenRatio: (await this.tokenRatioQueue.getMinValue()) || 1n,
+            minScalar: (await this.scalarQueue.getMinValue()) || 1n,
             minRollupDataGasAndOverhead:
-                this.rollupDataGasAndOverheadQueue.getMinValue() || 1n,
-            minL1GasPrice: this.l1GasPriceQueue.getMinValue() || 1n
+                (await this.rollupDataGasAndOverheadQueue.getMinValue()) || 1n,
+            minL1GasPrice: (await this.l1GasPriceQueue.getMinValue()) || 1n
         }
     }
 
