@@ -189,6 +189,7 @@ export class SafeValidator
 
     async getValidationResultV07({
         userOperation,
+        queuedUserOperations,
         entryPoint,
         preCodeHashes
     }: {
@@ -214,6 +215,7 @@ export class SafeValidator
 
         const [res, tracerResult] = await this.getValidationResultWithTracerV07(
             userOperation,
+            queuedUserOperations,
             entryPoint
         )
 
@@ -485,14 +487,18 @@ export class SafeValidator
 
     async getValidationResultWithTracerV07(
         userOperation: UserOperationV07,
+        queuedUserOperations: UserOperationV07[],
         entryPoint: Address
     ): Promise<[ValidationResultV07, BundlerTracerResult]> {
         const packedUserOperation = toPackedUserOperation(userOperation)
+        const packedQueuedUserOperations = queuedUserOperations.map((uop) =>
+            toPackedUserOperation(uop)
+        )
 
         const entryPointSimulationsCallData = encodeFunctionData({
             abi: EntryPointV07SimulationsAbi,
             functionName: "simulateValidationLast",
-            args: [[packedUserOperation]]
+            args: [[...packedQueuedUserOperations, packedUserOperation]]
         })
 
         const callData = encodeFunctionData({
@@ -536,6 +542,10 @@ export class SafeValidator
 
             if (errorMessage.includes("AA24")) {
                 errorCode = ValidationErrors.InvalidSignature
+            }
+
+            if (errorMessage.includes("AA31")) {
+                errorCode = ValidationErrors.PaymasterDepositTooLow
             }
 
             throw new RpcError(errorMessage, errorCode)

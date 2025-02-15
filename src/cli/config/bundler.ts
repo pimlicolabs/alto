@@ -144,6 +144,7 @@ export const compatibilityArgsSchema = z.object({
         .transform((val) => val as ApiVersion),
     "balance-override": z.boolean(),
     "flush-stuck-transactions-during-startup": z.boolean(),
+    "is-gas-free-chain": z.boolean(),
     "fixed-gas-limit-for-estimation": z
         .string()
         .transform((val) => BigInt(val))
@@ -206,6 +207,9 @@ export const gasEstimationArgsSchema = z.object({
         .transform((val) => BigInt(val))
         .default("1000000"),
     "v6-call-gas-limit-multiplier": z.string().transform((val) => BigInt(val)),
+    "v6-verification-gas-limit-multiplier": z
+        .string()
+        .transform((val) => BigInt(val)),
     "v7-call-gas-limit-multiplier": z.string().transform((val) => BigInt(val)),
     "v7-verification-gas-limit-multiplier": z
         .string()
@@ -226,7 +230,8 @@ export const gasEstimationArgsSchema = z.object({
     "paymaster-gas-limit-multiplier": z
         .string()
         .transform((val) => BigInt(val)),
-    "eth-call-sender-address": addressSchema.optional()
+    "eth-call-sender-address": addressSchema.optional(),
+    "split-simulation-calls": z.boolean()
 })
 
 export const mempoolArgsSchema = z.object({

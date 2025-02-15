@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import * as sentry from "@sentry/node"
 import dotenv from "dotenv"
 import yargs from "yargs"

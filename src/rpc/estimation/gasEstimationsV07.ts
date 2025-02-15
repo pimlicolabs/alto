@@ -66,8 +66,8 @@ export class GasEstimatorV07 {
         })
 
         let authorizationList: SignedAuthorizationList = []
-        if (userOperation.eip7702Auth) {
-            authorizationList = [userOperation.eip7702Auth]
+        if (userOperation.eip7702auth) {
+            authorizationList = [userOperation.eip7702auth]
         }
 
         const errorResult = await this.callPimlicoEntryPointSimulations({
@@ -241,8 +241,8 @@ export class GasEstimatorV07 {
             })
 
             let authorizationList: SignedAuthorizationList = []
-            if (targetOp.eip7702Auth) {
-                authorizationList = [targetOp.eip7702Auth]
+            if (targetOp.eip7702auth) {
+                authorizationList = [targetOp.eip7702auth]
             }
 
             let cause = await this.callPimlicoEntryPointSimulations({
@@ -350,13 +350,13 @@ export class GasEstimatorV07 {
         })
 
         let authorizationList: SignedAuthorizationList = []
-        if (userOperation.eip7702Auth) {
-            authorizationList = [userOperation.eip7702Auth]
+        if (userOperation.eip7702auth) {
+            authorizationList = [userOperation.eip7702auth]
         }
 
         let cause: readonly [Hex, Hex, Hex | null, Hex]
 
-        if (this.config.chainType === "hedera") {
+        if (this.config.splitSimulationCalls) {
             // due to Hedera specific restrictions, we can't combine these two calls.
             const [
                 simulateHandleOpLastCause,

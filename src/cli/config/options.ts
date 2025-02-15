@@ -202,6 +202,13 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
             require: true,
             default: "100"
         },
+        "v6-verification-gas-limit-multiplier": {
+            description:
+                "Amount to multiply the verificationGasLimit fetched from simulations for v6 userOperations",
+            type: "string",
+            require: true,
+            default: "100"
+        },
         "v7-call-gas-limit-multiplier": {
             description:
                 "Amount to multiply the callGasLimit fetched from simulations for v7 userOperations",
@@ -262,6 +269,12 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
             description:
                 "For permissioned chains, eth_call simulations require a whitelisted address as the sender",
             type: "string"
+        },
+        "split-simulation-calls": {
+            description:
+                "Should the bundler split estimation simulations into smaller calls.",
+            type: "boolean",
+            default: false
         }
     }
 
@@ -391,6 +404,12 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             type: "string",
             require: true,
             default: "v1,v2"
+        },
+        "is-gas-free-chain": {
+            description:
+                "Indicates if the chain uses 0 for maxFee/maxPriorityFee",
+            type: "boolean",
+            default: false
         },
         "default-api-version": {
             description: "Default API version",

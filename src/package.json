@@ -1,12 +1,15 @@
 {
     "name": "@pimlico/alto",
-    "version": "0.0.12",
+    "version": "0.0.13",
     "description": "A performant and modular ERC-4337 Bundler written in Typescript",
     "repository": "https://github.com/pimlicolabs/alto.git",
     "author": "Pimlico",
     "license": "GPL-3.0-or-later",
     "main": "lib/index.js",
     "types": "lib/index.d.ts",
+    "bin": {
+        "alto": "./esm/cli/alto.js"
+    },
     "files": [
         "esm/**/*.d.ts",
         "esm/**/*.js",

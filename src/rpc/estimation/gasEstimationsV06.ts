@@ -147,10 +147,10 @@ export class GasEstimatorV06 {
             stateOverrides = undefined
         }
 
-        if (userOperation.eip7702Auth) {
+        if (userOperation.eip7702auth) {
             stateOverrides = await addAuthorizationStateOverrides({
                 stateOverrides,
-                authorizationList: [userOperation.eip7702Auth],
+                authorizationList: [userOperation.eip7702auth],
                 publicClient
             })
         }

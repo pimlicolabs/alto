@@ -11,8 +11,8 @@ import {
     type UserOperation,
     ValidationErrors,
     type ValidationResult,
-    UserOperationBundle,
-    UserOpInfo
+    type UserOperationBundle,
+    type UserOpInfo
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
@@ -274,7 +274,6 @@ export class Mempool {
             ]
         }
 
-        this.reputationManager.updateUserOperationSeenStatus(userOp, entryPoint)
         const oldUserOpInfo = [
             ...outstandingOps,
             ...processedOrSubmittedOps
@@ -347,14 +346,23 @@ export class Mempool {
                 newOp.maxFeePerGas >=
                 scaleBigIntByPercent(oldOp.maxFeePerGas, 110n)
 
-            const hasHigherFees = hasHigherPriorityFee || hasHigherMaxFee
+            const hasHigherFees = hasHigherPriorityFee && hasHigherMaxFee
 
             if (!hasHigherFees) {
                 return [false, reason]
             }
 
             await this.store.removeOutstanding(oldUserOpInfo.userOpHash)
+            this.reputationManager.replaceUserOperationSeenStatus(
+                oldOp,
+                entryPoint
+            )
         }
+
+        this.reputationManager.increaseUserOperationSeenStatus(
+            userOp,
+            entryPoint
+        )
 
         // Check if mempool already includes max amount of parallel user operations
         const parallelUserOperationsCount = outstandingOps.filter(
@@ -571,6 +579,11 @@ export class Mempool {
                 "2nd Validation error"
             )
             this.store.removeOutstanding(userOpHash)
+            this.reputationManager.decreaseUserOperationSeenStatus(
+                userOp,
+                entryPoint,
+                e instanceof RpcError ? e.message : JSON.stringify(e)
+            )
             return {
                 skip: true,
                 paymasterDeposit,
@@ -833,10 +846,10 @@ export class Mempool {
 
         const [nonceKey, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
 
-        let currentNonceValue: bigint = BigInt(0)
+        let currentNonceSequence: bigint = BigInt(0)
 
         if (_currentNonceValue) {
-            currentNonceValue = _currentNonceValue
+            currentNonceSequence = _currentNonceValue
         } else {
             const getNonceResult = await entryPointContract.read.getNonce(
                 [userOp.sender, nonceKey],
@@ -845,7 +858,7 @@ export class Mempool {
                 }
             )
 
-            currentNonceValue = getNonceKeyAndSequence(getNonceResult)[1]
+            currentNonceSequence = getNonceKeyAndSequence(getNonceResult)[1]
         }
 
         const outstandingOps = await this.store.dumpOutstanding()
@@ -855,25 +868,39 @@ export class Mempool {
             const [mempoolNonceKey, mempoolNonceSequence] =
                 getNonceKeyAndSequence(mempoolUserOp.nonce)
 
+            let isPaymasterSame = false
+
+            if (isVersion07(userOp) && isVersion07(mempoolUserOp)) {
+                isPaymasterSame =
+                    mempoolUserOp.paymaster === userOp.paymaster &&
+                    !(
+                        mempoolUserOp.sender === userOp.sender &&
+                        mempoolNonceKey === nonceKey &&
+                        mempoolNonceSequence === nonceSequence
+                    ) &&
+                    userOp.paymaster !== null
+            }
+
             return (
-                mempoolUserOp.sender === userOp.sender &&
-                mempoolNonceKey === nonceKey &&
-                mempoolNonceSequence >= currentNonceValue &&
-                mempoolNonceSequence < nonceSequence
+                (mempoolUserOp.sender === userOp.sender &&
+                    mempoolNonceKey === nonceKey &&
+                    mempoolNonceSequence >= currentNonceSequence &&
+                    mempoolNonceSequence < nonceSequence) ||
+                isPaymasterSame
             )
         })
 
-        outstanding.sort((a, b) => {
-            const aUserOp = a.userOp
-            const bUserOp = b.userOp
+        return outstanding
+            .sort((a, b) => {
+                const aUserOp = a.userOp
+                const bUserOp = b.userOp
 
-            const [, aNonceValue] = getNonceKeyAndSequence(aUserOp.nonce)
-            const [, bNonceValue] = getNonceKeyAndSequence(bUserOp.nonce)
+                const [, aNonceValue] = getNonceKeyAndSequence(aUserOp.nonce)
+                const [, bNonceValue] = getNonceKeyAndSequence(bUserOp.nonce)
 
-            return Number(aNonceValue - bNonceValue)
-        })
-
-        return outstanding.map((userOpInfo) => userOpInfo.userOp)
+                return Number(aNonceValue - bNonceValue)
+            })
+            .map((userOpInfo) => userOpInfo.userOp)
     }
 
     clear(): void {
