@@ -394,7 +394,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     eth_chainId(): ChainIdResponseResult {
-        return BigInt(this.config.publicClient.chain.id)
+        return BigInt(this.config.chainId | update)
     }
 
     eth_supportedEntryPoints(): SupportedEntryPointsResponseResult {
@@ -423,7 +423,7 @@ export class RpcHandler implements IRpcEndpoint {
         const hash = getUserOperationHash(
             userOperation,
             entryPoint,
-            this.config.publicClient.chain.id
+            this.config.chainId | update
         )
         this.eventManager.emitReceived(hash)
 
@@ -692,7 +692,7 @@ export class RpcHandler implements IRpcEndpoint {
         const opHash = getUserOperationHash(
             userOperation,
             entryPoint,
-            this.config.publicClient.chain.id
+            this.config.chainId | update
         )
 
         await this.preMempoolChecks(
@@ -840,7 +840,7 @@ export class RpcHandler implements IRpcEndpoint {
         return getUserOperationHash(
             userOperation,
             entryPoint,
-            this.config.publicClient.chain.id
+            this.config.chainId | update
         )
     }
 
@@ -860,7 +860,7 @@ export class RpcHandler implements IRpcEndpoint {
         const opHash = getUserOperationHash(
             userOperation,
             entryPoint,
-            this.config.publicClient.chain.id
+            this.config.chainId | update
         )
 
         await this.preMempoolChecks(
@@ -877,7 +877,7 @@ export class RpcHandler implements IRpcEndpoint {
             userOpHash: getUserOperationHash(
                 userOperation,
                 entryPoint,
-                this.config.publicClient.chain.id
+                this.config.chainId | update
             ),
             addedToMempool: Date.now()
         }
@@ -1077,7 +1077,7 @@ export class RpcHandler implements IRpcEndpoint {
         } = calcVerificationGasAndCallGasLimit(
             simulationUserOperation,
             executionResult.data.executionResult,
-            this.config.publicClient.chain.id,
+            this.config.chainId | update,
             executionResult.data
         )
 
@@ -1116,15 +1116,15 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         if (
-            this.config.publicClient.chain.id === base.id ||
-            this.config.publicClient.chain.id === baseSepolia.id
+            this.config.chainId === base.id ||
+            this.config.chainId === baseSepolia.id
         ) {
             callGasLimit += 10_000n
         }
 
         if (
-            this.config.publicClient.chain.id === base.id ||
-            this.config.publicClient.chain.id === optimism.id
+            this.config.chainId === base.id ||
+            this.config.chainId === optimism.id
         ) {
             callGasLimit = maxBigInt(callGasLimit, 120_000n)
         }

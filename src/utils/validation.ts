@@ -314,7 +314,7 @@ export async function calcPreVerificationGas({
         overheads
     )
 
-    if (config.publicClient.chain.id === lineaSepolia.id) {
+    if (config.chainId == lineaSepolia.id) {
         return preVerificationGas * 2n
     }
 

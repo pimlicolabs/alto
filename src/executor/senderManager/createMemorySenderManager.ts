@@ -41,7 +41,7 @@ export const createMemorySenderManager = ({
 
             return wallet
         },
-        pushWallet: async (wallet: Account) => {
+        markWalletProcessed: async (wallet: Account) => {
             if (!availableWallets.includes(wallet)) {
                 availableWallets.push(wallet)
             }

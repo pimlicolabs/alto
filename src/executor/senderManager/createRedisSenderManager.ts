@@ -53,9 +53,10 @@ export const createRedisSenderManager = async ({
     )
 
     const redis = new Redis(config.redisQueueEndpoint)
+    const redisQueueName = `${config.chainId}:${config.redisSenderManagerQueueName}`
     const redisQueue = await createRedisQueue({
         redis,
-        name: `sender-manager-${config.publicClient.chain.id}`,
+        name: redisQueueName,
         entries: wallets.map((w) => w.address)
     })
 
@@ -89,7 +90,7 @@ export const createRedisSenderManager = async ({
 
             return wallet
         },
-        pushWallet: async (wallet: Account) => {
+        markWalletProcessed: async (wallet: Account) => {
             redisQueue.push(wallet.address).then(() => {
                 redisQueue.llen().then((len) => {
                     metrics.walletsAvailable.set(len)

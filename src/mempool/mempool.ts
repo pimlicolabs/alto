@@ -240,7 +240,7 @@ export class Mempool {
         const userOpHash = getUserOperationHash(
             userOp,
             entryPoint,
-            this.config.publicClient.chain.id
+            this.config.chainId | update
         )
 
         const outstandingOps = await this.store.dumpOutstanding()

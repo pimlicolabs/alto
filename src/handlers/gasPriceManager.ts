@@ -112,9 +112,7 @@ export class GasPriceManager {
     }
 
     private async getPolygonGasPriceParameters(): Promise<GasPriceParameters | null> {
-        const gasStationUrl = getGasStationUrl(
-            this.config.publicClient.chain.id
-        )
+        const gasStationUrl = getGasStationUrl(this.config.chainId)
         try {
             const data = await (await fetch(gasStationUrl)).json()
             // take the standard speed here, SDK options will define the extra tip
@@ -137,7 +135,7 @@ export class GasPriceManager {
 
         const maxPriorityFeePerGas = maxBigInt(
             gasPriceParameters.maxPriorityFeePerGas,
-            this.getDefaultGasFee(this.config.publicClient.chain.id)
+            this.getDefaultGasFee(this.config.chainId)
         )
         const maxFeePerGas = maxBigInt(
             gasPriceParameters.maxFeePerGas,
@@ -150,8 +148,8 @@ export class GasPriceManager {
         }
 
         if (
-            this.config.publicClient.chain.id === celo.id ||
-            this.config.publicClient.chain.id === celoAlfajores.id
+            this.config.chainId === celo.id ||
+            this.config.chainId === celoAlfajores.id
         ) {
             const maxFee = maxBigInt(
                 result.maxFeePerGas,
@@ -163,7 +161,7 @@ export class GasPriceManager {
             }
         }
 
-        if (this.config.publicClient.chain.id === dfk.id) {
+        if (this.config.chainId == dfk.id) {
             const maxFeePerGas = maxBigInt(5_000_000_000n, result.maxFeePerGas)
             const maxPriorityFeePerGas = maxBigInt(
                 5_000_000_000n,
@@ -177,7 +175,7 @@ export class GasPriceManager {
         }
 
         // set a minimum maxPriorityFee & maxFee to 1.5gwei on avalanche (because eth_maxPriorityFeePerGas returns 0)
-        if (this.config.publicClient.chain.id === avalanche.id) {
+        if (this.config.chainId == avalanche.id) {
             const maxFeePerGas = maxBigInt(
                 parseGwei("1.5"),
                 result.maxFeePerGas
@@ -312,8 +310,8 @@ export class GasPriceManager {
         let maxPriorityFeePerGas = 0n
 
         if (
-            this.config.publicClient.chain.id === polygon.id ||
-            this.config.publicClient.chain.id === polygonMumbai.id
+            this.config.chainId === polygon.id ||
+            this.config.chainId === polygonMumbai.id
         ) {
             const polygonEstimate = await this.getPolygonGasPriceParameters()
             if (polygonEstimate) {

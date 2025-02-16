@@ -100,7 +100,7 @@ export class NonceQueuer {
         const userOperationHash = getUserOperationHash(
             userOperation,
             entryPoint,
-            this.config.publicClient.chain.id
+            this.config.chainId
         )
         this.queuedUserOperations.push({
             entryPoint,

@@ -151,7 +151,7 @@ export const createRedisStore = ({
     const outstanding: QueueType<UserOpInfo> = createQueue({
         url: redisMempoolUrl,
         queueName: redisMempoolQueueName,
-        chainId: config.publicClient.chain.id
+        chainId: config.chainId
     })
 
     return {

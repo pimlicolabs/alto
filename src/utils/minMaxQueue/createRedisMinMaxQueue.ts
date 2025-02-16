@@ -10,13 +10,24 @@ class SortedTtlSet {
     queueValidity: number
 
     constructor({
-        redis,
-        key,
-        queueValidity
-    }: { redis: Redis; key: string; queueValidity: number }) {
+        keyPrefix,
+        config
+    }: {
+        keyPrefix: string
+        config: AltoConfig
+    }) {
+        if (!config.redisMempoolUrl) {
+            throw new Error("Redis URL not provided")
+        }
+
+        const redis = new Redis(config.redisMempoolUrl)
+        const queueValidity = config.gasPriceExpiry / 1_000
+
+        const redisKey = `${config.chainId}:${keyPrefix}`
+
         this.redis = redis
-        this.valueKey = `${key}:value`
-        this.timestampKey = `${key}:timestamp`
+        this.valueKey = `${redisKey}:value`
+        this.timestampKey = `${redisKey}:timestamp`
         this.queueValidity = queueValidity
     }
 
@@ -33,7 +44,7 @@ class SortedTtlSet {
         const exists = await this.redis.zscore(this.valueKey, valueStr)
 
         if (exists) {
-            // If value exists, only update its timestamp
+            // If value exists, only update ies timestamp
             const multi = this.redis.multi()
             multi.zrem(this.timestampKey, valueStr) // Remove old timestamp
             multi.zadd(this.timestampKey, newExpiry, valueStr) // Add new timestamp
@@ -109,23 +120,15 @@ export const createRedisMinMaxQueue = ({
     config: AltoConfig
     keyPrefix: string
 }): MinMaxQueue => {
-    if (!config.redisMempoolUrl) {
-        throw new Error("Redis URL not provided")
-    }
-
-    const redis = new Redis(config.redisMempoolUrl)
-    const queueValidity = config.gasPriceExpiry / 1_000
-
-    const outstanding = new SortedTtlSet({
-        redis,
-        queueValidity,
-        key: `${keyPrefix}:minMaxQueue`
+    const queue = new SortedTtlSet({
+        config,
+        keyPrefix: `${keyPrefix}:minMaxQueue`
     })
 
     return {
-        saveValue: async (value: bigint) => outstanding.add(value),
-        getLatestValue: async () => outstanding.getLatestValue(),
-        getMinValue: async () => outstanding.getMin(),
-        getMaxValue: async () => outstanding.getMax()
+        saveValue: async (value: bigint) => queue.add(value),
+        getLatestValue: async () => queue.getLatestValue(),
+        getMinValue: async () => queue.getMin(),
+        getMaxValue: async () => queue.getMax()
     }
 }

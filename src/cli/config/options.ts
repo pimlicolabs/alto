@@ -142,13 +142,19 @@ export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
         description: "Redis mempool queue name",
         type: "string",
         require: false,
-        default: "outstanding-mempool-v2"
+        default: "outstanding-mempool"
     },
     "redis-gas-price-queue-name": {
         description: "Queue name to store gas prices",
         type: "string",
         require: false,
-        default: "gas-price-queue"
+        default: "gas-price"
+    },
+    "redis-sender-manager-queue-name": {
+        description: "Queue name to executors",
+        type: "string",
+        require: false,
+        default: "sender-manager"
     },
     "mempool-max-parallel-ops": {
         description:

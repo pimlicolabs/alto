@@ -104,7 +104,7 @@ export class GasEstimatorV07 {
                     getUserOperationHash(
                         op,
                         entryPoint,
-                        this.config.publicClient.chain.id
+                        this.config.chainId | update
                     )
                 ]
             })
@@ -129,7 +129,7 @@ export class GasEstimatorV07 {
             userOperationHash: getUserOperationHash(
                 uop,
                 entryPoint,
-                this.config.publicClient.chain.id
+                this.config.chainId
             )
         }))
 

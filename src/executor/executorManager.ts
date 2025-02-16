@@ -211,7 +211,7 @@ export class ExecutorManager {
                 "Failed to get nonce and gas parameters for bundling"
             )
             // Free executor if failed to get initial params.
-            this.senderManager.pushWallet(wallet)
+            this.senderManager.markWalletProcessed(wallet)
             return undefined
         }
 
@@ -225,7 +225,7 @@ export class ExecutorManager {
 
         // Free wallet if no bundle was sent.
         if (bundleResult.status !== "bundle_success") {
-            this.senderManager.pushWallet(wallet)
+            this.senderManager.markWalletProcessed(wallet)
         }
 
         // All ops failed simulation, drop them and return.
@@ -391,7 +391,9 @@ export class ExecutorManager {
 
         // Free executor if tx landed onchain
         if (bundlingStatus.status !== "not_found") {
-            await this.senderManager.pushWallet(transactionInfo.executor)
+            await this.senderManager.markWalletProcessed(
+                transactionInfo.executor
+            )
         }
 
         if (bundlingStatus.status === "included") {
@@ -713,7 +715,7 @@ export class ExecutorManager {
                 reason: "Failed to get network gas price during replacement"
             })
             // Free executor if failed to get initial params.
-            await this.senderManager.pushWallet(txInfo.executor)
+            await this.senderManager.markWalletProcessed(txInfo.executor)
             return
         }
 
@@ -748,13 +750,13 @@ export class ExecutorManager {
                 )
             }
 
-            await this.senderManager.pushWallet(txInfo.executor)
+            await this.senderManager.markWalletProcessed(txInfo.executor)
             return
         }
 
         // Free wallet if no bundle was sent or potentially included.
         if (bundleResult.status !== "bundle_success") {
-            this.senderManager.pushWallet(txInfo.executor)
+            this.senderManager.markWalletProcessed(txInfo.executor)
         }
 
         // Check if the transaction is potentially included.

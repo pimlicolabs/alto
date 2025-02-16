@@ -25,7 +25,7 @@ export const getAvailableWallets = (config: AltoConfig) => {
 export type SenderManager = {
     getAllWallets: () => Account[]
     getWallet: () => Promise<Account>
-    pushWallet: (wallet: Account) => Promise<void>
+    markWalletProcessed: (wallet: Account) => Promise<void>
 }
 
 export const getSenderManager = async ({
