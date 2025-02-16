@@ -21,14 +21,14 @@ async function createRedisQueue({
     if (hasElements === 0) {
         const multi = redis.multi()
         multi.del(name)
-        multi.lpush(name, ...entries)
+        multi.rpush(name, ...entries)
         await multi.exec()
     }
 
     return {
         llen: () => redis.llen(name),
         pop: () => redis.rpop(name),
-        push: (entry: string) => redis.rpush(name, entry)
+        push: (entry: string) => redis.lpush(name, entry)
     }
 }
 

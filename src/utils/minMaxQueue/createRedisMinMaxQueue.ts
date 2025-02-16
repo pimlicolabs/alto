@@ -33,6 +33,7 @@ class SortedTtlSet {
     }
 
     async add(value: bigint) {
+        await this.pruneExpiredEntries()
         if (value === 0n) {
             return
         }
