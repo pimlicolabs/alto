@@ -138,7 +138,7 @@ const dumpOutstanding = async ({
                 userOp: userOperationSchema.parse(job.data.userOp)
             }
         })
-        .filter((op) => op !== undefined)
+        .filter((op): op is UserOpInfo => op !== undefined)
 }
 
 export const createRedisStore = ({
