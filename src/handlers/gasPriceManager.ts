@@ -62,7 +62,7 @@ export class GasPriceManager {
 
         this.baseFeePerGasQueue = createMinMaxQueue({
             config,
-            keyPrefix: "base-fee-per-gas-queue "
+            keyPrefix: "base-fee-per-gas-queue"
         })
         this.maxFeePerGasQueue = createMinMaxQueue({
             config,

@@ -8,15 +8,12 @@ import Redis from "ioredis"
 
 const createQueue = <T>({
     url,
-    queueName,
-    chainId
+    queueName
 }: { url: string; queueName: string; chainId: number }) => {
     let client: Redis
     let subscriber: Redis
 
-    const uniqueQueueName = `${queueName}-${chainId}`
-
-    return new Queue<T>(uniqueQueueName, {
+    return new Queue<T>(queueName, {
         createClient: (type, redisOpts) => {
             switch (type) {
                 case "client": {
@@ -135,7 +132,6 @@ export const createRedisStore = ({
     config,
     metrics
 }: { config: AltoConfig; metrics: Metrics }): Store => {
-    const { redisMempoolUrl, redisMempoolQueueName } = config
     const logger = config.getLogger(
         { module: "redis-store" },
         {
@@ -143,14 +139,18 @@ export const createRedisStore = ({
         }
     )
 
+    const { redisMempoolUrl, redisMempoolQueueName } = config
     if (!redisMempoolUrl || !redisMempoolQueueName) {
-        throw new Error("Redis mempool URL is not configured")
+        throw new Error(
+            "Redis mempool URL or redis mempool queueName is not configured"
+        )
     }
 
     const memoryStore = createMemoryStore({ config, metrics })
+    const queueName = `${config.chainId}:${redisMempoolQueueName}`
     const outstanding: QueueType<UserOpInfo> = createQueue({
         url: redisMempoolUrl,
-        queueName: redisMempoolQueueName,
+        queueName: queueName,
         chainId: config.chainId
     })
 

@@ -394,7 +394,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     eth_chainId(): ChainIdResponseResult {
-        return BigInt(this.config.chainId | update)
+        return BigInt(this.config.chainId)
     }
 
     eth_supportedEntryPoints(): SupportedEntryPointsResponseResult {
@@ -423,7 +423,7 @@ export class RpcHandler implements IRpcEndpoint {
         const hash = getUserOperationHash(
             userOperation,
             entryPoint,
-            this.config.chainId | update
+            this.config.chainId
         )
         this.eventManager.emitReceived(hash)
 
@@ -692,7 +692,7 @@ export class RpcHandler implements IRpcEndpoint {
         const opHash = getUserOperationHash(
             userOperation,
             entryPoint,
-            this.config.chainId | update
+            this.config.chainId
         )
 
         await this.preMempoolChecks(
@@ -840,7 +840,7 @@ export class RpcHandler implements IRpcEndpoint {
         return getUserOperationHash(
             userOperation,
             entryPoint,
-            this.config.chainId | update
+            this.config.chainId
         )
     }
 
@@ -860,7 +860,7 @@ export class RpcHandler implements IRpcEndpoint {
         const opHash = getUserOperationHash(
             userOperation,
             entryPoint,
-            this.config.chainId | update
+            this.config.chainId
         )
 
         await this.preMempoolChecks(
@@ -877,7 +877,7 @@ export class RpcHandler implements IRpcEndpoint {
             userOpHash: getUserOperationHash(
                 userOperation,
                 entryPoint,
-                this.config.chainId | update
+                this.config.chainId
             ),
             addedToMempool: Date.now()
         }
@@ -1077,7 +1077,7 @@ export class RpcHandler implements IRpcEndpoint {
         } = calcVerificationGasAndCallGasLimit(
             simulationUserOperation,
             executionResult.data.executionResult,
-            this.config.chainId | update,
+            this.config.chainId,
             executionResult.data
         )
 

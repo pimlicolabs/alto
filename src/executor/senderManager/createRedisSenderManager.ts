@@ -40,8 +40,8 @@ export const createRedisSenderManager = async ({
     config,
     metrics
 }: { config: AltoConfig; metrics: Metrics }): Promise<SenderManager> => {
-    if (!config.redisQueueEndpoint) {
-        throw new Error("redisQueueEndpoint is required")
+    if (!config.redisMempoolUrl) {
+        throw new Error("redisMempoolUrl is required")
     }
 
     const wallets = getAvailableWallets(config)
@@ -52,7 +52,7 @@ export const createRedisSenderManager = async ({
         }
     )
 
-    const redis = new Redis(config.redisQueueEndpoint)
+    const redis = new Redis(config.redisMempoolUrl)
     const redisQueueName = `${config.chainId}:${config.redisSenderManagerQueueName}`
     const redisQueue = await createRedisQueue({
         redis,

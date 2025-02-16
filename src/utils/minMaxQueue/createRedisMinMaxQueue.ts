@@ -1,4 +1,5 @@
 import Redis from "ioredis"
+
 import { MinMaxQueue } from "."
 import { AltoConfig } from "../../createConfig"
 
@@ -21,7 +22,7 @@ class SortedTtlSet {
         }
 
         const redis = new Redis(config.redisMempoolUrl)
-        const queueValidity = config.gasPriceExpiry / 1_000
+        const queueValidity = config.gasPriceExpiry
 
         const redisKey = `${config.chainId}:${keyPrefix}`
 
@@ -37,22 +38,21 @@ class SortedTtlSet {
         }
 
         const now = Date.now() / 1_000
-        const newExpiry = now + this.queueValidity
         const valueStr = value.toString()
 
         // Check if value exists in the value set
         const exists = await this.redis.zscore(this.valueKey, valueStr)
 
         if (exists) {
-            // If value exists, only update ies timestamp
+            // If value exists, only update its timestamp
             const multi = this.redis.multi()
             multi.zrem(this.timestampKey, valueStr) // Remove old timestamp
-            multi.zadd(this.timestampKey, newExpiry, valueStr) // Add new timestamp
+            multi.zadd(this.timestampKey, now, valueStr) // Add new timestamp
             await multi.exec()
         } else {
             // If it's a new value, add entry to timestamp and value queues
             const multi = this.redis.multi()
-            multi.zadd(this.timestampKey, newExpiry, valueStr)
+            multi.zadd(this.timestampKey, now, valueStr)
             multi.zadd(this.valueKey, valueStr, valueStr)
             await multi.exec()
         }
@@ -66,7 +66,7 @@ class SortedTtlSet {
         const expiredMembers = await this.redis.zrangebyscore(
             this.timestampKey,
             "-inf",
-            cutoffTime
+            `(${cutoffTime}` // exclusive upper bound
         )
 
         if (expiredMembers.length) {

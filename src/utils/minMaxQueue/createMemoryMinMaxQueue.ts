@@ -5,12 +5,12 @@ type QueueEntry = { timestamp: number; value: bigint }
 
 const updateQueues = (
     value: bigint,
-    queueValidityMs: number,
+    queueValidity: number,
     minDeque: QueueEntry[],
     maxDeque: QueueEntry[]
 ): { minDeque: QueueEntry[]; maxDeque: QueueEntry[]; timestamp: number } => {
-    const timestamp = Date.now()
-    const cutoffTime = timestamp - queueValidityMs
+    const timestamp = Date.now() / 1_000 // Turn timestamp into seconds
+    const cutoffTime = timestamp - queueValidity
 
     // Remove expired entries
     const filteredMinDeque = minDeque.filter(
@@ -48,7 +48,7 @@ const updateQueues = (
 export const createMemoryMinMaxQueue = ({
     config
 }: { config: AltoConfig }): MinMaxQueue => {
-    const queueValidityMs = config.gasPriceExpiry
+    const queueValidity = config.gasPriceExpiry
 
     // Element 0 will always be the min.
     let minDeque: QueueEntry[] = []
@@ -64,7 +64,7 @@ export const createMemoryMinMaxQueue = ({
 
             const result = updateQueues(
                 value,
-                queueValidityMs,
+                queueValidity,
                 minDeque,
                 maxDeque
             )
