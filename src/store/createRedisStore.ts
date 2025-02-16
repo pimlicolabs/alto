@@ -2,7 +2,7 @@ import { Logger, Metrics } from "@alto/utils"
 import { AltoConfig } from "../createConfig"
 import { Store, createMemoryStore } from "."
 import { UserOpInfo, SubmittedUserOp } from "../types/mempool"
-import { HexData32 } from "../types/schemas"
+import { HexData32, userOperationSchema } from "../types/schemas"
 import Queue, { type Queue as QueueType } from "bull"
 import Redis from "ioredis"
 
@@ -84,7 +84,7 @@ const removeOutstanding = async ({
     outstanding: QueueType<UserOpInfo>
 }) => {
     const jobs = await outstanding.getWaiting()
-    const job = jobs.find((job) => job.data.userOpHash === userOpHash)
+    const job = jobs.find((job) => job && job.data.userOpHash === userOpHash)
 
     if (job) {
         await job.remove()
@@ -125,7 +125,20 @@ const dumpOutstanding = async ({
         "dumping mempool"
     )
 
-    return awaitingJobs.map((job) => job.data)
+    return awaitingJobs
+        .map((job) => {
+            // job has already been removed from the queue.
+            if (!job) {
+                return undefined
+            }
+
+            return {
+                ...job.data,
+                // userOp contains bigint fields, so we use zod to serialize/parse
+                userOp: userOperationSchema.parse(job.data.userOp)
+            }
+        })
+        .filter((op) => op !== undefined)
 }
 
 export const createRedisStore = ({
