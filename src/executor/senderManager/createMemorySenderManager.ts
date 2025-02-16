@@ -53,6 +53,15 @@ export const createMemorySenderManager = ({
             )
 
             metrics.walletsAvailable.set(availableWallets.length)
+        },
+        getActiveWallets: () => {
+            // Active wallets are those that are in the total pool but not in the available pool
+            return wallets.filter(
+                (wallet) =>
+                    !availableWallets.some(
+                        (available) => available.address === wallet.address
+                    )
+            )
         }
     }
 }

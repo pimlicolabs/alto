@@ -378,9 +378,21 @@ export const setupServer = async ({
             "dumping mempool before shutdown"
         )
 
+        // mark all executors as processed
+        for (const account of senderManager.getActiveWallets()) {
+            senderManager.markWalletProcessed(account)
+        }
+
         process.exit(0)
     }
 
-    process.on("SIGINT", gracefulShutdown)
-    process.on("SIGTERM", gracefulShutdown)
+    const signals = [
+        "SIGINT",
+        "SIGTERM",
+        "unhandledRejection",
+        "uncaughtException"
+    ]
+    signals.forEach((signal) => {
+        process.on(signal, async () => await gracefulShutdown(signal))
+    })
 }

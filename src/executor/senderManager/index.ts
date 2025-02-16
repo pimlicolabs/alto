@@ -26,6 +26,7 @@ export type SenderManager = {
     getAllWallets: () => Account[]
     getWallet: () => Promise<Account>
     markWalletProcessed: (wallet: Account) => Promise<void>
+    getActiveWallets: () => Account[]
 }
 
 export const getSenderManager = async ({

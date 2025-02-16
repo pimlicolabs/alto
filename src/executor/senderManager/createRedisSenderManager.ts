@@ -60,6 +60,9 @@ export const createRedisSenderManager = async ({
         entries: wallets.map((w) => w.address)
     })
 
+    // Track active wallets for this instance
+    const activeWallets = new Set<Account>()
+
     return {
         getAllWallets: () => [...wallets],
         getWallet: async () => {
@@ -79,6 +82,8 @@ export const createRedisSenderManager = async ({
                 throw new Error("wallet not found")
             }
 
+            activeWallets.add(wallet)
+
             logger.trace(
                 { executor: wallet.address },
                 "got wallet from sender manager"
@@ -91,11 +96,16 @@ export const createRedisSenderManager = async ({
             return wallet
         },
         markWalletProcessed: async (wallet: Account) => {
+            activeWallets.delete(wallet)
+
             redisQueue.push(wallet.address).then(() => {
                 redisQueue.llen().then((len) => {
                     metrics.walletsAvailable.set(len)
                 })
             })
+        },
+        getActiveWallets: () => {
+            return [...activeWallets]
         }
     }
 }
