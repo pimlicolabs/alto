@@ -10,6 +10,10 @@ import {
     recoverAuthorizationAddress
 } from "viem/experimental"
 
+export type DeepReadOnly<T> = {
+    readonly [P in keyof T]: T[P] extends object ? DeepReadOnly<T[P]> : T[P]
+}
+
 /// Ensure proper equality by converting both addresses into their checksum type
 export const areAddressesEqual = (a: string, b: string) => {
     try {
