@@ -33,7 +33,7 @@ export const getSenderManager = async ({
     config,
     metrics
 }: { config: AltoConfig; metrics: Metrics }): Promise<SenderManager> => {
-    if (config.redisMempoolUrl) {
+    if (config.redisSenderManagerUrl) {
         return await createRedisSenderManager({ config, metrics })
     }
 

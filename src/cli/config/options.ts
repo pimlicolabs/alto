@@ -150,6 +150,12 @@ export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
         require: false,
         default: "gas-price"
     },
+    "redis-sender-manager-url": {
+        description:
+            "Redis connection URL (required if redis-sender-manager is enabled)",
+        type: "string",
+        require: false
+    },
     "redis-sender-manager-queue-name": {
         description: "Queue name to executors",
         type: "string",
