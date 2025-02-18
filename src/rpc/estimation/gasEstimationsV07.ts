@@ -66,8 +66,8 @@ export class GasEstimatorV07 {
         })
 
         let authorizationList: SignedAuthorizationList = []
-        if (userOperation.eip7702auth) {
-            authorizationList = [userOperation.eip7702auth]
+        if (userOperation.eip7702Auth) {
+            authorizationList = [userOperation.eip7702Auth]
         }
 
         const errorResult = await this.callPimlicoEntryPointSimulations({
@@ -241,8 +241,8 @@ export class GasEstimatorV07 {
             })
 
             let authorizationList: SignedAuthorizationList = []
-            if (targetOp.eip7702auth) {
-                authorizationList = [targetOp.eip7702auth]
+            if (targetOp.eip7702Auth) {
+                authorizationList = [targetOp.eip7702Auth]
             }
 
             let cause = await this.callPimlicoEntryPointSimulations({
@@ -350,8 +350,8 @@ export class GasEstimatorV07 {
         })
 
         let authorizationList: SignedAuthorizationList = []
-        if (userOperation.eip7702auth) {
-            authorizationList = [userOperation.eip7702auth]
+        if (userOperation.eip7702Auth) {
+            authorizationList = [userOperation.eip7702Auth]
         }
 
         let cause: readonly [Hex, Hex, Hex | null, Hex]

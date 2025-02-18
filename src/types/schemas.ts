@@ -57,7 +57,7 @@ const userOperationV06Schema = z
         maxFeePerGas: hexNumberSchema,
         paymasterAndData: hexDataSchema,
         signature: hexDataSchema,
-        eip7702auth: signedAuthorizationSchema.optional().nullable()
+        eip7702Auth: signedAuthorizationSchema.optional().nullable()
     })
     .strict()
     .transform((val) => {
@@ -99,7 +99,7 @@ const userOperationV07Schema = z
             .optional()
             .transform((val) => val ?? null),
         signature: hexDataSchema,
-        eip7702auth: signedAuthorizationSchema.optional().nullable()
+        eip7702Auth: signedAuthorizationSchema.optional().nullable()
     })
     .strict()
     .transform((val) => val)
@@ -117,7 +117,7 @@ const partialUserOperationV06Schema = z
         maxFeePerGas: hexNumberSchema.default(1n),
         paymasterAndData: hexDataSchema,
         signature: hexDataSchema,
-        eip7702auth: signedAuthorizationSchema.optional()
+        eip7702Auth: signedAuthorizationSchema.optional()
     })
     .strict()
     .transform((val) => {
@@ -159,7 +159,7 @@ const partialUserOperationV07Schema = z
             .optional()
             .transform((val) => val ?? null),
         signature: hexDataSchema,
-        eip7702auth: signedAuthorizationSchema.optional().nullable()
+        eip7702Auth: signedAuthorizationSchema.optional().nullable()
     })
     .strict()
     .transform((val) => val)

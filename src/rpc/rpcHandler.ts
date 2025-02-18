@@ -907,7 +907,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     async validateEip7702Auth(userOperation: UserOperation) {
-        if (!userOperation.eip7702auth) {
+        if (!userOperation.eip7702Auth) {
             throw new RpcError(
                 "UserOperation is missing eip7702auth",
                 ValidationErrors.InvalidFields
@@ -916,7 +916,7 @@ export class RpcHandler implements IRpcEndpoint {
 
         // Check that auth is valid.
         const sender = await recoverAuthorizationAddress({
-            authorization: userOperation.eip7702auth
+            authorization: userOperation.eip7702Auth
         })
         if (sender !== userOperation.sender) {
             throw new RpcError(
