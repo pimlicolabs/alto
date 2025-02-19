@@ -1064,7 +1064,7 @@ export class RpcHandler implements IRpcEndpoint {
             userOperation: simulationUserOperation,
             entryPoint,
             queuedUserOperations,
-            addSenderBalanceOverride: true,
+            addSenderDepositOverride: true,
             stateOverrides: deepHexlify(stateOverrides)
         })
 
@@ -1185,7 +1185,7 @@ export class RpcHandler implements IRpcEndpoint {
                 },
                 entryPoint,
                 queuedUserOperations,
-                addSenderBalanceOverride: false,
+                addSenderDepositOverride: false,
                 stateOverrides: deepHexlify(stateOverrides)
             })
         }

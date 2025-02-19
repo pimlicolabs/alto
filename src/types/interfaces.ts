@@ -14,7 +14,7 @@ export interface InterfaceValidator {
         userOperation: UserOperation
         entryPoint: Address
         queuedUserOperations: UserOperation[]
-        addSenderBalanceOverride: boolean
+        addSenderDepositOverride: boolean
         stateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult<"execution">>
 
