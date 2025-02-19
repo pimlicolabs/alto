@@ -15,26 +15,20 @@ import type { SimulateHandleOpResult } from "./types"
 import type { AltoConfig } from "../../createConfig"
 
 function getStateOverrides({
-    addSenderBalanceOverride,
+    addSenderDepositOverride,
     userOperation,
     entryPoint,
     stateOverrides = {}
 }: {
-    addSenderBalanceOverride: boolean
+    addSenderDepositOverride: boolean
     stateOverrides: StateOverrides
     entryPoint: Address
     userOperation: UserOperation
 }) {
     const result: StateOverrides = { ...stateOverrides }
-
     const balanceOverride = parseEther("1000000")
 
-    if (addSenderBalanceOverride) {
-        result[userOperation.sender] = {
-            ...deepHexlify(stateOverrides?.[userOperation.sender] || {}),
-            balance: toHex(balanceOverride)
-        }
-
+    if (addSenderDepositOverride) {
         // Add deposit override.
         const depositsMappingSlot = keccak256(
             encodeAbiParameters(
@@ -68,8 +62,8 @@ export class GasEstimationHandler {
     simulateHandleOp({
         userOperation,
         queuedUserOperations,
-        addSenderBalanceOverride,
-        balanceOverrideEnabled,
+        addSenderDepositOverride,
+        stateOverrideEnabled,
         entryPoint,
         targetAddress,
         targetCallData,
@@ -77,8 +71,8 @@ export class GasEstimationHandler {
     }: {
         userOperation: UserOperation
         queuedUserOperations: UserOperation[]
-        addSenderBalanceOverride: boolean
-        balanceOverrideEnabled: boolean
+        addSenderDepositOverride: boolean
+        stateOverrideEnabled: boolean
         entryPoint: Address
         targetAddress: Address
         targetCallData: Hex
@@ -87,10 +81,10 @@ export class GasEstimationHandler {
         let finalStateOverride = undefined
 
         // Add balance override only for v0.6 userOperations (so that prefund check during simulation passes).
-        if (balanceOverrideEnabled && isVersion06(userOperation)) {
+        if (stateOverrideEnabled && isVersion06(userOperation)) {
             finalStateOverride = getStateOverrides({
                 userOperation,
-                addSenderBalanceOverride,
+                addSenderDepositOverride,
                 stateOverrides,
                 entryPoint
             })
