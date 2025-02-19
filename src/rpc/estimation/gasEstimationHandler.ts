@@ -2,7 +2,13 @@ import type { UserOperation } from "@alto/types"
 import type { StateOverrides, UserOperationV07 } from "@alto/types"
 import { deepHexlify, isVersion06 } from "@alto/utils"
 import type { Hex } from "viem"
-import { toHex, type Address, parseEther } from "viem"
+import {
+    toHex,
+    type Address,
+    parseEther,
+    keccak256,
+    encodeAbiParameters
+} from "viem"
 import { GasEstimatorV06 } from "./gasEstimationsV06"
 import { GasEstimatorV07 } from "./gasEstimationsV07"
 import type { SimulateHandleOpResult } from "./types"
@@ -11,18 +17,38 @@ import type { AltoConfig } from "../../createConfig"
 function getStateOverrides({
     addSenderBalanceOverride,
     userOperation,
+    entryPoint,
     stateOverrides = {}
 }: {
     addSenderBalanceOverride: boolean
     stateOverrides: StateOverrides
+    entryPoint: Address
     userOperation: UserOperation
 }) {
     const result: StateOverrides = { ...stateOverrides }
 
+    const balanceOverride = parseEther("1000000")
+
     if (addSenderBalanceOverride) {
         result[userOperation.sender] = {
             ...deepHexlify(stateOverrides?.[userOperation.sender] || {}),
-            balance: toHex(parseEther("1000000"))
+            balance: toHex(balanceOverride)
+        }
+
+        // Add deposit override.
+        const depositsMappingSlot = keccak256(
+            encodeAbiParameters(
+                [{ type: "address" }, { type: "uint256" }],
+                [userOperation.sender, 0n]
+            )
+        )
+
+        result[entryPoint] = {
+            ...deepHexlify(stateOverrides?.[entryPoint] || {}),
+            stateDiff: {
+                ...(stateOverrides?.[entryPoint]?.stateDiff || {}),
+                [depositsMappingSlot]: toHex(balanceOverride, { size: 32 })
+            }
         }
     }
 
@@ -65,7 +91,8 @@ export class GasEstimationHandler {
             finalStateOverride = getStateOverrides({
                 userOperation,
                 addSenderBalanceOverride,
-                stateOverrides
+                stateOverrides,
+                entryPoint
             })
         }
 
