@@ -167,6 +167,7 @@ export const createRedisStore = ({
         chainId: config.chainId
     })
 
+    logger.info(`Created redis store with queueName: ${queueName}`)
     return {
         addOutstanding: async (userOpInfo: UserOpInfo) => {
             await addOutstanding({
