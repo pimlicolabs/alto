@@ -1,5 +1,5 @@
 import type { EventManager, GasPriceManager } from "@alto/handlers"
-import type { InterfaceReputationManager, MemoryMempool } from "@alto/mempool"
+import type { InterfaceReputationManager, Mempool } from "@alto/mempool"
 import {
     type Address,
     type BundleResult,
@@ -71,7 +71,7 @@ export class Executor {
     metrics: Metrics
     reputationManager: InterfaceReputationManager
     gasPriceManager: GasPriceManager
-    mempool: MemoryMempool
+    mempool: Mempool
     eventManager: EventManager
 
     constructor({
@@ -83,7 +83,7 @@ export class Executor {
         eventManager
     }: {
         config: AltoConfig
-        mempool: MemoryMempool
+        mempool: Mempool
         reputationManager: InterfaceReputationManager
         metrics: Metrics
         gasPriceManager: GasPriceManager

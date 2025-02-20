@@ -101,11 +101,7 @@ export class GasEstimatorV07 {
                 functionName: "executeUserOp",
                 args: [
                     packedOp,
-                    getUserOperationHash(
-                        op,
-                        entryPoint,
-                        this.config.publicClient.chain.id
-                    )
+                    getUserOperationHash(op, entryPoint, this.config.chainId)
                 ]
             })
         }
@@ -129,7 +125,7 @@ export class GasEstimatorV07 {
             userOperationHash: getUserOperationHash(
                 uop,
                 entryPoint,
-                this.config.publicClient.chain.id
+                this.config.chainId
             )
         }))
 

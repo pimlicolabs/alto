@@ -554,7 +554,7 @@ export class UnsafeValidator implements InterfaceValidator {
                             preOpGas: validationResult.returnInfo.preOpGas,
                             paid: validationResult.returnInfo.prefund
                         },
-                        this.config.publicClient.chain.id
+                        this.config.chainId
                     )
 
                 let mul = 1n

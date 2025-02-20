@@ -1,7 +1,7 @@
 import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
-    MemoryMempool,
+    Mempool,
     Monitor
 } from "@alto/mempool"
 import {
@@ -59,7 +59,7 @@ export class ExecutorManager {
     private senderManager: SenderManager
     private config: AltoConfig
     private executor: Executor
-    private mempool: MemoryMempool
+    private mempool: Mempool
     private monitor: Monitor
     private logger: Logger
     private metrics: Metrics
@@ -84,7 +84,7 @@ export class ExecutorManager {
     }: {
         config: AltoConfig
         executor: Executor
-        mempool: MemoryMempool
+        mempool: Mempool
         monitor: Monitor
         reputationManager: InterfaceReputationManager
         metrics: Metrics
@@ -391,7 +391,9 @@ export class ExecutorManager {
 
         // Free executor if tx landed onchain
         if (bundlingStatus.status !== "not_found") {
-            this.senderManager.markWalletProcessed(transactionInfo.executor)
+            await this.senderManager.markWalletProcessed(
+                transactionInfo.executor
+            )
         }
 
         if (bundlingStatus.status === "included") {
@@ -625,7 +627,7 @@ export class ExecutorManager {
         this.currentlyHandlingBlock = true
         this.logger.debug({ blockNumber: block.number }, "handling block")
 
-        const submittedEntries = this.mempool.dumpSubmittedOps()
+        const submittedEntries = await this.mempool.dumpSubmittedOps()
         if (submittedEntries.length === 0) {
             this.stopWatchingBlocks()
             this.currentlyHandlingBlock = false
@@ -633,7 +635,7 @@ export class ExecutorManager {
         }
 
         // refresh op statuses
-        const ops = this.mempool.dumpSubmittedOps()
+        const ops = await this.mempool.dumpSubmittedOps()
         const txs = getTransactionsFromUserOperationEntries(ops)
         await Promise.all(
             txs.map((txInfo) => this.refreshTransactionStatus(txInfo))
@@ -648,7 +650,7 @@ export class ExecutorManager {
             }))
 
         const transactionInfos = getTransactionsFromUserOperationEntries(
-            this.mempool.dumpSubmittedOps()
+            await this.mempool.dumpSubmittedOps()
         )
 
         await Promise.all(
@@ -713,7 +715,7 @@ export class ExecutorManager {
                 reason: "Failed to get network gas price during replacement"
             })
             // Free executor if failed to get initial params.
-            this.senderManager.markWalletProcessed(txInfo.executor)
+            await this.senderManager.markWalletProcessed(txInfo.executor)
             return
         }
 
@@ -748,7 +750,7 @@ export class ExecutorManager {
                 )
             }
 
-            this.senderManager.markWalletProcessed(txInfo.executor)
+            await this.senderManager.markWalletProcessed(txInfo.executor)
             return
         }
 

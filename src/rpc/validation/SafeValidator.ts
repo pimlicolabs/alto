@@ -114,7 +114,7 @@ export class SafeValidator
                             preOpGas: validationResult.returnInfo.preOpGas,
                             paid: validationResult.returnInfo.prefund
                         },
-                        this.config.publicClient.chain.id
+                        this.config.chainId
                     )
 
                 let mul = 1n
@@ -179,7 +179,7 @@ export class SafeValidator
             hash = (error.walk() as any).data
         }
 
-        this.senderManager.pushWallet(wallet)
+        this.senderManager.markWalletProcessed(wallet)
 
         return {
             hash,

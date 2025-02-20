@@ -25,7 +25,7 @@ export class EventManager {
         config: AltoConfig
         metrics: Metrics
     }) {
-        this.chainId = config.publicClient.chain.id
+        this.chainId = config.chainId
 
         this.logger = config.getLogger(
             { module: "event_manager" },

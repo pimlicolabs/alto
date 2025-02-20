@@ -2,7 +2,7 @@ import type { Executor, ExecutorManager } from "@alto/executor"
 import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
-    MemoryMempool,
+    Mempool,
     Monitor
 } from "@alto/mempool"
 import type {
@@ -105,7 +105,7 @@ export interface IRpcEndpoint {
 export class RpcHandler implements IRpcEndpoint {
     config: AltoConfig
     validator: InterfaceValidator
-    mempool: MemoryMempool
+    mempool: Mempool
     executor: Executor
     monitor: Monitor
     nonceQueuer: NonceQueuer
@@ -131,7 +131,7 @@ export class RpcHandler implements IRpcEndpoint {
     }: {
         config: AltoConfig
         validator: InterfaceValidator
-        mempool: MemoryMempool
+        mempool: Mempool
         executor: Executor
         monitor: Monitor
         nonceQueuer: NonceQueuer
@@ -394,7 +394,7 @@ export class RpcHandler implements IRpcEndpoint {
     }
 
     eth_chainId(): ChainIdResponseResult {
-        return BigInt(this.config.publicClient.chain.id)
+        return BigInt(this.config.chainId)
     }
 
     eth_supportedEntryPoints(): SupportedEntryPointsResponseResult {
@@ -423,7 +423,7 @@ export class RpcHandler implements IRpcEndpoint {
         const hash = getUserOperationHash(
             userOperation,
             entryPoint,
-            this.config.publicClient.chain.id
+            this.config.chainId
         )
         this.eventManager.emitReceived(hash)
 
@@ -692,7 +692,7 @@ export class RpcHandler implements IRpcEndpoint {
         const opHash = getUserOperationHash(
             userOperation,
             entryPoint,
-            this.config.publicClient.chain.id
+            this.config.chainId
         )
 
         await this.preMempoolChecks(
@@ -739,7 +739,7 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         if (this.config.dangerousSkipUserOperationValidation) {
-            const [success, errorReason] = this.mempool.add(
+            const [success, errorReason] = await this.mempool.add(
                 userOperation,
                 entryPoint
             )
@@ -778,7 +778,9 @@ export class RpcHandler implements IRpcEndpoint {
             validationResult
         )
 
-        const [success, errorReason] = this.mempool.add(
+        await this.mempool.checkEntityMultipleRoleViolation(userOperation)
+
+        const [success, errorReason] = await this.mempool.add(
             userOperation,
             entryPoint,
             validationResult.referencedContracts
@@ -838,7 +840,7 @@ export class RpcHandler implements IRpcEndpoint {
         return getUserOperationHash(
             userOperation,
             entryPoint,
-            this.config.publicClient.chain.id
+            this.config.chainId
         )
     }
 
@@ -858,7 +860,7 @@ export class RpcHandler implements IRpcEndpoint {
         const opHash = getUserOperationHash(
             userOperation,
             entryPoint,
-            this.config.publicClient.chain.id
+            this.config.chainId
         )
 
         await this.preMempoolChecks(
@@ -875,7 +877,7 @@ export class RpcHandler implements IRpcEndpoint {
             userOpHash: getUserOperationHash(
                 userOperation,
                 entryPoint,
-                this.config.publicClient.chain.id
+                this.config.chainId
             ),
             addedToMempool: Date.now()
         }
@@ -1075,7 +1077,7 @@ export class RpcHandler implements IRpcEndpoint {
         } = calcVerificationGasAndCallGasLimit(
             simulationUserOperation,
             executionResult.data.executionResult,
-            this.config.publicClient.chain.id,
+            this.config.chainId,
             executionResult.data
         )
 
@@ -1114,15 +1116,15 @@ export class RpcHandler implements IRpcEndpoint {
         }
 
         if (
-            this.config.publicClient.chain.id === base.id ||
-            this.config.publicClient.chain.id === baseSepolia.id
+            this.config.chainId === base.id ||
+            this.config.chainId === baseSepolia.id
         ) {
             callGasLimit += 10_000n
         }
 
         if (
-            this.config.publicClient.chain.id === base.id ||
-            this.config.publicClient.chain.id === optimism.id
+            this.config.chainId === base.id ||
+            this.config.chainId === optimism.id
         ) {
             callGasLimit = maxBigInt(callGasLimit, 120_000n)
         }
