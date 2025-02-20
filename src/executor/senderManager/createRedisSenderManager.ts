@@ -63,6 +63,9 @@ export const createRedisSenderManager = async ({
     // Track active wallets for this instance
     const activeWallets = new Set<Account>()
 
+    logger.info(
+        `Created redis sender manager with queueName: ${redisQueueName}`
+    )
     return {
         getAllWallets: () => [...wallets],
         getWallet: async () => {

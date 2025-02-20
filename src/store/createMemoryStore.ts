@@ -141,6 +141,7 @@ export const createMemoryStore = ({
         }
     )
 
+    logger.info("Created memory store")
     return {
         addOutstanding: async (userOpInfo: UserOpInfo) => {
             outstanding = addToStore({
