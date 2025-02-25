@@ -34,7 +34,6 @@ import { base, baseSepolia, optimism } from "viem/chains"
 import type { AltoConfig } from "../createConfig"
 import { recoverAuthorizationAddress } from "viem/experimental"
 import type { MethodHandler } from "./createMethodHandler"
-import type { z } from "zod"
 import { registerHandlers } from "./methods"
 
 export class RpcHandler {
@@ -101,7 +100,7 @@ export class RpcHandler {
         registerHandlers(this)
     }
 
-    registerHandler<T extends z.ZodType>(handler: MethodHandler<T>) {
+    registerHandler(handler: MethodHandler) {
         this.methodHandlers.set(handler.method, handler)
     }
 
