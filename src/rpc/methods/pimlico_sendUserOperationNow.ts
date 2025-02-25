@@ -6,8 +6,8 @@ import {
 import { createMethodHandler } from "../createMethodHandler"
 import {
     RpcError,
-    UserOpInfo,
-    UserOperationBundle,
+    type UserOpInfo,
+    type UserOperationBundle,
     ValidationErrors,
     pimlicoSendUserOperationNowSchema
 } from "@alto/types"
@@ -57,7 +57,8 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
                 ? ("0.6" as const)
                 : ("0.7" as const)
         }
-        const result = await rpcHandler.executorManager.sendBundleToExecutor(bundle)
+        const result =
+            await rpcHandler.executorManager.sendBundleToExecutor(bundle)
 
         if (!result) {
             throw new RpcError(

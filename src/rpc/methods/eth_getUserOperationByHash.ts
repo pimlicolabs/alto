@@ -1,6 +1,6 @@
 import {
     getAbiItem,
-    Transaction,
+    type Transaction,
     TransactionNotFoundError,
     decodeFunctionData,
     toFunctionSelector,
@@ -12,11 +12,11 @@ import { createMethodHandler } from "../createMethodHandler"
 import {
     EntryPointV06Abi,
     EntryPointV07Abi,
-    HexData32,
-    PackedUserOperation,
-    UserOperation,
-    UserOperationV06,
-    UserOperationV07,
+    type HexData32,
+    type PackedUserOperation,
+    type UserOperation,
+    type UserOperationV06,
+    type UserOperationV07,
     getUserOperationByHashSchema
 } from "@alto/types"
 
@@ -34,7 +34,8 @@ export const ethGetUserOperationByHashHandler = createMethodHandler({
         let fromBlock: bigint | undefined
         let toBlock: "latest" | undefined
         if (rpcHandler.config.maxBlockRange !== undefined) {
-            const latestBlock = await rpcHandler.config.publicClient.getBlockNumber()
+            const latestBlock =
+                await rpcHandler.config.publicClient.getBlockNumber()
             fromBlock = latestBlock - BigInt(rpcHandler.config.maxBlockRange)
             if (fromBlock < 0n) {
                 fromBlock = 0n

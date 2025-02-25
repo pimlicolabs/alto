@@ -3,7 +3,8 @@ import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
     MemoryMempool,
-    Monitor
+    Monitor,
+    NonceQueuer
 } from "@alto/mempool"
 import type { ApiVersion, BundlerRequest, StateOverrides } from "@alto/types"
 import {
@@ -30,7 +31,6 @@ import {
 } from "@alto/utils"
 import { type Hex, getContract } from "viem"
 import { base, baseSepolia, optimism } from "viem/chains"
-import type { NonceQueuer } from "../mempool/nonceQueuer"
 import type { AltoConfig } from "../createConfig"
 import { recoverAuthorizationAddress } from "viem/experimental"
 import type { MethodHandler } from "./createMethodHandler"

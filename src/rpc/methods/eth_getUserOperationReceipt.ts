@@ -4,8 +4,10 @@ import { getUserOperationReceiptSchema } from "@alto/types"
 export const ethGetUserOperationReceiptHandler = createMethodHandler({
     method: "eth_getUserOperationReceipt",
     schema: getUserOperationReceiptSchema,
-    handler: async ({ rpcHandler, params }) => {
+    handler: ({ rpcHandler, params }) => {
         const [userOperationHash] = params
-        return rpcHandler.executorManager.getUserOperationReceipt(userOperationHash)
+        return rpcHandler.executorManager.getUserOperationReceipt(
+            userOperationHash
+        )
     }
 })
