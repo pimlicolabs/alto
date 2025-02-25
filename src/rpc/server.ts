@@ -23,7 +23,7 @@ import { fromZodError } from "zod-validation-error"
 import type { AltoConfig } from "../createConfig"
 import rpcDecorators, { RpcStatus } from "../utils/fastify-rpc-decorators"
 import RpcReply from "../utils/rpc-reply"
-import type { IRpcEndpoint } from "./rpcHandler"
+import type { RpcHandler } from "./rpcHandler"
 
 // jsonBigIntOverride.ts
 const originalJsonStringify = JSON.stringify
@@ -62,7 +62,7 @@ JSON.stringify = (
 export class Server {
     private config: AltoConfig
     private fastify: FastifyInstance
-    private rpcEndpoint: IRpcEndpoint
+    private rpcEndpoint: RpcHandler
     private registry: Registry
     private metrics: Metrics
 
@@ -73,7 +73,7 @@ export class Server {
         metrics
     }: {
         config: AltoConfig
-        rpcEndpoint: IRpcEndpoint
+        rpcEndpoint: RpcHandler
         registry: Registry
         metrics: Metrics
     }) {
@@ -310,7 +310,7 @@ export class Server {
             const jsonRpcResponse: JSONRPCResponse = {
                 jsonrpc: "2.0",
                 id: jsonRpcRequest.id,
-                result: result.result
+                result
             }
 
             await reply

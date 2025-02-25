@@ -14,6 +14,7 @@ import {
 } from "@alto/utils"
 import { type Address, getAddress, getContract } from "viem"
 import type { AltoConfig } from "../createConfig"
+import { ReadonlyDeep } from "type-fest"
 
 export interface InterfaceReputationManager {
     checkReputation(
@@ -49,11 +50,13 @@ export interface InterfaceReputationManager {
     ): void
     setReputation(
         entryPoint: Address,
-        args: {
-            address: Address
-            opsSeen: bigint
-            opsIncluded: bigint
-        }[]
+        args: ReadonlyDeep<
+            {
+                address: Address
+                opsSeen: bigint
+                opsIncluded: bigint
+            }[]
+        >
     ): void
     dumpReputations(entryPoint: Address): ReputationEntry[]
     getStakeStatus(
