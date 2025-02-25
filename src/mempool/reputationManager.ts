@@ -14,7 +14,7 @@ import {
 } from "@alto/utils"
 import { type Address, getAddress, getContract } from "viem"
 import type { AltoConfig } from "../createConfig"
-import { DeepReadonly } from "../rpc/types"
+import { DeepReadonly } from "../rpc/createMethodHandler"
 
 export interface InterfaceReputationManager {
     checkReputation(

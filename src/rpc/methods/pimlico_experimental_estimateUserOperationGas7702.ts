@@ -5,7 +5,7 @@ export const experimentalEstimateUserOperationGas7702Handler =
     createMethodHandler({
         method: "pimlico_experimental_estimateUserOperationGas7702",
         schema: pimlicoExperimentalEstimateUserOperationGas7702Schema,
-        handler: async ({ apiVersion, relay, params }) => {
+        handler: async ({ apiVersion, rpcHandler, params }) => {
             rpcHandler.ensureExperimentalEndpointsAreEnabled(
                 "pimlico_experimental_estimateUserOperationGas7702"
             )

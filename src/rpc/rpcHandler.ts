@@ -5,12 +5,7 @@ import type {
     MemoryMempool,
     Monitor
 } from "@alto/mempool"
-import {
-    ApiVersion,
-    BundlerRequest,
-    StateOverrides,
-    bundlerRequestSchema
-} from "@alto/types"
+import { ApiVersion, BundlerRequest, StateOverrides } from "@alto/types"
 import {
     type Address,
     EntryPointV06Abi,
@@ -38,7 +33,7 @@ import { base, baseSepolia, optimism } from "viem/chains"
 import type { NonceQueuer } from "../mempool/nonceQueuer"
 import type { AltoConfig } from "../createConfig"
 import { recoverAuthorizationAddress } from "viem/experimental"
-import { MethodHandler } from "./types"
+import { MethodHandler, RpcSchema } from "./createMethodHandler"
 
 export class RpcHandler {
     constructor(
@@ -63,19 +58,22 @@ export class RpcHandler {
         this.methodHandlers = new Map()
     }
 
-    private readonly methodHandlers: Map<
-        string,
-        MethodHandler<typeof bundlerRequestSchema>
-    >
+    private readonly methodHandlers: Map<string, MethodHandler>
     public readonly logger: Logger
 
-    registerHandler(handler: MethodHandler<typeof bundlerRequestSchema>) {
+    registerHandler(handler: MethodHandler) {
         if (Array.isArray(handler.method)) {
             for (const method of handler.method) {
-                this.methodHandlers.set(method, handler)
+                this.methodHandlers.set(
+                    method,
+                    handler as unknown as MethodHandler<RpcSchema>
+                )
             }
         } else {
-            this.methodHandlers.set(handler.method, handler)
+            this.methodHandlers.set(
+                handler.method,
+                handler as unknown as MethodHandler<RpcSchema>
+            )
         }
     }
 

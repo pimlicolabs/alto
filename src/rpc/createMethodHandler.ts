@@ -10,7 +10,7 @@ export type RpcSchemaType = {
 
 export type RpcSchema = z.ZodType<RpcSchemaType>
 
-export type MethodHandler<T extends z.ZodType> = {
+export type MethodHandler<T extends z.ZodType = z.ZodType> = {
     schema: T
     method: z.infer<T>["method"]
     handler: (args: {
@@ -33,7 +33,7 @@ export const createMethodHandler = <T extends RpcSchema>(handler: {
     method: z.infer<T>["method"]
     handler: (args: {
         rpcHandler: RpcHandler
-        params: z.infer<T>["params"]
+        params: DeepReadonly<z.infer<T>["params"]>
         apiVersion: ApiVersion
     }) => Promise<z.infer<T>["result"]> | z.infer<T>["result"]
 } => {

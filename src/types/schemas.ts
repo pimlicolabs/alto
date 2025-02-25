@@ -547,6 +547,29 @@ export const bundlerRequestSchema = z.discriminatedUnion("method", [
 ])
 export type BundlerRequest = z.infer<typeof bundlerRequestSchema>
 
+export const bundlerRpcSchema = z.union([
+    chainIdSchema,
+    supportedEntryPointsSchema,
+    estimateUserOperationGasSchema,
+    sendUserOperationSchema,
+    getUserOperationByHashSchema,
+    getUserOperationReceiptSchema,
+    debugClearStateSchema,
+    debugClearMempoolSchema,
+    debugDumpMempoolSchema,
+    debugSendBundleNowSchema,
+    debugSetBundlingModeSchema,
+    debugSetReputationSchema,
+    debugDumpReputationSchema,
+    debugClearReputationSchema,
+    debugGetStakeStatusSchema,
+    pimlicoGetUserOperationStatusSchema,
+    pimlicoGetUserOperationGasPriceSchema,
+    pimlicoSendUserOperationNowSchema,
+    pimlicoExperimentalSendUserOperation7702Schema,
+    pimlicoExperimentalEstimateUserOperationGas7702Schema
+])
+
 export type BundlingMode = z.infer<
     typeof debugSetBundlingModeSchema
 >["params"][0]
