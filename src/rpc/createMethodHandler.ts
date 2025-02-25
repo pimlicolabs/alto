@@ -1,14 +1,7 @@
 import { z } from "zod"
 import type { RpcHandler } from "./rpcHandler"
 import { ApiVersion } from "../types/utils"
-
-export type RpcSchemaType = {
-    method: string
-    params: any
-    result: any
-}
-
-export type RpcSchema = z.ZodType<RpcSchemaType>
+import { bundlerRpcSchema } from "@alto/types"
 
 export type MethodHandler<T extends z.ZodType = z.ZodType> = {
     schema: T
@@ -20,7 +13,9 @@ export type MethodHandler<T extends z.ZodType = z.ZodType> = {
     }) => Promise<z.infer<T>["result"]> | z.infer<T>["result"]
 }
 
-export const createMethodHandler = <T extends RpcSchema>(handler: {
+export const createMethodHandler = <
+    T extends typeof bundlerRpcSchema
+>(handler: {
     schema: T
     method: z.infer<T>["method"]
     handler: (args: {
@@ -41,18 +36,26 @@ export const createMethodHandler = <T extends RpcSchema>(handler: {
         schema: handler.schema,
         method: handler.method,
         handler: (args) => {
-            const freezeDeep = <T>(obj: T): DeepReadonly<T> => {
+            const freezeDeep = (
+                obj: unknown
+            ): DeepReadonly<z.infer<T>["params"]> => {
                 if (Array.isArray(obj)) {
-                    return Object.freeze(obj.map(freezeDeep)) as DeepReadonly<T>
+                    return Object.freeze(obj.map(freezeDeep)) as DeepReadonly<
+                        z.infer<T>["params"]
+                    >
                 }
                 if (obj !== null && typeof obj === "object") {
                     const frozenObj = Object.create(Object.getPrototypeOf(obj))
                     for (const prop of Object.getOwnPropertyNames(obj)) {
-                        frozenObj[prop] = freezeDeep(obj[prop as keyof T])
+                        frozenObj[prop] = freezeDeep(
+                            obj[prop as string] as unknown
+                        )
                     }
-                    return Object.freeze(frozenObj) as DeepReadonly<T>
+                    return Object.freeze(frozenObj) as DeepReadonly<
+                        z.infer<T>["params"]
+                    >
                 }
-                return obj as DeepReadonly<T>
+                return obj as DeepReadonly<z.infer<T>["params"]>
             }
 
             const frozenParams = freezeDeep(args.params)
