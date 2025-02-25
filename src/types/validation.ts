@@ -5,7 +5,7 @@ import { EntryPointV06Abi } from "./contracts"
 import { type HexData, addressSchema } from "./schemas"
 
 export type StakeInfo = {
-    addr: string
+    addr?: string
     stake: bigint
     unstakeDelaySec: bigint
 }
@@ -147,7 +147,7 @@ export const executionResultErrorSchema = z.object({
 })
 
 const stakeInfoSchema = z.object({
-    addr: z.string(),
+    addr: z.string().optional(),
     stake: z.bigint(),
     unstakeDelaySec: z.bigint()
 })

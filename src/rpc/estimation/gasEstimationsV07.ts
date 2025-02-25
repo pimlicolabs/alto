@@ -802,7 +802,6 @@ export function getSimulateValidationResult(errorData: Hex): {
 
         return {
             status: "validation",
-            // @ts-ignore
             data: decodedResult
         }
     }

@@ -27,7 +27,7 @@ const freezeDeep = <T>(obj: T): T => {
     return obj as T
 }
 
-export const createMethodHandler = <T extends z.ZodType>(handler: {
+export const createMethodHandler = <T extends z.ZodType>(methodConfig: {
     schema: T
     method: z.infer<T>["method"]
     handler: (args: {
@@ -45,13 +45,13 @@ export const createMethodHandler = <T extends z.ZodType>(handler: {
     }) => Promise<z.infer<T>["result"]> | z.infer<T>["result"]
 } => {
     return {
-        schema: handler.schema,
-        method: handler.method,
+        schema: methodConfig.schema,
+        method: methodConfig.method,
         handler: (args) => {
             const frozenParams = freezeDeep(args.params)
 
             // Call the handler with frozen params
-            return handler.handler({
+            return methodConfig.handler({
                 rpcHandler: args.rpcHandler,
                 params: frozenParams,
                 apiVersion: args.apiVersion
