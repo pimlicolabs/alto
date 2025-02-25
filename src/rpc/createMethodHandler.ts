@@ -1,13 +1,14 @@
 import type { z } from "zod"
 import type { RpcHandler } from "./rpcHandler"
 import type { ApiVersion } from "@alto/types"
+import { ReadonlyDeep } from "type-fest"
 
 export type MethodHandler<T extends z.ZodType = z.ZodType> = {
     schema: T
     method: z.infer<T>["method"]
     handler: (args: {
         rpcHandler: RpcHandler
-        params: DeepReadonly<z.infer<T>["params"]>
+        params: ReadonlyDeep<z.infer<T>["params"]>
         apiVersion: ApiVersion
     }) => Promise<z.infer<T>["result"]> | z.infer<T>["result"]
 }
@@ -32,7 +33,7 @@ export const createMethodHandler = <T extends z.ZodType>(methodConfig: {
     method: z.infer<T>["method"]
     handler: (args: {
         rpcHandler: RpcHandler
-        params: DeepReadonly<z.infer<T>["params"]>
+        params: ReadonlyDeep<z.infer<T>["params"]>
         apiVersion: ApiVersion
     }) => Promise<z.infer<T>["result"]> | z.infer<T>["result"]
 }): {
@@ -40,7 +41,7 @@ export const createMethodHandler = <T extends z.ZodType>(methodConfig: {
     method: z.infer<T>["method"]
     handler: (args: {
         rpcHandler: RpcHandler
-        params: DeepReadonly<z.infer<T>["params"]>
+        params: ReadonlyDeep<z.infer<T>["params"]>
         apiVersion: ApiVersion
     }) => Promise<z.infer<T>["result"]> | z.infer<T>["result"]
 } => {
@@ -58,8 +59,4 @@ export const createMethodHandler = <T extends z.ZodType>(methodConfig: {
             })
         }
     }
-}
-
-export type DeepReadonly<T> = {
-    readonly [P in keyof T]: T[P] extends object ? DeepReadonly<T[P]> : T[P]
 }

@@ -189,7 +189,7 @@ const getRpcHandler = ({
     eventManager: EventManager
     gasPriceManager: GasPriceManager
 }) => {
-    return new RpcHandler(
+    return new RpcHandler({
         config,
         validator,
         mempool,
@@ -201,7 +201,7 @@ const getRpcHandler = ({
         metrics,
         eventManager,
         gasPriceManager
-    )
+    })
 }
 
 const getServer = ({

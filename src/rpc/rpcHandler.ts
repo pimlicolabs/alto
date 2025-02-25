@@ -38,19 +38,58 @@ import type { z } from "zod"
 import { registerHandlers } from "./methods"
 
 export class RpcHandler {
-    constructor(
-        public readonly config: AltoConfig,
-        public readonly validator: InterfaceValidator,
-        public readonly mempool: MemoryMempool,
-        public readonly executor: Executor,
-        public readonly monitor: Monitor,
-        public readonly nonceQueuer: NonceQueuer,
-        public readonly executorManager: ExecutorManager,
-        public readonly reputationManager: InterfaceReputationManager,
-        public readonly metrics: Metrics,
-        public readonly eventManager: EventManager,
-        public readonly gasPriceManager: GasPriceManager
-    ) {
+    public config: AltoConfig
+    public validator: InterfaceValidator
+    public mempool: MemoryMempool
+    public executor: Executor
+    public monitor: Monitor
+    public nonceQueuer: NonceQueuer
+    public executorManager: ExecutorManager
+    public reputationManager: InterfaceReputationManager
+    public metrics: Metrics
+    public eventManager: EventManager
+    public gasPriceManager: GasPriceManager
+    public logger: Logger
+
+    private methodHandlers: Map<string, MethodHandler>
+
+    constructor({
+        config,
+        validator,
+        mempool,
+        executor,
+        monitor,
+        nonceQueuer,
+        executorManager,
+        reputationManager,
+        metrics,
+        eventManager,
+        gasPriceManager
+    }: {
+        config: AltoConfig
+        validator: InterfaceValidator
+        mempool: MemoryMempool
+        executor: Executor
+        monitor: Monitor
+        nonceQueuer: NonceQueuer
+        executorManager: ExecutorManager
+        reputationManager: InterfaceReputationManager
+        metrics: Metrics
+        eventManager: EventManager
+        gasPriceManager: GasPriceManager
+    }) {
+        this.config = config
+        this.validator = validator
+        this.mempool = mempool
+        this.executor = executor
+        this.monitor = monitor
+        this.nonceQueuer = nonceQueuer
+        this.executorManager = executorManager
+        this.reputationManager = reputationManager
+        this.metrics = metrics
+        this.eventManager = eventManager
+        this.gasPriceManager = gasPriceManager
+
         this.logger = config.getLogger(
             { module: "rpc" },
             {
@@ -61,9 +100,6 @@ export class RpcHandler {
 
         registerHandlers(this)
     }
-
-    private readonly methodHandlers: Map<string, MethodHandler>
-    public readonly logger: Logger
 
     registerHandler<T extends z.ZodType>(handler: MethodHandler<T>) {
         this.methodHandlers.set(handler.method, handler)
