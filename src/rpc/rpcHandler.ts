@@ -35,6 +35,7 @@ import type { AltoConfig } from "../createConfig"
 import { recoverAuthorizationAddress } from "viem/experimental"
 import type { MethodHandler } from "./createMethodHandler"
 import type { z } from "zod"
+import { registerHandlers } from "./methods"
 
 export class RpcHandler {
     constructor(
@@ -57,6 +58,8 @@ export class RpcHandler {
             }
         )
         this.methodHandlers = new Map()
+
+        registerHandlers(this)
     }
 
     private readonly methodHandlers: Map<string, MethodHandler>

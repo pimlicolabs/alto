@@ -524,26 +524,28 @@ export type AltoVersions = z.infer<typeof altoVersions>
 
 // Create request and response discriminated unions from the combined schemas
 export const bundlerRequestSchema = z.discriminatedUnion("method", [
-    chainIdSchema,
-    supportedEntryPointsSchema,
-    estimateUserOperationGasSchema,
-    sendUserOperationSchema,
-    getUserOperationByHashSchema,
-    getUserOperationReceiptSchema,
-    debugClearStateSchema,
-    debugClearMempoolSchema,
-    debugDumpMempoolSchema,
-    debugSendBundleNowSchema,
-    debugSetBundlingModeSchema,
-    debugSetReputationSchema,
-    debugDumpReputationSchema,
-    debugClearReputationSchema,
-    debugGetStakeStatusSchema,
-    pimlicoGetUserOperationStatusSchema,
-    pimlicoGetUserOperationGasPriceSchema,
-    pimlicoSendUserOperationNowSchema,
-    pimlicoExperimentalSendUserOperation7702Schema,
-    pimlicoExperimentalEstimateUserOperationGas7702Schema
+    chainIdSchema.omit({ result: true }),
+    supportedEntryPointsSchema.omit({ result: true }),
+    estimateUserOperationGasSchema.omit({ result: true }),
+    sendUserOperationSchema.omit({ result: true }),
+    getUserOperationByHashSchema.omit({ result: true }),
+    getUserOperationReceiptSchema.omit({ result: true }),
+    debugClearStateSchema.omit({ result: true }),
+    debugClearMempoolSchema.omit({ result: true }),
+    debugDumpMempoolSchema.omit({ result: true }),
+    debugSendBundleNowSchema.omit({ result: true }),
+    debugSetBundlingModeSchema.omit({ result: true }),
+    debugSetReputationSchema.omit({ result: true }),
+    debugDumpReputationSchema.omit({ result: true }),
+    debugClearReputationSchema.omit({ result: true }),
+    debugGetStakeStatusSchema.omit({ result: true }),
+    pimlicoGetUserOperationStatusSchema.omit({ result: true }),
+    pimlicoGetUserOperationGasPriceSchema.omit({ result: true }),
+    pimlicoSendUserOperationNowSchema.omit({ result: true }),
+    pimlicoExperimentalSendUserOperation7702Schema.omit({ result: true }),
+    pimlicoExperimentalEstimateUserOperationGas7702Schema.omit({
+        result: true
+    })
 ])
 export type BundlerRequest = z.infer<typeof bundlerRequestSchema>
 

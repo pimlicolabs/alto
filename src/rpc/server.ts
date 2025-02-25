@@ -310,7 +310,7 @@ export class Server {
             const jsonRpcResponse: JSONRPCResponse = {
                 jsonrpc: "2.0",
                 id: jsonRpcRequest.id,
-                result: result.result
+                result
             }
 
             await reply
