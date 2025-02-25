@@ -1,4 +1,4 @@
-import { RpcHandler } from "../rpcHandler"
+import type { RpcHandler } from "../rpcHandler"
 import { ethChainIdHandler } from "./eth_chainId"
 import { ethEstimateUserOperationGasHandler } from "./eth_estimateUserOperationGas"
 import { ethGetUserOperationByHashHandler } from "./eth_getUserOperationByHash"

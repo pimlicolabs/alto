@@ -7,7 +7,9 @@ export const debugGetStakeStatusHandler = createMethodHandler({
     // @ts-ignore
     handler: async ({ rpcHandler, params }) => {
         const [entryPoint, address] = params
-        rpcHandler.ensureDebugEndpointsAreEnabled("debug_bundler_getStakeStatus")
+        rpcHandler.ensureDebugEndpointsAreEnabled(
+            "debug_bundler_getStakeStatus"
+        )
         rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
         await rpcHandler.reputationManager.getStakeStatus(entryPoint, address)

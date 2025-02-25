@@ -5,7 +5,7 @@ import type {
     MemoryMempool,
     Monitor
 } from "@alto/mempool"
-import { ApiVersion, BundlerRequest, StateOverrides } from "@alto/types"
+import type { ApiVersion, BundlerRequest, StateOverrides } from "@alto/types"
 import {
     type Address,
     EntryPointV06Abi,
@@ -33,7 +33,8 @@ import { base, baseSepolia, optimism } from "viem/chains"
 import type { NonceQueuer } from "../mempool/nonceQueuer"
 import type { AltoConfig } from "../createConfig"
 import { recoverAuthorizationAddress } from "viem/experimental"
-import { MethodHandler, RpcSchema } from "./createMethodHandler"
+import type { MethodHandler } from "./createMethodHandler"
+import type { z } from "zod"
 
 export class RpcHandler {
     constructor(
@@ -61,20 +62,8 @@ export class RpcHandler {
     private readonly methodHandlers: Map<string, MethodHandler>
     public readonly logger: Logger
 
-    registerHandler(handler: MethodHandler) {
-        if (Array.isArray(handler.method)) {
-            for (const method of handler.method) {
-                this.methodHandlers.set(
-                    method,
-                    handler as unknown as MethodHandler<RpcSchema>
-                )
-            }
-        } else {
-            this.methodHandlers.set(
-                handler.method,
-                handler as unknown as MethodHandler<RpcSchema>
-            )
-        }
+    registerHandler<T extends z.ZodType>(handler: MethodHandler<T>) {
+        this.methodHandlers.set(handler.method, handler)
     }
 
     async handleMethod(request: BundlerRequest, apiVersion: ApiVersion) {
