@@ -486,7 +486,7 @@ export class RpcHandler {
             userOperation: simulationUserOperation,
             entryPoint,
             queuedUserOperations,
-            addSenderDepositOverride: true,
+            addSenderBalanceOverride: true,
             stateOverrides: deepHexlify(stateOverrides)
         })
 
@@ -607,7 +607,7 @@ export class RpcHandler {
                 },
                 entryPoint,
                 queuedUserOperations,
-                addSenderDepositOverride: false,
+                addSenderBalanceOverride: false,
                 stateOverrides: deepHexlify(stateOverrides)
             })
         }
