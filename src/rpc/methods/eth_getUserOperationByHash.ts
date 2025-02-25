@@ -20,9 +20,7 @@ import { Transaction, TransactionNotFoundError } from "viem"
 import { toUnpackedUserOperation } from "../../utils/userop"
 
 export const getUserOperationByHashHandler = createMethodHandler({
-    method: "eth_getUserOperationByHash",
-    schema: getUserOperationByHashSchema.shape.params,
-    responseSchema: getUserOperationByHashSchema.shape.result,
+    schema: getUserOperationByHashSchema,
     handler: async ({ relay, params }) => {
         const userOperationEventAbiItem = getAbiItem({
             abi: EntryPointV06Abi,

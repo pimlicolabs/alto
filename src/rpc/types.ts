@@ -1,4 +1,4 @@
-import type { z } from "zod"
+import { z } from "zod"
 import type { RpcHandler } from "./rpcHandler"
 import { ApiVersion } from "@alto/types"
 
@@ -7,25 +7,30 @@ export interface HandlerMeta {
     apiVersion: ApiVersion
 }
 
-export type MethodHandler<R extends z.ZodType = z.ZodType> = {
+// Define the expected shape of our RPC schemas
+export type RpcSchemaType = {
     method: string
-    schema: z.ZodType
-    responseSchema: R
-    handler: (args: {
-        relay: RpcHandler
-        params: any
-        meta: HandlerMeta
-    }) => Promise<z.infer<R>> | z.infer<R>
+    params: any
+    result: any
 }
 
-export const createMethodHandler = <T extends z.ZodType, R extends z.ZodType>(
-    handler: Omit<MethodHandler<R>, "handler"> & {
-        handler: (args: {
-            relay: RpcHandler
-            params: z.infer<T>
-            meta: HandlerMeta
-        }) => Promise<z.infer<R>> | z.infer<R>
-        schema: T
-        responseSchema: R
-    }
-): MethodHandler<R> => handler
+// Type for a Zod schema that validates an RPC schema
+export type RpcSchema = z.ZodType<RpcSchemaType>
+
+export type MethodHandler<S extends RpcSchema> = {
+    schema: S
+    handler: (args: {
+        relay: RpcHandler
+        params: z.infer<S>["params"]
+        meta: HandlerMeta
+    }) => Promise<z.infer<S>["result"]> | z.infer<S>["result"]
+}
+
+export const createMethodHandler = <S extends RpcSchema>(handler: {
+    schema: S
+    handler: (args: {
+        relay: RpcHandler
+        params: z.infer<S>["params"]
+        meta: HandlerMeta
+    }) => Promise<z.infer<S>["result"]> | z.infer<S>["result"]
+}): MethodHandler<S> => handler

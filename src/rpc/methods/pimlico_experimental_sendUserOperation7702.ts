@@ -4,10 +4,7 @@ import { pimlicoExperimentalSendUserOperation7702Schema } from "@alto/types"
 
 export const pimlicoExperimentalSendUserOperation7702Handler =
     createMethodHandler({
-        method: "pimlico_experimental_sendUserOperation7702",
-        schema: pimlicoExperimentalSendUserOperation7702Schema.shape.params,
-        responseSchema:
-            pimlicoExperimentalSendUserOperation7702Schema.shape.result,
+        schema: pimlicoExperimentalSendUserOperation7702Schema,
         handler: async ({ relay, params, meta }) => {
             relay.ensureExperimentalEndpointsAreEnabled(
                 "pimlico_experimental_sendUserOperation7702"

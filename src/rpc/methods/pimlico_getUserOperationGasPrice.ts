@@ -2,9 +2,7 @@ import { createMethodHandler } from "../types"
 import { pimlicoGetUserOperationGasPriceSchema } from "@alto/types"
 
 export const pimlicoGetUserOperationGasPriceHandler = createMethodHandler({
-    method: "pimlico_getUserOperationGasPrice",
-    schema: pimlicoGetUserOperationGasPriceSchema.shape.params,
-    responseSchema: pimlicoGetUserOperationGasPriceSchema.shape.result,
+    schema: pimlicoGetUserOperationGasPriceSchema,
     handler: async ({ relay }) => {
         let { maxFeePerGas, maxPriorityFeePerGas } =
             await relay.gasPriceManager.getGasPrice()

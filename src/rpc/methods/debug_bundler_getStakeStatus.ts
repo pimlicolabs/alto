@@ -2,9 +2,7 @@ import { createMethodHandler } from "../types"
 import { bundlerGetStakeStatusSchema } from "@alto/types"
 
 export const bundlerGetStakeStatusHandler = createMethodHandler({
-    method: "debug_bundler_getStakeStatus",
-    schema: bundlerGetStakeStatusSchema.shape.params,
-    responseSchema: bundlerGetStakeStatusSchema.shape.result,
+    schema: bundlerGetStakeStatusSchema,
     // @ts-ignore
     handler: async ({ relay, params }) => {
         const [entryPoint, address] = params

@@ -13,9 +13,7 @@ import {
 } from "@alto/types"
 
 export const pimlicoSendUserOperationNowHandler = createMethodHandler({
-    method: "eth_chainId",
-    schema: pimlicoSendUserOperationNowSchema.shape.params,
-    responseSchema: pimlicoSendUserOperationNowSchema.shape.result,
+    schema: pimlicoSendUserOperationNowSchema,
     handler: async ({ relay, params, meta }) => {
         if (!relay.config.enableInstantBundlingEndpoint) {
             throw new RpcError(
