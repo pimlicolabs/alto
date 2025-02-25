@@ -1,4 +1,4 @@
-import { createMethodHandler } from "../types"
+import { createMethodHandler } from "../createMethodHandler"
 import { pimlicoExperimentalEstimateUserOperationGas7702Schema } from "@alto/types"
 
 export const experimentalEstimateUserOperationGas7702Handler =

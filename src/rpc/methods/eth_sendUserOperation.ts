@@ -1,5 +1,5 @@
 import { getUserOperationHash } from "../../utils/userop"
-import { createMethodHandler } from "../types"
+import { createMethodHandler } from "../createMethodHandler"
 import { sendUserOperationSchema } from "@alto/types"
 
 export const ethSendUserOperationHandler = createMethodHandler({

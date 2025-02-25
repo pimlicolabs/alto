@@ -1,5 +1,5 @@
 import { getUserOperationHash } from "@alto/utils"
-import { createMethodHandler } from "../types"
+import { createMethodHandler } from "../createMethodHandler"
 import { pimlicoExperimentalSendUserOperation7702Schema } from "@alto/types"
 
 export const experimentalSendUserOperation7702Handler = createMethodHandler({

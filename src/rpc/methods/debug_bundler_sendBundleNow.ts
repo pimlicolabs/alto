@@ -1,4 +1,4 @@
-import { createMethodHandler } from "../types"
+import { createMethodHandler } from "../createMethodHandler"
 import { debugSendBundleNowSchema } from "@alto/types"
 
 export const debugBundlerSendBundleNowHandler = createMethodHandler({

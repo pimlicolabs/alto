@@ -1,4 +1,4 @@
-import { createMethodHandler } from "../types"
+import { createMethodHandler } from "../createMethodHandler"
 import { getUserOperationReceiptSchema } from "@alto/types"
 
 export const ethGetUserOperationReceiptHandler = createMethodHandler({

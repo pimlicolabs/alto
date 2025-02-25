@@ -8,7 +8,7 @@ import {
     getAddress
 } from "viem"
 import { toUnpackedUserOperation } from "../../utils/userop"
-import { createMethodHandler } from "../types"
+import { createMethodHandler } from "../createMethodHandler"
 import {
     EntryPointV06Abi,
     EntryPointV07Abi,

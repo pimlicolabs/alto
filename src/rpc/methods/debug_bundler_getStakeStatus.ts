@@ -1,4 +1,4 @@
-import { createMethodHandler } from "../types"
+import { createMethodHandler } from "../createMethodHandler"
 import { debugGetStakeStatusSchema } from "@alto/types"
 
 export const debugGetStakeStatusHandler = createMethodHandler({

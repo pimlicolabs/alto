@@ -1,4 +1,4 @@
-import { createMethodHandler } from "../types"
+import { createMethodHandler } from "../createMethodHandler"
 import { estimateUserOperationGasSchema } from "@alto/types"
 
 export const ethEstimateUserOperationGasHandler = createMethodHandler({

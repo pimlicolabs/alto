@@ -3,7 +3,7 @@ import {
     isVersion06,
     parseUserOperationReceipt
 } from "@alto/utils"
-import { createMethodHandler } from "../types"
+import { createMethodHandler } from "../createMethodHandler"
 import {
     RpcError,
     UserOpInfo,
