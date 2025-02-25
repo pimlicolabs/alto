@@ -14,7 +14,7 @@ export type MethodHandler<T extends z.ZodType> = {
     schema: T
     method: z.infer<T>["method"]
     handler: (args: {
-        relay: RpcHandler
+        rpcHandler: RpcHandler
         params: DeepReadonly<z.infer<T>["params"]>
         apiVersion: ApiVersion
     }) => Promise<z.infer<T>["result"]> | z.infer<T>["result"]
@@ -24,7 +24,7 @@ export const createMethodHandler = <T extends RpcSchema>(handler: {
     schema: T
     method: z.infer<T>["method"]
     handler: (args: {
-        relay: RpcHandler
+        rpcHandler: RpcHandler
         params: DeepReadonly<z.infer<T>["params"]>
         apiVersion: ApiVersion
     }) => Promise<z.infer<T>["result"]> | z.infer<T>["result"]
@@ -32,7 +32,7 @@ export const createMethodHandler = <T extends RpcSchema>(handler: {
     schema: T
     method: z.infer<T>["method"]
     handler: (args: {
-        relay: RpcHandler
+        rpcHandler: RpcHandler
         params: z.infer<T>["params"]
         apiVersion: ApiVersion
     }) => Promise<z.infer<T>["result"]> | z.infer<T>["result"]
@@ -59,7 +59,7 @@ export const createMethodHandler = <T extends RpcSchema>(handler: {
 
             // Call the handler with frozen params
             return handler.handler({
-                relay: args.relay,
+                rpcHandler: args.rpcHandler,
                 params: frozenParams,
                 apiVersion: args.apiVersion
             })

@@ -147,7 +147,7 @@ export const executionResultErrorSchema = z.object({
 })
 
 const stakeInfoSchema = z.object({
-    addr: z.string().optional(),
+    addr: z.string(),
     stake: z.bigint(),
     unstakeDelaySec: z.bigint()
 })

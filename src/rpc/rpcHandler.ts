@@ -33,7 +33,7 @@ import { base, baseSepolia, optimism } from "viem/chains"
 import type { NonceQueuer } from "../mempool/nonceQueuer"
 import type { AltoConfig } from "../createConfig"
 import { recoverAuthorizationAddress } from "viem/experimental"
-import { MethodHandler } from "./types"
+import { MethodHandler, RpcSchema } from "./types"
 
 export class RpcHandler {
     constructor(
@@ -58,10 +58,10 @@ export class RpcHandler {
         this.methodHandlers = new Map()
     }
 
-    private readonly methodHandlers: Map<string, MethodHandler>
+    private readonly methodHandlers: Map<string, MethodHandler<RpcSchema>>
     public readonly logger: Logger
 
-    registerHandler(handler: MethodHandler) {
+    registerHandler(handler: MethodHandler<RpcSchema>) {
         if (Array.isArray(handler.method)) {
             for (const method of handler.method) {
                 this.methodHandlers.set(method, handler)
@@ -72,8 +72,18 @@ export class RpcHandler {
     }
 
     async handleMethod(request: BundlerRequest, apiVersion: ApiVersion) {
-        // call the method with the params
-        const method = request.method
+        const handler = this.methodHandlers.get(request.method)
+        if (!handler) {
+            throw new RpcError(
+                "Method not supported",
+                ValidationErrors.InvalidFields
+            )
+        }
+        return await handler.handler({
+            rpcHandler: this,
+            params: request.params,
+            apiVersion
+        })
     }
 
     ensureEntryPointIsSupported(entryPoint: Address) {

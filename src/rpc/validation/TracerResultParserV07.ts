@@ -18,10 +18,10 @@ import {
     type Hex,
     decodeErrorResult,
     decodeFunctionResult,
-    getFunctionSelector,
     hexToBigInt,
     keccak256,
-    pad
+    pad,
+    toFunctionSelector
 } from "viem"
 import type { BundlerTracerResult } from "./BundlerCollectorTracerV07"
 import { areAddressesEqual } from "@alto/utils"
@@ -50,7 +50,7 @@ const abi = [...SenderCreatorAbi, ...EntryPointV07Abi, ...PaymasterAbi] as Abi
 const functionSignatureToMethodName = (hash: any) => {
     let functionName: string | undefined = undefined
     for (const item of abi) {
-        const signature = getFunctionSelector(item as AbiFunction)
+        const signature = toFunctionSelector(item as AbiFunction)
         if (signature === hash) {
             functionName = (item as AbiFunction).name
         }
@@ -235,7 +235,7 @@ export function parseEntitySlots(
 
 // method-signature for calls from entryPoint
 const callsFromEntryPointMethodSigs: { [key: string]: string } = {
-    factory: getFunctionSelector({
+    factory: toFunctionSelector({
         inputs: [
             {
                 internalType: "bytes",
@@ -254,7 +254,7 @@ const callsFromEntryPointMethodSigs: { [key: string]: string } = {
         stateMutability: "nonpayable",
         type: "function"
     }),
-    account: getFunctionSelector({
+    account: toFunctionSelector({
         inputs: [
             {
                 components: [
@@ -330,7 +330,7 @@ const callsFromEntryPointMethodSigs: { [key: string]: string } = {
         stateMutability: "nonpayable",
         type: "function"
     }),
-    paymaster: getFunctionSelector({
+    paymaster: toFunctionSelector({
         inputs: [
             {
                 components: [
