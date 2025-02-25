@@ -28,22 +28,22 @@ const userOperationEventAbiItem = getAbiItem({
 export const ethGetUserOperationByHashHandler = createMethodHandler({
     method: "eth_getUserOperationByHash",
     schema: getUserOperationByHashSchema,
-    handler: async ({ relay, params }) => {
+    handler: async ({ rpcHandler, params }) => {
         const [userOperationHash] = params
 
         let fromBlock: bigint | undefined
         let toBlock: "latest" | undefined
-        if (relay.config.maxBlockRange !== undefined) {
-            const latestBlock = await relay.config.publicClient.getBlockNumber()
-            fromBlock = latestBlock - BigInt(relay.config.maxBlockRange)
+        if (rpcHandler.config.maxBlockRange !== undefined) {
+            const latestBlock = await rpcHandler.config.publicClient.getBlockNumber()
+            fromBlock = latestBlock - BigInt(rpcHandler.config.maxBlockRange)
             if (fromBlock < 0n) {
                 fromBlock = 0n
             }
             toBlock = "latest"
         }
 
-        const filterResult = await relay.config.publicClient.getLogs({
-            address: relay.config.entrypoints,
+        const filterResult = await rpcHandler.config.publicClient.getLogs({
+            address: rpcHandler.config.entrypoints,
             event: userOperationEventAbiItem,
             fromBlock,
             toBlock,
@@ -67,7 +67,7 @@ export const ethGetUserOperationByHashHandler = createMethodHandler({
             txHash: HexData32
         ): Promise<Transaction> => {
             try {
-                return await relay.config.publicClient.getTransaction({
+                return await rpcHandler.config.publicClient.getTransaction({
                     hash: txHash
                 })
             } catch (e) {

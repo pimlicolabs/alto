@@ -4,11 +4,11 @@ import { debugDumpMempoolSchema } from "@alto/types"
 export const debugBundlerDumpMempoolHandler = createMethodHandler({
     schema: debugDumpMempoolSchema,
     method: "debug_bundler_dumpMempool",
-    handler: async ({ relay, params }) => {
+    handler: async ({ rpcHandler, params }) => {
         const [entryPoint] = params
-        relay.ensureDebugEndpointsAreEnabled("debug_bundler_dumpMempool")
-        relay.ensureEntryPointIsSupported(entryPoint)
+        rpcHandler.ensureDebugEndpointsAreEnabled("debug_bundler_dumpMempool")
+        rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
-        return Promise.resolve(relay.mempool.dumpOutstanding())
+        return Promise.resolve(rpcHandler.mempool.dumpOutstanding())
     }
 })

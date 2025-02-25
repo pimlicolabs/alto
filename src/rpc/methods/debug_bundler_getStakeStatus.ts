@@ -5,11 +5,11 @@ export const debugGetStakeStatusHandler = createMethodHandler({
     schema: debugGetStakeStatusSchema,
     method: "debug_bundler_getStakeStatus",
     // @ts-ignore
-    handler: async ({ relay, params }) => {
+    handler: async ({ rpcHandler, params }) => {
         const [entryPoint, address] = params
-        relay.ensureDebugEndpointsAreEnabled("debug_bundler_getStakeStatus")
-        relay.ensureEntryPointIsSupported(entryPoint)
+        rpcHandler.ensureDebugEndpointsAreEnabled("debug_bundler_getStakeStatus")
+        rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
-        await relay.reputationManager.getStakeStatus(entryPoint, address)
+        await rpcHandler.reputationManager.getStakeStatus(entryPoint, address)
     }
 })

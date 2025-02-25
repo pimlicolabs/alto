@@ -5,19 +5,19 @@ import { sendUserOperationSchema } from "@alto/types"
 export const ethSendUserOperationHandler = createMethodHandler({
     method: "eth_sendUserOperation",
     schema: sendUserOperationSchema,
-    handler: async ({ relay, params, apiVersion }) => {
+    handler: async ({ rpcHandler, params, apiVersion }) => {
         const [userOperation, entryPoint] = params
 
         const hash = getUserOperationHash(
             userOperation,
             entryPoint,
-            relay.config.publicClient.chain.id
+            rpcHandler.config.publicClient.chain.id
         )
-        relay.eventManager.emitReceived(hash)
+        rpcHandler.eventManager.emitReceived(hash)
 
         let status: "added" | "queued" | "rejected" = "rejected"
         try {
-            status = await relay.addToMempoolIfValid(
+            status = await rpcHandler.addToMempoolIfValid(
                 userOperation,
                 entryPoint,
                 apiVersion
@@ -28,7 +28,7 @@ export const ethSendUserOperationHandler = createMethodHandler({
             status = "rejected"
             throw error
         } finally {
-            relay.metrics.userOperationsReceived
+            rpcHandler.metrics.userOperationsReceived
                 .labels({
                     status,
                     type: "regular"

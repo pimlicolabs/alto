@@ -5,16 +5,16 @@ import { pimlicoGetUserOperationGasPriceSchema } from "@alto/types"
 export const pimlicoGetUserOperationGasPriceHandler = createMethodHandler({
     method: "pimlico_getUserOperationGasPrice",
     schema: pimlicoGetUserOperationGasPriceSchema,
-    handler: async ({ relay }) => {
+    handler: async ({ rpcHandler }) => {
         let { maxFeePerGas, maxPriorityFeePerGas } =
-            await relay.gasPriceManager.getGasPrice()
+            await rpcHandler.gasPriceManager.getGasPrice()
 
-        if (relay.config.chainType === "hedera") {
+        if (rpcHandler.config.chainType === "hedera") {
             maxFeePerGas /= 10n ** 9n
             maxPriorityFeePerGas /= 10n ** 9n
         }
 
-        const { slow, standard, fast } = relay.config.gasPriceMultipliers
+        const { slow, standard, fast } = rpcHandler.config.gasPriceMultipliers
 
         return {
             slow: {

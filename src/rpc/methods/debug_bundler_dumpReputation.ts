@@ -4,11 +4,11 @@ import { debugDumpReputationSchema } from "@alto/types"
 export const debugBundlerDumpReputationHandler = createMethodHandler({
     schema: debugDumpReputationSchema,
     method: "debug_bundler_dumpReputation",
-    handler: async ({ relay, params }) => {
+    handler: async ({ rpcHandler, params }) => {
         const [entryPoint] = params
-        relay.ensureDebugEndpointsAreEnabled("debug_bundler_setReputation")
-        relay.ensureEntryPointIsSupported(entryPoint)
+        rpcHandler.ensureDebugEndpointsAreEnabled("debug_bundler_setReputation")
+        rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
-        return relay.reputationManager.dumpReputations(entryPoint)
+        return rpcHandler.reputationManager.dumpReputations(entryPoint)
     }
 })

@@ -15,8 +15,8 @@ import {
 export const pimlicoSendUserOperationNowHandler = createMethodHandler({
     method: "pimlico_sendUserOperationNow",
     schema: pimlicoSendUserOperationNowSchema,
-    handler: async ({ relay, params, apiVersion }) => {
-        if (!relay.config.enableInstantBundlingEndpoint) {
+    handler: async ({ rpcHandler, params, apiVersion }) => {
+        if (!rpcHandler.config.enableInstantBundlingEndpoint) {
             throw new RpcError(
                 "pimlico_sendUserOperationNow endpoint is not enabled",
                 ValidationErrors.InvalidFields
@@ -25,14 +25,14 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
 
         const [userOperation, entryPoint] = params
 
-        relay.ensureEntryPointIsSupported(entryPoint)
+        rpcHandler.ensureEntryPointIsSupported(entryPoint)
         const opHash = getUserOperationHash(
             userOperation,
             entryPoint,
-            relay.config.publicClient.chain.id
+            rpcHandler.config.publicClient.chain.id
         )
 
-        await relay.preMempoolChecks(
+        await rpcHandler.preMempoolChecks(
             opHash,
             userOperation,
             apiVersion,
@@ -46,7 +46,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             userOpHash: getUserOperationHash(
                 userOperation,
                 entryPoint,
-                relay.config.publicClient.chain.id
+                rpcHandler.config.publicClient.chain.id
             ),
             addedToMempool: Date.now()
         }
@@ -57,7 +57,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
                 ? ("0.6" as const)
                 : ("0.7" as const)
         }
-        const result = await relay.executorManager.sendBundleToExecutor(bundle)
+        const result = await rpcHandler.executorManager.sendBundleToExecutor(bundle)
 
         if (!result) {
             throw new RpcError(
@@ -68,7 +68,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
 
         // Wait for receipt.
         const receipt =
-            await relay.config.publicClient.waitForTransactionReceipt({
+            await rpcHandler.config.publicClient.waitForTransactionReceipt({
                 hash: result,
                 pollingInterval: 100
             })
