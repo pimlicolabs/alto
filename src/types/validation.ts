@@ -5,7 +5,7 @@ import { EntryPointV06Abi } from "./contracts"
 import { type HexData, addressSchema } from "./schemas"
 
 export type StakeInfo = {
-    addr?: string
+    addr: string
     stake: bigint
     unstakeDelaySec: bigint
 }

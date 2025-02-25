@@ -26,7 +26,6 @@ import {
     type BundlerResponse,
     type BundlerSendBundleNowResponseResult,
     type BundlerSetBundlingModeResponseResult,
-    type BundlerSetReputationsRequestParams,
     type BundlingMode,
     type ChainIdResponseResult,
     EntryPointV06Abi,
@@ -72,92 +71,45 @@ import {
     toFunctionSelector
 } from "viem"
 import { base, baseSepolia, optimism } from "viem/chains"
-import type { NonceQueuer } from "./nonceQueuer"
+import type { NonceQueuer } from "../mempool/nonceQueuer"
 import type { AltoConfig } from "../createConfig"
 import { recoverAuthorizationAddress } from "viem/experimental"
+import { MethodHandler } from "./types"
 
-export interface IRpcEndpoint {
-    handleMethod(
-        request: BundlerRequest,
-        apiVersion: ApiVersion
-    ): Promise<BundlerResponse>
-    eth_chainId(): ChainIdResponseResult
-    eth_supportedEntryPoints(): SupportedEntryPointsResponseResult
-    eth_estimateUserOperationGas(
-        apiVersion: ApiVersion,
-        userOperation: UserOperation,
-        entryPoint: Address,
-        stateOverrides?: StateOverrides
-    ): Promise<EstimateUserOperationGasResponseResult>
-    eth_sendUserOperation(
-        apiVersion: ApiVersion,
-        userOperation: UserOperation,
-        entryPoint: Address
-    ): Promise<SendUserOperationResponseResult>
-    eth_getUserOperationByHash(
-        userOperationHash: HexData32
-    ): Promise<GetUserOperationByHashResponseResult>
-    eth_getUserOperationReceipt(
-        userOperationHash: HexData32
-    ): Promise<GetUserOperationReceiptResponseResult>
-}
-
-export class RpcHandler implements IRpcEndpoint {
-    config: AltoConfig
-    validator: InterfaceValidator
-    mempool: MemoryMempool
-    executor: Executor
-    monitor: Monitor
-    nonceQueuer: NonceQueuer
-    logger: Logger
-    metrics: Metrics
-    executorManager: ExecutorManager
-    reputationManager: InterfaceReputationManager
-    gasPriceManager: GasPriceManager
-    eventManager: EventManager
-
-    constructor({
-        config,
-        validator,
-        mempool,
-        executor,
-        monitor,
-        nonceQueuer,
-        executorManager,
-        reputationManager,
-        metrics,
-        gasPriceManager,
-        eventManager
-    }: {
-        config: AltoConfig
-        validator: InterfaceValidator
-        mempool: MemoryMempool
-        executor: Executor
-        monitor: Monitor
-        nonceQueuer: NonceQueuer
-        executorManager: ExecutorManager
-        reputationManager: InterfaceReputationManager
-        metrics: Metrics
-        eventManager: EventManager
-        gasPriceManager: GasPriceManager
-    }) {
-        this.config = config
-        this.validator = validator
-        this.mempool = mempool
-        this.executor = executor
-        this.monitor = monitor
-        this.nonceQueuer = nonceQueuer
+export class RpcHandler {
+    constructor(
+        public readonly config: AltoConfig,
+        public readonly validator: InterfaceValidator,
+        public readonly mempool: MemoryMempool,
+        public readonly executor: Executor,
+        public readonly monitor: Monitor,
+        public readonly nonceQueuer: NonceQueuer,
+        public readonly executorManager: ExecutorManager,
+        public readonly reputationManager: InterfaceReputationManager,
+        public readonly metrics: Metrics,
+        public readonly eventManager: EventManager,
+        public readonly gasPriceManager: GasPriceManager
+    ) {
         this.logger = config.getLogger(
             { module: "rpc" },
             {
                 level: config.rpcLogLevel || config.logLevel
             }
         )
-        this.metrics = metrics
-        this.executorManager = executorManager
-        this.reputationManager = reputationManager
-        this.gasPriceManager = gasPriceManager
-        this.eventManager = eventManager
+        this.methodHandlers = new Map()
+    }
+
+    private readonly methodHandlers: Map<string, MethodHandler>
+    public readonly logger: Logger
+
+    registerHandler(handler: MethodHandler) {
+        if (Array.isArray(handler.method)) {
+            for (const method of handler.method) {
+                this.methodHandlers.set(method, handler)
+            }
+        } else {
+            this.methodHandlers.set(handler.method, handler)
+        }
     }
 
     async handleMethod(
@@ -170,12 +122,12 @@ export class RpcHandler implements IRpcEndpoint {
             case "eth_chainId":
                 return {
                     method,
-                    result: this.eth_chainId(...request.params)
+                    result: this.eth_chainId()
                 }
             case "eth_supportedEntryPoints":
                 return {
                     method,
-                    result: this.eth_supportedEntryPoints(...request.params)
+                    result: this.eth_supportedEntryPoints()
                 }
             case "eth_estimateUserOperationGas":
                 return {
@@ -250,7 +202,7 @@ export class RpcHandler implements IRpcEndpoint {
             case "debug_bundler_setReputation":
                 return {
                     method,
-                    result: this.debug_bundler_setReputation(request.params)
+                    result: this.debug_bundler_setReputation(...request.params)
                 }
             case "debug_bundler_dumpReputation":
                 return {
@@ -391,14 +343,6 @@ export class RpcHandler implements IRpcEndpoint {
                 )
             }
         }
-    }
-
-    eth_chainId(): ChainIdResponseResult {
-        return BigInt(this.config.publicClient.chain.id)
-    }
-
-    eth_supportedEntryPoints(): SupportedEntryPointsResponseResult {
-        return this.config.entrypoints
     }
 
     async eth_estimateUserOperationGas(
@@ -565,93 +509,6 @@ export class RpcHandler implements IRpcEndpoint {
         userOperationHash: HexData32
     ): Promise<GetUserOperationReceiptResponseResult> {
         return this.executorManager.getUserOperationReceipt(userOperationHash)
-    }
-
-    debug_bundler_clearState(): BundlerClearStateResponseResult {
-        this.ensureDebugEndpointsAreEnabled("debug_bundler_clearState")
-
-        this.mempool.clear()
-        this.reputationManager.clear()
-        return "ok"
-    }
-
-    debug_bundler_clearMempool(): BundlerClearMempoolResponseResult {
-        this.ensureDebugEndpointsAreEnabled("debug_bundler_clearMempool")
-
-        this.mempool.clear()
-        this.reputationManager.clearEntityCount()
-        return "ok"
-    }
-
-    debug_bundler_dumpMempool(
-        entryPoint: Address
-    ): Promise<BundlerDumpMempoolResponseResult> {
-        this.ensureDebugEndpointsAreEnabled("debug_bundler_dumpMempool")
-        this.ensureEntryPointIsSupported(entryPoint)
-
-        return Promise.resolve(this.mempool.dumpOutstanding())
-    }
-
-    async debug_bundler_sendBundleNow(): Promise<BundlerSendBundleNowResponseResult> {
-        this.ensureDebugEndpointsAreEnabled("debug_bundler_sendBundleNow")
-        await this.executorManager.sendBundleNow()
-        return "ok"
-    }
-
-    async debug_bundler_setBundlingMode(
-        bundlingMode: BundlingMode
-    ): Promise<BundlerSetBundlingModeResponseResult> {
-        this.ensureDebugEndpointsAreEnabled("debug_bundler_setBundlingMode")
-
-        await this.executorManager.setBundlingMode(bundlingMode)
-        return "ok"
-    }
-
-    debug_bundler_dumpReputation(
-        entryPoint: Address
-    ): BundlerDumpReputationsResponseResult {
-        this.ensureDebugEndpointsAreEnabled("debug_bundler_setReputation")
-        this.ensureEntryPointIsSupported(entryPoint)
-
-        return this.reputationManager.dumpReputations(entryPoint)
-    }
-
-    async debug_bundler_getStakeStatus(
-        address: Address,
-        entryPoint: Address
-    ): Promise<BundlerGetStakeStatusResponseResult> {
-        this.ensureDebugEndpointsAreEnabled("debug_bundler_getStakeStatus")
-        this.ensureEntryPointIsSupported(entryPoint)
-
-        return bundlerGetStakeStatusResponseSchema.parse({
-            method: "debug_bundler_getStakeStatus",
-            result: await this.reputationManager.getStakeStatus(
-                entryPoint,
-                address
-            )
-        }).result
-    }
-
-    debug_bundler_setReputation(
-        args: BundlerSetReputationsRequestParams
-    ): BundlerSetBundlingModeResponseResult {
-        this.ensureDebugEndpointsAreEnabled("debug_bundler_setReputation")
-
-        this.reputationManager.setReputation(args[1], args[0])
-        return "ok"
-    }
-
-    debug_bundler_clearReputation(): BundlerClearReputationResponseResult {
-        this.ensureDebugEndpointsAreEnabled("debug_bundler_clearReputation")
-
-        this.reputationManager.clear()
-        return "ok"
-    }
-
-    pimlico_getUserOperationStatus(
-        userOperationHash: HexData32
-    ): PimlicoGetUserOperationStatusResponseResult {
-        return this.monitor.getUserOperationStatus(userOperationHash)
     }
 
     async pimlico_getUserOperationGasPrice(): Promise<PimlicoGetUserOperationGasPriceResponseResult> {
