@@ -6,6 +6,7 @@
         "esModuleInterop": true,
         "forceConsistentCasingInFileNames": true,
         "strict": true,
+        "alwaysStrict": true,
         "noImplicitReturns": true,
         "noUnusedLocals": true,
         "preserveConstEnums": true,

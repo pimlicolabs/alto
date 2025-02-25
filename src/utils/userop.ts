@@ -1,14 +1,14 @@
 import {
     EntryPointV06Abi,
     EntryPointV07Abi,
-    type GetUserOperationReceiptResponseResult,
     type PackedUserOperation,
     type UserOperation,
     type UserOperationV06,
     type UserOperationV07,
     logSchema,
     receiptSchema,
-    UserOperationBundle
+    UserOperationBundle,
+    UserOperationReceipt
 } from "@alto/types"
 import * as sentry from "@sentry/node"
 import type { Logger } from "pino"
@@ -697,7 +697,7 @@ export function parseUserOperationReceipt(
     let paymaster: Address | undefined = userOperationEvent.args.paymaster
     paymaster = paymaster === zeroAddress ? undefined : paymaster
 
-    const userOperationReceipt: GetUserOperationReceiptResponseResult = {
+    const userOperationReceipt: UserOperationReceipt = {
         userOpHash,
         entryPoint,
         sender: userOperationEvent.args.sender,

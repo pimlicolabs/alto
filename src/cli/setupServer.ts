@@ -5,15 +5,10 @@ import {
     Mempool,
     Monitor,
     NullReputationManager,
-    ReputationManager
+    ReputationManager,
+    NonceQueuer
 } from "@alto/mempool"
-import {
-    NonceQueuer,
-    RpcHandler,
-    SafeValidator,
-    Server,
-    UnsafeValidator
-} from "@alto/rpc"
+import { RpcHandler, SafeValidator, Server, UnsafeValidator } from "@alto/rpc"
 import type { InterfaceValidator } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import type { Registry } from "prom-client"
@@ -220,8 +215,8 @@ const getRpcHandler = ({
         executorManager,
         reputationManager,
         metrics,
-        gasPriceManager,
-        eventManager
+        eventManager,
+        gasPriceManager
     })
 }
 
