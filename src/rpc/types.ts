@@ -1,10 +1,10 @@
 import type { z } from "zod"
 import type { RpcHandler } from "./rpcHandler"
-import { AltoConfig } from "../createConfig"
+import { ApiVersion } from "@alto/types"
 
 export interface HandlerMeta {
     method: string
-    config: AltoConfig
+    apiVersion: ApiVersion
 }
 
 export type MethodHandler<R extends z.ZodType = z.ZodType> = {

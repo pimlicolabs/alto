@@ -5,7 +5,7 @@ export const ethSupportedEntryPointsHandler = createMethodHandler({
     method: "eth_supportedEntryPoints",
     schema: supportedEntryPointsSchema.shape.params,
     responseSchema: supportedEntryPointsSchema.shape.result,
-    handler: ({ meta }) => {
-        return meta.config.entrypoints
+    handler: ({ relay }) => {
+        return relay.config.entrypoints
     }
 })

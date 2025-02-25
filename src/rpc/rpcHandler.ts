@@ -5,44 +5,16 @@ import type {
     MemoryMempool,
     Monitor
 } from "@alto/mempool"
-import type {
-    ApiVersion,
-    BundlerClearReputationResponseResult,
-    PackedUserOperation,
-    StateOverrides,
-    UserOpInfo,
-    UserOperationBundle,
-    UserOperationV06,
-    UserOperationV07
-} from "@alto/types"
+import type { ApiVersion, StateOverrides } from "@alto/types"
 import {
     type Address,
-    type BundlerClearMempoolResponseResult,
-    type BundlerClearStateResponseResult,
-    type BundlerDumpMempoolResponseResult,
-    type BundlerDumpReputationsResponseResult,
-    type BundlerGetStakeStatusResponseResult,
     type BundlerRequest,
-    type BundlerResponse,
-    type BundlerSendBundleNowResponseResult,
-    type BundlerSetBundlingModeResponseResult,
-    type BundlingMode,
-    type ChainIdResponseResult,
     EntryPointV06Abi,
     EntryPointV07Abi,
-    type EstimateUserOperationGasResponseResult,
-    type GetUserOperationByHashResponseResult,
-    type GetUserOperationReceiptResponseResult,
-    type HexData32,
     type InterfaceValidator,
-    type PimlicoGetUserOperationGasPriceResponseResult,
-    type PimlicoGetUserOperationStatusResponseResult,
     RpcError,
-    type SendUserOperationResponseResult,
-    type SupportedEntryPointsResponseResult,
     type UserOperation,
-    ValidationErrors,
-    bundlerGetStakeStatusResponseSchema
+    ValidationErrors
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import {
@@ -55,21 +27,9 @@ import {
     isVersion06,
     isVersion07,
     maxBigInt,
-    parseUserOperationReceipt,
-    scaleBigIntByPercent,
-    toUnpackedUserOperation
+    scaleBigIntByPercent
 } from "@alto/utils"
-import {
-    type Hex,
-    type Transaction,
-    TransactionNotFoundError,
-    decodeFunctionData,
-    getAbiItem,
-    getAddress,
-    getContract,
-    slice,
-    toFunctionSelector
-} from "viem"
+import { type Hex, getContract } from "viem"
 import { base, baseSepolia, optimism } from "viem/chains"
 import type { NonceQueuer } from "../mempool/nonceQueuer"
 import type { AltoConfig } from "../createConfig"
@@ -112,151 +72,9 @@ export class RpcHandler {
         }
     }
 
-    async handleMethod(
-        request: BundlerRequest,
-        apiVersion: ApiVersion
-    ): Promise<BundlerResponse> {
+    async handleMethod(request: BundlerRequest, apiVersion: ApiVersion) {
         // call the method with the params
         const method = request.method
-        switch (method) {
-            case "eth_chainId":
-                return {
-                    method,
-                    result: this.eth_chainId()
-                }
-            case "eth_supportedEntryPoints":
-                return {
-                    method,
-                    result: this.eth_supportedEntryPoints()
-                }
-            case "eth_estimateUserOperationGas":
-                return {
-                    method,
-                    result: await this.eth_estimateUserOperationGas(
-                        apiVersion,
-                        request.params[0],
-                        request.params[1],
-                        request.params[2]
-                    )
-                }
-            case "eth_sendUserOperation":
-                return {
-                    method,
-                    result: await this.eth_sendUserOperation(
-                        apiVersion,
-                        ...request.params
-                    )
-                }
-            case "eth_getUserOperationByHash":
-                return {
-                    method,
-                    result: await this.eth_getUserOperationByHash(
-                        ...request.params
-                    )
-                }
-            case "eth_getUserOperationReceipt":
-                return {
-                    method,
-                    result: await this.eth_getUserOperationReceipt(
-                        ...request.params
-                    )
-                }
-            case "debug_bundler_clearMempool":
-                return {
-                    method,
-                    result: this.debug_bundler_clearMempool(...request.params)
-                }
-            case "debug_bundler_clearState":
-                return {
-                    method,
-                    result: this.debug_bundler_clearState(...request.params)
-                }
-            case "debug_bundler_dumpMempool":
-                return {
-                    method,
-                    result: await this.debug_bundler_dumpMempool(
-                        ...request.params
-                    )
-                }
-            case "debug_bundler_sendBundleNow":
-                return {
-                    method,
-                    result: await this.debug_bundler_sendBundleNow(
-                        ...request.params
-                    )
-                }
-            case "debug_bundler_setBundlingMode":
-                return {
-                    method,
-                    result: await this.debug_bundler_setBundlingMode(
-                        ...request.params
-                    )
-                }
-            case "debug_bundler_clearReputation":
-                return {
-                    method,
-                    result: this.debug_bundler_clearReputation(
-                        ...request.params
-                    )
-                }
-            case "debug_bundler_setReputation":
-                return {
-                    method,
-                    result: this.debug_bundler_setReputation(...request.params)
-                }
-            case "debug_bundler_dumpReputation":
-                return {
-                    method,
-                    result: this.debug_bundler_dumpReputation(...request.params)
-                }
-            case "debug_bundler_getStakeStatus":
-                return {
-                    method,
-                    result: await this.debug_bundler_getStakeStatus(
-                        ...request.params
-                    )
-                }
-            case "pimlico_getUserOperationStatus":
-                return {
-                    method,
-                    result: this.pimlico_getUserOperationStatus(
-                        ...request.params
-                    )
-                }
-            case "pimlico_getUserOperationGasPrice":
-                return {
-                    method,
-                    result: await this.pimlico_getUserOperationGasPrice(
-                        ...request.params
-                    )
-                }
-            case "pimlico_sendUserOperationNow":
-                return {
-                    method,
-                    result: await this.pimlico_sendUserOperationNow(
-                        apiVersion,
-                        ...request.params
-                    )
-                }
-            case "pimlico_experimental_sendUserOperation7702":
-                return {
-                    method,
-                    result: await this.pimlico_experimental_sendUserOperation7702(
-                        apiVersion,
-                        ...request.params
-                    )
-                }
-            case "pimlico_experimental_estimateUserOperationGas7702":
-                return {
-                    method,
-                    result: await this.pimlico_experimental_estimateUserOperationGas7702(
-                        apiVersion,
-                        request.params[0],
-                        request.params[1],
-                        request.params[2]
-                    )
-                }
-        }
     }
 
     ensureEntryPointIsSupported(entryPoint: Address) {
@@ -273,6 +91,15 @@ export class RpcHandler {
         if (!this.config.enableDebugEndpoints) {
             throw new RpcError(
                 `${methodName} is only available in development environment`
+            )
+        }
+    }
+
+    ensureExperimentalEndpointsAreEnabled(methodName: string) {
+        if (!this.config.enableExperimental7702Endpoints) {
+            throw new RpcError(
+                `${methodName} endpoint is not enabled`,
+                ValidationErrors.InvalidFields
             )
         }
     }
@@ -341,199 +168,6 @@ export class RpcHandler {
                 throw new RpcError(
                     `User operation gas limits exceed the max gas per bundle: ${gasLimits} > ${this.config.maxGasPerBundle}`
                 )
-            }
-        }
-    }
-
-    async eth_estimateUserOperationGas(
-        apiVersion: ApiVersion,
-        userOperation: UserOperation,
-        entryPoint: Address,
-        stateOverrides?: StateOverrides
-    ): Promise<EstimateUserOperationGasResponseResult> {
-        return await this.estimateGas({
-            apiVersion,
-            userOperation,
-            entryPoint,
-            stateOverrides
-        })
-    }
-
-    async eth_sendUserOperation(
-        apiVersion: ApiVersion,
-        userOperation: UserOperation,
-        entryPoint: Address
-    ): Promise<SendUserOperationResponseResult> {
-        const hash = getUserOperationHash(
-            userOperation,
-            entryPoint,
-            this.config.publicClient.chain.id
-        )
-        this.eventManager.emitReceived(hash)
-
-        let status: "added" | "queued" | "rejected" = "rejected"
-        try {
-            status = await this.addToMempoolIfValid(
-                userOperation,
-                entryPoint,
-                apiVersion
-            )
-
-            return hash
-        } catch (error) {
-            status = "rejected"
-            throw error
-        } finally {
-            this.metrics.userOperationsReceived
-                .labels({
-                    status,
-                    type: "regular"
-                })
-                .inc()
-        }
-    }
-
-    async eth_getUserOperationByHash(
-        userOperationHash: HexData32
-    ): Promise<GetUserOperationByHashResponseResult> {
-        const userOperationEventAbiItem = getAbiItem({
-            abi: EntryPointV06Abi,
-            name: "UserOperationEvent"
-        })
-
-        let fromBlock: bigint | undefined
-        let toBlock: "latest" | undefined
-        if (this.config.maxBlockRange !== undefined) {
-            const latestBlock = await this.config.publicClient.getBlockNumber()
-            fromBlock = latestBlock - BigInt(this.config.maxBlockRange)
-            if (fromBlock < 0n) {
-                fromBlock = 0n
-            }
-            toBlock = "latest"
-        }
-
-        const filterResult = await this.config.publicClient.getLogs({
-            address: this.config.entrypoints,
-            event: userOperationEventAbiItem,
-            fromBlock,
-            toBlock,
-            args: {
-                userOpHash: userOperationHash
-            }
-        })
-
-        if (filterResult.length === 0) {
-            return null
-        }
-
-        const userOperationEvent = filterResult[0]
-        const txHash = userOperationEvent.transactionHash
-        if (txHash === null) {
-            // transaction pending
-            return null
-        }
-
-        const getTransaction = async (
-            txHash: HexData32
-        ): Promise<Transaction> => {
-            try {
-                return await this.config.publicClient.getTransaction({
-                    hash: txHash
-                })
-            } catch (e) {
-                if (e instanceof TransactionNotFoundError) {
-                    return getTransaction(txHash)
-                }
-
-                throw e
-            }
-        }
-
-        const tx = await getTransaction(txHash)
-
-        if (!tx.to) {
-            return null
-        }
-
-        let op: UserOperationV06 | UserOperationV07
-        try {
-            const decoded = decodeFunctionData({
-                abi: [...EntryPointV06Abi, ...EntryPointV07Abi],
-                data: tx.input
-            })
-
-            if (decoded.functionName !== "handleOps") {
-                return null
-            }
-
-            const ops = decoded.args[0]
-            const foundOp = ops.find(
-                (op: UserOperationV06 | PackedUserOperation) =>
-                    op.sender === userOperationEvent.args.sender &&
-                    op.nonce === userOperationEvent.args.nonce
-            )
-
-            if (foundOp === undefined) {
-                return null
-            }
-
-            const handleOpsV07AbiItem = getAbiItem({
-                abi: EntryPointV07Abi,
-                name: "handleOps"
-            })
-            const handleOpsV07Selector = toFunctionSelector(handleOpsV07AbiItem)
-
-            if (slice(tx.input, 0, 4) === handleOpsV07Selector) {
-                op = toUnpackedUserOperation(foundOp as PackedUserOperation)
-            } else {
-                op = foundOp as UserOperationV06
-            }
-        } catch {
-            return null
-        }
-
-        const result: GetUserOperationByHashResponseResult = {
-            userOperation: Object.fromEntries(
-                Object.entries(op).filter(([_, v]) => v !== null)
-            ) as UserOperation,
-            entryPoint: getAddress(tx.to),
-            transactionHash: txHash,
-            blockHash: tx.blockHash ?? "0x",
-            blockNumber: BigInt(tx.blockNumber ?? 0n)
-        }
-
-        return result
-    }
-
-    eth_getUserOperationReceipt(
-        userOperationHash: HexData32
-    ): Promise<GetUserOperationReceiptResponseResult> {
-        return this.executorManager.getUserOperationReceipt(userOperationHash)
-    }
-
-    async pimlico_getUserOperationGasPrice(): Promise<PimlicoGetUserOperationGasPriceResponseResult> {
-        let { maxFeePerGas, maxPriorityFeePerGas } =
-            await this.gasPriceManager.getGasPrice()
-
-        if (this.config.chainType === "hedera") {
-            maxFeePerGas /= 10n ** 9n
-            maxPriorityFeePerGas /= 10n ** 9n
-        }
-
-        const { slow, standard, fast } = this.config.gasPriceMultipliers
-
-        return {
-            slow: {
-                maxFeePerGas: (maxFeePerGas * slow) / 100n,
-                maxPriorityFeePerGas: (maxPriorityFeePerGas * slow) / 100n
-            },
-            standard: {
-                maxFeePerGas: (maxFeePerGas * standard) / 100n,
-                maxPriorityFeePerGas: (maxPriorityFeePerGas * standard) / 100n
-            },
-            fast: {
-                maxFeePerGas: (maxFeePerGas * fast) / 100n,
-                maxPriorityFeePerGas: (maxPriorityFeePerGas * fast) / 100n
             }
         }
     }
@@ -650,117 +284,6 @@ export class RpcHandler {
             throw new RpcError(errorReason, ValidationErrors.InvalidFields)
         }
         return "added"
-    }
-
-    async pimlico_experimental_estimateUserOperationGas7702(
-        apiVersion: ApiVersion,
-        userOperation: UserOperation,
-        entryPoint: Address,
-        stateOverrides?: StateOverrides
-    ) {
-        if (!this.config.enableExperimental7702Endpoints) {
-            throw new RpcError(
-                "pimlico_experimental_estimateUserOperationGas7702 endpoint is not enabled",
-                ValidationErrors.InvalidFields
-            )
-        }
-
-        await this.validateEip7702Auth(userOperation)
-
-        return await this.estimateGas({
-            apiVersion,
-            userOperation,
-            entryPoint,
-            stateOverrides
-        })
-    }
-
-    async pimlico_experimental_sendUserOperation7702(
-        apiVersion: ApiVersion,
-        userOperation: UserOperation,
-        entryPoint: Address
-    ) {
-        if (!this.config.enableExperimental7702Endpoints) {
-            throw new RpcError(
-                "pimlico_experimental_sendUserOperation7702 endpoint is not enabled",
-                ValidationErrors.InvalidFields
-            )
-        }
-
-        this.ensureEntryPointIsSupported(entryPoint)
-        await this.validateEip7702Auth(userOperation)
-
-        await this.addToMempoolIfValid(userOperation, entryPoint, apiVersion)
-
-        return getUserOperationHash(
-            userOperation,
-            entryPoint,
-            this.config.publicClient.chain.id
-        )
-    }
-
-    async pimlico_sendUserOperationNow(
-        apiVersion: ApiVersion,
-        userOperation: UserOperation,
-        entryPoint: Address
-    ) {
-        if (!this.config.enableInstantBundlingEndpoint) {
-            throw new RpcError(
-                "pimlico_sendUserOperationNow endpoint is not enabled",
-                ValidationErrors.InvalidFields
-            )
-        }
-
-        this.ensureEntryPointIsSupported(entryPoint)
-        const opHash = getUserOperationHash(
-            userOperation,
-            entryPoint,
-            this.config.publicClient.chain.id
-        )
-
-        await this.preMempoolChecks(
-            opHash,
-            userOperation,
-            apiVersion,
-            entryPoint
-        )
-
-        // Prepare bundle
-        const userOperationInfo: UserOpInfo = {
-            userOp: userOperation,
-            entryPoint,
-            userOpHash: getUserOperationHash(
-                userOperation,
-                entryPoint,
-                this.config.publicClient.chain.id
-            ),
-            addedToMempool: Date.now()
-        }
-        const bundle: UserOperationBundle = {
-            entryPoint,
-            userOps: [userOperationInfo],
-            version: isVersion06(userOperation)
-                ? ("0.6" as const)
-                : ("0.7" as const)
-        }
-        const result = await this.executorManager.sendBundleToExecutor(bundle)
-
-        if (!result) {
-            throw new RpcError(
-                "unhandled error during bundle submission",
-                ValidationErrors.InvalidFields
-            )
-        }
-
-        // Wait for receipt.
-        const receipt =
-            await this.config.publicClient.waitForTransactionReceipt({
-                hash: result,
-                pollingInterval: 100
-            })
-
-        const userOperationReceipt = parseUserOperationReceipt(opHash, receipt)
-        return userOperationReceipt
     }
 
     async validateEip7702Auth(userOperation: UserOperation) {
