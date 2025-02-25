@@ -381,37 +381,37 @@ export const getUserOperationReceiptSchema = z.object({
     result: userOperationReceiptSchema
 })
 
-export const bundlerClearStateSchema = z.object({
+export const debugClearStateSchema = z.object({
     method: z.literal("debug_bundler_clearState"),
     params: z.tuple([]),
     result: z.literal("ok")
 })
 
-export const bundlerClearMempoolSchema = z.object({
+export const debugClearMempoolSchema = z.object({
     method: z.literal("debug_bundler_clearMempool"),
     params: z.tuple([]),
     result: z.literal("ok")
 })
 
-export const bundlerDumpMempoolSchema = z.object({
+export const debugDumpMempoolSchema = z.object({
     method: z.literal("debug_bundler_dumpMempool"),
     params: z.tuple([addressSchema]),
     result: z.array(userOperationSchema)
 })
 
-export const bundlerSendBundleNowSchema = z.object({
+export const debugSendBundleNowSchema = z.object({
     method: z.literal("debug_bundler_sendBundleNow"),
     params: z.tuple([]),
     result: z.literal("ok")
 })
 
-export const bundlerSetBundlingModeSchema = z.object({
+export const debugSetBundlingModeSchema = z.object({
     method: z.literal("debug_bundler_setBundlingMode"),
     params: z.tuple([z.enum(["manual", "auto"])]),
     result: z.literal("ok")
 })
 
-export const bundlerSetReputationsSchema = z.object({
+export const debugSetReputationSchema = z.object({
     method: z.literal("debug_bundler_setReputation"),
     params: z.tuple([
         z.array(
@@ -426,7 +426,7 @@ export const bundlerSetReputationsSchema = z.object({
     result: z.literal("ok")
 })
 
-export const bundlerDumpReputationsSchema = z.object({
+export const debugDumpReputationSchema = z.object({
     method: z.literal("debug_bundler_dumpReputation"),
     params: z.tuple([addressSchema]),
     result: z.array(
@@ -439,13 +439,13 @@ export const bundlerDumpReputationsSchema = z.object({
     )
 })
 
-export const bundlerClearReputationSchema = z.object({
+export const debugClearReputationSchema = z.object({
     method: z.literal("debug_bundler_clearReputation"),
     params: z.tuple([]),
     result: z.literal("ok")
 })
 
-export const bundlerGetStakeStatusSchema = z.object({
+export const debugGetStakeStatusSchema = z.object({
     method: z.literal("debug_bundler_getStakeStatus"),
     params: z.tuple([addressSchema, addressSchema]),
     result: z.object({
@@ -528,15 +528,15 @@ export const bundlerRequestSchema = z.discriminatedUnion("method", [
     sendUserOperationSchema,
     getUserOperationByHashSchema,
     getUserOperationReceiptSchema,
-    bundlerClearStateSchema,
-    bundlerClearMempoolSchema,
-    bundlerDumpMempoolSchema,
-    bundlerSendBundleNowSchema,
-    bundlerSetBundlingModeSchema,
-    bundlerSetReputationsSchema,
-    bundlerDumpReputationsSchema,
-    bundlerClearReputationSchema,
-    bundlerGetStakeStatusSchema,
+    debugClearStateSchema,
+    debugClearMempoolSchema,
+    debugDumpMempoolSchema,
+    debugSendBundleNowSchema,
+    debugSetBundlingModeSchema,
+    debugSetReputationSchema,
+    debugDumpReputationSchema,
+    debugClearReputationSchema,
+    debugGetStakeStatusSchema,
     pimlicoGetUserOperationStatusSchema,
     pimlicoGetUserOperationGasPriceSchema,
     pimlicoSendUserOperationNowSchema,
@@ -544,14 +544,10 @@ export const bundlerRequestSchema = z.discriminatedUnion("method", [
     pimlicoExperimentalEstimateUserOperationGas7702Schema
 ])
 
-export const bundlerResponseSchema = bundlerRequestSchema
-
 export type BundlingMode = z.infer<
-    typeof bundlerSetBundlingModeSchema
+    typeof debugSetBundlingModeSchema
 >["params"][0]
 
-export type BundlerResponse = z.infer<typeof bundlerResponseSchema>
-export type BundlerRequest = z.infer<typeof bundlerRequestSchema>
 // biome-ignore lint/style/useNamingConvention: <explanation>
 export type JSONRPCRequest = z.infer<typeof jsonRpcSchema>
 // biome-ignore lint/style/useNamingConvention: <explanation>

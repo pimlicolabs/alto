@@ -1,7 +1,7 @@
 import { createMethodHandler } from "../types"
 import { bundlerGetStakeStatusSchema } from "@alto/types"
 
-export const bundlerGetStakeStatusHandler = createMethodHandler({
+export const debugGetStakeStatusHandler = createMethodHandler({
     schema: bundlerGetStakeStatusSchema,
     // @ts-ignore
     handler: async ({ relay, params }) => {

@@ -1,7 +1,7 @@
 import { createMethodHandler } from "../types"
 import { bundlerSetReputationsSchema } from "@alto/types"
 
-export const bundlerSetReputationHandler = createMethodHandler({
+export const debugSetReputationHandler = createMethodHandler({
     schema: bundlerSetReputationsSchema,
     handler: async ({ relay, params }) => {
         const [args, address] = params
