@@ -1,10 +1,13 @@
 import {
-    decodeFunctionData,
     getAbiItem,
-    getAddress,
+    Transaction,
+    TransactionNotFoundError,
+    decodeFunctionData,
+    toFunctionSelector,
     slice,
-    toFunctionSelector
-} from "viem/utils"
+    getAddress
+} from "viem"
+import { toUnpackedUserOperation } from "../../utils/userop"
 import { createMethodHandler } from "../types"
 import {
     EntryPointV06Abi,
@@ -16,17 +19,16 @@ import {
     UserOperationV07,
     getUserOperationByHashSchema
 } from "@alto/types"
-import { Transaction, TransactionNotFoundError } from "viem"
-import { toUnpackedUserOperation } from "../../utils/userop"
+
+const userOperationEventAbiItem = getAbiItem({
+    abi: EntryPointV06Abi,
+    name: "UserOperationEvent"
+})
 
 export const ethGetUserOperationByHashHandler = createMethodHandler({
+    method: "eth_getUserOperationByHash",
     schema: getUserOperationByHashSchema,
     handler: async ({ relay, params }) => {
-        const userOperationEventAbiItem = getAbiItem({
-            abi: EntryPointV06Abi,
-            name: "UserOperationEvent"
-        })
-
         const [userOperationHash] = params
 
         let fromBlock: bigint | undefined

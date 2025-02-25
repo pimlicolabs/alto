@@ -1,8 +1,9 @@
 import { createMethodHandler } from "../types"
-import { bundlerClearReputationSchema } from "@alto/types"
+import { debugClearReputationSchema } from "@alto/types"
 
 export const debugClearReputationHandler = createMethodHandler({
-    schema: bundlerClearReputationSchema,
+    schema: debugClearReputationSchema,
+    method: "debug_bundler_clearReputation",
     handler: async ({ relay }) => {
         relay.ensureDebugEndpointsAreEnabled("debug_bundler_clearReputation")
         relay.reputationManager.clear()

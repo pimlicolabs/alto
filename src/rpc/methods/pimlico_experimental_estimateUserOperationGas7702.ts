@@ -3,8 +3,9 @@ import { pimlicoExperimentalEstimateUserOperationGas7702Schema } from "@alto/typ
 
 export const experimentalEstimateUserOperationGas7702Handler =
     createMethodHandler({
+        method: "pimlico_experimental_estimateUserOperationGas7702",
         schema: pimlicoExperimentalEstimateUserOperationGas7702Schema,
-        handler: async ({ meta, relay, params }) => {
+        handler: async ({ apiVersion, relay, params }) => {
             relay.ensureExperimentalEndpointsAreEnabled(
                 "pimlico_experimental_estimateUserOperationGas7702"
             )
@@ -12,8 +13,6 @@ export const experimentalEstimateUserOperationGas7702Handler =
             const userOperation = params[0]
             const entryPoint = params[1]
             const stateOverrides = params[2]
-
-            const { apiVersion } = meta
 
             await relay.validateEip7702Auth(userOperation)
 

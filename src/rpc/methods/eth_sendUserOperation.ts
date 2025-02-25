@@ -3,10 +3,10 @@ import { createMethodHandler } from "../types"
 import { sendUserOperationSchema } from "@alto/types"
 
 export const ethSendUserOperationHandler = createMethodHandler({
+    method: "eth_sendUserOperation",
     schema: sendUserOperationSchema,
-    handler: async ({ relay, params, meta }) => {
+    handler: async ({ relay, params, apiVersion }) => {
         const [userOperation, entryPoint] = params
-        const { apiVersion } = meta
 
         const hash = getUserOperationHash(
             userOperation,

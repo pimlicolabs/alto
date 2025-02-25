@@ -5,10 +5,9 @@ import type {
     MemoryMempool,
     Monitor
 } from "@alto/mempool"
-import type { ApiVersion, StateOverrides } from "@alto/types"
+import type { ApiVersion, BundlerRequest, StateOverrides } from "@alto/types"
 import {
     type Address,
-    type BundlerRequest,
     EntryPointV06Abi,
     EntryPointV07Abi,
     type InterfaceValidator,

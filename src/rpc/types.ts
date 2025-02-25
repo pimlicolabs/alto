@@ -1,36 +1,72 @@
 import { z } from "zod"
 import type { RpcHandler } from "./rpcHandler"
-import { ApiVersion } from "@alto/types"
+import { ApiVersion } from "../types/utils"
 
-export interface HandlerMeta {
-    method: string
-    apiVersion: ApiVersion
-}
-
-// Define the expected shape of our RPC schemas
 export type RpcSchemaType = {
     method: string
     params: any
     result: any
 }
 
-// Type for a Zod schema that validates an RPC schema
 export type RpcSchema = z.ZodType<RpcSchemaType>
 
-export type MethodHandler<S extends RpcSchema> = {
-    schema: S
+export type MethodHandler<T extends z.ZodType> = {
+    schema: T
+    method: z.infer<T>["method"]
     handler: (args: {
         relay: RpcHandler
-        params: z.infer<S>["params"]
-        meta: HandlerMeta
-    }) => Promise<z.infer<S>["result"]> | z.infer<S>["result"]
+        params: DeepReadonly<z.infer<T>["params"]>
+        apiVersion: ApiVersion
+    }) => Promise<z.infer<T>["result"]> | z.infer<T>["result"]
 }
 
-export const createMethodHandler = <S extends RpcSchema>(handler: {
-    schema: S
+export const createMethodHandler = <T extends RpcSchema>(handler: {
+    schema: T
+    method: z.infer<T>["method"]
     handler: (args: {
         relay: RpcHandler
-        params: z.infer<S>["params"]
-        meta: HandlerMeta
-    }) => Promise<z.infer<S>["result"]> | z.infer<S>["result"]
-}): MethodHandler<S> => handler
+        params: DeepReadonly<z.infer<T>["params"]>
+        apiVersion: ApiVersion
+    }) => Promise<z.infer<T>["result"]> | z.infer<T>["result"]
+}): {
+    schema: T
+    method: z.infer<T>["method"]
+    handler: (args: {
+        relay: RpcHandler
+        params: z.infer<T>["params"]
+        apiVersion: ApiVersion
+    }) => Promise<z.infer<T>["result"]> | z.infer<T>["result"]
+} => {
+    return {
+        schema: handler.schema,
+        method: handler.method,
+        handler: (args) => {
+            const freezeDeep = <T>(obj: T): DeepReadonly<T> => {
+                if (Array.isArray(obj)) {
+                    return Object.freeze(obj.map(freezeDeep)) as DeepReadonly<T>
+                }
+                if (obj !== null && typeof obj === "object") {
+                    const frozenObj = Object.create(Object.getPrototypeOf(obj))
+                    for (const prop of Object.getOwnPropertyNames(obj)) {
+                        frozenObj[prop] = freezeDeep(obj[prop as keyof T])
+                    }
+                    return Object.freeze(frozenObj) as DeepReadonly<T>
+                }
+                return obj as DeepReadonly<T>
+            }
+
+            const frozenParams = freezeDeep(args.params)
+
+            // Call the handler with frozen params
+            return handler.handler({
+                relay: args.relay,
+                params: frozenParams,
+                apiVersion: args.apiVersion
+            })
+        }
+    }
+}
+
+export type DeepReadonly<T> = {
+    readonly [P in keyof T]: T[P] extends object ? DeepReadonly<T[P]> : T[P]
+}

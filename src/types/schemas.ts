@@ -275,6 +275,8 @@ const userOperationReceiptSchema = z
     })
     .or(z.null())
 
+export type UserOperationReceipt = z.infer<typeof userOperationReceiptSchema>
+
 const userOperationStatus = z.object({
     status: z.enum([
         "not_found",
@@ -543,6 +545,7 @@ export const bundlerRequestSchema = z.discriminatedUnion("method", [
     pimlicoExperimentalSendUserOperation7702Schema,
     pimlicoExperimentalEstimateUserOperationGas7702Schema
 ])
+export type BundlerRequest = z.infer<typeof bundlerRequestSchema>
 
 export type BundlingMode = z.infer<
     typeof debugSetBundlingModeSchema

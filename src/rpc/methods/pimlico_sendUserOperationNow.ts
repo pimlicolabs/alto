@@ -13,8 +13,9 @@ import {
 } from "@alto/types"
 
 export const pimlicoSendUserOperationNowHandler = createMethodHandler({
+    method: "pimlico_sendUserOperationNow",
     schema: pimlicoSendUserOperationNowSchema,
-    handler: async ({ relay, params, meta }) => {
+    handler: async ({ relay, params, apiVersion }) => {
         if (!relay.config.enableInstantBundlingEndpoint) {
             throw new RpcError(
                 "pimlico_sendUserOperationNow endpoint is not enabled",
@@ -23,7 +24,6 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         }
 
         const [userOperation, entryPoint] = params
-        const { apiVersion } = meta
 
         relay.ensureEntryPointIsSupported(entryPoint)
         const opHash = getUserOperationHash(

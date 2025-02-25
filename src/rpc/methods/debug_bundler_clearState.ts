@@ -1,8 +1,9 @@
 import { createMethodHandler } from "../types"
-import { bundlerClearStateSchema } from "@alto/types"
+import { debugClearStateSchema } from "@alto/types"
 
 export const debugBundlerClearStateHandler = createMethodHandler({
-    schema: bundlerClearStateSchema,
+    schema: debugClearStateSchema,
+    method: "debug_bundler_clearState",
     handler: async ({ relay }) => {
         relay.ensureDebugEndpointsAreEnabled("debug_bundler_clearState")
         relay.mempool.clear()

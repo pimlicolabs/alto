@@ -1,7 +1,9 @@
+import { scaleBigIntByPercent } from "../../utils/bigInt"
 import { createMethodHandler } from "../types"
 import { pimlicoGetUserOperationGasPriceSchema } from "@alto/types"
 
 export const pimlicoGetUserOperationGasPriceHandler = createMethodHandler({
+    method: "pimlico_getUserOperationGasPrice",
     schema: pimlicoGetUserOperationGasPriceSchema,
     handler: async ({ relay }) => {
         let { maxFeePerGas, maxPriorityFeePerGas } =
@@ -16,16 +18,25 @@ export const pimlicoGetUserOperationGasPriceHandler = createMethodHandler({
 
         return {
             slow: {
-                maxFeePerGas: (maxFeePerGas * slow) / 100n,
-                maxPriorityFeePerGas: (maxPriorityFeePerGas * slow) / 100n
+                maxFeePerGas: scaleBigIntByPercent(maxFeePerGas, slow),
+                maxPriorityFeePerGas: scaleBigIntByPercent(
+                    maxPriorityFeePerGas,
+                    slow
+                )
             },
             standard: {
-                maxFeePerGas: (maxFeePerGas * standard) / 100n,
-                maxPriorityFeePerGas: (maxPriorityFeePerGas * standard) / 100n
+                maxFeePerGas: scaleBigIntByPercent(maxFeePerGas, standard),
+                maxPriorityFeePerGas: scaleBigIntByPercent(
+                    maxPriorityFeePerGas,
+                    standard
+                )
             },
             fast: {
-                maxFeePerGas: (maxFeePerGas * fast) / 100n,
-                maxPriorityFeePerGas: (maxPriorityFeePerGas * fast) / 100n
+                maxFeePerGas: scaleBigIntByPercent(maxFeePerGas, fast),
+                maxPriorityFeePerGas: scaleBigIntByPercent(
+                    maxPriorityFeePerGas,
+                    fast
+                )
             }
         }
     }

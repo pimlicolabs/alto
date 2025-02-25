@@ -1,8 +1,9 @@
 import { createMethodHandler } from "../types"
-import { bundlerDumpReputationsSchema } from "@alto/types"
+import { debugDumpReputationSchema } from "@alto/types"
 
 export const debugBundlerDumpReputationHandler = createMethodHandler({
-    schema: bundlerDumpReputationsSchema,
+    schema: debugDumpReputationSchema,
+    method: "debug_bundler_dumpReputation",
     handler: async ({ relay, params }) => {
         const [entryPoint] = params
         relay.ensureDebugEndpointsAreEnabled("debug_bundler_setReputation")

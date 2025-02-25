@@ -1,8 +1,9 @@
 import { createMethodHandler } from "../types"
-import { bundlerSetBundlingModeSchema } from "@alto/types"
+import { debugSetBundlingModeSchema } from "@alto/types"
 
 export const debugBundlerSetBundlingModeHandler = createMethodHandler({
-    schema: bundlerSetBundlingModeSchema,
+    method: "debug_bundler_setBundlingMode",
+    schema: debugSetBundlingModeSchema,
     handler: async ({ relay, params }) => {
         const [bundlingMode] = params
         relay.ensureDebugEndpointsAreEnabled("debug_bundler_setBundlingMode")
