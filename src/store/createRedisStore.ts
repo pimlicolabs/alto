@@ -218,6 +218,9 @@ export const createRedisStore = ({
         },
         dumpSubmitted: async () => {
             return memoryStore.dumpSubmitted()
+        },
+        popNextOutstanding: async () => {
+            throw new Error("Not implemented")
         }
     }
 }

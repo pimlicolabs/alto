@@ -24,7 +24,7 @@ export const experimentalSendUserOperation7702Handler = createMethodHandler({
         return getUserOperationHash(
             userOperation,
             entryPoint,
-            rpcHandler.config.publicClient.chain.id
+            rpcHandler.config.chainId
         )
     }
 })

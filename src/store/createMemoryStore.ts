@@ -233,6 +233,9 @@ export const createMemoryStore = ({
             processing = newStorage.processing
             submitted = newStorage.submitted
             return Promise.resolve()
+        },
+        popNextOutstanding: async () => {
+            throw new Error("Not implemented")
         }
     }
 }
