@@ -2,7 +2,6 @@ import type { HexData32, SubmittedUserOp, UserOpInfo } from "@alto/types"
 
 // biome-ignore lint/complexity/noBannedTypes: <explanation>
 export type Store = {
-    popNextOutstanding: () => Promise<UserOpInfo | undefined>
     addOutstanding: (userOpInfo: UserOpInfo) => Promise<void>
     addProcessing: (userOpInfo: UserOpInfo) => Promise<void>
     addSubmitted: (submittedUserOp: SubmittedUserOp) => Promise<void>
