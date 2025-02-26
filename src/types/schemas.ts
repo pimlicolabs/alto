@@ -199,7 +199,7 @@ const partialUserOperationSchema = z.union([
     partialUserOperationV07Schema
 ])
 
-const userOperationSchema = z.union([
+export const userOperationSchema = z.union([
     userOperationV06Schema,
     userOperationV07Schema
 ])

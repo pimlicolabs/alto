@@ -434,58 +434,75 @@ export class ExecutorManager {
         const unwatch = this.config.publicClient.watchBlockNumber({
             onBlockNumber: async (currentBlockNumber) => {
                 if (currentBlockNumber > blockNumber + 1n) {
-                    const userOperationReceipt =
-                        await this.getUserOperationReceipt(userOpHash)
+                    try {
+                        const userOperationReceipt =
+                            await this.getUserOperationReceipt(userOpHash)
 
-                    if (userOperationReceipt) {
-                        const transactionHash =
-                            userOperationReceipt.receipt.transactionHash
-                        const blockNumber =
-                            userOperationReceipt.receipt.blockNumber
+                        if (userOperationReceipt) {
+                            const transactionHash =
+                                userOperationReceipt.receipt.transactionHash
+                            const blockNumber =
+                                userOperationReceipt.receipt.blockNumber
 
-                        this.mempool.removeSubmitted(userOpHash)
-                        this.monitor.setUserOperationStatus(userOpHash, {
-                            status: "included",
-                            transactionHash
-                        })
+                            this.mempool.removeSubmitted(userOpHash)
+                            this.monitor.setUserOperationStatus(userOpHash, {
+                                status: "included",
+                                transactionHash
+                            })
 
-                        this.eventManager.emitFrontranOnChain(
-                            userOpHash,
-                            transactionHash,
-                            blockNumber
-                        )
+                            this.eventManager.emitFrontranOnChain(
+                                userOpHash,
+                                transactionHash,
+                                blockNumber
+                            )
 
-                        this.logger.info(
+                            this.logger.info(
+                                {
+                                    userOpHash,
+                                    transactionHash
+                                },
+                                "user op frontrun onchain"
+                            )
+
+                            this.metrics.userOperationsOnChain
+                                .labels({ status: "frontran" })
+                                .inc(1)
+                        } else {
+                            this.monitor.setUserOperationStatus(userOpHash, {
+                                status: "failed",
+                                transactionHash
+                            })
+                            this.eventManager.emitFailedOnChain(
+                                userOpHash,
+                                transactionHash,
+                                blockNumber
+                            )
+                            this.logger.info(
+                                {
+                                    userOpHash,
+                                    transactionHash
+                                },
+                                "user op failed onchain"
+                            )
+                            this.metrics.userOperationsOnChain
+                                .labels({ status: "reverted" })
+                                .inc(1)
+                        }
+                    } catch (error) {
+                        this.logger.error(
                             {
                                 userOpHash,
-                                transactionHash
+                                transactionHash,
+                                error
                             },
-                            "user op frontrun onchain"
+                            "Error checking frontrun status"
                         )
 
-                        this.metrics.userOperationsOnChain
-                            .labels({ status: "frontran" })
-                            .inc(1)
-                    } else {
+                        // Still mark as failed since we couldn't verify inclusion
                         this.monitor.setUserOperationStatus(userOpHash, {
                             status: "failed",
                             transactionHash
                         })
-                        this.eventManager.emitFailedOnChain(
-                            userOpHash,
-                            transactionHash,
-                            blockNumber
-                        )
-                        this.logger.info(
-                            {
-                                userOpHash,
-                                transactionHash
-                            },
-                            "user op failed onchain"
-                        )
-                        this.metrics.userOperationsOnChain
-                            .labels({ status: "reverted" })
-                            .inc(1)
                     }
                     unwatch()
                 }
@@ -739,16 +756,14 @@ export class ExecutorManager {
 
         // Free wallet and return if potentially included too many times.
         if (txInfo.timesPotentiallyIncluded >= 3) {
-            if (txInfo.timesPotentiallyIncluded >= 3) {
-                this.removeSubmitted(bundle.userOps)
-                this.logger.warn(
-                    {
-                        oldTxHash,
-                        userOps: getUserOpHashes(bundleResult.rejectedUserOps)
-                    },
-                    "transaction potentially already included too many times, removing"
-                )
-            }
+            this.removeSubmitted(bundle.userOps)
+            this.logger.warn(
+                {
+                    oldTxHash,
+                    userOps: getUserOpHashes(bundleResult.rejectedUserOps)
+                },
+                "transaction potentially already included too many times, removing"
+            )
 
             await this.senderManager.markWalletProcessed(txInfo.executor)
             return
