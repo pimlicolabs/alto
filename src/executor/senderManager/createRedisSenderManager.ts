@@ -99,13 +99,16 @@ export const createRedisSenderManager = async ({
             return wallet
         },
         markWalletProcessed: async (wallet: Account) => {
-            activeWallets.delete(wallet)
-
-            redisQueue.push(wallet.address).then(() => {
-                redisQueue.llen().then((len) => {
-                    metrics.walletsAvailable.set(len)
-                })
-            })
+            if (activeWallets.delete(wallet)) {
+                await redisQueue.push(wallet.address)
+                const len = await redisQueue.llen()
+                metrics.walletsAvailable.set(len)
+            } else {
+                logger.warn(
+                    { executor: wallet.address },
+                    "Attempted to mark a wallet as processed that wasn't active"
+                )
+            }
         },
         getActiveWallets: () => {
             return [...activeWallets]
