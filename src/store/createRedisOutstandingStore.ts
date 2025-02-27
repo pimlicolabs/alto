@@ -1,26 +1,47 @@
 import { getNonceKeyAndSequence } from "../utils/userop"
 import { AltoConfig } from "../createConfig"
-import { UserOpInfo, userOpInfoSchema } from "../types/mempool"
-import { HexData32, UserOperation } from "@alto/types"
+import {
+    HexData32,
+    UserOperation,
+    UserOpInfo,
+    userOpInfoSchema
+} from "@alto/types"
 import { OutstandingStore } from "."
 import { Redis } from "ioredis"
+import { toHex } from "viem/utils"
 
 const serializeUserOpInfo = (userOpInfo: UserOpInfo): string => {
     return JSON.stringify(userOpInfo, (_, value) =>
-        typeof value === "bigint" ? value.toString() : value
+        typeof value === "bigint" ? toHex(value) : value
     )
 }
 
 const deserializeUserOpInfo = (data: string): UserOpInfo => {
-    const parsed = JSON.parse(data)
-    return userOpInfoSchema.parse(parsed)
+    try {
+        const parsed = JSON.parse(data)
+        const result = userOpInfoSchema.safeParse(parsed)
+
+        if (!result.success) {
+            throw new Error(
+                `Failed to parse UserOpInfo: ${result.error.message}`
+            )
+        }
+        return result.data
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(
+                `UserOpInfo deserialization failed: ${error.message}`
+            )
+        }
+        throw new Error("UserOpInfo deserialization failed with unknown error")
+    }
 }
 
 const createRedisKeys = (chainId: number) => {
     return {
         // Used to keep track of ops ready for bundling
         // - Sorted by gasPrice
-        // - Only includes lowest nonce for every (sender, nonceKeyKey) pair
+        // - Only includes lowest nonce for every (sender, nonceKey) pair
         // - Stores (sender, nonceKey) redis key
         readyOpsQueue: () => {
             return `${chainId}:outstanding:pending-queue`
@@ -32,7 +53,7 @@ const createRedisKeys = (chainId: number) => {
         pendingOps: (userOp: UserOperation) => {
             const sender = userOp.sender
             const [nonceKey] = getNonceKeyAndSequence(userOp.nonce)
-            const fingerPrint = `${sender}-${nonceKey}`
+            const fingerPrint = `${sender}-${toHex(nonceKey)}`
             return `${chainId}:outstanding:pending-ops:${fingerPrint}`
         },
 
@@ -78,7 +99,7 @@ export const createRedisOutstandingQueue = ({
 
     const addToPendingOpsQueue = async (userOpInfo: UserOpInfo) => {
         const { userOp } = userOpInfo
-        const [, nonceSeq] = getNonceKeyAndSequence(userOp.nonce)
+        const [nonceKey, nonceSeq] = getNonceKeyAndSequence(userOp.nonce)
         const pendingOpsKey = redisKeys.pendingOps(userOp)
 
         // Add to the (sender, nonceKey) queue with nonceSeq as score
@@ -100,20 +121,19 @@ export const createRedisOutstandingQueue = ({
         userOpInfo?: UserOpInfo
         pendingOpsKey?: string
     }): Promise<UserOpInfo[]> => {
+        let zsetKey: string
+
         if (pendingOpsKey) {
-            const zsetKey = pendingOpsKey
-            const entries = await redisClient.zrange(zsetKey, 0, -1)
-            return entries.map(deserializeUserOpInfo)
-        }
-
-        if (userOpInfo) {
+            zsetKey = pendingOpsKey
+        } else if (userOpInfo) {
             const { userOp } = userOpInfo
-            const zsetKey = redisKeys.pendingOps(userOp)
-            const entries = await redisClient.zrange(zsetKey, 0, -1)
-            return entries.map(deserializeUserOpInfo)
+            zsetKey = redisKeys.pendingOps(userOp)
+        } else {
+            throw new Error("missing required userOpInfo or pendingOpsKey")
         }
 
-        throw new Error("missing required userOpInfo or pendingOpsKey")
+        const entries = await redisClient.zrange(zsetKey, 0, -1)
+        return entries.map(deserializeUserOpInfo)
     }
 
     // Add this helper function to maintain the secondary index
@@ -156,7 +176,8 @@ export const createRedisOutstandingQueue = ({
             }
 
             // Deserialize and return the UserOpInfo
-            return deserializeUserOpInfo(userOpInfoStrings[0])
+            const result = deserializeUserOpInfo(userOpInfoStrings[0])
+            return result
         },
         pop: async () => {
             // Pop highest score in readyOpsQueue
@@ -173,17 +194,30 @@ export const createRedisOutstandingQueue = ({
                 return undefined
             }
 
-            const userOpInfoStr = (results[0][1] as string[])[0]
+            const pendingOpsKey = (results[0][1] as string[])[0]
+
+            // Get the lowest nonce operation from the pendingOpsKey
+            const userOpInfoStrings = await redisClient.zrange(
+                pendingOpsKey,
+                0,
+                0
+            )
+
+            if (!userOpInfoStrings || userOpInfoStrings.length === 0) {
+                return undefined
+            }
+
+            const userOpInfoStr = userOpInfoStrings[0]
             const userOpInfo = deserializeUserOpInfo(userOpInfoStr)
 
             await redisClient
                 .multi()
-                .zrem(redisKeys.pendingOps(userOpInfo.userOp), userOpInfoStr)
+                .zrem(pendingOpsKey, userOpInfoStr)
                 .hdel(redisKeys.userOpHashLookup(), userOpInfo.userOpHash)
                 .exec()
 
             // Get remaining operations for this slot
-            const sortedOps = await getSortedPendingOps({ userOpInfo })
+            const sortedOps = await getSortedPendingOps({ pendingOpsKey })
 
             // If there are more items, add the next one to the priority queue
             if (sortedOps.length > 0) {
@@ -192,11 +226,8 @@ export const createRedisOutstandingQueue = ({
                 // If no more pending operations, cleanup by removing the (sender, nonceKey) list
                 await redisClient
                     .multi()
-                    .srem(
-                        redisKeys.pendingsOpsIndexList(),
-                        redisKeys.pendingOps(userOpInfo.userOp)
-                    )
-                    .del(redisKeys.pendingOps(userOpInfo.userOp))
+                    .srem(redisKeys.pendingsOpsIndexList(), pendingOpsKey)
+                    .del(pendingOpsKey)
                     .exec()
             }
 
@@ -204,7 +235,7 @@ export const createRedisOutstandingQueue = ({
         },
 
         add: async ({ userOpInfo }: { userOpInfo: UserOpInfo }) => {
-            const { userOpHash } = userOpInfo
+            const { userOpHash, userOp } = userOpInfo
 
             // Add to (sender, nonceKey) queue
             await addToPendingOpsQueue(userOpInfo)

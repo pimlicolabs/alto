@@ -643,3 +643,25 @@ const OpEventType = z.union([
 ])
 
 export type OpEventType = z.infer<typeof OpEventType>
+
+// Types used for internal mempool.
+export const referencedCodeHashesSchema = z.object({
+    addresses: z.array(z.string()),
+    hash: z.string()
+})
+
+export const userOpDetailsSchema = z.object({
+    userOpHash: hexData32Schema,
+    // timestamp when the bundling process begins (when it leaves outstanding mempool)
+    addedToMempool: z.number(),
+    referencedContracts: referencedCodeHashesSchema.optional()
+})
+
+export const userOpInfoSchema = userOpDetailsSchema.extend({
+    userOp: userOperationSchema
+})
+
+// Export types derived from schemas
+export type ReferencedCodeHashes = z.infer<typeof referencedCodeHashesSchema>
+export type UserOpDetails = z.infer<typeof userOpDetailsSchema>
+export type UserOpInfo = z.infer<typeof userOpInfoSchema>
