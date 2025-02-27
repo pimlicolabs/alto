@@ -1,7 +1,11 @@
 import type { HexData32, SubmittedUserOp, UserOpInfo } from "@alto/types"
 
+// Define the StoreType type
+export type StoreType = "outstanding" | "processing" | "submitted"
+export type UserOpType = UserOpInfo | SubmittedUserOp
+
 // biome-ignore lint/complexity/noBannedTypes: <explanation>
-export type Store = {
+export type MempoolStore = {
     addOutstanding: (userOpInfo: UserOpInfo) => Promise<void>
     addProcessing: (userOpInfo: UserOpInfo) => Promise<void>
     addSubmitted: (submittedUserOp: SubmittedUserOp) => Promise<void>
@@ -11,8 +15,20 @@ export type Store = {
     dumpOutstanding: () => Promise<UserOpInfo[]>
     dumpProcessing: () => Promise<UserOpInfo[]>
     dumpSubmitted: () => Promise<SubmittedUserOp[]>
-    clear: (from: "outstanding" | "processing" | "submitted") => Promise<void>
+    clear: (from: StoreType) => Promise<void>
 }
 
-export { createMemoryStore } from "./createMemoryStore"
+export type Store<T extends UserOpType> = {
+    add: (userOpInfo: T) => Promise<void>
+    remove: (userOpHash: HexData32) => Promise<boolean>
+    dump: () => Promise<T[]>
+    length: () => Promise<number>
+    clear: () => Promise<void>
+}
+
+export type OutstandingStore = Store<UserOpInfo> & {
+    pop: () => Promise<UserOpInfo | undefined>
+}
+
+export { createMempoolStore as createMemoryStore } from "./createMempoolStore"
 export { createRedisStore } from "./createRedisStore"

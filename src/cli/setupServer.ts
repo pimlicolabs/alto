@@ -13,7 +13,7 @@ import type { InterfaceValidator } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import type { Registry } from "prom-client"
 import type { AltoConfig } from "../createConfig"
-import { Store, createMemoryStore, createRedisStore } from "@alto/store"
+import { MempoolStore, createMemoryStore, createRedisStore } from "@alto/store"
 import { validateAndRefillWallets } from "../executor/senderManager/validateAndRefill"
 import { flushOnStartUp } from "../executor/senderManager/flushOnStartUp"
 
@@ -71,7 +71,7 @@ const getMempool = ({
     metrics: Metrics
     eventManager: EventManager
 }): Mempool => {
-    let store: Store
+    let store: MempoolStore
 
     if (config.redisMempoolUrl) {
         store = createRedisStore({

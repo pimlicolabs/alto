@@ -30,13 +30,13 @@ import {
     ReputationStatuses
 } from "./reputationManager"
 import type { AltoConfig } from "../createConfig"
-import { Store } from "@alto/store"
+import { MempoolStore } from "@alto/store"
 
 export class Mempool {
     private config: AltoConfig
     private monitor: Monitor
     private reputationManager: InterfaceReputationManager
-    private store: Store
+    private store: MempoolStore
     private throttledEntityBundleCount: number
     private logger: Logger
     private validator: InterfaceValidator
@@ -54,7 +54,7 @@ export class Mempool {
         monitor: Monitor
         reputationManager: InterfaceReputationManager
         validator: InterfaceValidator
-        store: Store
+        store: MempoolStore
         eventManager: EventManager
     }) {
         this.store = store

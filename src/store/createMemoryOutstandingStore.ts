@@ -3,6 +3,7 @@ import { AltoConfig } from "../createConfig"
 import { UserOpInfo } from "../types/mempool"
 import { HexData32, UserOperation } from "@alto/types"
 import { Logger } from "@alto/utils"
+import { OutstandingStore } from "."
 
 const senderNonceSlot = (userOp: UserOperation) => {
     const sender = userOp.sender
@@ -117,14 +118,14 @@ const remove = ({
     pendingOps: Map<string, UserOpInfo[]>
     userOpHash: HexData32
     logger: Logger
-}) => {
+}): boolean => {
     const priorityQueueIndex = priorityQueue.findIndex(
         (info) => info.userOpHash === userOpHash
     )
 
     if (priorityQueueIndex === -1) {
         logger.info("tried to remove non-existent user op from mempool")
-        return
+        return false
     }
 
     const userOpInfo = priorityQueue[priorityQueueIndex]
@@ -161,6 +162,8 @@ const remove = ({
             priorityQueue
         })
     }
+
+    return true
 }
 
 const clear = ({
@@ -181,9 +184,19 @@ const dump = ({
     return [...priorityQueue, ...Array.from(pendingOps.values()).flat()]
 }
 
+const length = ({
+    priorityQueue,
+    pendingOps
+}: {
+    priorityQueue: UserOpInfo[]
+    pendingOps: Map<string, UserOpInfo[]>
+}) => {
+    return priorityQueue.length + Array.from(pendingOps.values()).flat().length
+}
+
 export const createMemoryOutstandingQueue = ({
     config
-}: { config: AltoConfig }) => {
+}: { config: AltoConfig }): OutstandingStore => {
     const pendingOps: Map<string, UserOpInfo[]> = new Map()
     const priorityQueue: UserOpInfo[] = []
     const chainId = config.chainId
@@ -195,12 +208,27 @@ export const createMemoryOutstandingQueue = ({
     )
 
     return {
-        add: (userOpInfo: UserOpInfo) =>
-            add({ userOpInfo, pendingOps, priorityQueue, chainId }),
-        remove: (userOpHash: HexData32) =>
-            remove({ userOpHash, pendingOps, priorityQueue, logger }),
-        pop: () => pop({ priorityQueue, pendingOps }),
-        dump: () => dump({ priorityQueue, pendingOps }),
-        clear: () => clear({ pendingOps, priorityQueue })
+        pop: () => {
+            return Promise.resolve(pop({ priorityQueue, pendingOps }))
+        },
+        add: async (userOpInfo: UserOpInfo) => {
+            add({ userOpInfo, pendingOps, priorityQueue, chainId })
+            return Promise.resolve()
+        },
+        remove: async (userOpHash: HexData32) => {
+            return Promise.resolve(
+                remove({ userOpHash, pendingOps, priorityQueue, logger })
+            )
+        },
+        dump: async () => {
+            return Promise.resolve(dump({ priorityQueue, pendingOps }))
+        },
+        clear: async () => {
+            clear({ pendingOps, priorityQueue })
+            return Promise.resolve()
+        },
+        length: async () => {
+            return Promise.resolve(length({ priorityQueue, pendingOps }))
+        }
     }
 }

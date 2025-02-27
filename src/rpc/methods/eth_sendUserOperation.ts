@@ -11,7 +11,7 @@ export const ethSendUserOperationHandler = createMethodHandler({
         const hash = getUserOperationHash(
             userOperation,
             entryPoint,
-            rpcHandler.config.publicClient.chain.id
+            rpcHandler.config.chainId
         )
         rpcHandler.eventManager.emitReceived(hash)
 

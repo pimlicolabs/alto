@@ -1,6 +1,6 @@
 import { Logger, Metrics } from "@alto/utils"
 import { AltoConfig } from "../createConfig"
-import { Store, createMemoryStore } from "."
+import { MempoolStore, createMemoryStore } from "."
 import { UserOpInfo, SubmittedUserOp } from "../types/mempool"
 import { HexData32, userOperationSchema } from "../types/schemas"
 import Queue, { type Queue as QueueType } from "bull"
@@ -144,7 +144,7 @@ const dumpOutstanding = async ({
 export const createRedisStore = ({
     config,
     metrics
-}: { config: AltoConfig; metrics: Metrics }): Store => {
+}: { config: AltoConfig; metrics: Metrics }): MempoolStore => {
     const logger = config.getLogger(
         { module: "redis-store" },
         {
@@ -218,9 +218,6 @@ export const createRedisStore = ({
         },
         dumpSubmitted: async () => {
             return memoryStore.dumpSubmitted()
-        },
-        popNextOutstanding: async () => {
-            throw new Error("Not implemented")
         }
     }
 }
