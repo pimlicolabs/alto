@@ -447,7 +447,10 @@ export class ExecutorManager {
                             const blockNumber =
                                 userOperationReceipt.receipt.blockNumber
 
-                            this.mempool.removeSubmitted(entryPoint, userOpHash)
+                            this.mempool.removeSubmitted({
+                                entryPoint,
+                                userOpHash
+                            })
                             this.monitor.setUserOperationStatus(userOpHash, {
                                 status: "included",
                                 transactionHash
@@ -888,8 +891,11 @@ export class ExecutorManager {
             }
         }
 
-        userOpsReplaced.map((userOp) => {
-            this.mempool.replaceSubmitted(userOp, newTxInfo)
+        userOpsReplaced.map((userOpInfo) => {
+            this.mempool.replaceSubmitted({
+                userOpInfo,
+                transactionInfo: newTxInfo
+            })
         })
 
         // Drop all userOperations that were rejected during simulation.
@@ -913,7 +919,7 @@ export class ExecutorManager {
     ) {
         userOpInfos.map((userOpInfo) => {
             const { userOpHash } = userOpInfo
-            this.mempool.markSubmitted(userOpHash, transactionInfo)
+            this.mempool.markSubmitted({ userOpHash, transactionInfo })
             this.startWatchingBlocks(this.handleBlock.bind(this))
             this.metrics.userOperationsSubmitted
                 .labels({ status: "success" })
@@ -935,7 +941,7 @@ export class ExecutorManager {
                 },
                 "resubmitting user operation"
             )
-            this.mempool.removeProcessing(entryPoint, userOpHash)
+            this.mempool.removeProcessing({ entryPoint, userOpHash })
             this.mempool.add(userOp, entryPoint)
             this.metrics.userOperationsResubmitted.inc()
         })
@@ -959,7 +965,7 @@ export class ExecutorManager {
     removeSubmitted(entryPoint: Address, userOps: UserOpInfo[]) {
         userOps.map((userOpInfo) => {
             const { userOpHash } = userOpInfo
-            this.mempool.removeSubmitted(entryPoint, userOpHash)
+            this.mempool.removeSubmitted({ entryPoint, userOpHash })
         })
     }
 
@@ -983,7 +989,7 @@ export class ExecutorManager {
                 (Date.now() - firstSubmitted) / 1000
             )
 
-            this.mempool.removeSubmitted(entryPoint, userOpHash)
+            this.mempool.removeSubmitted({ entryPoint, userOpHash })
             this.reputationManager.updateUserOperationIncludedStatus(
                 userOp,
                 entryPoint,
@@ -1023,8 +1029,8 @@ export class ExecutorManager {
     dropUserOps(entryPoint: Address, rejectedUserOps: RejectedUserOp[]) {
         rejectedUserOps.map((rejectedUserOp) => {
             const { userOp, reason, userOpHash } = rejectedUserOp
-            this.mempool.removeProcessing(entryPoint, userOpHash)
-            this.mempool.removeSubmitted(entryPoint, userOpHash)
+            this.mempool.removeProcessing({ entryPoint, userOpHash })
+            this.mempool.removeSubmitted({ entryPoint, userOpHash })
             this.eventManager.emitDropped(
                 userOpHash,
                 reason,

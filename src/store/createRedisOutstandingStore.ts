@@ -203,7 +203,7 @@ export const createRedisOutstandingQueue = ({
             return userOpInfo
         },
 
-        add: async (userOpInfo: UserOpInfo) => {
+        add: async ({ userOpInfo }: { userOpInfo: UserOpInfo }) => {
             const { userOpHash } = userOpInfo
 
             // Add to (sender, nonceKey) queue
@@ -222,7 +222,7 @@ export const createRedisOutstandingQueue = ({
             }
         },
 
-        remove: async (userOpHash: HexData32) => {
+        remove: async ({ userOpHash }: { userOpHash: HexData32 }) => {
             // Get the userOp info from the secondary index
             const pendingOpsKey = await redisClient.hget(
                 redisKeys.userOpHashLookup(),

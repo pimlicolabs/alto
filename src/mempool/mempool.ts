@@ -73,10 +73,13 @@ export class Mempool {
         this.eventManager = eventManager
     }
 
-    async replaceSubmitted(
-        userOpInfo: UserOpInfo,
+    async replaceSubmitted({
+        userOpInfo,
+        transactionInfo
+    }: {
+        userOpInfo: UserOpInfo
         transactionInfo: TransactionInfo
-    ) {
+    }) {
         const entryPoint = transactionInfo.bundle.entryPoint
         const { userOpHash } = userOpInfo
         const sumbittedUserOps = await this.store.dumpSubmitted(entryPoint)
@@ -85,10 +88,13 @@ export class Mempool {
         )
 
         if (existingUserOpToReplace) {
-            this.store.removeSubmitted(userOpHash, entryPoint)
-            this.store.addSubmitted(entryPoint, {
-                ...userOpInfo,
-                transactionInfo
+            this.store.removeSubmitted({ entryPoint, userOpHash })
+            this.store.addSubmitted({
+                entryPoint,
+                submittedUserOp: {
+                    ...userOpInfo,
+                    transactionInfo
+                }
             })
             this.monitor.setUserOperationStatus(userOpHash, {
                 status: "submitted",
@@ -97,10 +103,13 @@ export class Mempool {
         }
     }
 
-    async markSubmitted(
-        userOpHash: `0x${string}`,
+    async markSubmitted({
+        userOpHash,
+        transactionInfo
+    }: {
+        userOpHash: Address
         transactionInfo: TransactionInfo
-    ) {
+    }) {
         const entryPoint = transactionInfo.bundle.entryPoint
         const processingUserOps = await this.store.dumpProcessing(entryPoint)
         const processingUserOp = processingUserOps.find(
@@ -108,10 +117,13 @@ export class Mempool {
         )
 
         if (processingUserOp) {
-            this.store.removeProcessing(entryPoint, userOpHash)
-            this.store.addSubmitted(entryPoint, {
-                ...processingUserOp,
-                transactionInfo
+            this.store.removeProcessing({ entryPoint, userOpHash })
+            this.store.addSubmitted({
+                entryPoint,
+                submittedUserOp: {
+                    ...processingUserOp,
+                    transactionInfo
+                }
             })
             this.monitor.setUserOperationStatus(userOpHash, {
                 status: "submitted",
@@ -134,12 +146,18 @@ export class Mempool {
         return await this.store.dumpSubmitted(entryPoint)
     }
 
-    async removeSubmitted(entryPoint: Address, userOpHash: `0x${string}`) {
-        await this.store.removeSubmitted(entryPoint, userOpHash)
+    async removeSubmitted({
+        entryPoint,
+        userOpHash
+    }: { entryPoint: Address; userOpHash: `0x${string}` }) {
+        await this.store.removeSubmitted({ entryPoint, userOpHash })
     }
 
-    async removeProcessing(entryPoint: Address, userOpHash: `0x${string}`) {
-        await this.store.removeProcessing(entryPoint, userOpHash)
+    async removeProcessing({
+        entryPoint,
+        userOpHash
+    }: { entryPoint: Address; userOpHash: `0x${string}` }) {
+        await this.store.removeProcessing({ entryPoint, userOpHash })
     }
 
     async checkEntityMultipleRoleViolation(
@@ -360,10 +378,10 @@ export class Mempool {
                 return [false, reason]
             }
 
-            await this.store.removeOutstanding(
+            await this.store.removeOutstanding({
                 entryPoint,
-                oldUserOpInfo.userOpHash
-            )
+                userOpHash: oldUserOpInfo.userOpHash
+            })
             this.reputationManager.replaceUserOperationSeenStatus(
                 oldOp,
                 entryPoint
@@ -411,11 +429,14 @@ export class Mempool {
             ]
         }
 
-        await this.store.addOutstanding(entryPoint, {
-            userOp,
-            userOpHash,
-            referencedContracts,
-            addedToMempool: Date.now()
+        await this.store.addOutstanding({
+            entryPoint,
+            userOpInfo: {
+                userOp,
+                userOpHash,
+                referencedContracts,
+                addedToMempool: Date.now()
+            }
         })
         this.monitor.setUserOperationStatus(userOpHash, {
             status: "not_submitted",
@@ -493,7 +514,7 @@ export class Mempool {
             paymasterStatus === ReputationStatuses.banned ||
             factoryStatus === ReputationStatuses.banned
         ) {
-            this.store.removeOutstanding(entryPoint, userOpHash)
+            this.store.removeOutstanding({ entryPoint, userOpHash })
             return {
                 skip: true,
                 paymasterDeposit,
@@ -596,7 +617,7 @@ export class Mempool {
                 },
                 "2nd Validation error"
             )
-            this.store.removeOutstanding(entryPoint, userOpHash)
+            this.store.removeOutstanding({ entryPoint, userOpHash })
             this.reputationManager.decreaseUserOperationSeenStatus(
                 userOp,
                 entryPoint,
@@ -786,7 +807,7 @@ export class Mempool {
                     currentBundle.userOps.length >= minOpsPerBundle
                 ) {
                     // Put the operation back in the store
-                    await this.store.addOutstanding(entryPoint, userOpInfo)
+                    await this.store.addOutstanding({ entryPoint, userOpInfo })
                     break
                 }
 
@@ -798,7 +819,7 @@ export class Mempool {
                 storageMap = skipResult.storageMap
 
                 this.reputationManager.decreaseUserOperationCount(userOp)
-                this.store.addProcessing(entryPoint, userOpInfo)
+                this.store.addProcessing({ entryPoint, userOpInfo })
 
                 // Add op to current bundle
                 currentBundle.userOps.push(userOpInfo)
@@ -889,7 +910,7 @@ export class Mempool {
 
     clear(): void {
         for (const entryPoint of this.config.entrypoints) {
-            this.store.clear(entryPoint, "outstanding")
+            this.store.clear({ entryPoint, from: "outstanding" })
         }
     }
 }

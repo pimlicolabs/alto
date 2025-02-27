@@ -8,11 +8,11 @@ export const createStore = <T extends UserOpType>({
     let store: T[] = []
 
     return {
-        add: async (op: T) => {
+        add: async ({ op }: { op: T }) => {
             store = [...store, op]
             return Promise.resolve()
         },
-        remove: async (userOpHash: HexData32) => {
+        remove: async ({ userOpHash }: { userOpHash: HexData32 }) => {
             const exists = store.some((op) => op.userOpHash === userOpHash)
             store = store.filter((op) => op.userOpHash !== userOpHash)
             return Promise.resolve(exists)

@@ -111,64 +111,88 @@ export const createMempoolStore = ({
 
             return await outstanding.peek()
         },
-        addOutstanding: async (entryPoint: Address, userOpInfo: UserOpInfo) => {
+        addOutstanding: async ({
+            entryPoint,
+            userOpInfo
+        }: { entryPoint: Address; userOpInfo: UserOpInfo }) => {
             const outstanding = storeHandlers.get(entryPoint)?.outstanding
             if (!outstanding) {
                 throw new Error("unexpected error")
             }
 
             logAddOperation(userOpInfo.userOpHash, "outstanding")
-            await outstanding.add(userOpInfo)
+            await outstanding.add({ userOpInfo })
         },
-        addProcessing: async (entryPoint: Address, userOpInfo: UserOpInfo) => {
+        addProcessing: async ({
+            entryPoint,
+            userOpInfo
+        }: {
+            entryPoint: Address
+            userOpInfo: UserOpInfo
+        }) => {
             const processing = storeHandlers.get(entryPoint)?.processing
             if (!processing) {
                 throw new Error("unexpected error")
             }
 
             logAddOperation(userOpInfo.userOpHash, "processing")
-            await processing.add(userOpInfo)
+            await processing.add({ op: userOpInfo })
         },
-        addSubmitted: async (
-            entryPoint: Address,
-            userOpInfo: SubmittedUserOp
-        ) => {
+        addSubmitted: async ({
+            entryPoint,
+            submittedUserOp
+        }: {
+            entryPoint: Address
+            submittedUserOp: SubmittedUserOp
+        }) => {
             const submitted = storeHandlers.get(entryPoint)?.submitted
             if (!submitted) {
                 throw new Error("unexpected error")
             }
 
-            logAddOperation(userOpInfo.userOpHash, "submitted")
-            await submitted.add(userOpInfo)
+            logAddOperation(submittedUserOp.userOpHash, "submitted")
+            await submitted.add({ op: submittedUserOp })
         },
-        removeOutstanding: async (
-            entryPoint: Address,
+        removeOutstanding: async ({
+            entryPoint,
+            userOpHash
+        }: {
+            entryPoint: Address
             userOpHash: HexData32
-        ) => {
+        }) => {
             const outstanding = storeHandlers.get(entryPoint)?.outstanding
             if (!outstanding) {
                 throw new Error("unexpected error")
             }
-            const removed = await outstanding.remove(userOpHash)
+            const removed = await outstanding.remove({ userOpHash })
             logRemoveOperation(userOpHash, "outstanding", removed)
         },
-        removeProcessing: async (
-            entryPoint: Address,
+        removeProcessing: async ({
+            entryPoint,
+            userOpHash
+        }: {
+            entryPoint: Address
             userOpHash: HexData32
-        ) => {
+        }) => {
             const processing = storeHandlers.get(entryPoint)?.processing
             if (!processing) {
                 throw new Error("unexpected error")
             }
-            const removed = await processing.remove(userOpHash)
+            const removed = await processing.remove({ userOpHash })
             logRemoveOperation(userOpHash, "processing", removed)
         },
-        removeSubmitted: async (entryPoint: Address, userOpHash: HexData32) => {
+        removeSubmitted: async ({
+            entryPoint,
+            userOpHash
+        }: {
+            entryPoint: Address
+            userOpHash: HexData32
+        }) => {
             const submitted = storeHandlers.get(entryPoint)?.submitted
             if (!submitted) {
                 throw new Error("unexpected error")
             }
-            const removed = await submitted.remove(userOpHash)
+            const removed = await submitted.remove({ userOpHash })
             logRemoveOperation(userOpHash, "submitted", removed)
         },
         dumpOutstanding: async (entryPoint: Address) => {
@@ -195,7 +219,10 @@ export const createMempoolStore = ({
             await logDumpOperation("submitted", submitted)
             return await submitted.dump()
         },
-        clear: async (entryPoint: Address, from: StoreType) => {
+        clear: async ({
+            entryPoint,
+            from
+        }: { entryPoint: Address; from: StoreType }) => {
             const stores = storeHandlers.get(entryPoint)
             if (!stores) {
                 throw new Error("unexpected error")

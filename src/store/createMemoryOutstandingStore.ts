@@ -70,7 +70,7 @@ export const createMemoryOutstandingQueue = ({
 
             return Promise.resolve(userOpInfo)
         },
-        add: (userOpInfo: UserOpInfo) => {
+        add: ({ userOpInfo }: { userOpInfo: UserOpInfo }) => {
             const { userOp, userOpHash } = userOpInfo
             const [nonceKey] = getNonceKeyAndSequence(userOp.nonce)
             const pendingOpsSlot = senderNonceSlot(userOp)
@@ -108,7 +108,7 @@ export const createMemoryOutstandingQueue = ({
 
             return Promise.resolve()
         },
-        remove: (userOpHash: HexData32) => {
+        remove: ({ userOpHash }: { userOpHash: HexData32 }) => {
             const priorityQueueIndex = priorityQueue.findIndex(
                 (info) => info.userOpHash === userOpHash
             )
