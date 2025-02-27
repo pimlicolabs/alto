@@ -42,7 +42,6 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         // Prepare bundle
         const userOperationInfo: UserOpInfo = {
             userOp: userOperation,
-            entryPoint,
             userOpHash: getUserOperationHash(
                 userOperation,
                 entryPoint,

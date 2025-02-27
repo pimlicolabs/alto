@@ -1,11 +1,18 @@
 import type { HexData32, SubmittedUserOp, UserOpInfo } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import type { Logger } from "@alto/utils"
-import { MempoolStore, OutstandingStore, Store, StoreType, UserOpType } from "."
+import {
+    BaseStore,
+    MempoolStore,
+    OutstandingStore,
+    Store,
+    StoreType,
+    UserOpType
+} from "."
 import { AltoConfig } from "../createConfig"
 import { createMemoryOutstandingQueue } from "./createMemoryOutstandingStore"
 import { createStore } from "./createStore"
-import { createRedisOutstandingQueue } from "./createRedisOutstandingStore"
+import { Address } from "viem"
 
 export const createMempoolStore = ({
     config,
@@ -18,19 +25,32 @@ export const createMempoolStore = ({
         }
     )
 
-    let outstanding: OutstandingStore
-    if (config.redisMempoolUrl) {
-        outstanding = createRedisOutstandingQueue({ config })
-    } else {
-        outstanding = createMemoryOutstandingQueue({ config })
-    }
+    const storeHandlers: Map<
+        Address,
+        {
+            processing: Store<UserOpInfo>
+            submitted: Store<SubmittedUserOp>
+            outstanding: OutstandingStore
+        }
+    > = new Map()
 
-    let processing = createStore<UserOpInfo>({
-        config
-    })
-    const submitted = createStore<SubmittedUserOp>({
-        config
-    })
+    for (const entryPoint of config.entrypoints) {
+        const processing = createStore<UserOpInfo>({
+            config
+        })
+        const submitted = createStore<SubmittedUserOp>({
+            config
+        })
+        const outstanding = createMemoryOutstandingQueue({
+            config
+        })
+
+        storeHandlers.set(entryPoint, {
+            processing,
+            submitted,
+            outstanding
+        })
+    }
 
     const logAddOperation = (userOpHash: HexData32, storeType: StoreType) => {
         logger.debug(
@@ -63,7 +83,7 @@ export const createMempoolStore = ({
 
     const logDumpOperation = async <T extends UserOpType>(
         storeType: StoreType,
-        store: Store<T>
+        store: BaseStore<T>
     ) => {
         logger.trace(
             {
@@ -75,49 +95,118 @@ export const createMempoolStore = ({
     }
 
     return {
-        addOutstanding: async (userOpInfo: UserOpInfo) => {
+        popOutstanding: async (entryPoint: Address) => {
+            const outstanding = storeHandlers.get(entryPoint)?.outstanding
+            if (!outstanding) {
+                throw new Error("unexpected error")
+            }
+
+            return await outstanding.pop()
+        },
+        peekOutstanding: async (entryPoint: Address) => {
+            const outstanding = storeHandlers.get(entryPoint)?.outstanding
+            if (!outstanding) {
+                throw new Error("unexpected error")
+            }
+
+            return await outstanding.peek()
+        },
+        addOutstanding: async (entryPoint: Address, userOpInfo: UserOpInfo) => {
+            const outstanding = storeHandlers.get(entryPoint)?.outstanding
+            if (!outstanding) {
+                throw new Error("unexpected error")
+            }
+
             logAddOperation(userOpInfo.userOpHash, "outstanding")
             await outstanding.add(userOpInfo)
         },
-        addProcessing: async (userOpInfo: UserOpInfo) => {
+        addProcessing: async (entryPoint: Address, userOpInfo: UserOpInfo) => {
+            const processing = storeHandlers.get(entryPoint)?.processing
+            if (!processing) {
+                throw new Error("unexpected error")
+            }
+
             logAddOperation(userOpInfo.userOpHash, "processing")
             await processing.add(userOpInfo)
         },
-        addSubmitted: async (userOpInfo: SubmittedUserOp) => {
+        addSubmitted: async (
+            entryPoint: Address,
+            userOpInfo: SubmittedUserOp
+        ) => {
+            const submitted = storeHandlers.get(entryPoint)?.submitted
+            if (!submitted) {
+                throw new Error("unexpected error")
+            }
+
             logAddOperation(userOpInfo.userOpHash, "submitted")
             await submitted.add(userOpInfo)
         },
-        removeOutstanding: async (userOpHash: HexData32) => {
+        removeOutstanding: async (
+            entryPoint: Address,
+            userOpHash: HexData32
+        ) => {
+            const outstanding = storeHandlers.get(entryPoint)?.outstanding
+            if (!outstanding) {
+                throw new Error("unexpected error")
+            }
             const removed = await outstanding.remove(userOpHash)
             logRemoveOperation(userOpHash, "outstanding", removed)
         },
-        removeProcessing: async (userOpHash: HexData32) => {
+        removeProcessing: async (
+            entryPoint: Address,
+            userOpHash: HexData32
+        ) => {
+            const processing = storeHandlers.get(entryPoint)?.processing
+            if (!processing) {
+                throw new Error("unexpected error")
+            }
             const removed = await processing.remove(userOpHash)
             logRemoveOperation(userOpHash, "processing", removed)
         },
-        removeSubmitted: async (userOpHash: HexData32) => {
+        removeSubmitted: async (entryPoint: Address, userOpHash: HexData32) => {
+            const submitted = storeHandlers.get(entryPoint)?.submitted
+            if (!submitted) {
+                throw new Error("unexpected error")
+            }
             const removed = await submitted.remove(userOpHash)
             logRemoveOperation(userOpHash, "submitted", removed)
         },
-        dumpOutstanding: async () => {
+        dumpOutstanding: async (entryPoint: Address) => {
+            const outstanding = storeHandlers.get(entryPoint)?.outstanding
+            if (!outstanding) {
+                throw new Error("unexpected error")
+            }
             await logDumpOperation("outstanding", outstanding)
             return await outstanding.dump()
         },
-        dumpProcessing: async () => {
+        dumpProcessing: async (entryPoint: Address) => {
+            const processing = storeHandlers.get(entryPoint)?.processing
+            if (!processing) {
+                throw new Error("unexpected error")
+            }
             await logDumpOperation("processing", processing)
             return await processing.dump()
         },
-        dumpSubmitted: async () => {
+        dumpSubmitted: async (entryPoint: Address) => {
+            const submitted = storeHandlers.get(entryPoint)?.submitted
+            if (!submitted) {
+                throw new Error("unexpected error")
+            }
             await logDumpOperation("submitted", submitted)
             return await submitted.dump()
         },
-        clear: async (from: StoreType) => {
+        clear: async (entryPoint: Address, from: StoreType) => {
+            const stores = storeHandlers.get(entryPoint)
+            if (!stores) {
+                throw new Error("unexpected error")
+            }
+
             if (from === "outstanding") {
-                await outstanding.clear()
+                await stores.outstanding.clear()
             } else if (from === "processing") {
-                await processing.clear()
+                await stores.processing.clear()
             } else if (from === "submitted") {
-                await submitted.clear()
+                await stores.submitted.clear()
             }
 
             logger.debug({ store: from }, "cleared mempool")

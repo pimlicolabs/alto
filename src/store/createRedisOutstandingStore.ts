@@ -130,6 +130,34 @@ export const createRedisOutstandingQueue = ({
     }
 
     return {
+        peek: async () => {
+            // Get the highest priority item from readyOpsQueue without removing it
+            const pendingOpsKeys = await redisClient.zrange(
+                redisKeys.readyOpsQueue(),
+                0,
+                0
+            )
+
+            if (!pendingOpsKeys || pendingOpsKeys.length === 0) {
+                return undefined
+            }
+
+            const pendingOpsKey = pendingOpsKeys[0]
+
+            // Get the lowest nonce operation from the pendingOpsKey
+            const userOpInfoStrings = await redisClient.zrange(
+                pendingOpsKey,
+                0,
+                0
+            )
+
+            if (!userOpInfoStrings || userOpInfoStrings.length === 0) {
+                return undefined
+            }
+
+            // Deserialize and return the UserOpInfo
+            return deserializeUserOpInfo(userOpInfoStrings[0])
+        },
         pop: async () => {
             // Pop highest score in readyOpsQueue
             const multi = redisClient.multi()

@@ -13,9 +13,9 @@ import type { InterfaceValidator } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import type { Registry } from "prom-client"
 import type { AltoConfig } from "../createConfig"
-import { MempoolStore, createMemoryStore, createRedisStore } from "@alto/store"
 import { validateAndRefillWallets } from "../executor/senderManager/validateAndRefill"
 import { flushOnStartUp } from "../executor/senderManager/flushOnStartUp"
+import { createMempoolStore } from "../store/createMempoolStore"
 
 const getReputationManager = (
     config: AltoConfig
@@ -71,24 +71,10 @@ const getMempool = ({
     metrics: Metrics
     eventManager: EventManager
 }): Mempool => {
-    let store: MempoolStore
-
-    if (config.redisMempoolUrl) {
-        store = createRedisStore({
-            config,
-            metrics
-        })
-    } else {
-        store = createMemoryStore({
-            config,
-            metrics
-        })
-    }
-
     return new Mempool({
         config,
         monitor,
-        store,
+        store: createMempoolStore({ config, metrics }),
         reputationManager,
         validator,
         eventManager
@@ -365,13 +351,25 @@ export const setupServer = async ({
         await server.stop()
         rootLogger.info("server stopped")
 
-        const outstanding = (await mempool.dumpOutstanding()).length
-        const submitted = (await mempool.dumpSubmittedOps()).length
-        const processing = (await mempool.dumpProcessing()).length
-        rootLogger.info(
-            { outstanding, submitted, processing },
-            "dumping mempool before shutdown"
-        )
+        for (const entryPoint of config.entrypoints) {
+            const outstanding = await mempool.dumpOutstanding(entryPoint)
+            const outstandingLength = outstanding.length
+
+            const submitted = await mempool.dumpSubmittedOps(entryPoint)
+            const submittedLength = submitted.length
+
+            const processing = await mempool.dumpProcessing(entryPoint)
+            const processingLength = processing.length
+
+            rootLogger.info(
+                {
+                    outstanding: outstandingLength,
+                    submitted: submittedLength,
+                    processing: processingLength
+                },
+                "dumping mempool before shutdown"
+            )
+        }
 
         // mark all executors as processed
         for (const account of senderManager.getActiveWallets()) {

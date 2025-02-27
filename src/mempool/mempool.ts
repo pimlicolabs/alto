@@ -9,10 +9,11 @@ import {
     type SubmittedUserOp,
     type TransactionInfo,
     type UserOperation,
+    type UserOperationBundle,
+    type UserOpInfo,
     ValidationErrors,
     type ValidationResult,
-    type UserOperationBundle,
-    type UserOpInfo
+    type Address
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
@@ -23,7 +24,7 @@ import {
     isVersion07,
     scaleBigIntByPercent
 } from "@alto/utils"
-import { type Address, getAddress, getContract } from "viem"
+import { getAddress, getContract } from "viem"
 import type { Monitor } from "./monitoring"
 import {
     type InterfaceReputationManager,
@@ -76,15 +77,16 @@ export class Mempool {
         userOpInfo: UserOpInfo,
         transactionInfo: TransactionInfo
     ) {
+        const entryPoint = transactionInfo.bundle.entryPoint
         const { userOpHash } = userOpInfo
-        const sumbittedUserOps = await this.store.dumpSubmitted()
+        const sumbittedUserOps = await this.store.dumpSubmitted(entryPoint)
         const existingUserOpToReplace = sumbittedUserOps.find(
             (userOpInfo) => userOpInfo.userOpHash === userOpHash
         )
 
         if (existingUserOpToReplace) {
-            this.store.removeSubmitted(userOpHash)
-            this.store.addSubmitted({
+            this.store.removeSubmitted(userOpHash, entryPoint)
+            this.store.addSubmitted(entryPoint, {
                 ...userOpInfo,
                 transactionInfo
             })
@@ -99,14 +101,15 @@ export class Mempool {
         userOpHash: `0x${string}`,
         transactionInfo: TransactionInfo
     ) {
-        const processingUserOps = await this.store.dumpProcessing()
+        const entryPoint = transactionInfo.bundle.entryPoint
+        const processingUserOps = await this.store.dumpProcessing(entryPoint)
         const processingUserOp = processingUserOps.find(
             (userOpInfo) => userOpInfo.userOpHash === userOpHash
         )
 
         if (processingUserOp) {
-            this.store.removeProcessing(userOpHash)
-            this.store.addSubmitted({
+            this.store.removeProcessing(entryPoint, userOpHash)
+            this.store.addSubmitted(entryPoint, {
                 ...processingUserOp,
                 transactionInfo
             })
@@ -117,32 +120,37 @@ export class Mempool {
         }
     }
 
-    async dumpOutstanding(): Promise<UserOperation[]> {
-        return (await this.store.dumpOutstanding()).map(({ userOp }) => userOp)
+    async dumpOutstanding(entryPoint: Address): Promise<UserOperation[]> {
+        return (await this.store.dumpOutstanding(entryPoint)).map(
+            ({ userOp }) => userOp
+        )
     }
 
-    async dumpProcessing(): Promise<UserOpInfo[]> {
-        return await this.store.dumpProcessing()
+    async dumpProcessing(entryPoint: Address): Promise<UserOpInfo[]> {
+        return await this.store.dumpProcessing(entryPoint)
     }
 
-    async dumpSubmittedOps(): Promise<SubmittedUserOp[]> {
-        return await this.store.dumpSubmitted()
+    async dumpSubmittedOps(entryPoint: Address): Promise<SubmittedUserOp[]> {
+        return await this.store.dumpSubmitted(entryPoint)
     }
 
-    async removeSubmitted(userOpHash: `0x${string}`) {
-        await this.store.removeSubmitted(userOpHash)
+    async removeSubmitted(entryPoint: Address, userOpHash: `0x${string}`) {
+        await this.store.removeSubmitted(entryPoint, userOpHash)
     }
 
-    async removeProcessing(userOpHash: `0x${string}`) {
-        await this.store.removeProcessing(userOpHash)
+    async removeProcessing(entryPoint: Address, userOpHash: `0x${string}`) {
+        await this.store.removeProcessing(entryPoint, userOpHash)
     }
 
-    async checkEntityMultipleRoleViolation(op: UserOperation) {
+    async checkEntityMultipleRoleViolation(
+        entryPoint: Address,
+        op: UserOperation
+    ) {
         if (!this.config.safeMode) {
             return Promise.resolve()
         }
 
-        const knownEntities = await this.getKnownEntities()
+        const knownEntities = await this.getKnownEntities(entryPoint)
 
         if (
             knownEntities.paymasters.has(op.sender) ||
@@ -185,12 +193,12 @@ export class Mempool {
         return Promise.resolve()
     }
 
-    async getKnownEntities(): Promise<{
+    async getKnownEntities(entryPoint: Address): Promise<{
         sender: Set<Address>
         paymasters: Set<Address>
         factories: Set<Address>
     }> {
-        const allOps = await this.store.dumpOutstanding()
+        const allOps = await this.store.dumpOutstanding(entryPoint)
 
         const entities: {
             sender: Set<Address>
@@ -243,9 +251,9 @@ export class Mempool {
             this.config.chainId
         )
 
-        const outstandingOps = await this.store.dumpOutstanding()
-        const submittedOps = await this.store.dumpSubmitted()
-        const processingOps = await this.store.dumpProcessing()
+        const outstandingOps = await this.store.dumpOutstanding(entryPoint)
+        const submittedOps = await this.store.dumpSubmitted(entryPoint)
+        const processingOps = await this.store.dumpProcessing(entryPoint)
 
         const processedOrSubmittedOps = [...processingOps, ...submittedOps]
 
@@ -352,7 +360,10 @@ export class Mempool {
                 return [false, reason]
             }
 
-            await this.store.removeOutstanding(oldUserOpInfo.userOpHash)
+            await this.store.removeOutstanding(
+                entryPoint,
+                oldUserOpInfo.userOpHash
+            )
             this.reputationManager.replaceUserOperationSeenStatus(
                 oldOp,
                 entryPoint
@@ -400,10 +411,9 @@ export class Mempool {
             ]
         }
 
-        await this.store.addOutstanding({
+        await this.store.addOutstanding(entryPoint, {
             userOp,
-            entryPoint,
-            userOpHash: userOpHash,
+            userOpHash,
             referencedContracts,
             addedToMempool: Date.now()
         })
@@ -417,18 +427,27 @@ export class Mempool {
     }
 
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: <explanation>
-    async shouldSkip(
-        userOpInfo: UserOpInfo,
-        paymasterDeposit: { [paymaster: string]: bigint },
-        stakedEntityCount: { [addr: string]: number },
+    async shouldSkip({
+        userOpInfo,
+        paymasterDeposit,
+        stakedEntityCount,
+        knownEntities,
+        senders,
+        storageMap,
+        entryPoint
+    }: {
+        userOpInfo: UserOpInfo
+        paymasterDeposit: { [paymaster: string]: bigint }
+        stakedEntityCount: { [addr: string]: number }
         knownEntities: {
             sender: Set<`0x${string}`>
             paymasters: Set<`0x${string}`>
             factories: Set<`0x${string}`>
-        },
-        senders: Set<string>,
+        }
+        senders: Set<string>
         storageMap: StorageMap
-    ): Promise<{
+        entryPoint: Address
+    }): Promise<{
         skip: boolean
         paymasterDeposit: { [paymaster: string]: bigint }
         stakedEntityCount: { [addr: string]: number }
@@ -451,8 +470,7 @@ export class Mempool {
             }
         }
 
-        const { userOp, entryPoint, userOpHash, referencedContracts } =
-            userOpInfo
+        const { userOp, userOpHash, referencedContracts } = userOpInfo
 
         const isUserOpV06 = isVersion06(userOp)
 
@@ -475,7 +493,7 @@ export class Mempool {
             paymasterStatus === ReputationStatuses.banned ||
             factoryStatus === ReputationStatuses.banned
         ) {
-            this.store.removeOutstanding(userOpHash)
+            this.store.removeOutstanding(entryPoint, userOpHash)
             return {
                 skip: true,
                 paymasterDeposit,
@@ -578,7 +596,7 @@ export class Mempool {
                 },
                 "2nd Validation error"
             )
-            this.store.removeOutstanding(userOpHash)
+            this.store.removeOutstanding(entryPoint, userOpHash)
             this.reputationManager.decreaseUserOperationSeenStatus(
                 userOp,
                 entryPoint,
@@ -704,88 +722,54 @@ export class Mempool {
         minOpsPerBundle: number
         maxBundleCount?: number
     }): Promise<UserOperationBundle[]> {
-        let outstandingUserOps = (await this.store.dumpOutstanding())
-            .filter((op) => op.entryPoint === entryPoint)
-            .sort((aUserOpInfo, bUserOpInfo) => {
-                // Sort userops before the execution
-                // Decide the order of the userops based on the sender and nonce
-                // If sender is the same, sort by nonce key
-                const aUserOp = aUserOpInfo.userOp
-                const bUserOp = bUserOpInfo.userOp
-
-                if (aUserOp.sender === bUserOp.sender) {
-                    const [aNonceKey, aNonceValue] = getNonceKeyAndSequence(
-                        aUserOp.nonce
-                    )
-                    const [bNonceKey, bNonceValue] = getNonceKeyAndSequence(
-                        bUserOp.nonce
-                    )
-
-                    if (aNonceKey === bNonceKey) {
-                        return Number(aNonceValue - bNonceValue)
-                    }
-
-                    return Number(aNonceKey - bNonceKey)
-                }
-
-                return 0
-            })
-            .slice()
-
-        if (outstandingUserOps.length === 0) return []
-
-        // Get EntryPoint version. (Ideally version should be derived from CLI flags)
-        const isV6 = isVersion06(outstandingUserOps[0].userOp)
-        const allSameVersion = outstandingUserOps.every((userOpInfo) => {
-            const { userOp } = userOpInfo
-            return isVersion06(userOp) === isV6
-        })
-        if (!allSameVersion) {
-            throw new Error(
-                "All user operations from same EntryPoint must be of the same version"
-            )
+        // Check if there are any operations in the store
+        const firstOp = await this.store.peekOutstanding(entryPoint)
+        if (!firstOp) {
+            return []
         }
 
+        // Get EntryPoint version
+        const isV6 = isVersion06(firstOp.userOp)
         const bundles: UserOperationBundle[] = []
 
-        // Process all outstanding ops.
-        while (outstandingUserOps.length > 0) {
-            // If maxBundles is set and we reached the limit, break.
+        // Process operations until no more are available or we hit maxBundleCount
+        while (await this.store.peekOutstanding(entryPoint)) {
+            // If maxBundles is set and we reached the limit, break
             if (maxBundleCount && bundles.length >= maxBundleCount) {
                 break
             }
 
-            // Setup for next bundle.
+            // Setup for next bundle
             const currentBundle: UserOperationBundle = {
                 entryPoint,
                 version: isV6 ? "0.6" : "0.7",
                 userOps: []
             }
             let gasUsed = 0n
-
-            let paymasterDeposit: { [paymaster: string]: bigint } = {} // paymaster deposit should be enough for all UserOps in the bundle.
-            let stakedEntityCount: { [addr: string]: number } = {} // throttled paymasters and factories are allowed only small UserOps per bundle.
-            let senders = new Set<string>() // each sender is allowed only once per bundle
-            let knownEntities = await this.getKnownEntities()
+            let paymasterDeposit: { [paymaster: string]: bigint } = {}
+            let stakedEntityCount: { [addr: string]: number } = {}
+            let senders = new Set<string>()
+            let knownEntities = await this.getKnownEntities(entryPoint)
             let storageMap: StorageMap = {}
 
-            // Keep adding ops to current bundle.
-            while (outstandingUserOps.length > 0) {
-                const userOpInfo = outstandingUserOps.shift()
+            // Keep adding ops to current bundle
+            while (await this.store.peekOutstanding(entryPoint)) {
+                const userOpInfo = await this.store.popOutstanding(entryPoint)
                 if (!userOpInfo) break
 
-                const { userOp, userOpHash } = userOpInfo
+                const { userOp } = userOpInfo
 
-                // NOTE: currently if a userOp is skipped due to sender enforceUniqueSendersPerBundle it will be picked up
-                // again the next time mempool.process is called.
-                const skipResult = await this.shouldSkip(
+                // Check if we should skip this operation
+                const skipResult = await this.shouldSkip({
                     userOpInfo,
                     paymasterDeposit,
                     stakedEntityCount,
                     knownEntities,
                     senders,
-                    storageMap
-                )
+                    storageMap,
+                    entryPoint
+                })
+
                 if (skipResult.skip) continue
 
                 gasUsed +=
@@ -796,12 +780,13 @@ export class Mempool {
                           (userOp.paymasterVerificationGasLimit || 0n)
                         : 0n)
 
-                // Only break on gas limit if we've hit minOpsPerBundle.
+                // Only break on gas limit if we've hit minOpsPerBundle
                 if (
                     gasUsed > maxGasLimit &&
                     currentBundle.userOps.length >= minOpsPerBundle
                 ) {
-                    outstandingUserOps.unshift(userOpInfo) // re-add op to front of queue
+                    // Put the operation back in the store
+                    await this.store.addOutstanding(entryPoint, userOpInfo)
                     break
                 }
 
@@ -813,8 +798,7 @@ export class Mempool {
                 storageMap = skipResult.storageMap
 
                 this.reputationManager.decreaseUserOperationCount(userOp)
-                this.store.removeOutstanding(userOpHash)
-                this.store.addProcessing(userOpInfo)
+                this.store.addProcessing(entryPoint, userOpInfo)
 
                 // Add op to current bundle
                 currentBundle.userOps.push(userOpInfo)
@@ -861,7 +845,7 @@ export class Mempool {
             currentNonceSequence = getNonceKeyAndSequence(getNonceResult)[1]
         }
 
-        const outstandingOps = await this.store.dumpOutstanding()
+        const outstandingOps = await this.store.dumpOutstanding(entryPoint)
         const outstanding = outstandingOps.filter((userOpInfo) => {
             const { userOp: mempoolUserOp } = userOpInfo
 
@@ -904,6 +888,8 @@ export class Mempool {
     }
 
     clear(): void {
-        this.store.clear("outstanding")
+        for (const entryPoint of this.config.entrypoints) {
+            this.store.clear(entryPoint, "outstanding")
+        }
     }
 }

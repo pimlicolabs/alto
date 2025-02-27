@@ -1,4 +1,4 @@
-import { getNonceKeyAndSequence, getUserOperationHash } from "../utils/userop"
+import { getNonceKeyAndSequence } from "../utils/userop"
 import { AltoConfig } from "../createConfig"
 import { UserOpInfo } from "../types/mempool"
 import { HexData32, UserOperation } from "@alto/types"
@@ -15,7 +15,6 @@ export const createMemoryOutstandingQueue = ({
 }: { config: AltoConfig }): OutstandingStore => {
     let pendingOps: Map<string, UserOpInfo[]> = new Map()
     let priorityQueue: UserOpInfo[] = []
-    const chainId = config.chainId
     const logger = config.getLogger(
         { module: "memory-outstanding-queue" },
         {
@@ -37,6 +36,13 @@ export const createMemoryOutstandingQueue = ({
     }
 
     return {
+        peek: () => {
+            if (priorityQueue.length === 0) {
+                return Promise.resolve(undefined)
+            }
+
+            return Promise.resolve(priorityQueue[0])
+        },
         pop: () => {
             const userOpInfo = priorityQueue.shift()
 
@@ -83,11 +89,7 @@ export const createMemoryOutstandingQueue = ({
                     return Number(aNonceSeq) - Number(bNonceSeq)
                 })
 
-            const lowestUserOpHash = getUserOperationHash(
-                backlogOps[0].userOp,
-                backlogOps[0].entryPoint,
-                chainId
-            )
+            const lowestUserOpHash = backlogOps[0].userOpHash
 
             // If lowest, remove any existing userOp with same sender and nonceKey and add current userOp to priorityQueue.
             if (lowestUserOpHash === userOpHash) {

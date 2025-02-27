@@ -1,11 +1,6 @@
 import type { Address, BaseError } from "viem"
 import type { Account } from "viem/accounts"
-import {
-    hexData32Schema,
-    type HexData32,
-    addressSchema,
-    userOperationSchema
-} from "."
+import { hexData32Schema, type HexData32, userOperationSchema } from "."
 import { z } from "zod"
 
 export type TransactionInfo = {
@@ -86,7 +81,6 @@ export const referencedCodeHashesSchema = z.object({
 
 export const userOpDetailsSchema = z.object({
     userOpHash: hexData32Schema,
-    entryPoint: addressSchema,
     // timestamp when the bundling process begins (when it leaves outstanding mempool)
     addedToMempool: z.number(),
     referencedContracts: referencedCodeHashesSchema.optional()

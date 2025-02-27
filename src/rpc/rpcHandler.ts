@@ -293,7 +293,10 @@ export class RpcHandler {
                 entryPoint
             })
         }
-        await this.mempool.checkEntityMultipleRoleViolation(userOperation)
+        await this.mempool.checkEntityMultipleRoleViolation(
+            entryPoint,
+            userOperation
+        )
 
         // V1 api doesn't check prefund.
         const shouldCheckPrefund =
@@ -311,7 +314,10 @@ export class RpcHandler {
             validationResult
         )
 
-        await this.mempool.checkEntityMultipleRoleViolation(userOperation)
+        await this.mempool.checkEntityMultipleRoleViolation(
+            entryPoint,
+            userOperation
+        )
 
         const [success, errorReason] = await this.mempool.add(
             userOperation,
