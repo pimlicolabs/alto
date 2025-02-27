@@ -154,10 +154,7 @@ export const createMemoryOutstandingQueue = ({
             return Promise.resolve(true)
         },
         dump: () => {
-            return Promise.resolve([
-                ...priorityQueue,
-                ...Array.from(pendingOps.values()).flat()
-            ])
+            return Promise.resolve([...Array.from(pendingOps.values()).flat()])
         },
         clear: () => {
             priorityQueue = []
@@ -165,9 +162,7 @@ export const createMemoryOutstandingQueue = ({
             return Promise.resolve()
         },
         length: () => {
-            const lenght =
-                priorityQueue.length +
-                Array.from(pendingOps.values()).flat().length
+            const lenght = Array.from(pendingOps.values()).flat().length
             return Promise.resolve(lenght)
         }
     }
