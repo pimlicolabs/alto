@@ -29,7 +29,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         const opHash = getUserOperationHash(
             userOperation,
             entryPoint,
-            rpcHandler.config.publicClient.chain.id
+            rpcHandler.config.chainId
         )
 
         await rpcHandler.preMempoolChecks(
@@ -42,11 +42,10 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         // Prepare bundle
         const userOperationInfo: UserOpInfo = {
             userOp: userOperation,
-            entryPoint,
             userOpHash: getUserOperationHash(
                 userOperation,
                 entryPoint,
-                rpcHandler.config.publicClient.chain.id
+                rpcHandler.config.chainId
             ),
             addedToMempool: Date.now()
         }

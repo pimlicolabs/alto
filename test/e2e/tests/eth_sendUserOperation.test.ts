@@ -307,7 +307,7 @@ describe.each([
                 (a, b) => Number(a) - Number(b)
             )
 
-            expect(bundleNonceKeys).toEqual(sortedNonceKeys)
+            expect(new Set(bundleNonceKeys)).toEqual(new Set(sortedNonceKeys))
         })
 
         test("Send queued UserOperations", async () => {

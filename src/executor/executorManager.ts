@@ -1,7 +1,7 @@
 import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
-    MemoryMempool,
+    Mempool,
     Monitor
 } from "@alto/mempool"
 import {
@@ -59,7 +59,7 @@ export class ExecutorManager {
     private senderManager: SenderManager
     private config: AltoConfig
     private executor: Executor
-    private mempool: MemoryMempool
+    private mempool: Mempool
     private monitor: Monitor
     private logger: Logger
     private metrics: Metrics
@@ -84,7 +84,7 @@ export class ExecutorManager {
     }: {
         config: AltoConfig
         executor: Executor
-        mempool: MemoryMempool
+        mempool: Mempool
         monitor: Monitor
         reputationManager: InterfaceReputationManager
         metrics: Metrics
@@ -231,14 +231,14 @@ export class ExecutorManager {
         // All ops failed simulation, drop them and return.
         if (bundleResult.status === "all_ops_failed_simulation") {
             const { rejectedUserOps } = bundleResult
-            this.dropUserOps(rejectedUserOps)
+            this.dropUserOps(entryPoint, rejectedUserOps)
             return undefined
         }
 
         // Unhandled error during simulation, drop all ops.
         if (bundleResult.status === "unhandled_simulation_failure") {
             const { rejectedUserOps } = bundleResult
-            this.dropUserOps(rejectedUserOps)
+            this.dropUserOps(entryPoint, rejectedUserOps)
             this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
             return undefined
         }
@@ -249,7 +249,7 @@ export class ExecutorManager {
             bundleResult.reason instanceof InsufficientFundsError
         ) {
             const { reason, userOpsToBundle, rejectedUserOps } = bundleResult
-            this.dropUserOps(rejectedUserOps)
+            this.dropUserOps(entryPoint, rejectedUserOps)
             this.resubmitUserOperations(
                 userOpsToBundle,
                 entryPoint,
@@ -262,7 +262,7 @@ export class ExecutorManager {
         // Encountered unhandled error during bundle simulation.
         if (bundleResult.status === "bundle_submission_failure") {
             const { rejectedUserOps, userOpsToBundle, reason } = bundleResult
-            this.dropUserOps(rejectedUserOps)
+            this.dropUserOps(entryPoint, rejectedUserOps)
             // NOTE: these ops passed validation, so we can try resubmitting them
             this.resubmitUserOperations(
                 userOpsToBundle,
@@ -299,7 +299,7 @@ export class ExecutorManager {
             }
 
             this.markUserOperationsAsSubmitted(userOpsBundled, transactionInfo)
-            this.dropUserOps(rejectedUserOps)
+            this.dropUserOps(entryPoint, rejectedUserOps)
             this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
 
             return transactionHash
@@ -391,7 +391,9 @@ export class ExecutorManager {
 
         // Free executor if tx landed onchain
         if (bundlingStatus.status !== "not_found") {
-            this.senderManager.markWalletProcessed(transactionInfo.executor)
+            await this.senderManager.markWalletProcessed(
+                transactionInfo.executor
+            )
         }
 
         if (bundlingStatus.status === "included") {
@@ -410,80 +412,103 @@ export class ExecutorManager {
                 userOps.map((userOpInfo) => {
                     const { userOpHash } = userOpInfo
                     this.checkFrontrun({
+                        entryPoint,
                         userOpHash,
                         transactionHash,
                         blockNumber
                     })
                 })
             )
-            this.removeSubmitted(userOps)
+            this.removeSubmitted(entryPoint, userOps)
         }
     }
 
     checkFrontrun({
         userOpHash,
+        entryPoint,
         transactionHash,
         blockNumber
     }: {
         userOpHash: HexData32
         transactionHash: Hash
+        entryPoint: Address
         blockNumber: bigint
     }) {
         const unwatch = this.config.publicClient.watchBlockNumber({
             onBlockNumber: async (currentBlockNumber) => {
                 if (currentBlockNumber > blockNumber + 1n) {
-                    const userOperationReceipt =
-                        await this.getUserOperationReceipt(userOpHash)
+                    try {
+                        const userOperationReceipt =
+                            await this.getUserOperationReceipt(userOpHash)
 
-                    if (userOperationReceipt) {
-                        const transactionHash =
-                            userOperationReceipt.receipt.transactionHash
-                        const blockNumber =
-                            userOperationReceipt.receipt.blockNumber
+                        if (userOperationReceipt) {
+                            const transactionHash =
+                                userOperationReceipt.receipt.transactionHash
+                            const blockNumber =
+                                userOperationReceipt.receipt.blockNumber
 
-                        this.mempool.removeSubmitted(userOpHash)
-                        this.monitor.setUserOperationStatus(userOpHash, {
-                            status: "included",
-                            transactionHash
-                        })
+                            this.mempool.removeSubmitted({
+                                entryPoint,
+                                userOpHash
+                            })
+                            this.monitor.setUserOperationStatus(userOpHash, {
+                                status: "included",
+                                transactionHash
+                            })
 
-                        this.eventManager.emitFrontranOnChain(
-                            userOpHash,
-                            transactionHash,
-                            blockNumber
-                        )
+                            this.eventManager.emitFrontranOnChain(
+                                userOpHash,
+                                transactionHash,
+                                blockNumber
+                            )
 
-                        this.logger.info(
+                            this.logger.info(
+                                {
+                                    userOpHash,
+                                    transactionHash
+                                },
+                                "user op frontrun onchain"
+                            )
+
+                            this.metrics.userOperationsOnChain
+                                .labels({ status: "frontran" })
+                                .inc(1)
+                        } else {
+                            this.monitor.setUserOperationStatus(userOpHash, {
+                                status: "failed",
+                                transactionHash
+                            })
+                            this.eventManager.emitFailedOnChain(
+                                userOpHash,
+                                transactionHash,
+                                blockNumber
+                            )
+                            this.logger.info(
+                                {
+                                    userOpHash,
+                                    transactionHash
+                                },
+                                "user op failed onchain"
+                            )
+                            this.metrics.userOperationsOnChain
+                                .labels({ status: "reverted" })
+                                .inc(1)
+                        }
+                    } catch (error) {
+                        this.logger.error(
                             {
                                 userOpHash,
-                                transactionHash
+                                transactionHash,
+                                error
                             },
-                            "user op frontrun onchain"
+                            "Error checking frontrun status"
                         )
 
-                        this.metrics.userOperationsOnChain
-                            .labels({ status: "frontran" })
-                            .inc(1)
-                    } else {
+                        // Still mark as failed since we couldn't verify inclusion
                         this.monitor.setUserOperationStatus(userOpHash, {
                             status: "failed",
                             transactionHash
                         })
-                        this.eventManager.emitFailedOnChain(
-                            userOpHash,
-                            transactionHash,
-                            blockNumber
-                        )
-                        this.logger.info(
-                            {
-                                userOpHash,
-                                transactionHash
-                            },
-                            "user op failed onchain"
-                        )
-                        this.metrics.userOperationsOnChain
-                            .labels({ status: "reverted" })
-                            .inc(1)
                     }
                     unwatch()
                 }
@@ -625,7 +650,16 @@ export class ExecutorManager {
         this.currentlyHandlingBlock = true
         this.logger.debug({ blockNumber: block.number }, "handling block")
 
-        const submittedEntries = this.mempool.dumpSubmittedOps()
+        const dumpSubmittedEntries = async () => {
+            const submittedEntries = []
+            for (const entryPoint of this.config.entrypoints) {
+                const entries = await this.mempool.dumpSubmittedOps(entryPoint)
+                submittedEntries.push(...entries)
+            }
+            return submittedEntries
+        }
+
+        const submittedEntries = await dumpSubmittedEntries()
         if (submittedEntries.length === 0) {
             this.stopWatchingBlocks()
             this.currentlyHandlingBlock = false
@@ -633,7 +667,7 @@ export class ExecutorManager {
         }
 
         // refresh op statuses
-        const ops = this.mempool.dumpSubmittedOps()
+        const ops = await dumpSubmittedEntries()
         const txs = getTransactionsFromUserOperationEntries(ops)
         await Promise.all(
             txs.map((txInfo) => this.refreshTransactionStatus(txInfo))
@@ -648,7 +682,7 @@ export class ExecutorManager {
             }))
 
         const transactionInfos = getTransactionsFromUserOperationEntries(
-            this.mempool.dumpSubmittedOps()
+            await dumpSubmittedEntries()
         )
 
         await Promise.all(
@@ -694,7 +728,7 @@ export class ExecutorManager {
             transactionRequest,
             transactionHash: oldTxHash
         } = txInfo
-        const { userOps } = bundle
+        const { userOps, entryPoint } = bundle
 
         const gasPriceParameters = await this.gasPriceManager
             .tryGetNetworkGasPrice()
@@ -708,12 +742,13 @@ export class ExecutorManager {
                 reason: "Failed to get network gas price during replacement"
             }))
             this.failedToReplaceTransaction({
+                entryPoint,
                 rejectedUserOps,
                 oldTxHash,
                 reason: "Failed to get network gas price during replacement"
             })
             // Free executor if failed to get initial params.
-            this.senderManager.markWalletProcessed(txInfo.executor)
+            await this.senderManager.markWalletProcessed(txInfo.executor)
             return
         }
 
@@ -737,18 +772,16 @@ export class ExecutorManager {
 
         // Free wallet and return if potentially included too many times.
         if (txInfo.timesPotentiallyIncluded >= 3) {
-            if (txInfo.timesPotentiallyIncluded >= 3) {
-                this.removeSubmitted(bundle.userOps)
-                this.logger.warn(
-                    {
-                        oldTxHash,
-                        userOps: getUserOpHashes(bundleResult.rejectedUserOps)
-                    },
-                    "transaction potentially already included too many times, removing"
-                )
-            }
+            this.removeSubmitted(entryPoint, bundle.userOps)
+            this.logger.warn(
+                {
+                    oldTxHash,
+                    userOps: getUserOpHashes(bundleResult.rejectedUserOps)
+                },
+                "transaction potentially already included too many times, removing"
+            )
 
-            this.senderManager.markWalletProcessed(txInfo.executor)
+            await this.senderManager.markWalletProcessed(txInfo.executor)
             return
         }
 
@@ -802,6 +835,7 @@ export class ExecutorManager {
         if (bundleResult.status === "unhandled_simulation_failure") {
             const { rejectedUserOps, reason } = bundleResult
             this.failedToReplaceTransaction({
+                entryPoint,
                 oldTxHash,
                 reason,
                 rejectedUserOps
@@ -811,6 +845,7 @@ export class ExecutorManager {
 
         if (bundleResult.status === "all_ops_failed_simulation") {
             this.failedToReplaceTransaction({
+                entryPoint,
                 oldTxHash,
                 reason: "all ops failed simulation",
                 rejectedUserOps: bundleResult.rejectedUserOps
@@ -826,7 +861,8 @@ export class ExecutorManager {
             this.failedToReplaceTransaction({
                 oldTxHash,
                 rejectedUserOps,
-                reason: submissionFailureReason
+                reason: submissionFailureReason,
+                entryPoint
             })
             return
         }
@@ -855,12 +891,15 @@ export class ExecutorManager {
             }
         }
 
-        userOpsReplaced.map((userOp) => {
-            this.mempool.replaceSubmitted(userOp, newTxInfo)
+        userOpsReplaced.map((userOpInfo) => {
+            this.mempool.replaceSubmitted({
+                userOpInfo,
+                transactionInfo: newTxInfo
+            })
         })
 
         // Drop all userOperations that were rejected during simulation.
-        this.dropUserOps(rejectedUserOps)
+        this.dropUserOps(entryPoint, rejectedUserOps)
 
         this.logger.info(
             {
@@ -880,7 +919,7 @@ export class ExecutorManager {
     ) {
         userOpInfos.map((userOpInfo) => {
             const { userOpHash } = userOpInfo
-            this.mempool.markSubmitted(userOpHash, transactionInfo)
+            this.mempool.markSubmitted({ userOpHash, transactionInfo })
             this.startWatchingBlocks(this.handleBlock.bind(this))
             this.metrics.userOperationsSubmitted
                 .labels({ status: "success" })
@@ -902,7 +941,7 @@ export class ExecutorManager {
                 },
                 "resubmitting user operation"
             )
-            this.mempool.removeProcessing(userOpHash)
+            this.mempool.removeProcessing({ entryPoint, userOpHash })
             this.mempool.add(userOp, entryPoint)
             this.metrics.userOperationsResubmitted.inc()
         })
@@ -911,20 +950,22 @@ export class ExecutorManager {
     failedToReplaceTransaction({
         oldTxHash,
         rejectedUserOps,
-        reason
+        reason,
+        entryPoint
     }: {
         oldTxHash: Hex
         rejectedUserOps: RejectedUserOp[]
         reason: string
+        entryPoint: Address
     }) {
         this.logger.warn({ oldTxHash, reason }, "failed to replace transaction")
-        this.dropUserOps(rejectedUserOps)
+        this.dropUserOps(entryPoint, rejectedUserOps)
     }
 
-    removeSubmitted(userOps: UserOpInfo[]) {
+    removeSubmitted(entryPoint: Address, userOps: UserOpInfo[]) {
         userOps.map((userOpInfo) => {
             const { userOpHash } = userOpInfo
-            this.mempool.removeSubmitted(userOpHash)
+            this.mempool.removeSubmitted({ entryPoint, userOpHash })
         })
     }
 
@@ -948,7 +989,7 @@ export class ExecutorManager {
                 (Date.now() - firstSubmitted) / 1000
             )
 
-            this.mempool.removeSubmitted(userOpHash)
+            this.mempool.removeSubmitted({ entryPoint, userOpHash })
             this.reputationManager.updateUserOperationIncludedStatus(
                 userOp,
                 entryPoint,
@@ -985,11 +1026,11 @@ export class ExecutorManager {
         })
     }
 
-    dropUserOps(rejectedUserOps: RejectedUserOp[]) {
+    dropUserOps(entryPoint: Address, rejectedUserOps: RejectedUserOp[]) {
         rejectedUserOps.map((rejectedUserOp) => {
             const { userOp, reason, userOpHash } = rejectedUserOp
-            this.mempool.removeProcessing(userOpHash)
-            this.mempool.removeSubmitted(userOpHash)
+            this.mempool.removeProcessing({ entryPoint, userOpHash })
+            this.mempool.removeSubmitted({ entryPoint, userOpHash })
             this.eventManager.emitDropped(
                 userOpHash,
                 reason,
