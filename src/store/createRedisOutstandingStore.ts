@@ -99,7 +99,7 @@ export const createRedisOutstandingQueue = ({
 
     const addToPendingOpsQueue = async (userOpInfo: UserOpInfo) => {
         const { userOp } = userOpInfo
-        const [nonceKey, nonceSeq] = getNonceKeyAndSequence(userOp.nonce)
+        const [, nonceSeq] = getNonceKeyAndSequence(userOp.nonce)
         const pendingOpsKey = redisKeys.pendingOps(userOp)
 
         // Add to the (sender, nonceKey) queue with nonceSeq as score
@@ -235,7 +235,7 @@ export const createRedisOutstandingQueue = ({
         },
 
         add: async ({ userOpInfo }: { userOpInfo: UserOpInfo }) => {
-            const { userOpHash, userOp } = userOpInfo
+            const { userOpHash } = userOpInfo
 
             // Add to (sender, nonceKey) queue
             await addToPendingOpsQueue(userOpInfo)
