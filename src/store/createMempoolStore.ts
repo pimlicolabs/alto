@@ -46,7 +46,8 @@ export const createMempoolStore = ({
         let outstanding: OutstandingStore
         if (config.redisMempoolUrl) {
             outstanding = createRedisOutstandingQueue({
-                config
+                config,
+                entryPoint
             })
             logger.info("Using redis for outstanding mempool")
         } else {

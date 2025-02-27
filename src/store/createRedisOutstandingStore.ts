@@ -1,6 +1,7 @@
 import { getNonceKeyAndSequence } from "../utils/userop"
 import { AltoConfig } from "../createConfig"
 import {
+    Address,
     HexData32,
     UserOperation,
     UserOpInfo,
@@ -37,14 +38,14 @@ const deserializeUserOpInfo = (data: string): UserOpInfo => {
     }
 }
 
-const createRedisKeys = (chainId: number) => {
+const createRedisKeys = (chainId: number, entryPoint: Address) => {
     return {
         // Used to keep track of ops ready for bundling
         // - Sorted by gasPrice
         // - Only includes lowest nonce for every (sender, nonceKey) pair
         // - Stores (sender, nonceKey) redis key
         readyOpsQueue: () => {
-            return `${chainId}:outstanding:pending-queue`
+            return `${chainId}:outstanding:pending-queue:${entryPoint}`
         },
 
         // Used to keep track of pending ops by (sender, nonceKey) pair
@@ -54,26 +55,28 @@ const createRedisKeys = (chainId: number) => {
             const sender = userOp.sender
             const [nonceKey] = getNonceKeyAndSequence(userOp.nonce)
             const fingerPrint = `${sender}-${toHex(nonceKey)}`
-            return `${chainId}:outstanding:pending-ops:${fingerPrint}`
+            return `${chainId}:outstanding:pending-ops:${entryPoint}:${fingerPrint}`
         },
 
         // Used to keep track of active (sender, nonceKey) pair queue slots
         // - Used for easier cleanup + finding how many ops are pending (+dumping the entire outstanding store)
         pendingsOpsIndexList: () => {
-            return `${chainId}:outstanding:slots`
+            return `${chainId}:outstanding:slots:${entryPoint}`
         },
 
         // Secondary index to map userOpHash to pendingOpsKey (used for easy lookup when calling outstanding.remove())
         userOpHashLookup: () => {
-            return `${chainId}:outstanding:user-op-hash-index`
+            return `${chainId}:outstanding:user-op-hash-index:${entryPoint}`
         }
     }
 }
 
 export const createRedisOutstandingQueue = ({
-    config
+    config,
+    entryPoint
 }: {
     config: AltoConfig
+    entryPoint: Address
 }): OutstandingStore => {
     const chainId = config.chainId
 
@@ -83,7 +86,7 @@ export const createRedisOutstandingQueue = ({
     }
 
     const redisClient = new Redis(redisMempoolUrl)
-    const redisKeys = createRedisKeys(chainId)
+    const redisKeys = createRedisKeys(chainId, entryPoint)
 
     // Adds userOp to queue and maintains sorting by gas price
     const addToReadyOpsQueue = async (userOpInfo: UserOpInfo) => {
