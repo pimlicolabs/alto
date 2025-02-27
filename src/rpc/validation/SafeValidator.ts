@@ -2,7 +2,6 @@ import type { SenderManager } from "@alto/executor"
 import type { GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceValidator,
-    StateOverrides,
     UserOperationV06,
     UserOperationV07,
     ValidationResult,
