@@ -76,57 +76,50 @@ export const createMempoolStore = ({
     return {
         addOutstanding: async (userOpInfo: UserOpInfo) => {
             logAddOperation(userOpInfo.userOpHash, "outstanding")
-            outstanding.add(userOpInfo)
-            return Promise.resolve()
+            await outstanding.add(userOpInfo)
         },
         addProcessing: async (userOpInfo: UserOpInfo) => {
             logAddOperation(userOpInfo.userOpHash, "processing")
-            processing.add(userOpInfo)
-            return Promise.resolve()
+            await processing.add(userOpInfo)
         },
         addSubmitted: async (userOpInfo: SubmittedUserOp) => {
             logAddOperation(userOpInfo.userOpHash, "submitted")
-            submitted.add(userOpInfo)
-            return Promise.resolve()
+            await submitted.add(userOpInfo)
         },
         removeOutstanding: async (userOpHash: HexData32) => {
             const removed = await outstanding.remove(userOpHash)
             logRemoveOperation(userOpHash, "outstanding", removed)
-            return Promise.resolve()
         },
         removeProcessing: async (userOpHash: HexData32) => {
             const removed = await processing.remove(userOpHash)
             logRemoveOperation(userOpHash, "processing", removed)
-            return Promise.resolve()
         },
         removeSubmitted: async (userOpHash: HexData32) => {
             const removed = await submitted.remove(userOpHash)
             logRemoveOperation(userOpHash, "submitted", removed)
-            return Promise.resolve()
         },
         dumpOutstanding: async () => {
             await logDumpOperation("outstanding", outstanding)
-            return outstanding.dump()
+            return await outstanding.dump()
         },
         dumpProcessing: async () => {
             await logDumpOperation("processing", processing)
-            return processing.dump()
+            return await processing.dump()
         },
         dumpSubmitted: async () => {
             await logDumpOperation("submitted", submitted)
-            return submitted.dump()
+            return await submitted.dump()
         },
         clear: async (from: StoreType) => {
             if (from === "outstanding") {
-                outstanding.clear()
+                await outstanding.clear()
             } else if (from === "processing") {
-                processing.clear()
+                await processing.clear()
             } else if (from === "submitted") {
-                submitted.clear()
+                await submitted.clear()
             }
 
             logger.debug({ store: from }, "cleared mempool")
-            return Promise.resolve()
         }
     }
 }
