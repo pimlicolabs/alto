@@ -386,6 +386,16 @@ export const setupServer = async ({
         "uncaughtException"
     ]
     signals.forEach((signal) => {
-        process.on(signal, async () => await gracefulShutdown(signal))
+        process.on(signal, async () => {
+            try {
+                await gracefulShutdown(signal)
+            } catch (error) {
+                rootLogger.error(
+                    { error: error instanceof Error ? error.stack : error },
+                    `Error during ${signal} shutdown`
+                )
+                process.exit(1)
+            }
+        })
     })
 }
