@@ -13,6 +13,7 @@ import { AltoConfig } from "../createConfig"
 import { createMemoryOutstandingQueue } from "./createMemoryOutstandingStore"
 import { createStore } from "./createStore"
 import { Address } from "viem"
+import { createRedisOutstandingQueue } from "./createRedisOutstandingStore"
 
 export const createMempoolStore = ({
     config,
@@ -41,9 +42,19 @@ export const createMempoolStore = ({
         const submitted = createStore<SubmittedUserOp>({
             config
         })
-        const outstanding = createMemoryOutstandingQueue({
-            config
-        })
+
+        let outstanding: OutstandingStore
+        if (config.redisMempoolUrl) {
+            outstanding = createRedisOutstandingQueue({
+                config
+            })
+            logger.info("Using redis for outstanding mempool")
+        } else {
+            outstanding = createMemoryOutstandingQueue({
+                config
+            })
+            logger.info("Using memory for outstanding mempool")
+        }
 
         storeHandlers.set(entryPoint, {
             processing,
