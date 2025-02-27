@@ -14,9 +14,7 @@ export const experimentalEstimateUserOperationGas7702Handler =
             const entryPoint = params[1]
             const stateOverrides = params[2]
 
-            await rpcHandler.validateEip7702Auth({
-                userOperation
-            })
+            await rpcHandler.validateEip7702Auth(userOperation)
 
             return await rpcHandler.estimateGas({
                 apiVersion,

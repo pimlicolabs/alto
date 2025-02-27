@@ -13,10 +13,7 @@ export const experimentalSendUserOperation7702Handler = createMethodHandler({
         const [userOperation, entryPoint] = params
 
         rpcHandler.ensureEntryPointIsSupported(entryPoint)
-        await rpcHandler.validateEip7702Auth({
-            userOperation,
-            validateSender: true
-        })
+        await rpcHandler.validateEip7702Auth(userOperation)
 
         await rpcHandler.addToMempoolIfValid(
             userOperation,
