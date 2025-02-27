@@ -1,11 +1,13 @@
-import type { StateOverrides } from "@alto/types"
+import type { StateOverrides, UserOperation } from "@alto/types"
 import {
     BaseError,
     type RawContractError,
     getAddress,
-    type PublicClient
+    type PublicClient,
+    Address
 } from "viem"
 import {
+    SignedAuthorization,
     type SignedAuthorizationList,
     recoverAuthorizationAddress
 } from "viem/experimental"
@@ -34,24 +36,43 @@ export function getAAError(errorMsg: string) {
 }
 
 // authorizationList is not currently supported in viem's sendTransaction, this is a temporary solution
-export async function addAuthorizationStateOverrides({
+async function getAuthorizationStateOverride({
     publicClient,
-    authorizationList,
-    stateOverrides
+    authorization
 }: {
     publicClient: PublicClient
-    authorizationList: SignedAuthorizationList
+    authorization: SignedAuthorization
+}) {
+    const code = await publicClient.getCode({
+        address: authorization.contractAddress
+    })
+    return { code }
+}
+
+export async function getAuthorizationStateOverrides({
+    userOperations,
+    publicClient,
+    stateOverrides
+}: {
+    userOperations: UserOperation[]
+    publicClient: PublicClient
     stateOverrides?: StateOverrides
 }) {
-    if (!stateOverrides) stateOverrides = {}
+    const overrides: StateOverrides = { ...(stateOverrides ?? {}) }
 
-    for (const authorization of authorizationList) {
-        const sender = await recoverAuthorizationAddress({ authorization })
-        const code = await publicClient.getCode({
-            address: authorization.contractAddress
+    await Promise.all([
+        ...userOperations.map(async (op) => {
+            if (op.eip7702Auth) {
+                overrides[op.sender] = {
+                    ...(overrides[op.sender] || {}),
+                    ...(await getAuthorizationStateOverride({
+                        authorization: op.eip7702Auth,
+                        publicClient
+                    }))
+                }
+            }
         })
-        stateOverrides[sender] = { ...stateOverrides?.[sender], code }
-    }
+    ])
 
-    return stateOverrides
+    return overrides
 }

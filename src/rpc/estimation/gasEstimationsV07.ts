@@ -13,7 +13,7 @@ import {
     binarySearchCallResultSchema
 } from "@alto/types"
 import {
-    addAuthorizationStateOverrides,
+    getAuthorizationStateOverrides,
     getUserOperationHash,
     toPackedUserOperation
 } from "@alto/utils"
@@ -36,7 +36,6 @@ import {
     simulationValidationResultStruct
 } from "./types"
 import type { AltoConfig } from "../../createConfig"
-import type { SignedAuthorizationList } from "viem/experimental"
 
 export class GasEstimatorV07 {
     private config: AltoConfig
@@ -65,15 +64,16 @@ export class GasEstimatorV07 {
             args: [packedUserOperations]
         })
 
-        let authorizationList: SignedAuthorizationList = []
-        if (userOperation.eip7702Auth) {
-            authorizationList = [userOperation.eip7702Auth]
-        }
+        const stateOverrides: StateOverrides =
+            await getAuthorizationStateOverrides({
+                userOperations: [...queuedUserOperations, userOperation],
+                publicClient: this.config.publicClient
+            })
 
         const errorResult = await this.callPimlicoEntryPointSimulations({
             entryPoint,
             entryPointSimulationsCallData: [simulateValidationLast],
-            authorizationList
+            stateOverrides
         })
 
         return {
@@ -205,7 +205,7 @@ export class GasEstimatorV07 {
         targetCallData,
         functionName,
         queuedOps,
-        stateOverrides
+        stateOverrides = {}
     }: {
         entryPoint: Address
         optimalGas: bigint
@@ -240,16 +240,16 @@ export class GasEstimatorV07 {
                 functionName
             })
 
-            let authorizationList: SignedAuthorizationList = []
-            if (targetOp.eip7702Auth) {
-                authorizationList = [targetOp.eip7702Auth]
-            }
+            stateOverrides = await getAuthorizationStateOverrides({
+                userOperations: [...queuedOps, targetOp],
+                publicClient: this.config.publicClient,
+                stateOverrides
+            })
 
             let cause = await this.callPimlicoEntryPointSimulations({
                 entryPoint,
                 entryPointSimulationsCallData: [binarySearchCallGasLimit],
-                stateOverrides,
-                authorizationList
+                stateOverrides
             })
 
             cause = cause.map((data: Hex) => {
@@ -299,7 +299,7 @@ export class GasEstimatorV07 {
         entryPoint,
         userOperation,
         queuedUserOperations,
-        stateOverrides = undefined
+        stateOverrides = {}
     }: {
         entryPoint: Address
         userOperation: UserOperationV07
@@ -349,10 +349,11 @@ export class GasEstimatorV07 {
             functionName: "binarySearchCallGasLimit"
         })
 
-        let authorizationList: SignedAuthorizationList = []
-        if (userOperation.eip7702Auth) {
-            authorizationList = [userOperation.eip7702Auth]
-        }
+        stateOverrides = await getAuthorizationStateOverrides({
+            userOperations: [...queuedUserOperations, userOperation],
+            publicClient: this.config.publicClient,
+            stateOverrides
+        })
 
         let cause: readonly [Hex, Hex, Hex | null, Hex]
 
@@ -367,16 +368,14 @@ export class GasEstimatorV07 {
                 this.callPimlicoEntryPointSimulations({
                     entryPoint,
                     entryPointSimulationsCallData: [simulateHandleOpLast],
-                    stateOverrides,
-                    authorizationList
+                    stateOverrides
                 }),
                 this.callPimlicoEntryPointSimulations({
                     entryPoint,
                     entryPointSimulationsCallData: [
                         binarySearchVerificationGasLimit
                     ],
-                    stateOverrides,
-                    authorizationList
+                    stateOverrides
                 }),
                 binarySearchPaymasterVerificationGasLimit
                     ? this.callPimlicoEntryPointSimulations({
@@ -384,15 +383,13 @@ export class GasEstimatorV07 {
                           entryPointSimulationsCallData: [
                               binarySearchPaymasterVerificationGasLimit
                           ],
-                          stateOverrides,
-                          authorizationList
+                          stateOverrides
                       })
                     : null,
                 this.callPimlicoEntryPointSimulations({
                     entryPoint,
                     entryPointSimulationsCallData: [binarySearchCallGasLimit],
-                    stateOverrides,
-                    authorizationList
+                    stateOverrides
                 })
             ])
 
@@ -415,8 +412,7 @@ export class GasEstimatorV07 {
                               binarySearchVerificationGasLimit,
                               binarySearchPaymasterVerificationGasLimit
                           ],
-                          stateOverrides,
-                          authorizationList
+                          stateOverrides
                       })
                     : await this.callPimlicoEntryPointSimulations({
                           entryPoint,
@@ -424,14 +420,12 @@ export class GasEstimatorV07 {
                               simulateHandleOpLast,
                               binarySearchVerificationGasLimit
                           ],
-                          stateOverrides,
-                          authorizationList
+                          stateOverrides
                       }),
                 await this.callPimlicoEntryPointSimulations({
                     entryPoint,
                     entryPointSimulationsCallData: [binarySearchCallGasLimit],
-                    stateOverrides,
-                    authorizationList
+                    stateOverrides
                 })
             ])
 
@@ -631,13 +625,11 @@ export class GasEstimatorV07 {
     async callPimlicoEntryPointSimulations({
         entryPoint,
         entryPointSimulationsCallData,
-        stateOverrides,
-        authorizationList
+        stateOverrides
     }: {
         entryPoint: Address
         entryPointSimulationsCallData: Hex[]
         stateOverrides?: StateOverrides
-        authorizationList?: SignedAuthorizationList
     }) {
         const publicClient = this.config.publicClient
         const blockTagSupport = this.config.blockTagSupport
@@ -662,14 +654,6 @@ export class GasEstimatorV07 {
             functionName: "simulateEntryPoint",
             args: [entryPoint, entryPointSimulationsCallData]
         })
-
-        if (authorizationList) {
-            stateOverrides = await addAuthorizationStateOverrides({
-                stateOverrides,
-                authorizationList,
-                publicClient
-            })
-        }
 
         // Remove state override if not supported by network.
         if (!this.config.balanceOverride) {

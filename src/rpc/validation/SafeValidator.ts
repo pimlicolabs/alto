@@ -28,7 +28,7 @@ import {
 } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import {
-    addAuthorizationStateOverrides,
+    getAuthorizationStateOverrides,
     calcVerificationGasAndCallGasLimit,
     getAddressFromInitCodeOrPaymasterAndData,
     isVersion06,
@@ -346,26 +346,10 @@ export class SafeValidator
         userOperation: UserOperationV06,
         entryPoint: Address
     ): Promise<[ValidationResultV06, BundlerTracerResult]> {
-        let stateOverrides: StateOverrides | undefined
-
-        if (userOperation.eip7702Auth) {
-            stateOverrides = await addAuthorizationStateOverrides({
-                stateOverrides: undefined,
-                authorizationList: [
-                    {
-                        contractAddress:
-                            userOperation.eip7702Auth?.contractAddress,
-                        chainId: this.config.publicClient.chain.id,
-                        nonce: Number(userOperation.nonce),
-                        r: userOperation.eip7702Auth.r,
-                        s: userOperation.eip7702Auth.s,
-                        v: userOperation.eip7702Auth.v,
-                        yParity: userOperation.eip7702Auth.yParity
-                    }
-                ],
-                publicClient: this.config.publicClient
-            })
-        }
+        const stateOverrides = await getAuthorizationStateOverrides({
+            userOperations: [userOperation],
+            publicClient: this.config.publicClient
+        })
 
         const tracerResult = await debug_traceCall(
             this.config.publicClient,
@@ -534,26 +518,10 @@ export class SafeValidator
         const entryPointSimulationsAddress =
             this.config.entrypointSimulationContract
 
-        let stateOverrides: StateOverrides | undefined
-
-        if (userOperation.eip7702Auth) {
-            stateOverrides = await addAuthorizationStateOverrides({
-                stateOverrides: undefined,
-                authorizationList: [
-                    {
-                        contractAddress:
-                            userOperation.eip7702Auth?.contractAddress,
-                        chainId: this.config.publicClient.chain.id,
-                        nonce: Number(userOperation.nonce),
-                        r: userOperation.eip7702Auth.r,
-                        s: userOperation.eip7702Auth.s,
-                        v: userOperation.eip7702Auth.v,
-                        yParity: userOperation.eip7702Auth.yParity
-                    }
-                ],
-                publicClient: this.config.publicClient
-            })
-        }
+        const stateOverrides = await getAuthorizationStateOverrides({
+            userOperations: [userOperation],
+            publicClient: this.config.publicClient
+        })
 
         const tracerResult = await debug_traceCall(
             this.config.publicClient,
