@@ -340,10 +340,13 @@ export class RpcHandler {
         }
 
         // Check that auth is valid.
-        const sender = await recoverAuthorizationAddress({
-            authorization: userOperation.eip7702Auth
-        })
-        if (validateSender && sender !== userOperation.sender) {
+        const sender = validateSender
+            ? await recoverAuthorizationAddress({
+                  authorization: userOperation.eip7702Auth
+              })
+            : userOperation.sender
+
+        if (sender !== userOperation.sender) {
             throw new RpcError(
                 "Invalid EIP-7702 authorization: The recovered signer address does not match the userOperation sender address",
                 ValidationErrors.InvalidFields
