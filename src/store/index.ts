@@ -9,60 +9,61 @@ import type {
 export type StoreType = "outstanding" | "processing" | "submitted"
 export type UserOpType = UserOpInfo | SubmittedUserOp
 
+type EntryPointUserOpPair = {
+    entryPoint: Address
+    userOp: UserOpInfo
+}
+
+type EntryPointSubmittedUserOpPair = {
+    entryPoint: Address
+    userOp: SubmittedUserOp
+}
+
+type EntryPointUserOpHashPair = {
+    entryPoint: Address
+    userOp: UserOpType
+}
+
 // biome-ignore lint/complexity/noBannedTypes: <explanation>
 export type MempoolStore = {
     // Methods used for bundling
-    peekOutstanding: (entryPoint: Address) => Promise<UserOpInfo | undefined>
-    popOutstanding: (entryPoint: Address) => Promise<UserOpInfo | undefined>
+    peekOutstanding: (args: { entryPoint: Address }) => Promise<
+        UserOpInfo | undefined
+    >
+    popOutstanding: (args: { entryPoint: Address }) => Promise<
+        UserOpInfo | undefined
+    >
 
     // State handling
-    addOutstanding: (
-        entryPoint: Address,
-        userOpInfo: UserOpInfo
-    ) => Promise<void>
-    addProcessing: (
-        entryPoint: Address,
-        userOpInfo: UserOpInfo
-    ) => Promise<void>
-    addSubmitted: (
-        entryPoint: Address,
-        submittedUserOp: SubmittedUserOp
-    ) => Promise<void>
+    addOutstanding: (args: EntryPointUserOpPair) => Promise<void>
+    addProcessing: (args: EntryPointUserOpPair) => Promise<void>
+    addSubmitted: (args: EntryPointSubmittedUserOpPair) => Promise<void>
 
-    removeOutstanding: (
-        entryPoint: Address,
-        userOpHash: HexData32
-    ) => Promise<void>
-    removeProcessing: (
-        entryPoint: Address,
-        userOpHash: HexData32
-    ) => Promise<void>
-    removeSubmitted: (
-        entryPoint: Address,
-        userOpHash: HexData32
-    ) => Promise<void>
+    removeOutstanding: (args: EntryPointUserOpHashPair) => Promise<void>
+    removeProcessing: (args: EntryPointUserOpHashPair) => Promise<void>
+    removeSubmitted: (args: EntryPointUserOpHashPair) => Promise<void>
 
-    dumpOutstanding: (entryPoint: Address) => Promise<UserOpInfo[]>
-    dumpProcessing: (entryPoint: Address) => Promise<UserOpInfo[]>
-    dumpSubmitted: (entryPoint: Address) => Promise<SubmittedUserOp[]>
+    dumpOutstanding: (arsg: { entryPoint: Address }) => Promise<UserOpInfo[]>
+    dumpProcessing: (args: { entryPoint: Address }) => Promise<UserOpInfo[]>
+    dumpSubmitted: (args: { entryPoint: Address }) => Promise<SubmittedUserOp[]>
 
     // Misc
     clear: (entryPoint: Address, from: StoreType) => Promise<void>
 }
 
 export type BaseStore<T extends UserOpType> = {
-    remove: (userOpHash: HexData32) => Promise<boolean>
+    remove: (args: { userOpHash: HexData32 }) => Promise<boolean>
     dump: () => Promise<T[]>
     length: () => Promise<number>
     clear: () => Promise<void>
 }
 
 export type Store<T extends UserOpType> = BaseStore<T> & {
-    add: (userOpInfo: T) => Promise<void>
+    add: (args: { userOpInfo: T }) => Promise<void>
 }
 
 export type OutstandingStore = BaseStore<UserOpInfo> & {
-    add: (userOpInfo: UserOpInfo) => Promise<void>
+    add: (args: { userOpInfo: UserOpInfo }) => Promise<void>
     peek: () => Promise<UserOpInfo | undefined>
     pop: () => Promise<UserOpInfo | undefined>
 }
