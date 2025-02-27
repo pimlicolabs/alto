@@ -328,18 +328,24 @@ export class RpcHandler {
         return "added"
     }
 
-    async validateEip7702Auth(userOperation: UserOperation) {
-        if (!userOperation.eip7702auth) {
+    async validateEip7702Auth({
+        userOperation,
+        validateSender = false
+    }: { userOperation: UserOperation; validateSender?: boolean }) {
+        if (!userOperation.eip7702Auth) {
             throw new RpcError(
-                "UserOperation is missing eip7702auth",
+                "UserOperation is missing eip7702Auth",
                 ValidationErrors.InvalidFields
             )
         }
 
         // Check that auth is valid.
-        const sender = await recoverAuthorizationAddress({
-            authorization: userOperation.eip7702auth
-        })
+        const sender = validateSender
+            ? await recoverAuthorizationAddress({
+                  authorization: userOperation.eip7702Auth
+              })
+            : userOperation.sender
+
         if (sender !== userOperation.sender) {
             throw new RpcError(
                 "Invalid EIP-7702 authorization: The recovered signer address does not match the userOperation sender address",
