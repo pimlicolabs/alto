@@ -1,7 +1,6 @@
 import { getNonceKeyAndSequence } from "../utils/userop"
 import { AltoConfig } from "../createConfig"
-import { UserOpInfo } from "../types/mempool"
-import { HexData32, UserOperation } from "@alto/types"
+import { HexData32, UserOpInfo, UserOperation } from "@alto/types"
 import { OutstandingStore } from "."
 
 const senderNonceSlot = (userOp: UserOperation) => {
