@@ -132,7 +132,7 @@ const partialUserOperationV06Schema = z
         maxFeePerGas: hexNumberSchema.default(1n),
         paymasterAndData: hexDataSchema,
         signature: hexDataSchema,
-        eip7702Auth: signedAuthorizationSchema.optional()
+        eip7702Auth: signedAuthorizationSchema.optional().nullable()
     })
     .strict()
     .transform((val) => {
