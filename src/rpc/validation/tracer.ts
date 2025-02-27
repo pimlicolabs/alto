@@ -1,5 +1,4 @@
 // biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
-import { StateOverrides } from "@alto/types"
 import * as sentry from "@sentry/node"
 import {
     type Account,
@@ -26,7 +25,7 @@ type LogTracerFunc = () => LogTracer
 export async function debug_traceCall(
     client: PublicClient | WalletClient,
     tx: TransactionRequest,
-    options: TraceOptions & { stateOverrides?: StateOverrides }
+    options: TraceOptions
     // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
 ): Promise<any> {
     const traceOptions = tracer2string(options)
