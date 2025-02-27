@@ -5,13 +5,14 @@ import { MempoolStore, OutstandingStore, Store, StoreType, UserOpType } from "."
 import { AltoConfig } from "../createConfig"
 import { createMemoryOutstandingQueue } from "./createMemoryOutstandingStore"
 import { createStore } from "./createStore"
+import { createRedisOutstandingQueue } from "./createRedisOutstandingStore"
 
 export const createMempoolStore = ({
     config,
     metrics
 }: { config: AltoConfig; metrics: Metrics }): MempoolStore => {
     let logger: Logger = config.getLogger(
-        { module: "memory-store" },
+        { module: "mempool-store" },
         {
             level: config.logLevel
         }
@@ -19,7 +20,7 @@ export const createMempoolStore = ({
 
     let outstanding: OutstandingStore
     if (config.redisMempoolUrl) {
-        outstanding = createMemoryOutstandingQueue({ config })
+        outstanding = createRedisOutstandingQueue({ config })
     } else {
         outstanding = createMemoryOutstandingQueue({ config })
     }

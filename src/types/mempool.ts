@@ -1,14 +1,12 @@
-import type { Address, BaseError, Hex } from "viem"
+import type { Address, BaseError } from "viem"
 import type { Account } from "viem/accounts"
-import type { HexData32, UserOperation } from "."
-
-export interface ReferencedCodeHashes {
-    // addresses accessed during this user operation
-    addresses: string[]
-
-    // keccak over the code of all referenced addresses
-    hash: string
-}
+import {
+    hexData32Schema,
+    type HexData32,
+    addressSchema,
+    userOperationSchema
+} from "."
+import { z } from "zod"
 
 export type TransactionInfo = {
     transactionHash: HexData32
@@ -38,18 +36,6 @@ export enum SubmissionStatus {
     Submitted = "submitted",
     Included = "included"
 }
-
-export type UserOpDetails = {
-    userOpHash: Hex
-    entryPoint: Address
-    // timestamp when the bundling process begins (when it leaves outstanding mempool)
-    addedToMempool: number
-    referencedContracts?: ReferencedCodeHashes
-}
-
-export type UserOpInfo = {
-    userOp: UserOperation
-} & UserOpDetails
 
 export type SubmittedUserOp = UserOpInfo & {
     transactionInfo: TransactionInfo
@@ -91,3 +77,26 @@ export type BundleResult =
           userOpsToBundle: UserOpInfo[]
           rejectedUserOps: RejectedUserOp[]
       }
+
+// Types used for internal mempool.
+export const referencedCodeHashesSchema = z.object({
+    addresses: z.array(z.string()),
+    hash: z.string()
+})
+
+export const userOpDetailsSchema = z.object({
+    userOpHash: hexData32Schema,
+    entryPoint: addressSchema,
+    // timestamp when the bundling process begins (when it leaves outstanding mempool)
+    addedToMempool: z.number(),
+    referencedContracts: referencedCodeHashesSchema.optional()
+})
+
+export const userOpInfoSchema = userOpDetailsSchema.extend({
+    userOp: userOperationSchema
+})
+
+// Export types derived from schemas
+export type ReferencedCodeHashes = z.infer<typeof referencedCodeHashesSchema>
+export type UserOpDetails = z.infer<typeof userOpDetailsSchema>
+export type UserOpInfo = z.infer<typeof userOpInfoSchema>

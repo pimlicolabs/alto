@@ -1,30 +1,39 @@
 import { getNonceKeyAndSequence } from "../utils/userop"
 import { AltoConfig } from "../createConfig"
-import { UserOpInfo } from "../types/mempool"
+import { UserOpInfo, userOpInfoSchema } from "../types/mempool"
 import { HexData32, UserOperation } from "@alto/types"
 import { OutstandingStore } from "."
-import Redis from "ioredis"
+import { Redis } from "ioredis"
 
-// Redis key prefixes
-const PRIORITY_QUEUE_KEY = "alto:outstanding:priority_queue"
-const PENDING_OPS_PREFIX = "alto:outstanding:pending:"
-const USEROPS_PREFIX = "alto:outstanding:userops:"
+// Structure
+// - zset priority queue to hold outstanding userOps (scored by gasPrice and stores only sender:nonceKeyKey index)
+// - redis list to store pending userOps by sender
 
-// Helper to create a unique key for sender-nonce combinations
-const senderNonceSlot = (userOp: UserOperation) => {
+// Used to keep track of ops ready for bundling (sorted by gasPrice, and includes lowest nonce for every sender:nonceKeyKey pair)
+const prioriyQueueKey = (chainId: number) =>
+    `${chainId}:outstanding:priority-queue`
+
+// Used to keep track of pending ops by sender:nonceKeyKey pair
+const senderNonceKeyIndex = (userOp: UserOperation, chainId: number) => {
     const sender = userOp.sender
     const [nonceKey] = getNonceKeyAndSequence(userOp.nonce)
-    return `${sender}-${nonceKey}`
+    const fingerPrint = `${sender}-${nonceKey}`
+    return `${chainId}:outstanding:pending-ops:${fingerPrint}`
 }
 
-// Helper to serialize UserOpInfo for Redis storage
+// Used to keep track of active sender:nonceKey pair slots (for easier cleanup + finding how many ops are pending)
+const senderNonceKeySlotsKey = (chainId: number) =>
+    `${chainId}:outstanding:slots`
+
 const serializeUserOpInfo = (userOpInfo: UserOpInfo): string => {
-    return JSON.stringify(userOpInfo)
+    return JSON.stringify(userOpInfo, (_, value) =>
+        typeof value === "bigint" ? value.toString() : value
+    )
 }
 
-// Helper to deserialize UserOpInfo from Redis storage
-const deserializeUserOpInfo = (serialized: string): UserOpInfo => {
-    return JSON.parse(serialized)
+const deserializeUserOpInfo = (data: string): UserOpInfo => {
+    const parsed = JSON.parse(data)
+    return userOpInfoSchema.parse(parsed)
 }
 
 export const createRedisOutstandingQueue = ({
@@ -32,10 +41,7 @@ export const createRedisOutstandingQueue = ({
 }: {
     config: AltoConfig
 }): OutstandingStore => {
-    if (!config.redisMempoolUrl) {
-        throw new Error("Redis mempool URL not configured")
-    }
-
+    const chainId = config.chainId
     const logger = config.getLogger(
         { module: "redis-outstanding-queue" },
         {
@@ -43,286 +49,225 @@ export const createRedisOutstandingQueue = ({
         }
     )
 
-    // Create Redis client if not provided
-    const redis = new Redis(config.redisMempoolUrl)
+    const { redisMempoolUrl } = config
+    if (!redisMempoolUrl) {
+        throw new Error("missing required redisMempoolUrl")
+    }
 
-    // Add a UserOp to the priority queue
-    const addToPriorityQueue = async (
-        userOpInfo: UserOpInfo
-    ): Promise<void> => {
-        const serialized = serializeUserOpInfo(userOpInfo)
+    const redisClient = new Redis(redisMempoolUrl)
 
-        // Store the UserOpInfo by its hash
-        await redis.set(`${USEROPS_PREFIX}${userOpInfo.userOpHash}`, serialized)
+    // Adds userOp to queue and maintains sorting by gas price
+    const addToPriorityQueue = async (userOpInfo: UserOpInfo) => {
+        const { userOp } = userOpInfo
+        const senderNonceKey = senderNonceKeyIndex(userOp, chainId)
 
-        // Add to sorted set with maxFeePerGas as score for priority ordering
-        await redis.zadd(
-            PRIORITY_QUEUE_KEY,
-            Number(userOpInfo.userOp.maxFeePerGas),
-            userOpInfo.userOpHash
+        await redisClient.zadd(
+            prioriyQueueKey(chainId),
+            Number(userOpInfo.userOp.maxFeePerGas), // Score
+            senderNonceKey
         )
     }
 
-    // Add a UserOp to the store
-    const add = async (userOpInfo: UserOpInfo): Promise<void> => {
-        const { userOp, userOpHash } = userOpInfo
-        const pendingOpsSlot = senderNonceSlot(userOp)
-        const pendingOpsKey = `${PENDING_OPS_PREFIX}${pendingOpsSlot}`
+    // Add userOpInfo to sender:nonceKeyKey queue
+    const addToSenderNonceKeyQueue = async (userOpInfo: UserOpInfo) => {
+        const { userOp } = userOpInfo
+        const [, nonceSeq] = getNonceKeyAndSequence(userOp.nonce)
+        const senderNonceKey = senderNonceKeyIndex(userOp, chainId)
 
-        // Store the UserOpInfo
-        await redis.set(
-            `${USEROPS_PREFIX}${userOpHash}`,
+        // Add to the sender:nonceKey sorted set with nonceSeq as score
+        await redisClient.zadd(
+            senderNonceKey,
+            Number(nonceSeq),
             serializeUserOpInfo(userOpInfo)
         )
 
-        // Add to the pending ops list for this sender-nonce
-        await redis.rpush(pendingOpsKey, userOpHash)
-
-        // Get all userOps for this sender-nonce
-        const backlogOpHashes = await redis.lrange(pendingOpsKey, 0, -1)
-
-        // Get all the UserOpInfo objects
-        const backlogOpsPromises = backlogOpHashes.map(async (hash) => {
-            const serialized = await redis.get(`${USEROPS_PREFIX}${hash}`)
-            return serialized ? deserializeUserOpInfo(serialized) : null
-        })
-
-        const backlogOps = (await Promise.all(backlogOpsPromises)).filter(
-            Boolean
-        ) as UserOpInfo[]
-
-        // Sort by nonce sequence
-        backlogOps.sort((a, b) => {
-            const [, aNonceSeq] = getNonceKeyAndSequence(a.userOp.nonce)
-            const [, bNonceSeq] = getNonceKeyAndSequence(b.userOp.nonce)
-            return Number(aNonceSeq) - Number(bNonceSeq)
-        })
-
-        // Reorder the list in Redis to match our sorted order
-        if (backlogOps.length > 0) {
-            await redis.del(pendingOpsKey)
-            await redis.rpush(
-                pendingOpsKey,
-                ...backlogOps.map((op) => op.userOpHash)
-            )
-        }
-
-        // Check if this is the lowest nonce (first in queue)
-        const lowestUserOpHash = backlogOps[0]?.userOpHash
-
-        if (lowestUserOpHash === userOpHash) {
-            // Remove any existing userOp with same sender and nonceKey from priority queue
-            const allPriorityQueueHashes = await redis.zrange(
-                PRIORITY_QUEUE_KEY,
-                0,
-                -1
-            )
-
-            for (const hash of allPriorityQueueHashes) {
-                const serialized = await redis.get(`${USEROPS_PREFIX}${hash}`)
-                if (!serialized) continue
-
-                const info = deserializeUserOpInfo(serialized)
-                const pendingUserOp = info.userOp
-                const [existingNonceKey] = getNonceKeyAndSequence(
-                    pendingUserOp.nonce
-                )
-                const [newNonceKey] = getNonceKeyAndSequence(userOp.nonce)
-
-                const isSameSender = pendingUserOp.sender === userOp.sender
-                const isSameNonceKey = existingNonceKey === newNonceKey
-
-                if (isSameSender && isSameNonceKey && hash !== userOpHash) {
-                    await redis.zrem(PRIORITY_QUEUE_KEY, hash)
-                }
-            }
-
-            // Add current userOp to priority queue
-            await addToPriorityQueue(userOpInfo)
-        }
+        // Record sender:nonceKey key
+        await redisClient.sadd(senderNonceKeySlotsKey(chainId), senderNonceKey)
     }
 
-    // Pop the highest priority UserOp
-    const pop = async (): Promise<UserOpInfo | undefined> => {
-        // Get the highest priority userOp (lowest score in the sorted set)
-        const userOpHashes = await redis.zrange(PRIORITY_QUEUE_KEY, 0, 0)
+    // Returns sorted pending ops by nonceSeq for a given sender:nonceKey pair
+    const getSortedPendingOps = async (
+        userOpInfo: UserOpInfo
+    ): Promise<UserOpInfo[]> => {
+        const { userOp } = userOpInfo
 
-        if (!userOpHashes.length) {
-            return undefined
-        }
-
-        const userOpHash = userOpHashes[0]
-
-        // Remove from priority queue
-        await redis.zrem(PRIORITY_QUEUE_KEY, userOpHash)
-
-        // Get the UserOpInfo
-        const serialized = await redis.get(`${USEROPS_PREFIX}${userOpHash}`)
-        if (!serialized) {
-            logger.error(
-                `FATAL: UserOp with hash ${userOpHash} not found in Redis`
-            )
-            return undefined
-        }
-
-        const userOpInfo = deserializeUserOpInfo(serialized)
-        const pendingOpsSlot = senderNonceSlot(userOpInfo.userOp)
-        const pendingOpsKey = `${PENDING_OPS_PREFIX}${pendingOpsSlot}`
-
-        // Remove from pending ops
-        await redis.lrem(pendingOpsKey, 1, userOpHash)
-
-        // Get the next pending op for this sender-nonce if it exists
-        const nextOpHash = await redis.lindex(pendingOpsKey, 0)
-
-        if (nextOpHash) {
-            const nextOpSerialized = await redis.get(
-                `${USEROPS_PREFIX}${nextOpHash}`
-            )
-            if (nextOpSerialized) {
-                const nextOpInfo = deserializeUserOpInfo(nextOpSerialized)
-                await addToPriorityQueue(nextOpInfo)
-            }
-        } else {
-            // No more pending ops for this sender-nonce, clean up
-            await redis.del(pendingOpsKey)
-        }
-
-        return userOpInfo
-    }
-
-    // Remove a UserOp by hash
-    const remove = async (userOpHash: HexData32): Promise<boolean> => {
-        // Check if the userOp exists
-        const serialized = await redis.get(`${USEROPS_PREFIX}${userOpHash}`)
-        if (!serialized) {
-            logger.info("tried to remove non-existent user op from mempool")
-            return false
-        }
-
-        const userOpInfo = deserializeUserOpInfo(serialized)
-        const pendingOpsSlot = senderNonceSlot(userOpInfo.userOp)
-        const pendingOpsKey = `${PENDING_OPS_PREFIX}${pendingOpsSlot}`
-
-        // Remove from priority queue
-        await redis.zrem(PRIORITY_QUEUE_KEY, userOpHash)
-
-        // Find position in the pending ops list
-        const pendingOps = await redis.lrange(pendingOpsKey, 0, -1)
-        const backlogIndex = pendingOps.indexOf(userOpHash)
-
-        if (backlogIndex === -1) {
-            logger.error(
-                `FATAL: UserOp with hash ${userOpHash} not found in backlog`
-            )
-            return false
-        }
-
-        // Remove from pending ops
-        await redis.lrem(pendingOpsKey, 1, userOpHash)
-
-        // If this was the first operation and there are more in the backlog,
-        // add the new first operation to the priority queue
-        if (backlogIndex === 0) {
-            const nextOpHash = await redis.lindex(pendingOpsKey, 0)
-            if (nextOpHash) {
-                const nextOpSerialized = await redis.get(
-                    `${USEROPS_PREFIX}${nextOpHash}`
-                )
-                if (nextOpSerialized) {
-                    const nextOpInfo = deserializeUserOpInfo(nextOpSerialized)
-                    await addToPriorityQueue(nextOpInfo)
-                }
-            }
-        }
-
-        // Clean up the stored UserOpInfo
-        await redis.del(`${USEROPS_PREFIX}${userOpHash}`)
-
-        return true
-    }
-
-    // Clear all data
-    const clear = async (): Promise<void> => {
-        // Get all keys with our prefixes
-        const priorityQueueKeys = [PRIORITY_QUEUE_KEY]
-        const pendingOpsKeys = await redis.keys(`${PENDING_OPS_PREFIX}*`)
-        const userOpsKeys = await redis.keys(`${USEROPS_PREFIX}*`)
-
-        // Delete all keys
-        const allKeys = [
-            ...priorityQueueKeys,
-            ...pendingOpsKeys,
-            ...userOpsKeys
-        ]
-        if (allKeys.length > 0) {
-            await redis.del(...allKeys)
-        }
-    }
-
-    // Dump all UserOps
-    const dump = async (): Promise<UserOpInfo[]> => {
-        // Get all UserOp hashes from priority queue and pending ops
-        const priorityQueueHashes = await redis.zrange(
-            PRIORITY_QUEUE_KEY,
-            0,
-            -1
-        )
-        const pendingOpsKeys = await redis.keys(`${PENDING_OPS_PREFIX}*`)
-
-        const pendingOpsHashesPromises = pendingOpsKeys.map((key) =>
-            redis.lrange(key, 0, -1)
-        )
-
-        const pendingOpsHashesArrays = await Promise.all(
-            pendingOpsHashesPromises
-        )
-        const pendingOpsHashes = pendingOpsHashesArrays.flat()
-
-        // Combine and deduplicate hashes
-        const allHashes = [
-            ...new Set([...priorityQueueHashes, ...pendingOpsHashes])
-        ]
-
-        // Get all UserOpInfo objects
-        const userOpInfoPromises = allHashes.map(async (hash) => {
-            const serialized = await redis.get(`${USEROPS_PREFIX}${hash}`)
-            return serialized ? deserializeUserOpInfo(serialized) : null
-        })
-
-        const userOpInfos = (await Promise.all(userOpInfoPromises)).filter(
-            Boolean
-        ) as UserOpInfo[]
-
-        return userOpInfos
-    }
-
-    // Get the total number of UserOps
-    const getLength = async (): Promise<number> => {
-        const userOpsKeys = await redis.keys(`${USEROPS_PREFIX}*`)
-        return userOpsKeys.length
+        const zsetKey = senderNonceKeyIndex(userOp, chainId)
+        const entries = await redisClient.zrange(zsetKey, 0, -1)
+        return entries.map(deserializeUserOpInfo)
     }
 
     return {
         pop: async () => {
-            return pop()
+            const multi = redisClient.multi()
+            multi.zrange(prioriyQueueKey(chainId), 0, 0)
+            multi.zremrangebyrank(prioriyQueueKey(chainId), 0, 0)
+            const results = await multi.exec()
+
+            if (
+                !results ||
+                !results[0][1] ||
+                (results[0][1] as string[]).length === 0
+            ) {
+                return undefined
+            }
+
+            const userOpInfoStr = (results[0][1] as string[])[0]
+            const userOpInfo = deserializeUserOpInfo(userOpInfoStr)
+
+            // Remove this userOp from the sorted set
+            const senderNonceKey = senderNonceKeyIndex(
+                userOpInfo.userOp,
+                chainId
+            )
+            await redisClient.zrem(senderNonceKey, userOpInfoStr)
+
+            // Get remaining operations for this slot
+            const sortedOps = await getSortedPendingOps(userOpInfo)
+
+            // If there are more items, add the next one to the priority queue
+            if (sortedOps.length > 0) {
+                await addToPriorityQueue(sortedOps[0])
+            } else {
+                // If no more pending operations, cleanup by removing the sender:nonceKey and the slot
+                await redisClient
+                    .multi()
+                    .del(senderNonceKey)
+                    .srem(senderNonceKeySlotsKey(chainId), senderNonceKey)
+                    .exec()
+            }
+
+            return userOpInfo
         },
+
         add: async (userOpInfo: UserOpInfo) => {
-            await add(userOpInfo)
-            return Promise.resolve()
+            const { userOpHash } = userOpInfo
+
+            addToSenderNonceKeyQueue(userOpInfo)
+
+            // If this is the lowest nonce for sender:nonceKeyKey pair, update the priority queue
+            const sortedOps = await getSortedPendingOps(userOpInfo)
+            if (
+                sortedOps.length > 0 &&
+                sortedOps[0].userOpHash === userOpHash
+            ) {
+                await addToPriorityQueue(userOpInfo)
+            }
         },
+
         remove: async (userOpHash: HexData32) => {
-            return remove(userOpHash)
+            // Find the userOp in the priority queue
+            const priorityQueueItems = await redisClient.zrange(
+                prioriyQueueKey(chainId),
+                0,
+                -1
+            )
+            const priorityQueue = priorityQueueItems.map(deserializeUserOpInfo)
+
+            const userOpInfoIndex = priorityQueue.findIndex(
+                (info) => info.userOpHash === userOpHash
+            )
+
+            if (userOpInfoIndex === -1) {
+                logger.info("tried to remove non-existent user op from mempool")
+                return false
+            }
+
+            const userOpInfo = priorityQueue[userOpInfoIndex]
+            const senderNonceKey = senderNonceKeyIndex(
+                userOpInfo.userOp,
+                chainId
+            )
+
+            // Remove from priority queue
+            await redisClient.zrem(
+                prioriyQueueKey(chainId),
+                priorityQueueItems[userOpInfoIndex]
+            )
+
+            // Remove from sorted set
+            await redisClient.zrem(
+                senderNonceKey,
+                serializeUserOpInfo(userOpInfo)
+            )
+
+            // Get remaining operations for this slot
+            const sortedOps = await getSortedPendingOps(userOpInfo)
+
+            // If there are more operations, add the first one to priority queue
+            if (sortedOps.length > 0) {
+                await addToPriorityQueue(sortedOps[0])
+            } else {
+                // If no more operations, remove the hash and the slot
+                await redisClient
+                    .pipeline()
+                    .del(senderNonceKey)
+                    .srem(senderNonceKeySlotsKey(chainId), senderNonceKey)
+                    .exec()
+            }
+
+            return true
         },
+
         dump: async () => {
-            return dump()
+            // Get all slots
+            const slots = await redisClient.smembers(
+                senderNonceKeySlotsKey(chainId)
+            )
+            const allOps: UserOpInfo[] = []
+
+            // For each slot, get all operations
+            for (const slot of slots) {
+                const zsetKey = slot
+                const entries = await redisClient.zrange(zsetKey, 0, -1)
+
+                if (entries && entries.length > 0) {
+                    const ops = entries.map(deserializeUserOpInfo)
+                    allOps.push(...ops)
+                }
+            }
+
+            return allOps
         },
+
         clear: async () => {
-            await clear()
+            // Clear the priority queue
+            await redisClient.del(prioriyQueueKey(chainId))
+
+            // Get all slots
+            const slots = await redisClient.smembers(
+                senderNonceKeySlotsKey(chainId)
+            )
+
+            if (slots.length > 0) {
+                const pipeline = redisClient.pipeline()
+
+                // Delete all hash keys
+                for (const slot of slots) {
+                    pipeline.del(slot)
+                }
+
+                // Clear the slots set
+                pipeline.del(senderNonceKeySlotsKey(chainId))
+
+                await pipeline.exec()
+            }
+
             return Promise.resolve()
         },
+
         length: async () => {
-            return getLength()
+            // Count total number of operations across all slots
+            const slots = await redisClient.smembers(
+                senderNonceKeySlotsKey(chainId)
+            )
+            let totalCount = 0
+
+            for (const slot of slots) {
+                const count = await redisClient.zcard(slot)
+                totalCount += Number(count)
+            }
+
+            return totalCount
         }
     }
 }
