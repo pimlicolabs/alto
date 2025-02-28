@@ -751,15 +751,13 @@ export class MemoryMempool {
 
         // Process all outstanding ops.
         this.logger.info(
-            "MOOSE: Starting outer while loop with outstandingUserOps.length =",
-            outstandingUserOps.length
+            `MOOSE: Starting outer while loop with outstandingUserOps.length = ${outstandingUserOps.length}`
         )
         while (outstandingUserOps.length > 0) {
             // If maxBundles is set and we reached the limit, break.
             if (maxBundleCount && bundles.length >= maxBundleCount) {
                 this.logger.info(
-                    "MOOSE: Breaking outer loop due to maxBundleCount reached:",
-                    bundles.length
+                    `MOOSE: Breaking outer loop due to maxBundleCount reached: ${bundles.length}`
                 )
                 break
             }
@@ -779,21 +777,20 @@ export class MemoryMempool {
             let storageMap: StorageMap = {}
 
             this.logger.info(
-                "MOOSE: Starting inner while loop with outstandingUserOps.length =",
-                outstandingUserOps.length
+                `MOOSE: Starting inner while loop with outstandingUserOps.length = ${outstandingUserOps.length}`
             )
             // Keep adding ops to current bundle.
             while (outstandingUserOps.length > 0) {
                 const userOpInfo = outstandingUserOps.shift()
                 if (!userOpInfo) {
                     this.logger.info(
-                        "MOOSE: Breaking inner loop because userOpInfo is null"
+                        `MOOSE: Breaking inner loop because userOpInfo is null`
                     )
                     break
                 }
 
                 const { userOp, userOpHash } = userOpInfo
-                this.logger.info("MOOSE: Processing userOpHash =", userOpHash)
+                this.logger.info(`MOOSE: Processing userOpHash = ${userOpHash}`)
 
                 // NOTE: currently if a userOp is skipped due to sender enforceUniqueSendersPerBundle it will be picked up
                 // again the next time mempool.process is called.
@@ -807,9 +804,7 @@ export class MemoryMempool {
                 )
                 if (skipResult.skip) {
                     this.logger.info(
-                        "MOOSE: Skipping userOpHash =",
-                        userOpHash,
-                        "due to shouldSkip result"
+                        `MOOSE: Skipping userOpHash = ${userOpHash} due to shouldSkip result`
                     )
                     continue
                 }
@@ -823,12 +818,9 @@ export class MemoryMempool {
                         : 0n)
 
                 this.logger.info(
-                    "MOOSE: Current gasUsed =",
-                    gasUsed.toString(),
-                    "maxGasLimit =",
-                    maxGasLimit.toString(),
-                    "currentBundle.userOps.length =",
-                    currentBundle.userOps.length
+                    `MOOSE: Current gasUsed = ${gasUsed.toString()}, maxGasLimit = ${maxGasLimit.toString()}, currentBundle.userOps.length = ${
+                        currentBundle.userOps.length
+                    }`
                 )
                 // Only break on gas limit if we've hit minOpsPerBundle.
                 if (
@@ -836,7 +828,7 @@ export class MemoryMempool {
                     currentBundle.userOps.length >= minOpsPerBundle
                 ) {
                     this.logger.info(
-                        "MOOSE: Breaking inner loop due to gas limit exceeded and minOpsPerBundle reached"
+                        `MOOSE: Breaking inner loop due to gas limit exceeded and minOpsPerBundle reached`
                     )
                     outstandingUserOps.unshift(userOpInfo) // re-add op to front of queue
                     break
@@ -856,32 +848,26 @@ export class MemoryMempool {
                 // Add op to current bundle
                 currentBundle.userOps.push(userOpInfo)
                 this.logger.info(
-                    "MOOSE: Added userOpHash =",
-                    userOpHash,
-                    "to bundle, current bundle size =",
-                    currentBundle.userOps.length
+                    `MOOSE: Added userOpHash = ${userOpHash} to bundle, current bundle size = ${currentBundle.userOps.length}`
                 )
             }
             this.logger.info(
-                "MOOSE: Exited inner while loop, currentBundle.userOps.length =",
-                currentBundle.userOps.length
+                `MOOSE: Exited inner while loop, currentBundle.userOps.length = ${currentBundle.userOps.length}`
             )
 
             if (currentBundle.userOps.length > 0) {
                 bundles.push(currentBundle)
                 this.logger.info(
-                    "MOOSE: Added bundle to bundles array, current bundles.length =",
-                    bundles.length
+                    `MOOSE: Added bundle to bundles array, current bundles.length = ${bundles.length}`
                 )
             } else {
                 this.logger.info(
-                    "MOOSE: No userOps in current bundle, not adding to bundles array"
+                    `MOOSE: No userOps in current bundle, not adding to bundles array`
                 )
             }
         }
         this.logger.info(
-            "MOOSE: Exited outer while loop, final bundles.length =",
-            bundles.length
+            `MOOSE: Exited outer while loop, final bundles.length = ${bundles.length}`
         )
         return bundles
     }
