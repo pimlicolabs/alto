@@ -76,11 +76,19 @@ export class GasPriceManager {
         // Periodically update gas prices if specified
         if (this.config.gasPriceRefreshInterval > 0) {
             setInterval(() => {
-                if (this.config.legacyTransactions === false) {
-                    this.updateBaseFee()
-                }
+                try {
+                    if (this.config.legacyTransactions === false) {
+                        this.updateBaseFee()
+                    }
 
-                this.tryUpdateGasPrice()
+                    this.tryUpdateGasPrice()
+                } catch (error) {
+                    this.logger.error(
+                        { error },
+                        "Error updating gas prices in interval"
+                    )
+                    sentry.captureException(error)
+                }
             }, this.config.gasPriceRefreshInterval * 1000)
             setInterval(() => {
                 try {
