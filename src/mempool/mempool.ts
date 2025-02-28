@@ -791,7 +791,11 @@ export class Mempool {
                     entryPoint
                 })
 
-                if (skipResult.skip) continue
+                if (skipResult.skip) {
+                    // Re-add to outstanding
+                    await this.store.addOutstanding({ entryPoint, userOpInfo })
+                    continue
+                }
 
                 gasUsed +=
                     userOp.callGasLimit +
