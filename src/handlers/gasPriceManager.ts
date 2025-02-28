@@ -82,6 +82,21 @@ export class GasPriceManager {
 
                 this.tryUpdateGasPrice()
             }, this.config.gasPriceRefreshInterval * 1000)
+            setInterval(() => {
+                try {
+                    if (this.config.legacyTransactions === false) {
+                        this.updateBaseFee()
+                    }
+
+                    this.tryUpdateGasPrice()
+                } catch (error) {
+                    this.logger.error(
+                        { error },
+                        "Error updating gas prices in interval"
+                    )
+                    sentry.captureException(error)
+                }
+            }, this.config.gasPriceRefreshInterval * 1000)
         }
 
         this.arbitrumManager = new ArbitrumManager({ config })
