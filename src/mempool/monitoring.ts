@@ -3,14 +3,12 @@ import { AltoConfig } from "../createConfig"
 import { Redis } from "ioredis"
 import { userOperationStatusSchema } from "../types/schemas"
 
-// Interface for UserOperation status storage
 interface UserOperationStatusStore {
     set(userOpHash: HexData32, status: UserOperationStatus): Promise<void>
     get(userOpHash: HexData32): Promise<UserOperationStatus | undefined>
     delete(userOpHash: HexData32): Promise<void>
 }
 
-// In-memory implementation
 class InMemoryUserOperationStatusStore implements UserOperationStatusStore {
     private store: Record<HexData32, UserOperationStatus> = {}
 
@@ -30,7 +28,6 @@ class InMemoryUserOperationStatusStore implements UserOperationStatusStore {
     }
 }
 
-// Redis implementation
 class RedisUserOperationStatusStore implements UserOperationStatusStore {
     private redis: Redis
     private keyPrefix: string
@@ -59,7 +56,6 @@ class RedisUserOperationStatusStore implements UserOperationStatusStore {
     private deserialize(data: string): UserOperationStatus {
         try {
             const parsed = JSON.parse(data)
-            // Use the Zod schema to validate and parse the data
             const result = userOperationStatusSchema.safeParse(parsed)
 
             if (!result.success) {
@@ -108,7 +104,6 @@ export class Monitor {
         this.timeout = timeout
         this.userOperationTimeouts = {}
 
-        // Choose the appropriate store based on config
         if (config?.redisMempoolUrl) {
             this.statusStore = new RedisUserOperationStatusStore(
                 config.redisMempoolUrl,
