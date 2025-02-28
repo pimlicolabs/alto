@@ -71,46 +71,11 @@ export class GasPriceManager {
         // Periodically update gas prices if specified
         if (this.config.gasPriceRefreshInterval > 0) {
             setInterval(() => {
-                try {
-                    if (this.config.legacyTransactions === false) {
-                        this.updateBaseFee().catch((error) => {
-                            this.logger.error(
-                                { error },
-                                "Failed to update base fee in interval"
-                            )
-                            sentry.captureException(error)
-                        })
-                    }
-
-                    this.tryUpdateGasPrice().catch((error) => {
-                        this.logger.error(
-                            { error },
-                            "Failed to update gas price in interval"
-                        )
-                        sentry.captureException(error)
-                    })
-                } catch (error) {
-                    this.logger.error(
-                        { error },
-                        "Unexpected error in gas price update interval"
-                    )
-                    sentry.captureException(error)
+                if (this.config.legacyTransactions === false) {
+                    this.updateBaseFee()
                 }
-            }, this.config.gasPriceRefreshInterval * 1000)
-            setInterval(() => {
-                try {
-                    if (this.config.legacyTransactions === false) {
-                        this.updateBaseFee()
-                    }
 
-                    this.tryUpdateGasPrice()
-                } catch (error) {
-                    this.logger.error(
-                        { error },
-                        "Unexpected error in during gasPrices refresh interval"
-                    )
-                    sentry.captureException(error)
-                }
+                this.tryUpdateGasPrice()
             }, this.config.gasPriceRefreshInterval * 1000)
         }
 
@@ -409,28 +374,22 @@ export class GasPriceManager {
     }
 
     public async getBaseFee(): Promise<bigint> {
-        try {
-            if (this.config.legacyTransactions) {
-                throw new RpcError(
-                    "baseFee is not available for legacy transactions"
-                )
-            }
-
-            if (this.config.gasPriceRefreshInterval === 0) {
-                return await this.updateBaseFee()
-            }
-
-            let baseFee = this.baseFeePerGasQueue.getLatestValue()
-            if (!baseFee) {
-                baseFee = await this.updateBaseFee()
-            }
-
-            return baseFee
-        } catch (error) {
-            this.logger.error({ error }, "Failed to get base fee")
-            sentry.captureException(error)
-            throw new RpcError("Failed to get network baseFee")
+        if (this.config.legacyTransactions) {
+            throw new RpcError(
+                "baseFee is not available for legacy transactions"
+            )
         }
+
+        if (this.config.gasPriceRefreshInterval === 0) {
+            return await this.updateBaseFee()
+        }
+
+        let baseFee = this.baseFeePerGasQueue.getLatestValue()
+        if (!baseFee) {
+            baseFee = await this.updateBaseFee()
+        }
+
+        return baseFee
     }
 
     // This method throws if it can't get a valid RPC response.
