@@ -1,9 +1,8 @@
-import type { SenderManager } from "@alto/executor"
-import { Executor, ExecutorManager } from "@alto/executor"
+import { Executor, ExecutorManager, type SenderManager } from "@alto/executor"
 import { EventManager, type GasPriceManager } from "@alto/handlers"
 import {
     type InterfaceReputationManager,
-    MemoryMempool,
+    Mempool,
     Monitor,
     NullReputationManager,
     ReputationManager,
@@ -14,6 +13,9 @@ import type { InterfaceValidator } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import type { Registry } from "prom-client"
 import type { AltoConfig } from "../createConfig"
+import { validateAndRefillWallets } from "../executor/senderManager/validateAndRefill"
+import { flushOnStartUp } from "../executor/senderManager/flushOnStartUp"
+import { createMempoolStore } from "../store/createMempoolStore"
 
 const getReputationManager = (
     config: AltoConfig
@@ -50,8 +52,8 @@ const getValidator = ({
     })
 }
 
-const getMonitor = (): Monitor => {
-    return new Monitor()
+const getMonitor = ({ config }: { config: AltoConfig }): Monitor => {
+    return new Monitor({ config })
 }
 
 const getMempool = ({
@@ -68,13 +70,13 @@ const getMempool = ({
     validator: InterfaceValidator
     metrics: Metrics
     eventManager: EventManager
-}): MemoryMempool => {
-    return new MemoryMempool({
+}): Mempool => {
+    return new Mempool({
         config,
         monitor,
+        store: createMempoolStore({ config, metrics }),
         reputationManager,
         validator,
-        metrics,
         eventManager
     })
 }
@@ -97,7 +99,7 @@ const getExecutor = ({
     gasPriceManager,
     eventManager
 }: {
-    mempool: MemoryMempool
+    mempool: Mempool
     config: AltoConfig
     reputationManager: InterfaceReputationManager
     metrics: Metrics
@@ -127,7 +129,7 @@ const getExecutorManager = ({
 }: {
     config: AltoConfig
     executor: Executor
-    mempool: MemoryMempool
+    mempool: Mempool
     monitor: Monitor
     reputationManager: InterfaceReputationManager
     senderManager: SenderManager
@@ -154,7 +156,7 @@ const getNonceQueuer = ({
     eventManager
 }: {
     config: AltoConfig
-    mempool: MemoryMempool
+    mempool: Mempool
     eventManager: EventManager
 }) => {
     return new NonceQueuer({
@@ -179,7 +181,7 @@ const getRpcHandler = ({
 }: {
     config: AltoConfig
     validator: InterfaceValidator
-    mempool: MemoryMempool
+    mempool: Mempool
     executor: Executor
     monitor: Monitor
     nonceQueuer: NonceQueuer
@@ -250,14 +252,24 @@ export const setupServer = async ({
     })
 
     if (config.refillingWallets) {
-        await senderManager.validateAndRefillWallets()
+        await validateAndRefillWallets({
+            metrics,
+            config,
+            senderManager,
+            gasPriceManager
+        })
 
         setInterval(async () => {
-            await senderManager.validateAndRefillWallets()
+            await validateAndRefillWallets({
+                metrics,
+                config,
+                senderManager,
+                gasPriceManager
+            })
         }, config.executorRefillInterval * 1000)
     }
 
-    const monitor = getMonitor()
+    const monitor = getMonitor({ config })
     const mempool = getMempool({
         config,
         monitor,
@@ -309,7 +321,11 @@ export const setupServer = async ({
     })
 
     if (config.flushStuckTransactionsDuringStartup) {
-        senderManager.flushOnStartUp()
+        flushOnStartUp({
+            senderManager,
+            gasPriceManager,
+            config
+        })
     }
 
     const rootLogger = config.getLogger(
@@ -317,9 +333,8 @@ export const setupServer = async ({
         { level: config.logLevel }
     )
 
-    rootLogger.info(
-        `Initialized ${senderManager.wallets.length} executor wallets`
-    )
+    const walletsLength = senderManager.getAllWallets().length
+    rootLogger.info(`Initialized ${walletsLength} executor wallets`)
 
     const server = getServer({
         config,
@@ -336,17 +351,51 @@ export const setupServer = async ({
         await server.stop()
         rootLogger.info("server stopped")
 
-        const outstanding = mempool.dumpOutstanding().length
-        const submitted = mempool.dumpSubmittedOps().length
-        const processing = mempool.dumpProcessing().length
-        rootLogger.info(
-            { outstanding, submitted, processing },
-            "dumping mempool before shutdown"
-        )
+        for (const entryPoint of config.entrypoints) {
+            const outstanding = await mempool.dumpOutstanding(entryPoint)
+            const outstandingLength = outstanding.length
+
+            const submitted = await mempool.dumpSubmittedOps(entryPoint)
+            const submittedLength = submitted.length
+
+            const processing = await mempool.dumpProcessing(entryPoint)
+            const processingLength = processing.length
+
+            rootLogger.info(
+                {
+                    outstanding: outstandingLength,
+                    submitted: submittedLength,
+                    processing: processingLength
+                },
+                "dumping mempool before shutdown"
+            )
+        }
+
+        // mark all executors as processed
+        for (const account of senderManager.getActiveWallets()) {
+            senderManager.markWalletProcessed(account)
+        }
 
         process.exit(0)
     }
 
-    process.on("SIGINT", gracefulShutdown)
-    process.on("SIGTERM", gracefulShutdown)
+    const signals = [
+        "SIGINT",
+        "SIGTERM",
+        "unhandledRejection",
+        "uncaughtException"
+    ]
+    signals.forEach((signal) => {
+        process.on(signal, async () => {
+            try {
+                await gracefulShutdown(signal)
+            } catch (error) {
+                rootLogger.error(
+                    { error: error instanceof Error ? error.stack : error },
+                    `Error during ${signal} shutdown`
+                )
+                process.exit(1)
+            }
+        })
+    })
 }

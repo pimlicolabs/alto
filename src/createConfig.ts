@@ -10,6 +10,7 @@ export type AltoConfig = Readonly<CamelCasedProperties<IOptions>> & {
     ) => Logger<ChildCustomLevels>
     readonly publicClient: PublicClient<Transport, Chain>
     readonly walletClient: WalletClient<Transport, Chain>
+    readonly chainId: number
 }
 
 export function createConfig(
@@ -23,6 +24,7 @@ export function createConfig(
 
     return {
         ...rest,
+        chainId: config.publicClient.chain.id,
         getLogger: (bindings, options) => logger.child(bindings, options)
     }
 }
