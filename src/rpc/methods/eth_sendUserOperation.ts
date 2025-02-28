@@ -20,7 +20,6 @@ export const ethSendUserOperationHandler = createMethodHandler({
             entryPoint,
             rpcHandler.config.publicClient.chain.id
         )
-        rpcHandler.eventManager.emitReceived(hash)
 
         let status: "added" | "queued" | "rejected" = "rejected"
         try {
@@ -29,6 +28,8 @@ export const ethSendUserOperationHandler = createMethodHandler({
                 entryPoint,
                 apiVersion
             )
+
+            rpcHandler.eventManager.emitReceived(hash)
 
             return hash
         } catch (error) {
