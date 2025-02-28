@@ -90,21 +90,6 @@ export class GasPriceManager {
                     sentry.captureException(error)
                 }
             }, this.config.gasPriceRefreshInterval * 1000)
-            setInterval(() => {
-                try {
-                    if (this.config.legacyTransactions === false) {
-                        this.updateBaseFee()
-                    }
-
-                    this.tryUpdateGasPrice()
-                } catch (error) {
-                    this.logger.error(
-                        { error },
-                        "Error updating gas prices in interval"
-                    )
-                    sentry.captureException(error)
-                }
-            }, this.config.gasPriceRefreshInterval * 1000)
         }
 
         this.arbitrumManager = new ArbitrumManager({ config })
@@ -388,15 +373,20 @@ export class GasPriceManager {
     }
 
     private async updateBaseFee(): Promise<bigint> {
-        const latestBlock = await this.config.publicClient.getBlock()
-        if (latestBlock.baseFeePerGas === null) {
-            throw new RpcError("block does not have baseFeePerGas")
+        try {
+            const latestBlock = await this.config.publicClient.getBlock()
+            if (latestBlock.baseFeePerGas === null) {
+                throw new RpcError("block does not have baseFeePerGas")
+            }
+
+            const baseFee = latestBlock.baseFeePerGas
+            this.baseFeePerGasQueue.saveValue(baseFee)
+
+            return baseFee
+        } catch (e) {
+            this.logger.error(e, "Failed to update base fee")
+            throw e
         }
-
-        const baseFee = latestBlock.baseFeePerGas
-        this.baseFeePerGasQueue.saveValue(baseFee)
-
-        return baseFee
     }
 
     public async getBaseFee(): Promise<bigint> {
