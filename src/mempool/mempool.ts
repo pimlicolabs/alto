@@ -826,6 +826,7 @@ export class MemoryMempool {
             }
         }
 
+        this.logger.info(`Found ${bundles.length} bundles`)
         return bundles
     }
 
