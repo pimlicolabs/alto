@@ -52,8 +52,8 @@ const getValidator = ({
     })
 }
 
-const getMonitor = (): Monitor => {
-    return new Monitor()
+const getMonitor = ({ config }: { config: AltoConfig }): Monitor => {
+    return new Monitor({ config })
 }
 
 const getMempool = ({
@@ -269,7 +269,7 @@ export const setupServer = async ({
         }, config.executorRefillInterval * 1000)
     }
 
-    const monitor = getMonitor()
+    const monitor = getMonitor({ config })
     const mempool = getMempool({
         config,
         monitor,

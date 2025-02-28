@@ -277,7 +277,7 @@ const userOperationReceiptSchema = z
 
 export type UserOperationReceipt = z.infer<typeof userOperationReceiptSchema>
 
-const userOperationStatus = z.object({
+export const userOperationStatusSchema = z.object({
     status: z.enum([
         "not_found",
         "not_submitted",
@@ -290,7 +290,7 @@ const userOperationStatus = z.object({
     transactionHash: hexData32Schema.or(z.null())
 })
 
-export type UserOperationStatus = z.infer<typeof userOperationStatus>
+export type UserOperationStatus = z.infer<typeof userOperationStatusSchema>
 
 const gasPriceSchema = z.object({
     slow: z.object({
@@ -471,7 +471,7 @@ export const debugGetStakeStatusSchema = z.object({
 export const pimlicoGetUserOperationStatusSchema = z.object({
     method: z.literal("pimlico_getUserOperationStatus"),
     params: z.tuple([hexData32Schema]),
-    result: userOperationStatus
+    result: userOperationStatusSchema
 })
 
 export const pimlicoGetUserOperationGasPriceSchema = z.object({
