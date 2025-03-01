@@ -253,7 +253,7 @@ export class Executor {
             entryPoint
         })
 
-        let estimateResult = await filterOpsAndEstimateGas({
+        const estimateResult = await filterOpsAndEstimateGas({
             userOpBundle,
             executor,
             nonce,

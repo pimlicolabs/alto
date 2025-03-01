@@ -255,6 +255,7 @@ export class ExecutorManager {
                 entryPoint,
                 reason.name
             )
+            this.senderManager.markWalletProcessed(wallet)
             this.metrics.bundlesSubmitted.labels({ status: "resubmit" }).inc()
             return undefined
         }
@@ -271,6 +272,7 @@ export class ExecutorManager {
                     ? reason.name
                     : "Encountered unhandled error during bundle simulation"
             )
+            this.senderManager.markWalletProcessed(wallet)
             this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
             return undefined
         }
