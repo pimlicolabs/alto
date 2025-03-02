@@ -97,13 +97,17 @@ export class GasPriceManager {
         this.optimismManager = new OptimismManager({ config })
     }
 
-    public init() {
-        return Promise.all([
-            this.tryUpdateGasPrice(),
-            this.config.legacyTransactions === false
-                ? this.updateBaseFee()
-                : Promise.resolve()
-        ])
+    public async init() {
+        try {
+            await Promise.all([
+                this.tryUpdateGasPrice(),
+                this.config.legacyTransactions === false
+                    ? this.updateBaseFee()
+                    : Promise.resolve()
+            ])
+        } catch (error) {
+            this.logger.error(error, "Error during gas price initialization")
+        }
     }
 
     private getDefaultGasFee(

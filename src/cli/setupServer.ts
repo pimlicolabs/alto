@@ -252,20 +252,38 @@ export const setupServer = async ({
     })
 
     if (config.refillingWallets) {
-        await validateAndRefillWallets({
-            metrics,
-            config,
-            senderManager,
-            gasPriceManager
-        })
-
-        setInterval(async () => {
+        const rootLogger = config.getLogger(
+            { module: "root" },
+            { level: config.logLevel }
+        )
+        try {
             await validateAndRefillWallets({
                 metrics,
                 config,
                 senderManager,
                 gasPriceManager
             })
+        } catch (error) {
+            rootLogger.error(
+                { error: error instanceof Error ? error.stack : error },
+                "Error during initial wallet validation and refill"
+            )
+        }
+
+        setInterval(async () => {
+            try {
+                await validateAndRefillWallets({
+                    metrics,
+                    config,
+                    senderManager,
+                    gasPriceManager
+                })
+            } catch (error) {
+                rootLogger.error(
+                    { error: error instanceof Error ? error.stack : error },
+                    "Error during scheduled wallet validation and refill"
+                )
+            }
         }, config.executorRefillInterval * 1000)
     }
 
@@ -379,12 +397,9 @@ export const setupServer = async ({
         process.exit(0)
     }
 
-    const signals = [
-        "SIGINT",
-        "SIGTERM",
-        "unhandledRejection",
-        "uncaughtException"
-    ]
+    const signals = ["SIGINT", "SIGTERM"]
+
+    // Handle regular termination signals
     signals.forEach((signal) => {
         process.on(signal, async () => {
             try {
@@ -397,5 +412,41 @@ export const setupServer = async ({
                 process.exit(1)
             }
         })
+    })
+
+    // Handle unhandled rejections with the actual rejection reason
+    process.on("unhandledRejection", async (err, promise) => {
+        rootLogger.error(
+            {
+                err,
+                promise: promise.toString()
+            },
+            `Unhandled Promise Rejection`
+        )
+        try {
+            await gracefulShutdown("unhandledRejection")
+        } catch (err) {
+            rootLogger.error(
+                { err },
+                `Error during unhandledRejection shutdown`
+            )
+            process.exit(1)
+        }
+    })
+
+    // Handle uncaught exceptions with the actual error
+    process.on("uncaughtException", async (err) => {
+        rootLogger.error({ err }, `Uncaught Exception`)
+        try {
+            await gracefulShutdown("uncaughtException")
+        } catch (err) {
+            rootLogger.error(
+                {
+                    err
+                },
+                `Error during uncaughtException shutdown`
+            )
+            process.exit(1)
+        }
     })
 }
