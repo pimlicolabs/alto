@@ -173,7 +173,10 @@ export const rpcArgsSchema = z.object({
 
 export const logArgsSchema = z.object({
     "redis-queue-endpoint": z.string().optional(),
-    "redis-event-manager-queue-name": z.string().optional(),
+    "redis-event-manager-queue-name": z.preprocess(
+        (v) => (v === "" ? undefined : v),
+        z.string().optional()
+    ),
     json: z.boolean(),
     "log-level": logLevel,
     "public-client-log-level": logLevel.optional(),
