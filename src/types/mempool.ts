@@ -1,4 +1,4 @@
-import type { Address, BaseError, Hex } from "viem"
+import type { Address, BaseError, Hex, Prettify } from "viem"
 import type { Account } from "viem/accounts"
 import type { HexData32, UserOperation } from "."
 
@@ -47,17 +47,21 @@ export type UserOpDetails = {
     referencedContracts?: ReferencedCodeHashes
 }
 
-export type UserOpInfo = {
-    userOp: UserOperation
-} & UserOpDetails
+export type UserOpInfo = Prettify<
+    {
+        userOp: UserOperation
+    } & UserOpDetails
+>
 
 export type SubmittedUserOp = UserOpInfo & {
     transactionInfo: TransactionInfo
 }
 
-export type RejectedUserOp = UserOpInfo & {
-    reason: string
-}
+export type RejectedUserOp = Prettify<
+    UserOpInfo & {
+        reason: string
+    }
+>
 
 export type BundleResult =
     | {

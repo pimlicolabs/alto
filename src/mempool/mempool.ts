@@ -116,8 +116,8 @@ export class MemoryMempool {
         }
     }
 
-    dumpOutstanding(): UserOperation[] {
-        return this.store.dumpOutstanding().map(({ userOp }) => userOp)
+    dumpOutstanding(): UserOpInfo[] {
+        return this.store.dumpOutstanding()
     }
 
     dumpProcessing(): UserOpInfo[] {
@@ -704,7 +704,7 @@ export class MemoryMempool {
         minOpsPerBundle: number
         maxBundleCount?: number
     }): Promise<UserOperationBundle[]> {
-        let outstandingUserOps = this.store
+        const outstandingUserOps = this.store
             .dumpOutstanding()
             .filter((op) => op.entryPoint === entryPoint)
             .sort((aUserOpInfo, bUserOpInfo) => {
