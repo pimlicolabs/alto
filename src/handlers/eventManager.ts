@@ -235,12 +235,12 @@ export class EventManager {
                 removeOnFail: true
             })
             jobStatus = "success"
-        } catch (e) {
+        } catch (err) {
             this.logger.error(
-                e,
-                "Failed to send userOperation status event due to "
+                { err },
+                "Failed to send userOperation status event"
             )
-            sentry.captureException(e)
+            sentry.captureException(err)
             jobStatus = "failed"
         }
 
