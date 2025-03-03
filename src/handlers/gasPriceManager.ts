@@ -394,22 +394,27 @@ export class GasPriceManager {
     }
 
     public async getBaseFee(): Promise<bigint> {
-        if (this.config.legacyTransactions) {
-            throw new RpcError(
-                "baseFee is not available for legacy transactions"
-            )
-        }
+        try {
+            if (this.config.legacyTransactions) {
+                throw new RpcError(
+                    "baseFee is not available for legacy transactions"
+                )
+            }
 
-        if (this.config.gasPriceRefreshInterval === 0) {
-            return await this.updateBaseFee()
-        }
+            if (this.config.gasPriceRefreshInterval === 0) {
+                return await this.updateBaseFee()
+            }
 
-        let baseFee = await this.baseFeePerGasQueue.getLatestValue()
-        if (!baseFee) {
-            baseFee = await this.updateBaseFee()
-        }
+            let baseFee = await this.baseFeePerGasQueue.getLatestValue()
+            if (!baseFee) {
+                baseFee = await this.updateBaseFee()
+            }
 
-        return baseFee
+            return baseFee
+        } catch (e) {
+            this.logger.error(e, "Failed to get base fee")
+            throw new RpcError("Failed to get base fee")
+        }
     }
 
     // This method throws if it can't get a valid RPC response.

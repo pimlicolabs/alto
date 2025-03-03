@@ -415,11 +415,10 @@ export const setupServer = async ({
     })
 
     // Handle unhandled rejections with the actual rejection reason
-    process.on("unhandledRejection", async (err, promise) => {
+    process.on("unhandledRejection", async (err) => {
         rootLogger.error(
             {
-                err,
-                promise: promise.toString()
+                err
             },
             `Unhandled Promise Rejection`
         )
