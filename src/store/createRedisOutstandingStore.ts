@@ -314,38 +314,32 @@ export const createRedisOutstandingQueue = ({
         },
 
         dump: async () => {
-            // Get all slots
-            const slots = await redisClient.smembers(
-                redisKeys.pendingsOpsIndexList()
-            )
-            const allOps: UserOpInfo[] = []
-
-            if (slots.length === 0) {
-                return allOps
-            }
-
-            // Use pipelining to batch all zrange commands in a single network roundtrip
-            const pipeline = redisClient.pipeline()
-
-            for (const slot of slots) {
-                pipeline.zrange(slot, 0, -1)
-            }
-
-            const results = await pipeline.exec()
-
-            if (!results) {
-                return allOps
-            }
-
-            // Process all results from the pipeline
-            results.forEach(([, entries]) => {
-                if (entries && Array.isArray(entries) && entries.length > 0) {
-                    const ops = (entries as string[]).map(deserializeUserOpInfo)
-                    allOps.push(...ops)
-                }
-            })
-
-            return allOps
+            //// Get all slots
+            //const slots = await redisClient.smembers(
+            //    redisKeys.pendingsOpsIndexList()
+            //)
+            //const allOps: UserOpInfo[] = []
+            //if (slots.length === 0) {
+            //    return allOps
+            //}
+            //// Use pipelining to batch all zrange commands in a single network roundtrip
+            //const pipeline = redisClient.pipeline()
+            //for (const slot of slots) {
+            //    pipeline.zrange(slot, 0, -1)
+            //}
+            //const results = await pipeline.exec()
+            //if (!results) {
+            //    return allOps
+            //}
+            //// Process all results from the pipeline
+            //results.forEach(([, entries]) => {
+            //    if (entries && Array.isArray(entries) && entries.length > 0) {
+            //        const ops = (entries as string[]).map(deserializeUserOpInfo)
+            //        allOps.push(...ops)
+            //    }
+            //})
+            //return allOps
+            return []
         },
 
         clear: async () => {
