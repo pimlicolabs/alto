@@ -2,7 +2,7 @@ import type { Executor, ExecutorManager } from "@alto/executor"
 import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
-    MemoryMempool,
+    Mempool,
     Monitor,
     NonceQueuer
 } from "@alto/mempool"
@@ -39,7 +39,7 @@ import { registerHandlers } from "./methods"
 export class RpcHandler {
     public config: AltoConfig
     public validator: InterfaceValidator
-    public mempool: MemoryMempool
+    public mempool: Mempool
     public executor: Executor
     public monitor: Monitor
     public nonceQueuer: NonceQueuer
@@ -67,7 +67,7 @@ export class RpcHandler {
     }: {
         config: AltoConfig
         validator: InterfaceValidator
-        mempool: MemoryMempool
+        mempool: Mempool
         executor: Executor
         monitor: Monitor
         nonceQueuer: NonceQueuer
@@ -225,7 +225,7 @@ export class RpcHandler {
         const opHash = getUserOperationHash(
             userOperation,
             entryPoint,
-            this.config.publicClient.chain.id
+            this.config.chainId
         )
 
         await this.preMempoolChecks(
@@ -272,7 +272,7 @@ export class RpcHandler {
         }
 
         if (this.config.dangerousSkipUserOperationValidation) {
-            const [success, errorReason] = this.mempool.add(
+            const [success, errorReason] = await this.mempool.add(
                 userOperation,
                 entryPoint
             )
@@ -293,7 +293,10 @@ export class RpcHandler {
                 entryPoint
             })
         }
-        await this.mempool.checkEntityMultipleRoleViolation(userOperation)
+        await this.mempool.checkEntityMultipleRoleViolation(
+            entryPoint,
+            userOperation
+        )
 
         // V1 api doesn't check prefund.
         const shouldCheckPrefund =
@@ -311,7 +314,12 @@ export class RpcHandler {
             validationResult
         )
 
-        const [success, errorReason] = this.mempool.add(
+        await this.mempool.checkEntityMultipleRoleViolation(
+            entryPoint,
+            userOperation
+        )
+
+        const [success, errorReason] = await this.mempool.add(
             userOperation,
             entryPoint,
             validationResult.referencedContracts
@@ -503,7 +511,7 @@ export class RpcHandler {
         } = calcVerificationGasAndCallGasLimit(
             simulationUserOperation,
             executionResult.data.executionResult,
-            this.config.publicClient.chain.id,
+            this.config.chainId,
             executionResult.data
         )
 
@@ -542,15 +550,15 @@ export class RpcHandler {
         }
 
         if (
-            this.config.publicClient.chain.id === base.id ||
-            this.config.publicClient.chain.id === baseSepolia.id
+            this.config.chainId === base.id ||
+            this.config.chainId === baseSepolia.id
         ) {
             callGasLimit += 10_000n
         }
 
         if (
-            this.config.publicClient.chain.id === base.id ||
-            this.config.publicClient.chain.id === optimism.id
+            this.config.chainId === base.id ||
+            this.config.chainId === optimism.id
         ) {
             callGasLimit = maxBigInt(callGasLimit, 120_000n)
         }

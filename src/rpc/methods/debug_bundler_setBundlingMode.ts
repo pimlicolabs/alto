@@ -6,7 +6,9 @@ export const debugBundlerSetBundlingModeHandler = createMethodHandler({
     schema: debugSetBundlingModeSchema,
     handler: async ({ rpcHandler, params }) => {
         const [bundlingMode] = params
-        rpcHandler.ensureDebugEndpointsAreEnabled("debug_bundler_setBundlingMode")
+        rpcHandler.ensureDebugEndpointsAreEnabled(
+            "debug_bundler_setBundlingMode"
+        )
         await rpcHandler.executorManager.setBundlingMode(bundlingMode)
 
         return "ok" as const

@@ -1,7 +1,7 @@
 import type { Address } from "viem"
 import type { SimulateHandleOpResult } from "../rpc/estimation/types"
-import type { ReferencedCodeHashes } from "./mempool"
 import type {
+    ReferencedCodeHashes,
     StateOverrides,
     UserOperation,
     UserOperationV06,

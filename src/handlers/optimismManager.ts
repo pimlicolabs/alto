@@ -1,14 +1,18 @@
-import { SlidingWindowTimedQueue } from "../utils/slidingWindowTimedQueue"
+import { AltoConfig } from "../createConfig"
+import { MinMaxQueue, createMinMaxQueue } from "../utils/minMaxQueue"
 
 export class OptimismManager {
-    private l1FeeQueue: SlidingWindowTimedQueue
+    private l1FeeQueue: MinMaxQueue
 
-    constructor(queueValidity: number) {
-        this.l1FeeQueue = new SlidingWindowTimedQueue(queueValidity)
+    constructor({ config }: { config: AltoConfig }) {
+        this.l1FeeQueue = createMinMaxQueue({
+            keyPrefix: "l1-fee-queue",
+            config
+        })
     }
 
-    public getMinL1Fee() {
-        return this.l1FeeQueue.getMinValue() || 1n
+    public async getMinL1Fee() {
+        return (await this.l1FeeQueue.getMinValue()) || 1n
     }
 
     public saveL1FeeValue(l1Fee: bigint) {
