@@ -67,6 +67,11 @@ const createRedisKeys = (chainId: number, entryPoint: Address) => {
         // Secondary index to map userOpHash to pendingOpsKey (used for easy lookup when calling outstanding.remove())
         userOpHashLookup: () => {
             return `${chainId}:outstanding:user-op-hash-index:${entryPoint}`
+        },
+
+        // Counter for total number of pending operations
+        pendingOpsCounter: () => {
+            return `${chainId}:outstanding:counter:${entryPoint}`
         }
     }
 }
@@ -85,7 +90,7 @@ export const createRedisOutstandingQueue = ({
         throw new Error("missing required redisMempoolUrl")
     }
 
-    const redisClient = new Redis(redisMempoolUrl)
+    const redisClient = new Redis(redisMempoolUrl, {})
     const redisKeys = createRedisKeys(chainId, entryPoint)
 
     // Adds userOp to queue and maintains sorting by gas price
@@ -254,6 +259,7 @@ export const createRedisOutstandingQueue = ({
             ) {
                 await addToReadyOpsQueue(userOpInfo)
             }
+            await redisClient.incr(redisKeys.pendingOpsCounter())
         },
 
         remove: async ({ userOpHash }: { userOpHash: HexData32 }) => {
@@ -303,7 +309,7 @@ export const createRedisOutstandingQueue = ({
                     .zrem(pendingOpsKey, serializeUserOpInfo(userOpInfo))
                     .exec()
             }
-
+            await redisClient.decr(redisKeys.pendingOpsCounter())
             return true
         },
 
@@ -356,36 +362,14 @@ export const createRedisOutstandingQueue = ({
             multi.del(redisKeys.pendingsOpsIndexList())
             multi.del(redisKeys.userOpHashLookup())
             multi.del(redisKeys.readyOpsQueue())
+            multi.del(redisKeys.pendingOpsCounter())
 
             await multi.exec()
         },
 
         length: async () => {
-            // Count total number of operations across all slots
-            const slots = await redisClient.smembers(
-                redisKeys.pendingsOpsIndexList()
-            )
-
-            if (slots.length === 0) {
-                return 0
-            }
-
-            const pipeline = redisClient.pipeline()
-
-            for (const slot of slots) {
-                pipeline.zcard(slot)
-            }
-
-            const results = await pipeline.exec()
-            if (!results) {
-                return 0
-            }
-
-            const totalCount = results.reduce((sum, [, count]) => {
-                return sum + Number(count)
-            }, 0)
-
-            return totalCount
+            const count = await redisClient.get(redisKeys.pendingOpsCounter())
+            return count ? parseInt(count, 10) : 0
         }
     }
 }
