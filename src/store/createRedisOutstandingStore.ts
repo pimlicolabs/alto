@@ -314,16 +314,30 @@ export const createRedisOutstandingQueue = ({
             )
             const allOps: UserOpInfo[] = []
 
-            // For each slot, get all operations
-            for (const slot of slots) {
-                const zsetKey = slot
-                const entries = await redisClient.zrange(zsetKey, 0, -1)
+            if (slots.length === 0) {
+                return allOps
+            }
 
-                if (entries && entries.length > 0) {
-                    const ops = entries.map(deserializeUserOpInfo)
+            // Use pipelining to batch all zrange commands in a single network roundtrip
+            const pipeline = redisClient.pipeline()
+
+            for (const slot of slots) {
+                pipeline.zrange(slot, 0, -1)
+            }
+
+            const results = await pipeline.exec()
+
+            if (!results) {
+                return allOps
+            }
+
+            // Process all results from the pipeline
+            results.forEach(([, entries]) => {
+                if (entries && Array.isArray(entries) && entries.length > 0) {
+                    const ops = (entries as string[]).map(deserializeUserOpInfo)
                     allOps.push(...ops)
                 }
-            }
+            })
 
             return allOps
         },
@@ -351,12 +365,25 @@ export const createRedisOutstandingQueue = ({
             const slots = await redisClient.smembers(
                 redisKeys.pendingsOpsIndexList()
             )
-            let totalCount = 0
+
+            if (slots.length === 0) {
+                return 0
+            }
+
+            const pipeline = redisClient.pipeline()
 
             for (const slot of slots) {
-                const count = await redisClient.zcard(slot)
-                totalCount += Number(count)
+                pipeline.zcard(slot)
             }
+
+            const results = await pipeline.exec()
+            if (!results) {
+                return 0
+            }
+
+            const totalCount = results.reduce((sum, [, count]) => {
+                return sum + Number(count)
+            }, 0)
 
             return totalCount
         }
