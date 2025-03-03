@@ -46,6 +46,7 @@ export const createRedisSenderManager = async ({
 
     const wallets = getAvailableWallets(config)
     metrics.walletsTotal.set(wallets.length)
+    metrics.walletsAvailable.set(wallets.length)
     const logger = config.getLogger(
         { module: "redis-sender-manager" },
         {
