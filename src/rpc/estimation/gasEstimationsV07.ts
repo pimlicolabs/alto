@@ -13,6 +13,7 @@ import {
     binarySearchCallResultSchema
 } from "@alto/types"
 import {
+    Logger,
     addAuthorizationStateOverrides,
     getUserOperationHash,
     toPackedUserOperation
@@ -40,9 +41,18 @@ import type { SignedAuthorizationList } from "viem/experimental"
 
 export class GasEstimatorV07 {
     private config: AltoConfig
+    private logger: Logger
 
     constructor(config: AltoConfig) {
         this.config = config
+        this.logger = config.getLogger(
+            {
+                module: "gas-estimator-v07"
+            },
+            {
+                level: config.logLevel
+            }
+        )
     }
 
     async simulateValidation({
@@ -691,12 +701,23 @@ export class GasEstimatorV07 {
             ]
         })) as Hex
 
-        const returnBytes = decodeAbiParameters(
-            [{ name: "ret", type: "bytes[]" }],
-            result
-        )
+        try {
+            const returnBytes = decodeAbiParameters(
+                [{ name: "ret", type: "bytes[]" }],
+                result
+            )
 
-        return returnBytes[0]
+            return returnBytes[0]
+        } catch (err) {
+            this.logger.error(
+                { err, result },
+                "Failed to decode simulation result"
+            )
+            throw new RpcError(
+                "Failed to decode simulation result",
+                ValidationErrors.SimulateValidation
+            )
+        }
     }
 }
 
