@@ -256,8 +256,6 @@ export class Mempool {
         return entities
     }
 
-    // TODO: add check for adding a userop with conflicting nonce
-    // In case of concurrent requests
     async add(
         userOp: UserOperation,
         entryPoint: Address,
@@ -269,99 +267,29 @@ export class Mempool {
             this.config.chainId
         )
 
-        const outstandingOps = await this.store.dumpOutstanding(entryPoint)
-        const submittedOps = await this.store.dumpSubmitted(entryPoint)
-        const processingOps = await this.store.dumpProcessing(entryPoint)
-
-        const processedOrSubmittedOps = [...processingOps, ...submittedOps]
-
         // Check if the exact same userOperation is already in the mempool.
-        const existingUserOperation = [
-            ...outstandingOps,
-            ...processedOrSubmittedOps
-        ].find((userOpInfo) => userOpInfo.userOpHash === userOpHash)
-
-        if (existingUserOperation) {
+        if (await this.store.isInMempool({ userOpHash, entryPoint })) {
             return [false, "Already known"]
         }
 
-        if (
-            processedOrSubmittedOps.find((userOpInfo) => {
-                const { userOp: mempoolUserOp } = userOpInfo
-                return (
-                    mempoolUserOp.sender === userOp.sender &&
-                    mempoolUserOp.nonce === userOp.nonce
-                )
-            })
-        ) {
-            return [
-                false,
-                "AA25 invalid account nonce: User operation is already in mempool and getting processed with same nonce and sender"
-            ]
-        }
-
-        const oldUserOpInfo = [
-            ...outstandingOps,
-            ...processedOrSubmittedOps
-        ].find((userOpInfo) => {
-            const { userOp: mempoolUserOp } = userOpInfo
-
-            const isSameSender = mempoolUserOp.sender === userOp.sender
-            if (isSameSender && mempoolUserOp.nonce === userOp.nonce) {
-                return true
-            }
-
-            // Check if there is already a userOperation with initCode + same sender (stops rejected ops due to AA10).
-            if (
-                isVersion06(mempoolUserOp) &&
-                isVersion06(userOp) &&
-                userOp.initCode &&
-                userOp.initCode !== "0x"
-            ) {
-                return (
-                    isSameSender &&
-                    mempoolUserOp.initCode &&
-                    mempoolUserOp.initCode !== "0x"
-                )
-            }
-
-            // Check if there is already a userOperation with factory + same sender (stops rejected ops due to AA10).
-            if (
-                isVersion07(mempoolUserOp) &&
-                isVersion07(userOp) &&
-                userOp.factory &&
-                userOp.factory !== "0x"
-            ) {
-                return (
-                    isSameSender &&
-                    mempoolUserOp.factory &&
-                    mempoolUserOp.factory !== "0x"
-                )
-            }
-
-            return false
+        // Check if there is a conflicting userOp already being processed
+        const validation = await this.store.validateSubmittedOrProcessing({
+            entryPoint,
+            userOp
         })
 
-        const isOldUserOpProcessingOrSubmitted = processedOrSubmittedOps.some(
-            (userOpInfo) => userOpInfo.userOpHash === oldUserOpInfo?.userOpHash
-        )
+        if (!validation.valid) {
+            return [false, validation.reason]
+        }
 
-        if (oldUserOpInfo) {
-            const { userOp: oldUserOp } = oldUserOpInfo
-            let reason =
-                "AA10 sender already constructed: A conflicting userOperation with initCode for this sender is already in the mempool. bump the gas price by minimum 10%"
+        // Check if there is a userOp we can replace
+        const conflicting = await this.store.findConflictingOutstanding({
+            entryPoint,
+            userOp
+        })
 
-            if (oldUserOp.nonce === userOp.nonce) {
-                reason =
-                    "AA25 invalid account nonce: User operation already present in mempool, bump the gas price by minimum 10%"
-            }
-
-            // if oldOp is already in processing or submitted mempool, we can't replace it so early exit.
-            if (isOldUserOpProcessingOrSubmitted) {
-                return [false, reason]
-            }
-
-            const oldOp = oldUserOp
+        if (conflicting) {
+            const oldOp = conflicting.userOpInfo.userOp
             const newOp = userOp
 
             const hasHigherPriorityFee =
@@ -375,13 +303,19 @@ export class Mempool {
             const hasHigherFees = hasHigherPriorityFee && hasHigherMaxFee
 
             if (!hasHigherFees) {
-                return [false, reason]
+                const reason =
+                    conflicting.reason === "conflicting_deployment"
+                        ? "AA10 sender already constructed: A conflicting userOperation with initCode for this sender is already in the mempool"
+                        : "AA25 invalid account nonce: User operation already present in mempool"
+
+                return [false, `${reason}, bump the gas price by minimum 10%`]
             }
 
             await this.store.removeOutstanding({
                 entryPoint,
-                userOpHash: oldUserOpInfo.userOpHash
+                userOpHash: conflicting.userOpInfo.userOpHash
             })
+
             this.reputationManager.replaceUserOperationSeenStatus(
                 oldOp,
                 entryPoint
@@ -393,42 +327,6 @@ export class Mempool {
             entryPoint
         )
 
-        // Check if mempool already includes max amount of parallel user operations
-        const parallelUserOperationsCount = outstandingOps.filter(
-            (userOpInfo) => {
-                const { userOp: mempoolUserOp } = userOpInfo
-                return mempoolUserOp.sender === userOp.sender
-            }
-        ).length
-
-        if (parallelUserOperationsCount > this.config.mempoolMaxParallelOps) {
-            return [
-                false,
-                "AA25 invalid account nonce: Maximum number of parallel user operations for that is allowed for this sender reached"
-            ]
-        }
-
-        // Check if mempool already includes max amount of queued user operations
-        const [nonceKey] = getNonceKeyAndSequence(userOp.nonce)
-        const queuedUserOperationsCount = outstandingOps.filter(
-            (userOpInfo) => {
-                const { userOp: mempoolUserOp } = userOpInfo
-                const [opNonceKey] = getNonceKeyAndSequence(mempoolUserOp.nonce)
-
-                return (
-                    mempoolUserOp.sender === userOp.sender &&
-                    opNonceKey === nonceKey
-                )
-            }
-        ).length
-
-        if (queuedUserOperationsCount > this.config.mempoolMaxQueuedOps) {
-            return [
-                false,
-                "AA25 invalid account nonce: Maximum number of queued user operations reached for this sender and nonce key"
-            ]
-        }
-
         await this.store.addOutstanding({
             entryPoint,
             userOpInfo: {
@@ -438,6 +336,7 @@ export class Mempool {
                 addedToMempool: Date.now()
             }
         })
+
         this.monitor.setUserOperationStatus(userOpHash, {
             status: "not_submitted",
             transactionHash: null

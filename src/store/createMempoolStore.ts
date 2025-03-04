@@ -1,13 +1,19 @@
-import type { HexData32, SubmittedUserOp, UserOpInfo } from "@alto/types"
-import type { Metrics } from "@alto/utils"
+import {
+    UserOperation,
+    type HexData32,
+    type SubmittedUserOp,
+    type UserOpInfo
+} from "@alto/types"
+import { isVersion06, isVersion07, type Metrics } from "@alto/utils"
 import type { Logger } from "@alto/utils"
 import {
-    BaseStore,
+    Store,
     MempoolStore,
     OutstandingStore,
-    Store,
     StoreType,
-    UserOpType
+    EntryPointUserOpHashParam,
+    EntryPointSubmittedUserOpParam,
+    EntryPointUserOpInfoParam
 } from "."
 import { AltoConfig } from "../createConfig"
 import { createMemoryOutstandingQueue } from "./createMemoryOutstandingStore"
@@ -93,20 +99,17 @@ export const createMempoolStore = ({
         metrics.userOperationsInMempool.labels({ status: storeType }).dec()
     }
 
-    const logDumpOperation = async <T extends UserOpType>(
-        storeType: StoreType,
-        store: BaseStore<T>
-    ) => {
+    const logDumpOperation = async (storeType: StoreType) => {
         logger.trace(
             {
-                store: storeType,
-                length: await store.length()
+                store: storeType
             },
             "dumping mempool"
         )
     }
 
     return {
+        // Methods used for bundling
         popOutstanding: async (entryPoint: Address) => {
             const outstanding = storeHandlers.get(entryPoint)?.outstanding
             if (!outstanding) {
@@ -123,88 +126,78 @@ export const createMempoolStore = ({
 
             return await outstanding.peek()
         },
+
+        // State handling
         addOutstanding: async ({
             entryPoint,
             userOpInfo
-        }: { entryPoint: Address; userOpInfo: UserOpInfo }) => {
+        }: EntryPointUserOpInfoParam) => {
             const outstanding = storeHandlers.get(entryPoint)?.outstanding
             if (!outstanding) {
                 throw new Error("unexpected error")
             }
 
             logAddOperation(userOpInfo.userOpHash, "outstanding")
-            await outstanding.add({ userOpInfo })
+            await outstanding.add(userOpInfo)
         },
         addProcessing: async ({
             entryPoint,
             userOpInfo
-        }: {
-            entryPoint: Address
-            userOpInfo: UserOpInfo
-        }) => {
+        }: EntryPointUserOpInfoParam) => {
             const processing = storeHandlers.get(entryPoint)?.processing
             if (!processing) {
                 throw new Error("unexpected error")
             }
 
             logAddOperation(userOpInfo.userOpHash, "processing")
-            await processing.add({ op: userOpInfo })
+            processing.add(userOpInfo)
         },
         addSubmitted: async ({
             entryPoint,
             submittedUserOp
-        }: {
-            entryPoint: Address
-            submittedUserOp: SubmittedUserOp
-        }) => {
+        }: EntryPointSubmittedUserOpParam) => {
             const submitted = storeHandlers.get(entryPoint)?.submitted
             if (!submitted) {
                 throw new Error("unexpected error")
             }
 
             logAddOperation(submittedUserOp.userOpHash, "submitted")
-            await submitted.add({ op: submittedUserOp })
+            submitted.add(submittedUserOp)
         },
         removeOutstanding: async ({
             entryPoint,
             userOpHash
-        }: {
-            entryPoint: Address
-            userOpHash: HexData32
-        }) => {
+        }: EntryPointUserOpHashParam) => {
             const outstanding = storeHandlers.get(entryPoint)?.outstanding
             if (!outstanding) {
                 throw new Error("unexpected error")
             }
-            const removed = await outstanding.remove({ userOpHash })
+
+            const removed = await outstanding.remove(userOpHash)
             logRemoveOperation(userOpHash, "outstanding", removed)
         },
         removeProcessing: async ({
             entryPoint,
             userOpHash
-        }: {
-            entryPoint: Address
-            userOpHash: HexData32
-        }) => {
+        }: EntryPointUserOpHashParam) => {
             const processing = storeHandlers.get(entryPoint)?.processing
             if (!processing) {
                 throw new Error("unexpected error")
             }
-            const removed = await processing.remove({ userOpHash })
+
+            const removed = await processing.remove(userOpHash)
             logRemoveOperation(userOpHash, "processing", removed)
         },
         removeSubmitted: async ({
             entryPoint,
             userOpHash
-        }: {
-            entryPoint: Address
-            userOpHash: HexData32
-        }) => {
+        }: EntryPointUserOpHashParam) => {
             const submitted = storeHandlers.get(entryPoint)?.submitted
             if (!submitted) {
                 throw new Error("unexpected error")
             }
-            const removed = await submitted.remove({ userOpHash })
+
+            const removed = await submitted.remove(userOpHash)
             logRemoveOperation(userOpHash, "submitted", removed)
         },
         dumpOutstanding: async (entryPoint: Address) => {
@@ -212,7 +205,8 @@ export const createMempoolStore = ({
             if (!outstanding) {
                 throw new Error("unexpected error")
             }
-            await logDumpOperation("outstanding", outstanding)
+
+            await logDumpOperation("outstanding")
             return await outstanding.dump()
         },
         dumpProcessing: async (entryPoint: Address) => {
@@ -220,7 +214,8 @@ export const createMempoolStore = ({
             if (!processing) {
                 throw new Error("unexpected error")
             }
-            await logDumpOperation("processing", processing)
+
+            await logDumpOperation("processing")
             return await processing.dump()
         },
         dumpSubmitted: async (entryPoint: Address) => {
@@ -228,9 +223,146 @@ export const createMempoolStore = ({
             if (!submitted) {
                 throw new Error("unexpected error")
             }
-            await logDumpOperation("submitted", submitted)
+
+            await logDumpOperation("submitted")
             return await submitted.dump()
         },
+
+        // Check if the userOp is already in the mempool
+        isInMempool: async ({
+            userOpHash,
+            entryPoint
+        }: EntryPointUserOpHashParam) => {
+            const stores = storeHandlers.get(entryPoint)
+            if (!stores) {
+                throw new Error("unexpected error")
+            }
+
+            const { outstanding, processing, submitted } = stores
+
+            const [inOutstanding, inProcessing, inSubmitted] =
+                await Promise.all([
+                    outstanding.contains(userOpHash),
+                    processing.contains(userOpHash),
+                    submitted.contains(userOpHash)
+                ])
+
+            return inOutstanding || inProcessing || inSubmitted
+        },
+        validateSubmittedOrProcessing: async ({
+            entryPoint,
+            userOp
+        }: { entryPoint: Address; userOp: UserOperation }) => {
+            const stores = storeHandlers.get(entryPoint)
+            if (!stores) {
+                throw new Error("unexpected error")
+            }
+
+            const { submitted, processing } = stores
+            const { sender, nonce } = userOp
+
+            const processedOrSubmittedOps = [
+                ...(await submitted.dump()),
+                ...(await processing.dump())
+            ]
+
+            // Check for same sender and nonce
+            const hasSameNonce = processedOrSubmittedOps.some((userOpInfo) => {
+                const { userOp: mempoolUserOp } = userOpInfo
+                return (
+                    mempoolUserOp.sender === sender &&
+                    mempoolUserOp.nonce === nonce
+                )
+            })
+
+            if (hasSameNonce) {
+                return {
+                    valid: false,
+                    reason: "AA25 invalid account nonce: Another UserOperation with same sender and nonce is already being processed"
+                }
+            }
+
+            // Check for deployment conflict
+            const isCurrentOpDeployment =
+                (isVersion06(userOp) &&
+                    userOp.initCode &&
+                    userOp.initCode !== "0x") ||
+                (isVersion07(userOp) &&
+                    userOp.factory &&
+                    userOp.factory !== "0x")
+
+            if (isCurrentOpDeployment) {
+                const hasDeploymentConflict = processedOrSubmittedOps.some(
+                    (userOpInfo) => {
+                        const { userOp: mempoolUserOp } = userOpInfo
+
+                        const isV6Deployment =
+                            isVersion06(mempoolUserOp) &&
+                            mempoolUserOp.initCode &&
+                            mempoolUserOp.initCode !== "0x"
+
+                        const isV7Deployment =
+                            isVersion07(mempoolUserOp) &&
+                            mempoolUserOp.factory &&
+                            mempoolUserOp.factory !== "0x"
+
+                        const isDeployment = isV6Deployment || isV7Deployment
+
+                        return mempoolUserOp.sender === sender && isDeployment
+                    }
+                )
+
+                if (hasDeploymentConflict) {
+                    return {
+                        valid: false,
+                        reason: "AA25 invalid account deployment: Another deployment operation for this sender is already being processed"
+                    }
+                }
+            }
+
+            return { valid: true }
+        },
+        // Conditions for when a old_user_op can be replaced from outstanding store
+        // - old_user_op with same sender and nonce exists such that:
+        //   - new_user_op has maxFeePerGas and maxPriorityFeePerGas >10% of old_user_op
+        // - old_user_op with same sender and factoryData such that:
+        //   - new_user_op has maxFeePerGas and maxPriorityFeePerGas >10% of old_user_op
+        findConflictingOutstanding: async ({
+            entryPoint,
+            userOp
+        }: { entryPoint: Address; userOp: UserOperation }) => {
+            throw new Error("Method not implemented.")
+        },
+
+        validateSenderLimits: async ({
+            entryPoint,
+            userOp
+        }: { entryPoint: Address; userOp: UserOperation }) => {
+            const stores = storeHandlers.get(entryPoint)
+            if (!stores) {
+                throw new Error("unexpected error")
+            }
+
+            const { outstanding } = stores
+
+            if (!outstanding.validateParallelLimit(userOp)) {
+                return {
+                    valid: false,
+                    reason: "AA25 invalid account nonce: Maximum number of parallel user operations for that is allowed for this sender reached"
+                }
+            }
+
+            if (!outstanding.validateQueuedLimit(userOp)) {
+                return {
+                    valid: false,
+                    reason: "AA25 invalid account nonce: Maximum number of queued user operations reached for this sender and nonce key"
+                }
+            }
+
+            return { valid: true }
+        },
+
+        // misc
         clear: async ({
             entryPoint,
             from

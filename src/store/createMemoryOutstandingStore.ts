@@ -9,6 +9,10 @@ const senderNonceSlot = (userOp: UserOperation) => {
     return `${sender}-${nonceKey}`
 }
 
+const dump = (pendingOps: Map<string, UserOpInfo[]>) => {
+    return [...Array.from(pendingOps.values()).flat()]
+}
+
 export const createMemoryOutstandingQueue = ({
     config
 }: { config: AltoConfig }): OutstandingStore => {
@@ -35,6 +39,59 @@ export const createMemoryOutstandingQueue = ({
     }
 
     return {
+        validateQueuedLimit: (userOp: UserOperation) => {
+            const outstandingOps = dump(pendingOps)
+
+            const parallelUserOperationsCount = outstandingOps.filter(
+                (userOpInfo) => {
+                    const { userOp: mempoolUserOp } = userOpInfo
+                    return mempoolUserOp.sender === userOp.sender
+                }
+            ).length
+
+            if (parallelUserOperationsCount > config.mempoolMaxParallelOps) {
+                return false
+            }
+
+            return true
+        },
+        validateParallelLimit: (userOp: UserOperation) => {
+            const outstandingOps = dump(pendingOps)
+
+            const [nonceKey] = getNonceKeyAndSequence(userOp.nonce)
+            const queuedUserOperationsCount = outstandingOps.filter(
+                (userOpInfo) => {
+                    const { userOp: mempoolUserOp } = userOpInfo
+                    const [opNonceKey] = getNonceKeyAndSequence(
+                        mempoolUserOp.nonce
+                    )
+
+                    return (
+                        mempoolUserOp.sender === userOp.sender &&
+                        opNonceKey === nonceKey
+                    )
+                }
+            ).length
+
+            if (queuedUserOperationsCount > config.mempoolMaxQueuedOps) {
+                return false
+            }
+
+            return true
+        },
+        findConflicting: async (userOpInfo: UserOpInfo) => {
+            throw new Error("Method not implemented.")
+        },
+        contains: async (userOpHash: HexData32) => {
+            for (const userOpInfos of pendingOps.values()) {
+                if (
+                    userOpInfos.some((info) => info.userOpHash === userOpHash)
+                ) {
+                    return true
+                }
+            }
+            return false
+        },
         peek: () => {
             if (priorityQueue.length === 0) {
                 return Promise.resolve(undefined)
@@ -69,7 +126,7 @@ export const createMemoryOutstandingQueue = ({
 
             return Promise.resolve(userOpInfo)
         },
-        add: ({ userOpInfo }: { userOpInfo: UserOpInfo }) => {
+        add: (userOpInfo: UserOpInfo) => {
             const { userOp, userOpHash } = userOpInfo
             const [nonceKey] = getNonceKeyAndSequence(userOp.nonce)
             const pendingOpsSlot = senderNonceSlot(userOp)
@@ -107,7 +164,7 @@ export const createMemoryOutstandingQueue = ({
 
             return Promise.resolve()
         },
-        remove: ({ userOpHash }: { userOpHash: HexData32 }) => {
+        remove: (userOpHash: HexData32) => {
             const priorityQueueIndex = priorityQueue.findIndex(
                 (info) => info.userOpHash === userOpHash
             )
@@ -155,7 +212,7 @@ export const createMemoryOutstandingQueue = ({
             return Promise.resolve(true)
         },
         dump: () => {
-            return Promise.resolve([...Array.from(pendingOps.values()).flat()])
+            return Promise.resolve(dump(pendingOps))
         },
         clear: () => {
             priorityQueue = []

@@ -58,20 +58,9 @@ const createRedisKeys = (chainId: number, entryPoint: Address) => {
             return `${chainId}:outstanding:pending-ops:${entryPoint}:${fingerPrint}`
         },
 
-        // Used to keep track of active (sender, nonceKey) pair queue slots
-        // - Used for easier cleanup + finding how many ops are pending (+dumping the entire outstanding store)
-        pendingsOpsIndexList: () => {
-            return `${chainId}:outstanding:slots:${entryPoint}`
-        },
-
         // Secondary index to map userOpHash to pendingOpsKey (used for easy lookup when calling outstanding.remove())
         userOpHashLookup: () => {
             return `${chainId}:outstanding:user-op-hash-index:${entryPoint}`
-        },
-
-        // Counter for total number of pending operations
-        pendingOpsCounter: () => {
-            return `${chainId}:outstanding:counter:${entryPoint}`
         }
     }
 }
@@ -105,22 +94,6 @@ export const createRedisOutstandingQueue = ({
         )
     }
 
-    const addToPendingOpsQueue = async (userOpInfo: UserOpInfo) => {
-        const { userOp } = userOpInfo
-        const [, nonceSeq] = getNonceKeyAndSequence(userOp.nonce)
-        const pendingOpsKey = redisKeys.pendingOps(userOp)
-
-        // Add to the (sender, nonceKey) queue with nonceSeq as score
-        await redisClient.zadd(
-            pendingOpsKey,
-            Number(nonceSeq),
-            serializeUserOpInfo(userOpInfo)
-        )
-
-        // Record (sender, nonceKey) index
-        await redisClient.sadd(redisKeys.pendingsOpsIndexList(), pendingOpsKey)
-    }
-
     // Returns sorted pending ops by nonceSeq for a given (sender, nonceKey) pair
     const getSortedPendingOps = async ({
         userOpInfo,
@@ -144,22 +117,30 @@ export const createRedisOutstandingQueue = ({
         return entries.map(deserializeUserOpInfo)
     }
 
-    // Add this helper function to maintain the secondary index
-    const addToUserOpHashLookup = async (userOpInfo: UserOpInfo) => {
-        const { userOpHash, userOp } = userOpInfo
-        const pendingOpsKey = redisKeys.pendingOps(userOp)
-
-        // Store mapping from userOpHash to pendingOpsKey and serialized userOpInfo
-        await redisClient.hset(
-            redisKeys.userOpHashLookup(),
-            userOpHash,
-            pendingOpsKey
-        )
-    }
-
     return {
+        validateQueuedLimit: (_: UserOperation) => {
+            return true
+        },
+        validateParallelLimit: (_: UserOperation) => {
+            return true
+        },
+        findConflicting: async (userOpInfo: UserOpInfo) => {
+            throw new Error("Method not implemented.")
+        },
+        contains: async (userOpHash: HexData32) => {
+            const pendingOpsKey = await redisClient.hget(
+                redisKeys.userOpHashLookup(),
+                userOpHash
+            )
+
+            if (!pendingOpsKey) {
+                return false
+            }
+
+            return true
+        },
         peek: async () => {
-            // Get the highest priority item from readyOpsQueue without removing it
+            // Get the highest from readyOpsQueue without removing it
             const pendingOpsKeys = await redisClient.zrange(
                 redisKeys.readyOpsQueue(),
                 0,
@@ -183,86 +164,116 @@ export const createRedisOutstandingQueue = ({
                 return undefined
             }
 
-            // Deserialize and return the UserOpInfo
-            const result = deserializeUserOpInfo(userOpInfoStrings[0])
-            return result
+            return deserializeUserOpInfo(userOpInfoStrings[0])
         },
         pop: async () => {
-            // Pop highest score in readyOpsQueue
-            const multi = redisClient.multi()
-            multi.zrange(redisKeys.readyOpsQueue(), 0, 0)
-            multi.zremrangebyrank(redisKeys.readyOpsQueue(), 0, 0)
-            const results = await multi.exec()
+            type ZmpopResult = [string, [string, string][]] // stored as [key, [value, score]]
 
-            if (
-                !results ||
-                !results[0][1] ||
-                (results[0][1] as string[])?.length === 0
-            ) {
+            // Pop element with highest score in readyOpsQueue.
+            const bestGasPrice = (await redisClient.zmpop(
+                1,
+                [redisKeys.readyOpsQueue()],
+                "MAX"
+            )) as ZmpopResult
+
+            const pendingOpsKey =
+                bestGasPrice && bestGasPrice[1].length > 0
+                    ? bestGasPrice[1][0][0]
+                    : undefined
+
+            if (!pendingOpsKey) {
                 return undefined
             }
 
-            const pendingOpsKey = (results[0][1] as string[])[0]
+            // Get the next two userOp with lowest nonce for sender+nonceKey.
+            // Lowest userOp will be returned first (and perform redis clean up)
+            // Second lowest userOp will be added to the priority queue
+            const lowest = (await redisClient.zmpop(
+                1,
+                [redisKeys.readyOpsQueue()],
+                "MIN",
+                "COUNT",
+                2
+            )) as ZmpopResult
 
-            // Get the lowest nonce operation from the pendingOpsKey
-            const userOpInfoStrings = await redisClient.zrange(
-                pendingOpsKey,
+            const currentUserOpStr =
+                lowest[1].length > 0 ? lowest[1][0][0] : undefined
+            const nextUserOpStr =
+                lowest[1].length > 1 ? lowest[1][1][0] : undefined
+
+            if (!currentUserOpStr) {
+                return undefined
+            }
+
+            const currentUserOp = deserializeUserOpInfo(currentUserOpStr)
+            const multi = redisClient.multi()
+
+            if (currentUserOpStr) {
+                multi.zrem(pendingOpsKey, currentUserOpStr)
+                multi.hdel(
+                    redisKeys.userOpHashLookup(),
+                    currentUserOp.userOpHash
+                )
+            }
+
+            // Add next lowest nonce to readyOpsQueue
+            if (nextUserOpStr) {
+                const nextUserOp = deserializeUserOpInfo(nextUserOpStr)
+                multi.zadd(
+                    redisKeys.readyOpsQueue(),
+                    Number(nextUserOp.userOp.maxFeePerGas),
+                    pendingOpsKey
+                )
+            } else {
+                // cleanup if there are no more pending operations
+                multi.del(pendingOpsKey)
+            }
+
+            await multi.exec()
+            return currentUserOp
+        },
+
+        add: async (userOpInfo: UserOpInfo) => {
+            const { userOpHash, userOp } = userOpInfo
+
+            // Check if is lowest
+            const entries = await redisClient.zrange(
+                redisKeys.pendingOps(userOp),
                 0,
-                0
+                -1
+            )
+            const sortedUserOps = entries.map(deserializeUserOpInfo)
+            const isLowestNonceSeq = sortedUserOps[0]?.userOpHash === userOpHash
+
+            const multi = redisClient.multi()
+
+            // Add to pendingOps queue with nonceSeq as score
+            multi.zadd(
+                redisKeys.pendingOps(userOp),
+                Number(getNonceKeyAndSequence(userOp.nonce)[1]),
+                serializeUserOpInfo(userOpInfo)
             )
 
-            if (!userOpInfoStrings || userOpInfoStrings.length === 0) {
-                return undefined
+            // Add to userOpHash lookup
+            multi.hset(
+                redisKeys.userOpHashLookup(),
+                userOpHash,
+                redisKeys.pendingOps(userOp)
+            )
+
+            // If this is the lowest nonce for (sender, nonceKey) pair, add to readyOpsQueue
+            if (isLowestNonceSeq) {
+                multi.zadd(
+                    redisKeys.readyOpsQueue(),
+                    Number(userOpInfo.userOp.maxFeePerGas), // Score
+                    redisKeys.pendingOps(userOp)
+                )
             }
 
-            const userOpInfoStr = userOpInfoStrings[0]
-            const userOpInfo = deserializeUserOpInfo(userOpInfoStr)
-
-            await redisClient
-                .multi()
-                .zrem(pendingOpsKey, userOpInfoStr)
-                .hdel(redisKeys.userOpHashLookup(), userOpInfo.userOpHash)
-                .exec()
-
-            // Get remaining operations for this slot
-            const sortedOps = await getSortedPendingOps({ pendingOpsKey })
-
-            // If there are more items, add the next one to the priority queue
-            if (sortedOps.length > 0) {
-                await addToReadyOpsQueue(sortedOps[0])
-            } else {
-                // If no more pending operations, cleanup by removing the (sender, nonceKey) list
-                await redisClient
-                    .multi()
-                    .srem(redisKeys.pendingsOpsIndexList(), pendingOpsKey)
-                    .del(pendingOpsKey)
-                    .exec()
-            }
-
-            return userOpInfo
+            await multi.exec()
         },
 
-        add: async ({ userOpInfo }: { userOpInfo: UserOpInfo }) => {
-            const { userOpHash } = userOpInfo
-
-            // Add to (sender, nonceKey) queue
-            await addToPendingOpsQueue(userOpInfo)
-
-            // Add to userOpHash index
-            await addToUserOpHashLookup(userOpInfo)
-
-            // If this is the lowest nonce for (sender, nonceKey) pair, update the priority queue
-            const sortedOps = await getSortedPendingOps({ userOpInfo })
-            if (
-                sortedOps.length > 0 &&
-                sortedOps[0].userOpHash === userOpHash
-            ) {
-                await addToReadyOpsQueue(userOpInfo)
-            }
-            await redisClient.incr(redisKeys.pendingOpsCounter())
-        },
-
-        remove: async ({ userOpHash }: { userOpHash: HexData32 }) => {
+        remove: async (userOpHash: HexData32) => {
             // Get the userOp info from the secondary index
             const pendingOpsKey = await redisClient.hget(
                 redisKeys.userOpHashLookup(),
@@ -309,61 +320,21 @@ export const createRedisOutstandingQueue = ({
                     .zrem(pendingOpsKey, serializeUserOpInfo(userOpInfo))
                     .exec()
             }
-            await redisClient.decr(redisKeys.pendingOpsCounter())
             return true
         },
 
         dump: async () => {
-            //// Get all slots
-            //const slots = await redisClient.smembers(
-            //    redisKeys.pendingsOpsIndexList()
-            //)
-            //const allOps: UserOpInfo[] = []
-            //if (slots.length === 0) {
-            //    return allOps
-            //}
-            //// Use pipelining to batch all zrange commands in a single network roundtrip
-            //const pipeline = redisClient.pipeline()
-            //for (const slot of slots) {
-            //    pipeline.zrange(slot, 0, -1)
-            //}
-            //const results = await pipeline.exec()
-            //if (!results) {
-            //    return allOps
-            //}
-            //// Process all results from the pipeline
-            //results.forEach(([, entries]) => {
-            //    if (entries && Array.isArray(entries) && entries.length > 0) {
-            //        const ops = (entries as string[]).map(deserializeUserOpInfo)
-            //        allOps.push(...ops)
-            //    }
-            //})
-            //return allOps
-            return []
+            throw new Error("TODO: delete me")
         },
 
         clear: async () => {
-            // Get all slots
-            const slots = await redisClient.smembers(
-                redisKeys.pendingsOpsIndexList()
-            )
-
-            const multi = redisClient.pipeline()
-            for (const slot of slots) {
-                multi.del(slot)
-            }
-
-            multi.del(redisKeys.pendingsOpsIndexList())
-            multi.del(redisKeys.userOpHashLookup())
-            multi.del(redisKeys.readyOpsQueue())
-            multi.del(redisKeys.pendingOpsCounter())
-
-            await multi.exec()
+            // clear is only used for debug_bundler_clearState
+            throw new Error("Not implemented")
         },
 
         length: async () => {
-            const count = await redisClient.get(redisKeys.pendingOpsCounter())
-            return count ? parseInt(count, 10) : 0
+            // not needed as we aren't dumping redis mempool
+            throw new Error("Not implemented")
         }
     }
 }

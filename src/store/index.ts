@@ -2,37 +2,57 @@ import type {
     Address,
     HexData32,
     SubmittedUserOp,
-    UserOpInfo
+    UserOpInfo,
+    UserOperation
 } from "@alto/types"
 
 // Define the StoreType type
 export type StoreType = "outstanding" | "processing" | "submitted"
 export type UserOpType = UserOpInfo | SubmittedUserOp
 
-type EntryPointUserOpParam = {
+type ConflictingType = {
+    reason: "conflicting_nonce" | "conflicting_deployment"
+    userOpInfo: UserOpInfo
+}
+
+type ValidationResult =
+    | {
+          valid: true
+      }
+    | {
+          valid: false
+          reason: string
+      }
+
+export type EntryPointUserOpInfoParam = {
     entryPoint: Address
     userOpInfo: UserOpInfo
 }
 
-type EntryPointSubmittedUserOpParam = {
+export type EntryPointSubmittedUserOpParam = {
     entryPoint: Address
     submittedUserOp: SubmittedUserOp
 }
 
-type EntryPointUserOpHashParam = {
+export type EntryPointUserOpHashParam = {
     entryPoint: Address
     userOpHash: HexData32
 }
 
+export type EntryPointUserOpParam = {
+    userOp: UserOperation
+    entryPoint: Address
+}
+
 // biome-ignore lint/complexity/noBannedTypes: <explanation>
 export type MempoolStore = {
-    // Methods used for bundling
+    // Methods used for bundling.
     peekOutstanding: (entryPoint: Address) => Promise<UserOpInfo | undefined>
     popOutstanding: (entryPoint: Address) => Promise<UserOpInfo | undefined>
 
-    // State handling
-    addOutstanding: (args: EntryPointUserOpParam) => Promise<void>
-    addProcessing: (args: EntryPointUserOpParam) => Promise<void>
+    // Methods for state handling.
+    addOutstanding: (args: EntryPointUserOpInfoParam) => Promise<void>
+    addProcessing: (args: EntryPointUserOpInfoParam) => Promise<void>
     addSubmitted: (args: EntryPointSubmittedUserOpParam) => Promise<void>
 
     removeOutstanding: (args: EntryPointUserOpHashParam) => Promise<void>
@@ -43,23 +63,37 @@ export type MempoolStore = {
     dumpProcessing: (entryPoint: Address) => Promise<UserOpInfo[]>
     dumpSubmitted: (entryPoint: Address) => Promise<SubmittedUserOp[]>
 
-    // Misc
+    // Methods for userOp validation before adding to mempool.
+    isInMempool: (args: EntryPointUserOpHashParam) => Promise<boolean>
+    findConflictingOutstanding: (args: {
+        entryPoint: Address
+        userOp: UserOperation
+    }) => Promise<ConflictingType | undefined>
+    validateSubmittedOrProcessing: (
+        args: EntryPointUserOpParam
+    ) => Promise<ValidationResult>
+    validateSenderLimits: (args: {
+        entryPoint: Address
+        userOp: UserOperation
+    }) => Promise<ValidationResult>
+
+    // Misc.
     clear: (args: { entryPoint: Address; from: StoreType }) => Promise<void>
 }
 
-export type BaseStore<T extends UserOpType> = {
-    remove: (args: { userOpHash: HexData32 }) => Promise<boolean>
+export type Store<T extends UserOpType> = {
+    add: (op: T) => Promise<void>
+    remove: (userOpHash: HexData32) => Promise<boolean>
+    contains: (userOpHash: HexData32) => Promise<boolean>
     dump: () => Promise<T[]>
     length: () => Promise<number>
     clear: () => Promise<void>
 }
 
-export type Store<T extends UserOpType> = BaseStore<T> & {
-    add: (args: { op: T }) => Promise<void>
-}
-
-export type OutstandingStore = BaseStore<UserOpInfo> & {
-    add: (args: { userOpInfo: UserOpInfo }) => Promise<void>
+export type OutstandingStore = Store<UserOpInfo> & {
+    validateQueuedLimit: (userOp: UserOperation) => boolean
+    validateParallelLimit: (userOp: UserOperation) => boolean
+    findConflicting: (args: UserOpInfo) => Promise<ConflictingType | undefined>
     peek: () => Promise<UserOpInfo | undefined>
     pop: () => Promise<UserOpInfo | undefined>
 }
