@@ -41,6 +41,17 @@ export const createMempoolStore = ({
         }
     > = new Map()
 
+    // Helper function to get store handlers for an entry point
+    const getStoreHandlers = (entryPoint: Address) => {
+        const handlers = storeHandlers.get(entryPoint)
+        if (!handlers) {
+            throw new Error(
+                `No store handlers found for entry point ${entryPoint}`
+            )
+        }
+        return handlers
+    }
+
     for (const entryPoint of config.entrypoints) {
         const processing = createStore<UserOpInfo>({
             config
@@ -99,7 +110,7 @@ export const createMempoolStore = ({
         metrics.userOperationsInMempool.labels({ status: storeType }).dec()
     }
 
-    const logDumpOperation = async (storeType: StoreType) => {
+    const logDumpOperation = (storeType: StoreType) => {
         logger.trace(
             {
                 store: storeType
@@ -111,19 +122,11 @@ export const createMempoolStore = ({
     return {
         // Methods used for bundling
         popOutstanding: async (entryPoint: Address) => {
-            const outstanding = storeHandlers.get(entryPoint)?.outstanding
-            if (!outstanding) {
-                throw new Error("unexpected error")
-            }
-
+            const { outstanding } = getStoreHandlers(entryPoint)
             return await outstanding.pop()
         },
         peekOutstanding: async (entryPoint: Address) => {
-            const outstanding = storeHandlers.get(entryPoint)?.outstanding
-            if (!outstanding) {
-                throw new Error("unexpected error")
-            }
-
+            const { outstanding } = getStoreHandlers(entryPoint)
             return await outstanding.peek()
         },
 
@@ -132,11 +135,7 @@ export const createMempoolStore = ({
             entryPoint,
             userOpInfo
         }: EntryPointUserOpInfoParam) => {
-            const outstanding = storeHandlers.get(entryPoint)?.outstanding
-            if (!outstanding) {
-                throw new Error("unexpected error")
-            }
-
+            const { outstanding } = getStoreHandlers(entryPoint)
             logAddOperation(userOpInfo.userOpHash, "outstanding")
             await outstanding.add(userOpInfo)
         },
@@ -144,11 +143,7 @@ export const createMempoolStore = ({
             entryPoint,
             userOpInfo
         }: EntryPointUserOpInfoParam) => {
-            const processing = storeHandlers.get(entryPoint)?.processing
-            if (!processing) {
-                throw new Error("unexpected error")
-            }
-
+            const { processing } = getStoreHandlers(entryPoint)
             logAddOperation(userOpInfo.userOpHash, "processing")
             processing.add(userOpInfo)
         },
@@ -156,11 +151,7 @@ export const createMempoolStore = ({
             entryPoint,
             submittedUserOp
         }: EntryPointSubmittedUserOpParam) => {
-            const submitted = storeHandlers.get(entryPoint)?.submitted
-            if (!submitted) {
-                throw new Error("unexpected error")
-            }
-
+            const { submitted } = getStoreHandlers(entryPoint)
             logAddOperation(submittedUserOp.userOpHash, "submitted")
             submitted.add(submittedUserOp)
         },
@@ -168,11 +159,7 @@ export const createMempoolStore = ({
             entryPoint,
             userOpHash
         }: EntryPointUserOpHashParam) => {
-            const outstanding = storeHandlers.get(entryPoint)?.outstanding
-            if (!outstanding) {
-                throw new Error("unexpected error")
-            }
-
+            const { outstanding } = getStoreHandlers(entryPoint)
             const removed = await outstanding.remove(userOpHash)
             logRemoveOperation(userOpHash, "outstanding", removed)
         },
@@ -180,11 +167,7 @@ export const createMempoolStore = ({
             entryPoint,
             userOpHash
         }: EntryPointUserOpHashParam) => {
-            const processing = storeHandlers.get(entryPoint)?.processing
-            if (!processing) {
-                throw new Error("unexpected error")
-            }
-
+            const { processing } = getStoreHandlers(entryPoint)
             const removed = await processing.remove(userOpHash)
             logRemoveOperation(userOpHash, "processing", removed)
         },
@@ -192,39 +175,23 @@ export const createMempoolStore = ({
             entryPoint,
             userOpHash
         }: EntryPointUserOpHashParam) => {
-            const submitted = storeHandlers.get(entryPoint)?.submitted
-            if (!submitted) {
-                throw new Error("unexpected error")
-            }
-
+            const { submitted } = getStoreHandlers(entryPoint)
             const removed = await submitted.remove(userOpHash)
             logRemoveOperation(userOpHash, "submitted", removed)
         },
         dumpOutstanding: async (entryPoint: Address) => {
-            const outstanding = storeHandlers.get(entryPoint)?.outstanding
-            if (!outstanding) {
-                throw new Error("unexpected error")
-            }
-
-            await logDumpOperation("outstanding")
+            const { outstanding } = getStoreHandlers(entryPoint)
+            logDumpOperation("outstanding")
             return await outstanding.dump()
         },
         dumpProcessing: async (entryPoint: Address) => {
-            const processing = storeHandlers.get(entryPoint)?.processing
-            if (!processing) {
-                throw new Error("unexpected error")
-            }
-
-            await logDumpOperation("processing")
+            const { processing } = getStoreHandlers(entryPoint)
+            logDumpOperation("processing")
             return await processing.dump()
         },
         dumpSubmitted: async (entryPoint: Address) => {
-            const submitted = storeHandlers.get(entryPoint)?.submitted
-            if (!submitted) {
-                throw new Error("unexpected error")
-            }
-
-            await logDumpOperation("submitted")
+            const { submitted } = getStoreHandlers(entryPoint)
+            logDumpOperation("submitted")
             return await submitted.dump()
         },
 
@@ -233,12 +200,8 @@ export const createMempoolStore = ({
             userOpHash,
             entryPoint
         }: EntryPointUserOpHashParam) => {
-            const stores = storeHandlers.get(entryPoint)
-            if (!stores) {
-                throw new Error("unexpected error")
-            }
-
-            const { outstanding, processing, submitted } = stores
+            const { outstanding, processing, submitted } =
+                getStoreHandlers(entryPoint)
 
             const [inOutstanding, inProcessing, inSubmitted] =
                 await Promise.all([
@@ -249,16 +212,12 @@ export const createMempoolStore = ({
 
             return inOutstanding || inProcessing || inSubmitted
         },
+
         validateSubmittedOrProcessing: async ({
             entryPoint,
             userOp
         }: { entryPoint: Address; userOp: UserOperation }) => {
-            const stores = storeHandlers.get(entryPoint)
-            if (!stores) {
-                throw new Error("unexpected error")
-            }
-
-            const { submitted, processing } = stores
+            const { submitted, processing } = getStoreHandlers(entryPoint)
             const { sender, nonce } = userOp
 
             const processedOrSubmittedOps = [
@@ -322,28 +281,20 @@ export const createMempoolStore = ({
 
             return { valid: true }
         },
-        // Conditions for when a old_user_op can be replaced from outstanding store
-        // - old_user_op with same sender and nonce exists such that:
-        //   - new_user_op has maxFeePerGas and maxPriorityFeePerGas >10% of old_user_op
-        // - old_user_op with same sender and factoryData such that:
-        //   - new_user_op has maxFeePerGas and maxPriorityFeePerGas >10% of old_user_op
+
         findConflictingOutstanding: async ({
             entryPoint,
             userOp
         }: { entryPoint: Address; userOp: UserOperation }) => {
-            throw new Error("Method not implemented.")
+            const { outstanding } = getStoreHandlers(entryPoint)
+            return await outstanding.findConflicting(userOp)
         },
 
         validateSenderLimits: async ({
             entryPoint,
             userOp
         }: { entryPoint: Address; userOp: UserOperation }) => {
-            const stores = storeHandlers.get(entryPoint)
-            if (!stores) {
-                throw new Error("unexpected error")
-            }
-
-            const { outstanding } = stores
+            const { outstanding } = getStoreHandlers(entryPoint)
 
             if (!outstanding.validateParallelLimit(userOp)) {
                 return {
@@ -367,17 +318,14 @@ export const createMempoolStore = ({
             entryPoint,
             from
         }: { entryPoint: Address; from: StoreType }) => {
-            const stores = storeHandlers.get(entryPoint)
-            if (!stores) {
-                throw new Error("unexpected error")
-            }
+            const handlers = getStoreHandlers(entryPoint)
 
             if (from === "outstanding") {
-                await stores.outstanding.clear()
+                await handlers.outstanding.clear()
             } else if (from === "processing") {
-                await stores.processing.clear()
+                await handlers.processing.clear()
             } else if (from === "submitted") {
-                await stores.submitted.clear()
+                await handlers.submitted.clear()
             }
 
             logger.debug({ store: from }, "cleared mempool")

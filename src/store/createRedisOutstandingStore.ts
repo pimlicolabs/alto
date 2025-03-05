@@ -119,12 +119,14 @@ export const createRedisOutstandingQueue = ({
 
     return {
         validateQueuedLimit: (_: UserOperation) => {
+            // Skip limit checks when using redis.
             return true
         },
         validateParallelLimit: (_: UserOperation) => {
+            // Skip limit checks when using redis.
             return true
         },
-        findConflicting: async (userOpInfo: UserOpInfo) => {
+        findConflicting: async (userOp: UserOperation) => {
             throw new Error("Method not implemented.")
         },
         contains: async (userOpHash: HexData32) => {

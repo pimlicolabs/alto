@@ -10,10 +10,12 @@ import type {
 export type StoreType = "outstanding" | "processing" | "submitted"
 export type UserOpType = UserOpInfo | SubmittedUserOp
 
-type ConflictingType = {
-    reason: "conflicting_nonce" | "conflicting_deployment"
-    userOpInfo: UserOpInfo
-}
+export type ConflictingType =
+    | {
+          reason: "conflicting_nonce" | "conflicting_deployment"
+          userOpInfo: UserOpInfo
+      }
+    | undefined
 
 type ValidationResult =
     | {
@@ -68,7 +70,7 @@ export type MempoolStore = {
     findConflictingOutstanding: (args: {
         entryPoint: Address
         userOp: UserOperation
-    }) => Promise<ConflictingType | undefined>
+    }) => Promise<ConflictingType>
     validateSubmittedOrProcessing: (
         args: EntryPointUserOpParam
     ) => Promise<ValidationResult>
@@ -93,7 +95,7 @@ export type Store<T extends UserOpType> = {
 export type OutstandingStore = Store<UserOpInfo> & {
     validateQueuedLimit: (userOp: UserOperation) => boolean
     validateParallelLimit: (userOp: UserOperation) => boolean
-    findConflicting: (args: UserOpInfo) => Promise<ConflictingType | undefined>
+    findConflicting: (args: UserOperation) => Promise<ConflictingType>
     peek: () => Promise<UserOpInfo | undefined>
     pop: () => Promise<UserOpInfo | undefined>
 }

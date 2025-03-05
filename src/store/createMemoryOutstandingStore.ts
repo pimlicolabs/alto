@@ -1,7 +1,11 @@
-import { getNonceKeyAndSequence } from "../utils/userop"
+import {
+    getNonceKeyAndSequence,
+    isVersion06,
+    isVersion07
+} from "../utils/userop"
 import { AltoConfig } from "../createConfig"
 import { HexData32, UserOpInfo, UserOperation } from "@alto/types"
-import { OutstandingStore } from "."
+import { ConflictingType, OutstandingStore } from "."
 
 const senderNonceSlot = (userOp: UserOperation) => {
     const sender = userOp.sender
@@ -79,8 +83,54 @@ export const createMemoryOutstandingQueue = ({
 
             return true
         },
-        findConflicting: async (userOpInfo: UserOpInfo) => {
-            throw new Error("Method not implemented.")
+        findConflicting: async (userOp: UserOperation) => {
+            const outstandingOps = dump(pendingOps)
+
+            let conflictingReason: ConflictingType = undefined
+
+            for (const userOpInfo of outstandingOps) {
+                const { userOp: mempoolUserOp } = userOpInfo
+
+                const isSameSender = mempoolUserOp.sender === userOp.sender
+                if (isSameSender && mempoolUserOp.nonce === userOp.nonce) {
+                    conflictingReason = {
+                        reason: "conflicting_nonce",
+                        userOpInfo
+                    }
+                    break
+                }
+
+                const isConflictingV6Deployment =
+                    isVersion06(userOp) &&
+                    isVersion06(mempoolUserOp) &&
+                    userOp.initCode &&
+                    userOp.initCode !== "0x" &&
+                    mempoolUserOp.initCode &&
+                    mempoolUserOp.initCode !== "0x" &&
+                    isSameSender
+
+                const isConflictingV7Deployment =
+                    isVersion07(userOp) &&
+                    isVersion07(mempoolUserOp) &&
+                    userOp.factory &&
+                    userOp.factory !== "0x" &&
+                    mempoolUserOp.factory &&
+                    mempoolUserOp.factory !== "0x" &&
+                    isSameSender
+
+                const isConflictingDeployment =
+                    isConflictingV6Deployment || isConflictingV7Deployment
+
+                if (isConflictingDeployment) {
+                    conflictingReason = {
+                        reason: "conflicting_deployment",
+                        userOpInfo
+                    }
+                    break
+                }
+            }
+
+            return conflictingReason
         },
         contains: async (userOpHash: HexData32) => {
             for (const userOpInfos of pendingOps.values()) {
