@@ -583,6 +583,10 @@ export class RpcHandler {
                 callGasLimit,
                 this.config.v7CallGasLimitMultiplier
             )
+            paymasterPostOpGasLimit = scaleBigIntByPercent(
+                paymasterPostOpGasLimit,
+                this.config.v7PaymasterPostOpGasLimitMultiplier
+            )
         }
 
         let preVerificationGas = await calcPreVerificationGas({
