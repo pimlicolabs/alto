@@ -42,35 +42,380 @@ const deserializeUserOpInfo = (data: string): UserOpInfo => {
     }
 }
 
-const createRedisKeys = (chainId: number, entryPoint: Address) => {
-    return {
-        // Used to keep track of ops ready for bundling
-        // - Sorted by gasPrice
-        // - Only includes lowest nonce for every (sender, nonceKey) pair
-        // - Stores (sender, nonceKey) redis key
-        readyOpsQueue: () => {
-            return `${chainId}:outstanding:pending-queue:${entryPoint}`
-        },
+const isDeploymentOperation = (userOp: UserOperation): boolean => {
+    const isV6Deployment =
+        isVersion06(userOp) && !!userOp.initCode && userOp.initCode !== "0x"
+    const isV7Deployment =
+        isVersion07(userOp) && !!userOp.factory && userOp.factory !== "0x"
+    return isV6Deployment || isV7Deployment
+}
 
-        // Used to keep track of pending ops by (sender, nonceKey) pair
-        // - Each key stores a list of pending userOpInfo for that (sender, nonceKey) pair
-        // - Sorted by nonceSeq
-        pendingOps: (userOp: UserOperation) => {
-            const sender = userOp.sender
-            const [nonceKey] = getNonceKeyAndSequence(userOp.nonce)
-            const fingerPrint = `${sender}-${toHex(nonceKey)}`
-            return `${chainId}:outstanding:pending-ops:${entryPoint}:${fingerPrint}`
-        },
+class RedisSortedSet {
+    constructor(
+        private redis: Redis,
+        private keyName: string
+    ) {}
 
-        // Secondary index to map userOpHash to pendingOpsKey (used for easy lookup when calling outstanding.remove())
-        userOpHashLookup: () => {
-            return `${chainId}:outstanding:user-op-hash-index:${entryPoint}`
-        },
+    get keyPath(): string {
+        return this.keyName
+    }
 
-        // Factory lookup
-        factoryLookup: () => {
-            return `${chainId}:outstanding:factory-lookup:${entryPoint}`
+    async add(member: string, score: number): Promise<void> {
+        await this.redis.zadd(this.keyPath, score, member)
+    }
+
+    async remove(member: string): Promise<void> {
+        await this.redis.zrem(this.keyPath, member)
+    }
+
+    async getByScoreRange(min: number, max: number): Promise<string[]> {
+        return this.redis.zrangebyscore(this.keyPath, min, max)
+    }
+
+    async getByRankRange(start: number, stop: number): Promise<string[]> {
+        return this.redis.zrange(this.keyPath, start, stop)
+    }
+
+    async popMax(): Promise<string | undefined> {
+        type ZmpopResult = [string, [string, string][]] // [key, [[member, score], ...]]
+
+        const result = (await this.redis.zmpop(
+            1,
+            [this.keyPath],
+            "MAX",
+            "COUNT",
+            1
+        )) as ZmpopResult
+
+        return result && result[1].length > 0 ? result[1][0][0] : undefined
+    }
+
+    async popMin(): Promise<string | undefined> {
+        type ZmpopResult = [string, [string, string][]] // [key, [[member, score], ...]]
+
+        const result = (await this.redis.zmpop(
+            1,
+            [this.keyPath],
+            "MIN",
+            "COUNT",
+            1
+        )) as ZmpopResult
+
+        return result && result[1].length > 0 ? result[1][0][0] : undefined
+    }
+
+    async delete(): Promise<void> {
+        await this.redis.del(this.keyPath)
+    }
+}
+
+class RedisHash {
+    constructor(
+        private redis: Redis,
+        private keyName: string
+    ) {}
+
+    get keyPath(): string {
+        return this.keyName
+    }
+
+    async set(field: string, value: string): Promise<void> {
+        await this.redis.hset(this.keyPath, field, value)
+    }
+
+    async get(field: string): Promise<string | null> {
+        return this.redis.hget(this.keyPath, field)
+    }
+
+    async delete(field: string): Promise<void> {
+        await this.redis.hdel(this.keyPath, field)
+    }
+
+    async exists(field: string): Promise<boolean> {
+        return (await this.redis.hexists(this.keyPath, field)) === 1
+    }
+
+    async getAll(): Promise<Record<string, string>> {
+        return this.redis.hgetall(this.keyPath)
+    }
+}
+
+class RedisOutstandingQueue implements OutstandingStore {
+    private redis: Redis
+    private chainId: number
+    private entryPoint: Address
+
+    // Redis data structures
+    private readyOpsQueue: RedisSortedSet
+    private userOpHashLookup: RedisHash
+    private factoryLookup: RedisHash
+
+    constructor(config: AltoConfig, entryPoint: Address) {
+        if (!config.redisMempoolUrl) {
+            throw new Error("Missing required redisMempoolUrl")
         }
+
+        this.redis = new Redis(config.redisMempoolUrl, {})
+        this.chainId = config.chainId
+        this.entryPoint = entryPoint
+
+        // Initialize Redis data structures
+        const factoryLookupKey = `${this.chainId}:outstanding:factory-lookup:${this.entryPoint}`
+        const userOpHashLookupKey = `${this.chainId}:outstanding:user-op-hash-index:${this.entryPoint}`
+        const readyOpsQueueKey = `${this.chainId}:outstanding:pending-queue:${this.entryPoint}`
+
+        this.readyOpsQueue = new RedisSortedSet(this.redis, readyOpsQueueKey)
+        this.userOpHashLookup = new RedisHash(this.redis, userOpHashLookupKey)
+        this.factoryLookup = new RedisHash(this.redis, factoryLookupKey)
+    }
+
+    // Helpers
+    private getPendingOpsSet(userOp: UserOperation): RedisSortedSet {
+        return new RedisSortedSet(this.redis, this.getPendingOpsKey(userOp))
+    }
+
+    private getPendingOpsKey(userOp: UserOperation): string {
+        const [nonceKey] = getNonceKeyAndSequence(userOp.nonce)
+        const fingerprint = `${userOp.sender}-${toHex(nonceKey)}`
+        return this.readyOpsQueue.keyPath.replace(
+            "pending-queue",
+            `pending-ops:${fingerprint}`
+        )
+    }
+
+    // OutstandingStore methods
+    async contains(userOpHash: HexData32): Promise<boolean> {
+        return this.userOpHashLookup.exists(userOpHash)
+    }
+
+    async findConflicting(userOp: UserOperation) {
+        const [, nonceSeq] = getNonceKeyAndSequence(userOp.nonce)
+        const pendingOpsSet = this.getPendingOpsSet(userOp)
+
+        // Check for operations with the same nonce sequence
+        const conflictingNonce = await pendingOpsSet.getByScoreRange(
+            Number(nonceSeq),
+            Number(nonceSeq)
+        )
+
+        if (conflictingNonce.length) {
+            return {
+                reason: "conflicting_nonce" as const,
+                userOpInfo: deserializeUserOpInfo(conflictingNonce[0])
+            }
+        }
+
+        // Check for conflicting deployments to the same address
+        if (isDeploymentOperation(userOp)) {
+            const conflictingUserOpHash = await this.factoryLookup.get(
+                userOp.sender
+            )
+
+            if (conflictingUserOpHash) {
+                const pendingOpsKey = await this.userOpHashLookup.get(
+                    conflictingUserOpHash
+                )
+
+                if (pendingOpsKey) {
+                    const conflictingPendingOpsSet = new RedisSortedSet(
+                        this.redis,
+                        pendingOpsKey
+                    )
+                    const ops = await conflictingPendingOpsSet.getByRankRange(
+                        0,
+                        -1
+                    )
+                    const userOps = ops.map(deserializeUserOpInfo)
+
+                    const conflictingUserOp = userOps.find(
+                        (op) => op.userOpHash === conflictingUserOpHash
+                    )
+
+                    if (conflictingUserOp) {
+                        return {
+                            reason: "conflicting_deployment" as const,
+                            userOpInfo: conflictingUserOp
+                        }
+                    }
+                }
+            }
+        }
+
+        return undefined
+    }
+
+    async peek(): Promise<UserOpInfo | undefined> {
+        // Get highest gas price operation's key
+        const pendingOpsKeys = await this.readyOpsQueue.getByRankRange(0, 0)
+
+        if (!pendingOpsKeys.length) {
+            return undefined
+        }
+
+        // Get the lowest nonce operation from the pendingOpsKey
+        const pendingOpsSet = new RedisSortedSet(this.redis, pendingOpsKeys[0])
+        const userOpInfoStrings = await pendingOpsSet.getByRankRange(0, 0)
+
+        if (!userOpInfoStrings.length) {
+            return undefined
+        }
+
+        return deserializeUserOpInfo(userOpInfoStrings[0])
+    }
+
+    async add(userOpInfo: UserOpInfo): Promise<void> {
+        const { userOpHash, userOp } = userOpInfo
+        const pendingOpsSet = this.getPendingOpsSet(userOp)
+
+        // Add to pendingOps sorted set with nonceSeq as score
+        const [, nonceSeq] = getNonceKeyAndSequence(userOp.nonce)
+        await pendingOpsSet.add(
+            serializeUserOpInfo(userOpInfo),
+            Number(nonceSeq)
+        )
+
+        // Add to userOpHash lookup
+        await this.userOpHashLookup.set(userOpHash, pendingOpsSet.keyPath)
+
+        // Track factory deployments if needed
+        if (isDeploymentOperation(userOp)) {
+            await this.factoryLookup.set(userOp.sender, userOpHash)
+        }
+
+        // Check if this is the first/lowest operation for this sender+nonceKey
+        const allOps = await pendingOpsSet.getByRankRange(0, -1)
+        const isLowestNonce =
+            allOps.length === 1 ||
+            deserializeUserOpInfo(allOps[0]).userOpHash === userOpHash
+
+        // If lowest nonce, update ready queue with this userOp's gasPrice
+        if (isLowestNonce) {
+            await this.readyOpsQueue.add(
+                pendingOpsSet.keyPath,
+                Number(userOp.maxFeePerGas)
+            )
+        }
+    }
+
+    async remove(userOpHash: HexData32): Promise<boolean> {
+        // Get the userOp info from the secondary index
+        const pendingOpsKey = await this.userOpHashLookup.get(userOpHash)
+        if (!pendingOpsKey) {
+            return false
+        }
+
+        // Get all pending operations for this key
+        const pendingOpsSet = new RedisSortedSet(this.redis, pendingOpsKey)
+        const ops = await pendingOpsSet.getByRankRange(0, -1)
+
+        if (!ops.length) {
+            return false
+        }
+
+        const userOps = ops.map(deserializeUserOpInfo)
+        const userOpInfo = userOps.find((op) => op.userOpHash === userOpHash)
+
+        if (!userOpInfo) {
+            return false
+        }
+
+        // Check if we're removing the lowest nonce operation
+        const isLowestNonce = userOps[0].userOpHash === userOpHash
+
+        // Clean up factory deployment tracking if needed
+        if (isDeploymentOperation(userOpInfo.userOp)) {
+            await this.factoryLookup.delete(userOpInfo.userOp.sender)
+        }
+
+        // Remove from the sorted set
+        await pendingOpsSet.remove(serializeUserOpInfo(userOpInfo))
+
+        // Remove from hash lookup
+        await this.userOpHashLookup.delete(userOpHash)
+
+        if (isLowestNonce) {
+            // Remove from ready queue
+            await this.readyOpsQueue.remove(pendingOpsKey)
+
+            // Check if there are more operations for this sender+nonceKey
+            const remainingOps = await pendingOpsSet.getByRankRange(0, 0)
+
+            if (remainingOps.length > 0) {
+                // Add next operation to ready queue
+                const nextOp = deserializeUserOpInfo(remainingOps[0])
+                await this.readyOpsQueue.add(
+                    pendingOpsKey,
+                    Number(nextOp.userOp.maxFeePerGas)
+                )
+            }
+        }
+
+        return true
+    }
+
+    async pop(): Promise<UserOpInfo | undefined> {
+        // Pop highest gas price operation
+        const pendingOpsKeys = await this.readyOpsQueue.popMax()
+
+        if (!pendingOpsKeys || !pendingOpsKeys.length) {
+            return undefined
+        }
+
+        const pendingOpsKey = pendingOpsKeys[0]
+        const pendingOpsSet = new RedisSortedSet(this.redis, pendingOpsKey)
+
+        // Get the operations from the set (limited to 2 for efficiency)
+        const ops = await pendingOpsSet.getByRankRange(0, 1)
+
+        if (!ops.length) {
+            return undefined
+        }
+
+        const currentUserOpStr = ops[0]
+        const currentUserOp = deserializeUserOpInfo(currentUserOpStr)
+
+        // Remove the current operation
+        await pendingOpsSet.remove(currentUserOpStr)
+        await this.userOpHashLookup.delete(currentUserOp.userOpHash)
+
+        // Check if there are more operations in this set
+        const remainingOps = await pendingOpsSet.getByRankRange(0, 0)
+
+        if (remainingOps.length > 0) {
+            // Add back to ready queue with next operation's gas price
+            const nextUserOp = deserializeUserOpInfo(remainingOps[0])
+            await this.readyOpsQueue.add(
+                pendingOpsKey,
+                Number(nextUserOp.userOp.maxFeePerGas)
+            )
+        } else {
+            // Delete the empty set
+            await pendingOpsSet.delete()
+        }
+
+        return currentUserOp
+    }
+
+    // These methods aren't implemented
+    async dump(): Promise<any> {
+        throw new Error("Not implemented: dump")
+    }
+
+    async clear(): Promise<void> {
+        throw new Error("Not implemented: clear")
+    }
+
+    async length(): Promise<number> {
+        throw new Error("Not implemented: length")
+    }
+
+    // Skip limit checks when using Redis
+    validateQueuedLimit(): boolean {
+        return true
+    }
+
+    validateParallelLimit(): boolean {
+        return true
     }
 }
 
@@ -81,355 +426,5 @@ export const createRedisOutstandingQueue = ({
     config: AltoConfig
     entryPoint: Address
 }): OutstandingStore => {
-    const chainId = config.chainId
-
-    const { redisMempoolUrl } = config
-    if (!redisMempoolUrl) {
-        throw new Error("missing required redisMempoolUrl")
-    }
-
-    const redisClient = new Redis(redisMempoolUrl, {})
-    const redisKeys = createRedisKeys(chainId, entryPoint)
-
-    // Adds userOp to queue and maintains sorting by gas price
-    const addToReadyOpsQueue = async (userOpInfo: UserOpInfo) => {
-        const { userOp } = userOpInfo
-        const pendingOpsKey = redisKeys.pendingOps(userOp)
-
-        await redisClient.zadd(
-            redisKeys.readyOpsQueue(),
-            Number(userOpInfo.userOp.maxFeePerGas), // Score
-            pendingOpsKey
-        )
-    }
-
-    // Returns sorted pending ops by nonceSeq for a given (sender, nonceKey) pair
-    const getSortedPendingOps = async ({
-        userOpInfo,
-        pendingOpsKey
-    }: {
-        userOpInfo?: UserOpInfo
-        pendingOpsKey?: string
-    }): Promise<UserOpInfo[]> => {
-        let zsetKey: string
-
-        if (pendingOpsKey) {
-            zsetKey = pendingOpsKey
-        } else if (userOpInfo) {
-            const { userOp } = userOpInfo
-            zsetKey = redisKeys.pendingOps(userOp)
-        } else {
-            throw new Error("missing required userOpInfo or pendingOpsKey")
-        }
-
-        const entries = await redisClient.zrange(zsetKey, 0, -1)
-        return entries.map(deserializeUserOpInfo)
-    }
-
-    return {
-        validateQueuedLimit: (_: UserOperation) => {
-            // Skip limit checks when using redis.
-            return true
-        },
-        validateParallelLimit: (_: UserOperation) => {
-            // Skip limit checks when using redis.
-            return true
-        },
-        findConflicting: async (userOp: UserOperation) => {
-            const [, nonceSeq] = getNonceKeyAndSequence(userOp.nonce)
-            const conflictingNonce = await redisClient.zrangebyscore(
-                redisKeys.pendingOps(userOp),
-                Number(nonceSeq),
-                Number(nonceSeq)
-            )
-
-            if (conflictingNonce.length) {
-                return {
-                    reason: "conflicting_nonce",
-                    userOpInfo: deserializeUserOpInfo(conflictingNonce[0])
-                }
-            }
-
-            const isUserOpV06Deployment =
-                isVersion06(userOp) &&
-                userOp.initCode &&
-                userOp.initCode !== "0x"
-            const isUserOpV07Deployment =
-                isVersion07(userOp) && userOp.factory && userOp.factory !== "0x"
-
-            if (isUserOpV06Deployment || isUserOpV07Deployment) {
-                const conflictingUserOpHash = await redisClient.hget(
-                    redisKeys.factoryLookup(),
-                    `${userOp.sender}`
-                )
-
-                if (conflictingUserOpHash) {
-                    // Get the userOp info from the hash
-                    const pendingOpsKey = await redisClient.hget(
-                        redisKeys.userOpHashLookup(),
-                        conflictingUserOpHash
-                    )
-
-                    if (pendingOpsKey) {
-                        const entries = await redisClient.zrange(
-                            pendingOpsKey,
-                            0,
-                            -1
-                        )
-                        const userOps = entries.map(deserializeUserOpInfo)
-                        const conflictingUserOp = userOps.find(
-                            (op) => op.userOpHash === conflictingUserOpHash
-                        )
-
-                        if (conflictingUserOp) {
-                            return {
-                                reason: "conflicting_deployment",
-                                userOpInfo: conflictingUserOp
-                            }
-                        }
-                    }
-                }
-            }
-
-            return undefined
-        },
-        contains: async (userOpHash: HexData32) => {
-            const pendingOpsKey = await redisClient.hget(
-                redisKeys.userOpHashLookup(),
-                userOpHash
-            )
-
-            if (!pendingOpsKey) {
-                return false
-            }
-
-            return true
-        },
-        peek: async () => {
-            // Get the highest from readyOpsQueue without removing it
-            const pendingOpsKeys = await redisClient.zrange(
-                redisKeys.readyOpsQueue(),
-                0,
-                0
-            )
-
-            if (!pendingOpsKeys || pendingOpsKeys.length === 0) {
-                return undefined
-            }
-
-            const pendingOpsKey = pendingOpsKeys[0]
-
-            // Get the lowest nonce operation from the pendingOpsKey
-            const userOpInfoStrings = await redisClient.zrange(
-                pendingOpsKey,
-                0,
-                0
-            )
-
-            if (!userOpInfoStrings || userOpInfoStrings.length === 0) {
-                return undefined
-            }
-
-            return deserializeUserOpInfo(userOpInfoStrings[0])
-        },
-        pop: async () => {
-            type ZmpopResult = [string, [string, string][]] // stored as [key, [value, score]]
-
-            // Pop element with highest score in readyOpsQueue.
-            const bestGasPrice = (await redisClient.zmpop(
-                1,
-                [redisKeys.readyOpsQueue()],
-                "MAX"
-            )) as ZmpopResult
-
-            const pendingOpsKey =
-                bestGasPrice && bestGasPrice[1].length > 0
-                    ? bestGasPrice[1][0][0]
-                    : undefined
-
-            if (!pendingOpsKey) {
-                return undefined
-            }
-
-            // Get the next two userOp with lowest nonce for sender+nonceKey.
-            // Lowest userOp will be returned first (and perform redis clean up)
-            // Second lowest userOp will be added to the priority queue
-            const lowest = (await redisClient.zmpop(
-                1,
-                [redisKeys.readyOpsQueue()],
-                "MIN",
-                "COUNT",
-                2
-            )) as ZmpopResult
-
-            const currentUserOpStr =
-                lowest[1].length > 0 ? lowest[1][0][0] : undefined
-            const nextUserOpStr =
-                lowest[1].length > 1 ? lowest[1][1][0] : undefined
-
-            if (!currentUserOpStr) {
-                return undefined
-            }
-
-            const currentUserOp = deserializeUserOpInfo(currentUserOpStr)
-            const multi = redisClient.multi()
-
-            if (currentUserOpStr) {
-                multi.zrem(pendingOpsKey, currentUserOpStr)
-                multi.hdel(
-                    redisKeys.userOpHashLookup(),
-                    currentUserOp.userOpHash
-                )
-            }
-
-            // Add next lowest nonce to readyOpsQueue
-            if (nextUserOpStr) {
-                const nextUserOp = deserializeUserOpInfo(nextUserOpStr)
-                multi.zadd(
-                    redisKeys.readyOpsQueue(),
-                    Number(nextUserOp.userOp.maxFeePerGas),
-                    pendingOpsKey
-                )
-            } else {
-                // cleanup if there are no more pending operations
-                multi.del(pendingOpsKey)
-            }
-
-            await multi.exec()
-            return currentUserOp
-        },
-
-        add: async (userOpInfo: UserOpInfo) => {
-            const { userOpHash, userOp } = userOpInfo
-
-            // Check if is lowest
-            const entries = await redisClient.zrange(
-                redisKeys.pendingOps(userOp),
-                0,
-                -1
-            )
-            const sortedUserOps = entries.map(deserializeUserOpInfo)
-            const isLowestNonceSeq = sortedUserOps[0]?.userOpHash === userOpHash
-
-            const multi = redisClient.multi()
-
-            // Add to pendingOps queue with nonceSeq as score
-            multi.zadd(
-                redisKeys.pendingOps(userOp),
-                Number(getNonceKeyAndSequence(userOp.nonce)[1]),
-                serializeUserOpInfo(userOpInfo)
-            )
-
-            // Add to userOpHash lookup
-            multi.hset(
-                redisKeys.userOpHashLookup(),
-                userOpHash,
-                redisKeys.pendingOps(userOp)
-            )
-
-            // If this is the lowest nonce for (sender, nonceKey) pair, add to readyOpsQueue
-            if (isLowestNonceSeq) {
-                multi.zadd(
-                    redisKeys.readyOpsQueue(),
-                    Number(userOpInfo.userOp.maxFeePerGas), // Score
-                    redisKeys.pendingOps(userOp)
-                )
-            }
-
-            const isUserOpV06Deployment =
-                isVersion06(userOp) &&
-                userOp.initCode &&
-                userOp.initCode !== "0x"
-            const isUserOpV07Deployment =
-                isVersion07(userOp) && userOp.factory && userOp.factory !== "0x"
-
-            if (isUserOpV06Deployment || isUserOpV07Deployment) {
-                multi.hset(
-                    redisKeys.factoryLookup(),
-                    `${userOp.sender}`,
-                    userOpHash
-                )
-            }
-
-            await multi.exec()
-        },
-
-        remove: async (userOpHash: HexData32) => {
-            // Get the userOp info from the secondary index
-            const pendingOpsKey = await redisClient.hget(
-                redisKeys.userOpHashLookup(),
-                userOpHash
-            )
-
-            if (!pendingOpsKey) {
-                return false
-            }
-
-            // Check if we are removing the lowest userOp for the (sender, nonceKey) pair
-            const sortedOps = await getSortedPendingOps({ pendingOpsKey })
-            const userOpInfo = sortedOps.find(
-                (sop) => sop.userOpHash === userOpHash
-            )
-
-            if (!userOpInfo) {
-                return false
-            }
-
-            const multi = redisClient.multi()
-
-            const userOp = userOpInfo.userOp
-            const isUserOpV06Deployment =
-                isVersion06(userOp) &&
-                userOp.initCode &&
-                userOp.initCode !== "0x"
-            const isUserOpV07Deployment =
-                isVersion07(userOp) && userOp.factory && userOp.factory !== "0x"
-
-            if (isUserOpV06Deployment || isUserOpV07Deployment) {
-                multi.hdel(redisKeys.factoryLookup(), `${userOp.sender}`)
-            }
-
-            if (
-                sortedOps.length > 0 &&
-                sortedOps[0].userOpHash === userOpHash
-            ) {
-                // If this is the lowest userOp in (sender, nonceKey) pair, remove from readyOpsQueue, userOpHashLookup, pendingOpsList
-                multi
-                    .zrem(redisKeys.readyOpsQueue(), pendingOpsKey)
-                    .hdel(redisKeys.userOpHashLookup(), userOpHash)
-                    .zrem(pendingOpsKey, serializeUserOpInfo(userOpInfo))
-
-                await multi.exec()
-
-                sortedOps.shift()
-
-                // If there are more operations, add the next lowest nonceSeq to readyOpsQueue
-                if (sortedOps.length > 0) {
-                    await addToReadyOpsQueue(sortedOps[0])
-                }
-            } else {
-                // Otherwise, delete from userOpHashLookup and remove from pendingOpsList
-                multi
-                    .hdel(redisKeys.userOpHashLookup(), userOpHash)
-                    .zrem(pendingOpsKey, serializeUserOpInfo(userOpInfo))
-
-                await multi.exec()
-            }
-            return true
-        },
-
-        dump: async () => {
-            throw new Error("TODO: delete me")
-        },
-
-        clear: async () => {
-            // clear is only used for debug_bundler_clearState
-            throw new Error("Not implemented")
-        },
-
-        length: async () => {
-            // not needed as we aren't dumping redis mempool
-            throw new Error("Not implemented")
-        }
-    }
+    return new RedisOutstandingQueue(config, entryPoint)
 }
