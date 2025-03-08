@@ -3,8 +3,7 @@ import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
     Mempool,
-    Monitor,
-    NonceQueuer
+    Monitor
 } from "@alto/mempool"
 import type { ApiVersion, BundlerRequest, StateOverrides } from "@alto/types"
 import {
@@ -42,7 +41,6 @@ export class RpcHandler {
     public mempool: Mempool
     public executor: Executor
     public monitor: Monitor
-    public nonceQueuer: NonceQueuer
     public executorManager: ExecutorManager
     public reputationManager: InterfaceReputationManager
     public metrics: Metrics
@@ -58,7 +56,6 @@ export class RpcHandler {
         mempool,
         executor,
         monitor,
-        nonceQueuer,
         executorManager,
         reputationManager,
         metrics,
@@ -70,7 +67,6 @@ export class RpcHandler {
         mempool: Mempool
         executor: Executor
         monitor: Monitor
-        nonceQueuer: NonceQueuer
         executorManager: ExecutorManager
         reputationManager: InterfaceReputationManager
         metrics: Metrics
@@ -82,7 +78,6 @@ export class RpcHandler {
         this.mempool = mempool
         this.executor = executor
         this.monitor = monitor
-        this.nonceQueuer = nonceQueuer
         this.executorManager = executorManager
         this.reputationManager = reputationManager
         this.metrics = metrics
@@ -267,7 +262,7 @@ export class RpcHandler {
             userOperationNonceValue >
             currentNonceValue + BigInt(queuedUserOperations.length)
         ) {
-            this.nonceQueuer.add(userOperation, entryPoint)
+            this.mempool.add(userOperation, entryPoint)
             return "queued"
         }
 

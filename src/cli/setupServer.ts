@@ -5,8 +5,7 @@ import {
     Mempool,
     Monitor,
     NullReputationManager,
-    ReputationManager,
-    NonceQueuer
+    ReputationManager
 } from "@alto/mempool"
 import { RpcHandler, SafeValidator, Server, UnsafeValidator } from "@alto/rpc"
 import type { InterfaceValidator } from "@alto/types"
@@ -150,29 +149,12 @@ const getExecutorManager = ({
     })
 }
 
-const getNonceQueuer = ({
-    config,
-    mempool,
-    eventManager
-}: {
-    config: AltoConfig
-    mempool: Mempool
-    eventManager: EventManager
-}) => {
-    return new NonceQueuer({
-        config,
-        mempool,
-        eventManager
-    })
-}
-
 const getRpcHandler = ({
     config,
     validator,
     mempool,
     executor,
     monitor,
-    nonceQueuer,
     executorManager,
     reputationManager,
     metrics,
@@ -184,7 +166,6 @@ const getRpcHandler = ({
     mempool: Mempool
     executor: Executor
     monitor: Monitor
-    nonceQueuer: NonceQueuer
     executorManager: ExecutorManager
     reputationManager: InterfaceReputationManager
     metrics: Metrics
@@ -197,7 +178,6 @@ const getRpcHandler = ({
         mempool,
         executor,
         monitor,
-        nonceQueuer,
         executorManager,
         reputationManager,
         metrics,
@@ -318,19 +298,12 @@ export const setupServer = async ({
         eventManager
     })
 
-    const nonceQueuer = getNonceQueuer({
-        config,
-        mempool,
-        eventManager
-    })
-
     const rpcEndpoint = getRpcHandler({
         config,
         validator,
         mempool,
         executor,
         monitor,
-        nonceQueuer,
         executorManager,
         reputationManager,
         metrics,
