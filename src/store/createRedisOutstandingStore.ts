@@ -214,10 +214,7 @@ class RedisOutstandingQueue implements OutstandingStore {
     private getPendingOpsKey(userOp: UserOperation): string {
         const [nonceKey] = getNonceKeyAndSequence(userOp.nonce)
         const fingerprint = `${userOp.sender}-${toHex(nonceKey)}`
-        return this.readyOpsQueue.keyPath.replace(
-            "pending-queue",
-            `pending-ops:${fingerprint}`
-        )
+        return `${this.chainId}:outstanding:pending-ops:${this.entryPoint}:${fingerprint}`
     }
 
     // OutstandingStore methods

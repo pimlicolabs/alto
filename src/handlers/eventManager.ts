@@ -37,7 +37,7 @@ export class EventManager {
 
         if (config.redisQueueEndpoint && config.redisEventManagerQueueName) {
             this.logger.info(
-                `Using Redis with queue name ${config.redisEventManagerQueueName} for userOp event queue`
+                `Using redis with queue name ${config.redisEventManagerQueueName} for userOp event queue`
             )
             const redis = new Redis(config.redisQueueEndpoint)
 

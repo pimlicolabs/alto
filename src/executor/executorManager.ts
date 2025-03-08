@@ -932,17 +932,17 @@ export class ExecutorManager {
         entryPoint: Address,
         reason: string
     ) {
-        userOps.map((userOpInfo) => {
+        userOps.map(async (userOpInfo) => {
             const { userOpHash, userOp } = userOpInfo
-            this.logger.info(
+            this.logger.warn(
                 {
                     userOpHash,
                     reason
                 },
                 "resubmitting user operation"
             )
-            this.mempool.removeProcessing({ entryPoint, userOpHash })
-            this.mempool.add(userOp, entryPoint)
+            await this.mempool.removeProcessing({ entryPoint, userOpHash })
+            await this.mempool.add(userOp, entryPoint)
             this.metrics.userOperationsResubmitted.inc()
         })
     }
