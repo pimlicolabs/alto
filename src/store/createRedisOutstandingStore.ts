@@ -1,4 +1,8 @@
-import { getNonceKeyAndSequence } from "../utils/userop"
+import {
+    getNonceKeyAndSequence,
+    isVersion06,
+    isVersion07
+} from "../utils/userop"
 import { AltoConfig } from "../createConfig"
 import {
     Address,
@@ -61,6 +65,11 @@ const createRedisKeys = (chainId: number, entryPoint: Address) => {
         // Secondary index to map userOpHash to pendingOpsKey (used for easy lookup when calling outstanding.remove())
         userOpHashLookup: () => {
             return `${chainId}:outstanding:user-op-hash-index:${entryPoint}`
+        },
+
+        // Factory lookup
+        factoryLookup: () => {
+            return `${chainId}:outstanding:factory-lookup:${entryPoint}`
         }
     }
 }
@@ -127,7 +136,62 @@ export const createRedisOutstandingQueue = ({
             return true
         },
         findConflicting: async (userOp: UserOperation) => {
-            throw new Error("Method not implemented.")
+            const [, nonceSeq] = getNonceKeyAndSequence(userOp.nonce)
+            const conflictingNonce = await redisClient.zrangebyscore(
+                redisKeys.pendingOps(userOp),
+                Number(nonceSeq),
+                Number(nonceSeq)
+            )
+
+            if (conflictingNonce.length) {
+                return {
+                    reason: "conflicting_nonce",
+                    userOpInfo: deserializeUserOpInfo(conflictingNonce[0])
+                }
+            }
+
+            const isUserOpV06Deployment =
+                isVersion06(userOp) &&
+                userOp.initCode &&
+                userOp.initCode !== "0x"
+            const isUserOpV07Deployment =
+                isVersion07(userOp) && userOp.factory && userOp.factory !== "0x"
+
+            if (isUserOpV06Deployment || isUserOpV07Deployment) {
+                const conflictingUserOpHash = await redisClient.hget(
+                    redisKeys.factoryLookup(),
+                    `${userOp.sender}`
+                )
+
+                if (conflictingUserOpHash) {
+                    // Get the userOp info from the hash
+                    const pendingOpsKey = await redisClient.hget(
+                        redisKeys.userOpHashLookup(),
+                        conflictingUserOpHash
+                    )
+
+                    if (pendingOpsKey) {
+                        const entries = await redisClient.zrange(
+                            pendingOpsKey,
+                            0,
+                            -1
+                        )
+                        const userOps = entries.map(deserializeUserOpInfo)
+                        const conflictingUserOp = userOps.find(
+                            (op) => op.userOpHash === conflictingUserOpHash
+                        )
+
+                        if (conflictingUserOp) {
+                            return {
+                                reason: "conflicting_deployment",
+                                userOpInfo: conflictingUserOp
+                            }
+                        }
+                    }
+                }
+            }
+
+            return undefined
         },
         contains: async (userOpHash: HexData32) => {
             const pendingOpsKey = await redisClient.hget(
@@ -272,6 +336,21 @@ export const createRedisOutstandingQueue = ({
                 )
             }
 
+            const isUserOpV06Deployment =
+                isVersion06(userOp) &&
+                userOp.initCode &&
+                userOp.initCode !== "0x"
+            const isUserOpV07Deployment =
+                isVersion07(userOp) && userOp.factory && userOp.factory !== "0x"
+
+            if (isUserOpV06Deployment || isUserOpV07Deployment) {
+                multi.hset(
+                    redisKeys.factoryLookup(),
+                    `${userOp.sender}`,
+                    userOpHash
+                )
+            }
+
             await multi.exec()
         },
 
@@ -296,17 +375,31 @@ export const createRedisOutstandingQueue = ({
                 return false
             }
 
+            const multi = redisClient.multi()
+
+            const userOp = userOpInfo.userOp
+            const isUserOpV06Deployment =
+                isVersion06(userOp) &&
+                userOp.initCode &&
+                userOp.initCode !== "0x"
+            const isUserOpV07Deployment =
+                isVersion07(userOp) && userOp.factory && userOp.factory !== "0x"
+
+            if (isUserOpV06Deployment || isUserOpV07Deployment) {
+                multi.hdel(redisKeys.factoryLookup(), `${userOp.sender}`)
+            }
+
             if (
                 sortedOps.length > 0 &&
                 sortedOps[0].userOpHash === userOpHash
             ) {
                 // If this is the lowest userOp in (sender, nonceKey) pair, remove from readyOpsQueue, userOpHashLookup, pendingOpsList
-                await redisClient
-                    .multi()
+                multi
                     .zrem(redisKeys.readyOpsQueue(), pendingOpsKey)
                     .hdel(redisKeys.userOpHashLookup(), userOpHash)
                     .zrem(pendingOpsKey, serializeUserOpInfo(userOpInfo))
-                    .exec()
+
+                await multi.exec()
 
                 sortedOps.shift()
 
@@ -316,11 +409,11 @@ export const createRedisOutstandingQueue = ({
                 }
             } else {
                 // Otherwise, delete from userOpHashLookup and remove from pendingOpsList
-                await redisClient
-                    .multi()
+                multi
                     .hdel(redisKeys.userOpHashLookup(), userOpHash)
                     .zrem(pendingOpsKey, serializeUserOpInfo(userOpInfo))
-                    .exec()
+
+                await multi.exec()
             }
             return true
         },
