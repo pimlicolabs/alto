@@ -128,7 +128,7 @@ class RedisSortedSet {
     }
 }
 
-class RedisHash {
+export class RedisHash {
     constructor(
         private redis: Redis,
         private keyName: string
@@ -184,7 +184,10 @@ class RedisOutstandingQueue implements OutstandingStore {
     private userOpHashLookup: RedisHash // userOpHash -> pendingOpsKey
     private factoryLookup: RedisHash // sender -> userOpHash
 
-    constructor(config: AltoConfig, entryPoint: Address) {
+    constructor({
+        config,
+        entryPoint
+    }: { config: AltoConfig; entryPoint: Address }) {
         if (!config.redisMempoolUrl) {
             throw new Error("Missing required redisMempoolUrl")
         }
@@ -235,7 +238,7 @@ class RedisOutstandingQueue implements OutstandingStore {
         if (conflictingNonce.length) {
             return {
                 reason: "conflicting_nonce" as const,
-                userOpInfo: deserializeUserOpInfo(conflictingNonce[0])
+                userOp: deserializeUserOpInfo(conflictingNonce[0]).userOp
             }
         }
 
@@ -268,7 +271,7 @@ class RedisOutstandingQueue implements OutstandingStore {
                     if (conflictingUserOp) {
                         return {
                             reason: "conflicting_deployment" as const,
-                            userOpInfo: conflictingUserOp
+                            userOp: conflictingUserOp.userOp
                         }
                     }
                 }
@@ -455,16 +458,12 @@ class RedisOutstandingQueue implements OutstandingStore {
     }
 
     // These methods aren't implemented
-    async dump(): Promise<any> {
-        throw new Error("Not implemented: dump")
+    async dumpLocal(): Promise<any> {
+        return [] // We can't dump from redis as the latency is too high
     }
 
     async clear(): Promise<void> {
         throw new Error("Not implemented: clear")
-    }
-
-    async length(): Promise<number> {
-        throw new Error("Not implemented: length")
     }
 
     // Skip limit checks when using Redis
@@ -484,5 +483,5 @@ export const createRedisOutstandingQueue = ({
     config: AltoConfig
     entryPoint: Address
 }): OutstandingStore => {
-    return new RedisOutstandingQueue(config, entryPoint)
+    return new RedisOutstandingQueue({ config, entryPoint })
 }

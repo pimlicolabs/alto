@@ -13,7 +13,7 @@ export type UserOpType = UserOpInfo | SubmittedUserOp
 export type ConflictingType =
     | {
           reason: "conflicting_nonce" | "conflicting_deployment"
-          userOpInfo: UserOpInfo
+          userOp: UserOperation
       }
     | undefined
 
@@ -80,22 +80,21 @@ export type MempoolStore = {
     }) => Promise<ValidationResult>
 
     // Misc.
-    clear: (args: { entryPoint: Address; from: StoreType }) => Promise<void>
+    clearOutstanding: (entryPoint: Address) => Promise<void>
 }
 
 export type Store<T extends UserOpType> = {
     add: (op: T) => Promise<void>
     remove: (userOpHash: HexData32) => Promise<boolean>
     contains: (userOpHash: HexData32) => Promise<boolean>
-    dump: () => Promise<T[]>
-    length: () => Promise<number>
-    clear: () => Promise<void>
+    dumpLocal: () => Promise<T[]>
+    findConflicting: (args: UserOperation) => Promise<ConflictingType>
 }
 
 export type OutstandingStore = Store<UserOpInfo> & {
+    clear: () => Promise<void>
     validateQueuedLimit: (userOp: UserOperation) => boolean
     validateParallelLimit: (userOp: UserOperation) => boolean
-    findConflicting: (args: UserOperation) => Promise<ConflictingType>
     peek: () => Promise<UserOpInfo | undefined>
     pop: () => Promise<UserOpInfo | undefined>
 }

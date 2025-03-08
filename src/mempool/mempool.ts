@@ -216,6 +216,7 @@ export class Mempool {
         paymasters: Set<Address>
         factories: Set<Address>
     }> {
+        // TODO: this won't work with redis
         const allOps = await this.store.dumpOutstanding(entryPoint)
 
         const entities: {
@@ -289,7 +290,7 @@ export class Mempool {
         })
 
         if (conflicting) {
-            const oldOp = conflicting.userOpInfo.userOp
+            const oldOp = conflicting.userOp
             const newOp = userOp
 
             const hasHigherPriorityFee =
@@ -313,7 +314,11 @@ export class Mempool {
 
             await this.store.removeOutstanding({
                 entryPoint,
-                userOpHash: conflicting.userOpInfo.userOpHash
+                userOpHash: getUserOperationHash(
+                    conflicting.userOp,
+                    entryPoint,
+                    this.config.chainId
+                )
             })
 
             this.reputationManager.replaceUserOperationSeenStatus(
@@ -769,6 +774,7 @@ export class Mempool {
             currentNonceSequence = getNonceKeyAndSequence(getNonceResult)[1]
         }
 
+        // TODO: Remove this method!!! (doesn't work for redis)
         const outstandingOps = await this.store.dumpOutstanding(entryPoint)
         const outstanding = outstandingOps.filter((userOpInfo) => {
             const { userOp: mempoolUserOp } = userOpInfo
@@ -813,7 +819,7 @@ export class Mempool {
 
     clear(): void {
         for (const entryPoint of this.config.entrypoints) {
-            this.store.clear({ entryPoint, from: "outstanding" })
+            this.store.clearOutstanding(entryPoint)
         }
     }
 }

@@ -95,7 +95,7 @@ export const createMemoryOutstandingQueue = ({
                 if (isSameSender && mempoolUserOp.nonce === userOp.nonce) {
                     conflictingReason = {
                         reason: "conflicting_nonce",
-                        userOpInfo
+                        userOp: userOpInfo.userOp
                     }
                     break
                 }
@@ -124,7 +124,7 @@ export const createMemoryOutstandingQueue = ({
                 if (isConflictingDeployment) {
                     conflictingReason = {
                         reason: "conflicting_deployment",
-                        userOpInfo
+                        userOp: userOpInfo.userOp
                     }
                     break
                 }
@@ -261,17 +261,13 @@ export const createMemoryOutstandingQueue = ({
 
             return Promise.resolve(true)
         },
-        dump: () => {
+        dumpLocal: () => {
             return Promise.resolve(dump(pendingOps))
         },
         clear: () => {
             priorityQueue = []
             pendingOps.clear()
             return Promise.resolve()
-        },
-        length: () => {
-            const lenght = Array.from(pendingOps.values()).flat().length
-            return Promise.resolve(lenght)
         }
     }
 }

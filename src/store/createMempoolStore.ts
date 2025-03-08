@@ -4,7 +4,7 @@ import {
     type SubmittedUserOp,
     type UserOpInfo
 } from "@alto/types"
-import { isVersion06, isVersion07, type Metrics } from "@alto/utils"
+import { type Metrics } from "@alto/utils"
 import type { Logger } from "@alto/utils"
 import {
     Store,
@@ -17,9 +17,10 @@ import {
 } from "."
 import { AltoConfig } from "../createConfig"
 import { createMemoryOutstandingQueue } from "./createMemoryOutstandingStore"
-import { createStore } from "./createStore"
+import { createMemoryStore } from "./createStore"
 import { Address } from "viem"
 import { createRedisOutstandingQueue } from "./createRedisOutstandingStore"
+import { createRedisStore } from "./createRedisStore"
 
 export const createMempoolStore = ({
     config,
@@ -53,25 +54,40 @@ export const createMempoolStore = ({
     }
 
     for (const entryPoint of config.entrypoints) {
-        const processing = createStore<UserOpInfo>({
-            config
-        })
-        const submitted = createStore<SubmittedUserOp>({
-            config
-        })
-
         let outstanding: OutstandingStore
+        let processing: Store<UserOpInfo>
+        let submitted: Store<SubmittedUserOp>
         if (config.redisMempoolUrl) {
             outstanding = createRedisOutstandingQueue({
                 config,
                 entryPoint
             })
-            logger.info("Using redis for outstanding mempool")
+            processing = createRedisStore<UserOpInfo>({
+                config,
+                entryPoint,
+                storeType: "processing"
+            })
+            submitted = createRedisStore<SubmittedUserOp>({
+                config,
+                entryPoint,
+                storeType: "submitted"
+            })
+            logger.info(
+                "Using redis for outstanding, processing, submitted mempools"
+            )
         } else {
             outstanding = createMemoryOutstandingQueue({
                 config
             })
-            logger.info("Using memory for outstanding mempool")
+            processing = createMemoryStore<UserOpInfo>({
+                config
+            })
+            submitted = createMemoryStore<SubmittedUserOp>({
+                config
+            })
+            logger.info(
+                "Using memory for outstanding, processing, submitted mempools"
+            )
         }
 
         storeHandlers.set(entryPoint, {
@@ -182,17 +198,17 @@ export const createMempoolStore = ({
         dumpOutstanding: async (entryPoint: Address) => {
             const { outstanding } = getStoreHandlers(entryPoint)
             logDumpOperation("outstanding")
-            return await outstanding.dump()
+            return await outstanding.dumpLocal()
         },
         dumpProcessing: async (entryPoint: Address) => {
             const { processing } = getStoreHandlers(entryPoint)
             logDumpOperation("processing")
-            return await processing.dump()
+            return await processing.dumpLocal()
         },
         dumpSubmitted: async (entryPoint: Address) => {
             const { submitted } = getStoreHandlers(entryPoint)
             logDumpOperation("submitted")
-            return await submitted.dump()
+            return await submitted.dumpLocal()
         },
 
         // Check if the userOp is already in the mempool
@@ -218,64 +234,25 @@ export const createMempoolStore = ({
             userOp
         }: { entryPoint: Address; userOp: UserOperation }) => {
             const { submitted, processing } = getStoreHandlers(entryPoint)
-            const { sender, nonce } = userOp
 
-            const processedOrSubmittedOps = [
-                ...(await submitted.dump()),
-                ...(await processing.dump())
-            ]
+            const [submittedConflict, processingConflict] = await Promise.all([
+                submitted.findConflicting(userOp),
+                processing.findConflicting(userOp)
+            ])
 
-            // Check for same sender and nonce
-            const hasSameNonce = processedOrSubmittedOps.some((userOpInfo) => {
-                const { userOp: mempoolUserOp } = userOpInfo
-                return (
-                    mempoolUserOp.sender === sender &&
-                    mempoolUserOp.nonce === nonce
-                )
-            })
+            const conflicting = submittedConflict || processingConflict
 
-            if (hasSameNonce) {
+            if (conflicting?.reason === "conflicting_nonce") {
                 return {
                     valid: false,
                     reason: "AA25 invalid account nonce: Another UserOperation with same sender and nonce is already being processed"
                 }
             }
 
-            // Check for deployment conflict
-            const isCurrentOpDeployment =
-                (isVersion06(userOp) &&
-                    userOp.initCode &&
-                    userOp.initCode !== "0x") ||
-                (isVersion07(userOp) &&
-                    userOp.factory &&
-                    userOp.factory !== "0x")
-
-            if (isCurrentOpDeployment) {
-                const hasDeploymentConflict = processedOrSubmittedOps.some(
-                    (userOpInfo) => {
-                        const { userOp: mempoolUserOp } = userOpInfo
-
-                        const isV6Deployment =
-                            isVersion06(mempoolUserOp) &&
-                            mempoolUserOp.initCode &&
-                            mempoolUserOp.initCode !== "0x"
-
-                        const isV7Deployment =
-                            isVersion07(mempoolUserOp) &&
-                            mempoolUserOp.factory &&
-                            mempoolUserOp.factory !== "0x"
-
-                        const isDeployment = isV6Deployment || isV7Deployment
-
-                        return mempoolUserOp.sender === sender && isDeployment
-                    }
-                )
-
-                if (hasDeploymentConflict) {
-                    return {
-                        valid: false,
-                        reason: "AA25 invalid account deployment: Another deployment operation for this sender is already being processed"
-                    }
+            if (conflicting?.reason === "conflicting_deployment") {
+                return {
+                    valid: false,
+                    reason: "AA25 invalid account deployment: Another deployment operation for this sender is already being processed"
                 }
             }
 
@@ -314,21 +291,10 @@ export const createMempoolStore = ({
         },
 
         // misc
-        clear: async ({
-            entryPoint,
-            from
-        }: { entryPoint: Address; from: StoreType }) => {
-            const handlers = getStoreHandlers(entryPoint)
-
-            if (from === "outstanding") {
-                await handlers.outstanding.clear()
-            } else if (from === "processing") {
-                await handlers.processing.clear()
-            } else if (from === "submitted") {
-                await handlers.submitted.clear()
-            }
-
-            logger.debug({ store: from }, "cleared mempool")
+        clearOutstanding: async (entryPoint: Address) => {
+            const { outstanding } = getStoreHandlers(entryPoint)
+            await outstanding.clear()
+            logger.debug({ store: "outstanding" }, "cleared mempool")
         }
     }
 }
