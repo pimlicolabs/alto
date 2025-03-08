@@ -205,13 +205,13 @@ export class ExecutorManager {
         })
 
         if (!gasPriceParams || nonce === undefined) {
-            this.resubmitUserOperations(
+            await this.resubmitUserOperations(
                 userOps,
                 entryPoint,
                 "Failed to get nonce and gas parameters for bundling"
             )
             // Free executor if failed to get initial params.
-            this.senderManager.markWalletProcessed(wallet)
+            await this.senderManager.markWalletProcessed(wallet)
             return undefined
         }
 
@@ -225,7 +225,7 @@ export class ExecutorManager {
 
         // Free wallet if no bundle was sent.
         if (bundleResult.status !== "bundle_success") {
-            this.senderManager.markWalletProcessed(wallet)
+            await this.senderManager.markWalletProcessed(wallet)
         }
 
         // All ops failed simulation, drop them and return.
@@ -250,7 +250,7 @@ export class ExecutorManager {
         ) {
             const { reason, userOpsToBundle, rejectedUserOps } = bundleResult
             this.dropUserOps(entryPoint, rejectedUserOps)
-            this.resubmitUserOperations(
+            await this.resubmitUserOperations(
                 userOpsToBundle,
                 entryPoint,
                 reason.name
@@ -264,7 +264,7 @@ export class ExecutorManager {
             const { rejectedUserOps, userOpsToBundle, reason } = bundleResult
             this.dropUserOps(entryPoint, rejectedUserOps)
             // NOTE: these ops passed validation, so we can try resubmitting them
-            this.resubmitUserOperations(
+            await this.resubmitUserOperations(
                 userOpsToBundle,
                 entryPoint,
                 reason instanceof BaseError
@@ -787,7 +787,7 @@ export class ExecutorManager {
 
         // Free wallet if no bundle was sent or potentially included.
         if (bundleResult.status !== "bundle_success") {
-            this.senderManager.markWalletProcessed(txInfo.executor)
+            await this.senderManager.markWalletProcessed(txInfo.executor)
         }
 
         // Check if the transaction is potentially included.
@@ -927,24 +927,26 @@ export class ExecutorManager {
         })
     }
 
-    resubmitUserOperations(
+    async resubmitUserOperations(
         userOps: UserOpInfo[],
         entryPoint: Address,
         reason: string
     ) {
-        userOps.map(async (userOpInfo) => {
-            const { userOpHash, userOp } = userOpInfo
-            this.logger.warn(
-                {
-                    userOpHash,
-                    reason
-                },
-                "resubmitting user operation"
-            )
-            await this.mempool.removeProcessing({ entryPoint, userOpHash })
-            await this.mempool.add(userOp, entryPoint)
-            this.metrics.userOperationsResubmitted.inc()
-        })
+        await Promise.all(
+            userOps.map(async (userOpInfo) => {
+                const { userOpHash, userOp } = userOpInfo
+                this.logger.warn(
+                    {
+                        userOpHash,
+                        reason
+                    },
+                    "resubmitting user operation"
+                )
+                await this.mempool.removeProcessing({ entryPoint, userOpHash })
+                await this.mempool.add(userOp, entryPoint)
+                this.metrics.userOperationsResubmitted.inc()
+            })
+        )
     }
 
     failedToReplaceTransaction({

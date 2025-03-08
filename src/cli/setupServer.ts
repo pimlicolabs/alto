@@ -364,7 +364,7 @@ export const setupServer = async ({
 
         // mark all executors as processed
         for (const account of senderManager.getActiveWallets()) {
-            senderManager.markWalletProcessed(account)
+            await senderManager.markWalletProcessed(account)
         }
 
         process.exit(0)
