@@ -252,11 +252,10 @@ export class RpcHandler {
         }
 
         const queuedUserOperations: UserOperation[] =
-            await this.mempool.getQueuedUserOperations(
-                userOperation,
-                entryPoint,
-                currentNonceValue
-            )
+            await this.mempool.getQueuedOustandingUserOps({
+                userOp: userOperation,
+                entryPoint
+            })
 
         if (
             userOperationNonceValue >
@@ -439,11 +438,11 @@ export class RpcHandler {
                 )
             }
 
-            queuedUserOperations = await this.mempool.getQueuedUserOperations(
-                userOperation,
-                entryPoint,
-                currentNonceValue
-            )
+            queuedUserOperations =
+                await this.mempool.getQueuedOustandingUserOps({
+                    userOp: userOperation,
+                    entryPoint
+                })
 
             if (
                 userOperationNonceValue >

@@ -80,6 +80,10 @@ export type MempoolStore = {
     }) => Promise<ValidationResult>
 
     // Misc.
+    getQueuedOutstandingUserOps: (args: {
+        userOp: UserOperation
+        entryPoint: Address
+    }) => Promise<UserOperation[]>
     clearOutstanding: (entryPoint: Address) => Promise<void>
 }
 
@@ -95,6 +99,7 @@ export type OutstandingStore = Store<UserOpInfo> & {
     clear: () => Promise<void>
     validateQueuedLimit: (userOp: UserOperation) => boolean
     validateParallelLimit: (userOp: UserOperation) => boolean
+    getQueuedUserOps: (userOp: UserOperation) => Promise<UserOperation[]>
     peek: () => Promise<UserOpInfo | undefined>
     pop: () => Promise<UserOpInfo | undefined>
 }

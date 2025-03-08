@@ -214,6 +214,45 @@ export const createMemoryOutstandingQueue = ({
 
             return Promise.resolve()
         },
+        getQueuedUserOps: async (
+            userOp: UserOperation
+        ): Promise<UserOperation[]> => {
+            const [nonceKey, nonceSequence] = getNonceKeyAndSequence(
+                userOp.nonce
+            )
+
+            const outstandingOps = dump(pendingOps)
+            const outstanding = outstandingOps.filter((userOpInfo) => {
+                const { userOp: mempoolUserOp } = userOpInfo
+
+                const [mempoolNonceKey, mempoolNonceSequence] =
+                    getNonceKeyAndSequence(mempoolUserOp.nonce)
+
+                // Filter operations with the same sender and nonce key
+                // but with a lower nonce sequence
+                return (
+                    mempoolUserOp.sender === userOp.sender &&
+                    mempoolNonceKey === nonceKey &&
+                    mempoolNonceSequence < nonceSequence
+                )
+            })
+
+            return outstanding
+                .sort((a, b) => {
+                    const aUserOp = a.userOp
+                    const bUserOp = b.userOp
+
+                    const [, aNonceValue] = getNonceKeyAndSequence(
+                        aUserOp.nonce
+                    )
+                    const [, bNonceValue] = getNonceKeyAndSequence(
+                        bUserOp.nonce
+                    )
+
+                    return Number(aNonceValue - bNonceValue)
+                })
+                .map((userOpInfo) => userOpInfo.userOp)
+        },
         remove: (userOpHash: HexData32) => {
             const priorityQueueIndex = priorityQueue.findIndex(
                 (info) => info.userOpHash === userOpHash

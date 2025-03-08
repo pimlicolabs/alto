@@ -18,7 +18,6 @@ import {
 import type { Logger } from "@alto/utils"
 import {
     getAddressFromInitCodeOrPaymasterAndData,
-    getNonceKeyAndSequence,
     getUserOperationHash,
     isVersion06,
     isVersion07,
@@ -500,10 +499,10 @@ export class Mempool {
             let queuedUserOperations: UserOperation[] = []
 
             if (!isUserOpV06) {
-                queuedUserOperations = await this.getQueuedUserOperations(
+                queuedUserOperations = await this.getQueuedOustandingUserOps({
                     userOp,
                     entryPoint
-                )
+                })
             }
 
             validationResult = await this.validator.validateUserOperation({
@@ -741,85 +740,16 @@ export class Mempool {
         return bundles
     }
 
-    // For a specfic user operation, get all the queued user operations
-    // They should be executed first, ordered by nonce value
-    // If cuurentNonceValue is not provided, it will be fetched from the chain
-    async getQueuedUserOperations(
-        userOp: UserOperation,
-        entryPoint: Address,
-        _currentNonceValue?: bigint
-    ): Promise<UserOperation[]> {
-        const entryPointContract = getContract({
-            address: entryPoint,
-            abi: isVersion06(userOp) ? EntryPointV06Abi : EntryPointV07Abi,
-            client: {
-                public: this.config.publicClient
-            }
-        })
-
-        const [nonceKey, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
-
-        let currentNonceSequence: bigint = BigInt(0)
-
-        if (_currentNonceValue) {
-            currentNonceSequence = _currentNonceValue
-        } else {
-            const getNonceResult = await entryPointContract.read.getNonce(
-                [userOp.sender, nonceKey],
-                {
-                    blockTag: "latest"
-                }
-            )
-
-            currentNonceSequence = getNonceKeyAndSequence(getNonceResult)[1]
-        }
-
-        // TODO: Remove this method!!! (doesn't work for redis)
-        const outstandingOps = await this.store.dumpOutstanding(entryPoint)
-        const outstanding = outstandingOps.filter((userOpInfo) => {
-            const { userOp: mempoolUserOp } = userOpInfo
-
-            const [mempoolNonceKey, mempoolNonceSequence] =
-                getNonceKeyAndSequence(mempoolUserOp.nonce)
-
-            let isPaymasterSame = false
-
-            if (isVersion07(userOp) && isVersion07(mempoolUserOp)) {
-                isPaymasterSame =
-                    mempoolUserOp.paymaster === userOp.paymaster &&
-                    !(
-                        mempoolUserOp.sender === userOp.sender &&
-                        mempoolNonceKey === nonceKey &&
-                        mempoolNonceSequence === nonceSequence
-                    ) &&
-                    userOp.paymaster !== null
-            }
-
-            return (
-                (mempoolUserOp.sender === userOp.sender &&
-                    mempoolNonceKey === nonceKey &&
-                    mempoolNonceSequence >= currentNonceSequence &&
-                    mempoolNonceSequence < nonceSequence) ||
-                isPaymasterSame
-            )
-        })
-
-        return outstanding
-            .sort((a, b) => {
-                const aUserOp = a.userOp
-                const bUserOp = b.userOp
-
-                const [, aNonceValue] = getNonceKeyAndSequence(aUserOp.nonce)
-                const [, bNonceValue] = getNonceKeyAndSequence(bUserOp.nonce)
-
-                return Number(aNonceValue - bNonceValue)
-            })
-            .map((userOpInfo) => userOpInfo.userOp)
-    }
-
     clear(): void {
         for (const entryPoint of this.config.entrypoints) {
             this.store.clearOutstanding(entryPoint)
         }
+    }
+
+    public async getQueuedOustandingUserOps(args: {
+        userOp: UserOperation
+        entryPoint: Address
+    }) {
+        return await this.store.getQueuedOutstandingUserOps(args)
     }
 }

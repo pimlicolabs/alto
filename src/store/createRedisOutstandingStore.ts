@@ -457,6 +457,24 @@ class RedisOutstandingQueue implements OutstandingStore {
         return currentUserOp
     }
 
+    async getQueuedUserOps(userOp: UserOperation): Promise<UserOperation[]> {
+        const pendingOpsSet = this.getPendingOpsSet(userOp)
+
+        const [, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
+        const pendingOps = await pendingOpsSet.getByRankRange(0, -1)
+
+        // Filter operations with nonce sequence less than the current one
+        return pendingOps
+            .map(deserializeUserOpInfo)
+            .filter((opInfo) => {
+                const [, opNonceSeq] = getNonceKeyAndSequence(
+                    opInfo.userOp.nonce
+                )
+                return opNonceSeq < nonceSequence
+            })
+            .map((opInfo) => opInfo.userOp)
+    }
+
     // These methods aren't implemented
     async dumpLocal(): Promise<any> {
         return [] // We can't dump from redis as the latency is too high
