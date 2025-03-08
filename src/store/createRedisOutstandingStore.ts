@@ -60,12 +60,27 @@ class RedisSortedSet {
         return this.keyName
     }
 
-    async add(member: string, score: number): Promise<void> {
-        await this.redis.zadd(this.keyPath, score, member)
+    async add(
+        member: string,
+        score: number,
+        multi?: ReturnType<Redis["multi"]>
+    ): Promise<void> {
+        if (multi) {
+            multi.zadd(this.keyPath, score, member)
+        } else {
+            await this.redis.zadd(this.keyPath, score, member)
+        }
     }
 
-    async remove(member: string): Promise<void> {
-        await this.redis.zrem(this.keyPath, member)
+    async remove(
+        member: string,
+        multi?: ReturnType<Redis["multi"]>
+    ): Promise<void> {
+        if (multi) {
+            multi.zrem(this.keyPath, member)
+        } else {
+            await this.redis.zrem(this.keyPath, member)
+        }
     }
 
     async getByScoreRange(min: number, max: number): Promise<string[]> {
@@ -104,8 +119,12 @@ class RedisSortedSet {
         return result && result[1].length > 0 ? result[1][0][0] : undefined
     }
 
-    async delete(): Promise<void> {
-        await this.redis.del(this.keyPath)
+    async delete(multi?: ReturnType<Redis["multi"]>): Promise<void> {
+        if (multi) {
+            multi.del(this.keyPath)
+        } else {
+            await this.redis.del(this.keyPath)
+        }
     }
 }
 
@@ -119,16 +138,31 @@ class RedisHash {
         return this.keyName
     }
 
-    async set(field: string, value: string): Promise<void> {
-        await this.redis.hset(this.keyPath, field, value)
+    async set(
+        field: string,
+        value: string,
+        multi?: ReturnType<Redis["multi"]>
+    ): Promise<void> {
+        if (multi) {
+            multi.hset(this.keyPath, field, value)
+        } else {
+            await this.redis.hset(this.keyPath, field, value)
+        }
     }
 
     async get(field: string): Promise<string | null> {
         return this.redis.hget(this.keyPath, field)
     }
 
-    async delete(field: string): Promise<void> {
-        await this.redis.hdel(this.keyPath, field)
+    async delete(
+        field: string,
+        multi?: ReturnType<Redis["multi"]>
+    ): Promise<void> {
+        if (multi) {
+            multi.hdel(this.keyPath, field)
+        } else {
+            await this.redis.hdel(this.keyPath, field)
+        }
     }
 
     async exists(field: string): Promise<boolean> {
@@ -146,9 +180,9 @@ class RedisOutstandingQueue implements OutstandingStore {
     private entryPoint: Address
 
     // Redis data structures
-    private readyOpsQueue: RedisSortedSet
-    private userOpHashLookup: RedisHash
-    private factoryLookup: RedisHash
+    private readyOpsQueue: RedisSortedSet // gasPrice -> pendingOpsKey
+    private userOpHashLookup: RedisHash // userOpHash -> pendingOpsKey
+    private factoryLookup: RedisHash // sender -> userOpHash
 
     constructor(config: AltoConfig, entryPoint: Address) {
         if (!config.redisMempoolUrl) {
@@ -266,35 +300,46 @@ class RedisOutstandingQueue implements OutstandingStore {
     async add(userOpInfo: UserOpInfo): Promise<void> {
         const { userOpHash, userOp } = userOpInfo
         const pendingOpsSet = this.getPendingOpsSet(userOp)
+        const [, nonceSeq] = getNonceKeyAndSequence(userOp.nonce)
+
+        // check if this will be the lowest nonce operation
+        // We need this info before starting the transaction
+        const existingOps = await pendingOpsSet.getByRankRange(0, 0)
+        const isLowestNonce =
+            existingOps.length === 0 ||
+            userOp.nonce < deserializeUserOpInfo(existingOps[0]).userOp.nonce
+
+        const multi = this.redis.multi()
 
         // Add to pendingOps sorted set with nonceSeq as score
-        const [, nonceSeq] = getNonceKeyAndSequence(userOp.nonce)
         await pendingOpsSet.add(
             serializeUserOpInfo(userOpInfo),
-            Number(nonceSeq)
+            Number(nonceSeq),
+            multi
         )
 
         // Add to userOpHash lookup
-        await this.userOpHashLookup.set(userOpHash, pendingOpsSet.keyPath)
+        await this.userOpHashLookup.set(
+            userOpHash,
+            pendingOpsSet.keyPath,
+            multi
+        )
 
         // Track factory deployments if needed
         if (isDeploymentOperation(userOp)) {
-            await this.factoryLookup.set(userOp.sender, userOpHash)
+            await this.factoryLookup.set(userOp.sender, userOpHash, multi)
         }
-
-        // Check if this is the first/lowest operation for this sender+nonceKey
-        const allOps = await pendingOpsSet.getByRankRange(0, -1)
-        const isLowestNonce =
-            allOps.length === 1 ||
-            deserializeUserOpInfo(allOps[0]).userOpHash === userOpHash
 
         // If lowest nonce, update ready queue with this userOp's gasPrice
         if (isLowestNonce) {
             await this.readyOpsQueue.add(
                 pendingOpsSet.keyPath,
-                Number(userOp.maxFeePerGas)
+                Number(userOp.maxFeePerGas),
+                multi
             )
         }
+
+        await multi.exec()
     }
 
     async remove(userOpHash: HexData32): Promise<boolean> {
@@ -322,46 +367,56 @@ class RedisOutstandingQueue implements OutstandingStore {
         // Check if we're removing the lowest nonce operation
         const isLowestNonce = userOps[0].userOpHash === userOpHash
 
+        // If this is the lowest nonce, check if there's a next operation before starting the transaction
+        let nextOp: UserOpInfo | undefined = undefined
+        if (isLowestNonce && userOps.length > 1) {
+            // userOps is already sorted by nonce sequence because it comes from the sorted set
+            // So we can simply take the second operation as the next one
+            nextOp = userOps[1]
+        }
+
+        // Create a transaction
+        const multi = this.redis.multi()
+
         // Clean up factory deployment tracking if needed
         if (isDeploymentOperation(userOpInfo.userOp)) {
-            await this.factoryLookup.delete(userOpInfo.userOp.sender)
+            await this.factoryLookup.delete(userOpInfo.userOp.sender, multi)
         }
 
         // Remove from the sorted set
-        await pendingOpsSet.remove(serializeUserOpInfo(userOpInfo))
+        await pendingOpsSet.remove(serializeUserOpInfo(userOpInfo), multi)
 
         // Remove from hash lookup
-        await this.userOpHashLookup.delete(userOpHash)
+        await this.userOpHashLookup.delete(userOpHash, multi)
 
         if (isLowestNonce) {
             // Remove from ready queue
-            await this.readyOpsQueue.remove(pendingOpsKey)
+            await this.readyOpsQueue.remove(pendingOpsKey, multi)
 
-            // Check if there are more operations for this sender+nonceKey
-            const remainingOps = await pendingOpsSet.getByRankRange(0, 0)
-
-            if (remainingOps.length > 0) {
-                // Add next operation to ready queue
-                const nextOp = deserializeUserOpInfo(remainingOps[0])
+            // If we have a next operation, add it to the ready queue
+            if (nextOp) {
                 await this.readyOpsQueue.add(
                     pendingOpsKey,
-                    Number(nextOp.userOp.maxFeePerGas)
+                    Number(nextOp.userOp.maxFeePerGas),
+                    multi
                 )
             }
         }
+
+        // Execute transaction
+        await multi.exec()
 
         return true
     }
 
     async pop(): Promise<UserOpInfo | undefined> {
         // Pop highest gas price operation
-        const pendingOpsKeys = await this.readyOpsQueue.popMax()
+        const pendingOpsKey = await this.readyOpsQueue.popMax()
 
-        if (!pendingOpsKeys || !pendingOpsKeys.length) {
+        if (!pendingOpsKey) {
             return undefined
         }
 
-        const pendingOpsKey = pendingOpsKeys[0]
         const pendingOpsSet = new RedisSortedSet(this.redis, pendingOpsKey)
 
         // Get the operations from the set (limited to 2 for efficiency)
@@ -374,16 +429,19 @@ class RedisOutstandingQueue implements OutstandingStore {
         const currentUserOpStr = ops[0]
         const currentUserOp = deserializeUserOpInfo(currentUserOpStr)
 
+        // Create a transaction
+        const multi = this.redis.multi()
+
         // Remove the current operation
-        await pendingOpsSet.remove(currentUserOpStr)
-        await this.userOpHashLookup.delete(currentUserOp.userOpHash)
+        await pendingOpsSet.remove(currentUserOpStr, multi)
+        await this.userOpHashLookup.delete(currentUserOp.userOpHash, multi)
+
+        // Execute transaction
+        await multi.exec()
 
         // Check if there are more operations in this set
-        const remainingOps = await pendingOpsSet.getByRankRange(0, 0)
-
-        if (remainingOps.length > 0) {
-            // Add back to ready queue with next operation's gas price
-            const nextUserOp = deserializeUserOpInfo(remainingOps[0])
+        if (ops.length > 1) {
+            const nextUserOp = deserializeUserOpInfo(ops[1])
             await this.readyOpsQueue.add(
                 pendingOpsKey,
                 Number(nextUserOp.userOp.maxFeePerGas)
