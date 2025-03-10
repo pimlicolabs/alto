@@ -131,10 +131,8 @@ export class Mempool {
         }
     }
 
-    async dumpOutstanding(entryPoint: Address): Promise<UserOperation[]> {
-        return (await this.store.dumpOutstanding(entryPoint)).map(
-            ({ userOp }) => userOp
-        )
+    async dumpOutstanding(entryPoint: Address): Promise<UserOpInfo[]> {
+        return await this.store.dumpOutstanding(entryPoint)
     }
 
     async dumpProcessing(entryPoint: Address): Promise<UserOpInfo[]> {

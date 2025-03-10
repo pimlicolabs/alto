@@ -8,12 +8,18 @@ export const ethSendUserOperationHandler = createMethodHandler({
     handler: async ({ rpcHandler, params, apiVersion }) => {
         const [userOperation, entryPoint] = params
 
+        if (userOperation.eip7702Auth) {
+            await rpcHandler.validateEip7702Auth({
+                userOperation,
+                validateSender: true
+            })
+        }
+
         const hash = getUserOperationHash(
             userOperation,
             entryPoint,
             rpcHandler.config.chainId
         )
-        rpcHandler.eventManager.emitReceived(hash)
 
         let status: "added" | "queued" | "rejected" = "rejected"
         try {
@@ -22,6 +28,8 @@ export const ethSendUserOperationHandler = createMethodHandler({
                 entryPoint,
                 apiVersion
             )
+
+            rpcHandler.eventManager.emitReceived(hash)
 
             return hash
         } catch (error) {

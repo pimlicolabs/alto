@@ -343,20 +343,24 @@ export const setupServer = async ({
         rootLogger.info("server stopped")
 
         for (const entryPoint of config.entrypoints) {
-            const outstanding = await mempool.dumpOutstanding(entryPoint)
-            const outstandingLength = outstanding.length
-
-            const submitted = await mempool.dumpSubmittedOps(entryPoint)
-            const submittedLength = submitted.length
-
-            const processing = await mempool.dumpProcessing(entryPoint)
-            const processingLength = processing.length
-
+            const outstanding = [...(await mempool.dumpOutstanding(entryPoint))]
+            const submitted = [...(await mempool.dumpSubmittedOps(entryPoint))]
+            const processing = [...(await mempool.dumpProcessing(entryPoint))]
+            executorManager.dropUserOps(entryPoint, [
+                ...submitted.map((userOp) => ({
+                    ...userOp,
+                    reason: "shutdown"
+                })),
+                ...processing.map((userOp) => ({
+                    ...userOp,
+                    reason: "shutdown"
+                }))
+            ])
             rootLogger.info(
                 {
-                    outstanding: outstandingLength,
-                    submitted: submittedLength,
-                    processing: processingLength
+                    outstanding: outstanding.length,
+                    submitted: submitted.length,
+                    processing: processing.length
                 },
                 "dumping mempool before shutdown"
             )

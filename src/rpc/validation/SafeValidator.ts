@@ -27,6 +27,7 @@ import {
 } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import {
+    getAuthorizationStateOverrides,
     calcVerificationGasAndCallGasLimit,
     getAddressFromInitCodeOrPaymasterAndData,
     isVersion06,
@@ -344,6 +345,11 @@ export class SafeValidator
         userOperation: UserOperationV06,
         entryPoint: Address
     ): Promise<[ValidationResultV06, BundlerTracerResult]> {
+        const stateOverrides = await getAuthorizationStateOverrides({
+            userOperations: [userOperation],
+            publicClient: this.config.publicClient
+        })
+
         const tracerResult = await debug_traceCall(
             this.config.publicClient,
             {
@@ -356,7 +362,8 @@ export class SafeValidator
                 })
             },
             {
-                tracer: bundlerCollectorTracer
+                tracer: bundlerCollectorTracer,
+                stateOverrides
             }
         )
 
@@ -510,6 +517,11 @@ export class SafeValidator
         const entryPointSimulationsAddress =
             this.config.entrypointSimulationContract
 
+        const stateOverrides = await getAuthorizationStateOverrides({
+            userOperations: [userOperation],
+            publicClient: this.config.publicClient
+        })
+
         const tracerResult = await debug_traceCall(
             this.config.publicClient,
             {
@@ -518,7 +530,8 @@ export class SafeValidator
                 data: callData
             },
             {
-                tracer: bundlerCollectorTracer
+                tracer: bundlerCollectorTracer,
+                stateOverrides
             }
         )
 

@@ -81,7 +81,7 @@ export const getAuthorizationList = (
 ): SignedAuthorizationList | undefined => {
     const authList = userOpInfos
         .map(({ userOp }) => userOp)
-        .map(({ eip7702auth }) => eip7702auth)
+        .map(({ eip7702Auth }) => eip7702Auth)
         .filter(Boolean) as SignedAuthorizationList
 
     return authList.length ? authList : undefined

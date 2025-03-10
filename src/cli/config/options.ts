@@ -242,6 +242,13 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
             require: true,
             default: "130"
         },
+        "v7-paymaster-post-op-gas-limit-multiplier": {
+            description:
+                "Amount to multiply the paymasterPostOp limits fetched from simulations for v7 userOperations",
+            type: "string",
+            require: true,
+            default: "120"
+        },
         "paymaster-gas-limit-multiplier": {
             description:
                 "Amount to multiply the paymaster gas limits fetched from simulations",
