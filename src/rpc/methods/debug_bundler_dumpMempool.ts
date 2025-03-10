@@ -9,6 +9,8 @@ export const debugBundlerDumpMempoolHandler = createMethodHandler({
         rpcHandler.ensureDebugEndpointsAreEnabled("debug_bundler_dumpMempool")
         rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
-        return await rpcHandler.mempool.dumpOutstanding(entryPoint)
+        return (await rpcHandler.mempool.dumpOutstanding(entryPoint)).map(
+            ({ userOp }) => userOp
+        )
     }
 })
