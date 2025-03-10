@@ -87,15 +87,15 @@ export class Mempool {
         )
 
         if (existingUserOpToReplace) {
-            this.store.removeSubmitted({ entryPoint, userOpHash })
-            this.store.addSubmitted({
+            await this.store.removeSubmitted({ entryPoint, userOpHash })
+            await this.store.addSubmitted({
                 entryPoint,
                 submittedUserOp: {
                     ...userOpInfo,
                     transactionInfo
                 }
             })
-            this.monitor.setUserOperationStatus(userOpHash, {
+            await this.monitor.setUserOperationStatus(userOpHash, {
                 status: "submitted",
                 transactionHash: transactionInfo.transactionHash
             })
@@ -116,15 +116,15 @@ export class Mempool {
         )
 
         if (processingUserOp) {
-            this.store.removeProcessing({ entryPoint, userOpHash })
-            this.store.addSubmitted({
+            await this.store.removeProcessing({ entryPoint, userOpHash })
+            await this.store.addSubmitted({
                 entryPoint,
                 submittedUserOp: {
                     ...processingUserOp,
                     transactionInfo
                 }
             })
-            this.monitor.setUserOperationStatus(userOpHash, {
+            await this.monitor.setUserOperationStatus(userOpHash, {
                 status: "submitted",
                 transactionHash: transactionInfo.transactionHash
             })
@@ -318,13 +318,13 @@ export class Mempool {
                 )
             })
 
-            this.reputationManager.replaceUserOperationSeenStatus(
+            await this.reputationManager.replaceUserOperationSeenStatus(
                 oldOp,
                 entryPoint
             )
         }
 
-        this.reputationManager.increaseUserOperationSeenStatus(
+        await this.reputationManager.increaseUserOperationSeenStatus(
             userOp,
             entryPoint
         )
@@ -339,12 +339,12 @@ export class Mempool {
             }
         })
 
-        this.monitor.setUserOperationStatus(userOpHash, {
+        await this.monitor.setUserOperationStatus(userOpHash, {
             status: "not_submitted",
             transactionHash: null
         })
 
-        this.eventManager.emitAddedToMempool(userOpHash)
+        await this.eventManager.emitAddedToMempool(userOpHash)
         return [true, ""]
     }
 
@@ -415,7 +415,7 @@ export class Mempool {
             paymasterStatus === ReputationStatuses.banned ||
             factoryStatus === ReputationStatuses.banned
         ) {
-            this.store.removeOutstanding({ entryPoint, userOpHash })
+            await this.store.removeOutstanding({ entryPoint, userOpHash })
             return {
                 skip: true,
                 paymasterDeposit,

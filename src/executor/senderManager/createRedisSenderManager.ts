@@ -94,7 +94,7 @@ export const createRedisSenderManager = async ({
                 "got wallet from sender manager"
             )
 
-            redisQueue.llen().then((len) => {
+            await redisQueue.llen().then((len) => {
                 metrics.walletsAvailable.set(len)
             })
 

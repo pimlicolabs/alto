@@ -346,7 +346,11 @@ export const setupServer = async ({
             const outstanding = [...(await mempool.dumpOutstanding(entryPoint))]
             const submitted = [...(await mempool.dumpSubmittedOps(entryPoint))]
             const processing = [...(await mempool.dumpProcessing(entryPoint))]
-            executorManager.dropUserOps(entryPoint, [
+            await executorManager.dropUserOps(entryPoint, [
+                ...outstanding.map((userOp) => ({
+                    ...userOp,
+                    reason: "shutdown"
+                })),
                 ...submitted.map((userOp) => ({
                     ...userOp,
                     reason: "shutdown"

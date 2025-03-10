@@ -231,14 +231,14 @@ export class ExecutorManager {
         // All ops failed simulation, drop them and return.
         if (bundleResult.status === "all_ops_failed_simulation") {
             const { rejectedUserOps } = bundleResult
-            this.dropUserOps(entryPoint, rejectedUserOps)
+            await this.dropUserOps(entryPoint, rejectedUserOps)
             return undefined
         }
 
         // Unhandled error during simulation, drop all ops.
         if (bundleResult.status === "unhandled_simulation_failure") {
             const { rejectedUserOps } = bundleResult
-            this.dropUserOps(entryPoint, rejectedUserOps)
+            await this.dropUserOps(entryPoint, rejectedUserOps)
             this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
             return undefined
         }
@@ -249,7 +249,7 @@ export class ExecutorManager {
             bundleResult.reason instanceof InsufficientFundsError
         ) {
             const { reason, userOpsToBundle, rejectedUserOps } = bundleResult
-            this.dropUserOps(entryPoint, rejectedUserOps)
+            await this.dropUserOps(entryPoint, rejectedUserOps)
             await this.resubmitUserOperations(
                 userOpsToBundle,
                 entryPoint,
@@ -262,7 +262,7 @@ export class ExecutorManager {
         // Encountered unhandled error during bundle simulation.
         if (bundleResult.status === "bundle_submission_failure") {
             const { rejectedUserOps, userOpsToBundle, reason } = bundleResult
-            this.dropUserOps(entryPoint, rejectedUserOps)
+            await this.dropUserOps(entryPoint, rejectedUserOps)
             // NOTE: these ops passed validation, so we can try resubmitting them
             await this.resubmitUserOperations(
                 userOpsToBundle,
@@ -298,8 +298,11 @@ export class ExecutorManager {
                 timesPotentiallyIncluded: 0
             }
 
-            this.markUserOperationsAsSubmitted(userOpsBundled, transactionInfo)
-            this.dropUserOps(entryPoint, rejectedUserOps)
+            await this.markUserOperationsAsSubmitted(
+                userOpsBundled,
+                transactionInfo
+            )
+            await this.dropUserOps(entryPoint, rejectedUserOps)
             this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
 
             return transactionHash
@@ -398,7 +401,7 @@ export class ExecutorManager {
 
         if (bundlingStatus.status === "included") {
             const { userOperationDetails } = bundlingStatus
-            this.markUserOpsIncluded(
+            await this.markUserOpsIncluded(
                 userOps,
                 entryPoint,
                 blockNumber,
@@ -447,7 +450,7 @@ export class ExecutorManager {
                             const blockNumber =
                                 userOperationReceipt.receipt.blockNumber
 
-                            this.mempool.removeSubmitted({
+                            await this.mempool.removeSubmitted({
                                 entryPoint,
                                 userOpHash
                             })
@@ -741,7 +744,7 @@ export class ExecutorManager {
                 ...userOpInfo,
                 reason: "Failed to get network gas price during replacement"
             }))
-            this.failedToReplaceTransaction({
+            await this.failedToReplaceTransaction({
                 entryPoint,
                 rejectedUserOps,
                 oldTxHash,
@@ -834,7 +837,7 @@ export class ExecutorManager {
 
         if (bundleResult.status === "unhandled_simulation_failure") {
             const { rejectedUserOps, reason } = bundleResult
-            this.failedToReplaceTransaction({
+            await this.failedToReplaceTransaction({
                 entryPoint,
                 oldTxHash,
                 reason,
@@ -844,7 +847,7 @@ export class ExecutorManager {
         }
 
         if (bundleResult.status === "all_ops_failed_simulation") {
-            this.failedToReplaceTransaction({
+            await this.failedToReplaceTransaction({
                 entryPoint,
                 oldTxHash,
                 reason: "all ops failed simulation",
@@ -858,7 +861,7 @@ export class ExecutorManager {
             const submissionFailureReason =
                 reason instanceof BaseError ? reason.name : "INTERNAL FAILURE"
 
-            this.failedToReplaceTransaction({
+            await this.failedToReplaceTransaction({
                 oldTxHash,
                 rejectedUserOps,
                 reason: submissionFailureReason,
@@ -891,15 +894,15 @@ export class ExecutorManager {
             }
         }
 
-        userOpsReplaced.map((userOpInfo) => {
-            this.mempool.replaceSubmitted({
+        userOpsReplaced.map(async (userOpInfo) => {
+            await this.mempool.replaceSubmitted({
                 userOpInfo,
                 transactionInfo: newTxInfo
             })
         })
 
         // Drop all userOperations that were rejected during simulation.
-        this.dropUserOps(entryPoint, rejectedUserOps)
+        await this.dropUserOps(entryPoint, rejectedUserOps)
 
         this.logger.info(
             {
@@ -913,13 +916,13 @@ export class ExecutorManager {
         return
     }
 
-    markUserOperationsAsSubmitted(
+    async markUserOperationsAsSubmitted(
         userOpInfos: UserOpInfo[],
         transactionInfo: TransactionInfo
     ) {
-        userOpInfos.map((userOpInfo) => {
+        userOpInfos.map(async (userOpInfo) => {
             const { userOpHash } = userOpInfo
-            this.mempool.markSubmitted({ userOpHash, transactionInfo })
+            await this.mempool.markSubmitted({ userOpHash, transactionInfo })
             this.startWatchingBlocks(this.handleBlock.bind(this))
             this.metrics.userOperationsSubmitted
                 .labels({ status: "success" })
@@ -949,7 +952,7 @@ export class ExecutorManager {
         )
     }
 
-    failedToReplaceTransaction({
+    async failedToReplaceTransaction({
         oldTxHash,
         rejectedUserOps,
         reason,
@@ -961,24 +964,24 @@ export class ExecutorManager {
         entryPoint: Address
     }) {
         this.logger.warn({ oldTxHash, reason }, "failed to replace transaction")
-        this.dropUserOps(entryPoint, rejectedUserOps)
+        await this.dropUserOps(entryPoint, rejectedUserOps)
     }
 
-    removeSubmitted(entryPoint: Address, userOps: UserOpInfo[]) {
-        userOps.map((userOpInfo) => {
+    async removeSubmitted(entryPoint: Address, userOps: UserOpInfo[]) {
+        userOps.map(async (userOpInfo) => {
             const { userOpHash } = userOpInfo
-            this.mempool.removeSubmitted({ entryPoint, userOpHash })
+            await this.mempool.removeSubmitted({ entryPoint, userOpHash })
         })
     }
 
-    markUserOpsIncluded(
+    async markUserOpsIncluded(
         userOps: UserOpInfo[],
         entryPoint: Address,
         blockNumber: bigint,
         transactionHash: Hash,
         userOperationDetails: Record<string, any>
     ) {
-        userOps.map((userOpInfo) => {
+        userOps.map(async (userOpInfo) => {
             this.metrics.userOperationsOnChain
                 .labels({ status: "included" })
                 .inc()
@@ -991,7 +994,7 @@ export class ExecutorManager {
                 (Date.now() - firstSubmitted) / 1000
             )
 
-            this.mempool.removeSubmitted({ entryPoint, userOpHash })
+            await this.mempool.removeSubmitted({ entryPoint, userOpHash })
             this.reputationManager.updateUserOperationIncludedStatus(
                 userOp,
                 entryPoint,
@@ -1028,12 +1031,12 @@ export class ExecutorManager {
         })
     }
 
-    dropUserOps(entryPoint: Address, rejectedUserOps: RejectedUserOp[]) {
-        rejectedUserOps.map((rejectedUserOp) => {
+    async dropUserOps(entryPoint: Address, rejectedUserOps: RejectedUserOp[]) {
+        rejectedUserOps.map(async (rejectedUserOp) => {
             const { userOp, reason, userOpHash } = rejectedUserOp
-            this.mempool.removeProcessing({ entryPoint, userOpHash })
-            this.mempool.removeSubmitted({ entryPoint, userOpHash })
-            this.eventManager.emitDropped(
+            await this.mempool.removeProcessing({ entryPoint, userOpHash })
+            await this.mempool.removeSubmitted({ entryPoint, userOpHash })
+            await this.eventManager.emitDropped(
                 userOpHash,
                 reason,
                 getAAError(reason)
