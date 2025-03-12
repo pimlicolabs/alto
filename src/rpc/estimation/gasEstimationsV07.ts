@@ -13,7 +13,7 @@ import {
     binarySearchCallResultSchema
 } from "@alto/types"
 import {
-    getAuthorizationStateOverrides,
+    addAuthorizationStateOverrides,
     getUserOperationHash,
     toPackedUserOperation
 } from "@alto/utils"
@@ -47,11 +47,13 @@ export class GasEstimatorV07 {
     async simulateValidation({
         entryPoint,
         userOperation,
-        queuedUserOperations
+        queuedUserOperations,
+        stateOverrides
     }: {
         entryPoint: Address
         userOperation: UserOperationV07
         queuedUserOperations: UserOperationV07[]
+        stateOverrides?: StateOverrides
     }) {
         const userOperations = [...queuedUserOperations, userOperation]
         const packedUserOperations = userOperations.map((uo) =>
@@ -64,16 +66,17 @@ export class GasEstimatorV07 {
             args: [packedUserOperations]
         })
 
-        const stateOverrides: StateOverrides =
-            await getAuthorizationStateOverrides({
+        const finalStateOverrides: StateOverrides =
+            await addAuthorizationStateOverrides({
                 userOperations: [...queuedUserOperations, userOperation],
-                publicClient: this.config.publicClient
+                publicClient: this.config.publicClient,
+                stateOverrides
             })
 
         const errorResult = await this.callPimlicoEntryPointSimulations({
             entryPoint,
             entryPointSimulationsCallData: [simulateValidationLast],
-            stateOverrides
+            stateOverrides: finalStateOverrides
         })
 
         return {
@@ -240,7 +243,7 @@ export class GasEstimatorV07 {
                 functionName
             })
 
-            stateOverrides = await getAuthorizationStateOverrides({
+            stateOverrides = await addAuthorizationStateOverrides({
                 userOperations: [...queuedOps, targetOp],
                 publicClient: this.config.publicClient,
                 stateOverrides
@@ -349,7 +352,7 @@ export class GasEstimatorV07 {
             functionName: "binarySearchCallGasLimit"
         })
 
-        stateOverrides = await getAuthorizationStateOverrides({
+        stateOverrides = await addAuthorizationStateOverrides({
             userOperations: [...queuedUserOperations, userOperation],
             publicClient: this.config.publicClient,
             stateOverrides

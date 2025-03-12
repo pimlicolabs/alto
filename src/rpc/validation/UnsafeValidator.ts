@@ -188,10 +188,12 @@ export class UnsafeValidator implements InterfaceValidator {
 
     async getValidationResultV06({
         userOperation,
-        entryPoint
+        entryPoint,
+        stateOverrides
     }: {
         userOperation: UserOperationV06
         entryPoint: Address
+        stateOverrides?: StateOverrides
         codeHashes?: ReferencedCodeHashes
     }): Promise<
         (ValidationResultV06 | ValidationResultWithAggregationV06) & {
@@ -220,6 +222,7 @@ export class UnsafeValidator implements InterfaceValidator {
             this.gasEstimationHandler.gasEstimatorV06.simulateHandleOpV06({
                 entryPoint,
                 userOperation,
+                stateOverrides,
                 useCodeOverride: false, // disable code override so that call phase reverts aren't caught
                 targetAddress: zeroAddress,
                 targetCallData: "0x"
@@ -358,11 +361,13 @@ export class UnsafeValidator implements InterfaceValidator {
     async getValidationResultV07({
         userOperation,
         queuedUserOperations,
-        entryPoint
+        entryPoint,
+        stateOverrides
     }: {
         userOperation: UserOperationV07
         queuedUserOperations: UserOperationV07[]
         entryPoint: Address
+        stateOverrides?: StateOverrides
         codeHashes?: ReferencedCodeHashes
     }): Promise<
         (ValidationResultV07 | ValidationResultWithAggregationV07) & {
@@ -374,7 +379,8 @@ export class UnsafeValidator implements InterfaceValidator {
             await this.gasEstimationHandler.gasEstimatorV07.simulateValidation({
                 entryPoint,
                 userOperation,
-                queuedUserOperations
+                queuedUserOperations,
+                stateOverrides
             })
 
         if (simulateValidationResult.status === "failed") {
@@ -462,7 +468,6 @@ export class UnsafeValidator implements InterfaceValidator {
         return res
     }
 
-
     async validatePreVerificationGas({
         userOperation,
         entryPoint
@@ -489,12 +494,13 @@ export class UnsafeValidator implements InterfaceValidator {
     async validateUserOperation({
         userOperation,
         queuedUserOperations,
-        entryPoint
+        entryPoint,
+        stateOverrides
     }: {
         userOperation: UserOperation
         queuedUserOperations: UserOperation[]
         entryPoint: Address
-        _referencedContracts?: ReferencedCodeHashes
+        stateOverrides?: StateOverrides
     }): Promise<
         (ValidationResult | ValidationResultWithAggregation) & {
             storageMap: StorageMap
@@ -502,19 +508,22 @@ export class UnsafeValidator implements InterfaceValidator {
         }
     > {
         try {
-            let validationResult;
-            
+            let validationResult
+
             if (isVersion06(userOperation)) {
                 validationResult = await this.getValidationResultV06({
                     userOperation,
-                    entryPoint
-                });
+                    entryPoint,
+                    stateOverrides
+                })
             } else {
                 validationResult = await this.getValidationResultV07({
                     userOperation,
-                    queuedUserOperations: queuedUserOperations as UserOperationV07[],
-                    entryPoint
-                });
+                    queuedUserOperations:
+                        queuedUserOperations as UserOperationV07[],
+                    entryPoint,
+                    stateOverrides
+                })
             }
 
             this.metrics.userOperationsValidationSuccess.inc()

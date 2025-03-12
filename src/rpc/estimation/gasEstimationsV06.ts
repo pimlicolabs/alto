@@ -20,7 +20,7 @@ import { z } from "zod"
 import type { SimulateHandleOpResult } from "./types"
 import type { AltoConfig } from "../../createConfig"
 import { parseFailedOpWithRevert } from "./gasEstimationsV07"
-import { deepHexlify, getAuthorizationStateOverrides } from "@alto/utils"
+import { deepHexlify, addAuthorizationStateOverrides } from "@alto/utils"
 
 export class GasEstimatorV06 {
     private config: AltoConfig
@@ -147,7 +147,7 @@ export class GasEstimatorV06 {
             stateOverrides = undefined
         }
 
-        stateOverrides = await getAuthorizationStateOverrides({
+        stateOverrides = await addAuthorizationStateOverrides({
             userOperations: [userOperation],
             publicClient,
             stateOverrides

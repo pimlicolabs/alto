@@ -2,6 +2,7 @@ import type { SenderManager } from "@alto/executor"
 import type { GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceValidator,
+    StateOverrides,
     UserOperationV06,
     UserOperationV07,
     ValidationResult,
@@ -27,7 +28,7 @@ import {
 } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import {
-    getAuthorizationStateOverrides,
+    addAuthorizationStateOverrides,
     getAddressFromInitCodeOrPaymasterAndData,
     isVersion06,
     isVersion07,
@@ -82,11 +83,13 @@ export class SafeValidator
         userOperation,
         queuedUserOperations,
         entryPoint,
+        stateOverrides,
         referencedContracts
     }: {
         userOperation: UserOperation
         queuedUserOperations: UserOperation[]
         entryPoint: Address
+        stateOverrides?: StateOverrides
         referencedContracts?: ReferencedCodeHashes
     }): Promise<
         (ValidationResult | ValidationResultWithAggregation) & {
@@ -109,6 +112,7 @@ export class SafeValidator
                     queuedUserOperations:
                         queuedUserOperations as UserOperationV07[],
                     entryPoint,
+                    stateOverrides,
                     preCodeHashes: referencedContracts
                 })
             } else {
@@ -158,11 +162,13 @@ export class SafeValidator
         userOperation,
         queuedUserOperations,
         entryPoint,
+        stateOverrides,
         preCodeHashes
     }: {
         userOperation: UserOperationV07
         queuedUserOperations: UserOperationV07[]
         entryPoint: Address
+        stateOverrides?: StateOverrides
         preCodeHashes?: ReferencedCodeHashes
     }): Promise<
         (ValidationResultV07 | ValidationResultWithAggregationV07) & {
@@ -183,7 +189,8 @@ export class SafeValidator
         const [res, tracerResult] = await this.getValidationResultWithTracerV07(
             userOperation,
             queuedUserOperations,
-            entryPoint
+            entryPoint,
+            stateOverrides
         )
 
         const [contractAddresses, storageMap] = tracerResultParserV07(
@@ -227,10 +234,12 @@ export class SafeValidator
     async getValidationResultV06({
         userOperation,
         entryPoint,
+        stateOverrides,
         preCodeHashes
     }: {
         userOperation: UserOperationV06
         entryPoint: Address
+        stateOverrides?: StateOverrides
         preCodeHashes?: ReferencedCodeHashes
     }): Promise<
         (ValidationResultV06 | ValidationResultWithAggregationV06) & {
@@ -250,7 +259,8 @@ export class SafeValidator
 
         const [res, tracerResult] = await this.getValidationResultWithTracerV06(
             userOperation,
-            entryPoint
+            entryPoint,
+            stateOverrides
         )
 
         const [contractAddresses, storageMap] = tracerResultParserV06(
@@ -309,9 +319,10 @@ export class SafeValidator
 
     async getValidationResultWithTracerV06(
         userOperation: UserOperationV06,
-        entryPoint: Address
+        entryPoint: Address,
+        stateOverrides?: StateOverrides
     ): Promise<[ValidationResultV06, BundlerTracerResult]> {
-        const stateOverrides = await getAuthorizationStateOverrides({
+        stateOverrides = await addAuthorizationStateOverrides({
             userOperations: [userOperation],
             publicClient: this.config.publicClient
         })
@@ -461,7 +472,8 @@ export class SafeValidator
     async getValidationResultWithTracerV07(
         userOperation: UserOperationV07,
         queuedUserOperations: UserOperationV07[],
-        entryPoint: Address
+        entryPoint: Address,
+        stateOverrides?: StateOverrides
     ): Promise<[ValidationResultV07, BundlerTracerResult]> {
         const packedUserOperation = toPackedUserOperation(userOperation)
         const packedQueuedUserOperations = queuedUserOperations.map((uop) =>
@@ -483,7 +495,7 @@ export class SafeValidator
         const entryPointSimulationsAddress =
             this.config.entrypointSimulationContract
 
-        const stateOverrides = await getAuthorizationStateOverrides({
+        stateOverrides = await addAuthorizationStateOverrides({
             userOperations: [userOperation],
             publicClient: this.config.publicClient
         })

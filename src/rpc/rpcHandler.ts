@@ -611,8 +611,8 @@ export class RpcHandler {
                 paymasterPostOpGasLimit
             },
             entryPoint,
-            queuedUserOperations
-            //stateOverrides: deepHexlify(stateOverrides)
+            queuedUserOperations,
+            stateOverrides: deepHexlify(stateOverrides)
         })
 
         if (isVersion07(simulationUserOperation)) {
