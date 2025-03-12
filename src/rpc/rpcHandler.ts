@@ -601,7 +601,7 @@ export class RpcHandler {
         preVerificationGas = scaleBigIntByPercent(preVerificationGas, 110n)
 
         // Check if userOperation passes without estimation balance overrides
-        await this.validator.validateUserOperation({
+        await this.validator.getExecutionResult({
             userOperation: {
                 ...simulationUserOperation,
                 preVerificationGas,
@@ -612,7 +612,8 @@ export class RpcHandler {
             },
             entryPoint,
             queuedUserOperations,
-            stateOverrides: deepHexlify(stateOverrides)
+            stateOverrides: deepHexlify(stateOverrides),
+            addSenderBalanceOverride: false
         })
 
         if (isVersion07(simulationUserOperation)) {
