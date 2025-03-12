@@ -21,6 +21,7 @@ export interface InterfaceValidator {
     getValidationResultV06(args: {
         userOperation: UserOperationV06
         entryPoint: Address
+        stateOverrides?: StateOverrides /* Only used during estimation */
         codeHashes?: ReferencedCodeHashes
     }): Promise<
         (
@@ -36,21 +37,7 @@ export interface InterfaceValidator {
         userOperation: UserOperationV07
         queuedUserOperations: UserOperation[]
         entryPoint: Address
-        codeHashes?: ReferencedCodeHashes
-    }): Promise<
-        (
-            | validation.ValidationResult
-            | validation.ValidationResultWithAggregation
-        ) & {
-            storageMap: validation.StorageMap
-            referencedContracts?: ReferencedCodeHashes
-        }
-    >
-
-    getValidationResult(args: {
-        userOperation: UserOperation
-        queuedUserOperations: UserOperation[]
-        entryPoint: Address
+        stateOverrides?: StateOverrides /* Only used during estimation */
         codeHashes?: ReferencedCodeHashes
     }): Promise<
         (
@@ -68,10 +55,10 @@ export interface InterfaceValidator {
     }): Promise<void>
 
     validateUserOperation(args: {
-        shouldCheckPrefund: boolean
         userOperation: UserOperation
         queuedUserOperations: UserOperation[]
         entryPoint: Address
+        stateOverrides?: StateOverrides /* Only used during estimation */
         referencedContracts?: ReferencedCodeHashes
     }): Promise<
         (

@@ -44,7 +44,7 @@ async function getAuthorizationStateOverride({
     return { code }
 }
 
-export async function getAuthorizationStateOverrides({
+export async function addAuthorizationStateOverrides({
     userOperations,
     publicClient,
     stateOverrides

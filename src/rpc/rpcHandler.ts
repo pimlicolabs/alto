@@ -295,11 +295,7 @@ export class RpcHandler {
         }
         await this.mempool.checkEntityMultipleRoleViolation(userOperation)
 
-        // V1 api doesn't check prefund.
-        const shouldCheckPrefund =
-            apiVersion !== "v1" && this.config.shouldCheckPrefund
         const validationResult = await this.validator.validateUserOperation({
-            shouldCheckPrefund,
             userOperation,
             queuedUserOperations,
             entryPoint
@@ -605,22 +601,20 @@ export class RpcHandler {
         preVerificationGas = scaleBigIntByPercent(preVerificationGas, 110n)
 
         // Check if userOperation passes without estimation balance overrides
-        if (isVersion06(simulationUserOperation)) {
-            await this.validator.getExecutionResult({
-                userOperation: {
-                    ...simulationUserOperation,
-                    preVerificationGas,
-                    verificationGasLimit,
-                    callGasLimit,
-                    paymasterVerificationGasLimit,
-                    paymasterPostOpGasLimit
-                },
-                entryPoint,
-                queuedUserOperations,
-                addSenderBalanceOverride: false,
-                stateOverrides: deepHexlify(stateOverrides)
-            })
-        }
+        await this.validator.getExecutionResult({
+            userOperation: {
+                ...simulationUserOperation,
+                preVerificationGas,
+                verificationGasLimit,
+                callGasLimit,
+                paymasterVerificationGasLimit,
+                paymasterPostOpGasLimit
+            },
+            entryPoint,
+            queuedUserOperations,
+            stateOverrides: deepHexlify(stateOverrides),
+            addSenderBalanceOverride: false
+        })
 
         if (isVersion07(simulationUserOperation)) {
             return {

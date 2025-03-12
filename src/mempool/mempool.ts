@@ -564,7 +564,6 @@ export class MemoryMempool {
             }
 
             validationResult = await this.validator.validateUserOperation({
-                shouldCheckPrefund: false,
                 userOperation: userOp,
                 queuedUserOperations,
                 entryPoint,

@@ -2,6 +2,7 @@ import type { SenderManager } from "@alto/executor"
 import type { GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceValidator,
+    StateOverrides,
     UserOperationV06,
     UserOperationV07,
     ValidationResult,
@@ -27,8 +28,7 @@ import {
 } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import {
-    getAuthorizationStateOverrides,
-    calcVerificationGasAndCallGasLimit,
+    addAuthorizationStateOverrides,
     getAddressFromInitCodeOrPaymasterAndData,
     isVersion06,
     isVersion07,
@@ -80,16 +80,16 @@ export class SafeValidator
     }
 
     async validateUserOperation({
-        shouldCheckPrefund,
         userOperation,
         queuedUserOperations,
         entryPoint,
+        stateOverrides,
         referencedContracts
     }: {
-        shouldCheckPrefund: boolean
         userOperation: UserOperation
         queuedUserOperations: UserOperation[]
         entryPoint: Address
+        stateOverrides?: StateOverrides
         referencedContracts?: ReferencedCodeHashes
     }): Promise<
         (ValidationResult | ValidationResultWithAggregation) & {
@@ -98,55 +98,25 @@ export class SafeValidator
         }
     > {
         try {
-            const validationResult = await this.getValidationResult({
-                userOperation,
-                queuedUserOperations,
-                entryPoint,
-                codeHashes: referencedContracts
-            })
+            let validationResult
 
-            if (shouldCheckPrefund) {
-                const prefund = validationResult.returnInfo.prefund
-
-                const { verificationGasLimit, callGasLimit } =
-                    calcVerificationGasAndCallGasLimit(
-                        userOperation,
-                        {
-                            preOpGas: validationResult.returnInfo.preOpGas,
-                            paid: validationResult.returnInfo.prefund
-                        },
-                        this.config.publicClient.chain.id
-                    )
-
-                let mul = 1n
-
-                if (
-                    isVersion06(userOperation) &&
-                    userOperation.paymasterAndData
-                ) {
-                    mul = 3n
-                }
-
-                if (
-                    isVersion07(userOperation) &&
-                    userOperation.paymaster === "0x"
-                ) {
-                    mul = 3n
-                }
-
-                const requiredPreFund =
-                    callGasLimit +
-                    verificationGasLimit * mul +
-                    userOperation.preVerificationGas
-
-                if (requiredPreFund > prefund) {
-                    throw new RpcError(
-                        `prefund is not enough, required: ${requiredPreFund}, got: ${prefund}`,
-                        ValidationErrors.SimulateValidation
-                    )
-                }
-
-                // TODO prefund should be greater than it costs us to add it to mempool
+            if (isVersion06(userOperation)) {
+                validationResult = await this.getValidationResultV06({
+                    userOperation,
+                    entryPoint,
+                    preCodeHashes: referencedContracts
+                })
+            } else if (isVersion07(userOperation)) {
+                validationResult = await this.getValidationResultV07({
+                    userOperation,
+                    queuedUserOperations:
+                        queuedUserOperations as UserOperationV07[],
+                    entryPoint,
+                    stateOverrides,
+                    preCodeHashes: referencedContracts
+                })
+            } else {
+                throw new Error("Unsupported user operation version")
             }
 
             this.metrics.userOperationsValidationSuccess.inc()
@@ -192,11 +162,13 @@ export class SafeValidator
         userOperation,
         queuedUserOperations,
         entryPoint,
+        stateOverrides,
         preCodeHashes
     }: {
         userOperation: UserOperationV07
         queuedUserOperations: UserOperationV07[]
         entryPoint: Address
+        stateOverrides?: StateOverrides
         preCodeHashes?: ReferencedCodeHashes
     }): Promise<
         (ValidationResultV07 | ValidationResultWithAggregationV07) & {
@@ -217,7 +189,8 @@ export class SafeValidator
         const [res, tracerResult] = await this.getValidationResultWithTracerV07(
             userOperation,
             queuedUserOperations,
-            entryPoint
+            entryPoint,
+            stateOverrides
         )
 
         const [contractAddresses, storageMap] = tracerResultParserV07(
@@ -261,10 +234,12 @@ export class SafeValidator
     async getValidationResultV06({
         userOperation,
         entryPoint,
+        stateOverrides,
         preCodeHashes
     }: {
         userOperation: UserOperationV06
         entryPoint: Address
+        stateOverrides?: StateOverrides
         preCodeHashes?: ReferencedCodeHashes
     }): Promise<
         (ValidationResultV06 | ValidationResultWithAggregationV06) & {
@@ -284,7 +259,8 @@ export class SafeValidator
 
         const [res, tracerResult] = await this.getValidationResultWithTracerV06(
             userOperation,
-            entryPoint
+            entryPoint,
+            stateOverrides
         )
 
         const [contractAddresses, storageMap] = tracerResultParserV06(
@@ -343,9 +319,10 @@ export class SafeValidator
 
     async getValidationResultWithTracerV06(
         userOperation: UserOperationV06,
-        entryPoint: Address
+        entryPoint: Address,
+        stateOverrides?: StateOverrides
     ): Promise<[ValidationResultV06, BundlerTracerResult]> {
-        const stateOverrides = await getAuthorizationStateOverrides({
+        stateOverrides = await addAuthorizationStateOverrides({
             userOperations: [userOperation],
             publicClient: this.config.publicClient
         })
@@ -495,7 +472,8 @@ export class SafeValidator
     async getValidationResultWithTracerV07(
         userOperation: UserOperationV07,
         queuedUserOperations: UserOperationV07[],
-        entryPoint: Address
+        entryPoint: Address,
+        stateOverrides?: StateOverrides
     ): Promise<[ValidationResultV07, BundlerTracerResult]> {
         const packedUserOperation = toPackedUserOperation(userOperation)
         const packedQueuedUserOperations = queuedUserOperations.map((uop) =>
@@ -517,7 +495,7 @@ export class SafeValidator
         const entryPointSimulationsAddress =
             this.config.entrypointSimulationContract
 
-        const stateOverrides = await getAuthorizationStateOverrides({
+        stateOverrides = await addAuthorizationStateOverrides({
             userOperations: [userOperation],
             publicClient: this.config.publicClient
         })

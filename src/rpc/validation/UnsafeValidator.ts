@@ -25,12 +25,7 @@ import {
     entryPointExecutionErrorSchemaV07
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
-import {
-    calcPreVerificationGas,
-    calcVerificationGasAndCallGasLimit,
-    isVersion06,
-    isVersion07
-} from "@alto/utils"
+import { calcPreVerificationGas, isVersion06 } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
     BaseError,
@@ -193,10 +188,12 @@ export class UnsafeValidator implements InterfaceValidator {
 
     async getValidationResultV06({
         userOperation,
-        entryPoint
+        entryPoint,
+        stateOverrides
     }: {
         userOperation: UserOperationV06
         entryPoint: Address
+        stateOverrides?: StateOverrides
         codeHashes?: ReferencedCodeHashes
     }): Promise<
         (ValidationResultV06 | ValidationResultWithAggregationV06) & {
@@ -225,6 +222,7 @@ export class UnsafeValidator implements InterfaceValidator {
             this.gasEstimationHandler.gasEstimatorV06.simulateHandleOpV06({
                 entryPoint,
                 userOperation,
+                stateOverrides,
                 useCodeOverride: false, // disable code override so that call phase reverts aren't caught
                 targetAddress: zeroAddress,
                 targetCallData: "0x"
@@ -363,11 +361,13 @@ export class UnsafeValidator implements InterfaceValidator {
     async getValidationResultV07({
         userOperation,
         queuedUserOperations,
-        entryPoint
+        entryPoint,
+        stateOverrides
     }: {
         userOperation: UserOperationV07
         queuedUserOperations: UserOperationV07[]
         entryPoint: Address
+        stateOverrides?: StateOverrides
         codeHashes?: ReferencedCodeHashes
     }): Promise<
         (ValidationResultV07 | ValidationResultWithAggregationV07) & {
@@ -379,7 +379,8 @@ export class UnsafeValidator implements InterfaceValidator {
             await this.gasEstimationHandler.gasEstimatorV07.simulateValidation({
                 entryPoint,
                 userOperation,
-                queuedUserOperations
+                queuedUserOperations,
+                stateOverrides
             })
 
         if (simulateValidationResult.status === "failed") {
@@ -467,36 +468,6 @@ export class UnsafeValidator implements InterfaceValidator {
         return res
     }
 
-    getValidationResult({
-        userOperation,
-        queuedUserOperations,
-        entryPoint,
-        codeHashes
-    }: {
-        userOperation: UserOperation
-        queuedUserOperations: UserOperation[]
-        entryPoint: Address
-        codeHashes?: ReferencedCodeHashes
-    }): Promise<
-        (ValidationResult | ValidationResultWithAggregation) & {
-            storageMap: StorageMap
-            referencedContracts?: ReferencedCodeHashes
-        }
-    > {
-        if (isVersion06(userOperation)) {
-            return this.getValidationResultV06({
-                userOperation,
-                entryPoint,
-                codeHashes
-            })
-        }
-        return this.getValidationResultV07({
-            userOperation,
-            queuedUserOperations: queuedUserOperations as UserOperationV07[],
-            entryPoint
-        })
-    }
-
     async validatePreVerificationGas({
         userOperation,
         entryPoint
@@ -521,16 +492,15 @@ export class UnsafeValidator implements InterfaceValidator {
     }
 
     async validateUserOperation({
-        shouldCheckPrefund,
         userOperation,
         queuedUserOperations,
-        entryPoint
+        entryPoint,
+        stateOverrides
     }: {
-        shouldCheckPrefund: boolean
         userOperation: UserOperation
         queuedUserOperations: UserOperation[]
         entryPoint: Address
-        _referencedContracts?: ReferencedCodeHashes
+        stateOverrides?: StateOverrides
     }): Promise<
         (ValidationResult | ValidationResultWithAggregation) & {
             storageMap: StorageMap
@@ -538,54 +508,22 @@ export class UnsafeValidator implements InterfaceValidator {
         }
     > {
         try {
-            const validationResult = await this.getValidationResult({
-                userOperation,
-                queuedUserOperations,
-                entryPoint
-            })
+            let validationResult
 
-            if (shouldCheckPrefund) {
-                const prefund = validationResult.returnInfo.prefund
-
-                const { verificationGasLimit, callGasLimit } =
-                    calcVerificationGasAndCallGasLimit(
-                        userOperation,
-                        {
-                            preOpGas: validationResult.returnInfo.preOpGas,
-                            paid: validationResult.returnInfo.prefund
-                        },
-                        this.config.publicClient.chain.id
-                    )
-
-                let mul = 1n
-
-                if (
-                    isVersion06(userOperation) &&
-                    userOperation.paymasterAndData
-                ) {
-                    mul = 3n
-                }
-
-                if (
-                    isVersion07(userOperation) &&
-                    userOperation.paymaster === "0x"
-                ) {
-                    mul = 3n
-                }
-
-                const requiredPreFund =
-                    callGasLimit +
-                    verificationGasLimit * mul +
-                    userOperation.preVerificationGas
-
-                if (requiredPreFund > prefund) {
-                    throw new RpcError(
-                        `prefund is not enough, required: ${requiredPreFund}, got: ${prefund}`,
-                        ValidationErrors.SimulateValidation
-                    )
-                }
-
-                // TODO prefund should be greater than it costs us to add it to mempool
+            if (isVersion06(userOperation)) {
+                validationResult = await this.getValidationResultV06({
+                    userOperation,
+                    entryPoint,
+                    stateOverrides
+                })
+            } else {
+                validationResult = await this.getValidationResultV07({
+                    userOperation,
+                    queuedUserOperations:
+                        queuedUserOperations as UserOperationV07[],
+                    entryPoint,
+                    stateOverrides
+                })
             }
 
             this.metrics.userOperationsValidationSuccess.inc()

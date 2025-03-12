@@ -8,27 +8,6 @@ import { GasEstimatorV07 } from "./gasEstimationsV07"
 import type { SimulateHandleOpResult } from "./types"
 import type { AltoConfig } from "../../createConfig"
 
-function getStateOverrides({
-    addSenderBalanceOverride,
-    userOperation,
-    stateOverrides = {}
-}: {
-    addSenderBalanceOverride: boolean
-    stateOverrides: StateOverrides
-    userOperation: UserOperation
-}) {
-    const result: StateOverrides = { ...stateOverrides }
-
-    if (addSenderBalanceOverride) {
-        result[userOperation.sender] = {
-            ...deepHexlify(stateOverrides?.[userOperation.sender] || {}),
-            balance: toHex(parseEther("1000000"))
-        }
-    }
-
-    return result
-}
-
 export class GasEstimationHandler {
     gasEstimatorV06: GasEstimatorV06
     gasEstimatorV07: GasEstimatorV07
@@ -58,15 +37,13 @@ export class GasEstimationHandler {
         targetCallData: Hex
         stateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult> {
-        let finalStateOverride = undefined
-
-        // Add balance override only for v0.6 userOperations (so that prefund check during simulation passes).
-        if (balanceOverrideEnabled && isVersion06(userOperation)) {
-            finalStateOverride = getStateOverrides({
-                userOperation,
-                addSenderBalanceOverride,
-                stateOverrides
-            })
+        // Add balance override (so that prefund check during simulation passes).
+        if (balanceOverrideEnabled && addSenderBalanceOverride) {
+            const sender = userOperation.sender
+            stateOverrides[sender] = {
+                ...deepHexlify(stateOverrides?.[sender] || {}),
+                balance: toHex(parseEther("1000000"))
+            }
         }
 
         if (isVersion06(userOperation)) {
@@ -75,7 +52,7 @@ export class GasEstimationHandler {
                 entryPoint,
                 targetAddress,
                 targetCallData,
-                stateOverrides: finalStateOverride
+                stateOverrides
             })
         }
 
