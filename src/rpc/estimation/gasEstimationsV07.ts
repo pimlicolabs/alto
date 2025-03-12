@@ -66,17 +66,16 @@ export class GasEstimatorV07 {
             args: [packedUserOperations]
         })
 
-        const finalStateOverrides: StateOverrides =
-            await addAuthorizationStateOverrides({
-                userOperations: [...queuedUserOperations, userOperation],
-                publicClient: this.config.publicClient,
-                stateOverrides
-            })
+        stateOverrides = await addAuthorizationStateOverrides({
+            userOperations: [...queuedUserOperations, userOperation],
+            publicClient: this.config.publicClient,
+            stateOverrides
+        })
 
         const errorResult = await this.callPimlicoEntryPointSimulations({
             entryPoint,
             entryPointSimulationsCallData: [simulateValidationLast],
-            stateOverrides: finalStateOverrides
+            stateOverrides
         })
 
         return {
