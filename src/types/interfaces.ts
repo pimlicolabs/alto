@@ -47,21 +47,6 @@ export interface InterfaceValidator {
         }
     >
 
-    getValidationResult(args: {
-        userOperation: UserOperation
-        queuedUserOperations: UserOperation[]
-        entryPoint: Address
-        codeHashes?: ReferencedCodeHashes
-    }): Promise<
-        (
-            | validation.ValidationResult
-            | validation.ValidationResultWithAggregation
-        ) & {
-            storageMap: validation.StorageMap
-            referencedContracts?: ReferencedCodeHashes
-        }
-    >
-
     validatePreVerificationGas(args: {
         userOperation: UserOperation
         entryPoint: Address

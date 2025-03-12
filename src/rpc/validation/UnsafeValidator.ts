@@ -462,35 +462,6 @@ export class UnsafeValidator implements InterfaceValidator {
         return res
     }
 
-    getValidationResult({
-        userOperation,
-        queuedUserOperations,
-        entryPoint,
-        codeHashes
-    }: {
-        userOperation: UserOperation
-        queuedUserOperations: UserOperation[]
-        entryPoint: Address
-        codeHashes?: ReferencedCodeHashes
-    }): Promise<
-        (ValidationResult | ValidationResultWithAggregation) & {
-            storageMap: StorageMap
-            referencedContracts?: ReferencedCodeHashes
-        }
-    > {
-        if (isVersion06(userOperation)) {
-            return this.getValidationResultV06({
-                userOperation,
-                entryPoint,
-                codeHashes
-            })
-        }
-        return this.getValidationResultV07({
-            userOperation,
-            queuedUserOperations: queuedUserOperations as UserOperationV07[],
-            entryPoint
-        })
-    }
 
     async validatePreVerificationGas({
         userOperation,
@@ -531,11 +502,20 @@ export class UnsafeValidator implements InterfaceValidator {
         }
     > {
         try {
-            const validationResult = await this.getValidationResult({
-                userOperation,
-                queuedUserOperations,
-                entryPoint
-            })
+            let validationResult;
+            
+            if (isVersion06(userOperation)) {
+                validationResult = await this.getValidationResultV06({
+                    userOperation,
+                    entryPoint
+                });
+            } else {
+                validationResult = await this.getValidationResultV07({
+                    userOperation,
+                    queuedUserOperations: queuedUserOperations as UserOperationV07[],
+                    entryPoint
+                });
+            }
 
             this.metrics.userOperationsValidationSuccess.inc()
 

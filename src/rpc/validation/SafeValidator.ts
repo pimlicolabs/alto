@@ -28,7 +28,6 @@ import {
 import type { Metrics } from "@alto/utils"
 import {
     getAuthorizationStateOverrides,
-    calcVerificationGasAndCallGasLimit,
     getAddressFromInitCodeOrPaymasterAndData,
     isVersion06,
     isVersion07,
@@ -96,12 +95,25 @@ export class SafeValidator
         }
     > {
         try {
-            const validationResult = await this.getValidationResult({
-                userOperation,
-                queuedUserOperations,
-                entryPoint,
-                codeHashes: referencedContracts
-            })
+            let validationResult
+
+            if (isVersion06(userOperation)) {
+                validationResult = await this.getValidationResultV06({
+                    userOperation,
+                    entryPoint,
+                    preCodeHashes: referencedContracts
+                })
+            } else if (isVersion07(userOperation)) {
+                validationResult = await this.getValidationResultV07({
+                    userOperation,
+                    queuedUserOperations:
+                        queuedUserOperations as UserOperationV07[],
+                    entryPoint,
+                    preCodeHashes: referencedContracts
+                })
+            } else {
+                throw new Error("Unsupported user operation version")
+            }
 
             this.metrics.userOperationsValidationSuccess.inc()
 
