@@ -25,12 +25,7 @@ import {
     entryPointExecutionErrorSchemaV07
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
-import {
-    calcPreVerificationGas,
-    calcVerificationGasAndCallGasLimit,
-    isVersion06,
-    isVersion07
-} from "@alto/utils"
+import { calcPreVerificationGas, isVersion06 } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
     BaseError,
@@ -521,12 +516,10 @@ export class UnsafeValidator implements InterfaceValidator {
     }
 
     async validateUserOperation({
-        shouldCheckPrefund,
         userOperation,
         queuedUserOperations,
         entryPoint
     }: {
-        shouldCheckPrefund: boolean
         userOperation: UserOperation
         queuedUserOperations: UserOperation[]
         entryPoint: Address
@@ -543,50 +536,6 @@ export class UnsafeValidator implements InterfaceValidator {
                 queuedUserOperations,
                 entryPoint
             })
-
-            if (shouldCheckPrefund) {
-                const prefund = validationResult.returnInfo.prefund
-
-                const { verificationGasLimit, callGasLimit } =
-                    calcVerificationGasAndCallGasLimit(
-                        userOperation,
-                        {
-                            preOpGas: validationResult.returnInfo.preOpGas,
-                            paid: validationResult.returnInfo.prefund
-                        },
-                        this.config.publicClient.chain.id
-                    )
-
-                let mul = 1n
-
-                if (
-                    isVersion06(userOperation) &&
-                    userOperation.paymasterAndData
-                ) {
-                    mul = 3n
-                }
-
-                if (
-                    isVersion07(userOperation) &&
-                    userOperation.paymaster === "0x"
-                ) {
-                    mul = 3n
-                }
-
-                const requiredPreFund =
-                    callGasLimit +
-                    verificationGasLimit * mul +
-                    userOperation.preVerificationGas
-
-                if (requiredPreFund > prefund) {
-                    throw new RpcError(
-                        `prefund is not enough, required: ${requiredPreFund}, got: ${prefund}`,
-                        ValidationErrors.SimulateValidation
-                    )
-                }
-
-                // TODO prefund should be greater than it costs us to add it to mempool
-            }
 
             this.metrics.userOperationsValidationSuccess.inc()
 
