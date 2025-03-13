@@ -5,7 +5,7 @@ import {
 } from "../utils/userop"
 import { AltoConfig } from "../createConfig"
 import { HexData32, UserOpInfo, UserOperation } from "@alto/types"
-import { ConflictingType, OutstandingStore } from "."
+import { ConflictingOutstandingType, OutstandingStore } from "."
 import { Logger } from "@alto/utils"
 
 const senderNonceSlot = (userOp: UserOperation) => {
@@ -82,10 +82,12 @@ export class MemoryOutstanding implements OutstandingStore {
         return true
     }
 
-    async popConflicting(userOp: UserOperation): Promise<ConflictingType> {
+    async popConflicting(
+        userOp: UserOperation
+    ): Promise<ConflictingOutstandingType> {
         const outstandingOps = this.dump()
 
-        let conflictingReason: ConflictingType = undefined
+        let conflictingReason: ConflictingOutstandingType = undefined
 
         for (const userOpInfo of outstandingOps) {
             const { userOp: mempoolUserOp } = userOpInfo
@@ -95,7 +97,7 @@ export class MemoryOutstanding implements OutstandingStore {
                 this.remove(userOpInfo.userOpHash)
                 conflictingReason = {
                     reason: "conflicting_nonce",
-                    userOp: userOpInfo.userOp
+                    userOpInfo
                 }
                 break
             }
@@ -125,7 +127,7 @@ export class MemoryOutstanding implements OutstandingStore {
                 this.remove(userOpInfo.userOpHash)
                 conflictingReason = {
                     reason: "conflicting_deployment",
-                    userOp: userOpInfo.userOp
+                    userOpInfo
                 }
                 break
             }
@@ -305,7 +307,9 @@ export class MemoryOutstanding implements OutstandingStore {
     }
 
     // Adding findConflicting method to maintain compatibility with Store interface
-    async findConflicting(userOp: UserOperation): Promise<ConflictingType> {
+    async findConflicting(
+        userOp: UserOperation
+    ): Promise<ConflictingOutstandingType> {
         return this.popConflicting(userOp)
     }
 }

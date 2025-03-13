@@ -237,7 +237,7 @@ class RedisOutstandingQueue implements OutstandingStore {
             await this.remove(conflicting.userOpHash)
             return {
                 reason: "conflicting_nonce" as const,
-                userOp: conflicting.userOp
+                userOpInfo: conflicting
             }
         }
 
@@ -271,7 +271,7 @@ class RedisOutstandingQueue implements OutstandingStore {
                         await this.remove(conflictingUserOp.userOpHash)
                         return {
                             reason: "conflicting_deployment" as const,
-                            userOp: conflictingUserOp.userOp
+                            userOpInfo: conflictingUserOp
                         }
                     }
                 }

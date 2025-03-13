@@ -287,40 +287,39 @@ export class Mempool {
         })
 
         if (conflicting) {
-            const oldOp = conflicting.userOp
-            const newOp = userOp
+            const { userOpInfo, reason } = conflicting
+            const conflictingUserOp = userOpInfo.userOp
 
             const hasHigherPriorityFee =
-                newOp.maxPriorityFeePerGas >=
-                scaleBigIntByPercent(oldOp.maxPriorityFeePerGas, 110n)
+                userOp.maxPriorityFeePerGas >=
+                scaleBigIntByPercent(
+                    conflictingUserOp.maxPriorityFeePerGas,
+                    110n
+                )
 
             const hasHigherMaxFee =
-                newOp.maxFeePerGas >=
-                scaleBigIntByPercent(oldOp.maxFeePerGas, 110n)
+                userOp.maxFeePerGas >=
+                scaleBigIntByPercent(conflictingUserOp.maxFeePerGas, 110n)
 
             const hasHigherFees = hasHigherPriorityFee && hasHigherMaxFee
 
             if (!hasHigherFees) {
-                const reason =
-                    conflicting.reason === "conflicting_deployment"
+                const message =
+                    reason === "conflicting_deployment"
                         ? "AA10 sender already constructed: A conflicting userOperation with initCode for this sender is already in the mempool"
                         : "AA25 invalid account nonce: User operation already present in mempool"
 
-                await this.store.addOutstanding(conflicting)
-                return [false, `${reason}, bump the gas price by minimum 10%`]
+                // Re-add to outstanding as it wasn't replaced
+                await this.store.addOutstanding({
+                    entryPoint,
+                    userOpInfo: conflicting.userOpInfo
+                })
+
+                return [false, `${message}, bump the gas price by minimum 10%`]
             }
 
-            await this.store.removeOutstanding({
-                entryPoint,
-                userOpHash: getUserOperationHash(
-                    conflicting.userOp,
-                    entryPoint,
-                    this.config.chainId
-                )
-            })
-
             await this.reputationManager.replaceUserOperationSeenStatus(
-                oldOp,
+                conflictingUserOp,
                 entryPoint
             )
         }
