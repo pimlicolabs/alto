@@ -259,12 +259,12 @@ export const createMempoolStore = ({
             return { valid: true }
         },
 
-        findConflictingOutstanding: async ({
+        popConflictingOustanding: async ({
             entryPoint,
             userOp
         }: { entryPoint: Address; userOp: UserOperation }) => {
             const { outstanding } = getStoreHandlers(entryPoint)
-            return await outstanding.findConflicting(userOp)
+            return await outstanding.popConflicting(userOp)
         },
 
         validateSenderLimits: async ({

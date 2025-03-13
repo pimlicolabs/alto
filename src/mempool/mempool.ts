@@ -281,7 +281,7 @@ export class Mempool {
         }
 
         // Check if there is a userOp we can replace
-        const conflicting = await this.store.findConflictingOutstanding({
+        const conflicting = await this.store.popConflictingOustanding({
             entryPoint,
             userOp
         })
@@ -306,6 +306,7 @@ export class Mempool {
                         ? "AA10 sender already constructed: A conflicting userOperation with initCode for this sender is already in the mempool"
                         : "AA25 invalid account nonce: User operation already present in mempool"
 
+                await this.store.addOutstanding(conflicting)
                 return [false, `${reason}, bump the gas price by minimum 10%`]
             }
 

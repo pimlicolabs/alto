@@ -222,7 +222,7 @@ class RedisOutstandingQueue implements OutstandingStore {
         return this.userOpHashLookup.exists(userOpHash)
     }
 
-    async findConflicting(userOp: UserOperation) {
+    async popConflicting(userOp: UserOperation) {
         const [, nonceSeq] = getNonceKeyAndSequence(userOp.nonce)
         const pendingOpsSet = this.getPendingOpsSet(userOp)
 
@@ -233,9 +233,11 @@ class RedisOutstandingQueue implements OutstandingStore {
         )
 
         if (conflictingNonce.length) {
+            const conflicting = deserializeUserOpInfo(conflictingNonce[0])
+            await this.remove(conflicting.userOpHash)
             return {
                 reason: "conflicting_nonce" as const,
-                userOp: deserializeUserOpInfo(conflictingNonce[0]).userOp
+                userOp: conflicting.userOp
             }
         }
 
@@ -266,6 +268,7 @@ class RedisOutstandingQueue implements OutstandingStore {
                     )
 
                     if (conflictingUserOp) {
+                        await this.remove(conflictingUserOp.userOpHash)
                         return {
                             reason: "conflicting_deployment" as const,
                             userOp: conflictingUserOp.userOp

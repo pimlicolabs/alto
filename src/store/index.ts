@@ -67,7 +67,7 @@ export type MempoolStore = {
 
     // Methods for userOp validation before adding to mempool.
     isInMempool: (args: EntryPointUserOpHashParam) => Promise<boolean>
-    findConflictingOutstanding: (args: {
+    popConflictingOustanding: (args: {
         entryPoint: Address
         userOp: UserOperation
     }) => Promise<ConflictingType>
@@ -87,16 +87,21 @@ export type MempoolStore = {
     clearOutstanding: (entryPoint: Address) => Promise<void>
 }
 
-export type Store<T extends UserOpType> = {
+export type BaseStore<T extends UserOpType = UserOpType> = {
     add: (op: T) => Promise<void>
     remove: (userOpHash: HexData32) => Promise<boolean>
     contains: (userOpHash: HexData32) => Promise<boolean>
     dumpLocal: () => Promise<T[]>
+}
+
+export type Store<T extends UserOpType> = BaseStore<T> & {
     findConflicting: (args: UserOperation) => Promise<ConflictingType>
 }
 
-export type OutstandingStore = Store<UserOpInfo> & {
+export type OutstandingStore = BaseStore<UserOpInfo> & {
     clear: () => Promise<void>
+    // Will remove and return the first conflicting userOpInfo
+    popConflicting: (args: UserOperation) => Promise<ConflictingType>
     validateQueuedLimit: (userOp: UserOperation) => boolean
     validateParallelLimit: (userOp: UserOperation) => boolean
     getQueuedUserOps: (userOp: UserOperation) => Promise<UserOperation[]>
