@@ -17,11 +17,11 @@ class SortedTtlSet {
         keyPrefix: string
         config: AltoConfig
     }) {
-        if (!config.redisMempoolUrl) {
+        if (!config.redisGasPriceQueueUrl) {
             throw new Error("Redis URL not provided")
         }
 
-        const redis = new Redis(config.redisMempoolUrl)
+        const redis = new Redis(config.redisGasPriceQueueUrl)
         const queueValidity = config.gasPriceExpiry
 
         const redisKey = `${config.chainId}:${keyPrefix}`

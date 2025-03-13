@@ -246,6 +246,7 @@ export const mempoolArgsSchema = z.object({
     "redis-mempool-queue-name": z.string(),
     "redis-sender-manager-url": z.string().optional(),
     "redis-sender-manager-queue-name": z.string(),
+    "redis-gas-price-queue-url": z.string().optional(),
     "redis-gas-price-queue-name": z.string(),
     "mempool-max-parallel-ops": z.number().int().min(0).default(10),
     "mempool-max-queued-ops": z.number().int().min(0).default(0),

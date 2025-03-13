@@ -38,9 +38,9 @@ export const flushOnStartUp = async ({
         return
     }
 
-    const promises = wallets.map((wallet) => {
+    const promises = wallets.map(async (wallet) => {
         try {
-            flushStuckTransaction({
+            await flushStuckTransaction({
                 config,
                 wallet,
                 gasPrice: gasPrice.maxFeePerGas * 5n,

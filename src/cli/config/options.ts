@@ -144,6 +144,12 @@ export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
         require: false,
         default: "outstanding-mempool"
     },
+    "redis-gas-price-queue-url": {
+        description:
+            "Redis connection URL (required if redis-gas-price-queue is enabled)",
+        type: "string",
+        require: false
+    },
     "redis-gas-price-queue-name": {
         description: "Queue name to store gas prices",
         type: "string",

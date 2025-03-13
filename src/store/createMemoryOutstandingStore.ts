@@ -185,6 +185,7 @@ export const createMemoryOutstandingQueue = ({
                 pendingOps.get(pendingOpsSlot) ||
                 pendingOps.set(pendingOpsSlot, []).get(pendingOpsSlot)!
 
+            // Note: the userOpInfo is always added to backlogOps, because we are pushing to a reference
             backlogOps.push(userOpInfo)
 
             backlogOps

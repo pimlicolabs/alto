@@ -231,6 +231,8 @@ export const setupServer = async ({
         metrics
     })
 
+    // When running with horizontal scaling enabled, only one instance should have this flag enabled,
+    // otherwise all instances will try to refill wallets.
     if (config.refillingWallets) {
         const rootLogger = config.getLogger(
             { module: "root" },
