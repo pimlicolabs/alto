@@ -326,17 +326,21 @@ export const supportedEntryPointsSchema = z.object({
 
 export const estimateUserOperationGasSchema = z.object({
     method: z.literal("eth_estimateUserOperationGas"),
-    params: z.union([
-        z.tuple([
-            partialUserOperationSchema,
-            addressSchema.describe("entryPoint")
-        ]),
-        z.tuple([
-            partialUserOperationSchema,
-            addressSchema.describe("entryPoint"),
-            stateOverridesSchema
-        ])
-    ]),
+    params: z.array(z.unknown())
+        .min(2, "Missing entryPoint: You must provide a valid entryPoint address as the second parameter")
+        .pipe(
+            z.union([
+                z.tuple([
+                    partialUserOperationSchema,
+                    addressSchema.describe("entryPoint")
+                ]),
+                z.tuple([
+                    partialUserOperationSchema,
+                    addressSchema.describe("entryPoint"),
+                    stateOverridesSchema
+                ])
+            ])
+        ),
     result: z.union([
         z.object({
             callGasLimit: hexNumberSchema,
@@ -356,10 +360,14 @@ export const estimateUserOperationGasSchema = z.object({
 
 export const sendUserOperationSchema = z.object({
     method: z.literal("eth_sendUserOperation"),
-    params: z.tuple([
-        userOperationSchema,
-        addressSchema.describe("entryPoint")
-    ]),
+    params: z.array(z.unknown())
+        .min(2, "Missing entryPoint: You must provide a valid entryPoint address as the second parameter")
+        .pipe(
+            z.tuple([
+                userOperationSchema,
+                addressSchema.describe("entryPoint")
+            ])
+        ),
     result: hexData32Schema
 })
 
@@ -407,7 +415,11 @@ export const debugClearMempoolSchema = z.object({
 
 export const debugDumpMempoolSchema = z.object({
     method: z.literal("debug_bundler_dumpMempool"),
-    params: z.tuple([addressSchema.describe("entryPoint")]),
+    params: z.array(z.unknown())
+        .min(1, "Missing entryPoint: You must provide a valid entryPoint address as the parameter")
+        .pipe(
+            z.tuple([addressSchema.describe("entryPoint")])
+        ),
     result: z.array(userOperationSchema)
 })
 
@@ -440,7 +452,11 @@ export const debugSetReputationSchema = z.object({
 
 export const debugDumpReputationSchema = z.object({
     method: z.literal("debug_bundler_dumpReputation"),
-    params: z.tuple([addressSchema.describe("entryPoint")]),
+    params: z.array(z.unknown())
+        .min(1, "Missing entryPoint: You must provide a valid entryPoint address as the parameter")
+        .pipe(
+            z.tuple([addressSchema.describe("entryPoint")])
+        ),
     result: z.array(
         z.object({
             address: addressSchema,
@@ -459,10 +475,14 @@ export const debugClearReputationSchema = z.object({
 
 export const debugGetStakeStatusSchema = z.object({
     method: z.literal("debug_bundler_getStakeStatus"),
-    params: z.tuple([
-        addressSchema.describe("account"),
-        addressSchema.describe("entryPoint")
-    ]),
+    params: z.array(z.unknown())
+        .min(2, "Missing parameters: You must provide a valid account address and entryPoint address")
+        .pipe(
+            z.tuple([
+                addressSchema.describe("account"),
+                addressSchema.describe("entryPoint")
+            ])
+        ),
     result: z.object({
         stakeInfo: z.object({
             addr: z.string(),
@@ -495,26 +515,34 @@ export const pimlicoGetUserOperationGasPriceSchema = z.object({
 
 export const pimlicoSendUserOperationNowSchema = z.object({
     method: z.literal("pimlico_sendUserOperationNow"),
-    params: z.tuple([
-        userOperationSchema,
-        addressSchema.describe("entryPoint")
-    ]),
+    params: z.array(z.unknown())
+        .min(2, "Missing entryPoint: You must provide a valid entryPoint address as the second parameter")
+        .pipe(
+            z.tuple([
+                userOperationSchema,
+                addressSchema.describe("entryPoint")
+            ])
+        ),
     result: userOperationReceiptSchema
 })
 
 export const pimlicoExperimentalEstimateUserOperationGas7702Schema = z.object({
     method: z.literal("pimlico_experimental_estimateUserOperationGas7702"),
-    params: z.union([
-        z.tuple([
-            partialUserOperationSchema,
-            addressSchema.describe("entryPoint")
-        ]),
-        z.tuple([
-            partialUserOperationSchema,
-            addressSchema.describe("entryPoint"),
-            stateOverridesSchema
-        ])
-    ]),
+    params: z.array(z.unknown())
+        .min(2, "Missing entryPoint: You must provide a valid entryPoint address as the second parameter")
+        .pipe(
+            z.union([
+                z.tuple([
+                    partialUserOperationSchema,
+                    addressSchema.describe("entryPoint")
+                ]),
+                z.tuple([
+                    partialUserOperationSchema,
+                    addressSchema.describe("entryPoint"),
+                    stateOverridesSchema
+                ])
+            ])
+        ),
     result: z.union([
         z.object({
             callGasLimit: hexNumberSchema,
@@ -534,10 +562,14 @@ export const pimlicoExperimentalEstimateUserOperationGas7702Schema = z.object({
 
 export const pimlicoExperimentalSendUserOperation7702Schema = z.object({
     method: z.literal("pimlico_experimental_sendUserOperation7702"),
-    params: z.tuple([
-        userOperationSchema,
-        addressSchema.describe("entryPoint")
-    ]),
+    params: z.array(z.unknown())
+        .min(2, "Missing entryPoint: You must provide a valid entryPoint address as the second parameter")
+        .pipe(
+            z.tuple([
+                userOperationSchema,
+                addressSchema.describe("entryPoint")
+            ])
+        ),
     result: hexData32Schema
 })
 
