@@ -19,11 +19,25 @@ import Fastify, {
 import type { Registry } from "prom-client"
 import { toHex } from "viem"
 import type * as WebSocket from "ws"
-import { fromZodError } from "zod-validation-error"
+import { z } from "zod"
+import { fromZodError, errorMap as defaultErrorMap } from "zod-validation-error"
 import type { AltoConfig } from "../createConfig"
 import rpcDecorators, { RpcStatus } from "../utils/fastify-rpc-decorators"
 import RpcReply from "../utils/rpc-reply"
 import type { RpcHandler } from "./rpcHandler"
+
+// Custom error map that preserves our custom error messages
+const customErrorMap: z.ZodErrorMap = (issue, ctx) => {
+  // If this is a custom error message from our schema validators, use it directly
+  if (issue.code === z.ZodIssueCode.custom) {
+    return { message: issue.message || "Invalid input" };
+  }
+  
+  // Otherwise fall back to the default error map
+  return defaultErrorMap(issue, ctx);
+};
+
+z.setErrorMap(customErrorMap)
 
 // jsonBigIntOverride.ts
 const originalJsonStringify = JSON.stringify

@@ -61,17 +61,72 @@ const signedAuthorizationSchema = z.object({
 
 const userOperationV06Schema = z
     .object({
-        sender: addressSchema,
-        nonce: hexNumberSchema,
-        initCode: hexDataSchema,
-        callData: hexDataSchema,
-        callGasLimit: hexNumberSchema,
-        verificationGasLimit: hexNumberSchema,
-        preVerificationGas: hexNumberSchema,
-        maxPriorityFeePerGas: hexNumberSchema,
-        maxFeePerGas: hexNumberSchema,
-        paymasterAndData: hexDataSchema,
-        signature: hexDataSchema,
+        sender: addressSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing sender field"
+            });
+        })),
+        nonce: hexNumberSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing nonce field"
+            });
+        })),
+        initCode: hexDataSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing initCode field"
+            });
+        })),
+        callData: hexDataSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing callData field"
+            });
+        })),
+        callGasLimit: hexNumberSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing callGasLimit field"
+            });
+        })),
+        verificationGasLimit: hexNumberSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing verificationGasLimit field"
+            });
+        })),
+        preVerificationGas: hexNumberSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing preVerificationGas field"
+            });
+        })),
+        maxPriorityFeePerGas: hexNumberSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing maxPriorityFeePerGas field"
+            });
+        })),
+        maxFeePerGas: hexNumberSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing maxFeePerGas field"
+            });
+        })),
+        paymasterAndData: hexDataSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing paymasterAndData field"
+            });
+        })),
+        signature: hexDataSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing signature field"
+            });
+        })),
         eip7702Auth: signedAuthorizationSchema.optional().nullable()
     })
     .strict()
@@ -81,8 +136,18 @@ const userOperationV06Schema = z
 
 const userOperationV07Schema = z
     .object({
-        sender: addressSchema,
-        nonce: hexNumberSchema,
+        sender: addressSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing sender field"
+            });
+        })),
+        nonce: hexNumberSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing nonce field"
+            });
+        })),
         factory: addressSchema
             .nullable()
             .optional()
@@ -91,12 +156,42 @@ const userOperationV07Schema = z
             .nullable()
             .optional()
             .transform((val) => val ?? null),
-        callData: hexDataSchema,
-        callGasLimit: hexNumberSchema,
-        verificationGasLimit: hexNumberSchema,
-        preVerificationGas: hexNumberSchema,
-        maxFeePerGas: hexNumberSchema,
-        maxPriorityFeePerGas: hexNumberSchema,
+        callData: hexDataSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing callData field"
+            });
+        })),
+        callGasLimit: hexNumberSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing callGasLimit field"
+            });
+        })),
+        verificationGasLimit: hexNumberSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing verificationGasLimit field"
+            });
+        })),
+        preVerificationGas: hexNumberSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing preVerificationGas field"
+            });
+        })),
+        maxFeePerGas: hexNumberSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing maxFeePerGas field"
+            });
+        })),
+        maxPriorityFeePerGas: hexNumberSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing maxPriorityFeePerGas field"
+            });
+        })),
         paymaster: addressSchema
             .nullable()
             .optional()
@@ -113,7 +208,12 @@ const userOperationV07Schema = z
             .nullable()
             .optional()
             .transform((val) => val ?? null),
-        signature: hexDataSchema,
+        signature: hexDataSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing signature field"
+            });
+        })),
         eip7702Auth: signedAuthorizationSchema.optional().nullable()
     })
     .strict()
@@ -121,17 +221,47 @@ const userOperationV07Schema = z
 
 const partialUserOperationV06Schema = z
     .object({
-        sender: addressSchema,
-        nonce: hexNumberSchema,
-        initCode: hexDataSchema,
-        callData: hexDataSchema,
+        sender: addressSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing sender field"
+            });
+        })),
+        nonce: hexNumberSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing nonce field"
+            });
+        })),
+        initCode: hexDataSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing initCode field"
+            });
+        })),
+        callData: hexDataSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing callData field"
+            });
+        })),
         callGasLimit: hexNumberSchema.default(1n),
         verificationGasLimit: hexNumberSchema.default(1n),
         preVerificationGas: hexNumberSchema.default(1n),
         maxPriorityFeePerGas: hexNumberSchema.default(1n),
         maxFeePerGas: hexNumberSchema.default(1n),
-        paymasterAndData: hexDataSchema,
-        signature: hexDataSchema,
+        paymasterAndData: hexDataSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing paymasterAndData field"
+            });
+        })),
+        signature: hexDataSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing signature field"
+            });
+        })),
         eip7702Auth: signedAuthorizationSchema.optional().nullable()
     })
     .strict()
@@ -141,8 +271,18 @@ const partialUserOperationV06Schema = z
 
 const partialUserOperationV07Schema = z
     .object({
-        sender: addressSchema,
-        nonce: hexNumberSchema,
+        sender: addressSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing sender field"
+            });
+        })),
+        nonce: hexNumberSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing nonce field"
+            });
+        })),
         factory: addressSchema
             .nullable()
             .optional()
@@ -151,7 +291,12 @@ const partialUserOperationV07Schema = z
             .nullable()
             .optional()
             .transform((val) => val ?? null),
-        callData: hexDataSchema,
+        callData: hexDataSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing callData field"
+            });
+        })),
         callGasLimit: hexNumberSchema.default(1n),
         verificationGasLimit: hexNumberSchema.default(1n),
         preVerificationGas: hexNumberSchema.default(1n),
@@ -173,7 +318,12 @@ const partialUserOperationV07Schema = z
             .nullable()
             .optional()
             .transform((val) => val ?? null),
-        signature: hexDataSchema,
+        signature: hexDataSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing signature field"
+            });
+        })),
         eip7702Auth: signedAuthorizationSchema.optional().nullable()
     })
     .strict()
@@ -181,15 +331,60 @@ const partialUserOperationV07Schema = z
 
 const packerUserOperationSchema = z
     .object({
-        sender: addressSchema,
-        nonce: hexNumberSchema,
-        initCode: hexDataSchema,
-        callData: hexDataSchema,
-        accountGasLimits: hexData32Schema,
-        preVerificationGas: hexNumberSchema,
-        gasFees: hexData32Schema,
-        paymasterAndData: hexDataSchema,
-        signature: hexDataSchema
+        sender: addressSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing sender field"
+            });
+        })),
+        nonce: hexNumberSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing nonce field"
+            });
+        })),
+        initCode: hexDataSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing initCode field"
+            });
+        })),
+        callData: hexDataSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing callData field"
+            });
+        })),
+        accountGasLimits: hexData32Schema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing accountGasLimits field"
+            });
+        })),
+        preVerificationGas: hexNumberSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing preVerificationGas field"
+            });
+        })),
+        gasFees: hexData32Schema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing gasFees field"
+            });
+        })),
+        paymasterAndData: hexDataSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing paymasterAndData field"
+            });
+        })),
+        signature: hexDataSchema.or(z.any().superRefine((_, ctx) => {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "userOperation missing signature field"
+            });
+        }))
     })
     .strict()
     .transform((val) => val)
@@ -322,14 +517,12 @@ export const supportedEntryPointsSchema = z.object({
 
 export const estimateUserOperationGasSchema = z.object({
     method: z.literal("eth_estimateUserOperationGas"),
-    params: z.union([
-        z.tuple([partialUserOperationSchema, addressSchema]),
-        z.tuple([
-            partialUserOperationSchema,
-            addressSchema,
-            stateOverridesSchema
-        ])
-    ]),
+    params: z
+        .tuple([partialUserOperationSchema, addressSchema])
+        .rest(stateOverridesSchema)
+        .refine((data) => data.length <= 3, {
+            message: "Params must have at most 3 items"
+        }),
     result: z.union([
         z.object({
             callGasLimit: hexNumberSchema,
@@ -488,14 +681,12 @@ export const pimlicoSendUserOperationNowSchema = z.object({
 
 export const pimlicoExperimentalEstimateUserOperationGas7702Schema = z.object({
     method: z.literal("pimlico_experimental_estimateUserOperationGas7702"),
-    params: z.union([
-        z.tuple([partialUserOperationSchema, addressSchema]),
-        z.tuple([
-            partialUserOperationSchema,
-            addressSchema,
-            stateOverridesSchema
-        ])
-    ]),
+    params: z
+        .tuple([partialUserOperationSchema, addressSchema])
+        .rest(stateOverridesSchema)
+        .refine((data) => data.length <= 3, {
+            message: "Params must have at most 3 items"
+        }),
     result: z.union([
         z.object({
             callGasLimit: hexNumberSchema,
