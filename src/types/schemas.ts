@@ -151,57 +151,6 @@ const userOperationV06Schema = z
         ),
         eip7702Auth: signedAuthorizationSchema.optional().nullable()
     })
-    // Validate if someone accidentally uses v0.7 fields in a v0.6 UserOperation
-    .superRefine((userOp, ctx) => {
-        if ("factory" in userOp) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ["factory"],
-                message:
-                    "factory field is not valid for v0.6 UserOperation - use initCode instead"
-            })
-        }
-        if ("factoryData" in userOp) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ["factoryData"],
-                message:
-                    "factoryData field is not valid for v0.6 UserOperation - use initCode instead"
-            })
-        }
-        if ("paymaster" in userOp) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ["paymaster"],
-                message:
-                    "paymaster field is not valid for v0.6 UserOperation - use paymasterAndData instead"
-            })
-        }
-        if ("paymasterData" in userOp) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ["paymasterData"],
-                message:
-                    "paymasterData field is not valid for v0.6 UserOperation - use paymasterAndData instead"
-            })
-        }
-        if ("paymasterVerificationGasLimit" in userOp) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ["paymasterVerificationGasLimit"],
-                message:
-                    "paymasterVerificationGasLimit field is not valid for v0.6 UserOperation"
-            })
-        }
-        if ("paymasterPostOpGasLimit" in userOp) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ["paymasterPostOpGasLimit"],
-                message:
-                    "paymasterPostOpGasLimit field is not valid for v0.6 UserOperation"
-            })
-        }
-    })
     .transform((val) => {
         return val
     })
@@ -305,25 +254,6 @@ const userOperationV07Schema = z
             })
         ),
         eip7702Auth: signedAuthorizationSchema.optional().nullable()
-    })
-    // Validate if someone accidentally uses v0.6 fields in a v0.7 UserOperation
-    .superRefine((userOp, ctx) => {
-        if ("initCode" in userOp) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ["initCode"],
-                message:
-                    "initCode field is not valid for v0.7 UserOperation - use factory and factoryData instead"
-            })
-        }
-        if ("paymasterAndData" in userOp) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ["paymasterAndData"],
-                message:
-                    "paymasterAndData field is not valid for v0.7 UserOperation - use paymaster and paymasterData instead"
-            })
-        }
     })
     .transform((val) => val)
 
@@ -535,8 +465,52 @@ const packerUserOperationSchema = z
     .strict()
     .transform((val) => val)
 
-// Similar preprocessing for partialUserOperationSchema to determine which version
+// Simplified preprocessing for partialUserOperationSchema to throw error on mixed versions
 const partialUserOperationSchema = z.preprocess(
+    (data) => {
+        if (typeof data !== "object" || data === null) {
+            // If it's not an object, just return it and let Zod handle the error
+            return data
+        }
+
+        // Check for version-specific fields
+        const userOp = data as any
+        const hasV07Fields = "factory" in userOp || "paymaster" in userOp
+        const hasV06Fields =
+            "initCode" in userOp || "paymasterAndData" in userOp
+
+        // Throw error if mixing versions
+        if (hasV07Fields && hasV06Fields) {
+            // Identify which specific fields are conflicting
+            const v06FieldNames = ["initCode", "paymasterAndData"]
+            const v07FieldNames = [
+                "factory",
+                "factoryData",
+                "paymaster",
+                "paymasterData",
+                "paymasterVerificationGasLimit",
+                "paymasterPostOpGasLimit"
+            ]
+
+            const v06Fields = v06FieldNames.filter((field) => field in userOp)
+            const v07Fields = v07FieldNames.filter((field) => field in userOp)
+
+            throw new Error(
+                `Cannot mix v0.6 and v0.7 UserOperation fields. Found v0.6 fields [${v06Fields.join(
+                    ", "
+                )}] and v0.7 fields [${v07Fields.join(
+                    ", "
+                )}]. Choose one version format.`
+            )
+        }
+
+        return userOp
+    },
+    z.union([partialUserOperationV07Schema, partialUserOperationV06Schema])
+)
+
+// Simplified preprocessing for userOperationSchema to throw error on mixed versions
+const userOperationSchema = z.preprocess(
     (data) => {
         // If it's not an object, just return it and let Zod handle the error
         if (typeof data !== "object" || data === null) {
@@ -549,106 +523,34 @@ const partialUserOperationSchema = z.preprocess(
         const hasV06Fields =
             "initCode" in userOp || "paymasterAndData" in userOp
 
-        // Add a property to indicate which version schema to try first
-        if (hasV07Fields && !hasV06Fields) {
-            // Clearly v0.7
-            userOp.__v07 = true
-        } else if (hasV06Fields && !hasV07Fields) {
-            // Clearly v0.6
-            userOp.__v06 = true
+        // Throw error if mixing versions
+        if (hasV07Fields && hasV06Fields) {
+            // Identify which specific fields are conflicting
+            const v06FieldNames = ["initCode", "paymasterAndData"]
+            const v07FieldNames = [
+                "factory",
+                "factoryData",
+                "paymaster",
+                "paymasterData",
+                "paymasterVerificationGasLimit",
+                "paymasterPostOpGasLimit"
+            ]
+
+            const v06Fields = v06FieldNames.filter((field) => field in userOp)
+            const v07Fields = v07FieldNames.filter((field) => field in userOp)
+
+            throw new Error(
+                `Cannot mix v0.6 and v0.7 UserOperation fields. Found v0.6 fields [${v06Fields.join(
+                    ", "
+                )}] and v0.7 fields [${v07Fields.join(
+                    ", "
+                )}]. Choose one version format.`
+            )
         }
 
         return userOp
     },
-    z.union([
-        // If we detected v0.7, try that first
-        z.preprocess((data) => {
-            if (
-                typeof data === "object" &&
-                data !== null &&
-                (data as any).__v07
-            ) {
-                // Remove our helper property
-                const { __v07, ...rest } = data as any
-                return rest
-            }
-            return data
-        }, partialUserOperationV07Schema),
-        // If we detected v0.6, try that first
-        z.preprocess((data) => {
-            if (
-                typeof data === "object" &&
-                data !== null &&
-                (data as any).__v06
-            ) {
-                // Remove our helper property
-                const { __v06, ...rest } = data as any
-                return rest
-            }
-            return data
-        }, partialUserOperationV06Schema),
-        // Default order
-        partialUserOperationV06Schema,
-        partialUserOperationV07Schema
-    ])
-)
-
-// First try to determine which version to use
-const userOperationSchema = z.preprocess(
-    (data) => {
-        // If it's not an object, just return it and let Zod handle the error
-        if (typeof data !== "object" || data === null) {
-            return data
-        }
-
-        // Check for v0.7 fields
-        const userOp = data as any
-        const hasV07Fields = "factory" in userOp || "paymaster" in userOp
-        const hasV06Fields =
-            "initCode" in userOp || "paymasterAndData" in userOp
-
-        // Add a property to indicate which version schema to try first
-        if (hasV07Fields && !hasV06Fields) {
-            // Clearly v0.7
-            userOp.__v07 = true
-        } else if (hasV06Fields && !hasV07Fields) {
-            // Clearly v0.6
-            userOp.__v06 = true
-        }
-
-        return userOp
-    },
-    z.union([
-        // If we detected v0.7, try that first
-        z.preprocess((data) => {
-            if (
-                typeof data === "object" &&
-                data !== null &&
-                (data as any).__v07
-            ) {
-                // Remove our helper property
-                const { __v07, ...rest } = data as any
-                return rest
-            }
-            return data
-        }, userOperationV07Schema),
-        // If we detected v0.6, try that first
-        z.preprocess((data) => {
-            if (
-                typeof data === "object" &&
-                data !== null &&
-                (data as any).__v06
-            ) {
-                // Remove our helper property
-                const { __v06, ...rest } = data as any
-                return rest
-            }
-            return data
-        }, userOperationV06Schema),
-        // Default order (try v0.6 first, then v0.7)
-        userOperationV06Schema,
-        userOperationV07Schema
-    ])
+    z.union([userOperationV07Schema, userOperationV06Schema])
 )
 
 export type UserOperationV06 = z.infer<typeof userOperationV06Schema>
