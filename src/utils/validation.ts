@@ -314,10 +314,6 @@ export async function calcPreVerificationGas({
         overheads
     )
 
-    if (config.publicClient.chain.id === lineaSepolia.id) {
-        return preVerificationGas * 2n
-    }
-
     switch (config.chainType) {
         case "op-stack":
             return await calcOptimismPreVerificationGas(

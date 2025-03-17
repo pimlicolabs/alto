@@ -5,7 +5,7 @@ import {
     commaSeperatedAddressPattern,
     hexData32Schema
 } from "@alto/types"
-import type { Hex } from "viem"
+import { parseGwei, type Hex } from "viem"
 import { type Account, privateKeyToAccount } from "viem/accounts"
 import { z } from "zod"
 
@@ -148,6 +148,14 @@ export const compatibilityArgsSchema = z.object({
     "fixed-gas-limit-for-estimation": z
         .string()
         .transform((val) => BigInt(val))
+        .optional(),
+    "floor-max-fee-per-gas": z
+        .string()
+        .transform((val) => parseGwei(val))
+        .optional(),
+    "floor-max-priority-fee-per-gas": z
+        .string()
+        .transform((val) => parseGwei(val))
         .optional()
 })
 

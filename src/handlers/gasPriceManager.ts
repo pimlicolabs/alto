@@ -6,7 +6,7 @@ import {
 import { type Logger, maxBigInt, minBigInt } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import { type PublicClient, parseGwei } from "viem"
-import { avalanche, celo, celoAlfajores, dfk, polygon } from "viem/chains"
+import { polygon } from "viem/chains"
 import type { AltoConfig } from "../createConfig"
 import { SlidingWindowTimedQueue } from "../utils/slidingWindowTimedQueue"
 import { ArbitrumManager } from "./arbitrumGasPriceManager"
@@ -112,42 +112,19 @@ export class GasPriceManager {
         }
 
         if (
-            this.config.publicClient.chain.id === celo.id ||
-            this.config.publicClient.chain.id === celoAlfajores.id
+            this.config.floorMaxFeePerGas ||
+            this.config.floorMaxPriorityFeePerGas
         ) {
-            const maxFee = maxBigInt(
-                result.maxFeePerGas,
-                result.maxPriorityFeePerGas
-            )
-            return {
-                maxFeePerGas: maxFee,
-                maxPriorityFeePerGas: maxFee
-            }
-        }
+            const maxFeePerGas = this.config.floorMaxFeePerGas
+                ? maxBigInt(this.config.floorMaxFeePerGas, result.maxFeePerGas)
+                : result.maxFeePerGas
 
-        if (this.config.publicClient.chain.id === dfk.id) {
-            const maxFeePerGas = maxBigInt(5_000_000_000n, result.maxFeePerGas)
-            const maxPriorityFeePerGas = maxBigInt(
-                5_000_000_000n,
-                result.maxPriorityFeePerGas
-            )
-
-            return {
-                maxFeePerGas,
-                maxPriorityFeePerGas
-            }
-        }
-
-        // set a minimum maxPriorityFee & maxFee to 1.5gwei on avalanche (because eth_maxPriorityFeePerGas returns 0)
-        if (this.config.publicClient.chain.id === avalanche.id) {
-            const maxFeePerGas = maxBigInt(
-                parseGwei("1.5"),
-                result.maxFeePerGas
-            )
-            const maxPriorityFeePerGas = maxBigInt(
-                parseGwei("1.5"),
-                result.maxPriorityFeePerGas
-            )
+            const maxPriorityFeePerGas = this.config.floorMaxPriorityFeePerGas
+                ? maxBigInt(
+                      this.config.floorMaxPriorityFeePerGas,
+                      result.maxPriorityFeePerGas
+                  )
+                : result.maxPriorityFeePerGas
 
             return {
                 maxFeePerGas,
