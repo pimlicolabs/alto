@@ -5,7 +5,8 @@ import {
     ValidationErrors,
     altoVersions,
     bundlerRequestSchema,
-    jsonRpcSchema
+    jsonRpcSchema,
+    customErrorMap
 } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import websocket from "@fastify/websocket"
@@ -263,7 +264,8 @@ export class Server {
                 bundlerRequestSchema.safeParse(jsonRpcRequest)
             if (!bundlerRequestParsing.success) {
                 const validationError = fromZodError(
-                    bundlerRequestParsing.error
+                    bundlerRequestParsing.error, 
+                    { prefix: 'Validation error' }
                 )
 
                 if (
@@ -273,6 +275,20 @@ export class Server {
                 ) {
                     throw new RpcError(
                         "Missing/invalid userOpHash",
+                        ValidationErrors.InvalidFields
+                    )
+                }
+                
+                // Extract the error message from the validation error
+                const errorMessage = validationError.message;
+                
+                // Use appropriate error codes based on the type of validation error
+                if (errorMessage.includes("Missing") || 
+                    errorMessage.includes("Invalid") || 
+                    errorMessage.includes("required field")) {
+                    // All errors involving missing or invalid fields should use InvalidFields code
+                    throw new RpcError(
+                        errorMessage,
                         ValidationErrors.InvalidFields
                     )
                 }
