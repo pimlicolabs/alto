@@ -37,7 +37,6 @@ import {
     concat,
     slice
 } from "viem"
-import { lineaSepolia } from "viem/chains"
 import { maxBigInt, minBigInt, scaleBigIntByPercent } from "./bigInt"
 import { isVersion06, isVersion07, toPackedUserOperation } from "./userop"
 import type { AltoConfig } from "../createConfig"
