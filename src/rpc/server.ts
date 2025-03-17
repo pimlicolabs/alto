@@ -28,14 +28,14 @@ import type { RpcHandler } from "./rpcHandler"
 
 // Custom error map that preserves our custom error messages
 const customErrorMap: z.ZodErrorMap = (issue, ctx) => {
-  // If this is a custom error message from our schema validators, use it directly
-  if (issue.code === z.ZodIssueCode.custom) {
-    return { message: issue.message || "Invalid input" };
-  }
-  
-  // Otherwise fall back to the default error map
-  return defaultErrorMap(issue, ctx);
-};
+    // If this is a custom error message from our schema validators, use it directly
+    if (issue.code === z.ZodIssueCode.custom) {
+        return { message: issue.message || "Invalid input" }
+    }
+
+    // Otherwise fall back to the default error map
+    return defaultErrorMap(issue, ctx)
+}
 
 z.setErrorMap(customErrorMap)
 
@@ -276,13 +276,23 @@ export class Server {
             const bundlerRequestParsing =
                 bundlerRequestSchema.safeParse(jsonRpcRequest)
             if (!bundlerRequestParsing.success) {
-                const validationError = fromZodError(
-                    bundlerRequestParsing.error
+                // Look for custom user operation error messages first
+                const customErrors = bundlerRequestParsing.error.errors.filter(
+                    (err) => err.code === z.ZodIssueCode.custom
                 )
 
+                // If we have custom errors, use the first one
+                if (customErrors.length > 0) {
+                    throw new RpcError(
+                        customErrors[0].message,
+                        ValidationErrors.InvalidFields
+                    )
+                }
+
+                // Special case for userOpHash validation
                 if (
-                    validationError.message.includes(
-                        "Missing/invalid userOpHash"
+                    bundlerRequestParsing.error.errors.some((err) =>
+                        err.message?.includes("Missing/invalid userOpHash")
                     )
                 ) {
                     throw new RpcError(
@@ -291,6 +301,25 @@ export class Server {
                     )
                 }
 
+                // Create a simplified error message if it's related to UserOperation fields
+                if (
+                    bundlerRequestParsing.error.errors.some((err) =>
+                        err.path?.some((p) =>
+                            p.toString().includes("params[0]")
+                        )
+                    )
+                ) {
+                    // For UserOperation validation, use a more generic error
+                    throw new RpcError(
+                        "Invalid UserOperation format",
+                        ValidationErrors.InvalidFields
+                    )
+                }
+
+                // Fallback to full error message for other types of errors
+                const validationError = fromZodError(
+                    bundlerRequestParsing.error
+                )
                 throw new RpcError(
                     validationError.message,
                     ValidationErrors.InvalidRequest
