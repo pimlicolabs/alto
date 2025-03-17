@@ -265,7 +265,9 @@ export class Server {
             if (!bundlerRequestParsing.success) {
                 const validationError = fromZodError(
                     bundlerRequestParsing.error, 
-                    { prefix: 'Validation error' }
+                    { 
+                        prefix: 'Validation error'
+                    }
                 )
 
                 if (
@@ -279,8 +281,11 @@ export class Server {
                     )
                 }
                 
-                // Extract the error message from the validation error
-                const errorMessage = validationError.message;
+                // Extract the error message from the validation error and clean it up
+                let errorMessage = validationError.message;
+                
+                // Remove the path information that appears as "at \"params\"" at the end of messages
+                errorMessage = errorMessage.replace(/ at ["\w\.]+$/, '');
                 
                 // Use appropriate error codes based on the type of validation error
                 if (errorMessage.includes("Missing") || 
@@ -294,7 +299,7 @@ export class Server {
                 }
 
                 throw new RpcError(
-                    validationError.message,
+                    errorMessage,
                     ValidationErrors.InvalidRequest
                 )
             }
