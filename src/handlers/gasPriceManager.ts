@@ -6,39 +6,12 @@ import {
 import { type Logger, maxBigInt, minBigInt } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import { type PublicClient, parseGwei } from "viem"
-import {
-    avalanche,
-    celo,
-    celoAlfajores,
-    dfk,
-    polygon,
-    polygonMumbai
-} from "viem/chains"
+import { polygon } from "viem/chains"
 import type { AltoConfig } from "../createConfig"
 import { SlidingWindowTimedQueue } from "../utils/slidingWindowTimedQueue"
 import { ArbitrumManager } from "./arbitrumGasPriceManager"
 import { MantleManager } from "./mantleGasPriceManager"
 import { OptimismManager } from "./optimismManager"
-
-enum ChainId {
-    Goerli = 5,
-    Polygon = 137,
-    Mumbai = 80001,
-    LineaTestnet = 59140,
-    Linea = 59144
-}
-
-const MIN_POLYGON_GAS_PRICE = parseGwei("31")
-const MIN_MUMBAI_GAS_PRICE = parseGwei("1")
-
-function getGasStationUrl(chainId: ChainId.Polygon | ChainId.Mumbai): string {
-    switch (chainId) {
-        case ChainId.Polygon:
-            return "https://gasstation.polygon.technology/v2"
-        case ChainId.Mumbai:
-            return "https://gasstation-testnet.polygon.technology/v2"
-    }
-}
 
 export class GasPriceManager {
     private readonly config: AltoConfig
@@ -93,23 +66,17 @@ export class GasPriceManager {
         ])
     }
 
-    private getDefaultGasFee(
-        chainId: ChainId.Polygon | ChainId.Mumbai
-    ): bigint {
+    private getDefaultGasFee(chainId: number): bigint {
         switch (chainId) {
-            case ChainId.Polygon:
-                return MIN_POLYGON_GAS_PRICE
-            case ChainId.Mumbai:
-                return MIN_MUMBAI_GAS_PRICE
+            case polygon.id:
+                return parseGwei("31")
             default:
                 return 0n
         }
     }
 
     private async getPolygonGasPriceParameters(): Promise<GasPriceParameters | null> {
-        const gasStationUrl = getGasStationUrl(
-            this.config.publicClient.chain.id
-        )
+        const gasStationUrl = "https://gasstation.polygon.technology/v2"
         try {
             const data = await (await fetch(gasStationUrl)).json()
             // take the standard speed here, SDK options will define the extra tip
@@ -145,42 +112,19 @@ export class GasPriceManager {
         }
 
         if (
-            this.config.publicClient.chain.id === celo.id ||
-            this.config.publicClient.chain.id === celoAlfajores.id
+            this.config.floorMaxFeePerGas ||
+            this.config.floorMaxPriorityFeePerGas
         ) {
-            const maxFee = maxBigInt(
-                result.maxFeePerGas,
-                result.maxPriorityFeePerGas
-            )
-            return {
-                maxFeePerGas: maxFee,
-                maxPriorityFeePerGas: maxFee
-            }
-        }
+            const maxFeePerGas = this.config.floorMaxFeePerGas
+                ? maxBigInt(this.config.floorMaxFeePerGas, result.maxFeePerGas)
+                : result.maxFeePerGas
 
-        if (this.config.publicClient.chain.id === dfk.id) {
-            const maxFeePerGas = maxBigInt(5_000_000_000n, result.maxFeePerGas)
-            const maxPriorityFeePerGas = maxBigInt(
-                5_000_000_000n,
-                result.maxPriorityFeePerGas
-            )
-
-            return {
-                maxFeePerGas,
-                maxPriorityFeePerGas
-            }
-        }
-
-        // set a minimum maxPriorityFee & maxFee to 1.5gwei on avalanche (because eth_maxPriorityFeePerGas returns 0)
-        if (this.config.publicClient.chain.id === avalanche.id) {
-            const maxFeePerGas = maxBigInt(
-                parseGwei("1.5"),
-                result.maxFeePerGas
-            )
-            const maxPriorityFeePerGas = maxBigInt(
-                parseGwei("1.5"),
-                result.maxPriorityFeePerGas
-            )
+            const maxPriorityFeePerGas = this.config.floorMaxPriorityFeePerGas
+                ? maxBigInt(
+                      this.config.floorMaxPriorityFeePerGas,
+                      result.maxPriorityFeePerGas
+                  )
+                : result.maxPriorityFeePerGas
 
             return {
                 maxFeePerGas,
@@ -306,10 +250,7 @@ export class GasPriceManager {
         let maxFeePerGas = 0n
         let maxPriorityFeePerGas = 0n
 
-        if (
-            this.config.publicClient.chain.id === polygon.id ||
-            this.config.publicClient.chain.id === polygonMumbai.id
-        ) {
+        if (this.config.publicClient.chain.id === polygon.id) {
             const polygonEstimate = await this.getPolygonGasPriceParameters()
             if (polygonEstimate) {
                 const gasPrice = this.bumpTheGasPrice({

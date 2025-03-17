@@ -109,14 +109,10 @@ export class SafeValidator
                 const prefund = validationResult.returnInfo.prefund
 
                 const { verificationGasLimit, callGasLimit } =
-                    calcVerificationGasAndCallGasLimit(
-                        userOperation,
-                        {
-                            preOpGas: validationResult.returnInfo.preOpGas,
-                            paid: validationResult.returnInfo.prefund
-                        },
-                        this.config.publicClient.chain.id
-                    )
+                    calcVerificationGasAndCallGasLimit(userOperation, {
+                        preOpGas: validationResult.returnInfo.preOpGas,
+                        paid: validationResult.returnInfo.prefund
+                    })
 
                 let mul = 1n
 
