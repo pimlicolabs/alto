@@ -26,11 +26,9 @@ import {
     getUserOperationHash,
     isVersion06,
     isVersion07,
-    maxBigInt,
     scaleBigIntByPercent
 } from "@alto/utils"
 import { type Hex, getContract } from "viem"
-import { base, baseSepolia, optimism } from "viem/chains"
 import type { AltoConfig } from "../createConfig"
 import { recoverAuthorizationAddress } from "viem/experimental"
 import type { MethodHandler } from "./createMethodHandler"
@@ -503,7 +501,6 @@ export class RpcHandler {
         } = calcVerificationGasAndCallGasLimit(
             simulationUserOperation,
             executionResult.data.executionResult,
-            this.config.publicClient.chain.id,
             executionResult.data
         )
 
@@ -539,20 +536,6 @@ export class RpcHandler {
                 paymasterPostOpGasLimit,
                 this.config.paymasterGasLimitMultiplier
             )
-        }
-
-        if (
-            this.config.publicClient.chain.id === base.id ||
-            this.config.publicClient.chain.id === baseSepolia.id
-        ) {
-            callGasLimit += 10_000n
-        }
-
-        if (
-            this.config.publicClient.chain.id === base.id ||
-            this.config.publicClient.chain.id === optimism.id
-        ) {
-            callGasLimit = maxBigInt(callGasLimit, 120_000n)
         }
 
         if (simulationUserOperation.callData === "0x") {
