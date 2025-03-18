@@ -63,7 +63,8 @@
         "type-fest": "^4.35.0",
         "viem": "^2.19.0",
         "yargs": "^17.7.1",
-        "zod": "^3.21.4"
+        "zod": "^3.21.4",
+        "zod-validation-error": "^3.4.0"
     },
     "devDependencies": {
         "@types/yargs": "^17.0.24",
