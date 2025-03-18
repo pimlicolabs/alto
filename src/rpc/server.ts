@@ -33,6 +33,24 @@ const customErrorMap: z.ZodErrorMap = (issue, ctx) => {
         return { message: issue.message || "Invalid input" }
     }
 
+    // Handle missing required fields case (received: undefined)
+    if (
+        issue.code === z.ZodIssueCode.invalid_type &&
+        issue.received === "undefined"
+    ) {
+        return { message: `missing required field '${issue.path[0]}'` }
+    }
+
+    // Handle type mismatch errors
+    if (
+        issue.code === z.ZodIssueCode.invalid_type &&
+        issue.received !== "undefined"
+    ) {
+        return {
+            message: `Expected ${issue.expected}, but received ${issue.received} at field '${issue.path[0]}'`
+        }
+    }
+
     // Otherwise fall back to the default error map
     return defaultErrorMap(issue, ctx)
 }
