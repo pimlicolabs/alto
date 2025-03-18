@@ -262,9 +262,12 @@ export class Server {
 
             const jsonRpcParsing = jsonRpcSchema.safeParse(request.body)
             if (!jsonRpcParsing.success) {
-                const validationError = fromZodError(jsonRpcParsing.error)
+                const validationError = fromZodError(jsonRpcParsing.error, {
+                    prefix: "Invalid JSON-RPC request",
+                    includePath: false
+                })
                 throw new RpcError(
-                    `invalid JSON-RPC request ${validationError.message}`,
+                    validationError.message,
                     ValidationErrors.InvalidFields
                 )
             }
@@ -297,21 +300,6 @@ export class Server {
                 ) {
                     throw new RpcError(
                         "Missing/invalid userOpHash",
-                        ValidationErrors.InvalidFields
-                    )
-                }
-
-                // Create a simplified error message if it's related to UserOperation fields
-                if (
-                    bundlerRequestParsing.error.errors.some((err) =>
-                        err.path?.some((p) =>
-                            p.toString().includes("params[0]")
-                        )
-                    )
-                ) {
-                    // For UserOperation validation, use a more generic error
-                    throw new RpcError(
-                        "Invalid UserOperation format",
                         ValidationErrors.InvalidFields
                     )
                 }

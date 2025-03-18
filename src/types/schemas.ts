@@ -560,9 +560,24 @@ export type UserOperation = z.infer<typeof userOperationSchema>
 
 export const jsonRpcSchema = z
     .object({
-        jsonrpc: z.literal("2.0"),
-        id: z.number(),
-        method: z.string(),
+        jsonrpc: z.literal("2.0").or(
+            z.any().superRefine((_, ctx) => {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: "Expected version 2.0 in field 'jsonrpc'"
+                })
+            })
+        ),
+        id: z.number().or(
+            z.any().refine(() => false, {
+                message: "expected number"
+            })
+        ),
+        method: z.string().or(
+            z.any().refine(() => false, {
+                message: "expected non-empty string"
+            })
+        ),
         params: z
             .array(z.unknown())
             .optional()
