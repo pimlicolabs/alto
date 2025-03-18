@@ -83,24 +83,28 @@ export const createRedisStore = <T extends UserOpType>({
 
             const multi = redis.multi()
 
-            await userOpHashLookup.set(
-                userOpHash,
-                serializeUserOp(userOp),
+            await userOpHashLookup.set({
+                key: userOpHash,
+                value: serializeUserOp(userOp),
                 multi
-            )
-            await conflictingNonce.set(
-                userOpHash,
-                serializeUserOp(userOp),
+            })
+            await conflictingNonce.set({
+                key: userOpHash,
+                value: serializeUserOp(userOp),
                 multi
-            )
-            await senderNonceLookup.set(
-                encodeSenderNonce(userOp),
-                serializeUserOp(userOp),
+            })
+            await senderNonceLookup.set({
+                key: encodeSenderNonce(userOp),
+                value: serializeUserOp(userOp),
                 multi
-            )
+            })
 
             if (isDeploymentOperation(userOp)) {
-                await factoryLookup.set(op.userOp.sender, op.userOpHash, multi)
+                await factoryLookup.set({
+                    key: op.userOp.sender,
+                    value: op.userOpHash,
+                    multi
+                })
             }
 
             await multi.exec()
@@ -119,10 +123,13 @@ export const createRedisStore = <T extends UserOpType>({
             const userOp = deserializeUserOp(exist)
 
             const multi = redis.multi()
-            await userOpHashLookup.delete(userOpHash, multi)
-            await senderNonceLookup.delete(encodeSenderNonce(userOp), multi)
+            await userOpHashLookup.delete({ key: userOpHash, multi })
+            await senderNonceLookup.delete({
+                key: encodeSenderNonce(userOp),
+                multi
+            })
             if (isDeploymentOperation(userOp)) {
-                await factoryLookup.delete(userOp.sender, multi)
+                await factoryLookup.delete({ key: userOp.sender, multi })
             }
             await multi.exec()
 
