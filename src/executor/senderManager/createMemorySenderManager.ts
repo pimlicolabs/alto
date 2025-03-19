@@ -17,6 +17,9 @@ export const createMemorySenderManager = ({
         { level: config.executorLogLevel || config.logLevel }
     )
 
+    metrics.walletsTotal.set(wallets.length)
+    metrics.walletsAvailable.set(wallets.length)
+
     logger.info("Created memory sender manager")
     return {
         getAllWallets: () => [...wallets],
