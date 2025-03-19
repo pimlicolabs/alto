@@ -262,6 +262,7 @@ export class RpcHandler {
             currentNonceValue + BigInt(queuedUserOperations.length)
         ) {
             this.mempool.add(userOperation, entryPoint)
+            this.eventManager.emitQueued(opHash)
             return "queued"
         }
 
