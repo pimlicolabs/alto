@@ -49,12 +49,11 @@ export const createMemorySenderManager = ({
             if (!availableWallets.some((w) => w.address === wallet.address)) {
                 availableWallets.push(wallet)
                 semaphore.release()
+                logger.trace(
+                    { executor: wallet.address },
+                    "pushed wallet to sender manager"
+                )
             }
-
-            logger.trace(
-                { executor: wallet.address },
-                "pushed wallet to sender manager"
-            )
 
             metrics.walletsAvailable.set(availableWallets.length)
         },
