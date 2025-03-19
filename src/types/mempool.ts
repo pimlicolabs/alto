@@ -1,14 +1,6 @@
-import type { Address, BaseError, Hex, Prettify } from "viem"
+import type { Address, BaseError, Prettify } from "viem"
 import type { Account } from "viem/accounts"
-import type { HexData32, UserOperation } from "."
-
-export interface ReferencedCodeHashes {
-    // addresses accessed during this user operation
-    addresses: string[]
-
-    // keccak over the code of all referenced addresses
-    hash: string
-}
+import { UserOpInfo, type HexData32 } from "."
 
 export type TransactionInfo = {
     transactionHash: HexData32
@@ -38,20 +30,6 @@ export enum SubmissionStatus {
     Submitted = "submitted",
     Included = "included"
 }
-
-export type UserOpDetails = {
-    userOpHash: Hex
-    entryPoint: Address
-    // timestamp when the bundling process begins (when it leaves outstanding mempool)
-    addedToMempool: number
-    referencedContracts?: ReferencedCodeHashes
-}
-
-export type UserOpInfo = Prettify<
-    {
-        userOp: UserOperation
-    } & UserOpDetails
->
 
 export type SubmittedUserOp = UserOpInfo & {
     transactionInfo: TransactionInfo

@@ -1,27 +1,38 @@
-import { SlidingWindowTimedQueue } from "../utils/slidingWindowTimedQueue"
+import { AltoConfig } from "../createConfig"
+import { MinMaxQueue, createMinMaxQueue } from "../utils/minMaxQueue"
 
 export class MantleManager {
-    private tokenRatioQueue: SlidingWindowTimedQueue
-    private scalarQueue: SlidingWindowTimedQueue
-    private rollupDataGasAndOverheadQueue: SlidingWindowTimedQueue
-    private l1GasPriceQueue: SlidingWindowTimedQueue
+    private tokenRatioQueue: MinMaxQueue
+    private scalarQueue: MinMaxQueue
+    private rollupDataGasAndOverheadQueue: MinMaxQueue
+    private l1GasPriceQueue: MinMaxQueue
 
-    constructor(queueValidity: number) {
-        this.tokenRatioQueue = new SlidingWindowTimedQueue(queueValidity)
-        this.scalarQueue = new SlidingWindowTimedQueue(queueValidity)
-        this.l1GasPriceQueue = new SlidingWindowTimedQueue(queueValidity)
-        this.rollupDataGasAndOverheadQueue = new SlidingWindowTimedQueue(
-            queueValidity
-        )
+    constructor({ config }: { config: AltoConfig }) {
+        this.tokenRatioQueue = createMinMaxQueue({
+            keyPrefix: "token-ratio-queue",
+            config
+        })
+        this.scalarQueue = createMinMaxQueue({
+            keyPrefix: "scalar-queue",
+            config
+        })
+        this.l1GasPriceQueue = createMinMaxQueue({
+            keyPrefix: "l1-gas-price-queue",
+            config
+        })
+        this.rollupDataGasAndOverheadQueue = createMinMaxQueue({
+            keyPrefix: "rollup-data-gas-and-overhead-queue",
+            config
+        })
     }
 
-    public getMinMantleOracleValues() {
+    public async getMinMantleOracleValues() {
         return {
-            minTokenRatio: this.tokenRatioQueue.getMinValue() || 1n,
-            minScalar: this.scalarQueue.getMinValue() || 1n,
+            minTokenRatio: (await this.tokenRatioQueue.getMinValue()) || 1n,
+            minScalar: (await this.scalarQueue.getMinValue()) || 1n,
             minRollupDataGasAndOverhead:
-                this.rollupDataGasAndOverheadQueue.getMinValue() || 1n,
-            minL1GasPrice: this.l1GasPriceQueue.getMinValue() || 1n
+                (await this.rollupDataGasAndOverheadQueue.getMinValue()) || 1n,
+            minL1GasPrice: (await this.l1GasPriceQueue.getMinValue()) || 1n
         }
     }
 

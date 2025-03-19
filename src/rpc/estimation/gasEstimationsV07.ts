@@ -13,6 +13,7 @@ import {
     binarySearchCallResultSchema
 } from "@alto/types"
 import {
+    Logger,
     getAuthorizationStateOverrides,
     getUserOperationHash,
     toPackedUserOperation
@@ -39,9 +40,18 @@ import type { AltoConfig } from "../../createConfig"
 
 export class GasEstimatorV07 {
     private config: AltoConfig
+    private logger: Logger
 
     constructor(config: AltoConfig) {
         this.config = config
+        this.logger = config.getLogger(
+            {
+                module: "gas-estimator-v07"
+            },
+            {
+                level: config.logLevel
+            }
+        )
     }
 
     async simulateValidation({
@@ -101,11 +111,7 @@ export class GasEstimatorV07 {
                 functionName: "executeUserOp",
                 args: [
                     packedOp,
-                    getUserOperationHash(
-                        op,
-                        entryPoint,
-                        this.config.publicClient.chain.id
-                    )
+                    getUserOperationHash(op, entryPoint, this.config.chainId)
                 ]
             })
         }
@@ -129,7 +135,7 @@ export class GasEstimatorV07 {
             userOperationHash: getUserOperationHash(
                 uop,
                 entryPoint,
-                this.config.publicClient.chain.id
+                this.config.chainId
             )
         }))
 
@@ -679,12 +685,23 @@ export class GasEstimatorV07 {
             ]
         })) as Hex
 
-        const returnBytes = decodeAbiParameters(
-            [{ name: "ret", type: "bytes[]" }],
-            result
-        )
+        try {
+            const returnBytes = decodeAbiParameters(
+                [{ name: "ret", type: "bytes[]" }],
+                result
+            )
 
-        return returnBytes[0]
+            return returnBytes[0]
+        } catch (err) {
+            this.logger.error(
+                { err, result },
+                "Failed to decode simulation result"
+            )
+            throw new RpcError(
+                "Failed to decode simulation result",
+                ValidationErrors.SimulateValidation
+            )
+        }
     }
 }
 

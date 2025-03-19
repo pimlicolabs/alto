@@ -1,4 +1,3 @@
-import { SenderManager } from "@alto/executor"
 import { GasPriceManager } from "@alto/handlers"
 import {
     createMetrics,
@@ -23,6 +22,7 @@ import { type AltoConfig, createConfig } from "../createConfig"
 import { parseArgs } from "./parseArgs"
 import { deploySimulationsContract } from "./deploySimulationsContract"
 import { eip7702Actions } from "viem/experimental"
+import { getSenderManager } from "../executor/senderManager"
 
 const preFlightChecks = async (config: AltoConfig): Promise<void> => {
     for (const entrypoint of config.entrypoints) {
@@ -161,10 +161,9 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
 
     await preFlightChecks(config)
 
-    const senderManager = new SenderManager({
+    const senderManager = await getSenderManager({
         config,
-        metrics,
-        gasPriceManager
+        metrics
     })
 
     const utilityWalletAddress = config.utilityPrivateKey?.address
