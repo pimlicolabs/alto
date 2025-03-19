@@ -1011,7 +1011,7 @@ export class ExecutorManager {
                 )
 
                 await this.mempool.removeSubmitted({ entryPoint, userOpHash })
-                await this.reputationManager.updateUserOperationIncludedStatus(
+                this.reputationManager.updateUserOperationIncludedStatus(
                     userOp,
                     entryPoint,
                     opDetails.accountDeployed
