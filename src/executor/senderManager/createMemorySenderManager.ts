@@ -46,15 +46,14 @@ export const createMemorySenderManager = ({
             return wallet
         },
         markWalletProcessed: async (wallet: Account) => {
-            if (!availableWallets.includes(wallet)) {
+            if (!availableWallets.some((w) => w.address === wallet.address)) {
                 availableWallets.push(wallet)
+                semaphore.release()
+                logger.trace(
+                    { executor: wallet.address },
+                    "pushed wallet to sender manager"
+                )
             }
-
-            semaphore.release()
-            logger.trace(
-                { executor: wallet.address },
-                "pushed wallet to sender manager"
-            )
 
             metrics.walletsAvailable.set(availableWallets.length)
         },
