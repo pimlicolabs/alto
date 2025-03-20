@@ -7,6 +7,12 @@ export const hexData32Pattern = /^0x([0-9a-fA-F][0-9a-fA-F]){32}$/
 export const commaSeperatedAddressPattern =
     /^(0x[0-9a-fA-F]{40})(,\s*(0x[0-9a-fA-F]{40}))*$/
 
+const requiredAddressSchema = (error: string) =>
+    z
+        .string({ required_error: error })
+        .regex(addressPattern, { message: "not a valid hex address" })
+        .transform((val) => getAddress(val))
+
 export const addressSchema = z
     .string()
     .regex(addressPattern, { message: "not a valid hex address" })
@@ -33,7 +39,7 @@ export const hexData32Schema = z
     .transform((val) => val as Hash)
 
 export const stateOverridesSchema = z.record(
-    addressSchema,
+    requiredAddressSchema("missing address in state overrides"),
     z.object({
         balance: hexNumberSchema.optional(),
         nonce: hexNumberSchema.optional(),
@@ -50,7 +56,7 @@ export type HexData32 = z.infer<typeof hexData32Schema>
 export type StateOverrides = z.infer<typeof stateOverridesSchema>
 
 const signedAuthorizationSchema = z.object({
-    contractAddress: addressSchema,
+    contractAddress: requiredAddressSchema("missing contract address field"),
     chainId: hexNumberSchema.transform((val) => Number(val)),
     nonce: hexNumberSchema.transform((val) => Number(val)),
     r: hexData32Schema.transform((val) => val as Hex),
@@ -61,14 +67,7 @@ const signedAuthorizationSchema = z.object({
 
 const userOperationV06Schema = z
     .object({
-        sender: addressSchema.superRefine((val, ctx) => {
-            if (val === undefined) {
-                ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    message: "userOperation missing sender field"
-                })
-            }
-        }),
+        sender: requiredAddressSchema("userOperation missing sender field"),
         nonce: hexNumberSchema.superRefine((val, ctx) => {
             if (val === undefined) {
                 ctx.addIssue({
@@ -155,14 +154,7 @@ const userOperationV06Schema = z
 
 const userOperationV07Schema = z
     .object({
-        sender: addressSchema.superRefine((val, ctx) => {
-            if (val === undefined) {
-                ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    message: "userOperation missing sender field"
-                })
-            }
-        }),
+        sender: requiredAddressSchema("userOperation missing sender field"),
         nonce: hexNumberSchema.superRefine((val, ctx) => {
             if (val === undefined) {
                 ctx.addIssue({
@@ -171,7 +163,7 @@ const userOperationV07Schema = z
                 })
             }
         }),
-        factory: addressSchema
+        factory: requiredAddressSchema("missing factory field")
             .nullable()
             .optional()
             .transform((val) => val ?? null),
@@ -227,7 +219,7 @@ const userOperationV07Schema = z
                 })
             }
         }),
-        paymaster: addressSchema
+        paymaster: requiredAddressSchema("missing paymaster field")
             .nullable()
             .optional()
             .transform((val) => val ?? null),
@@ -257,14 +249,7 @@ const userOperationV07Schema = z
 
 const partialUserOperationV06Schema = z
     .object({
-        sender: addressSchema.superRefine((val, ctx) => {
-            if (val === undefined) {
-                ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    message: "userOperation missing sender field"
-                })
-            }
-        }),
+        sender: requiredAddressSchema("userOperation missing sender field"),
         nonce: hexNumberSchema.superRefine((val, ctx) => {
             if (val === undefined) {
                 ctx.addIssue({
@@ -317,14 +302,7 @@ const partialUserOperationV06Schema = z
 
 const partialUserOperationV07Schema = z
     .object({
-        sender: addressSchema.superRefine((val, ctx) => {
-            if (val === undefined) {
-                ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    message: "userOperation missing sender field"
-                })
-            }
-        }),
+        sender: requiredAddressSchema("userOperation missing sender field"),
         nonce: hexNumberSchema.superRefine((val, ctx) => {
             if (val === undefined) {
                 ctx.addIssue({
@@ -333,7 +311,7 @@ const partialUserOperationV07Schema = z
                 })
             }
         }),
-        factory: addressSchema
+        factory: requiredAddressSchema("missing factory field")
             .nullable()
             .optional()
             .transform((val) => val ?? null),
@@ -354,7 +332,7 @@ const partialUserOperationV07Schema = z
         preVerificationGas: hexNumberSchema.default(1n),
         maxFeePerGas: hexNumberSchema.default(1n),
         maxPriorityFeePerGas: hexNumberSchema.default(1n),
-        paymaster: addressSchema
+        paymaster: requiredAddressSchema("missing paymaster field")
             .nullable()
             .optional()
             .transform((val) => val ?? null),
@@ -385,14 +363,7 @@ const partialUserOperationV07Schema = z
 
 const packerUserOperationSchema = z
     .object({
-        sender: addressSchema.superRefine((val, ctx) => {
-            if (val === undefined) {
-                ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    message: "userOperation missing sender field"
-                })
-            }
-        }),
+        sender: requiredAddressSchema("userOperation missing sender field"),
         nonce: hexNumberSchema.superRefine((val, ctx) => {
             if (val === undefined) {
                 ctx.addIssue({
@@ -602,7 +573,7 @@ export const logSchema = z.object({
     transactionHash: hexData32Schema,
     blockHash: hexData32Schema,
     blockNumber: hexNumberSchema,
-    address: addressSchema,
+    address: requiredAddressSchema("missing address field"),
     data: hexDataSchema,
     topics: z.array(hexData32Schema)
 })
@@ -612,11 +583,11 @@ export const receiptSchema = z.object({
     transactionIndex: hexNumberSchema,
     blockHash: hexData32Schema,
     blockNumber: hexNumberSchema,
-    from: addressSchema,
-    to: addressSchema.or(z.null()),
+    from: requiredAddressSchema("missing from field"),
+    to: requiredAddressSchema("missing to field").or(z.null()),
     cumulativeGasUsed: hexNumberSchema,
     gasUsed: hexNumberSchema,
-    contractAddress: addressSchema.or(z.null()),
+    contractAddress: requiredAddressSchema("missing contractAddress field").or(z.null()),
     logs: z.array(logSchema),
     logsBloom: z.string().regex(/^0x[0-9a-f]{512}$/),
     //root: hexData32Schema,
@@ -628,10 +599,10 @@ export const receiptSchema = z.object({
 const userOperationReceiptSchema = z
     .object({
         userOpHash: hexData32Schema,
-        entryPoint: addressSchema,
-        sender: addressSchema,
+        entryPoint: requiredAddressSchema("missing entryPoint field"),
+        sender: requiredAddressSchema("missing sender field"),
         nonce: hexNumberSchema,
-        paymaster: addressSchema.optional(),
+        paymaster: requiredAddressSchema("missing paymaster field").optional(),
         actualGasCost: hexNumberSchema,
         actualGasUsed: hexNumberSchema,
         success: z.boolean(),
@@ -683,13 +654,13 @@ export const chainIdSchema = z.object({
 export const supportedEntryPointsSchema = z.object({
     method: z.literal("eth_supportedEntryPoints"),
     params: z.tuple([]),
-    result: z.array(addressSchema)
+    result: z.array(requiredAddressSchema("missing entry point address"))
 })
 
 export const estimateUserOperationGasSchema = z.object({
     method: z.literal("eth_estimateUserOperationGas"),
     params: z
-        .tuple([partialUserOperationSchema, addressSchema])
+        .tuple([partialUserOperationSchema, requiredAddressSchema("missing entryPoint address")])
         .rest(stateOverridesSchema)
         .refine((data) => data.length <= 3, {
             message: "Params must have at most 3 items"
@@ -713,7 +684,7 @@ export const estimateUserOperationGasSchema = z.object({
 
 export const sendUserOperationSchema = z.object({
     method: z.literal("eth_sendUserOperation"),
-    params: z.tuple([userOperationSchema, addressSchema]),
+    params: z.tuple([userOperationSchema, requiredAddressSchema("missing entryPoint address")]),
     result: hexData32Schema
 })
 
@@ -728,7 +699,7 @@ export const getUserOperationByHashSchema = z.object({
     result: z
         .object({
             userOperation: userOperationSchema,
-            entryPoint: addressSchema,
+            entryPoint: requiredAddressSchema("missing entryPoint field"),
             blockNumber: hexNumberSchema,
             blockHash: hexData32Schema,
             transactionHash: hexData32Schema
@@ -761,7 +732,7 @@ export const debugClearMempoolSchema = z.object({
 
 export const debugDumpMempoolSchema = z.object({
     method: z.literal("debug_bundler_dumpMempool"),
-    params: z.tuple([addressSchema]),
+    params: z.tuple([requiredAddressSchema("missing entryPoint address")]),
     result: z.array(userOperationSchema)
 })
 
@@ -782,22 +753,22 @@ export const debugSetReputationSchema = z.object({
     params: z.tuple([
         z.array(
             z.object({
-                address: addressSchema,
+                address: requiredAddressSchema("missing reputation address"),
                 opsSeen: hexNumberSchema,
                 opsIncluded: hexNumberSchema
             })
         ),
-        addressSchema
+        requiredAddressSchema("missing entryPoint address")
     ]),
     result: z.literal("ok")
 })
 
 export const debugDumpReputationSchema = z.object({
     method: z.literal("debug_bundler_dumpReputation"),
-    params: z.tuple([addressSchema]),
+    params: z.tuple([requiredAddressSchema("missing entryPoint address")]),
     result: z.array(
         z.object({
-            address: addressSchema,
+            address: requiredAddressSchema("missing reputation address"),
             opsSeen: hexNumberSchema,
             opsIncluded: hexNumberSchema,
             status: hexNumberSchema.optional()
@@ -813,7 +784,7 @@ export const debugClearReputationSchema = z.object({
 
 export const debugGetStakeStatusSchema = z.object({
     method: z.literal("debug_bundler_getStakeStatus"),
-    params: z.tuple([addressSchema, addressSchema]),
+    params: z.tuple([requiredAddressSchema("missing address field"), requiredAddressSchema("missing entryPoint address")]),
     result: z.object({
         stakeInfo: z.object({
             addr: z.string(),
@@ -846,14 +817,14 @@ export const pimlicoGetUserOperationGasPriceSchema = z.object({
 
 export const pimlicoSendUserOperationNowSchema = z.object({
     method: z.literal("pimlico_sendUserOperationNow"),
-    params: z.tuple([userOperationSchema, addressSchema]),
+    params: z.tuple([userOperationSchema, requiredAddressSchema("missing entryPoint address")]),
     result: userOperationReceiptSchema
 })
 
 export const pimlicoExperimentalEstimateUserOperationGas7702Schema = z.object({
     method: z.literal("pimlico_experimental_estimateUserOperationGas7702"),
     params: z
-        .tuple([partialUserOperationSchema, addressSchema])
+        .tuple([partialUserOperationSchema, requiredAddressSchema("missing entryPoint address")])
         .rest(stateOverridesSchema)
         .refine((data) => data.length <= 3, {
             message: "Params must have at most 3 items"
@@ -877,7 +848,7 @@ export const pimlicoExperimentalEstimateUserOperationGas7702Schema = z.object({
 
 export const pimlicoExperimentalSendUserOperation7702Schema = z.object({
     method: z.literal("pimlico_experimental_sendUserOperation7702"),
-    params: z.tuple([userOperationSchema, addressSchema]),
+    params: z.tuple([userOperationSchema, requiredAddressSchema("missing entryPoint address")]),
     result: hexData32Schema
 })
 
