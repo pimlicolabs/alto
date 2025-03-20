@@ -299,22 +299,7 @@ export class Executor {
 
         // Ensure that we don't submit with gas too low leading to AA95.
         const aa95GasFloor = calculateAA95GasFloor(userOpsToBundle)
-
-        if (gasLimit < aa95GasFloor) {
-            gasLimit = userOpsToBundle.reduce((acc, userOpInfo) => {
-                const { userOp } = userOpInfo
-
-                const maxUserOpGas =
-                    userOp.callGasLimit +
-                    userOp.verificationGasLimit +
-                    (isVersion07(userOp)
-                        ? (userOp.paymasterPostOpGasLimit || 0n) +
-                          (userOp.paymasterVerificationGasLimit || 0n)
-                        : 0n)
-
-                return acc + maxUserOpGas
-            }, 0n)
-        }
+        gasLimit = maxBigInt(gasLimit, aa95GasFloor)
 
         // sometimes the estimation rounds down, adding a fixed constant accounts for this
         gasLimit += 10_000n
