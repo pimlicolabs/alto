@@ -71,9 +71,10 @@ const CALLPHASE_REVERTED_SELECTOR = toFunctionSelector(
 
 export function customTransport(
     url_: string,
-    type: "http" | "webSocket",
     config: { logger: Logger } & (HttpTransportConfig | WebSocketTransportConfig)
   ): Transport {
+    const isWebSocketUrl = url_?.startsWith('ws://') || url_?.startsWith('wss://');
+    const type = isWebSocketUrl ? "webSocket" : "http";
     const {
       key = type === "http" ? "http" : "webSocket",
       name = type === "http" ? "HTTP JSON-RPC" : "WebSocket JSON-RPC",
