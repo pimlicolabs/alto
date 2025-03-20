@@ -10,7 +10,12 @@ import {
     UserOpInfo
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
-import { maxBigInt, parseViemError, scaleBigIntByPercent } from "@alto/utils"
+import {
+    getRequiredPrefund,
+    maxBigInt,
+    parseViemError,
+    scaleBigIntByPercent
+} from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
     IntrinsicGasTooLowError,
@@ -296,7 +301,10 @@ export class Executor {
         const aa95GasFloor = calculateAA95GasFloor(userOpsToBundle)
 
         if (gasLimit < aa95GasFloor) {
-            gasLimit += aa95GasFloor
+            gasLimit = userOpsToBundle.reduce((acc, userOpInfo) => {
+                const { userOp } = userOpInfo
+                return acc + getRequiredPrefund(userOp)
+            }, 0n)
         }
 
         // sometimes the estimation rounds down, adding a fixed constant accounts for this
