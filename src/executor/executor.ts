@@ -11,7 +11,7 @@ import {
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import {
-    getRequiredPrefund,
+    isVersion07,
     maxBigInt,
     parseViemError,
     scaleBigIntByPercent
@@ -303,7 +303,16 @@ export class Executor {
         if (gasLimit < aa95GasFloor) {
             gasLimit = userOpsToBundle.reduce((acc, userOpInfo) => {
                 const { userOp } = userOpInfo
-                return acc + getRequiredPrefund(userOp)
+
+                const maxUserOpGas =
+                    userOp.callGasLimit +
+                    userOp.verificationGasLimit +
+                    (isVersion07(userOp)
+                        ? (userOp.paymasterPostOpGasLimit || 0n) +
+                          (userOp.paymasterVerificationGasLimit || 0n)
+                        : 0n)
+
+                return acc + maxUserOpGas
             }, 0n)
         }
 
