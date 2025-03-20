@@ -294,10 +294,7 @@ export class Executor {
 
         // Ensure that we don't submit with gas too low leading to AA95.
         const aa95GasFloor = calculateAA95GasFloor(userOpsToBundle)
-
-        if (gasLimit < aa95GasFloor) {
-            gasLimit += aa95GasFloor
-        }
+        gasLimit = maxBigInt(gasLimit, aa95GasFloor)
 
         // sometimes the estimation rounds down, adding a fixed constant accounts for this
         gasLimit += 10_000n
