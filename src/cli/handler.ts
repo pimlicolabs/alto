@@ -67,7 +67,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
 
     const getChainId = async () => {
         const client = createPublicClient({
-            transport: customTransport(args.rpcUrl, {
+            transport: customTransport(args.rpcUrl, "http", {
                 logger: logger.child(
                     { module: "public_client" },
                     {
@@ -96,7 +96,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     }
 
     let publicClient = createPublicClient({
-        transport: customTransport(args.rpcUrl, {
+        transport: customTransport(args.rpcUrl, "http", {
             logger: logger.child(
                 { module: "public_client" },
                 {
@@ -122,7 +122,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     }
 
     const createWalletTransport = (url: string) =>
-        customTransport(url, {
+        customTransport(url, "http",{
             logger: logger.child(
                 { module: "wallet_client" },
                 { level: args.walletClientLogLevel || args.logLevel }
