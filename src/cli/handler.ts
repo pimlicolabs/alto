@@ -64,7 +64,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     const logger = args.json
         ? initProductionLogger(args.logLevel)
         : initDebugLogger(args.logLevel)
-    
+
     const getChainId = async () => {
         const client = createPublicClient({
             transport: customTransport(args.rpcUrl, {
@@ -78,6 +78,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         })
         return await client.getChainId()
     }
+
     const chainId = await getChainId()
 
     const chain: Chain = {

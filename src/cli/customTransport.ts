@@ -1,4 +1,5 @@
 import type { Logger } from "@alto/utils"
+import { WebSocket } from "ws"
 import {
     type HttpTransportConfig,
     RpcRequestError,
@@ -23,7 +24,7 @@ import {
     EntryPointV06Abi,
     EntryPointV06SimulationsAbi
 } from "../types/contracts"
-import { WebSocket } from "ws"
+
 
 export type RpcRequest = {
     jsonrpc?: "2.0" | undefined
@@ -70,6 +71,7 @@ const CALLPHASE_REVERTED_SELECTOR = toFunctionSelector(
 )
 
 export function customTransport(
+    /** URL of the JSON-RPC API. Defaults to the chain's public RPC URL. */
     url_: string,
     config: { logger: Logger } & (HttpTransportConfig | WebSocketTransportConfig)
   ): Transport {
@@ -106,8 +108,6 @@ export function customTransport(
   
         function getSocket() {
             if (ws?.readyState === WebSocket.OPEN) return ws
-          
-            // Create new WebSocket connection
             ws = new WebSocket(url as string)
             
             ws.onmessage = (event) => {
