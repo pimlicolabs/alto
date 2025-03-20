@@ -64,10 +64,11 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     const logger = args.json
         ? initProductionLogger(args.logLevel)
         : initDebugLogger(args.logLevel)
-
+    
+    console.log("getting chainID..")
     const getChainId = async () => {
         const client = createPublicClient({
-            transport: customTransport(args.rpcUrl, "http", {
+            transport: customTransport(args.rpcUrl, "webSocket", {
                 logger: logger.child(
                     { module: "public_client" },
                     {
@@ -78,7 +79,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         })
         return await client.getChainId()
     }
-
+    console.log("chainID: ", getChainId())
     const chainId = await getChainId()
 
     const chain: Chain = {
@@ -96,7 +97,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     }
 
     let publicClient = createPublicClient({
-        transport: customTransport(args.rpcUrl, "http", {
+        transport: customTransport(args.rpcUrl, "webSocket", {
             logger: logger.child(
                 { module: "public_client" },
                 {
@@ -122,7 +123,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     }
 
     const createWalletTransport = (url: string) =>
-        customTransport(url, "http",{
+        customTransport(url, "webSocket",{
             logger: logger.child(
                 { module: "wallet_client" },
                 { level: args.walletClientLogLevel || args.logLevel }

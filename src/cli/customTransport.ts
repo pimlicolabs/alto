@@ -23,6 +23,7 @@ import {
     EntryPointV06Abi,
     EntryPointV06SimulationsAbi
 } from "../types/contracts"
+import { WebSocket } from "ws"
 
 export type RpcRequest = {
     jsonrpc?: "2.0" | undefined
@@ -70,7 +71,7 @@ const CALLPHASE_REVERTED_SELECTOR = toFunctionSelector(
 
 export function customTransport(
     url_: string,
-    type: "http" | "websocket",
+    type: "http" | "webSocket",
     config: { logger: Logger } & (HttpTransportConfig | WebSocketTransportConfig)
   ): Transport {
     const {
@@ -89,14 +90,15 @@ export function customTransport(
     }) => {
       const retryCount = config.retryCount ?? retryCount_
       const timeout = timeout_ ?? config.timeout ?? 10_000
-      const url = url_ || chain?.rpcUrls.default.http[0]
+      const url = url_ || (type === "webSocket" 
+        ? chain?.rpcUrls.default.webSocket?.[0] 
+        : chain?.rpcUrls.default.http?.[0])
       
       if (!url) {
         throw new UrlRequiredError()
       }
   
-      if (type === "websocket") {
-        // WebSocket implementation
+      if (type === "webSocket") {
         let ws: WebSocket | undefined
         let requestId = 0
         const pendingRequests: Record<number, (val: any) => void> = {}
