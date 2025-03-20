@@ -10,12 +10,7 @@ import {
     UserOpInfo
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
-import {
-    isVersion07,
-    maxBigInt,
-    parseViemError,
-    scaleBigIntByPercent
-} from "@alto/utils"
+import { maxBigInt, parseViemError, scaleBigIntByPercent } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
     IntrinsicGasTooLowError,
