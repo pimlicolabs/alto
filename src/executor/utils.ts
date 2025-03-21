@@ -45,10 +45,8 @@ export function calculateAA95GasFloor(userOps: UserOpInfo[]): bigint {
             gasFloor +=
                 userOp.callGasLimit + userOp.verificationGasLimit + 5000n
 
-            // When a paymaster is used, we may need to verify twice
-            if (userOp.paymasterAndData != "0x") {
-                gasFloor += userOp.verificationGasLimit * 2n
-            }
+            // AA95 check happens after verification + paymaster verification
+            gasFloor += userOp.verificationGasLimit
         }
     }
 

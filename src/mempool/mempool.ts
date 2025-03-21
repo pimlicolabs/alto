@@ -698,24 +698,13 @@ export class Mempool {
                     continue
                 }
 
-                let userOpMaxGas = 0n
-
-                if (isVersion07(userOp)) {
-                    userOpMaxGas +=
-                        userOp.callGasLimit +
-                        userOp.verificationGasLimit +
-                        (userOp.paymasterPostOpGasLimit || 0n) +
-                        (userOp.paymasterVerificationGasLimit || 0n)
-                } else {
-                    userOpMaxGas +=
-                        userOp.callGasLimit + userOp.verificationGasLimit
-
-                    if (userOp.paymasterAndData != "0x") {
-                        userOpMaxGas += userOp.verificationGasLimit * 2n
-                    }
-                }
-
-                gasUsed += userOpMaxGas
+                gasUsed +=
+                    userOp.callGasLimit +
+                    userOp.verificationGasLimit +
+                    (isVersion07(userOp)
+                        ? (userOp.paymasterPostOpGasLimit || 0n) +
+                          (userOp.paymasterVerificationGasLimit || 0n)
+                        : 0n)
 
                 // Only break on gas limit if we've hit minOpsPerBundle
                 if (
