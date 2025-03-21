@@ -18,7 +18,9 @@ import { SignedAuthorizationList } from "viem/experimental"
 import { AltoConfig } from "../createConfig"
 
 export const isTransactionUnderpricedError = (e: BaseError) => {
-    return e?.details
+    const deepestError = e.walk()
+
+    return deepestError?.message
         ?.toLowerCase()
         .includes("replacement transaction underpriced")
 }
