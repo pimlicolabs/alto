@@ -44,6 +44,9 @@ export function calculateAA95GasFloor(userOps: UserOpInfo[]): bigint {
         } else {
             gasFloor +=
                 userOp.callGasLimit + userOp.verificationGasLimit + 5000n
+
+            // AA95 check happens after verification + paymaster verification
+            gasFloor += userOp.verificationGasLimit
         }
     }
 
