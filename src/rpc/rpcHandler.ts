@@ -132,15 +132,6 @@ export class RpcHandler {
         }
     }
 
-    ensureExperimentalEndpointsAreEnabled(methodName: string) {
-        if (!this.config.enableExperimental7702Endpoints) {
-            throw new RpcError(
-                `${methodName} endpoint is not enabled`,
-                ValidationErrors.InvalidFields
-            )
-        }
-    }
-
     async preMempoolChecks(
         opHash: Hex,
         userOperation: UserOperation,

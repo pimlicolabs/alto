@@ -111,12 +111,6 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "boolean",
         default: false
     },
-    "enable-experimental-7702-endpoints": {
-        description:
-            "Should the bundler enable the pimlico_experimental_sendUserOperation7702 and pimlico_experimental_estimateUserOperationGas7702 endpoint",
-        type: "boolean",
-        default: false
-    },
     "should-check-prefund": {
         description:
             "Should the bundler check userOp's prefund before accepting it",
