@@ -114,7 +114,7 @@ export class Executor {
         txParam: HandleOpsTxParams
         gasOpts: HandleOpsGasParams
     }) {
-        const { isUserOpV06, entryPoint, userOps } = txParam
+        const { isUserOpV06, entryPoint, userOps, account } = txParam
 
         const handleOpsCalldata = encodeHandleOpsCalldata({
             userOps,
@@ -168,6 +168,12 @@ export class Executor {
                 if (e instanceof BaseError) {
                     if (isTransactionUnderpricedError(e)) {
                         this.logger.warn("Transaction underpriced, retrying")
+
+                        request.nonce =
+                            await this.config.publicClient.getTransactionCount({
+                                address: account.address,
+                                blockTag: "latest"
+                            })
 
                         request.maxFeePerGas = scaleBigIntByPercent(
                             request.maxFeePerGas,
