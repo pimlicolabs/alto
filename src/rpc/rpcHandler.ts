@@ -187,8 +187,12 @@ export class RpcHandler {
         }
 
         if (isVersion06(userOperation)) {
-            const gasLimits =
+            let gasLimits =
                 userOperation.callGasLimit + userOperation.verificationGasLimit
+
+            if (userOperation.paymasterAndData != "0x") {
+                gasLimits += userOperation.verificationGasLimit * 2n
+            }
 
             const maxGasPerBundle = (this.config.maxGasPerBundle * 130n) / 100n
 
