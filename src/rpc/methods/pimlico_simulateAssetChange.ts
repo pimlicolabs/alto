@@ -19,21 +19,131 @@ import {
     Hex,
     decodeAbiParameters,
     encodeFunctionData,
-    erc20Abi,
     getAddress,
     toEventSelector,
-    toHex,
-    zeroAddress
+    toHex
 } from "viem"
 import { isVersion06, toPackedUserOperation } from "../../utils/userop"
 import type { AltoConfig } from "../../esm/createConfig"
 import { SimulateHandleOpResult } from "../estimation/types"
 import { Logger } from "pino"
+import { InterpreterStep } from "tevm/evm"
 
-// Both ERC-20 and ERC-721 emit this log
+// Event signatures for token standards
 const TRANSFER_TOPIC_HASH = toEventSelector(
     "event Transfer(address indexed from, address indexed to, uint256 value)"
 )
+
+// ERC-20 approval event
+const APPROVAL_TOPIC_HASH = toEventSelector(
+    "event Approval(address indexed owner, address indexed spender, uint256 value)"
+)
+
+// ERC-721 specific approvals (not used yet, but defined for future use)
+// const APPROVAL_FOR_ALL_TOPIC_HASH = toEventSelector(
+//     "event ApprovalForAll(address indexed owner, address indexed operator, bool approved)"
+// )
+
+// Type definitions for our logs
+type TransferLog = {
+    from: Address
+    to: Address
+    value: bigint
+}
+
+type ApprovalLog = {
+    owner: Address
+    spender: Address
+    value: bigint
+}
+
+type NativeTransferLog = {
+    from: Address
+    to: Address
+    value: bigint
+}
+
+type AssetChangeEvent = TransferLog | ApprovalLog | NativeTransferLog
+
+function collectTransferLog({
+    step,
+    logger,
+    logs
+}: {
+    step: InterpreterStep
+    logger: Logger
+    logs: Map<Address, AssetChangeEvent[]>
+}): void {
+    try {
+        const { stack, memory } = step
+        const stackLength = stack.length
+
+        // Extract event data from the stack
+        const offset = stack[stackLength - 1]
+        const size = stack[stackLength - 2]
+        const topic2 = stack[stackLength - 4] // from address
+        const topic3 = stack[stackLength - 5] // to address
+
+        // Extract addresses and value
+        const from = getAddress(toHex(topic2))
+        const to = getAddress(toHex(topic3))
+        const contractAddress = getAddress(toHex(step.address.bytes))
+
+        // Read value from memory
+        const value = BigInt(
+            toHex(memory.slice(Number(offset), Number(offset) + Number(size)))
+        )
+
+        // Record the transfer
+        if (!logs.has(contractAddress)) {
+            logs.set(contractAddress, [])
+        }
+        logs.get(contractAddress)!.push({ from, to, value })
+    } catch (err) {
+        logger.error({ err }, "Failed to collect transfer log")
+        return
+    }
+}
+
+function collectApprovalLog({
+    step,
+    logger,
+    logs
+}: {
+    step: InterpreterStep
+    logger: Logger
+    logs: Map<Address, AssetChangeEvent[]>
+}): void {
+    try {
+        const { stack, memory } = step
+        const stackLength = stack.length
+
+        const offset = stack[stackLength - 1]
+        const size = stack[stackLength - 2]
+        const topic2 = stack[stackLength - 4] // owner address
+        const topic3 = stack[stackLength - 5] // spender address
+
+        const owner = getAddress(toHex(topic2))
+        const spender = getAddress(toHex(topic3))
+        const contractAddress = getAddress(toHex(step.address.bytes))
+
+        // Read value from memory
+        const value = BigInt(
+            toHex(memory.slice(Number(offset), Number(offset) + Number(size)))
+        )
+
+        // Record the transfer
+        if (!logs.has(contractAddress)) {
+            logs.set(contractAddress, [])
+        }
+        logs.get(contractAddress)!.push({ owner, spender, value })
+    } catch (err) {
+        if (logger) {
+            logger.error({ err }, "Error processing approval event")
+        }
+        return
+    }
+}
 
 async function setupTevm(config: AltoConfig, blockNumber?: bigint) {
     const options = {
@@ -120,69 +230,37 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
             ]
         })
 
-        const transferLogs: Map<
-            Address, // zeroAddress for native tokens
-            Array<{
-                from: Address
-                to: Address
-                value: bigint
-            }>
-        > = new Map()
+        const logs: Map<Address, AssetChangeEvent[]> = new Map()
 
         const callResult = await tevmClient.tevmCall({
             to: config.entrypointSimulationContract,
             data: callData,
 
             onStep: (step) => {
-                const { opcode, stack, memory } = step
+                const { opcode } = step
 
                 if (opcode.name === "LOG3") {
-                    const stackLength = stack.length
-                    const offset = stack[stackLength - 1]
-                    const size = stack[stackLength - 2]
-                    const topic1 = stack[stackLength - 3]
-                    const topic2 = stack[stackLength - 4]
-                    const topic3 = stack[stackLength - 5]
+                    const { stack } = step
 
-                    // If we don't have a transfer topic, skip this log
-                    if (toHex(topic1) !== TRANSFER_TOPIC_HASH) {
-                        return
+                    // Extract the event signature (topic1)
+                    const topic1 = stack[stack.length - 3]
+                    const eventSignature = toHex(topic1)
+
+                    if (eventSignature === TRANSFER_TOPIC_HASH) {
+                        collectTransferLog({
+                            step,
+                            logger: rpcHandler.logger,
+                            logs: logs
+                        })
                     }
 
-                    let from: Address
-                    let to: Address
-                    let contractAddress: Address
-                    let value: bigint
-
-                    try {
-                        from = getAddress(toHex(topic2))
-                        to = getAddress(toHex(topic3))
-                        contractAddress = getAddress(toHex(step.address.bytes))
-
-                        // Read from memory
-                        value = BigInt(
-                            toHex(
-                                memory.slice(
-                                    Number(offset),
-                                    Number(offset) + Number(size)
-                                )
-                            )
-                        )
-                    } catch (e) {
-                        // If the addresses are not valid, skip this log
-                        return
+                    if (eventSignature === APPROVAL_TOPIC_HASH) {
+                        collectApprovalLog({
+                            step,
+                            logs,
+                            logger: rpcHandler.logger
+                        })
                     }
-
-                    // If the sender is not part of the transfer, skip this log
-                    if (![from, to].includes(userOp.sender)) {
-                        return
-                    }
-
-                    // Record the transfer
-                    if (!transferLogs.has(contractAddress)) {
-                        transferLogs.set(contractAddress, [])
-                    }
-                    transferLogs.get(contractAddress)!.push({ from, to, value })
                 }
             }
         })
@@ -208,93 +286,93 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
         }
 
         // Aggregate asset change results
-        let assetChanges = []
+        //let assetChanges = []
 
-        for (const [assetAddress, transfers] of transferLogs.entries()) {
-            // Handle native token transfers
-            if (assetAddress === zeroAddress) {
-                const balanceChange = transfers.reduce((acc, transfer) => {
-                    if (transfer.from === userOp.sender) {
-                        return acc - transfer.value
-                    } else if (transfer.to === userOp.sender) {
-                        return acc + transfer.value
-                    }
-                    return acc
-                }, 0n)
+        //for (const [assetAddress, transfers] of logs.entries()) {
+        //    // Handle native token transfers
+        //    if (assetAddress === zeroAddress) {
+        //        const balanceChange = transfers.reduce((acc, transfer) => {
+        //            if (transfer.from === userOp.sender) {
+        //                return acc - transfer.value
+        //            } else if (transfer.to === userOp.sender) {
+        //                return acc + transfer.value
+        //            }
+        //            return acc
+        //        }, 0n)
 
-                if (balanceChange !== 0n) {
-                    assetChanges.push({
-                        type: "NATIVE",
-                        assetAddress,
-                        balanceChange,
-                        transfers
-                    })
-                }
+        //        if (balanceChange !== 0n) {
+        //            assetChanges.push({
+        //                type: "NATIVE",
+        //                assetAddress,
+        //                balanceChange,
+        //                transfers
+        //            })
+        //        }
 
-                continue
-            }
+        //        continue
+        //    }
 
-            // Check token type
-            const hasDecimals = await tevmClient.tevmCall({
-                to: assetAddress,
-                data: encodeFunctionData({
-                    abi: erc20Abi,
-                    functionName: "decimals",
-                    args: []
-                })
-            })
+        //    // Check token type
+        //    const hasDecimals = await tevmClient.tevmCall({
+        //        to: assetAddress,
+        //        data: encodeFunctionData({
+        //            abi: erc20Abi,
+        //            functionName: "decimals",
+        //            args: []
+        //        })
+        //    })
 
-            const tokenType = hasDecimals.errors ? "ERC721" : "ERC20"
+        //    const tokenType = hasDecimals.errors ? "ERC721" : "ERC20"
 
-            if (tokenType === "ERC721") {
-                // For ERC-721, track which tokens the user owns at the end of execution
-                const receivedTokens = new Set<bigint>()
-                const sentTokens = new Set<bigint>()
+        //    if (tokenType === "ERC721") {
+        //        // For ERC-721, track which tokens the user owns at the end of execution
+        //        const receivedTokens = new Set<bigint>()
+        //        const sentTokens = new Set<bigint>()
 
-                for (const transfer of transfers) {
-                    const tokenId = transfer.value
+        //        for (const transfer of transfers) {
+        //            const tokenId = transfer.value
 
-                    // Clear previous state to handle tokens transferred multiple times
-                    receivedTokens.delete(tokenId)
-                    sentTokens.delete(tokenId)
+        //            // Clear previous state to handle tokens transferred multiple times
+        //            receivedTokens.delete(tokenId)
+        //            sentTokens.delete(tokenId)
 
-                    // Add to appropriate set based on final direction
-                    if (transfer.to === userOp.sender) {
-                        receivedTokens.add(tokenId)
-                    } else if (transfer.from === userOp.sender) {
-                        sentTokens.add(tokenId)
-                    }
-                }
+        //            // Add to appropriate set based on final direction
+        //            if (transfer.to === userOp.sender) {
+        //                receivedTokens.add(tokenId)
+        //            } else if (transfer.from === userOp.sender) {
+        //                sentTokens.add(tokenId)
+        //            }
+        //        }
 
-                if (receivedTokens.size > 0 || sentTokens.size > 0) {
-                    assetChanges.push({
-                        type: "ERC721",
-                        assetAddress,
-                        tokenIdsReceived: Array.from(receivedTokens),
-                        tokenIdsSent: Array.from(sentTokens)
-                    })
-                }
-            } else {
-                const balanceChange = transfers.reduce((acc, transfer) => {
-                    // sender recieved tokens
-                    if (transfer.to === userOp.sender) {
-                        return acc + transfer.value
-                    }
+        //        if (receivedTokens.size > 0 || sentTokens.size > 0) {
+        //            assetChanges.push({
+        //                type: "ERC721",
+        //                assetAddress,
+        //                tokenIdsReceived: Array.from(receivedTokens),
+        //                tokenIdsSent: Array.from(sentTokens)
+        //            })
+        //        }
+        //    } else {
+        //        const balanceChange = transfers.reduce((acc, transfer) => {
+        //            // sender recieved tokens
+        //            if (transfer.to === userOp.sender) {
+        //                return acc + transfer.value
+        //            }
 
-                    // sender is sending tokens
-                    return acc - transfer.value
-                }, 0n)
+        //            // sender is sending tokens
+        //            return acc - transfer.value
+        //        }, 0n)
 
-                // Only include tokens with non-zero net changes
-                if (balanceChange !== 0n) {
-                    assetChanges.push({
-                        type: "ERC20",
-                        assetAddress,
-                        balanceChange
-                    })
-                }
-            }
-        }
+        //        // Only include tokens with non-zero net changes
+        //        if (balanceChange !== 0n) {
+        //            assetChanges.push({
+        //                type: "ERC20",
+        //                assetAddress,
+        //                balanceChange
+        //            })
+        //        }
+        //    }
+        //}
 
         return {
             sender: userOp.sender,
