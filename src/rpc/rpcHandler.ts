@@ -463,14 +463,14 @@ export class RpcHandler {
 
         const simulationUserOperation = {
             ...userOperation,
-            maxFeePerGas: 0n,
-            maxPriorityFeePerGas: 0n,
             preVerificationGas: 0n,
             verificationGasLimit: simulationVerificationGasLimit,
             callGasLimit: simulationCallGasLimit
         }
 
         if (isVersion07(simulationUserOperation)) {
+            simulationUserOperation.maxPriorityFeePerGas = 0n
+            simulationUserOperation.maxFeePerGas = 0n
             simulationUserOperation.paymasterVerificationGasLimit =
                 simulationPaymasterVerificationGasLimit
             simulationUserOperation.paymasterPostOpGasLimit =
@@ -602,7 +602,7 @@ export class RpcHandler {
         // Check if userOperation passes without estimation balance overrides
         await this.validator.validateHandleOp({
             userOperation: {
-                ...simulationUserOperation,
+                ...userOperation,
                 preVerificationGas,
                 verificationGasLimit,
                 callGasLimit,
