@@ -58,8 +58,7 @@ const tokenTypeCache = new Map<Address, "ERC-20" | "ERC-721">()
 
 const checkTokenType = async (
     address: Address,
-    tevmClient: PublicClient,
-    tokenIdToCheck: bigint
+    tevmClient: PublicClient
 ): Promise<"ERC-20" | "ERC-721"> => {
     // Return cached token type if available
     const cached = tokenTypeCache.get(address)
@@ -91,7 +90,7 @@ const checkTokenType = async (
             data: encodeFunctionData({
                 abi: erc721Abi,
                 functionName: "ownerOf",
-                args: [tokenIdToCheck]
+                args: [1n]
             })
         })
 
@@ -350,38 +349,43 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
             // Transfer events (both ERC-20 and ERC-721 use the same event signature)
             if (topics[0] === TRANSFER_TOPIC_HASH) {
                 try {
-                    const decoded = decodeEventLog({
-                        abi: erc20Abi,
-                        eventName: "Transfer",
-                        data,
-                        topics: topics as [Hex, ...Hex[]]
-                    })
-
-                    const { value: valueOrTokenId, from, to } = decoded.args
-
-                    const tokenType = await checkTokenType(
-                        address,
-                        tevmClient,
-                        valueOrTokenId
-                    )
+                    const tokenType = await checkTokenType(address, tevmClient)
 
                     if (tokenType === "ERC-721") {
+                        const decoded = decodeEventLog({
+                            abi: erc721Abi,
+                            eventName: "Transfer",
+                            data,
+                            topics: topics as [Hex, ...Hex[]]
+                        })
+
+                        const { tokenId, from, to } = decoded.args
+
                         assetChanges.push({
                             assetType: "ERC-721",
                             type: "transfer",
                             tokenAddress: address,
                             from,
                             to,
-                            tokenId: valueOrTokenId
+                            tokenId
                         })
                     } else if (tokenType === "ERC-20") {
+                        const decoded = decodeEventLog({
+                            abi: erc20Abi,
+                            eventName: "Transfer",
+                            data,
+                            topics: topics as [Hex, ...Hex[]]
+                        })
+
+                        const { value, from, to } = decoded.args
+
                         assetChanges.push({
                             assetType: "ERC-20",
                             type: "transfer",
                             tokenAddress: address,
                             from,
                             to,
-                            value: valueOrTokenId
+                            value
                         })
                     }
                 } catch (err) {
@@ -395,42 +399,43 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
             // Approval events (both ERC-20 and ERC-721 use the same event signature)
             if (topics[0] === APPROVAL_TOPIC_HASH) {
                 try {
-                    const decoded = decodeEventLog({
-                        abi: erc20Abi,
-                        eventName: "Approval",
-                        data,
-                        topics: topics as [Hex, ...Hex[]]
-                    })
-
-                    const {
-                        value: valueOrTokenId,
-                        owner,
-                        spender
-                    } = decoded.args
-
-                    const tokenType = await checkTokenType(
-                        address,
-                        tevmClient,
-                        valueOrTokenId
-                    )
+                    const tokenType = await checkTokenType(address, tevmClient)
 
                     if (tokenType === "ERC-721") {
+                        const decoded = decodeEventLog({
+                            abi: erc721Abi,
+                            eventName: "Approval",
+                            data,
+                            topics: topics as [Hex, ...Hex[]]
+                        })
+
+                        const { tokenId, owner, spender } = decoded.args
+
                         assetChanges.push({
                             assetType: "ERC-721",
                             type: "approval",
                             tokenAddress: address,
                             owner,
                             spender,
-                            tokenId: valueOrTokenId
+                            tokenId
                         })
                     } else if (tokenType === "ERC-20") {
+                        const decoded = decodeEventLog({
+                            abi: erc20Abi,
+                            eventName: "Approval",
+                            data,
+                            topics: topics as [Hex, ...Hex[]]
+                        })
+
+                        const { value, owner, spender } = decoded.args
+
                         assetChanges.push({
                             assetType: "ERC-20",
                             type: "approval",
                             tokenAddress: address,
                             owner,
                             spender,
-                            value: valueOrTokenId
+                            value
                         })
                     }
                 } catch (err) {

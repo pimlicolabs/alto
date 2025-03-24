@@ -4,7 +4,9 @@ import {
     type Address,
     encodeFunctionData,
     erc721Abi,
-    erc20Abi
+    erc20Abi,
+    getAddress,
+    fromHex
 } from "viem"
 import {
     type EntryPointVersion,
@@ -48,7 +50,7 @@ describe.each([
             })
 
             const erc721TokenId = 500n
-            const spender = privateKeyToAddress(generatePrivateKey())
+            const mockSpender = privateKeyToAddress(generatePrivateKey())
             const recipient = privateKeyToAddress(generatePrivateKey())
 
             await mintERC721({
@@ -66,7 +68,7 @@ describe.each([
                         data: encodeFunctionData({
                             abi: erc721Abi,
                             functionName: "approve",
-                            args: [spender, erc721TokenId]
+                            args: [mockSpender, erc721TokenId]
                         })
                     },
                     {
@@ -98,33 +100,37 @@ describe.each([
 
             // Check approval operation
             const approveOperation = res.assetChanges[0]
-            expect(approveOperation.assetType).toBe("ERC-721")
-            expect(approveOperation.tokenAddress.toLowerCase()).toBe(
-                mockERC721Address.toLowerCase()
-            )
-            expect(approveOperation.tokenId).toBe(erc721TokenId.toString())
-            expect(approveOperation.owner.toLowerCase()).toBe(
-                smartAccountClient.account.address.toLowerCase()
-            )
-            expect(approveOperation.spender.toLowerCase()).toBe(
-                spender.toLowerCase()
-            )
-            expect(approveOperation.type).toBe("approval")
+            const assetType = approveOperation.assetType
+            const tokenAddress = getAddress(approveOperation.tokenAddress)
+            const tokenId = fromHex(approveOperation.tokenId, "bigint")
+            const owner = getAddress(approveOperation.owner)
+            const spender = getAddress(approveOperation.spender)
+            const type = approveOperation.type
+
+            expect(assetType).toBe("ERC-721")
+            expect(tokenAddress).toBe(mockERC721Address)
+            expect(tokenId).toBe(erc721TokenId)
+            expect(owner).toBe(smartAccountClient.account.address)
+            expect(spender).toBe(mockSpender)
+            expect(type).toBe("approval")
 
             // Check transfer operation
             const transferOperation = res.assetChanges[1]
-            expect(transferOperation.assetType).toBe("ERC-721")
-            expect(transferOperation.tokenAddress.toLowerCase()).toBe(
-                mockERC721Address.toLowerCase()
+            const transferAssetType = transferOperation.assetType
+            const transferTokenAddress = getAddress(
+                transferOperation.tokenAddress
             )
-            expect(transferOperation.tokenId).toBe(erc721TokenId.toString())
-            expect(transferOperation.from.toLowerCase()).toBe(
-                smartAccountClient.account.address.toLowerCase()
-            )
-            expect(transferOperation.to.toLowerCase()).toBe(
-                recipient.toLowerCase()
-            )
-            expect(transferOperation.type).toBe("transfer")
+            const transferTokenId = fromHex(transferOperation.tokenId, "bigint")
+            const transferFrom = getAddress(transferOperation.from)
+            const transferTo = getAddress(transferOperation.to)
+            const transferType = transferOperation.type
+
+            expect(transferAssetType).toBe("ERC-721")
+            expect(transferTokenAddress).toBe(mockERC721Address)
+            expect(transferTokenId).toBe(erc721TokenId)
+            expect(transferFrom).toBe(smartAccountClient.account.address)
+            expect(transferTo).toBe(recipient)
+            expect(transferType).toBe("transfer")
         })
 
         test("Should detect native token transfers in user operation", async () => {
@@ -161,15 +167,17 @@ describe.each([
 
             // Check native transfer operation
             const transferOperation = res.assetChanges[0]
-            expect(transferOperation.assetType).toBe("NATIVE")
-            expect(transferOperation.type).toBe("transfer")
-            expect(transferOperation.from.toLowerCase()).toBe(
-                smartAccountClient.account.address.toLowerCase()
-            )
-            expect(transferOperation.to.toLowerCase()).toBe(
-                recipient.toLowerCase()
-            )
-            expect(transferOperation.value).toBe(nativeAmount.toString())
+            const assetType = transferOperation.assetType
+            const from = getAddress(transferOperation.from)
+            const to = getAddress(transferOperation.to)
+            const value = fromHex(transferOperation.value, "bigint")
+            const type = transferOperation.type
+
+            expect(assetType).toBe("NATIVE")
+            expect(from).toBe(smartAccountClient.account.address)
+            expect(to).toBe(recipient)
+            expect(value).toBe(nativeAmount)
+            expect(type).toBe("transfer")
         })
 
         test("Should detect ERC-20 transfers and approvals in user operation", async () => {
@@ -227,33 +235,39 @@ describe.each([
 
             // Check approval operation
             const approveOperation = res.assetChanges[0]
-            expect(approveOperation.assetType).toBe("ERC-20")
-            expect(approveOperation.tokenAddress.toLowerCase()).toBe(
-                mockERC20Address.toLowerCase()
+            const approveAssetType = approveOperation.assetType
+            const approveTokenAddress = getAddress(
+                approveOperation.tokenAddress
             )
-            expect(approveOperation.value).toBe(erc20Amount.toString())
-            expect(approveOperation.owner.toLowerCase()).toBe(
-                smartAccountClient.account.address.toLowerCase()
-            )
-            expect(approveOperation.spender.toLowerCase()).toBe(
-                spender.toLowerCase()
-            )
-            expect(approveOperation.type).toBe("approval")
+            const approveValue = fromHex(approveOperation.value, "bigint")
+            const approveOwner = getAddress(approveOperation.owner)
+            const approveSpender = getAddress(approveOperation.spender)
+            const approveType = approveOperation.type
+
+            expect(approveAssetType).toBe("ERC-20")
+            expect(approveTokenAddress).toBe(mockERC20Address)
+            expect(approveValue).toBe(erc20Amount)
+            expect(approveOwner).toBe(smartAccountClient.account.address)
+            expect(approveSpender).toBe(spender)
+            expect(approveType).toBe("approval")
 
             // Check transfer operation
             const transferOperation = res.assetChanges[1]
-            expect(transferOperation.assetType).toBe("ERC-20")
-            expect(transferOperation.tokenAddress.toLowerCase()).toBe(
-                mockERC20Address.toLowerCase()
+            const transferAssetType = transferOperation.assetType
+            const transferTokenAddress = getAddress(
+                transferOperation.tokenAddress
             )
-            expect(transferOperation.value).toBe(erc20Amount.toString())
-            expect(transferOperation.from.toLowerCase()).toBe(
-                smartAccountClient.account.address.toLowerCase()
-            )
-            expect(transferOperation.to.toLowerCase()).toBe(
-                recipient.toLowerCase()
-            )
-            expect(transferOperation.type).toBe("transfer")
+            const transferValue = fromHex(transferOperation.value, "bigint")
+            const transferFrom = getAddress(transferOperation.from)
+            const transferTo = getAddress(transferOperation.to)
+            const transferType = transferOperation.type
+
+            expect(transferAssetType).toBe("ERC-20")
+            expect(transferTokenAddress).toBe(mockERC20Address)
+            expect(transferValue).toBe(erc20Amount)
+            expect(transferFrom).toBe(smartAccountClient.account.address)
+            expect(transferTo).toBe(recipient)
+            expect(transferType).toBe("transfer")
         })
     }
 )
