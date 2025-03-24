@@ -61,7 +61,18 @@ export async function getAuthorizationStateOverrides({
                 overrides[op.sender] = {
                     ...(overrides[op.sender] || {}),
                     ...(await getAuthorizationStateOverride({
-                        authorization: op.eip7702Auth,
+                        authorization: {
+                            contractAddress:
+                                "address" in op.eip7702Auth
+                                    ? op.eip7702Auth.address
+                                    : op.eip7702Auth.contractAddress,
+                            chainId: op.eip7702Auth.chainId,
+                            nonce: op.eip7702Auth.nonce,
+                            r: op.eip7702Auth.r,
+                            s: op.eip7702Auth.s,
+                            v: op.eip7702Auth.v,
+                            yParity: op.eip7702Auth.yParity
+                        },
                         publicClient
                     }))
                 }

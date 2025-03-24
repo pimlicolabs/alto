@@ -336,7 +336,18 @@ export class RpcHandler {
         // Check that auth is valid.
         const sender = validateSender
             ? await recoverAuthorizationAddress({
-                  authorization: userOperation.eip7702Auth
+                  authorization: {
+                      contractAddress:
+                          "address" in userOperation.eip7702Auth
+                              ? userOperation.eip7702Auth.address
+                              : userOperation.eip7702Auth.contractAddress,
+                      chainId: userOperation.eip7702Auth.chainId,
+                      nonce: userOperation.eip7702Auth.nonce,
+                      r: userOperation.eip7702Auth.r,
+                      s: userOperation.eip7702Auth.s,
+                      v: userOperation.eip7702Auth.v,
+                      yParity: userOperation.eip7702Auth.yParity
+                  }
               })
             : userOperation.sender
 
