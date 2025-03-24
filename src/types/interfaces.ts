@@ -10,11 +10,18 @@ import type {
 import type * as validation from "./validation"
 
 export interface InterfaceValidator {
+    validateHandleOp(args: {
+        userOperation: UserOperation
+        entryPoint: Address
+        queuedUserOperations: UserOperation[]
+        stateOverrides?: StateOverrides
+        binarySearch?: boolean
+    }): Promise<SimulateHandleOpResult<"execution">>
+
     getExecutionResult(args: {
         userOperation: UserOperation
         entryPoint: Address
         queuedUserOperations: UserOperation[]
-        addSenderBalanceOverride: boolean
         stateOverrides?: StateOverrides
         binarySearch?: boolean
     }): Promise<SimulateHandleOpResult<"execution">>

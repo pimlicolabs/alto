@@ -488,7 +488,6 @@ export class RpcHandler {
             userOperation: simulationUserOperation,
             entryPoint,
             queuedUserOperations,
-            addSenderBalanceOverride: true,
             stateOverrides: deepHexlify(stateOverrides)
         })
 
@@ -601,7 +600,7 @@ export class RpcHandler {
         preVerificationGas = scaleBigIntByPercent(preVerificationGas, 110n)
 
         // Check if userOperation passes without estimation balance overrides
-        await this.validator.getExecutionResult({
+        await this.validator.validateHandleOp({
             userOperation: {
                 ...simulationUserOperation,
                 preVerificationGas,
@@ -610,10 +609,8 @@ export class RpcHandler {
                 paymasterVerificationGasLimit,
                 paymasterPostOpGasLimit
             },
-            binarySearch: false,
             entryPoint,
             queuedUserOperations,
-            addSenderBalanceOverride: false,
             stateOverrides: deepHexlify(stateOverrides)
         })
 
