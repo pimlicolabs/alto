@@ -37,10 +37,10 @@ import { SimulateHandleOpResult } from "../estimation/types"
 import { Logger } from "pino"
 import { InterpreterStep } from "tevm/evm"
 
-// ERC-721 specific approvals (not used yet, but defined for future use)
-//const APPROVAL_FOR_ALL_TOPIC_HASH = toEventSelector(
-//    "event ApprovalForAll(address indexed owner, address indexed operator, bool approved)"
-//)
+// ERC-721 specific approval for all event
+const APPROVAL_FOR_ALL_TOPIC_HASH = toEventSelector(
+    "event ApprovalForAll(address indexed owner, address indexed operator, bool approved)"
+)
 
 // Event signatures for token standards
 const TRANSFER_TOPIC_HASH = toEventSelector(
@@ -442,6 +442,38 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                     rpcHandler.logger.error(
                         { err },
                         "Error processing Approval event"
+                    )
+                }
+            }
+
+            // ERC-721 ApprovalForAll events
+            if (topics[0] === APPROVAL_FOR_ALL_TOPIC_HASH) {
+                try {
+                    const tokenType = await checkTokenType(address, tevmClient)
+
+                    if (tokenType === "ERC-721") {
+                        const decoded = decodeEventLog({
+                            abi: erc721Abi,
+                            eventName: "ApprovalForAll",
+                            data,
+                            topics: topics as [Hex, ...Hex[]]
+                        })
+
+                        const { owner, operator, approved } = decoded.args
+
+                        assetChanges.push({
+                            assetType: "ERC-721",
+                            type: "approvalForAll",
+                            tokenAddress: address,
+                            owner,
+                            operator,
+                            approved
+                        })
+                    }
+                } catch (err) {
+                    rpcHandler.logger.error(
+                        { err },
+                        "Error processing ApprovalForAll event"
                     )
                 }
             }

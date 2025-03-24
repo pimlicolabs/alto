@@ -505,6 +505,15 @@ export const erc721ApprovalSchema = z.object({
     tokenId: hexNumberSchema
 })
 
+export const erc721ApprovalForAllSchema = z.object({
+    assetType: z.literal("ERC-721"),
+    type: z.literal("approvalForAll"),
+    tokenAddress: addressSchema,
+    owner: addressSchema,
+    operator: addressSchema,
+    approved: z.boolean()
+})
+
 export const erc20TransferSchema = z.object({
     assetType: z.literal("ERC-20"),
     type: z.literal("transfer"),
@@ -533,9 +542,10 @@ export const nativeTransferSchema = z.object({
 
 export const assetChangeEventSchema = z.union([
     erc721TransferSchema,
+    erc721ApprovalSchema,
+    erc721ApprovalForAllSchema,
     erc20TransferSchema,
     erc20ApprovalSchema,
-    erc721ApprovalSchema,
     nativeTransferSchema
 ])
 
@@ -696,6 +706,7 @@ export type UserOpInfo = z.infer<typeof userOpInfoSchema>
 // Export asset change types
 export type ERC721Transfer = z.infer<typeof erc721TransferSchema>
 export type ERC721Approval = z.infer<typeof erc721ApprovalSchema>
+export type ERC721ApprovalForAll = z.infer<typeof erc721ApprovalForAllSchema>
 export type ERC20Transfer = z.infer<typeof erc20TransferSchema>
 export type ERC20Approval = z.infer<typeof erc20ApprovalSchema>
 export type NativeTransfer = z.infer<typeof nativeTransferSchema>

@@ -133,6 +133,68 @@ describe.each([
             expect(transferType).toBe("transfer")
         })
 
+        test("Should detect ERC-721 ApprovalForAll events in user operation", async () => {
+            const smartAccountClient = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const operator = privateKeyToAddress(generatePrivateKey())
+            const approved = true
+
+            const tokenId = 999n
+            await mintERC721({
+                contractAddress: mockERC721Address,
+                to: smartAccountClient.account.address,
+                tokenId,
+                anvilRpc
+            })
+
+            const userOp = await smartAccountClient.prepareUserOperation({
+                calls: [
+                    {
+                        to: mockERC721Address,
+                        value: 0n,
+                        data: encodeFunctionData({
+                            abi: erc721Abi,
+                            functionName: "setApprovalForAll",
+                            args: [operator, approved]
+                        })
+                    }
+                ]
+            })
+
+            const res = (await smartAccountClient.request({
+                // @ts-ignore
+                method: "pimlico_simulateAssetChange",
+                params: [deepHexlify(userOp), entryPoint07Address]
+            })) as any
+
+            // Assert the response structure
+            expect(res).toBeDefined()
+            expect(Array.isArray(res.assetChanges)).toBe(true)
+            expect(res.assetChanges.length).toBe(1) // One operation: approvalForAll
+
+            // Check approvalForAll operation
+            const approvalForAllOperation = res.assetChanges[0]
+            const assetType = approvalForAllOperation.assetType
+            const tokenAddress = getAddress(
+                approvalForAllOperation.tokenAddress
+            )
+            const owner = getAddress(approvalForAllOperation.owner)
+            const operatorAddress = getAddress(approvalForAllOperation.operator)
+            const isApproved = approvalForAllOperation.approved
+            const type = approvalForAllOperation.type
+
+            expect(assetType).toBe("ERC-721")
+            expect(tokenAddress).toBe(mockERC721Address)
+            expect(owner).toBe(smartAccountClient.account.address)
+            expect(operatorAddress).toBe(operator)
+            expect(isApproved).toBe(approved)
+            expect(type).toBe("approvalForAll")
+        })
+
         test("Should detect native token transfers in user operation", async () => {
             const smartAccountClient = await getSmartAccountClient({
                 entryPointVersion,
