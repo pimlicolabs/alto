@@ -18,11 +18,12 @@ import { SignedAuthorizationList } from "viem/experimental"
 import { AltoConfig } from "../createConfig"
 
 export const isTransactionUnderpricedError = (e: BaseError) => {
-    const deepestError = e.walk()
-
-    return deepestError?.message
-        ?.toLowerCase()
-        .includes("replacement transaction underpriced")
+    const transactionUnderPriceError = e.walk((e: any) =>
+        e?.message
+            ?.toLowerCase()
+            .includes("replacement transaction underpriced")
+    )
+    return transactionUnderPriceError !== null
 }
 
 // V7 source: https://github.com/eth-infinitism/account-abstraction/blob/releases/v0.7/contracts/core/EntryPoint.sol
