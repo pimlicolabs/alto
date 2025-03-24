@@ -15,7 +15,6 @@ export interface InterfaceValidator {
         entryPoint: Address
         queuedUserOperations: UserOperation[]
         stateOverrides?: StateOverrides
-        binarySearch?: boolean
     }): Promise<SimulateHandleOpResult<"execution">>
 
     getExecutionResult(args: {
@@ -23,7 +22,6 @@ export interface InterfaceValidator {
         entryPoint: Address
         queuedUserOperations: UserOperation[]
         stateOverrides?: StateOverrides
-        binarySearch?: boolean
     }): Promise<SimulateHandleOpResult<"execution">>
 
     getValidationResultV06(args: {

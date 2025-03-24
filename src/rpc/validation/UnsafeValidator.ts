@@ -165,7 +165,6 @@ export class UnsafeValidator implements InterfaceValidator {
         const error = await this.gasEstimationHandler.validateHandleOp({
             userOperation,
             queuedUserOperations,
-            balanceOverrideEnabled: this.config.balanceOverride,
             entryPoint,
             targetAddress: zeroAddress,
             targetCallData: "0x",
@@ -202,7 +201,6 @@ export class UnsafeValidator implements InterfaceValidator {
         const error = await this.gasEstimationHandler.simulateHandleOp({
             userOperation,
             queuedUserOperations,
-            balanceOverrideEnabled: this.config.balanceOverride,
             entryPoint,
             targetAddress: zeroAddress,
             targetCallData: "0x",
