@@ -337,7 +337,10 @@ export class RpcHandler {
         const sender = validateSender
             ? await recoverAuthorizationAddress({
                   authorization: {
-                      contractAddress: userOperation.eip7702Auth.address,
+                      contractAddress:
+                          "address" in userOperation.eip7702Auth
+                              ? userOperation.eip7702Auth.address
+                              : userOperation.eip7702Auth.contractAddress,
                       chainId: userOperation.eip7702Auth.chainId,
                       nonce: userOperation.eip7702Auth.nonce,
                       r: userOperation.eip7702Auth.r,

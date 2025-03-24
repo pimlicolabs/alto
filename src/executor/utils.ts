@@ -100,7 +100,10 @@ export const getAuthorizationList = (
         .map(({ eip7702Auth }) =>
             eip7702Auth
                 ? {
-                      contractAddress: eip7702Auth.address,
+                      contractAddress:
+                          "address" in eip7702Auth
+                              ? eip7702Auth.address
+                              : eip7702Auth.contractAddress,
                       chainId: eip7702Auth.chainId,
                       nonce: eip7702Auth.nonce,
                       r: eip7702Auth.r,
