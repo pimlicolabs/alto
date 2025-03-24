@@ -7,7 +7,7 @@ import {
     RpcError,
     UserOperationV07,
     ValidationErrors,
-    pimlicoSimulateAssetChangeSchema
+    pimlicoTraceTokenEventsSchema
 } from "@alto/types"
 import {
     decodeDelegateAndRevertResponse,
@@ -178,12 +178,12 @@ function decodeSimulateHandleOpResult({
     }
 }
 
-// NOTE: Endpoint to show the asset changes that a user operation produces.
+// NOTE: Endpoint to trace token-related events that a user operation produces.
 // According to the ERC-20 and ERC-721 spec, a event must be emitted for each transfer and approval of a token.
 // We can collect any transfers by listening for these events when running the simulation.
-export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
-    method: "pimlico_simulateAssetChange",
-    schema: pimlicoSimulateAssetChangeSchema,
+export const pimlicoTraceTokenEventsHandler = createMethodHandler({
+    method: "pimlico_traceTokenEvents",
+    schema: pimlicoTraceTokenEventsSchema,
     handler: async ({ rpcHandler, params }) => {
         const { config } = rpcHandler
         const [userOperation, entryPoint, blockNumber] = params
@@ -191,7 +191,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
         // Validations
         if (isVersion06(userOperation)) {
             throw new RpcError(
-                "pimlico_simulateAssetChange is not supported for v0.6"
+                "pimlico_traceTokenEvents is not supported for v0.6"
             )
         }
 

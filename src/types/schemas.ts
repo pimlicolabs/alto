@@ -549,8 +549,8 @@ export const assetChangeEventSchema = z.union([
     nativeTransferSchema
 ])
 
-export const pimlicoSimulateAssetChangeSchema = z.object({
-    method: z.literal("pimlico_simulateAssetChange"),
+export const pimlicoTraceTokenEventsSchema = z.object({
+    method: z.literal("pimlico_traceTokenEvents"),
     params: z.union([
         z.tuple([userOperationSchema, addressSchema]),
         z.tuple([userOperationSchema, addressSchema, hexNumberSchema])
@@ -583,7 +583,7 @@ export const bundlerRequestSchema = z.discriminatedUnion("method", [
     pimlicoGetUserOperationStatusSchema.omit({ result: true }),
     pimlicoGetUserOperationGasPriceSchema.omit({ result: true }),
     pimlicoSendUserOperationNowSchema.omit({ result: true }),
-    pimlicoSimulateAssetChangeSchema.omit({ result: true })
+    pimlicoTraceTokenEventsSchema.omit({ result: true })
 ])
 export type BundlerRequest = z.infer<typeof bundlerRequestSchema>
 
@@ -606,7 +606,7 @@ export const bundlerRpcSchema = z.union([
     pimlicoGetUserOperationStatusSchema,
     pimlicoGetUserOperationGasPriceSchema,
     pimlicoSendUserOperationNowSchema,
-    pimlicoSimulateAssetChangeSchema
+    pimlicoTraceTokenEventsSchema
 ])
 
 export type BundlingMode = z.infer<
