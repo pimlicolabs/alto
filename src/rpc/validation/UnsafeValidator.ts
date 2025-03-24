@@ -164,7 +164,7 @@ export class UnsafeValidator implements InterfaceValidator {
         queuedUserOperations: UserOperation[]
         addSenderBalanceOverride: boolean
         stateOverrides?: StateOverrides
-        binarySearch: boolean
+        binarySearch?: boolean
     }): Promise<SimulateHandleOpResult<"execution">> {
         const error = await this.gasEstimationHandler.simulateHandleOp({
             userOperation,

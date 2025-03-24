@@ -16,6 +16,7 @@ export interface InterfaceValidator {
         queuedUserOperations: UserOperation[]
         addSenderBalanceOverride: boolean
         stateOverrides?: StateOverrides
+        binarySearch?: boolean
     }): Promise<SimulateHandleOpResult<"execution">>
 
     getValidationResultV06(args: {
