@@ -60,12 +60,12 @@ export const deployMockERC20 = async ({
 export const mintERC20 = async ({
     contractAddress,
     to,
-    tokenId,
+    amount,
     anvilRpc
 }: {
     contractAddress: Address
     to: Address
-    tokenId: bigint
+    amount: bigint
     anvilRpc: string
 }): Promise<Hex> => {
     const walletClient = getAnvilWalletClient({
@@ -78,7 +78,7 @@ export const mintERC20 = async ({
         data: encodeFunctionData({
             abi: parseAbi(["function mint(address to, uint256 id)"]),
             functionName: "mint",
-            args: [to, tokenId]
+            args: [to, amount]
         })
     })
 

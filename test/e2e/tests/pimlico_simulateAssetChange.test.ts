@@ -5,7 +5,8 @@ import {
     parseEther,
     type Address,
     encodeFunctionData,
-    erc721Abi
+    erc721Abi,
+    erc20Abi
 } from "viem"
 import {
     type EntryPointVersion,
@@ -16,7 +17,7 @@ import { foundry } from "viem/chains"
 import { beforeAll, beforeEach, describe, expect, inject, test } from "vitest"
 import { deployMockERC721, mintERC721 } from "../src/mockERC721.js"
 import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils/index.js"
-import { deployMockERC20 } from "../src/mockErc20.js"
+import { deployMockERC20, mintERC20 } from "../src/mockErc20.js"
 import { privateKeyToAddress, generatePrivateKey } from "viem/accounts"
 
 describe.each([
@@ -25,7 +26,7 @@ describe.each([
         entryPointVersion: "0.7" as EntryPointVersion
     }
 ])(
-    "$entryPointVersion supports pimlico_simulateAssetChange for ERC-721 tokens",
+    "$entryPointVersion supports pimlico_simulateAssetChange for tokens",
     ({ entryPoint, entryPointVersion }) => {
         const anvilRpc = inject("anvilRpc")
         const altoRpc = inject("altoRpc")
@@ -131,5 +132,89 @@ describe.each([
         })
 
         test("Should detect native token transfers in user operation", async () => {})
+
+        test("Should detect ERC-20 transfers and approvals in user operation", async () => {
+            const smartAccountClient = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const erc20Amount = parseEther("1")
+            const spender = privateKeyToAddress(generatePrivateKey())
+            const recipient = privateKeyToAddress(generatePrivateKey())
+
+            // Mint some ERC-20 tokens to the smart account
+            await mintERC20({
+                contractAddress: mockERC20Address,
+                to: smartAccountClient.account.address,
+                amount: erc20Amount,
+                anvilRpc
+            })
+
+            const userOp = await smartAccountClient.prepareUserOperation({
+                calls: [
+                    {
+                        to: mockERC20Address,
+                        value: 0n,
+                        data: encodeFunctionData({
+                            abi: erc20Abi,
+                            functionName: "approve",
+                            args: [spender, erc20Amount]
+                        })
+                    },
+                    {
+                        to: mockERC20Address,
+                        value: 0n,
+                        data: encodeFunctionData({
+                            abi: erc20Abi,
+                            functionName: "transfer",
+                            args: [recipient, erc20Amount]
+                        })
+                    }
+                ]
+            })
+
+            const res = (await smartAccountClient.request({
+                // @ts-ignore
+                method: "pimlico_simulateAssetChange",
+                params: [deepHexlify(userOp), entryPoint07Address]
+            })) as any
+
+            // Assert the response structure
+            expect(res).toBeDefined()
+            expect(Array.isArray(res.assetChanges)).toBe(true)
+            expect(res.assetChanges.length).toBe(2) // Two operations: approve and transfer
+
+            // Check approval operation
+            const approveOperation = res.assetChanges[0]
+            expect(approveOperation.assetType).toBe("ERC-20")
+            expect(approveOperation.tokenAddress.toLowerCase()).toBe(
+                mockERC20Address.toLowerCase()
+            )
+            expect(approveOperation.value).toBe(erc20Amount.toString())
+            expect(approveOperation.owner.toLowerCase()).toBe(
+                smartAccountClient.account.address.toLowerCase()
+            )
+            expect(approveOperation.spender.toLowerCase()).toBe(
+                spender.toLowerCase()
+            )
+            expect(approveOperation.type).toBe("approval")
+
+            // Check transfer operation
+            const transferOperation = res.assetChanges[1]
+            expect(transferOperation.assetType).toBe("ERC-20")
+            expect(transferOperation.tokenAddress.toLowerCase()).toBe(
+                mockERC20Address.toLowerCase()
+            )
+            expect(transferOperation.value).toBe(erc20Amount.toString())
+            expect(transferOperation.from.toLowerCase()).toBe(
+                smartAccountClient.account.address.toLowerCase()
+            )
+            expect(transferOperation.to.toLowerCase()).toBe(
+                recipient.toLowerCase()
+            )
+            expect(transferOperation.type).toBe("transfer")
+        })
     }
 )
