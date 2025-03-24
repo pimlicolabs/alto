@@ -301,6 +301,84 @@ export class GasEstimatorV07 {
         }
     }
 
+    async validateHandleOpV07({
+        entryPoint,
+        userOperation,
+        queuedUserOperations,
+        stateOverrides = {}
+    }: {
+        entryPoint: Address
+        userOperation: UserOperationV07
+        queuedUserOperations: UserOperationV07[]
+        stateOverrides?: StateOverrides | undefined
+    }): Promise<SimulateHandleOpResult> {
+        const simulateHandleOpLast = this.encodeSimulateHandleOpLast({
+            entryPoint,
+            userOperation,
+            queuedUserOperations
+        })
+        stateOverrides = await getAuthorizationStateOverrides({
+            userOperations: [...queuedUserOperations, userOperation],
+            publicClient: this.config.publicClient,
+            stateOverrides
+        })
+
+        let cause = [
+            (
+                await this.callPimlicoEntryPointSimulations({
+                    entryPoint,
+                    entryPointSimulationsCallData: [simulateHandleOpLast],
+                    stateOverrides
+                })
+            )[0]
+        ]
+
+        cause = cause.map((data: Hex) => {
+            const decodedDelegateAndError = decodeErrorResult({
+                abi: EntryPointV07Abi,
+                data: data
+            })
+
+            const delegateAndRevertResponseBytes =
+                decodedDelegateAndError?.args?.[1]
+
+            if (!delegateAndRevertResponseBytes) {
+                throw new Error("Unexpected error")
+            }
+
+            return delegateAndRevertResponseBytes as Hex
+        })
+
+        const [simulateHandleOpLastCause] = cause
+
+        try {
+            const simulateHandleOpLastResult = getSimulateHandleOpResult(
+                simulateHandleOpLastCause
+            )
+
+            if (simulateHandleOpLastResult.result === "failed") {
+                return simulateHandleOpLastResult as SimulateHandleOpResult<"failed">
+            }
+            return {
+                result: "execution",
+                data: {
+                    callGasLimit: 0n,
+                    verificationGasLimit: 0n,
+                    paymasterVerificationGasLimit: 0n,
+                    executionResult: (
+                        simulateHandleOpLastResult as SimulateHandleOpResult<"execution">
+                    ).data.executionResult
+                }
+            }
+        } catch (_e) {
+            return {
+                result: "failed",
+                data: "Unknown error, could not parse simulate handle op result.",
+                code: ValidationErrors.SimulateValidation
+            }
+        }
+    }
+
     async simulateHandleOpV07({
         entryPoint,
         userOperation,

@@ -151,24 +151,56 @@ export class UnsafeValidator implements InterfaceValidator {
         return simulationResult
     }
 
-    async getExecutionResult({
+    async validateHandleOp({
         userOperation,
         entryPoint,
         queuedUserOperations,
-        addSenderBalanceOverride,
         stateOverrides
     }: {
         userOperation: UserOperation
         entryPoint: Address
         queuedUserOperations: UserOperation[]
-        addSenderBalanceOverride: boolean
+        stateOverrides?: StateOverrides
+    }): Promise<SimulateHandleOpResult<"execution">> {
+        const error = await this.gasEstimationHandler.validateHandleOp({
+            userOperation,
+            queuedUserOperations,
+            entryPoint,
+            targetAddress: zeroAddress,
+            targetCallData: "0x",
+            stateOverrides
+        })
+
+        if (error.result === "failed") {
+            let errorCode: number = ExecutionErrors.UserOperationReverted
+
+            if (error.data.toString().includes("AA23")) {
+                errorCode = ValidationErrors.SimulateValidation
+            }
+
+            throw new RpcError(
+                `UserOperation reverted during simulation with reason: ${error.data}`,
+                errorCode
+            )
+        }
+
+        return error as SimulateHandleOpResult<"execution">
+    }
+
+    async getExecutionResult({
+        userOperation,
+        entryPoint,
+        queuedUserOperations,
+        stateOverrides
+    }: {
+        userOperation: UserOperation
+        entryPoint: Address
+        queuedUserOperations: UserOperation[]
         stateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult<"execution">> {
         const error = await this.gasEstimationHandler.simulateHandleOp({
             userOperation,
             queuedUserOperations,
-            addSenderBalanceOverride,
-            balanceOverrideEnabled: this.config.balanceOverride,
             entryPoint,
             targetAddress: zeroAddress,
             targetCallData: "0x",
