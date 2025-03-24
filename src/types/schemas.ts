@@ -531,7 +531,7 @@ export const nativeTransferSchema = z.object({
     value: hexNumberSchema
 })
 
-export const assetChangeEventSchema = z.discriminatedUnion("assetType", [
+export const assetChangeEventSchema = z.union([
     erc721TransferSchema,
     erc20TransferSchema,
     erc20ApprovalSchema,
