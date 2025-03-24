@@ -50,7 +50,7 @@ export type HexData32 = z.infer<typeof hexData32Schema>
 export type StateOverrides = z.infer<typeof stateOverridesSchema>
 
 const signedAuthorizationSchema = z.object({
-    contractAddress: addressSchema,
+    address: addressSchema,
     chainId: hexNumberSchema.transform((val) => Number(val)),
     nonce: hexNumberSchema.transform((val) => Number(val)),
     r: hexData32Schema.transform((val) => val as Hex),

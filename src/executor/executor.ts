@@ -1,11 +1,11 @@
 import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type { InterfaceReputationManager, Mempool } from "@alto/mempool"
-import {
-    type Address,
-    type BundleResult,
-    type HexData32,
-    type UserOperation,
-    type GasPriceParameters,
+import type {
+    Address,
+    BundleResult,
+    HexData32,
+    UserOperation,
+    GasPriceParameters,
     UserOperationBundle,
     UserOpInfo
 } from "@alto/types"
@@ -32,7 +32,7 @@ import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { sendPflConditional } from "./fastlane"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEStimateGas"
-import { SignedAuthorizationList } from "viem/experimental"
+import type { SignedAuthorizationList } from "viem/experimental"
 
 type HandleOpsTxParams = {
     gas: bigint

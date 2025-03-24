@@ -1,9 +1,9 @@
 import {
     EntryPointV06Abi,
     EntryPointV07Abi,
-    PackedUserOperation,
-    UserOpInfo,
-    UserOperationV07
+    type PackedUserOperation,
+    type UserOpInfo,
+    type UserOperationV07
 } from "@alto/types"
 import {
     isVersion06,
@@ -11,11 +11,16 @@ import {
     type Logger,
     isVersion07
 } from "@alto/utils"
-// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
 import * as sentry from "@sentry/node"
-import { type Account, BaseError, encodeFunctionData, Address, Hex } from "viem"
-import { SignedAuthorizationList } from "viem/experimental"
-import { AltoConfig } from "../createConfig"
+import {
+    type Account,
+    type BaseError,
+    encodeFunctionData,
+    type Address,
+    type Hex
+} from "viem"
+import type { AltoConfig } from "../createConfig"
+import type { SignedAuthorizationList } from "viem/experimental"
 
 export const isTransactionUnderpricedError = (e: BaseError) => {
     const transactionUnderPriceError = e.walk((e: any) =>
@@ -92,7 +97,19 @@ export const getAuthorizationList = (
 ): SignedAuthorizationList | undefined => {
     const authList = userOpInfos
         .map(({ userOp }) => userOp)
-        .map(({ eip7702Auth }) => eip7702Auth)
+        .map(({ eip7702Auth }) =>
+            eip7702Auth
+                ? {
+                      contractAddress: eip7702Auth.address,
+                      chainId: eip7702Auth.chainId,
+                      nonce: eip7702Auth.nonce,
+                      r: eip7702Auth.r,
+                      s: eip7702Auth.s,
+                      v: eip7702Auth.v,
+                      yParity: eip7702Auth.yParity
+                  }
+                : null
+        )
         .filter(Boolean) as SignedAuthorizationList
 
     return authList.length ? authList : undefined
