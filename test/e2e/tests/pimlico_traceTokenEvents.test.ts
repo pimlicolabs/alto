@@ -95,11 +95,11 @@ describe.each([
 
             // Assert the response structure
             expect(res).toBeDefined()
-            expect(Array.isArray(res.assetChanges)).toBe(true)
-            expect(res.assetChanges.length).toBe(2) // Two operations: approve and transfer
+            expect(Array.isArray(res.tokenEvents)).toBe(true)
+            expect(res.tokenEvents.length).toBe(2) // Two operations: approve and transfer
 
             // Check approval operation
-            const approveOperation = res.assetChanges[0]
+            const approveOperation = res.tokenEvents[0]
             const assetType = approveOperation.assetType
             const tokenAddress = getAddress(approveOperation.tokenAddress)
             const tokenId = fromHex(approveOperation.tokenId, "bigint")
@@ -115,7 +115,7 @@ describe.each([
             expect(type).toBe("approval")
 
             // Check transfer operation
-            const transferOperation = res.assetChanges[1]
+            const transferOperation = res.tokenEvents[1]
             const transferAssetType = transferOperation.assetType
             const transferTokenAddress = getAddress(
                 transferOperation.tokenAddress
@@ -173,11 +173,11 @@ describe.each([
 
             // Assert the response structure
             expect(res).toBeDefined()
-            expect(Array.isArray(res.assetChanges)).toBe(true)
-            expect(res.assetChanges.length).toBe(1) // One operation: approvalForAll
+            expect(Array.isArray(res.tokenEvents)).toBe(true)
+            expect(res.tokenEvents.length).toBe(1) // One operation: approvalForAll
 
             // Check approvalForAll operation
-            const approvalForAllOperation = res.assetChanges[0]
+            const approvalForAllOperation = res.tokenEvents[0]
             const assetType = approvalForAllOperation.assetType
             const tokenAddress = getAddress(
                 approvalForAllOperation.tokenAddress
@@ -224,11 +224,11 @@ describe.each([
 
             // Assert the response structure
             expect(res).toBeDefined()
-            expect(Array.isArray(res.assetChanges)).toBe(true)
-            expect(res.assetChanges.length).toBe(1) // One native transfer
+            expect(Array.isArray(res.tokenEvents)).toBe(true)
+            expect(res.tokenEvents.length).toBe(1) // One native transfer
 
             // Check native transfer operation
-            const transferOperation = res.assetChanges[0]
+            const transferOperation = res.tokenEvents[0]
             const assetType = transferOperation.assetType
             const from = getAddress(transferOperation.from)
             const to = getAddress(transferOperation.to)
@@ -292,11 +292,11 @@ describe.each([
 
             // Assert the response structure
             expect(res).toBeDefined()
-            expect(Array.isArray(res.assetChanges)).toBe(true)
-            expect(res.assetChanges.length).toBe(2) // Two operations: approve and transfer
+            expect(Array.isArray(res.tokenEvents)).toBe(true)
+            expect(res.tokenEvents.length).toBe(2) // Two operations: approve and transfer
 
             // Check approval operation
-            const approveOperation = res.assetChanges[0]
+            const approveOperation = res.tokenEvents[0]
             const approveAssetType = approveOperation.assetType
             const approveTokenAddress = getAddress(
                 approveOperation.tokenAddress
@@ -314,7 +314,7 @@ describe.each([
             expect(approveType).toBe("approval")
 
             // Check transfer operation
-            const transferOperation = res.assetChanges[1]
+            const transferOperation = res.tokenEvents[1]
             const transferAssetType = transferOperation.assetType
             const transferTokenAddress = getAddress(
                 transferOperation.tokenAddress

@@ -1,6 +1,6 @@
 import { createMethodHandler } from "../createMethodHandler"
 import {
-    AssetChangeEvent,
+    TokenEvents,
     EntryPointV07SimulationsAbi,
     ExecutionErrors,
     PimlicoEntryPointSimulationsAbi,
@@ -114,7 +114,7 @@ function recordNativeTransfer({
 }: {
     step: InterpreterStep
     logger: Logger
-    tracker: AssetChangeEvent[]
+    tracker: TokenEvents[]
 }): void {
     try {
         const { stack } = step
@@ -223,8 +223,8 @@ export const pimlicoTraceTokenEventsHandler = createMethodHandler({
             ]
         })
 
-        // Create asset tracker to record and aggregate events
-        const assetChanges: AssetChangeEvent[] = []
+        // Create token events tracker to record and aggregate events
+        const tokenEvents: TokenEvents[] = []
         const logs: { address: Address; topics: Hex[]; data: Hex }[] = []
 
         const callResult = await tevmClient.tevmCall({
@@ -244,7 +244,7 @@ export const pimlicoTraceTokenEventsHandler = createMethodHandler({
                     recordNativeTransfer({
                         step,
                         logger: rpcHandler.logger,
-                        tracker: assetChanges
+                        tracker: tokenEvents
                     })
                 }
 
@@ -361,7 +361,7 @@ export const pimlicoTraceTokenEventsHandler = createMethodHandler({
 
                         const { tokenId, from, to } = decoded.args
 
-                        assetChanges.push({
+                        tokenEvents.push({
                             assetType: "ERC-721",
                             type: "transfer",
                             tokenAddress: address,
@@ -379,7 +379,7 @@ export const pimlicoTraceTokenEventsHandler = createMethodHandler({
 
                         const { value, from, to } = decoded.args
 
-                        assetChanges.push({
+                        tokenEvents.push({
                             assetType: "ERC-20",
                             type: "transfer",
                             tokenAddress: address,
@@ -411,7 +411,7 @@ export const pimlicoTraceTokenEventsHandler = createMethodHandler({
 
                         const { tokenId, owner, spender } = decoded.args
 
-                        assetChanges.push({
+                        tokenEvents.push({
                             assetType: "ERC-721",
                             type: "approval",
                             tokenAddress: address,
@@ -429,7 +429,7 @@ export const pimlicoTraceTokenEventsHandler = createMethodHandler({
 
                         const { value, owner, spender } = decoded.args
 
-                        assetChanges.push({
+                        tokenEvents.push({
                             assetType: "ERC-20",
                             type: "approval",
                             tokenAddress: address,
@@ -461,7 +461,7 @@ export const pimlicoTraceTokenEventsHandler = createMethodHandler({
 
                         const { owner, operator, approved } = decoded.args
 
-                        assetChanges.push({
+                        tokenEvents.push({
                             assetType: "ERC-721",
                             type: "approvalForAll",
                             tokenAddress: address,
@@ -480,7 +480,7 @@ export const pimlicoTraceTokenEventsHandler = createMethodHandler({
         }
 
         return {
-            assetChanges
+            tokenEvents
         }
     }
 })

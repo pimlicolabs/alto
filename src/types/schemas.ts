@@ -540,7 +540,7 @@ export const nativeTransferSchema = z.object({
     value: hexNumberSchema
 })
 
-export const assetChangeEventSchema = z.union([
+export const tokenEventsSchema = z.union([
     erc721TransferSchema,
     erc721ApprovalSchema,
     erc721ApprovalForAllSchema,
@@ -556,7 +556,7 @@ export const pimlicoTraceTokenEventsSchema = z.object({
         z.tuple([partialUserOperationSchema, addressSchema, hexNumberSchema])
     ]),
     result: z.object({
-        assetChanges: z.array(assetChangeEventSchema)
+        tokenEvents: z.array(tokenEventsSchema)
     })
 })
 
@@ -710,4 +710,4 @@ export type ERC721ApprovalForAll = z.infer<typeof erc721ApprovalForAllSchema>
 export type ERC20Transfer = z.infer<typeof erc20TransferSchema>
 export type ERC20Approval = z.infer<typeof erc20ApprovalSchema>
 export type NativeTransfer = z.infer<typeof nativeTransferSchema>
-export type AssetChangeEvent = z.infer<typeof assetChangeEventSchema>
+export type TokenEvents = z.infer<typeof tokenEventsSchema>
