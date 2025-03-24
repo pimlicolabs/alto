@@ -21,8 +21,7 @@ import {
     encodeFunctionData,
     getAddress,
     toEventSelector,
-    toHex,
-    zeroAddress
+    toHex
 } from "viem"
 import { isVersion06, toPackedUserOperation } from "../../utils/userop"
 import type { AltoConfig } from "../../esm/createConfig"
@@ -70,86 +69,6 @@ type NativeTransferLog = {
 }
 
 type AssetChangeEvent = TransferLog | ApprovalLog | NativeTransferLog
-
-function recordTokenTransfer({
-    step,
-    logger,
-    logs
-}: {
-    step: InterpreterStep
-    logger: Logger
-    logs: AssetChangeEvent[]
-}): void {
-    try {
-        const { stack, memory } = step
-        const stackLength = stack.length
-
-        // Extract event data from the stack
-        const offset = stack[stackLength - 1]
-        const size = stack[stackLength - 2]
-        const topic2 = stack[stackLength - 4] // from address
-        const topic3 = stack[stackLength - 5] // to address
-
-        // Extract addresses and value
-        const from = getAddress(toHex(topic2))
-        const to = getAddress(toHex(topic3))
-        const contractAddress = getAddress(toHex(step.address.bytes))
-
-        // Read value from memory
-        const value = BigInt(
-            toHex(memory.slice(Number(offset), Number(offset) + Number(size)))
-        )
-
-        // Record the transfer
-        logs.push({ type: "TRANSFER", asset: contractAddress, from, to, value })
-    } catch (err) {
-        logger.error({ err }, "Failed to collect transfer log")
-        return
-    }
-}
-
-function recordApproval({
-    step,
-    logger,
-    logs
-}: {
-    step: InterpreterStep
-    logger: Logger
-    logs: AssetChangeEvent[]
-}): void {
-    try {
-        const { stack, memory } = step
-        const stackLength = stack.length
-
-        const offset = stack[stackLength - 1]
-        const size = stack[stackLength - 2]
-        const topic2 = stack[stackLength - 4] // owner address
-        const topic3 = stack[stackLength - 5] // spender address
-
-        const owner = getAddress(toHex(topic2))
-        const spender = getAddress(toHex(topic3))
-        const contractAddress = getAddress(toHex(step.address.bytes))
-
-        // Read value from memory
-        const value = BigInt(
-            toHex(memory.slice(Number(offset), Number(offset) + Number(size)))
-        )
-
-        // Record the transfer
-        logs.push({
-            type: "APPROVAL",
-            asset: contractAddress,
-            owner,
-            spender,
-            value
-        })
-    } catch (err) {
-        if (logger) {
-            logger.error({ err }, "Error processing approval event")
-        }
-        return
-    }
-}
 
 /**
  * Collect native token (ETH) transfers by tracking opcodes that transfer ETH
@@ -278,31 +197,6 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
 
             onStep: (step) => {
                 const { opcode } = step
-
-                // Handle ERC-20 and ERC-721 token transfers via LOG3 events
-                if (opcode.name === "LOG3") {
-                    const { stack } = step
-
-                    // Extract the event signature (topic1)
-                    const topic1 = stack[stack.length - 3]
-                    const eventSignature = toHex(topic1)
-
-                    if (eventSignature === TRANSFER_TOPIC_HASH) {
-                        recordTokenTransfer({
-                            step,
-                            logger: rpcHandler.logger,
-                            logs: assetChangeEvents
-                        })
-                    }
-
-                    if (eventSignature === APPROVAL_TOPIC_HASH) {
-                        recordApproval({
-                            step,
-                            logs: assetChangeEvents,
-                            logger: rpcHandler.logger
-                        })
-                    }
-                }
 
                 // These are the only opcodes that can transfer ETH
                 if (
