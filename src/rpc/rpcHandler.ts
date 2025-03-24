@@ -610,6 +610,7 @@ export class RpcHandler {
                 paymasterVerificationGasLimit,
                 paymasterPostOpGasLimit
             },
+            binarySearch: false,
             entryPoint,
             queuedUserOperations,
             addSenderBalanceOverride: false,

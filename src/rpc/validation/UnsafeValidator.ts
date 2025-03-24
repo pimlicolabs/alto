@@ -156,13 +156,15 @@ export class UnsafeValidator implements InterfaceValidator {
         entryPoint,
         queuedUserOperations,
         addSenderBalanceOverride,
-        stateOverrides
+        stateOverrides,
+        binarySearch
     }: {
         userOperation: UserOperation
         entryPoint: Address
         queuedUserOperations: UserOperation[]
         addSenderBalanceOverride: boolean
         stateOverrides?: StateOverrides
+        binarySearch: boolean
     }): Promise<SimulateHandleOpResult<"execution">> {
         const error = await this.gasEstimationHandler.simulateHandleOp({
             userOperation,
@@ -172,7 +174,8 @@ export class UnsafeValidator implements InterfaceValidator {
             entryPoint,
             targetAddress: zeroAddress,
             targetCallData: "0x",
-            stateOverrides
+            stateOverrides,
+            binarySearch
         })
 
         if (error.result === "failed") {

@@ -47,6 +47,7 @@ export class GasEstimationHandler {
         entryPoint,
         targetAddress,
         targetCallData,
+        binarySearch = true,
         stateOverrides = {}
     }: {
         userOperation: UserOperation
@@ -57,6 +58,7 @@ export class GasEstimationHandler {
         targetAddress: Address
         targetCallData: Hex
         stateOverrides?: StateOverrides
+        binarySearch: boolean
     }): Promise<SimulateHandleOpResult> {
         let finalStateOverride = undefined
 
@@ -83,6 +85,7 @@ export class GasEstimationHandler {
             userOperation: userOperation as UserOperationV07,
             queuedUserOperations: queuedUserOperations as UserOperationV07[],
             entryPoint,
+            binarySearch,
             stateOverrides
         })
     }
