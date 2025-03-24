@@ -236,7 +236,7 @@ function recordNativeTransfer({
         if (value > 0n) {
             tracker.push({
                 assetType: "NATIVE",
-                type: "transfer",
+                event: "transfer",
                 from,
                 to,
                 value
@@ -476,7 +476,7 @@ export const pimlicoTraceTokenEventsHandler = createMethodHandler({
 
                         tokenEvents.push({
                             assetType: "ERC-721",
-                            type: "transfer",
+                            event: "transfer",
                             tokenAddress: address,
                             from,
                             to,
@@ -496,7 +496,7 @@ export const pimlicoTraceTokenEventsHandler = createMethodHandler({
 
                         tokenEvents.push({
                             assetType: "ERC-20",
-                            type: "transfer",
+                            event: "transfer",
                             tokenAddress: address,
                             from,
                             to,
@@ -535,7 +535,7 @@ export const pimlicoTraceTokenEventsHandler = createMethodHandler({
 
                         tokenEvents.push({
                             assetType: "ERC-721",
-                            type: "approval",
+                            event: "approval",
                             tokenAddress: address,
                             owner,
                             spender,
@@ -555,7 +555,7 @@ export const pimlicoTraceTokenEventsHandler = createMethodHandler({
 
                         tokenEvents.push({
                             assetType: "ERC-20",
-                            type: "approval",
+                            event: "approval",
                             tokenAddress: address,
                             owner,
                             spender,
@@ -594,7 +594,7 @@ export const pimlicoTraceTokenEventsHandler = createMethodHandler({
 
                         tokenEvents.push({
                             assetType: "ERC-721",
-                            type: "approvalForAll",
+                            event: "approvalForAll",
                             tokenAddress: address,
                             owner,
                             operator,

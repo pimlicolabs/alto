@@ -489,7 +489,7 @@ export const pimlicoSendUserOperationNowSchema = z.object({
 // Asset change event schemas
 export const erc721TransferSchema = z.object({
     assetType: z.literal("ERC-721"),
-    type: z.literal("transfer"),
+    event: z.literal("transfer"),
     tokenAddress: addressSchema,
     from: addressSchema,
     to: addressSchema,
@@ -501,7 +501,7 @@ export const erc721TransferSchema = z.object({
 
 export const erc721ApprovalSchema = z.object({
     assetType: z.literal("ERC-721"),
-    type: z.literal("approval"),
+    event: z.literal("approval"),
     tokenAddress: addressSchema,
     owner: addressSchema,
     spender: addressSchema,
@@ -513,7 +513,7 @@ export const erc721ApprovalSchema = z.object({
 
 export const erc721ApprovalForAllSchema = z.object({
     assetType: z.literal("ERC-721"),
-    type: z.literal("approvalForAll"),
+    event: z.literal("approvalForAll"),
     tokenAddress: addressSchema,
     owner: addressSchema,
     operator: addressSchema,
@@ -525,7 +525,7 @@ export const erc721ApprovalForAllSchema = z.object({
 
 export const erc20TransferSchema = z.object({
     assetType: z.literal("ERC-20"),
-    type: z.literal("transfer"),
+    event: z.literal("transfer"),
     tokenAddress: addressSchema,
     from: addressSchema,
     to: addressSchema,
@@ -538,7 +538,7 @@ export const erc20TransferSchema = z.object({
 
 export const erc20ApprovalSchema = z.object({
     assetType: z.literal("ERC-20"),
-    type: z.literal("approval"),
+    event: z.literal("approval"),
     tokenAddress: addressSchema,
     owner: addressSchema,
     spender: addressSchema,
@@ -551,7 +551,7 @@ export const erc20ApprovalSchema = z.object({
 
 export const nativeTransferSchema = z.object({
     assetType: z.literal("NATIVE"),
-    type: z.literal("transfer"),
+    event: z.literal("transfer"),
     from: addressSchema,
     to: addressSchema,
     value: hexNumberSchema

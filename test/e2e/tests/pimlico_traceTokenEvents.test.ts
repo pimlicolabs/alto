@@ -105,7 +105,7 @@ describe.each([
             const tokenId = fromHex(approveOperation.tokenId, "bigint")
             const owner = getAddress(approveOperation.owner)
             const spender = getAddress(approveOperation.spender)
-            const type = approveOperation.type
+            const type = approveOperation.event
 
             expect(assetType).toBe("ERC-721")
             expect(tokenAddress).toBe(mockERC721Address)
@@ -127,7 +127,7 @@ describe.each([
             const transferTokenId = fromHex(transferOperation.tokenId, "bigint")
             const transferFrom = getAddress(transferOperation.from)
             const transferTo = getAddress(transferOperation.to)
-            const transferType = transferOperation.type
+            const transferType = transferOperation.event
 
             expect(transferAssetType).toBe("ERC-721")
             expect(transferTokenAddress).toBe(mockERC721Address)
@@ -193,7 +193,7 @@ describe.each([
             const owner = getAddress(approvalForAllOperation.owner)
             const operatorAddress = getAddress(approvalForAllOperation.operator)
             const isApproved = approvalForAllOperation.approved
-            const type = approvalForAllOperation.type
+            const type = approvalForAllOperation.event
 
             expect(assetType).toBe("ERC-721")
             expect(tokenAddress).toBe(mockERC721Address)
@@ -245,7 +245,7 @@ describe.each([
             const from = getAddress(transferOperation.from)
             const to = getAddress(transferOperation.to)
             const value = fromHex(transferOperation.value, "bigint")
-            const type = transferOperation.type
+            const type = transferOperation.event
 
             expect(assetType).toBe("NATIVE")
             expect(from).toBe(smartAccountClient.account.address)
@@ -316,7 +316,7 @@ describe.each([
             const approveValue = fromHex(approveOperation.value, "bigint")
             const approveOwner = getAddress(approveOperation.owner)
             const approveSpender = getAddress(approveOperation.spender)
-            const approveType = approveOperation.type
+            const approveType = approveOperation.event
 
             expect(approveAssetType).toBe("ERC-20")
             expect(approveTokenAddress).toBe(mockERC20Address)
@@ -339,7 +339,7 @@ describe.each([
             const transferValue = fromHex(transferOperation.value, "bigint")
             const transferFrom = getAddress(transferOperation.from)
             const transferTo = getAddress(transferOperation.to)
-            const transferType = transferOperation.type
+            const transferType = transferOperation.event
 
             expect(transferAssetType).toBe("ERC-20")
             expect(transferTokenAddress).toBe(mockERC20Address)
