@@ -13,18 +13,9 @@ import {
 } from "@alto/utils"
 // biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
 import * as sentry from "@sentry/node"
-import {
-    type Account,
-    type Chain,
-    type PublicClient,
-    type Transport,
-    type WalletClient,
-    BaseError,
-    encodeFunctionData,
-    Address,
-    Hex
-} from "viem"
+import { type Account, BaseError, encodeFunctionData, Address, Hex } from "viem"
 import { SignedAuthorizationList } from "viem/experimental"
+import { AltoConfig } from "../createConfig"
 
 export const isTransactionUnderpricedError = (e: BaseError) => {
     return e?.details
@@ -45,9 +36,17 @@ export function calculateAA95GasFloor(userOps: UserOpInfo[]): bigint {
                 (userOp.paymasterPostOpGasLimit || 0n) +
                 10_000n
             gasFloor += (totalGas * 64n) / 63n
+
+            // AA95 check happens after verification + paymaster verification
+            gasFloor +=
+                userOp.verificationGasLimit +
+                (userOp.paymasterVerificationGasLimit || 0n)
         } else {
             gasFloor +=
                 userOp.callGasLimit + userOp.verificationGasLimit + 5000n
+
+            // AA95 check happens after verification + paymaster verification
+            gasFloor += userOp.verificationGasLimit
         }
     }
 
@@ -96,13 +95,20 @@ export const getAuthorizationList = (
     return authList.length ? authList : undefined
 }
 
-export async function flushStuckTransaction(
-    publicClient: PublicClient,
-    walletClient: WalletClient<Transport, Chain, Account | undefined>,
-    wallet: Account,
-    gasPrice: bigint,
+export async function flushStuckTransaction({
+    config,
+    wallet,
+    gasPrice,
+    logger
+}: {
+    config: AltoConfig
+    wallet: Account
+    gasPrice: bigint
     logger: Logger
-) {
+}) {
+    const publicClient = config.publicClient
+    const walletClient = config.walletClient
+
     const latestNonce = await publicClient.getTransactionCount({
         address: wallet.address,
         blockTag: "latest"

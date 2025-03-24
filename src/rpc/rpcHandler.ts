@@ -2,9 +2,8 @@ import type { Executor, ExecutorManager } from "@alto/executor"
 import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
-    MemoryMempool,
-    Monitor,
-    NonceQueuer
+    Mempool,
+    Monitor
 } from "@alto/mempool"
 import type { ApiVersion, BundlerRequest, StateOverrides } from "@alto/types"
 import {
@@ -39,10 +38,9 @@ import { registerHandlers } from "./methods"
 export class RpcHandler {
     public config: AltoConfig
     public validator: InterfaceValidator
-    public mempool: MemoryMempool
+    public mempool: Mempool
     public executor: Executor
     public monitor: Monitor
-    public nonceQueuer: NonceQueuer
     public executorManager: ExecutorManager
     public reputationManager: InterfaceReputationManager
     public metrics: Metrics
@@ -58,7 +56,6 @@ export class RpcHandler {
         mempool,
         executor,
         monitor,
-        nonceQueuer,
         executorManager,
         reputationManager,
         metrics,
@@ -67,10 +64,9 @@ export class RpcHandler {
     }: {
         config: AltoConfig
         validator: InterfaceValidator
-        mempool: MemoryMempool
+        mempool: Mempool
         executor: Executor
         monitor: Monitor
-        nonceQueuer: NonceQueuer
         executorManager: ExecutorManager
         reputationManager: InterfaceReputationManager
         metrics: Metrics
@@ -82,7 +78,6 @@ export class RpcHandler {
         this.mempool = mempool
         this.executor = executor
         this.monitor = monitor
-        this.nonceQueuer = nonceQueuer
         this.executorManager = executorManager
         this.reputationManager = reputationManager
         this.metrics = metrics
@@ -133,15 +128,6 @@ export class RpcHandler {
         if (!this.config.enableDebugEndpoints) {
             throw new RpcError(
                 `${methodName} is only available in development environment`
-            )
-        }
-    }
-
-    ensureExperimentalEndpointsAreEnabled(methodName: string) {
-        if (!this.config.enableExperimental7702Endpoints) {
-            throw new RpcError(
-                `${methodName} endpoint is not enabled`,
-                ValidationErrors.InvalidFields
             )
         }
     }
@@ -225,7 +211,7 @@ export class RpcHandler {
         const opHash = getUserOperationHash(
             userOperation,
             entryPoint,
-            this.config.publicClient.chain.id
+            this.config.chainId
         )
 
         await this.preMempoolChecks(
@@ -257,22 +243,22 @@ export class RpcHandler {
         }
 
         const queuedUserOperations: UserOperation[] =
-            await this.mempool.getQueuedUserOperations(
-                userOperation,
-                entryPoint,
-                currentNonceValue
-            )
+            await this.mempool.getQueuedOustandingUserOps({
+                userOp: userOperation,
+                entryPoint
+            })
 
         if (
             userOperationNonceValue >
             currentNonceValue + BigInt(queuedUserOperations.length)
         ) {
-            this.nonceQueuer.add(userOperation, entryPoint)
+            this.mempool.add(userOperation, entryPoint)
+            this.eventManager.emitQueued(opHash)
             return "queued"
         }
 
         if (this.config.dangerousSkipUserOperationValidation) {
-            const [success, errorReason] = this.mempool.add(
+            const [success, errorReason] = await this.mempool.add(
                 userOperation,
                 entryPoint
             )
@@ -293,7 +279,10 @@ export class RpcHandler {
                 entryPoint
             })
         }
-        await this.mempool.checkEntityMultipleRoleViolation(userOperation)
+        await this.mempool.checkEntityMultipleRoleViolation(
+            entryPoint,
+            userOperation
+        )
 
         const validationResult = await this.validator.validateUserOperation({
             userOperation,
@@ -307,7 +296,12 @@ export class RpcHandler {
             validationResult
         )
 
-        const [success, errorReason] = this.mempool.add(
+        await this.mempool.checkEntityMultipleRoleViolation(
+            entryPoint,
+            userOperation
+        )
+
+        const [success, errorReason] = await this.mempool.add(
             userOperation,
             entryPoint,
             validationResult.referencedContracts
@@ -438,11 +432,11 @@ export class RpcHandler {
                 )
             }
 
-            queuedUserOperations = await this.mempool.getQueuedUserOperations(
-                userOperation,
-                entryPoint,
-                currentNonceValue
-            )
+            queuedUserOperations =
+                await this.mempool.getQueuedOustandingUserOps({
+                    userOp: userOperation,
+                    entryPoint
+                })
 
             if (
                 userOperationNonceValue >
@@ -499,7 +493,7 @@ export class RpcHandler {
         } = calcVerificationGasAndCallGasLimit(
             simulationUserOperation,
             executionResult.data.executionResult,
-            this.config.publicClient.chain.id,
+            this.config.chainId,
             executionResult.data
         )
 
@@ -538,15 +532,15 @@ export class RpcHandler {
         }
 
         if (
-            this.config.publicClient.chain.id === base.id ||
-            this.config.publicClient.chain.id === baseSepolia.id
+            this.config.chainId === base.id ||
+            this.config.chainId === baseSepolia.id
         ) {
             callGasLimit += 10_000n
         }
 
         if (
-            this.config.publicClient.chain.id === base.id ||
-            this.config.publicClient.chain.id === optimism.id
+            this.config.chainId === base.id ||
+            this.config.chainId === optimism.id
         ) {
             callGasLimit = maxBigInt(callGasLimit, 120_000n)
         }

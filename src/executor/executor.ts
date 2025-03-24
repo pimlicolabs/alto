@@ -1,5 +1,5 @@
 import type { EventManager, GasPriceManager } from "@alto/handlers"
-import type { InterfaceReputationManager, MemoryMempool } from "@alto/mempool"
+import type { InterfaceReputationManager, Mempool } from "@alto/mempool"
 import {
     type Address,
     type BundleResult,
@@ -71,7 +71,7 @@ export class Executor {
     metrics: Metrics
     reputationManager: InterfaceReputationManager
     gasPriceManager: GasPriceManager
-    mempool: MemoryMempool
+    mempool: Mempool
     eventManager: EventManager
 
     constructor({
@@ -83,7 +83,7 @@ export class Executor {
         eventManager
     }: {
         config: AltoConfig
-        mempool: MemoryMempool
+        mempool: Mempool
         reputationManager: InterfaceReputationManager
         metrics: Metrics
         gasPriceManager: GasPriceManager
@@ -294,10 +294,7 @@ export class Executor {
 
         // Ensure that we don't submit with gas too low leading to AA95.
         const aa95GasFloor = calculateAA95GasFloor(userOpsToBundle)
-
-        if (gasLimit < aa95GasFloor) {
-            gasLimit += aa95GasFloor
-        }
+        gasLimit = maxBigInt(gasLimit, aa95GasFloor)
 
         // sometimes the estimation rounds down, adding a fixed constant accounts for this
         gasLimit += 10_000n

@@ -199,7 +199,7 @@ const partialUserOperationSchema = z.union([
     partialUserOperationV07Schema
 ])
 
-const userOperationSchema = z.union([
+export const userOperationSchema = z.union([
     userOperationV06Schema,
     userOperationV07Schema
 ])
@@ -277,7 +277,7 @@ const userOperationReceiptSchema = z
 
 export type UserOperationReceipt = z.infer<typeof userOperationReceiptSchema>
 
-const userOperationStatus = z.object({
+export const userOperationStatusSchema = z.object({
     status: z.enum([
         "not_found",
         "not_submitted",
@@ -290,7 +290,7 @@ const userOperationStatus = z.object({
     transactionHash: hexData32Schema.or(z.null())
 })
 
-export type UserOperationStatus = z.infer<typeof userOperationStatus>
+export type UserOperationStatus = z.infer<typeof userOperationStatusSchema>
 
 const gasPriceSchema = z.object({
     slow: z.object({
@@ -471,7 +471,7 @@ export const debugGetStakeStatusSchema = z.object({
 export const pimlicoGetUserOperationStatusSchema = z.object({
     method: z.literal("pimlico_getUserOperationStatus"),
     params: z.tuple([hexData32Schema]),
-    result: userOperationStatus
+    result: userOperationStatusSchema
 })
 
 export const pimlicoGetUserOperationGasPriceSchema = z.object({
@@ -484,39 +484,6 @@ export const pimlicoSendUserOperationNowSchema = z.object({
     method: z.literal("pimlico_sendUserOperationNow"),
     params: z.tuple([userOperationSchema, addressSchema]),
     result: userOperationReceiptSchema
-})
-
-export const pimlicoExperimentalEstimateUserOperationGas7702Schema = z.object({
-    method: z.literal("pimlico_experimental_estimateUserOperationGas7702"),
-    params: z.union([
-        z.tuple([partialUserOperationSchema, addressSchema]),
-        z.tuple([
-            partialUserOperationSchema,
-            addressSchema,
-            stateOverridesSchema
-        ])
-    ]),
-    result: z.union([
-        z.object({
-            callGasLimit: hexNumberSchema,
-            preVerificationGas: hexNumberSchema,
-            verificationGasLimit: hexNumberSchema,
-            verificationGas: hexNumberSchema.optional()
-        }),
-        z.object({
-            callGasLimit: hexNumberSchema,
-            preVerificationGas: hexNumberSchema,
-            verificationGasLimit: hexNumberSchema,
-            paymasterVerificationGasLimit: hexNumberSchema.optional(),
-            paymasterPostOpGasLimit: hexNumberSchema.optional()
-        })
-    ])
-})
-
-export const pimlicoExperimentalSendUserOperation7702Schema = z.object({
-    method: z.literal("pimlico_experimental_sendUserOperation7702"),
-    params: z.tuple([userOperationSchema, addressSchema]),
-    result: hexData32Schema
 })
 
 export const altoVersions = z.enum(["v1", "v2"])
@@ -541,11 +508,7 @@ export const bundlerRequestSchema = z.discriminatedUnion("method", [
     debugGetStakeStatusSchema.omit({ result: true }),
     pimlicoGetUserOperationStatusSchema.omit({ result: true }),
     pimlicoGetUserOperationGasPriceSchema.omit({ result: true }),
-    pimlicoSendUserOperationNowSchema.omit({ result: true }),
-    pimlicoExperimentalSendUserOperation7702Schema.omit({ result: true }),
-    pimlicoExperimentalEstimateUserOperationGas7702Schema.omit({
-        result: true
-    })
+    pimlicoSendUserOperationNowSchema.omit({ result: true })
 ])
 export type BundlerRequest = z.infer<typeof bundlerRequestSchema>
 
@@ -567,9 +530,7 @@ export const bundlerRpcSchema = z.union([
     debugGetStakeStatusSchema,
     pimlicoGetUserOperationStatusSchema,
     pimlicoGetUserOperationGasPriceSchema,
-    pimlicoSendUserOperationNowSchema,
-    pimlicoExperimentalSendUserOperation7702Schema,
-    pimlicoExperimentalEstimateUserOperationGas7702Schema
+    pimlicoSendUserOperationNowSchema
 ])
 
 export type BundlingMode = z.infer<
@@ -643,3 +604,25 @@ const OpEventType = z.union([
 ])
 
 export type OpEventType = z.infer<typeof OpEventType>
+
+// Types used for internal mempool.
+export const referencedCodeHashesSchema = z.object({
+    addresses: z.array(z.string()),
+    hash: z.string()
+})
+
+export const userOpDetailsSchema = z.object({
+    userOpHash: hexData32Schema,
+    // timestamp when the bundling process begins (when it leaves outstanding mempool)
+    addedToMempool: z.number(),
+    referencedContracts: referencedCodeHashesSchema.optional()
+})
+
+export const userOpInfoSchema = userOpDetailsSchema.extend({
+    userOp: userOperationSchema
+})
+
+// Export types derived from schemas
+export type ReferencedCodeHashes = z.infer<typeof referencedCodeHashesSchema>
+export type UserOpDetails = z.infer<typeof userOpDetailsSchema>
+export type UserOpInfo = z.infer<typeof userOpInfoSchema>

@@ -9,7 +9,8 @@ import type {
     ILogArgsInput,
     IOptionsInput,
     IRpcArgsInput,
-    IServerArgsInput
+    IServerArgsInput,
+    IMempoolArgsInput
 } from "./bundler"
 
 export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
@@ -110,16 +111,76 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "boolean",
         default: false
     },
-    "enable-experimental-7702-endpoints": {
-        description:
-            "Should the bundler enable the pimlico_experimental_sendUserOperation7702 and pimlico_experimental_estimateUserOperationGas7702 endpoint",
-        type: "boolean",
-        default: false
-    },
     "should-check-prefund": {
         description:
             "Should the bundler check userOp's prefund before accepting it",
         type: "boolean",
+        default: true
+    }
+}
+
+export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
+    "redis-mempool-url": {
+        description:
+            "Redis connection URL (required if redis-mempool is enabled)",
+        type: "string",
+        require: false
+    },
+    "redis-mempool-concurrency": {
+        description: "Number of concurrent jobs to process",
+        type: "number",
+        require: false,
+        default: 10
+    },
+    "redis-mempool-queue-name": {
+        description: "Redis mempool queue name",
+        type: "string",
+        require: false,
+        default: "outstanding-mempool"
+    },
+    "redis-gas-price-queue-url": {
+        description:
+            "Redis connection URL (required if redis-gas-price-queue is enabled)",
+        type: "string",
+        require: false
+    },
+    "redis-gas-price-queue-name": {
+        description: "Queue name to store gas prices",
+        type: "string",
+        require: false,
+        default: "gas-price"
+    },
+    "redis-sender-manager-url": {
+        description:
+            "Redis connection URL (required if redis-sender-manager is enabled)",
+        type: "string",
+        require: false
+    },
+    "redis-sender-manager-queue-name": {
+        description: "Queue name to executors",
+        type: "string",
+        require: false,
+        default: "sender-manager"
+    },
+    "mempool-max-parallel-ops": {
+        description:
+            "Maximum amount of parallel user ops to keep in the mempool (same sender, different nonce keys)",
+        type: "number",
+        require: false,
+        default: 10
+    },
+    "mempool-max-queued-ops": {
+        description:
+            "Maximum amount of sequential user ops to keep in the mempool (same sender and nonce key, different nonce values)",
+        type: "number",
+        require: false,
+        default: 0
+    },
+    "enforce-unique-senders-per-bundle": {
+        description:
+            "Include user ops with the same sender in the single bundle",
+        type: "boolean",
+        require: false,
         default: true
     }
 }

@@ -5,6 +5,6 @@ export const ethChainIdHandler = createMethodHandler({
     method: "eth_chainId",
     schema: chainIdSchema,
     handler: ({ rpcHandler }) => {
-        return BigInt(rpcHandler.config.publicClient.chain.id)
+        return BigInt(rpcHandler.config.chainId)
     }
 })

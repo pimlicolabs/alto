@@ -25,7 +25,7 @@ export class EventManager {
         config: AltoConfig
         metrics: Metrics
     }) {
-        this.chainId = config.publicClient.chain.id
+        this.chainId = config.chainId
 
         this.logger = config.getLogger(
             { module: "event_manager" },
@@ -36,6 +36,9 @@ export class EventManager {
         this.metrics = metrics
 
         if (config.redisQueueEndpoint && config.redisEventManagerQueueName) {
+            this.logger.info(
+                `Using redis with queue name ${config.redisEventManagerQueueName} for userOp event queue`
+            )
             const redis = new Redis(config.redisQueueEndpoint)
 
             this.redisEventManagerQueue = new Queue<QueueMessage>(
@@ -235,12 +238,12 @@ export class EventManager {
                 removeOnFail: true
             })
             jobStatus = "success"
-        } catch (e) {
+        } catch (err) {
             this.logger.error(
-                e,
-                "Failed to send userOperation status event due to "
+                { err },
+                "Failed to send userOperation status event"
             )
-            sentry.captureException(e)
+            sentry.captureException(err)
             jobStatus = "failed"
         }
 

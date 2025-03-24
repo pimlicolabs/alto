@@ -150,7 +150,7 @@ export class SafeValidator
             hash = (error.walk() as any).data
         }
 
-        this.senderManager.pushWallet(wallet)
+        this.senderManager.markWalletProcessed(wallet)
 
         return {
             hash,
