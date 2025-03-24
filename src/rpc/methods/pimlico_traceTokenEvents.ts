@@ -75,20 +75,19 @@ const getTokenInfo = async (
     tevmClient: PublicClient,
     logger: Logger
 ): Promise<TokenInfo> => {
-    // Return cached token info if available
     const cached = tokenInfoCache.get(address)
     if (cached) return cached
 
-    // Determine token type first
-    let tokenType: "ERC-20" | "ERC-721"
+    let tokenType: "ERC-20" | "ERC-721" = "ERC-20"
 
     try {
-        // Check if token supports ERC-721 interface via ERC-165
+        // Method 1: Check ERC-165 interface support
+        // ERC-721 tokens must implement ERC-165 and return true for the ERC-721 interface ID
         const erc165Abi = parseAbi([
             "function supportsInterface(bytes4) returns (bool)"
         ])
 
-        const supportsErc721 = await tevmClient.call({
+        const supportsErc721Response = await tevmClient.call({
             to: address,
             data: encodeFunctionData({
                 abi: erc165Abi,
@@ -97,12 +96,17 @@ const getTokenInfo = async (
             })
         })
 
-        if (hexToBool(supportsErc721.data || "0x0")) {
+        // If the contract confirms it implements ERC-721 via ERC-165
+        if (hexToBool(supportsErc721Response.data || "0x0")) {
+            logger.debug(`Token ${address} identified as ERC-721 via ERC-165`)
             tokenType = "ERC-721"
-        } else {
-            // Try ERC-721 ownerOf as fallback check
+        }
+
+        // If ERC-165 check doesn't confirm ERC-721, try another method
+        else {
+            // Method 2: Try calling a a ERC-721 only method
             try {
-                const ownerOf = await tevmClient.call({
+                const ownerOfResponse = await tevmClient.call({
                     to: address,
                     data: encodeFunctionData({
                         abi: erc721Abi,
@@ -111,25 +115,28 @@ const getTokenInfo = async (
                     })
                 })
 
-                if (ownerOf.data && isAddress(ownerOf.data)) {
+                // If ownerOf returns an address, it's likely an ERC-721
+                if (ownerOfResponse.data && isAddress(ownerOfResponse.data)) {
                     tokenType = "ERC-721"
-                } else {
-                    tokenType = "ERC-20" // Default to ERC-20
+                    logger.debug(
+                        `Token ${address} identified as ERC-721 via ownerOf check`
+                    )
                 }
             } catch {
-                tokenType = "ERC-20" // Default to ERC-20 if ownerOf call fails
+                // If ownerOf fails, it's probably not an ERC-721
+                logger.debug(
+                    `Token ${address} is not ERC-721 (ownerOf check failed)`
+                )
             }
         }
     } catch (err) {
-        // Default to ERC-20 if ERC-721 checks fail
-        tokenType = "ERC-20"
+        // Log any errors but continue with our default ERC-20 assumption
         logger.debug(
             { err },
-            "Failed to determine token type, defaulting to ERC-20"
+            `Failed to determine if ${address} is ERC-721, treating as ERC-20`
         )
     }
 
-    // Now fetch the metadata based on the determined token type
     const metadata: { name?: string; symbol?: string; decimals?: number } = {}
 
     // Fetch common metadata fields: name and symbol
