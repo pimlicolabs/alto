@@ -258,17 +258,7 @@ export class GasEstimatorV07 {
                 stateOverrides
             })
 
-            cause = cause.map((data: Hex) => {
-                const decodedDelegateAndError = decodeErrorResult({
-                    abi: EntryPointV07Abi,
-                    data: data
-                })
-
-                if (!decodedDelegateAndError?.args?.[1]) {
-                    throw new Error("Unexpected error")
-                }
-                return decodedDelegateAndError.args[1] as Hex
-            })
+            cause = cause.map(decodeDelegateAndRevertResponse)
 
             const callGasLimitResult = validateBinarySearchDataResult(
                 cause[0],
@@ -527,19 +517,7 @@ export class GasEstimatorV07 {
             if (!data) {
                 return null
             }
-            const decodedDelegateAndError = decodeErrorResult({
-                abi: EntryPointV07Abi,
-                data: data
-            })
-
-            const delegateAndRevertResponseBytes =
-                decodedDelegateAndError?.args?.[1]
-
-            if (!delegateAndRevertResponseBytes) {
-                throw new Error("Unexpected error")
-            }
-
-            return delegateAndRevertResponseBytes as Hex
+            return decodeDelegateAndRevertResponse(data)
         }) as [Hex, Hex, Hex | null, Hex]
 
         const [
@@ -718,9 +696,7 @@ export class GasEstimatorV07 {
         const publicClient = this.config.publicClient
         const blockTagSupport = this.config.blockTagSupport
 
-        const utilityWalletAddress =
-            this.config.utilityPrivateKey?.address ??
-            "0x4337000c2828F5260d8921fD25829F606b9E8680"
+        const utilityWalletAddress = this.config.utilityWalletAddress
         const entryPointSimulationsAddress =
             this.config.entrypointSimulationContract
         const fixedGasLimitForEstimation =
@@ -831,23 +807,32 @@ export function parseFailedOpWithRevert(data: Hex) {
     return data
 }
 
+export function decodeDelegateAndRevertResponse(data: Hex) {
+    const decodedDelegateAndError = decodeErrorResult({
+        abi: EntryPointV07Abi,
+        data: data
+    })
+
+    const delegateAndRevertResponseBytes = decodedDelegateAndError?.args?.[1]
+
+    if (!delegateAndRevertResponseBytes) {
+        throw new Error("Unexpected error")
+    }
+
+    return delegateAndRevertResponseBytes as Hex
+}
+
 export function getSimulateValidationResult(errorData: Hex): {
     status: "failed" | "validation"
     data: ValidationResultV07 | Hex | string
 } {
-    const decodedDelegateAndError = decodeErrorResult({
-        abi: EntryPointV07Abi,
-        data: errorData
-    })
-
-    if (!decodedDelegateAndError?.args?.[1]) {
-        throw new Error("Unexpected error")
-    }
+    const delegateAndRevertResponseBytes =
+        decodeDelegateAndRevertResponse(errorData)
 
     try {
         const decodedError = decodeErrorResult({
             abi: EntryPointV07SimulationsAbi,
-            data: decodedDelegateAndError.args[1] as Hex
+            data: delegateAndRevertResponseBytes
         })
 
         if (
@@ -876,7 +861,7 @@ export function getSimulateValidationResult(errorData: Hex): {
     } catch {
         const decodedResult = decodeAbiParameters(
             simulationValidationResultStruct,
-            decodedDelegateAndError.args[1] as Hex
+            delegateAndRevertResponseBytes
         )[0]
 
         return {
@@ -968,7 +953,7 @@ function validateBinarySearchDataResult(
     }
 }
 
-function getSimulateHandleOpResult(data: Hex): SimulateHandleOpResult {
+export function getSimulateHandleOpResult(data: Hex): SimulateHandleOpResult {
     try {
         const decodedError = decodeErrorResult({
             abi: EntryPointV07SimulationsAbi,

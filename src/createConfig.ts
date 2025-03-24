@@ -1,7 +1,13 @@
 import type { IOptions } from "@alto/cli"
 import type { CamelCasedProperties } from "./cli/parseArgs"
 import type { Bindings, ChildLoggerOptions, Logger } from "pino"
-import type { Chain, PublicClient, Transport, WalletClient } from "viem"
+import type {
+    Address,
+    Chain,
+    PublicClient,
+    Transport,
+    WalletClient
+} from "viem"
 
 export type AltoConfig = Readonly<CamelCasedProperties<IOptions>> & {
     getLogger: <ChildCustomLevels extends string = never>(
@@ -10,6 +16,7 @@ export type AltoConfig = Readonly<CamelCasedProperties<IOptions>> & {
     ) => Logger<ChildCustomLevels>
     readonly publicClient: PublicClient<Transport, Chain>
     readonly walletClient: WalletClient<Transport, Chain>
+    readonly utilityWalletAddress: Address
     readonly chainId: number
 }
 
@@ -24,6 +31,9 @@ export function createConfig(
 
     return {
         ...rest,
+        utilityWalletAddress:
+            config.utilityPrivateKey?.address ??
+            "0x4337000c2828F5260d8921fD25829F606b9E8680",
         chainId: config.publicClient.chain.id,
         getLogger: (bindings, options) => logger.child(bindings, options)
     }

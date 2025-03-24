@@ -497,6 +497,97 @@ export const pimlicoSendUserOperationNowSchema = z.object({
     result: userOperationReceiptSchema
 })
 
+// Asset change event schemas
+export const erc721TransferSchema = z.object({
+    assetType: z.literal("ERC-721"),
+    event: z.literal("transfer"),
+    tokenAddress: addressSchema,
+    from: addressSchema,
+    to: addressSchema,
+    tokenId: hexNumberSchema,
+    // Token metadata
+    name: z.string().optional(),
+    symbol: z.string().optional()
+})
+
+export const erc721ApprovalSchema = z.object({
+    assetType: z.literal("ERC-721"),
+    event: z.literal("approval"),
+    tokenAddress: addressSchema,
+    owner: addressSchema,
+    spender: addressSchema,
+    tokenId: hexNumberSchema,
+    // Token metadata
+    name: z.string().optional(),
+    symbol: z.string().optional()
+})
+
+export const erc721ApprovalForAllSchema = z.object({
+    assetType: z.literal("ERC-721"),
+    event: z.literal("approvalForAll"),
+    tokenAddress: addressSchema,
+    owner: addressSchema,
+    operator: addressSchema,
+    approved: z.boolean(),
+    // Token metadata
+    name: z.string().optional(),
+    symbol: z.string().optional()
+})
+
+export const erc20TransferSchema = z.object({
+    assetType: z.literal("ERC-20"),
+    event: z.literal("transfer"),
+    tokenAddress: addressSchema,
+    from: addressSchema,
+    to: addressSchema,
+    value: hexNumberSchema,
+    // Token metadata
+    name: z.string().optional(),
+    symbol: z.string().optional(),
+    decimals: z.number().optional()
+})
+
+export const erc20ApprovalSchema = z.object({
+    assetType: z.literal("ERC-20"),
+    event: z.literal("approval"),
+    tokenAddress: addressSchema,
+    owner: addressSchema,
+    spender: addressSchema,
+    value: hexNumberSchema,
+    // Token metadata
+    name: z.string().optional(),
+    symbol: z.string().optional(),
+    decimals: z.number().optional()
+})
+
+export const nativeTransferSchema = z.object({
+    assetType: z.literal("NATIVE"),
+    event: z.literal("transfer"),
+    from: addressSchema,
+    to: addressSchema,
+    value: hexNumberSchema
+})
+
+export const tokenEventsSchema = z.union([
+    erc721TransferSchema,
+    erc721ApprovalSchema,
+    erc721ApprovalForAllSchema,
+    erc20TransferSchema,
+    erc20ApprovalSchema,
+    nativeTransferSchema
+])
+
+export const pimlicoTraceTokenEventsSchema = z.object({
+    method: z.literal("pimlico_traceTokenEvents"),
+    params: z.union([
+        z.tuple([partialUserOperationSchema, addressSchema]),
+        z.tuple([partialUserOperationSchema, addressSchema, hexNumberSchema])
+    ]),
+    result: z.object({
+        tokenEvents: z.array(tokenEventsSchema)
+    })
+})
+
 export const altoVersions = z.enum(["v1", "v2"])
 export type AltoVersions = z.infer<typeof altoVersions>
 
@@ -519,7 +610,8 @@ export const bundlerRequestSchema = z.discriminatedUnion("method", [
     debugGetStakeStatusSchema.omit({ result: true }),
     pimlicoGetUserOperationStatusSchema.omit({ result: true }),
     pimlicoGetUserOperationGasPriceSchema.omit({ result: true }),
-    pimlicoSendUserOperationNowSchema.omit({ result: true })
+    pimlicoSendUserOperationNowSchema.omit({ result: true }),
+    pimlicoTraceTokenEventsSchema.omit({ result: true })
 ])
 export type BundlerRequest = z.infer<typeof bundlerRequestSchema>
 
@@ -541,7 +633,8 @@ export const bundlerRpcSchema = z.union([
     debugGetStakeStatusSchema,
     pimlicoGetUserOperationStatusSchema,
     pimlicoGetUserOperationGasPriceSchema,
-    pimlicoSendUserOperationNowSchema
+    pimlicoSendUserOperationNowSchema,
+    pimlicoTraceTokenEventsSchema
 ])
 
 export type BundlingMode = z.infer<
@@ -637,3 +730,12 @@ export const userOpInfoSchema = userOpDetailsSchema.extend({
 export type ReferencedCodeHashes = z.infer<typeof referencedCodeHashesSchema>
 export type UserOpDetails = z.infer<typeof userOpDetailsSchema>
 export type UserOpInfo = z.infer<typeof userOpInfoSchema>
+
+// Export asset change types
+export type ERC721Transfer = z.infer<typeof erc721TransferSchema>
+export type ERC721Approval = z.infer<typeof erc721ApprovalSchema>
+export type ERC721ApprovalForAll = z.infer<typeof erc721ApprovalForAllSchema>
+export type ERC20Transfer = z.infer<typeof erc20TransferSchema>
+export type ERC20Approval = z.infer<typeof erc20ApprovalSchema>
+export type NativeTransfer = z.infer<typeof nativeTransferSchema>
+export type TokenEvents = z.infer<typeof tokenEventsSchema>
