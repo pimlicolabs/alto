@@ -1,7 +1,5 @@
 import { deepHexlify } from "permissionless"
 import {
-    createClient,
-    http,
     parseEther,
     type Address,
     encodeFunctionData,
@@ -10,10 +8,8 @@ import {
 } from "viem"
 import {
     type EntryPointVersion,
-    type UserOperation,
     entryPoint07Address
 } from "viem/account-abstraction"
-import { foundry } from "viem/chains"
 import { beforeAll, beforeEach, describe, expect, inject, test } from "vitest"
 import { deployMockERC721, mintERC721 } from "../src/mockERC721.js"
 import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils/index.js"
@@ -27,7 +23,7 @@ describe.each([
     }
 ])(
     "$entryPointVersion supports pimlico_simulateAssetChange for tokens",
-    ({ entryPoint, entryPointVersion }) => {
+    ({ entryPointVersion }) => {
         const anvilRpc = inject("anvilRpc")
         const altoRpc = inject("altoRpc")
 
