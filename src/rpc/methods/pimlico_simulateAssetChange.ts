@@ -17,9 +17,16 @@ import { optimism as tevmOptimism } from "tevm/common"
 import {
     Address,
     Hex,
+    PublicClient,
     decodeAbiParameters,
+    decodeEventLog,
     encodeFunctionData,
+    erc20Abi,
+    erc721Abi,
     getAddress,
+    hexToBool,
+    isAddress,
+    parseAbi,
     toEventSelector,
     toHex
 } from "viem"
@@ -38,6 +45,9 @@ const TRANSFER_TOPIC_HASH = toEventSelector(
 const APPROVAL_TOPIC_HASH = toEventSelector(
     "event Approval(address indexed owner, address indexed spender, uint256 value)"
 )
+
+// ERC-165 interface ID for ERC-721
+const ERC721_INTERFACE_ID = "0x80ac58cd"
 
 // ERC-721 specific approvals (not used yet, but defined for future use)
 // const APPROVAL_FOR_ALL_TOPIC_HASH = toEventSelector(
@@ -70,10 +80,64 @@ type NativeTransferLog = {
 
 type AssetChangeEvent = TransferLog | ApprovalLog | NativeTransferLog
 
-/**
- * Collect native token (ETH) transfers by tracking opcodes that transfer ETH
- * - CALL/CALLCODE: direct ETH transfers to existing addresses
- */
+const tokenTypeCache = new Map<Address, "ERC-20" | "ERC-721">()
+
+const checkTokenType = async (
+    address: Address,
+    tevmClient: PublicClient,
+    tokenIdToCheck: bigint
+): Promise<"ERC-20" | "ERC-721"> => {
+    const cached = tokenTypeCache.get(address)
+    if (cached) return cached
+
+    try {
+        // First check if contract supports ERC-721 interface via ERC-165
+        const supportsErc721 = await tevmClient.call({
+            to: address,
+            data: encodeFunctionData({
+                abi: parseAbi([
+                    "function supportsInterface(bytes4) returns (bool)"
+                ]),
+                functionName: "supportsInterface",
+                args: [ERC721_INTERFACE_ID]
+            })
+        })
+
+        // If contract explicitly supports ERC-721 interface
+        if (hexToBool(supportsErc721.data || "0x0") === true) {
+            const tokenType = "ERC-721"
+            tokenTypeCache.set(address, tokenType)
+            return tokenType
+        }
+
+        // Check if we can call ownerOf
+        const ownerOf = await tevmClient.call({
+            to: address,
+            data: encodeFunctionData({
+                abi: erc721Abi,
+                functionName: "ownerOf",
+                args: [tokenIdToCheck]
+            })
+        })
+
+        if (!ownerOf.data) {
+            throw new Error("ownerOf returned no data")
+        }
+
+        if (isAddress(ownerOf.data)) {
+            const tokenType = "ERC-721"
+            tokenTypeCache.set(address, tokenType)
+            return tokenType
+        }
+
+        throw new Error("Failed ERC-721 check")
+    } catch {
+        const tokenType = "ERC-20"
+        tokenTypeCache.set(address, tokenType)
+        return tokenType
+    }
+}
+
 function recordNativeTransfer({
     step,
     logger,
@@ -235,7 +299,76 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
             )
         }
 
-        // Aggregate asset change results
+        // Parse the logs from the transaction receipt
+        const { logs } = callResult
+
+        if (logs) {
+            // Process ERC-20 Transfer and Approval events from logs
+            for (const log of logs) {
+                const { address, topics, data } = log
+
+                // ERC-20 Transfer events
+                if (topics[0] === TRANSFER_TOPIC_HASH) {
+                    try {
+                        const decoded = decodeEventLog({
+                            abi: erc20Abi,
+                            eventName: "Transfer",
+                            data,
+                            topics: topics as [Hex, ...Hex[]]
+                        })
+
+                        const { value, from, to } = decoded.args
+
+                        const tokenType = await checkTokenType(
+                            address,
+                            tevmClient
+                        )
+
+                        if (value > 0n) {
+                            assetChangeEvents.push({
+                                type: "TRANSFER",
+                                asset: address,
+                                from,
+                                to,
+                                value
+                            })
+                        }
+                    } catch (err) {
+                        rpcHandler.logger.error(
+                            { err },
+                            "Error processing Transfer event"
+                        )
+                    }
+                }
+
+                // ERC-20 Approval events
+                if (topics[0] === APPROVAL_TOPIC_HASH) {
+                    try {
+                        const decoded = decodeEventLog({
+                            abi: erc20Abi,
+                            eventName: "Approval",
+                            data,
+                            topics: topics as [Hex, ...Hex[]]
+                        })
+
+                        const { value, owner, spender } = decoded.args
+
+                        assetChangeEvents.push({
+                            type: "APPROVAL",
+                            asset: address,
+                            owner,
+                            spender,
+                            value
+                        })
+                    } catch (err) {
+                        rpcHandler.logger.error(
+                            { err },
+                            "Error processing Approval event"
+                        )
+                    }
+                }
+            }
+        }
 
         throw new RpcError("Not implemented")
     }
