@@ -1,6 +1,6 @@
+import type { HexData32, UserOpInfo } from "@alto/types"
 import type { Address, BaseError, Prettify } from "viem"
 import type { Account } from "viem/accounts"
-import { UserOpInfo, type HexData32 } from "."
 
 export type TransactionInfo = {
     transactionHash: HexData32

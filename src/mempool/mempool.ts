@@ -30,7 +30,7 @@ import {
     ReputationStatuses
 } from "./reputationManager"
 import type { AltoConfig } from "../createConfig"
-import { MempoolStore } from "@alto/store"
+import type { MempoolStore } from "@alto/store"
 
 export class Mempool {
     private config: AltoConfig
@@ -83,7 +83,8 @@ export class Mempool {
         const { userOpHash } = userOpInfo
         const sumbittedUserOps = await this.store.dumpSubmitted(entryPoint)
         const existingUserOpToReplace = sumbittedUserOps.find(
-            (userOpInfo) => userOpInfo.userOpHash === userOpHash
+            (userOpInfo: SubmittedUserOp) =>
+                userOpInfo.userOpHash === userOpHash
         )
 
         if (existingUserOpToReplace) {
@@ -112,7 +113,7 @@ export class Mempool {
         const entryPoint = transactionInfo.bundle.entryPoint
         const processingUserOps = await this.store.dumpProcessing(entryPoint)
         const processingUserOp = processingUserOps.find(
-            (userOpInfo) => userOpInfo.userOpHash === userOpHash
+            (userOpInfo: UserOpInfo) => userOpInfo.userOpHash === userOpHash
         )
 
         if (processingUserOp) {
