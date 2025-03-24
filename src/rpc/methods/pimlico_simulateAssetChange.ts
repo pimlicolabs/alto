@@ -21,7 +21,8 @@ import {
     encodeFunctionData,
     getAddress,
     toEventSelector,
-    toHex
+    toHex,
+    zeroAddress
 } from "viem"
 import { isVersion06, toPackedUserOperation } from "../../utils/userop"
 import type { AltoConfig } from "../../esm/createConfig"
@@ -145,6 +146,45 @@ function collectApprovalLog({
     }
 }
 
+/**
+ * Collect native token (ETH) transfers by tracking opcodes that transfer ETH
+ * - CALL/CALLCODE: direct ETH transfers to existing addresses
+ */
+function collectNativeTransfer({
+    step,
+    logger,
+    logs
+}: {
+    step: InterpreterStep
+    logger: Logger
+    logs: Map<Address, AssetChangeEvent[]>
+}): void {
+    try {
+        const { stack } = step
+        const stackLength = stack.length
+
+        let value: bigint
+        value = BigInt(toHex(stack[stackLength - 3]))
+
+        if (value <= 0n) {
+            return
+        }
+
+        const from = getAddress(toHex(step.address.bytes))
+        const to = getAddress(toHex(stack[stackLength - 2]))
+
+        // Record the transfer - use zeroAddress as the token address for native transfers
+        if (!logs.has(zeroAddress)) {
+            logs.set(zeroAddress, [])
+        }
+
+        logs.get(zeroAddress)!.push({ from, to, value })
+    } catch (err) {
+        logger.error({ err }, "Error processing native transfer")
+        return
+    }
+}
+
 async function setupTevm(config: AltoConfig, blockNumber?: bigint) {
     const options = {
         fork: {
@@ -185,8 +225,8 @@ function decodeSimulateHandleOpResult({
     }
 }
 
-// NOTE: Endpoint to show the asset changes produced by a user operation (tracking userOp.sender's asset balance changes)
-// According to the ERC-20 and ERC-721 spec, a event must be emitted for each transfer of a token.
+// NOTE: Endpoint to show the asset changes that a user operation produces.
+// According to the ERC-20 and ERC-721 spec, a event must be emitted for each transfer and approval of a token.
 // We can collect any transfers by listening for these events when running the simulation.
 export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
     method: "pimlico_simulateAssetChange",
@@ -239,6 +279,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
             onStep: (step) => {
                 const { opcode } = step
 
+                // Handle ERC-20 and ERC-721 token transfers via LOG3 events
                 if (opcode.name === "LOG3") {
                     const { stack } = step
 
@@ -262,15 +303,30 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                         })
                     }
                 }
+
+                // These are the only opcodes that can transfer ETH
+                if (
+                    opcode.name === "CALL" ||
+                    opcode.name === "CALLCODE"
+                    //opcode.name === "CREATE" ||
+                    //opcode.name === "CREATE2"
+                ) {
+                    collectNativeTransfer({
+                        step,
+                        logger: rpcHandler.logger,
+                        logs: logs
+                    })
+                }
             }
         })
 
-        // Check for runtime reverts
+        // Check for runtime reverts.
         const simulationResult = decodeSimulateHandleOpResult({
             data: callResult.rawData,
             logger: rpcHandler.logger
         })
 
+        // If execution failed, bubble up error.
         if (simulationResult.result === "failed") {
             const { data } = simulationResult
             let errorCode: number = ExecutionErrors.UserOperationReverted
@@ -285,98 +341,6 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
             )
         }
 
-        // Aggregate asset change results
-        //let assetChanges = []
-
-        //for (const [assetAddress, transfers] of logs.entries()) {
-        //    // Handle native token transfers
-        //    if (assetAddress === zeroAddress) {
-        //        const balanceChange = transfers.reduce((acc, transfer) => {
-        //            if (transfer.from === userOp.sender) {
-        //                return acc - transfer.value
-        //            } else if (transfer.to === userOp.sender) {
-        //                return acc + transfer.value
-        //            }
-        //            return acc
-        //        }, 0n)
-
-        //        if (balanceChange !== 0n) {
-        //            assetChanges.push({
-        //                type: "NATIVE",
-        //                assetAddress,
-        //                balanceChange,
-        //                transfers
-        //            })
-        //        }
-
-        //        continue
-        //    }
-
-        //    // Check token type
-        //    const hasDecimals = await tevmClient.tevmCall({
-        //        to: assetAddress,
-        //        data: encodeFunctionData({
-        //            abi: erc20Abi,
-        //            functionName: "decimals",
-        //            args: []
-        //        })
-        //    })
-
-        //    const tokenType = hasDecimals.errors ? "ERC721" : "ERC20"
-
-        //    if (tokenType === "ERC721") {
-        //        // For ERC-721, track which tokens the user owns at the end of execution
-        //        const receivedTokens = new Set<bigint>()
-        //        const sentTokens = new Set<bigint>()
-
-        //        for (const transfer of transfers) {
-        //            const tokenId = transfer.value
-
-        //            // Clear previous state to handle tokens transferred multiple times
-        //            receivedTokens.delete(tokenId)
-        //            sentTokens.delete(tokenId)
-
-        //            // Add to appropriate set based on final direction
-        //            if (transfer.to === userOp.sender) {
-        //                receivedTokens.add(tokenId)
-        //            } else if (transfer.from === userOp.sender) {
-        //                sentTokens.add(tokenId)
-        //            }
-        //        }
-
-        //        if (receivedTokens.size > 0 || sentTokens.size > 0) {
-        //            assetChanges.push({
-        //                type: "ERC721",
-        //                assetAddress,
-        //                tokenIdsReceived: Array.from(receivedTokens),
-        //                tokenIdsSent: Array.from(sentTokens)
-        //            })
-        //        }
-        //    } else {
-        //        const balanceChange = transfers.reduce((acc, transfer) => {
-        //            // sender recieved tokens
-        //            if (transfer.to === userOp.sender) {
-        //                return acc + transfer.value
-        //            }
-
-        //            // sender is sending tokens
-        //            return acc - transfer.value
-        //        }, 0n)
-
-        //        // Only include tokens with non-zero net changes
-        //        if (balanceChange !== 0n) {
-        //            assetChanges.push({
-        //                type: "ERC20",
-        //                assetAddress,
-        //                balanceChange
-        //            })
-        //        }
-        //    }
-        //}
-
-        return {
-            sender: userOp.sender,
-            assetChanges
-        }
+        throw new RpcError("Not implemented")
     }
 })
