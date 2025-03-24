@@ -493,7 +493,10 @@ export const erc721TransferSchema = z.object({
     tokenAddress: addressSchema,
     from: addressSchema,
     to: addressSchema,
-    tokenId: hexNumberSchema
+    tokenId: hexNumberSchema,
+    // Token metadata
+    name: z.string().optional(),
+    symbol: z.string().optional()
 })
 
 export const erc721ApprovalSchema = z.object({
@@ -502,7 +505,10 @@ export const erc721ApprovalSchema = z.object({
     tokenAddress: addressSchema,
     owner: addressSchema,
     spender: addressSchema,
-    tokenId: hexNumberSchema
+    tokenId: hexNumberSchema,
+    // Token metadata
+    name: z.string().optional(),
+    symbol: z.string().optional()
 })
 
 export const erc721ApprovalForAllSchema = z.object({
@@ -511,7 +517,10 @@ export const erc721ApprovalForAllSchema = z.object({
     tokenAddress: addressSchema,
     owner: addressSchema,
     operator: addressSchema,
-    approved: z.boolean()
+    approved: z.boolean(),
+    // Token metadata
+    name: z.string().optional(),
+    symbol: z.string().optional()
 })
 
 export const erc20TransferSchema = z.object({
@@ -520,7 +529,11 @@ export const erc20TransferSchema = z.object({
     tokenAddress: addressSchema,
     from: addressSchema,
     to: addressSchema,
-    value: hexNumberSchema
+    value: hexNumberSchema,
+    // Token metadata
+    name: z.string().optional(),
+    symbol: z.string().optional(),
+    decimals: z.number().optional()
 })
 
 export const erc20ApprovalSchema = z.object({
@@ -529,7 +542,11 @@ export const erc20ApprovalSchema = z.object({
     tokenAddress: addressSchema,
     owner: addressSchema,
     spender: addressSchema,
-    value: hexNumberSchema
+    value: hexNumberSchema,
+    // Token metadata
+    name: z.string().optional(),
+    symbol: z.string().optional(),
+    decimals: z.number().optional()
 })
 
 export const nativeTransferSchema = z.object({

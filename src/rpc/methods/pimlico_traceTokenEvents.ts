@@ -54,15 +54,33 @@ const APPROVAL_TOPIC_HASH = toEventSelector(
 
 // ERC-165 interface ID for ERC-721
 const ERC721_INTERFACE_ID = "0x80ac58cd"
-const tokenTypeCache = new Map<Address, "ERC-20" | "ERC-721">()
 
-const checkTokenType = async (
+// Combined cache for token type and metadata
+type TokenInfo = {
+    type: "ERC-20" | "ERC-721"
+    metadata: {
+        name?: string
+        symbol?: string
+        decimals?: number
+    }
+}
+
+const tokenInfoCache = new Map<Address, TokenInfo>()
+
+/**
+ * Get token type and metadata in a single call
+ */
+const getTokenInfo = async (
     address: Address,
-    tevmClient: PublicClient
-): Promise<"ERC-20" | "ERC-721"> => {
-    // Return cached token type if available
-    const cached = tokenTypeCache.get(address)
+    tevmClient: PublicClient,
+    logger: Logger
+): Promise<TokenInfo> => {
+    // Return cached token info if available
+    const cached = tokenInfoCache.get(address)
     if (cached) return cached
+
+    // Determine token type first
+    let tokenType: "ERC-20" | "ERC-721"
 
     try {
         // Check if token supports ERC-721 interface via ERC-165
@@ -80,31 +98,115 @@ const checkTokenType = async (
         })
 
         if (hexToBool(supportsErc721.data || "0x0")) {
-            tokenTypeCache.set(address, "ERC-721")
-            return "ERC-721"
+            tokenType = "ERC-721"
+        } else {
+            // Try ERC-721 ownerOf as fallback check
+            try {
+                const ownerOf = await tevmClient.call({
+                    to: address,
+                    data: encodeFunctionData({
+                        abi: erc721Abi,
+                        functionName: "ownerOf",
+                        args: [1n]
+                    })
+                })
+
+                if (ownerOf.data && isAddress(ownerOf.data)) {
+                    tokenType = "ERC-721"
+                } else {
+                    tokenType = "ERC-20" // Default to ERC-20
+                }
+            } catch {
+                tokenType = "ERC-20" // Default to ERC-20 if ownerOf call fails
+            }
         }
-
-        // Try ERC-721 ownerOf as fallback check
-        const ownerOf = await tevmClient.call({
-            to: address,
-            data: encodeFunctionData({
-                abi: erc721Abi,
-                functionName: "ownerOf",
-                args: [1n]
-            })
-        })
-
-        if (ownerOf.data && isAddress(ownerOf.data)) {
-            tokenTypeCache.set(address, "ERC-721")
-            return "ERC-721"
-        }
-
-        throw new Error("Not an ERC-721 token")
-    } catch {
+    } catch (err) {
         // Default to ERC-20 if ERC-721 checks fail
-        tokenTypeCache.set(address, "ERC-20")
-        return "ERC-20"
+        tokenType = "ERC-20"
+        logger.debug(
+            { err },
+            "Failed to determine token type, defaulting to ERC-20"
+        )
     }
+
+    // Now fetch the metadata based on the determined token type
+    const metadata: { name?: string; symbol?: string; decimals?: number } = {}
+
+    // Fetch common metadata fields: name and symbol
+    try {
+        // Try to get name
+        try {
+            const nameResult = await tevmClient.call({
+                to: address,
+                data: encodeFunctionData({
+                    abi: tokenType === "ERC-20" ? erc20Abi : erc721Abi,
+                    functionName: "name"
+                })
+            })
+            if (nameResult.data) {
+                const [name] = decodeAbiParameters(
+                    [{ type: "string" }],
+                    nameResult.data
+                )
+                metadata.name = name
+            }
+        } catch (err) {
+            logger.debug({ err }, `Error getting ${tokenType} token name`)
+        }
+
+        // Try to get symbol
+        try {
+            const symbolResult = await tevmClient.call({
+                to: address,
+                data: encodeFunctionData({
+                    abi: tokenType === "ERC-20" ? erc20Abi : erc721Abi,
+                    functionName: "symbol"
+                })
+            })
+            if (symbolResult.data) {
+                const [symbol] = decodeAbiParameters(
+                    [{ type: "string" }],
+                    symbolResult.data
+                )
+                metadata.symbol = symbol
+            }
+        } catch (err) {
+            logger.debug({ err }, `Error getting ${tokenType} token symbol`)
+        }
+
+        // For ERC-20 tokens, also fetch decimals
+        if (tokenType === "ERC-20") {
+            try {
+                const decimalsResult = await tevmClient.call({
+                    to: address,
+                    data: encodeFunctionData({
+                        abi: erc20Abi,
+                        functionName: "decimals"
+                    })
+                })
+                if (decimalsResult.data) {
+                    const [decimals] = decodeAbiParameters(
+                        [{ type: "uint8" }],
+                        decimalsResult.data
+                    )
+                    metadata.decimals = Number(decimals)
+                }
+            } catch (err) {
+                logger.debug({ err }, "Error getting ERC-20 token decimals")
+            }
+        }
+    } catch (err) {
+        logger.error({ err }, `Error fetching ${tokenType} token metadata`)
+    }
+
+    // Create and cache the token info
+    const tokenInfo: TokenInfo = {
+        type: tokenType,
+        metadata: metadata
+    }
+
+    tokenInfoCache.set(address, tokenInfo)
+    return tokenInfo
 }
 
 function recordNativeTransfer({
@@ -349,9 +451,13 @@ export const pimlicoTraceTokenEventsHandler = createMethodHandler({
             // Transfer events (both ERC-20 and ERC-721 use the same event signature)
             if (topics[0] === TRANSFER_TOPIC_HASH) {
                 try {
-                    const tokenType = await checkTokenType(address, tevmClient)
+                    const tokenInfo = await getTokenInfo(
+                        address,
+                        tevmClient,
+                        rpcHandler.logger
+                    )
 
-                    if (tokenType === "ERC-721") {
+                    if (tokenInfo.type === "ERC-721") {
                         const decoded = decodeEventLog({
                             abi: erc721Abi,
                             eventName: "Transfer",
@@ -367,9 +473,11 @@ export const pimlicoTraceTokenEventsHandler = createMethodHandler({
                             tokenAddress: address,
                             from,
                             to,
-                            tokenId
+                            tokenId,
+                            name: tokenInfo.metadata.name,
+                            symbol: tokenInfo.metadata.symbol
                         })
-                    } else if (tokenType === "ERC-20") {
+                    } else if (tokenInfo.type === "ERC-20") {
                         const decoded = decodeEventLog({
                             abi: erc20Abi,
                             eventName: "Transfer",
@@ -385,7 +493,10 @@ export const pimlicoTraceTokenEventsHandler = createMethodHandler({
                             tokenAddress: address,
                             from,
                             to,
-                            value
+                            value,
+                            name: tokenInfo.metadata.name,
+                            symbol: tokenInfo.metadata.symbol,
+                            decimals: tokenInfo.metadata.decimals
                         })
                     }
                 } catch (err) {
@@ -399,9 +510,13 @@ export const pimlicoTraceTokenEventsHandler = createMethodHandler({
             // Approval events (both ERC-20 and ERC-721 use the same event signature)
             if (topics[0] === APPROVAL_TOPIC_HASH) {
                 try {
-                    const tokenType = await checkTokenType(address, tevmClient)
+                    const tokenInfo = await getTokenInfo(
+                        address,
+                        tevmClient,
+                        rpcHandler.logger
+                    )
 
-                    if (tokenType === "ERC-721") {
+                    if (tokenInfo.type === "ERC-721") {
                         const decoded = decodeEventLog({
                             abi: erc721Abi,
                             eventName: "Approval",
@@ -417,9 +532,11 @@ export const pimlicoTraceTokenEventsHandler = createMethodHandler({
                             tokenAddress: address,
                             owner,
                             spender,
-                            tokenId
+                            tokenId,
+                            name: tokenInfo.metadata.name,
+                            symbol: tokenInfo.metadata.symbol
                         })
-                    } else if (tokenType === "ERC-20") {
+                    } else if (tokenInfo.type === "ERC-20") {
                         const decoded = decodeEventLog({
                             abi: erc20Abi,
                             eventName: "Approval",
@@ -435,7 +552,10 @@ export const pimlicoTraceTokenEventsHandler = createMethodHandler({
                             tokenAddress: address,
                             owner,
                             spender,
-                            value
+                            value,
+                            name: tokenInfo.metadata.name,
+                            symbol: tokenInfo.metadata.symbol,
+                            decimals: tokenInfo.metadata.decimals
                         })
                     }
                 } catch (err) {
@@ -449,9 +569,13 @@ export const pimlicoTraceTokenEventsHandler = createMethodHandler({
             // ERC-721 ApprovalForAll events
             if (topics[0] === APPROVAL_FOR_ALL_TOPIC_HASH) {
                 try {
-                    const tokenType = await checkTokenType(address, tevmClient)
+                    const tokenInfo = await getTokenInfo(
+                        address,
+                        tevmClient,
+                        rpcHandler.logger
+                    )
 
-                    if (tokenType === "ERC-721") {
+                    if (tokenInfo.type === "ERC-721") {
                         const decoded = decodeEventLog({
                             abi: erc721Abi,
                             eventName: "ApprovalForAll",
@@ -467,7 +591,9 @@ export const pimlicoTraceTokenEventsHandler = createMethodHandler({
                             tokenAddress: address,
                             owner,
                             operator,
-                            approved
+                            approved,
+                            name: tokenInfo.metadata.name,
+                            symbol: tokenInfo.metadata.symbol
                         })
                     }
                 } catch (err) {

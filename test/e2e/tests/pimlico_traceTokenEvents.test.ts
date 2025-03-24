@@ -113,6 +113,10 @@ describe.each([
             expect(owner).toBe(smartAccountClient.account.address)
             expect(spender).toBe(mockSpender)
             expect(type).toBe("approval")
+            
+            // Check metadata fields exist (actual values depend on mock implementation)
+            expect(approveOperation).toHaveProperty("name")
+            expect(approveOperation).toHaveProperty("symbol")
 
             // Check transfer operation
             const transferOperation = res.tokenEvents[1]
@@ -131,6 +135,10 @@ describe.each([
             expect(transferFrom).toBe(smartAccountClient.account.address)
             expect(transferTo).toBe(recipient)
             expect(transferType).toBe("transfer")
+            
+            // Check metadata fields exist (actual values depend on mock implementation)
+            expect(transferOperation).toHaveProperty("name")
+            expect(transferOperation).toHaveProperty("symbol")
         })
 
         test("Should detect ERC-721 ApprovalForAll events in user operation", async () => {
@@ -193,6 +201,10 @@ describe.each([
             expect(operatorAddress).toBe(operator)
             expect(isApproved).toBe(approved)
             expect(type).toBe("approvalForAll")
+            
+            // Check metadata fields exist (actual values depend on mock implementation)
+            expect(approvalForAllOperation).toHaveProperty("name")
+            expect(approvalForAllOperation).toHaveProperty("symbol")
         })
 
         test("Should detect native token transfers in user operation", async () => {
@@ -312,6 +324,11 @@ describe.each([
             expect(approveOwner).toBe(smartAccountClient.account.address)
             expect(approveSpender).toBe(spender)
             expect(approveType).toBe("approval")
+            
+            // Check metadata fields exist (actual values depend on mock implementation)
+            expect(approveOperation).toHaveProperty("name")
+            expect(approveOperation).toHaveProperty("symbol")
+            expect(approveOperation).toHaveProperty("decimals")
 
             // Check transfer operation
             const transferOperation = res.tokenEvents[1]
@@ -330,6 +347,11 @@ describe.each([
             expect(transferFrom).toBe(smartAccountClient.account.address)
             expect(transferTo).toBe(recipient)
             expect(transferType).toBe("transfer")
+            
+            // Check metadata fields exist (actual values depend on mock implementation)
+            expect(transferOperation).toHaveProperty("name")
+            expect(transferOperation).toHaveProperty("symbol")
+            expect(transferOperation).toHaveProperty("decimals")
         })
     }
 )
