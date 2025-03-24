@@ -47,18 +47,23 @@ const APPROVAL_TOPIC_HASH = toEventSelector(
 
 // Type definitions for our logs
 type TransferLog = {
+    type: "TRANSFER"
+    asset: Address
     from: Address
     to: Address
     value: bigint
 }
 
 type ApprovalLog = {
+    type: "APPROVAL"
+    asset: Address
     owner: Address
     spender: Address
     value: bigint
 }
 
 type NativeTransferLog = {
+    type: "NATIVE_TRANSFER"
     from: Address
     to: Address
     value: bigint
@@ -66,14 +71,14 @@ type NativeTransferLog = {
 
 type AssetChangeEvent = TransferLog | ApprovalLog | NativeTransferLog
 
-function collectTransferLog({
+function recordTokenTransfer({
     step,
     logger,
     logs
 }: {
     step: InterpreterStep
     logger: Logger
-    logs: Map<Address, AssetChangeEvent[]>
+    logs: AssetChangeEvent[]
 }): void {
     try {
         const { stack, memory } = step
@@ -96,24 +101,21 @@ function collectTransferLog({
         )
 
         // Record the transfer
-        if (!logs.has(contractAddress)) {
-            logs.set(contractAddress, [])
-        }
-        logs.get(contractAddress)!.push({ from, to, value })
+        logs.push({ type: "TRANSFER", asset: contractAddress, from, to, value })
     } catch (err) {
         logger.error({ err }, "Failed to collect transfer log")
         return
     }
 }
 
-function collectApprovalLog({
+function recordApproval({
     step,
     logger,
     logs
 }: {
     step: InterpreterStep
     logger: Logger
-    logs: Map<Address, AssetChangeEvent[]>
+    logs: AssetChangeEvent[]
 }): void {
     try {
         const { stack, memory } = step
@@ -134,10 +136,13 @@ function collectApprovalLog({
         )
 
         // Record the transfer
-        if (!logs.has(contractAddress)) {
-            logs.set(contractAddress, [])
-        }
-        logs.get(contractAddress)!.push({ owner, spender, value })
+        logs.push({
+            type: "APPROVAL",
+            asset: contractAddress,
+            owner,
+            spender,
+            value
+        })
     } catch (err) {
         if (logger) {
             logger.error({ err }, "Error processing approval event")
@@ -150,14 +155,14 @@ function collectApprovalLog({
  * Collect native token (ETH) transfers by tracking opcodes that transfer ETH
  * - CALL/CALLCODE: direct ETH transfers to existing addresses
  */
-function collectNativeTransfer({
+function recordNativeTransfer({
     step,
     logger,
     logs
 }: {
     step: InterpreterStep
     logger: Logger
-    logs: Map<Address, AssetChangeEvent[]>
+    logs: AssetChangeEvent[]
 }): void {
     try {
         const { stack } = step
@@ -173,12 +178,7 @@ function collectNativeTransfer({
         const from = getAddress(toHex(step.address.bytes))
         const to = getAddress(toHex(stack[stackLength - 2]))
 
-        // Record the transfer - use zeroAddress as the token address for native transfers
-        if (!logs.has(zeroAddress)) {
-            logs.set(zeroAddress, [])
-        }
-
-        logs.get(zeroAddress)!.push({ from, to, value })
+        logs.push({ type: "NATIVE_TRANSFER", from, to, value })
     } catch (err) {
         logger.error({ err }, "Error processing native transfer")
         return
@@ -270,7 +270,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
             ]
         })
 
-        const logs: Map<Address, AssetChangeEvent[]> = new Map()
+        const assetChangeEvents: AssetChangeEvent[] = []
 
         const callResult = await tevmClient.tevmCall({
             to: config.entrypointSimulationContract,
@@ -288,17 +288,17 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                     const eventSignature = toHex(topic1)
 
                     if (eventSignature === TRANSFER_TOPIC_HASH) {
-                        collectTransferLog({
+                        recordTokenTransfer({
                             step,
                             logger: rpcHandler.logger,
-                            logs: logs
+                            logs: assetChangeEvents
                         })
                     }
 
                     if (eventSignature === APPROVAL_TOPIC_HASH) {
-                        collectApprovalLog({
+                        recordApproval({
                             step,
-                            logs,
+                            logs: assetChangeEvents,
                             logger: rpcHandler.logger
                         })
                     }
@@ -311,10 +311,10 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                     //opcode.name === "CREATE" ||
                     //opcode.name === "CREATE2"
                 ) {
-                    collectNativeTransfer({
+                    recordNativeTransfer({
                         step,
                         logger: rpcHandler.logger,
-                        logs: logs
+                        logs: assetChangeEvents
                     })
                 }
             }
@@ -340,6 +340,8 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                 errorCode
             )
         }
+
+        // Aggregate asset change results
 
         throw new RpcError("Not implemented")
     }
