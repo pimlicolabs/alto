@@ -380,7 +380,7 @@ export const pimlicoTraceTokenEventsHandler = createMethodHandler({
                         )
 
                         logs.push({
-                            address: toHex(step.address.bytes),
+                            address: getAddress(toHex(step.address.bytes)),
                             data,
                             topics: [topic0, topic1, topic2]
                         })
@@ -415,7 +415,7 @@ export const pimlicoTraceTokenEventsHandler = createMethodHandler({
                         )
 
                         logs.push({
-                            address: toHex(step.address.bytes),
+                            address: getAddress(toHex(step.address.bytes)),
                             data,
                             topics: [topic0, topic1, topic2, topic3]
                         })
