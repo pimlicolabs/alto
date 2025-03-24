@@ -486,13 +486,63 @@ export const pimlicoSendUserOperationNowSchema = z.object({
     result: userOperationReceiptSchema
 })
 
+// Asset change event schemas
+export const erc721TransferSchema = z.object({
+    action: z.literal("ERC_721_TRANSFER"),
+    asset: addressSchema,
+    from: addressSchema,
+    to: addressSchema,
+    tokenId: hexNumberSchema
+})
+
+export const erc721ApprovalSchema = z.object({
+    action: z.literal("ERC_721_APPROVAL"),
+    asset: addressSchema,
+    owner: addressSchema,
+    spender: addressSchema,
+    tokenId: hexNumberSchema
+})
+
+export const erc20TransferSchema = z.object({
+    action: z.literal("ERC_20_TRANSFER"),
+    asset: addressSchema,
+    from: addressSchema,
+    to: addressSchema,
+    value: hexNumberSchema
+})
+
+export const erc20ApprovalSchema = z.object({
+    action: z.literal("ERC_20_APPROVAL"),
+    asset: addressSchema,
+    owner: addressSchema,
+    spender: addressSchema,
+    value: hexNumberSchema
+})
+
+export const nativeTransferSchema = z.object({
+    action: z.literal("NATIVE_TRANSFER"),
+    from: addressSchema,
+    to: addressSchema,
+    value: hexNumberSchema
+})
+
+export const assetChangeEventSchema = z.discriminatedUnion("action", [
+    erc721TransferSchema,
+    erc20TransferSchema,
+    erc20ApprovalSchema,
+    erc721ApprovalSchema,
+    nativeTransferSchema
+])
+
 export const pimlicoSimulateAssetChangeSchema = z.object({
     method: z.literal("pimlico_simulateAssetChange"),
     params: z.union([
         z.tuple([userOperationSchema, addressSchema]),
         z.tuple([userOperationSchema, addressSchema, hexNumberSchema])
     ]),
-    result: userOperationStatusSchema
+    result: z.object({
+        assetChanges: z.array(assetChangeEventSchema)
+    })
 })
 
 export const altoVersions = z.enum(["v1", "v2"])
@@ -637,3 +687,11 @@ export const userOpInfoSchema = userOpDetailsSchema.extend({
 export type ReferencedCodeHashes = z.infer<typeof referencedCodeHashesSchema>
 export type UserOpDetails = z.infer<typeof userOpDetailsSchema>
 export type UserOpInfo = z.infer<typeof userOpInfoSchema>
+
+// Export asset change types
+export type ERC721Transfer = z.infer<typeof erc721TransferSchema>
+export type ERC721Approval = z.infer<typeof erc721ApprovalSchema>
+export type ERC20Transfer = z.infer<typeof erc20TransferSchema>
+export type ERC20Approval = z.infer<typeof erc20ApprovalSchema>
+export type NativeTransfer = z.infer<typeof nativeTransferSchema>
+export type AssetChangeEvent = z.infer<typeof assetChangeEventSchema>

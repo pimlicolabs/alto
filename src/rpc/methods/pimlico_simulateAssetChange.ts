@@ -1,5 +1,6 @@
 import { createMethodHandler } from "../createMethodHandler"
 import {
+    AssetChangeEvent,
     EntryPointV07SimulationsAbi,
     ExecutionErrors,
     PimlicoEntryPointSimulationsAbi,
@@ -36,6 +37,11 @@ import { SimulateHandleOpResult } from "../estimation/types"
 import { Logger } from "pino"
 import { InterpreterStep } from "tevm/evm"
 
+// ERC-721 specific approvals (not used yet, but defined for future use)
+// const APPROVAL_FOR_ALL_TOPIC_HASH = toEventSelector(
+//     "event ApprovalForAll(address indexed owner, address indexed operator, bool approved)"
+// )
+
 // Event signatures for token standards
 const TRANSFER_TOPIC_HASH = toEventSelector(
     "event Transfer(address indexed from, address indexed to, uint256 value)"
@@ -48,59 +54,6 @@ const APPROVAL_TOPIC_HASH = toEventSelector(
 
 // ERC-165 interface ID for ERC-721
 const ERC721_INTERFACE_ID = "0x80ac58cd"
-
-// ERC-721 specific approvals (not used yet, but defined for future use)
-// const APPROVAL_FOR_ALL_TOPIC_HASH = toEventSelector(
-//     "event ApprovalForAll(address indexed owner, address indexed operator, bool approved)"
-// )
-
-// Type definitions for our logs
-type ERC721TransferLog = {
-    action: "ERC_721_TRANSFER"
-    asset: Address
-    from: Address
-    to: Address
-    tokenId: bigint
-}
-
-type ERC721ApprovalLog = {
-    action: "ERC_721_APPROVAL"
-    asset: Address
-    owner: Address
-    spender: Address
-    tokenId: bigint
-}
-
-type ERC20TransferLog = {
-    action: "ERC_20_TRANSFER"
-    asset: Address
-    from: Address
-    to: Address
-    value: bigint
-}
-
-type ERC20ApprovalLog = {
-    action: "ERC_20_APPROVAL"
-    asset: Address
-    owner: Address
-    spender: Address
-    value: bigint
-}
-
-type NativeTransferLog = {
-    action: "NATIVE_TRANSFER"
-    from: Address
-    to: Address
-    value: bigint
-}
-
-type AssetChangeEvent =
-    | ERC721TransferLog
-    | ERC20TransferLog
-    | ERC20ApprovalLog
-    | ERC721ApprovalLog
-    | NativeTransferLog
-
 const tokenTypeCache = new Map<Address, "ERC-20" | "ERC-721">()
 
 const checkTokenType = async (
@@ -158,30 +111,23 @@ const checkTokenType = async (
 function recordNativeTransfer({
     step,
     logger,
-    logs
+    tracker
 }: {
     step: InterpreterStep
     logger: Logger
-    logs: AssetChangeEvent[]
+    tracker: AssetChangeEvent[]
 }): void {
     try {
         const { stack } = step
         const stackLength = stack.length
 
-        let value: bigint
-        value = BigInt(toHex(stack[stackLength - 3]))
-
-        if (value <= 0n) {
-            return
-        }
-
+        const value = BigInt(toHex(stack[stackLength - 3]))
         const from = getAddress(toHex(step.address.bytes))
         const to = getAddress(toHex(stack[stackLength - 2]))
 
-        logs.push({ action: "NATIVE_TRANSFER", from, to, value })
+        tracker.push({ action: "NATIVE_TRANSFER", from, to, value })
     } catch (err) {
         logger.error({ err }, "Error processing native transfer")
-        return
     }
 }
 
@@ -270,7 +216,8 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
             ]
         })
 
-        const assetChangeEvents: AssetChangeEvent[] = []
+        // Create asset tracker to record and aggregate events
+        const assetChanges: AssetChangeEvent[] = []
 
         const callResult = await tevmClient.tevmCall({
             to: config.entrypointSimulationContract,
@@ -289,7 +236,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                     recordNativeTransfer({
                         step,
                         logger: rpcHandler.logger,
-                        logs: assetChangeEvents
+                        tracker: assetChanges
                     })
                 }
             }
@@ -324,7 +271,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
             for (const log of logs) {
                 const { address, topics, data } = log
 
-                // ERC-20 Transfer events
+                // Transfer events (both ERC-20 and ERC-721 use the same event signature)
                 if (topics[0] === TRANSFER_TOPIC_HASH) {
                     try {
                         const decoded = decodeEventLog({
@@ -343,25 +290,21 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                         )
 
                         if (tokenType === "ERC-721") {
-                            assetChangeEvents.push({
+                            assetChanges.push({
                                 action: "ERC_721_TRANSFER",
                                 asset: address,
                                 from,
                                 to,
                                 tokenId: valueOrTokenId
                             })
-                            continue
-                        }
-
-                        if (tokenType === "ERC-20") {
-                            assetChangeEvents.push({
+                        } else if (tokenType === "ERC-20") {
+                            assetChanges.push({
                                 action: "ERC_20_TRANSFER",
                                 asset: address,
                                 from,
                                 to,
                                 value: valueOrTokenId
                             })
-                            continue
                         }
                     } catch (err) {
                         rpcHandler.logger.error(
@@ -371,7 +314,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                     }
                 }
 
-                // ERC-20 Approval events
+                // Approval events (both ERC-20 and ERC-721 use the same event signature)
                 if (topics[0] === APPROVAL_TOPIC_HASH) {
                     try {
                         const decoded = decodeEventLog({
@@ -394,25 +337,21 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                         )
 
                         if (tokenType === "ERC-721") {
-                            assetChangeEvents.push({
+                            assetChanges.push({
                                 action: "ERC_721_APPROVAL",
                                 asset: address,
                                 owner,
                                 spender,
                                 tokenId: valueOrTokenId
                             })
-                            continue
-                        }
-
-                        if (tokenType === "ERC-20") {
-                            assetChangeEvents.push({
+                        } else if (tokenType === "ERC-20") {
+                            assetChanges.push({
                                 action: "ERC_20_APPROVAL",
                                 asset: address,
                                 owner,
                                 spender,
                                 value: valueOrTokenId
                             })
-                            continue
                         }
                     } catch (err) {
                         rpcHandler.logger.error(
@@ -424,6 +363,8 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
             }
         }
 
-        throw new RpcError("Not implemented")
+        return {
+            assetChanges
+        }
     }
 })
