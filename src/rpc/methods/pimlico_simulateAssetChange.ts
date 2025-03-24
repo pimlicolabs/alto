@@ -32,7 +32,7 @@ import {
     toHex
 } from "viem"
 import { isVersion06, toPackedUserOperation } from "../../utils/userop"
-import type { AltoConfig } from "../../esm/createConfig"
+import type { AltoConfig } from "../../createConfig"
 import { SimulateHandleOpResult } from "../estimation/types"
 import { Logger } from "pino"
 import { InterpreterStep } from "tevm/evm"
@@ -126,7 +126,13 @@ function recordNativeTransfer({
         const to = getAddress(toHex(stack[stackLength - 2], { size: 20 }))
 
         if (value > 0n) {
-            tracker.push({ assetType: "NATIVE", type: "transfer", from, to, value })
+            tracker.push({
+                assetType: "NATIVE",
+                type: "transfer",
+                from,
+                to,
+                value
+            })
         }
     } catch (err) {
         logger.error({ err }, "Error processing native transfer")
