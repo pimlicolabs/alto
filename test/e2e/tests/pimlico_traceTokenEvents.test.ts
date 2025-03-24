@@ -114,9 +114,9 @@ describe.each([
             expect(spender).toBe(mockSpender)
             expect(type).toBe("approval")
             
-            // Check metadata fields exist (actual values depend on mock implementation)
-            expect(approveOperation).toHaveProperty("name")
-            expect(approveOperation).toHaveProperty("symbol")
+            // Check metadata values match the mock implementation
+            expect(approveOperation.name).toBe("TEST NFT")
+            expect(approveOperation.symbol).toBe("TEST")
 
             // Check transfer operation
             const transferOperation = res.tokenEvents[1]
@@ -136,9 +136,9 @@ describe.each([
             expect(transferTo).toBe(recipient)
             expect(transferType).toBe("transfer")
             
-            // Check metadata fields exist (actual values depend on mock implementation)
-            expect(transferOperation).toHaveProperty("name")
-            expect(transferOperation).toHaveProperty("symbol")
+            // Verify the ERC-721 metadata values
+            expect(transferOperation.name).toBe("TEST NFT")
+            expect(transferOperation.symbol).toBe("TEST")
         })
 
         test("Should detect ERC-721 ApprovalForAll events in user operation", async () => {
@@ -202,9 +202,9 @@ describe.each([
             expect(isApproved).toBe(approved)
             expect(type).toBe("approvalForAll")
             
-            // Check metadata fields exist (actual values depend on mock implementation)
-            expect(approvalForAllOperation).toHaveProperty("name")
-            expect(approvalForAllOperation).toHaveProperty("symbol")
+            // Verify the ERC-721 metadata values
+            expect(approvalForAllOperation.name).toBe("TEST NFT")
+            expect(approvalForAllOperation.symbol).toBe("TEST")
         })
 
         test("Should detect native token transfers in user operation", async () => {
@@ -325,10 +325,10 @@ describe.each([
             expect(approveSpender).toBe(spender)
             expect(approveType).toBe("approval")
             
-            // Check metadata fields exist (actual values depend on mock implementation)
-            expect(approveOperation).toHaveProperty("name")
-            expect(approveOperation).toHaveProperty("symbol")
-            expect(approveOperation).toHaveProperty("decimals")
+            // Verify the ERC-20 metadata values
+            expect(approveOperation.name).toBe("TEST TOKEN")
+            expect(approveOperation.symbol).toBe("TEST")
+            expect(approveOperation.decimals).toBe(6)
 
             // Check transfer operation
             const transferOperation = res.tokenEvents[1]
@@ -348,10 +348,10 @@ describe.each([
             expect(transferTo).toBe(recipient)
             expect(transferType).toBe("transfer")
             
-            // Check metadata fields exist (actual values depend on mock implementation)
-            expect(transferOperation).toHaveProperty("name")
-            expect(transferOperation).toHaveProperty("symbol")
-            expect(transferOperation).toHaveProperty("decimals")
+            // Verify the ERC-20 metadata values
+            expect(transferOperation.name).toBe("TEST TOKEN")
+            expect(transferOperation.symbol).toBe("TEST")
+            expect(transferOperation.decimals).toBe(6)
         })
     }
 )
