@@ -131,7 +131,50 @@ describe.each([
             expect(transferOperation.type).toBe("transfer")
         })
 
-        test("Should detect native token transfers in user operation", async () => {})
+        test("Should detect native token transfers in user operation", async () => {
+            const smartAccountClient = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const nativeAmount = parseEther("0.01") // 0.01 ETH
+            const recipient = privateKeyToAddress(generatePrivateKey())
+
+            // Create a user operation that sends native tokens
+            const userOp = await smartAccountClient.prepareUserOperation({
+                calls: [
+                    {
+                        to: recipient,
+                        value: nativeAmount,
+                        data: "0x" // Empty data for a simple native transfer
+                    }
+                ]
+            })
+
+            const res = (await smartAccountClient.request({
+                // @ts-ignore
+                method: "pimlico_simulateAssetChange",
+                params: [deepHexlify(userOp), entryPoint07Address]
+            })) as any
+
+            // Assert the response structure
+            expect(res).toBeDefined()
+            expect(Array.isArray(res.assetChanges)).toBe(true)
+            expect(res.assetChanges.length).toBe(1) // One native transfer
+
+            // Check native transfer operation
+            const transferOperation = res.assetChanges[0]
+            expect(transferOperation.assetType).toBe("NATIVE")
+            expect(transferOperation.type).toBe("transfer")
+            expect(transferOperation.from.toLowerCase()).toBe(
+                smartAccountClient.account.address.toLowerCase()
+            )
+            expect(transferOperation.to.toLowerCase()).toBe(
+                recipient.toLowerCase()
+            )
+            expect(transferOperation.value).toBe(nativeAmount.toString())
+        })
 
         test("Should detect ERC-20 transfers and approvals in user operation", async () => {
             const smartAccountClient = await getSmartAccountClient({
