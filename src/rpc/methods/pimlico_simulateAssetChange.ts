@@ -38,9 +38,9 @@ import { Logger } from "pino"
 import { InterpreterStep } from "tevm/evm"
 
 // ERC-721 specific approvals (not used yet, but defined for future use)
-// const APPROVAL_FOR_ALL_TOPIC_HASH = toEventSelector(
-//     "event ApprovalForAll(address indexed owner, address indexed operator, bool approved)"
-// )
+//const APPROVAL_FOR_ALL_TOPIC_HASH = toEventSelector(
+//    "event ApprovalForAll(address indexed owner, address indexed operator, bool approved)"
+//)
 
 // Event signatures for token standards
 const TRANSFER_TOPIC_HASH = toEventSelector(
@@ -123,9 +123,11 @@ function recordNativeTransfer({
 
         const value = BigInt(toHex(stack[stackLength - 3]))
         const from = getAddress(toHex(step.address.bytes))
-        const to = getAddress(toHex(stack[stackLength - 2]))
+        const to = getAddress(toHex(stack[stackLength - 2], { size: 20 }))
 
-        tracker.push({ action: "NATIVE_TRANSFER", from, to, value })
+        if (value > 0n) {
+            tracker.push({ action: "NATIVE_TRANSFER", from, to, value })
+        }
     } catch (err) {
         logger.error({ err }, "Error processing native transfer")
     }
@@ -218,6 +220,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
 
         // Create asset tracker to record and aggregate events
         const assetChanges: AssetChangeEvent[] = []
+        const logs: { address: Address; topics: Hex[]; data: Hex }[] = []
 
         const callResult = await tevmClient.tevmCall({
             to: config.entrypointSimulationContract,
@@ -238,6 +241,76 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                         logger: rpcHandler.logger,
                         tracker: assetChanges
                     })
+                }
+
+                // We have to manually record logs as the simulation reverts which also reverts all logs.
+                if (opcode.name === "LOG3") {
+                    try {
+                        const { stack, memory } = step
+                        const stackLength = stack.length
+
+                        // Get event topics.
+                        const opts = { size: 32 }
+                        const topic0 = toHex(stack[stackLength - 3], opts)
+                        const topic1 = toHex(stack[stackLength - 4], opts)
+                        const topic2 = toHex(stack[stackLength - 5], opts)
+
+                        // Get event data.
+                        const offset = stack[stackLength - 1]
+                        const size = stack[stackLength - 2]
+                        const data = toHex(
+                            memory.slice(
+                                Number(offset),
+                                Number(offset) + Number(size)
+                            )
+                        )
+
+                        logs.push({
+                            address: toHex(step.address.bytes),
+                            data,
+                            topics: [topic0, topic1, topic2]
+                        })
+                    } catch (err) {
+                        rpcHandler.logger.error(
+                            { err },
+                            "Error processing LOG3 event"
+                        )
+                    }
+                }
+
+                if (opcode.name === "LOG4") {
+                    try {
+                        const { stack, memory } = step
+                        const stackLength = stack.length
+
+                        // Get event topics.
+                        const opts = { size: 32 }
+                        const topic0 = toHex(stack[stackLength - 3], opts)
+                        const topic1 = toHex(stack[stackLength - 4], opts)
+                        const topic2 = toHex(stack[stackLength - 5], opts)
+                        const topic3 = toHex(stack[stackLength - 6], opts)
+
+                        // Get event data.
+                        const offset = stack[stackLength - 1]
+                        const size = stack[stackLength - 2]
+                        const data = toHex(
+                            memory.slice(
+                                Number(offset),
+                                Number(offset) + Number(size)
+                            )
+                        )
+
+                        logs.push({
+                            address: toHex(step.address.bytes),
+                            data,
+                            topics: [topic0, topic1, topic2, topic3]
+                        })
+                    } catch (err) {
+                        rpcHandler.logger.error(
+                            { err },
+                            "Error processing LOG4 event"
+                        )
+                    }
                 }
             }
         })
@@ -264,101 +337,97 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
         }
 
         // Parse the logs from the transaction receipt
-        const { logs } = callResult
+        // Process ERC-20 Transfer and Approval events from logs
+        for (const log of logs) {
+            const { address, topics, data } = log
 
-        if (logs) {
-            // Process ERC-20 Transfer and Approval events from logs
-            for (const log of logs) {
-                const { address, topics, data } = log
+            // Transfer events (both ERC-20 and ERC-721 use the same event signature)
+            if (topics[0] === TRANSFER_TOPIC_HASH) {
+                try {
+                    const decoded = decodeEventLog({
+                        abi: erc20Abi,
+                        eventName: "Transfer",
+                        data,
+                        topics: topics as [Hex, ...Hex[]]
+                    })
 
-                // Transfer events (both ERC-20 and ERC-721 use the same event signature)
-                if (topics[0] === TRANSFER_TOPIC_HASH) {
-                    try {
-                        const decoded = decodeEventLog({
-                            abi: erc20Abi,
-                            eventName: "Transfer",
-                            data,
-                            topics: topics as [Hex, ...Hex[]]
+                    const { value: valueOrTokenId, from, to } = decoded.args
+
+                    const tokenType = await checkTokenType(
+                        address,
+                        tevmClient,
+                        valueOrTokenId
+                    )
+
+                    if (tokenType === "ERC-721") {
+                        assetChanges.push({
+                            action: "ERC_721_TRANSFER",
+                            asset: address,
+                            from,
+                            to,
+                            tokenId: valueOrTokenId
                         })
-
-                        const { value: valueOrTokenId, from, to } = decoded.args
-
-                        const tokenType = await checkTokenType(
-                            address,
-                            tevmClient,
-                            valueOrTokenId
-                        )
-
-                        if (tokenType === "ERC-721") {
-                            assetChanges.push({
-                                action: "ERC_721_TRANSFER",
-                                asset: address,
-                                from,
-                                to,
-                                tokenId: valueOrTokenId
-                            })
-                        } else if (tokenType === "ERC-20") {
-                            assetChanges.push({
-                                action: "ERC_20_TRANSFER",
-                                asset: address,
-                                from,
-                                to,
-                                value: valueOrTokenId
-                            })
-                        }
-                    } catch (err) {
-                        rpcHandler.logger.error(
-                            { err },
-                            "Error processing Transfer event"
-                        )
+                    } else if (tokenType === "ERC-20") {
+                        assetChanges.push({
+                            action: "ERC_20_TRANSFER",
+                            asset: address,
+                            from,
+                            to,
+                            value: valueOrTokenId
+                        })
                     }
+                } catch (err) {
+                    rpcHandler.logger.error(
+                        { err },
+                        "Error processing Transfer event"
+                    )
                 }
+            }
 
-                // Approval events (both ERC-20 and ERC-721 use the same event signature)
-                if (topics[0] === APPROVAL_TOPIC_HASH) {
-                    try {
-                        const decoded = decodeEventLog({
-                            abi: erc20Abi,
-                            eventName: "Approval",
-                            data,
-                            topics: topics as [Hex, ...Hex[]]
-                        })
+            // Approval events (both ERC-20 and ERC-721 use the same event signature)
+            if (topics[0] === APPROVAL_TOPIC_HASH) {
+                try {
+                    const decoded = decodeEventLog({
+                        abi: erc20Abi,
+                        eventName: "Approval",
+                        data,
+                        topics: topics as [Hex, ...Hex[]]
+                    })
 
-                        const {
-                            value: valueOrTokenId,
+                    const {
+                        value: valueOrTokenId,
+                        owner,
+                        spender
+                    } = decoded.args
+
+                    const tokenType = await checkTokenType(
+                        address,
+                        tevmClient,
+                        valueOrTokenId
+                    )
+
+                    if (tokenType === "ERC-721") {
+                        assetChanges.push({
+                            action: "ERC_721_APPROVAL",
+                            asset: address,
                             owner,
-                            spender
-                        } = decoded.args
-
-                        const tokenType = await checkTokenType(
-                            address,
-                            tevmClient,
-                            valueOrTokenId
-                        )
-
-                        if (tokenType === "ERC-721") {
-                            assetChanges.push({
-                                action: "ERC_721_APPROVAL",
-                                asset: address,
-                                owner,
-                                spender,
-                                tokenId: valueOrTokenId
-                            })
-                        } else if (tokenType === "ERC-20") {
-                            assetChanges.push({
-                                action: "ERC_20_APPROVAL",
-                                asset: address,
-                                owner,
-                                spender,
-                                value: valueOrTokenId
-                            })
-                        }
-                    } catch (err) {
-                        rpcHandler.logger.error(
-                            { err },
-                            "Error processing Approval event"
-                        )
+                            spender,
+                            tokenId: valueOrTokenId
+                        })
+                    } else if (tokenType === "ERC-20") {
+                        assetChanges.push({
+                            action: "ERC_20_APPROVAL",
+                            asset: address,
+                            owner,
+                            spender,
+                            value: valueOrTokenId
+                        })
                     }
+                } catch (err) {
+                    rpcHandler.logger.error(
+                        { err },
+                        "Error processing Approval event"
+                    )
                 }
             }
         }
