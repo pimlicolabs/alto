@@ -55,16 +55,32 @@ const ERC721_INTERFACE_ID = "0x80ac58cd"
 // )
 
 // Type definitions for our logs
-type TransferLog = {
-    type: "TRANSFER"
+type ERC721TransferLog = {
+    action: "ERC_721_TRANSFER"
+    asset: Address
+    from: Address
+    to: Address
+    tokenId: bigint
+}
+
+type ERC721ApprovalLog = {
+    action: "ERC_721_APPROVAL"
+    asset: Address
+    owner: Address
+    spender: Address
+    tokenId: bigint
+}
+
+type ERC20TransferLog = {
+    action: "ERC_20_TRANSFER"
     asset: Address
     from: Address
     to: Address
     value: bigint
 }
 
-type ApprovalLog = {
-    type: "APPROVAL"
+type ERC20ApprovalLog = {
+    action: "ERC_20_APPROVAL"
     asset: Address
     owner: Address
     spender: Address
@@ -72,13 +88,18 @@ type ApprovalLog = {
 }
 
 type NativeTransferLog = {
-    type: "NATIVE_TRANSFER"
+    action: "NATIVE_TRANSFER"
     from: Address
     to: Address
     value: bigint
 }
 
-type AssetChangeEvent = TransferLog | ApprovalLog | NativeTransferLog
+type AssetChangeEvent =
+    | ERC721TransferLog
+    | ERC20TransferLog
+    | ERC20ApprovalLog
+    | ERC721ApprovalLog
+    | NativeTransferLog
 
 const tokenTypeCache = new Map<Address, "ERC-20" | "ERC-721">()
 
@@ -87,30 +108,31 @@ const checkTokenType = async (
     tevmClient: PublicClient,
     tokenIdToCheck: bigint
 ): Promise<"ERC-20" | "ERC-721"> => {
+    // Return cached token type if available
     const cached = tokenTypeCache.get(address)
     if (cached) return cached
 
     try {
-        // First check if contract supports ERC-721 interface via ERC-165
+        // Check if token supports ERC-721 interface via ERC-165
+        const erc165Abi = parseAbi([
+            "function supportsInterface(bytes4) returns (bool)"
+        ])
+
         const supportsErc721 = await tevmClient.call({
             to: address,
             data: encodeFunctionData({
-                abi: parseAbi([
-                    "function supportsInterface(bytes4) returns (bool)"
-                ]),
+                abi: erc165Abi,
                 functionName: "supportsInterface",
                 args: [ERC721_INTERFACE_ID]
             })
         })
 
-        // If contract explicitly supports ERC-721 interface
-        if (hexToBool(supportsErc721.data || "0x0") === true) {
-            const tokenType = "ERC-721"
-            tokenTypeCache.set(address, tokenType)
-            return tokenType
+        if (hexToBool(supportsErc721.data || "0x0")) {
+            tokenTypeCache.set(address, "ERC-721")
+            return "ERC-721"
         }
 
-        // Check if we can call ownerOf
+        // Try ERC-721 ownerOf as fallback check
         const ownerOf = await tevmClient.call({
             to: address,
             data: encodeFunctionData({
@@ -120,21 +142,16 @@ const checkTokenType = async (
             })
         })
 
-        if (!ownerOf.data) {
-            throw new Error("ownerOf returned no data")
+        if (ownerOf.data && isAddress(ownerOf.data)) {
+            tokenTypeCache.set(address, "ERC-721")
+            return "ERC-721"
         }
 
-        if (isAddress(ownerOf.data)) {
-            const tokenType = "ERC-721"
-            tokenTypeCache.set(address, tokenType)
-            return tokenType
-        }
-
-        throw new Error("Failed ERC-721 check")
+        throw new Error("Not an ERC-721 token")
     } catch {
-        const tokenType = "ERC-20"
-        tokenTypeCache.set(address, tokenType)
-        return tokenType
+        // Default to ERC-20 if ERC-721 checks fail
+        tokenTypeCache.set(address, "ERC-20")
+        return "ERC-20"
     }
 }
 
@@ -161,7 +178,7 @@ function recordNativeTransfer({
         const from = getAddress(toHex(step.address.bytes))
         const to = getAddress(toHex(stack[stackLength - 2]))
 
-        logs.push({ type: "NATIVE_TRANSFER", from, to, value })
+        logs.push({ action: "NATIVE_TRANSFER", from, to, value })
     } catch (err) {
         logger.error({ err }, "Error processing native transfer")
         return
@@ -317,21 +334,34 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                             topics: topics as [Hex, ...Hex[]]
                         })
 
-                        const { value, from, to } = decoded.args
+                        const { value: valueOrTokenId, from, to } = decoded.args
 
                         const tokenType = await checkTokenType(
                             address,
-                            tevmClient
+                            tevmClient,
+                            valueOrTokenId
                         )
 
-                        if (value > 0n) {
+                        if (tokenType === "ERC-721") {
                             assetChangeEvents.push({
-                                type: "TRANSFER",
+                                action: "ERC_721_TRANSFER",
                                 asset: address,
                                 from,
                                 to,
-                                value
+                                tokenId: valueOrTokenId
                             })
+                            continue
+                        }
+
+                        if (tokenType === "ERC-20") {
+                            assetChangeEvents.push({
+                                action: "ERC_20_TRANSFER",
+                                asset: address,
+                                from,
+                                to,
+                                value: valueOrTokenId
+                            })
+                            continue
                         }
                     } catch (err) {
                         rpcHandler.logger.error(
@@ -351,15 +381,39 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                             topics: topics as [Hex, ...Hex[]]
                         })
 
-                        const { value, owner, spender } = decoded.args
-
-                        assetChangeEvents.push({
-                            type: "APPROVAL",
-                            asset: address,
+                        const {
+                            value: valueOrTokenId,
                             owner,
-                            spender,
-                            value
-                        })
+                            spender
+                        } = decoded.args
+
+                        const tokenType = await checkTokenType(
+                            address,
+                            tevmClient,
+                            valueOrTokenId
+                        )
+
+                        if (tokenType === "ERC-721") {
+                            assetChangeEvents.push({
+                                action: "ERC_721_APPROVAL",
+                                asset: address,
+                                owner,
+                                spender,
+                                tokenId: valueOrTokenId
+                            })
+                            continue
+                        }
+
+                        if (tokenType === "ERC-20") {
+                            assetChangeEvents.push({
+                                action: "ERC_20_APPROVAL",
+                                asset: address,
+                                owner,
+                                spender,
+                                value: valueOrTokenId
+                            })
+                            continue
+                        }
                     } catch (err) {
                         rpcHandler.logger.error(
                             { err },
