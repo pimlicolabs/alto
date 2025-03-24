@@ -488,45 +488,50 @@ export const pimlicoSendUserOperationNowSchema = z.object({
 
 // Asset change event schemas
 export const erc721TransferSchema = z.object({
-    action: z.literal("ERC_721_TRANSFER"),
-    asset: addressSchema,
+    assetType: z.literal("ERC-721"),
+    type: z.literal("transfer"),
+    tokenAddress: addressSchema,
     from: addressSchema,
     to: addressSchema,
     tokenId: hexNumberSchema
 })
 
 export const erc721ApprovalSchema = z.object({
-    action: z.literal("ERC_721_APPROVAL"),
-    asset: addressSchema,
+    assetType: z.literal("ERC-721"),
+    type: z.literal("approval"),
+    tokenAddress: addressSchema,
     owner: addressSchema,
     spender: addressSchema,
     tokenId: hexNumberSchema
 })
 
 export const erc20TransferSchema = z.object({
-    action: z.literal("ERC_20_TRANSFER"),
-    asset: addressSchema,
+    assetType: z.literal("ERC-20"),
+    type: z.literal("transfer"),
+    tokenAddress: addressSchema,
     from: addressSchema,
     to: addressSchema,
     value: hexNumberSchema
 })
 
 export const erc20ApprovalSchema = z.object({
-    action: z.literal("ERC_20_APPROVAL"),
-    asset: addressSchema,
+    assetType: z.literal("ERC-20"),
+    type: z.literal("approval"),
+    tokenAddress: addressSchema,
     owner: addressSchema,
     spender: addressSchema,
     value: hexNumberSchema
 })
 
 export const nativeTransferSchema = z.object({
-    action: z.literal("NATIVE_TRANSFER"),
+    assetType: z.literal("NATIVE"),
+    type: z.literal("transfer"),
     from: addressSchema,
     to: addressSchema,
     value: hexNumberSchema
 })
 
-export const assetChangeEventSchema = z.discriminatedUnion("action", [
+export const assetChangeEventSchema = z.discriminatedUnion("assetType", [
     erc721TransferSchema,
     erc20TransferSchema,
     erc20ApprovalSchema,

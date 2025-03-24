@@ -126,7 +126,7 @@ function recordNativeTransfer({
         const to = getAddress(toHex(stack[stackLength - 2], { size: 20 }))
 
         if (value > 0n) {
-            tracker.push({ action: "NATIVE_TRANSFER", from, to, value })
+            tracker.push({ assetType: "NATIVE", type: "transfer", from, to, value })
         }
     } catch (err) {
         logger.error({ err }, "Error processing native transfer")
@@ -361,16 +361,18 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
 
                     if (tokenType === "ERC-721") {
                         assetChanges.push({
-                            action: "ERC_721_TRANSFER",
-                            asset: address,
+                            assetType: "ERC-721",
+                            type: "transfer",
+                            tokenAddress: address,
                             from,
                             to,
                             tokenId: valueOrTokenId
                         })
                     } else if (tokenType === "ERC-20") {
                         assetChanges.push({
-                            action: "ERC_20_TRANSFER",
-                            asset: address,
+                            assetType: "ERC-20",
+                            type: "transfer",
+                            tokenAddress: address,
                             from,
                             to,
                             value: valueOrTokenId
@@ -408,16 +410,18 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
 
                     if (tokenType === "ERC-721") {
                         assetChanges.push({
-                            action: "ERC_721_APPROVAL",
-                            asset: address,
+                            assetType: "ERC-721",
+                            type: "approval",
+                            tokenAddress: address,
                             owner,
                             spender,
                             tokenId: valueOrTokenId
                         })
                     } else if (tokenType === "ERC-20") {
                         assetChanges.push({
-                            action: "ERC_20_APPROVAL",
-                            asset: address,
+                            assetType: "ERC-20",
+                            type: "approval",
+                            tokenAddress: address,
                             owner,
                             spender,
                             value: valueOrTokenId
