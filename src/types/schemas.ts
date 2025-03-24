@@ -552,8 +552,8 @@ export const assetChangeEventSchema = z.union([
 export const pimlicoTraceTokenEventsSchema = z.object({
     method: z.literal("pimlico_traceTokenEvents"),
     params: z.union([
-        z.tuple([userOperationSchema, addressSchema]),
-        z.tuple([userOperationSchema, addressSchema, hexNumberSchema])
+        z.tuple([partialUserOperationSchema, addressSchema]),
+        z.tuple([partialUserOperationSchema, addressSchema, hexNumberSchema])
     ]),
     result: z.object({
         assetChanges: z.array(assetChangeEventSchema)
