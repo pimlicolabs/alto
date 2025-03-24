@@ -463,14 +463,14 @@ export class RpcHandler {
 
         const simulationUserOperation = {
             ...userOperation,
+            maxFeePerGas: 1n,
+            maxPriorityFeePerGas: 1n,
             preVerificationGas: 0n,
             verificationGasLimit: simulationVerificationGasLimit,
             callGasLimit: simulationCallGasLimit
         }
 
         if (isVersion07(simulationUserOperation)) {
-            simulationUserOperation.maxPriorityFeePerGas = 0n
-            simulationUserOperation.maxFeePerGas = 0n
             simulationUserOperation.paymasterVerificationGasLimit =
                 simulationPaymasterVerificationGasLimit
             simulationUserOperation.paymasterPostOpGasLimit =
