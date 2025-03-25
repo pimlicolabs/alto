@@ -56,7 +56,7 @@ const signedAuthorizationSchema = z.union([
         nonce: hexNumberSchema.transform((val) => Number(val)),
         r: hexData32Schema.transform((val) => val as Hex),
         s: hexData32Schema.transform((val) => val as Hex),
-        v: hexNumberSchema,
+        v: hexNumberSchema.optional(),
         yParity: hexNumberSchema.transform((val) => Number(val))
     }),
     z.object({
@@ -65,7 +65,7 @@ const signedAuthorizationSchema = z.union([
         nonce: hexNumberSchema.transform((val) => Number(val)),
         r: hexData32Schema.transform((val) => val as Hex),
         s: hexData32Schema.transform((val) => val as Hex),
-        v: hexNumberSchema,
+        v: hexNumberSchema.optional(),
         yParity: hexNumberSchema.transform((val) => Number(val))
     })
 ])

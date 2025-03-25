@@ -34,7 +34,7 @@ import {
 } from "viem"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
-import { areAddressesEqual } from "./helpers"
+import { areAddressesEqual, getAuthorizationStateOverrides } from "./helpers"
 
 // Type predicate check if the UserOperation is V06.
 export function isVersion06(
@@ -355,11 +355,15 @@ export const getBundleStatus = async ({
     }
 }
 
-export const getUserOperationHashV06 = (
-    userOperation: UserOperationV06,
-    entryPointAddress: Address,
+export const getUserOperationHashV06 = ({
+    userOperation,
+    entryPointAddress,
+    chainId
+}: {
+    userOperation: UserOperationV06
+    entryPointAddress: Address
     chainId: number
-) => {
+}) => {
     const hash = keccak256(
         encodeAbiParameters(
             [
@@ -440,11 +444,15 @@ export const getUserOperationHashV06 = (
     )
 }
 
-export const getUserOperationHashV07 = (
-    userOperation: PackedUserOperation,
-    entryPointAddress: Address,
+export const getUserOperationHashV07 = ({
+    userOperation,
+    entryPointAddress,
+    chainId
+}: {
+    userOperation: PackedUserOperation
+    entryPointAddress: Address
     chainId: number
-) => {
+}) => {
     const hash = keccak256(
         encodeAbiParameters(
             [
@@ -515,24 +523,100 @@ export const getUserOperationHashV07 = (
     )
 }
 
-export const getUserOperationHash = (
-    userOperation: UserOperation,
-    entryPointAddress: Address,
+export const getUserOperationHashV08 = async ({
+    userOperation,
+    entryPointAddress,
+    publicClient
+}: {
+    userOperation: UserOperationV07
+    entryPointAddress: Address
     chainId: number
-) => {
+    publicClient: PublicClient
+}) => {
+    const packedUserOp = toPackedUserOperation(userOperation)
+
+    // : concat(["0xef0100", code ?? "0x"])
+    const stateOverrides = await getAuthorizationStateOverrides({
+        userOperations: [userOperation],
+        publicClient
+    })
+
+    const hash = await publicClient.readContract({
+        address: entryPointAddress,
+        abi: [
+            {
+                inputs: [
+                    {
+                        components: [
+                            { name: "sender", type: "address" },
+                            { name: "nonce", type: "uint256" },
+                            { name: "initCode", type: "bytes" },
+                            { name: "callData", type: "bytes" },
+                            { name: "accountGasLimits", type: "bytes32" },
+                            { name: "preVerificationGas", type: "uint256" },
+                            { name: "gasFees", type: "bytes32" },
+                            { name: "paymasterAndData", type: "bytes" },
+                            { name: "signature", type: "bytes" }
+                        ],
+                        name: "userOp",
+                        type: "tuple"
+                    }
+                ],
+                name: "getUserOpHash",
+                outputs: [{ name: "", type: "bytes32" }],
+                stateMutability: "view",
+                type: "function"
+            }
+        ],
+        functionName: "getUserOpHash",
+        args: [packedUserOp],
+        stateOverride: [
+            ...Object.keys(stateOverrides).map((address) => ({
+                address: address as Address,
+                code: concat([
+                    "0xef0100",
+                    stateOverrides[address as Address]?.code ?? "0x"
+                ])
+            }))
+        ]
+    })
+
+    return hash
+}
+
+export const getUserOperationHash = ({
+    userOperation,
+    entryPointAddress,
+    chainId,
+    publicClient
+}: {
+    userOperation: UserOperation
+    entryPointAddress: Address
+    chainId: number
+    publicClient: PublicClient
+}) => {
     if (isVersion06(userOperation)) {
-        return getUserOperationHashV06(
+        return getUserOperationHashV06({
             userOperation,
             entryPointAddress,
             chainId
-        )
+        })
     }
 
-    return getUserOperationHashV07(
-        toPackedUserOperation(userOperation),
+    if (entryPointAddress.startsWith("0x4337")) {
+        return getUserOperationHashV08({
+            userOperation,
+            entryPointAddress,
+            chainId,
+            publicClient
+        })
+    }
+
+    return getUserOperationHashV07({
+        userOperation: toPackedUserOperation(userOperation),
         entryPointAddress,
         chainId
-    )
+    })
 }
 
 export const getNonceKeyAndSequence = (nonce: bigint) => {

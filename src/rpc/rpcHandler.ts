@@ -107,6 +107,7 @@ export class RpcHandler {
                 ValidationErrors.InvalidFields
             )
         }
+
         return await handler.handler({
             rpcHandler: this,
             params: request.params,
@@ -208,11 +209,12 @@ export class RpcHandler {
     ): Promise<"added" | "queued"> {
         this.ensureEntryPointIsSupported(entryPoint)
 
-        const opHash = getUserOperationHash(
-            userOperation,
-            entryPoint,
-            this.config.chainId
-        )
+        const opHash = await getUserOperationHash({
+            userOperation: userOperation,
+            entryPointAddress: entryPoint,
+            chainId: this.config.chainId,
+            publicClient: this.config.publicClient
+        })
 
         await this.preMempoolChecks(
             opHash,

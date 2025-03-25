@@ -260,11 +260,12 @@ export class Mempool {
         entryPoint: Address,
         referencedContracts?: ReferencedCodeHashes
     ): Promise<[boolean, string]> {
-        const userOpHash = getUserOperationHash(
-            userOp,
-            entryPoint,
-            this.config.chainId
-        )
+        const userOpHash = await getUserOperationHash({
+            userOperation: userOp,
+            entryPointAddress: entryPoint,
+            chainId: this.config.chainId,
+            publicClient: this.config.publicClient
+        })
 
         // Check if the exact same userOperation is already in the mempool.
         if (await this.store.isInMempool({ userOpHash, entryPoint })) {
@@ -372,6 +373,7 @@ export class Mempool {
         entryPoint: Address
     }): Promise<{
         skip: boolean
+        removeOutstanding?: boolean
         paymasterDeposit: { [paymaster: string]: bigint }
         stakedEntityCount: { [addr: string]: number }
         knownEntities: {
@@ -416,9 +418,9 @@ export class Mempool {
             paymasterStatus === ReputationStatuses.banned ||
             factoryStatus === ReputationStatuses.banned
         ) {
-            await this.store.removeOutstanding({ entryPoint, userOpHash })
             return {
                 skip: true,
+                removeOutstanding: true,
                 paymasterDeposit,
                 stakedEntityCount,
                 knownEntities,
@@ -654,6 +656,8 @@ export class Mempool {
         // Get EntryPoint version
         const isV6 = isVersion06(firstOp.userOp)
         const bundles: UserOperationBundle[] = []
+        const seenOps = new Set()
+        let breakLoop = false
 
         // Process operations until no more are available or we hit maxBundleCount
         while (await this.store.peekOutstanding(entryPoint)) {
@@ -675,10 +679,27 @@ export class Mempool {
             let knownEntities = await this.getKnownEntities(entryPoint)
             let storageMap: StorageMap = {}
 
+            if (breakLoop) {
+                break
+            }
+
             // Keep adding ops to current bundle
             while (await this.store.peekOutstanding(entryPoint)) {
                 const userOpInfo = await this.store.popOutstanding(entryPoint)
-                if (!userOpInfo) break
+                if (!userOpInfo) {
+                    break
+                }
+
+                if (seenOps.has(userOpInfo.userOpHash)) {
+                    breakLoop = true
+                    await this.store.addOutstanding({
+                        entryPoint,
+                        userOpInfo
+                    })
+                    break
+                }
+
+                seenOps.add(userOpInfo.userOpHash)
 
                 const { userOp } = userOpInfo
 
@@ -695,7 +716,12 @@ export class Mempool {
 
                 if (skipResult.skip) {
                     // Re-add to outstanding
-                    await this.store.addOutstanding({ entryPoint, userOpInfo })
+                    if (!skipResult.removeOutstanding) {
+                        await this.store.addOutstanding({
+                            entryPoint,
+                            userOpInfo
+                        })
+                    }
                     continue
                 }
 

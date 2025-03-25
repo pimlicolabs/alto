@@ -1,17 +1,31 @@
 import { createMethodHandler } from "../createMethodHandler"
-import { debugGetStakeStatusSchema } from "@alto/types"
+import { debugGetStakeStatusSchema, RpcError } from "@alto/types"
 
 export const debugGetStakeStatusHandler = createMethodHandler({
     schema: debugGetStakeStatusSchema,
     method: "debug_bundler_getStakeStatus",
     // @ts-ignore
     handler: async ({ rpcHandler, params }) => {
-        const [entryPoint, address] = params
+        const [address, entryPoint] = params
         rpcHandler.ensureDebugEndpointsAreEnabled(
             "debug_bundler_getStakeStatus"
         )
         rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
-        await rpcHandler.reputationManager.getStakeStatus(entryPoint, address)
+        const stakeStatus = await rpcHandler.reputationManager.getStakeStatus(
+            entryPoint,
+            address
+        )
+
+        const response = debugGetStakeStatusSchema.shape.result.safeParse({
+            isStaked: stakeStatus.isStaked,
+            stakeInfo: stakeStatus.stakeInfo
+        })
+
+        if (!response.success) {
+            throw new RpcError("Internal error: response validation failed")
+        }
+
+        return response.data
     }
 })

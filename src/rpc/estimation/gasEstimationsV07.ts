@@ -93,7 +93,7 @@ export class GasEstimatorV07 {
         }
     }
 
-    encodeUserOperationCalldata({
+    async encodeUserOperationCalldata({
         op,
         entryPoint
     }: {
@@ -111,7 +111,12 @@ export class GasEstimatorV07 {
                 functionName: "executeUserOp",
                 args: [
                     packedOp,
-                    getUserOperationHash(op, entryPoint, this.config.chainId)
+                    await getUserOperationHash({
+                        userOperation: op,
+                        entryPointAddress: entryPoint,
+                        chainId: this.config.chainId,
+                        publicClient: this.config.publicClient
+                    })
                 ]
             })
         }
@@ -119,7 +124,7 @@ export class GasEstimatorV07 {
         return packedOp.callData
     }
 
-    encodeSimulateHandleOpLast({
+    async encodeSimulateHandleOpLast({
         userOperation,
         queuedUserOperations,
         entryPoint
@@ -127,17 +132,20 @@ export class GasEstimatorV07 {
         userOperation: UserOperationV07
         queuedUserOperations: UserOperationV07[]
         entryPoint: Address
-    }): Hex {
+    }): Promise<Hex> {
         const userOperations = [...queuedUserOperations, userOperation]
-        const packedUserOperations = userOperations.map((uop) => ({
-            packedUserOperation: toPackedUserOperation(uop),
-            userOperation: uop,
-            userOperationHash: getUserOperationHash(
-                uop,
-                entryPoint,
-                this.config.chainId
-            )
-        }))
+        const packedUserOperations = await Promise.all(
+            userOperations.map(async (uop) => ({
+                packedUserOperation: toPackedUserOperation(uop),
+                userOperation: uop,
+                userOperationHash: await getUserOperationHash({
+                    userOperation: uop,
+                    entryPointAddress: entryPoint,
+                    chainId: this.config.chainId,
+                    publicClient: this.config.publicClient
+                })
+            }))
+        )
 
         const simulateHandleOpCallData = encodeFunctionData({
             abi: EntryPointV07SimulationsAbi,
@@ -148,7 +156,7 @@ export class GasEstimatorV07 {
         return simulateHandleOpCallData
     }
 
-    encodeBinarySearchGasLimit({
+    async encodeBinarySearchGasLimit({
         entryPoint,
         userOperation,
         queuedUserOperations,
@@ -169,15 +177,17 @@ export class GasEstimatorV07 {
             | "binarySearchPaymasterVerificationGasLimit"
             | "binarySearchVerificationGasLimit"
             | "binarySearchCallGasLimit"
-    }): Hex {
-        const queuedOps = queuedUserOperations.map((op) => ({
-            op: toPackedUserOperation(op),
-            target: op.sender,
-            targetCallData: this.encodeUserOperationCalldata({
-                op,
-                entryPoint
-            })
-        }))
+    }): Promise<Hex> {
+        const queuedOps = await Promise.all(
+            queuedUserOperations.map(async (op) => ({
+                op: toPackedUserOperation(op),
+                target: op.sender,
+                targetCallData: await this.encodeUserOperationCalldata({
+                    op,
+                    entryPoint
+                })
+            }))
+        )
 
         const targetOp = {
             op: toPackedUserOperation(userOperation),
@@ -235,16 +245,17 @@ export class GasEstimatorV07 {
             // OptimalGas represents the current lowest gasLimit, so we set the gasAllowance to search range minGas <-> optimalGas
             const gasAllowance = currentOptimalGas - currentMinGas
 
-            const binarySearchCallGasLimit = this.encodeBinarySearchGasLimit({
-                entryPoint,
-                userOperation: targetOp,
-                target,
-                targetCallData,
-                queuedUserOperations: queuedOps,
-                initialMinGas: currentMinGas,
-                gasAllowance,
-                functionName
-            })
+            const binarySearchCallGasLimit =
+                await this.encodeBinarySearchGasLimit({
+                    entryPoint,
+                    userOperation: targetOp,
+                    target,
+                    targetCallData,
+                    queuedUserOperations: queuedOps,
+                    initialMinGas: currentMinGas,
+                    gasAllowance,
+                    functionName
+                })
 
             stateOverrides = await getAuthorizationStateOverrides({
                 userOperations: [...queuedOps, targetOp],
@@ -312,7 +323,7 @@ export class GasEstimatorV07 {
         queuedUserOperations: UserOperationV07[]
         stateOverrides?: StateOverrides | undefined
     }): Promise<SimulateHandleOpResult> {
-        const simulateHandleOpLast = this.encodeSimulateHandleOpLast({
+        const simulateHandleOpLast = await this.encodeSimulateHandleOpLast({
             entryPoint,
             userOperation,
             queuedUserOperations
@@ -390,14 +401,14 @@ export class GasEstimatorV07 {
         queuedUserOperations: UserOperationV07[]
         stateOverrides?: StateOverrides | undefined
     }): Promise<SimulateHandleOpResult> {
-        const simulateHandleOpLast = this.encodeSimulateHandleOpLast({
+        const simulateHandleOpLast = await this.encodeSimulateHandleOpLast({
             entryPoint,
             userOperation,
             queuedUserOperations
         })
 
         const binarySearchVerificationGasLimit =
-            this.encodeBinarySearchGasLimit({
+            await this.encodeBinarySearchGasLimit({
                 initialMinGas: 9_000n,
                 entryPoint,
                 userOperation,
@@ -409,7 +420,7 @@ export class GasEstimatorV07 {
 
         const binarySearchPaymasterVerificationGasLimit =
             userOperation.paymaster
-                ? this.encodeBinarySearchGasLimit({
+                ? await this.encodeBinarySearchGasLimit({
                       initialMinGas: 9_000n,
                       entryPoint,
                       userOperation,
@@ -420,13 +431,13 @@ export class GasEstimatorV07 {
                   })
                 : null
 
-        const binarySearchCallGasLimit = this.encodeBinarySearchGasLimit({
+        const binarySearchCallGasLimit = await this.encodeBinarySearchGasLimit({
             initialMinGas: 9_000n,
             entryPoint,
             userOperation,
             queuedUserOperations,
             target: userOperation.sender,
-            targetCallData: this.encodeUserOperationCalldata({
+            targetCallData: await this.encodeUserOperationCalldata({
                 op: userOperation,
                 entryPoint
             }),
@@ -668,7 +679,7 @@ export class GasEstimatorV07 {
                     minGas,
                     targetOp: userOperation,
                     target: userOperation.sender,
-                    targetCallData: this.encodeUserOperationCalldata({
+                    targetCallData: await this.encodeUserOperationCalldata({
                         op: userOperation,
                         entryPoint
                     }),
