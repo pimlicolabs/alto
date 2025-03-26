@@ -32,7 +32,8 @@ import {
     getAddressFromInitCodeOrPaymasterAndData,
     isVersion06,
     isVersion07,
-    toPackedUserOperation
+    toPackedUserOperation,
+    isVersion08
 } from "@alto/utils"
 import {
     type ExecutionRevertedError,
@@ -514,8 +515,11 @@ export class SafeValidator
             args: [entryPoint, [entryPointSimulationsCallData]]
         })
 
-        const entryPointSimulationsAddress =
-            this.config.entrypointSimulationContract
+        const isV8 = isVersion08(userOperation, entryPoint)
+
+        const entryPointSimulationsAddress = isV8
+            ? this.config.entrypointSimulationContractV8
+            : this.config.entrypointSimulationContractV7
 
         const stateOverrides = await getAuthorizationStateOverrides({
             userOperations: [userOperation],

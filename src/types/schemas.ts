@@ -54,8 +54,8 @@ const signedAuthorizationSchema = z.union([
         contractAddress: addressSchema,
         chainId: hexNumberSchema.transform((val) => Number(val)),
         nonce: hexNumberSchema.transform((val) => Number(val)),
-        r: hexData32Schema.transform((val) => val as Hex),
-        s: hexData32Schema.transform((val) => val as Hex),
+        r: hexDataSchema.transform((val) => val as Hex),
+        s: hexDataSchema.transform((val) => val as Hex),
         v: hexNumberSchema.optional(),
         yParity: hexNumberSchema.transform((val) => Number(val))
     }),
@@ -63,8 +63,8 @@ const signedAuthorizationSchema = z.union([
         address: addressSchema,
         chainId: hexNumberSchema.transform((val) => Number(val)),
         nonce: hexNumberSchema.transform((val) => Number(val)),
-        r: hexData32Schema.transform((val) => val as Hex),
-        s: hexData32Schema.transform((val) => val as Hex),
+        r: hexDataSchema.transform((val) => val as Hex),
+        s: hexDataSchema.transform((val) => val as Hex),
         v: hexNumberSchema.optional(),
         yParity: hexNumberSchema.transform((val) => Number(val))
     })

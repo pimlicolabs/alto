@@ -10,7 +10,7 @@
     "executor-private-keys": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
     "utility-private-key": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
     "entrypoints": "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789,0x0000000071727De22E5E9d8BAf0edAc6f37da032",
-    "entrypoint-simulation-contract": "0xBbe8A301FbDb2a4CD58c4A37c262ecef8f889c47",
+    "entrypoint-simulation-contract-v7": "0xBbe8A301FbDb2a4CD58c4A37c262ecef8f889c47",
     "enable-debug-endpoints": true,
     "expiration-check": false,
     "safe-mode": false,

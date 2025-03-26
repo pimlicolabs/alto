@@ -13,9 +13,10 @@ import {
     binarySearchCallResultSchema
 } from "@alto/types"
 import {
-    Logger,
+    type Logger,
     getAuthorizationStateOverrides,
     getUserOperationHash,
+    isVersion08,
     toPackedUserOperation
 } from "@alto/utils"
 import type { Hex } from "viem"
@@ -80,10 +81,25 @@ export class GasEstimatorV07 {
                 publicClient: this.config.publicClient
             })
 
+        const isV8 = isVersion08(userOperation, entryPoint)
+
+        const entryPointSimulationsAddress = isV8
+            ? this.config.entrypointSimulationContractV8
+            : this.config.entrypointSimulationContractV7
+
+        if (!entryPointSimulationsAddress) {
+            throw new Error(
+                `Cannot find entryPointSimulationsAddress for version ${
+                    isV8 ? "08" : "07"
+                }`
+            )
+        }
+
         const errorResult = await this.callPimlicoEntryPointSimulations({
             entryPoint,
             entryPointSimulationsCallData: [simulateValidationLast],
-            stateOverrides
+            stateOverrides,
+            entryPointSimulationsAddress
         })
 
         return {
@@ -263,10 +279,25 @@ export class GasEstimatorV07 {
                 stateOverrides
             })
 
+            const isV8 = isVersion08(targetOp, entryPoint)
+
+            const entryPointSimulationsAddress = isV8
+                ? this.config.entrypointSimulationContractV8
+                : this.config.entrypointSimulationContractV7
+
+            if (!entryPointSimulationsAddress) {
+                throw new Error(
+                    `Cannot find entryPointSimulationsAddress for version ${
+                        isV8 ? "08" : "07"
+                    }`
+                )
+            }
+
             let cause = await this.callPimlicoEntryPointSimulations({
                 entryPoint,
                 entryPointSimulationsCallData: [binarySearchCallGasLimit],
-                stateOverrides
+                stateOverrides,
+                entryPointSimulationsAddress
             })
 
             cause = cause.map((data: Hex) => {
@@ -334,12 +365,27 @@ export class GasEstimatorV07 {
             stateOverrides
         })
 
+        const isV8 = isVersion08(userOperation, entryPoint)
+
+        const entryPointSimulationsAddress = isV8
+            ? this.config.entrypointSimulationContractV8
+            : this.config.entrypointSimulationContractV7
+
+        if (!entryPointSimulationsAddress) {
+            throw new Error(
+                `Cannot find entryPointSimulationsAddress for version ${
+                    isV8 ? "08" : "07"
+                }`
+            )
+        }
+
         let cause = [
             (
                 await this.callPimlicoEntryPointSimulations({
                     entryPoint,
                     entryPointSimulationsCallData: [simulateHandleOpLast],
-                    stateOverrides
+                    stateOverrides,
+                    entryPointSimulationsAddress
                 })
             )[0]
         ]
@@ -451,6 +497,19 @@ export class GasEstimatorV07 {
         })
 
         let cause: readonly [Hex, Hex, Hex | null, Hex]
+        const isV8 = isVersion08(userOperation, entryPoint)
+
+        const entryPointSimulationsAddress = isV8
+            ? this.config.entrypointSimulationContractV8
+            : this.config.entrypointSimulationContractV7
+
+        if (!entryPointSimulationsAddress) {
+            throw new Error(
+                `Cannot find entryPointSimulationsAddress for version ${
+                    isV8 ? "08" : "07"
+                }`
+            )
+        }
 
         if (this.config.splitSimulationCalls) {
             // due to Hedera specific restrictions, we can't combine these two calls.
@@ -463,14 +522,16 @@ export class GasEstimatorV07 {
                 this.callPimlicoEntryPointSimulations({
                     entryPoint,
                     entryPointSimulationsCallData: [simulateHandleOpLast],
-                    stateOverrides
+                    stateOverrides,
+                    entryPointSimulationsAddress
                 }),
                 this.callPimlicoEntryPointSimulations({
                     entryPoint,
                     entryPointSimulationsCallData: [
                         binarySearchVerificationGasLimit
                     ],
-                    stateOverrides
+                    stateOverrides,
+                    entryPointSimulationsAddress
                 }),
                 binarySearchPaymasterVerificationGasLimit
                     ? this.callPimlicoEntryPointSimulations({
@@ -478,13 +539,15 @@ export class GasEstimatorV07 {
                           entryPointSimulationsCallData: [
                               binarySearchPaymasterVerificationGasLimit
                           ],
-                          stateOverrides
+                          stateOverrides,
+                          entryPointSimulationsAddress
                       })
                     : null,
                 this.callPimlicoEntryPointSimulations({
                     entryPoint,
                     entryPointSimulationsCallData: [binarySearchCallGasLimit],
-                    stateOverrides
+                    stateOverrides,
+                    entryPointSimulationsAddress
                 })
             ])
 
@@ -507,7 +570,8 @@ export class GasEstimatorV07 {
                               binarySearchVerificationGasLimit,
                               binarySearchPaymasterVerificationGasLimit
                           ],
-                          stateOverrides
+                          stateOverrides,
+                          entryPointSimulationsAddress
                       })
                     : await this.callPimlicoEntryPointSimulations({
                           entryPoint,
@@ -515,12 +579,14 @@ export class GasEstimatorV07 {
                               simulateHandleOpLast,
                               binarySearchVerificationGasLimit
                           ],
-                          stateOverrides
+                          stateOverrides,
+                          entryPointSimulationsAddress
                       }),
                 await this.callPimlicoEntryPointSimulations({
                     entryPoint,
                     entryPointSimulationsCallData: [binarySearchCallGasLimit],
-                    stateOverrides
+                    stateOverrides,
+                    entryPointSimulationsAddress
                 })
             ])
 
@@ -720,11 +786,13 @@ export class GasEstimatorV07 {
     async callPimlicoEntryPointSimulations({
         entryPoint,
         entryPointSimulationsCallData,
-        stateOverrides
+        stateOverrides,
+        entryPointSimulationsAddress
     }: {
         entryPoint: Address
         entryPointSimulationsCallData: Hex[]
         stateOverrides?: StateOverrides
+        entryPointSimulationsAddress: Address
     }) {
         const publicClient = this.config.publicClient
         const blockTagSupport = this.config.blockTagSupport
@@ -732,8 +800,6 @@ export class GasEstimatorV07 {
         const utilityWalletAddress =
             this.config.utilityPrivateKey?.address ??
             "0x4337000c2828F5260d8921fD25829F606b9E8680"
-        const entryPointSimulationsAddress =
-            this.config.entrypointSimulationContract
         const fixedGasLimitForEstimation =
             this.config.fixedGasLimitForEstimation
 

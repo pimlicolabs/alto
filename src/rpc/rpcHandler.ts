@@ -31,9 +31,9 @@ import {
 import { type Hex, getContract } from "viem"
 import { base, baseSepolia, optimism } from "viem/chains"
 import type { AltoConfig } from "../createConfig"
-import { recoverAuthorizationAddress } from "viem/experimental"
 import type { MethodHandler } from "./createMethodHandler"
 import { registerHandlers } from "./methods"
+import { recoverAuthorizationAddress } from "viem/experimental"
 
 export class RpcHandler {
     public config: AltoConfig
@@ -352,6 +352,29 @@ export class RpcHandler {
                   }
               })
             : userOperation.sender
+
+        const nonceOnChain = await this.config.publicClient.getTransactionCount(
+            {
+                address: sender
+            }
+        )
+
+        if (
+            userOperation.eip7702Auth.chainId !== this.config.chainId &&
+            userOperation.eip7702Auth.chainId !== 0
+        ) {
+            throw new RpcError(
+                "Invalid EIP-7702 authorization: The chainId does not match the userOperation sender address",
+                ValidationErrors.InvalidFields
+            )
+        }
+
+        if (nonceOnChain !== userOperation.eip7702Auth.nonce) {
+            throw new RpcError(
+                "Invalid EIP-7702 authorization: The nonce does not match the userOperation sender address",
+                ValidationErrors.SimulateValidation
+            )
+        }
 
         if (sender !== userOperation.sender) {
             throw new RpcError(

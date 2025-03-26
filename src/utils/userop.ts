@@ -61,7 +61,12 @@ export function isVersion08(
 export function getInitCode(unpackedUserOperation: UserOperationV07) {
     return unpackedUserOperation.factory
         ? concat([
-              unpackedUserOperation.factory,
+              unpackedUserOperation.factory === "0x7702"
+                  ? pad(unpackedUserOperation.factory, {
+                          dir: "right",
+                          size: 20
+                      })
+                  : unpackedUserOperation.factory,
               unpackedUserOperation.factoryData || ("0x" as Hex)
           ])
         : "0x"
@@ -583,6 +588,11 @@ export const getUserOperationHashV08 = async ({
                 address: address as Address,
                 code: concat([
                     "0xef0100",
+                    userOperation.eip7702Auth
+                        ? "address" in userOperation.eip7702Auth
+                            ? userOperation.eip7702Auth.address
+                            : userOperation.eip7702Auth.contractAddress
+                        : "0x",
                     stateOverrides[address as Address]?.code ?? "0x"
                 ])
             }))
