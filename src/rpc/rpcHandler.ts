@@ -369,10 +369,11 @@ export class RpcHandler {
 
         if (
             isVersion07(userOperation) &&
-            (userOperation.factoryData || userOperation.factory)
+            userOperation.factory !== "0x7702" &&
+            userOperation.factory !== null
         ) {
             throw new RpcError(
-                "Invalid EIP-7702 authorization: UserOperation cannot contain factory or factoryData.",
+                "Invalid EIP-7702 authorization: UserOperation cannot contain factory that is neither null or 0x7702.",
                 ValidationErrors.InvalidFields
             )
         }

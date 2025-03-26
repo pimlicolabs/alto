@@ -130,6 +130,47 @@ const userOperationV07Schema = z
     .strict()
     .transform((val) => val)
 
+const userOperationV08Schema = z
+    .object({
+        sender: addressSchema,
+        nonce: hexNumberSchema,
+        factory: z
+            .union([addressSchema, z.literal("0x7702")])
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        factoryData: hexDataSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        callData: hexDataSchema,
+        callGasLimit: hexNumberSchema,
+        verificationGasLimit: hexNumberSchema,
+        preVerificationGas: hexNumberSchema,
+        maxFeePerGas: hexNumberSchema,
+        maxPriorityFeePerGas: hexNumberSchema,
+        paymaster: addressSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        paymasterVerificationGasLimit: hexNumberSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        paymasterPostOpGasLimit: hexNumberSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        paymasterData: hexDataSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        signature: hexDataSchema,
+        eip7702Auth: signedAuthorizationSchema.optional().nullable()
+    })
+    .strict()
+    .transform((val) => val)
+
 const partialUserOperationV06Schema = z
     .object({
         sender: addressSchema,
@@ -190,6 +231,47 @@ const partialUserOperationV07Schema = z
     .strict()
     .transform((val) => val)
 
+const partialUserOperationV08Schema = z
+    .object({
+        sender: addressSchema,
+        nonce: hexNumberSchema,
+        factory: z
+            .union([addressSchema, z.literal("0x7702")])
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        factoryData: hexDataSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        callData: hexDataSchema,
+        callGasLimit: hexNumberSchema.default(1n),
+        verificationGasLimit: hexNumberSchema.default(1n),
+        preVerificationGas: hexNumberSchema.default(1n),
+        maxFeePerGas: hexNumberSchema.default(1n),
+        maxPriorityFeePerGas: hexNumberSchema.default(1n),
+        paymaster: addressSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        paymasterVerificationGasLimit: hexNumberSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        paymasterPostOpGasLimit: hexNumberSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        paymasterData: hexDataSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        signature: hexDataSchema,
+        eip7702Auth: signedAuthorizationSchema.optional().nullable()
+    })
+    .strict()
+    .transform((val) => val)
+
 const packerUserOperationSchema = z
     .object({
         sender: addressSchema,
@@ -207,16 +289,19 @@ const packerUserOperationSchema = z
 
 const partialUserOperationSchema = z.union([
     partialUserOperationV06Schema,
-    partialUserOperationV07Schema
+    partialUserOperationV07Schema,
+    partialUserOperationV08Schema
 ])
 
 export const userOperationSchema = z.union([
     userOperationV06Schema,
-    userOperationV07Schema
+    userOperationV07Schema,
+    userOperationV08Schema
 ])
 
 export type UserOperationV06 = z.infer<typeof userOperationV06Schema>
 export type UserOperationV07 = z.infer<typeof userOperationV07Schema>
+export type UserOperationV08 = z.infer<typeof userOperationV08Schema>
 export type PackedUserOperation = z.infer<typeof packerUserOperationSchema>
 export type UserOperation = z.infer<typeof userOperationSchema>
 
