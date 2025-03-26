@@ -17,7 +17,8 @@ import {
     type BaseError,
     encodeFunctionData,
     type Address,
-    type Hex
+    type Hex,
+    toBytes
 } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { SignedAuthorizationList } from "viem/experimental"
@@ -33,7 +34,10 @@ export const isTransactionUnderpricedError = (e: BaseError) => {
 
 // V7 source: https://github.com/eth-infinitism/account-abstraction/blob/releases/v0.7/contracts/core/EntryPoint.sol
 // V6 source: https://github.com/eth-infinitism/account-abstraction/blob/fa61290d37d079e928d92d53a122efcc63822214/contracts/core/EntryPoint.sol#L236
-export function calculateAA95GasFloor(userOps: UserOpInfo[]): bigint {
+export function calculateAA95GasFloor(
+    userOps: UserOpInfo[],
+    beneficiary: Address
+): bigint {
     let gasFloor = 0n
 
     for (const userOpInfo of userOps) {
@@ -49,12 +53,40 @@ export function calculateAA95GasFloor(userOps: UserOpInfo[]): bigint {
             gasFloor +=
                 userOp.verificationGasLimit +
                 (userOp.paymasterVerificationGasLimit || 0n)
+
+            // There is a ~27,170 gas overhead for EntryPoint's re-entrency check
+            gasFloor += 30_000n
+
+            // There is a variable gas overhead for calldata gas when calling handleOps
+            const calldata = encodeHandleOpsCalldata({
+                userOps: userOps,
+                beneficiary
+            })
+            const handleOpsCalldataCost = toBytes(calldata)
+                .map((x) => (x === 0 ? 4 : 16))
+                .reduce((sum, x) => sum + x)
+
+            gasFloor += BigInt(handleOpsCalldataCost)
         } else {
             gasFloor +=
                 userOp.callGasLimit + userOp.verificationGasLimit + 5000n
 
             // AA95 check happens after verification + paymaster verification
             gasFloor += userOp.verificationGasLimit
+
+            // There is a ~27,179 gas overhead for EntryPoint's re-entrency check
+            gasFloor += 30_000n
+
+            // There is a variable gas overhead for calldata gas when calling handleOps
+            const calldata = encodeHandleOpsCalldata({
+                userOps: userOps,
+                beneficiary
+            })
+            const handleOpsCalldataCost = toBytes(calldata)
+                .map((x) => (x === 0 ? 4 : 16))
+                .reduce((sum, x) => sum + x)
+
+            gasFloor += BigInt(handleOpsCalldataCost)
         }
     }
 
