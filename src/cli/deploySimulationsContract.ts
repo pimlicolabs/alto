@@ -16,6 +16,7 @@ import {
 } from "viem"
 import type { CamelCasedProperties } from "./parseArgs"
 import type { IOptions } from "@alto/cli"
+import type { Logger } from "pino"
 
 const isContractDeployed = async ({
     publicClient,
@@ -28,9 +29,11 @@ const isContractDeployed = async ({
 }
 
 export const deploySimulationsContract = async ({
+    logger,
     args,
     publicClient
 }: {
+    logger: Logger
     args: CamelCasedProperties<IOptions>
     publicClient: PublicClient<Transport, Chain>
 }): Promise<{
@@ -110,18 +113,22 @@ export const deploySimulationsContract = async ({
     }
 
     if (!isV8Deployed) {
-        const deployHash = await walletClient.sendTransaction({
-            chain: publicClient.chain,
-            to: args.deterministicDeployerAddress,
-            data: concat([
-                pimlicoEntrypointSimulationsSalt,
-                pimlicoEntrypointSimulationsV8DeployBytecode
-            ])
-        })
+        try {
+            const deployHash = await walletClient.sendTransaction({
+                chain: publicClient.chain,
+                to: args.deterministicDeployerAddress,
+                data: concat([
+                    pimlicoEntrypointSimulationsSalt,
+                    pimlicoEntrypointSimulationsV8DeployBytecode
+                ])
+            })
 
-        await publicClient.waitForTransactionReceipt({
-            hash: deployHash
-        })
+            await publicClient.waitForTransactionReceipt({
+                hash: deployHash
+            })
+        } catch {
+            logger.error("Failed to deploy simulationsContract V8")
+        }
     }
 
     const deployStatus = await Promise.all([
@@ -129,7 +136,11 @@ export const deploySimulationsContract = async ({
         isContractDeployed({ publicClient, address: contractAddressV8 })
     ])
 
-    if (deployStatus[0] && deployStatus[1]) {
+    if (!deployStatus[1]) {
+        logger.error("Failed to deploy simulationsContract V8")
+    }
+
+    if (deployStatus[0]) {
         return {
             entrypointSimulationContractV7: contractAddressV7,
             entrypointSimulationContractV8: contractAddressV8

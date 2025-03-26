@@ -46,17 +46,17 @@ const preFlightChecks = async (config: AltoConfig): Promise<void> => {
         }
     }
 
-    if (config.entrypointSimulationContractV8) {
-        const simulations = config.entrypointSimulationContractV8
-        const simulationsCode = await config.publicClient.getCode({
-            address: simulations
-        })
-        if (simulationsCode === undefined || simulationsCode === "0x") {
-            throw new Error(
-                `EntryPointSimulationsV8 contract ${simulations} does not exist`
-            )
-        }
-    }
+    // if (config.entrypointSimulationContractV8) {
+    //     const simulations = config.entrypointSimulationContractV8
+    //     const simulationsCode = await config.publicClient.getCode({
+    //         address: simulations
+    //     })
+    //     if (simulationsCode === undefined || simulationsCode === "0x") {
+    //         throw new Error(
+    //             `EntryPointSimulationsV8 contract ${simulations} does not exist`
+    //         )
+    //     }
+    // }
 
     if (config.refillHelperContract) {
         const refillHelper = config.refillHelperContract
@@ -157,6 +157,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     // if flag is set, use utility wallet to deploy the simulations contract
     if (args.deploySimulationsContract) {
         const deployedContracts = await deploySimulationsContract({
+            logger,
             args,
             publicClient
         })
