@@ -24,7 +24,7 @@ import {
     toFunctionSelector
 } from "viem"
 import type { BundlerTracerResult } from "./BundlerCollectorTracerV07"
-import { areAddressesEqual } from "@alto/utils"
+import { areAddressesEqual, isVersion08 } from "@alto/utils"
 
 interface CallEntry {
     to: string
@@ -430,24 +430,42 @@ export function tracerResultParserV07(
     // todo: block access to no-code addresses (might need update to tracer)
 
     // opcodes from [OP-011]
-    const bannedOpCodes = new Set([
-        "GASPRICE",
-        "GASLIMIT",
-        "DIFFICULTY",
-        "TIMESTAMP",
-        "BASEFEE",
-        "BLOCKHASH",
-        "NUMBER",
-        "ORIGIN",
-        "GAS",
-        "COINBASE",
-        "SELFDESTRUCT",
-        "RANDOM",
-        "PREVRANDAO",
-        "INVALID",
-        "SELFBALANCE",
-        "BALANCE"
-    ])
+    const bannedOpCodes = isVersion08(userOperation, entryPointAddress)
+        ? new Set([
+              "GAS",
+              "NUMBER",
+              "TIMESTAMP",
+              "COINBASE",
+              "DIFFICULTY",
+              "BASEFEE",
+              "GASLIMIT",
+              "GASPRICE",
+              "SELFBALANCE",
+              "BALANCE",
+              "ORIGIN",
+              "BLOCKHASH",
+              "SELFDESTRUCT",
+              "BLOBHASH",
+              "BLOBBASEFEE"
+          ])
+        : new Set([
+              "GASPRICE",
+              "GASLIMIT",
+              "DIFFICULTY",
+              "TIMESTAMP",
+              "BASEFEE",
+              "BLOCKHASH",
+              "NUMBER",
+              "ORIGIN",
+              "GAS",
+              "COINBASE",
+              "SELFDESTRUCT",
+              "RANDOM",
+              "PREVRANDAO",
+              "INVALID",
+              "SELFBALANCE",
+              "BALANCE"
+          ])
 
     // eslint-disable-next-line @typescript-eslint/no-base-to-string
     if (Object.values(tracerResults.callsFromEntryPoint).length < 1) {
@@ -545,6 +563,7 @@ export function tracerResultParserV07(
         }
 
         const createOpcode = (opcodes.CREATE2 ?? 0) + (opcodes.CREATE ?? 0)
+        const create2Opcode = opcodes.CREATE2 ?? 0
 
         if (isCreateOpcodeUsed && createOpcode > 1) {
             throw new RpcError(
@@ -555,7 +574,13 @@ export function tracerResultParserV07(
 
         // [OP-031]
         if (entityTitle === "factory") {
-            if ((createOpcode ?? 0) > 1) {
+            if ((createOpcode ?? 0) > 2) {
+                throw new RpcError(
+                    `${entityTitle} with too many CREATE2`,
+                    ValidationErrors.OpcodeValidation
+                )
+            }
+            if ((create2Opcode ?? 0) >= 2) {
                 throw new RpcError(
                     `${entityTitle} with too many CREATE2`,
                     ValidationErrors.OpcodeValidation

@@ -11,10 +11,9 @@ import {
     createWalletClient,
     formatEther,
     fallback,
-    CallParameters,
+    type CallParameters,
     publicActions
 } from "viem"
-import { UtilityWalletMonitor } from "../executor/utilityWalletMonitor"
 import type { IOptionsInput } from "./config"
 import { customTransport } from "./customTransport"
 import { setupServer } from "./setupServer"
@@ -23,6 +22,7 @@ import { parseArgs } from "./parseArgs"
 import { deploySimulationsContract } from "./deploySimulationsContract"
 import { eip7702Actions } from "viem/experimental"
 import { getSenderManager } from "../executor/senderManager"
+import { UtilityWalletMonitor } from "../executor/utilityWalletMonitor"
 
 const preFlightChecks = async (config: AltoConfig): Promise<void> => {
     for (const entrypoint of config.entrypoints) {
@@ -34,17 +34,29 @@ const preFlightChecks = async (config: AltoConfig): Promise<void> => {
         }
     }
 
-    if (config.entrypointSimulationContract) {
-        const simulations = config.entrypointSimulationContract
+    if (config.entrypointSimulationContractV7) {
+        const simulations = config.entrypointSimulationContractV7
         const simulationsCode = await config.publicClient.getCode({
             address: simulations
         })
         if (simulationsCode === undefined || simulationsCode === "0x") {
             throw new Error(
-                `EntryPointSimulations contract ${simulations} does not exist`
+                `EntryPointSimulationsV7 contract ${simulations} does not exist`
             )
         }
     }
+
+    // if (config.entrypointSimulationContractV8) {
+    //     const simulations = config.entrypointSimulationContractV8
+    //     const simulationsCode = await config.publicClient.getCode({
+    //         address: simulations
+    //     })
+    //     if (simulationsCode === undefined || simulationsCode === "0x") {
+    //         throw new Error(
+    //             `EntryPointSimulationsV8 contract ${simulations} does not exist`
+    //         )
+    //     }
+    // }
 
     if (config.refillHelperContract) {
         const refillHelper = config.refillHelperContract
@@ -144,10 +156,15 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
 
     // if flag is set, use utility wallet to deploy the simulations contract
     if (args.deploySimulationsContract) {
-        args.entrypointSimulationContract = await deploySimulationsContract({
+        const deployedContracts = await deploySimulationsContract({
+            logger,
             args,
             publicClient
         })
+        args.entrypointSimulationContractV7 =
+            deployedContracts.entrypointSimulationContractV7
+        args.entrypointSimulationContractV8 =
+            deployedContracts.entrypointSimulationContractV8
     }
 
     const config = createConfig({ ...args, logger, publicClient, walletClient })

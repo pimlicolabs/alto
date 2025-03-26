@@ -366,6 +366,7 @@ export class ExecutorManager {
         const reverted = transactionDetails.find(
             ({ bundlingStatus }) => bundlingStatus.status === "reverted"
         )
+
         const finalizedTransaction = mined ?? reverted
 
         if (!finalizedTransaction) {

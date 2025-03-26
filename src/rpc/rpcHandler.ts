@@ -31,9 +31,9 @@ import {
 import { type Hex, getContract } from "viem"
 import { base, baseSepolia, optimism } from "viem/chains"
 import type { AltoConfig } from "../createConfig"
-import { recoverAuthorizationAddress } from "viem/experimental"
 import type { MethodHandler } from "./createMethodHandler"
 import { registerHandlers } from "./methods"
+import { recoverAuthorizationAddress } from "viem/experimental"
 
 export class RpcHandler {
     public config: AltoConfig
@@ -107,6 +107,7 @@ export class RpcHandler {
                 ValidationErrors.InvalidFields
             )
         }
+
         return await handler.handler({
             rpcHandler: this,
             params: request.params,
@@ -208,11 +209,12 @@ export class RpcHandler {
     ): Promise<"added" | "queued"> {
         this.ensureEntryPointIsSupported(entryPoint)
 
-        const opHash = getUserOperationHash(
-            userOperation,
-            entryPoint,
-            this.config.chainId
-        )
+        const opHash = await getUserOperationHash({
+            userOperation: userOperation,
+            entryPointAddress: entryPoint,
+            chainId: this.config.chainId,
+            publicClient: this.config.publicClient
+        })
 
         await this.preMempoolChecks(
             opHash,
@@ -351,6 +353,29 @@ export class RpcHandler {
               })
             : userOperation.sender
 
+        const nonceOnChain = await this.config.publicClient.getTransactionCount(
+            {
+                address: sender
+            }
+        )
+
+        if (
+            userOperation.eip7702Auth.chainId !== this.config.chainId &&
+            userOperation.eip7702Auth.chainId !== 0
+        ) {
+            throw new RpcError(
+                "Invalid EIP-7702 authorization: The chainId does not match the userOperation sender address",
+                ValidationErrors.InvalidFields
+            )
+        }
+
+        if (nonceOnChain !== userOperation.eip7702Auth.nonce) {
+            throw new RpcError(
+                "Invalid EIP-7702 authorization: The nonce does not match the userOperation sender address",
+                ValidationErrors.SimulateValidation
+            )
+        }
+
         if (sender !== userOperation.sender) {
             throw new RpcError(
                 "Invalid EIP-7702 authorization: The recovered signer address does not match the userOperation sender address",
@@ -367,10 +392,11 @@ export class RpcHandler {
 
         if (
             isVersion07(userOperation) &&
-            (userOperation.factoryData || userOperation.factory)
+            userOperation.factory !== "0x7702" &&
+            userOperation.factory !== null
         ) {
             throw new RpcError(
-                "Invalid EIP-7702 authorization: UserOperation cannot contain factory or factoryData.",
+                "Invalid EIP-7702 authorization: UserOperation cannot contain factory that is neither null or 0x7702.",
                 ValidationErrors.InvalidFields
             )
         }
