@@ -50,6 +50,14 @@ export function isVersion07(
     return "factory" in operation && "paymaster" in operation
 }
 
+// Type predicate to check if the UserOperation is V07.
+export function isVersion08(
+    operation: UserOperation,
+    entryPointAddress: Address
+): operation is UserOperationV07 {
+    return entryPointAddress.startsWith("0x4337")
+}
+
 export function getInitCode(unpackedUserOperation: UserOperationV07) {
     return unpackedUserOperation.factory
         ? concat([
@@ -603,7 +611,7 @@ export const getUserOperationHash = ({
         })
     }
 
-    if (entryPointAddress.startsWith("0x4337")) {
+    if (isVersion08(userOperation, entryPointAddress)) {
         return getUserOperationHashV08({
             userOperation,
             entryPointAddress,

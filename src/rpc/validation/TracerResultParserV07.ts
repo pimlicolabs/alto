@@ -24,7 +24,7 @@ import {
     toFunctionSelector
 } from "viem"
 import type { BundlerTracerResult } from "./BundlerCollectorTracerV07"
-import { areAddressesEqual } from "@alto/utils"
+import { areAddressesEqual, isVersion08 } from "@alto/utils"
 
 interface CallEntry {
     to: string
@@ -430,7 +430,7 @@ export function tracerResultParserV07(
     // todo: block access to no-code addresses (might need update to tracer)
 
     // opcodes from [OP-011]
-    const bannedOpCodes = entryPointAddress.startsWith("0x4337")
+    const bannedOpCodes = isVersion08(userOperation, entryPointAddress)
         ? new Set([
               "GAS",
               "NUMBER",
