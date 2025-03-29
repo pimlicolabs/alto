@@ -39,7 +39,7 @@ export const stateOverridesSchema = z.record(
         nonce: hexNumberSchema.optional(),
         code: hexDataSchema.optional(),
         state: z.record(hexData32Schema, hexData32Schema).optional(),
-        stateDiff: z.record(hexData32Schema, hexData32Schema).optional()
+        stateDiff: z.record(hexData32Schema, hexDataSchema).optional()
     })
 )
 
