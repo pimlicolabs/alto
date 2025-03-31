@@ -123,7 +123,7 @@ export class Executor {
         })
 
         // Add authorization state overrides.
-        let stateOverride: StateOverride | undefined = []
+        let stateOverrides: StateOverride | undefined = []
 
         for (const opInfo of txParam.userOps) {
             const { userOp } = opInfo
@@ -133,15 +133,15 @@ export class Executor {
                         ? userOp.eip7702Auth.address
                         : userOp.eip7702Auth.contractAddress
 
-                stateOverride.push({
+                stateOverrides.push({
                     address: userOp.sender,
                     code: concat(["0xef0100", delegate])
                 })
             }
         }
 
-        if (this.config.balanceOverride) {
-            stateOverride = undefined
+        if (!this.config.balanceOverride) {
+            stateOverrides = undefined
         }
 
         const gas = await this.config.publicClient.estimateGas({
@@ -149,7 +149,7 @@ export class Executor {
             data: handleOpsCalldata,
             ...txParam,
             ...gasOpts,
-            stateOverride
+            ...(stateOverrides ? stateOverrides : {})
         })
 
         const request = {
