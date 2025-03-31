@@ -19,7 +19,8 @@ import {
     type Account,
     type Hex,
     NonceTooHighError,
-    BaseError
+    BaseError,
+    concat
 } from "viem"
 import {
     calculateAA95GasFloor,
@@ -28,7 +29,7 @@ import {
     getUserOpHashes,
     isTransactionUnderpricedError
 } from "./utils"
-import type { SendTransactionErrorType } from "viem"
+import type { SendTransactionErrorType, StateOverride } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { sendPflConditional } from "./fastlane"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEStimateGas"
@@ -121,13 +122,44 @@ export class Executor {
             beneficiary: txParam.account.address
         })
 
-        const request =
-            await this.config.walletClient.prepareTransactionRequest({
-                to: entryPoint,
-                data: handleOpsCalldata,
-                ...txParam,
-                ...gasOpts
-            })
+        // Add authorization state overrides.
+        let stateOverride: StateOverride | undefined = []
+
+        for (const opInfo of txParam.userOps) {
+            const { userOp } = opInfo
+            if (userOp.eip7702Auth) {
+                const delegate =
+                    "address" in userOp.eip7702Auth
+                        ? userOp.eip7702Auth.address
+                        : userOp.eip7702Auth.contractAddress
+
+                stateOverride.push({
+                    address: userOp.sender,
+                    code: concat(["0xef0100", delegate])
+                })
+            }
+        }
+
+        if (!this.config.balanceOverride) {
+            stateOverride = undefined
+        }
+
+        const gas = await this.config.publicClient.estimateGas({
+            to: entryPoint,
+            data: handleOpsCalldata,
+            ...txParam,
+            ...gasOpts,
+            ...(stateOverride ? { stateOverride } : {})
+        })
+
+        const request = {
+            to: entryPoint,
+            data: handleOpsCalldata,
+            from: txParam.account.address,
+            ...txParam,
+            ...gasOpts,
+            gas
+        }
 
         request.gas = scaleBigIntByPercent(
             request.gas,
@@ -175,14 +207,26 @@ export class Executor {
                                 blockTag: "latest"
                             })
 
-                        request.maxFeePerGas = scaleBigIntByPercent(
-                            request.maxFeePerGas,
-                            150n
-                        )
-                        request.maxPriorityFeePerGas = scaleBigIntByPercent(
-                            request.maxPriorityFeePerGas,
-                            150n
-                        )
+                        if (
+                            request.maxFeePerGas &&
+                            request.maxPriorityFeePerGas
+                        ) {
+                            request.maxFeePerGas = scaleBigIntByPercent(
+                                request.maxFeePerGas,
+                                150n
+                            )
+                            request.maxPriorityFeePerGas = scaleBigIntByPercent(
+                                request.maxPriorityFeePerGas,
+                                150n
+                            )
+                        }
+
+                        if (request.gasPrice) {
+                            request.gasPrice = scaleBigIntByPercent(
+                                request.gasPrice,
+                                150n
+                            )
+                        }
                     }
                 }
 
