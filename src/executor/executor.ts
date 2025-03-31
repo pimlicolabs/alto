@@ -114,20 +114,23 @@ export class Executor {
         txParam: HandleOpsTxParams
         gasOpts: HandleOpsGasParams
     }) {
-        const { isUserOpV06, entryPoint, userOps, account } = txParam
+        const { entryPoint, userOps, account, gas, nonce, isUserOpV06 } =
+            txParam
 
         const handleOpsCalldata = encodeHandleOpsCalldata({
             userOps,
-            beneficiary: txParam.account.address
+            beneficiary: account.address
         })
 
-        const request =
-            await this.config.walletClient.prepareTransactionRequest({
-                to: entryPoint,
-                data: handleOpsCalldata,
-                ...txParam,
-                ...gasOpts
-            })
+        const request = {
+            to: entryPoint,
+            data: handleOpsCalldata,
+            from: account.address,
+            gas,
+            account,
+            nonce,
+            ...gasOpts
+        }
 
         request.gas = scaleBigIntByPercent(
             request.gas,
@@ -175,14 +178,26 @@ export class Executor {
                                 blockTag: "latest"
                             })
 
-                        request.maxFeePerGas = scaleBigIntByPercent(
-                            request.maxFeePerGas,
-                            150n
-                        )
-                        request.maxPriorityFeePerGas = scaleBigIntByPercent(
-                            request.maxPriorityFeePerGas,
-                            150n
-                        )
+                        if (
+                            request.maxFeePerGas &&
+                            request.maxPriorityFeePerGas
+                        ) {
+                            request.maxFeePerGas = scaleBigIntByPercent(
+                                request.maxFeePerGas,
+                                150n
+                            )
+                            request.maxPriorityFeePerGas = scaleBigIntByPercent(
+                                request.maxPriorityFeePerGas,
+                                150n
+                            )
+                        }
+
+                        if (request.gasPrice) {
+                            request.gasPrice = scaleBigIntByPercent(
+                                request.gasPrice,
+                                150n
+                            )
+                        }
                     }
                 }
 
@@ -265,6 +280,7 @@ export class Executor {
             nonce,
             maxFeePerGas,
             maxPriorityFeePerGas,
+            codeOverrideSupport: this.config.codeOverrideSupport,
             reputationManager: this.reputationManager,
             config: this.config,
             logger: childLogger
