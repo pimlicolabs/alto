@@ -15,6 +15,7 @@ import {
     EstimateGasExecutionError,
     FeeCapTooLowError,
     Hex,
+    StateOverride,
     decodeErrorResult,
     getContract
 } from "viem"
@@ -28,6 +29,7 @@ import {
 import { z } from "zod"
 import { getAuthorizationList, packUserOps } from "./utils"
 import * as sentry from "@sentry/node"
+import { getEip7702DelegationOverrides } from "../utils/eip7702"
 
 export type FilterOpsAndEstimateGasResult =
     | {
@@ -63,6 +65,7 @@ function rejectUserOps(
 export async function filterOpsAndEstimateGas({
     executor,
     userOpBundle,
+    codeOverrideSupport,
     nonce,
     maxFeePerGas,
     maxPriorityFeePerGas,
@@ -72,6 +75,7 @@ export async function filterOpsAndEstimateGas({
 }: {
     executor: Account
     userOpBundle: UserOperationBundle
+    codeOverrideSupport: boolean
     nonce: number
     maxFeePerGas: bigint
     maxPriorityFeePerGas: bigint
@@ -125,7 +129,14 @@ export async function filterOpsAndEstimateGas({
 
         try {
             const packedUserOps = packUserOps(userOpsToBundle)
-            const authorizationList = getAuthorizationList(userOpsToBundle)
+
+            let stateOverride: StateOverride | undefined = undefined
+
+            if (codeOverrideSupport) {
+                stateOverride = getEip7702DelegationOverrides(
+                    userOpsToBundle.map(({ userOp }) => userOp)
+                )
+            }
 
             gasLimit = await epContract.estimateGas.handleOps(
                 // @ts-ignore - ep is set correctly for opsToSend, but typescript doesn't know that
@@ -137,8 +148,8 @@ export async function filterOpsAndEstimateGas({
                     ...(fixedGasLimitForEstimation && {
                         gas: fixedGasLimitForEstimation
                     }),
-                    ...(authorizationList && {
-                        authorizationList
+                    ...(stateOverride && {
+                        stateOverride
                     }),
                     ...gasOptions
                 }
