@@ -27,7 +27,7 @@ import {
     scaleBigIntByPercent
 } from "@alto/utils"
 import { z } from "zod"
-import { getAuthorizationList, packUserOps } from "./utils"
+import { packUserOps } from "./utils"
 import * as sentry from "@sentry/node"
 import { getEip7702DelegationOverrides } from "../utils/eip7702"
 
@@ -154,6 +154,12 @@ export async function filterOpsAndEstimateGas({
                     ...gasOptions
                 }
             )
+
+            // Add gas overhead for EIP-7702 authorizations
+            const eip7702AuthCount = userOpsToBundle.filter(
+                ({ userOp }) => userOp.eip7702Auth
+            ).length
+            gasLimit += BigInt(eip7702AuthCount) * 60_000n
 
             return {
                 status: "success",
