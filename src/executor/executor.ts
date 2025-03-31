@@ -28,12 +28,11 @@ import {
     getUserOpHashes,
     isTransactionUnderpricedError
 } from "./utils"
-import type { SendTransactionErrorType, StateOverride } from "viem"
+import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { sendPflConditional } from "./fastlane"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEStimateGas"
 import type { SignedAuthorizationList } from "viem/experimental"
-import { getEip7702DelegationOverrides } from "../utils/eip7702"
 
 type HandleOpsTxParams = {
     gas: bigint
