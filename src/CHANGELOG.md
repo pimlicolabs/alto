@@ -1,5 +1,11 @@
 # @pimlico/alto
 
+## 0.0.14
+
+### Patch Changes
+
+- f99bb69df843d751939523e1c5f1878f20b7c281: Added support for entrypoint 0.8 & 7702
+
 ## 0.0.13
 
 ### Patch Changes

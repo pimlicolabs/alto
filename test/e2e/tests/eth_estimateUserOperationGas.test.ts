@@ -1,22 +1,32 @@
-import type { EntryPointVersion } from "viem/account-abstraction"
+import {
+    UserOperation,
+    createBundlerClient,
+    type EntryPointVersion,
+    entryPoint06Address,
+    entryPoint07Address
+} from "viem/account-abstraction"
 import { beforeEach, describe, expect, inject, test } from "vitest"
 import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils/index.js"
 import {
     getRevertCall,
     deployRevertingContract
 } from "../src/revertingContract.js"
-import { type Address, BaseError } from "viem"
+import { type Address, BaseError, Hex, http, zeroAddress } from "viem"
+import { deepHexlify } from "permissionless"
+import { foundry } from "viem/chains"
 
 describe.each([
     {
+        entryPoint: entryPoint06Address,
         entryPointVersion: "0.6" as EntryPointVersion
     },
     {
+        entryPoint: entryPoint07Address,
         entryPointVersion: "0.7" as EntryPointVersion
     }
 ])(
     "$entryPointVersion supports eth_estimateUserOperationGas",
-    ({ entryPointVersion }) => {
+    ({ entryPointVersion, entryPoint }) => {
         let revertingContract: Address
 
         const anvilRpc = inject("anvilRpc")
@@ -157,6 +167,91 @@ describe.each([
                 const err = e.walk()
                 expect(err.reason).toEqual("foobar")
             }
+        })
+
+        test("Should validate eip7702Auth", async () => {
+            let userOp: UserOperation
+
+            if (entryPointVersion === "0.6") {
+                userOp = {
+                    sender: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                    nonce: 0n,
+                    initCode: "0x",
+                    callData: "0x",
+                    callGasLimit: 500_000n,
+                    verificationGasLimit: 500_000n,
+                    preVerificationGas: 500_000n,
+                    maxFeePerGas: 0n,
+                    maxPriorityFeePerGas: 0n,
+                    paymasterAndData: "0x",
+                    signature: "0x"
+                }
+            } else {
+                userOp = {
+                    sender: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                    nonce: 0n,
+                    callData: "0x",
+                    callGasLimit: 500_000n,
+                    verificationGasLimit: 500_000n,
+                    preVerificationGas: 500_000n,
+                    maxFeePerGas: 0n,
+                    maxPriorityFeePerGas: 0n,
+                    paymaster:
+                        "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as Address,
+                    paymasterData: "0x" as Hex,
+                    signature: "0x"
+                }
+            }
+
+            const stubEip7702Auth = {
+                address: "0xffffffffffffffffffffffffffffffffffffffff",
+                chainId: foundry.id,
+                nonce: "0x0",
+                r: "0xd0a9ba6fb478f5e1a3e4eb55c679534f4420b0bdf0e66ce740ec0618e95e2673",
+                s: "0x7a807cf75baf2868ba4b15cdcf9803be90657e160f427b9811df3ae4e65e15c4",
+                yParity: 1 // Valid values are 0 or 1 for EIP-7702
+            }
+
+            const bundlerClient = createBundlerClient({
+                chain: foundry,
+                transport: http(altoRpc)
+            })
+
+            const entryPointAddress = entryPoint
+
+            // check yParity
+            await expect(async () => {
+                await bundlerClient.request({
+                    method: "eth_estimateUserOperationGas",
+                    params: [
+                        deepHexlify({
+                            ...userOp,
+                            eip7702Auth: { ...stubEip7702Auth, yParity: 27 }
+                        }),
+                        entryPointAddress
+                    ]
+                })
+            }).rejects.toThrow(
+                "Invalid EIP-7702 authorization: The yParity value must be either 0 or 1"
+            )
+
+            await expect(async () => {
+                await bundlerClient.request({
+                    method: "eth_estimateUserOperationGas",
+                    params: [
+                        deepHexlify({
+                            ...userOp,
+                            eip7702Auth: {
+                                ...stubEip7702Auth,
+                                address: zeroAddress
+                            }
+                        }),
+                        entryPointAddress
+                    ]
+                })
+            }).rejects.toThrow(
+                "Invalid EIP-7702 authorization: Cannot delegate to the zero address."
+            )
         })
     }
 )
