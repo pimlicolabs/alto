@@ -169,7 +169,7 @@ describe.each([
             }
         })
 
-        test.only("Should validate eip7702Auth", async () => {
+        test("Should validate eip7702Auth", async () => {
             let userOp: UserOperation
 
             if (entryPointVersion === "0.6") {
