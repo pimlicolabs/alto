@@ -33,7 +33,7 @@ import { base, baseSepolia, optimism } from "viem/chains"
 import type { AltoConfig } from "../createConfig"
 import type { MethodHandler } from "./createMethodHandler"
 import { registerHandlers } from "./methods"
-import { recoverAuthorizationAddress } from "viem/experimental"
+import { recoverAuthorizationAddress } from "viem/utils"
 
 export class RpcHandler {
     public config: AltoConfig
@@ -339,7 +339,7 @@ export class RpcHandler {
         const sender = validateSender
             ? await recoverAuthorizationAddress({
                   authorization: {
-                      contractAddress:
+                      address:
                           "address" in userOperation.eip7702Auth
                               ? userOperation.eip7702Auth.address
                               : userOperation.eip7702Auth.contractAddress,

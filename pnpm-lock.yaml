@@ -144,8 +144,8 @@ importers:
         specifier: ^4.35.0
         version: 4.35.0
       viem:
-        specifier: ^2.23.15
-        version: 2.23.15(typescript@5.3.3)(zod@3.22.4)
+        specifier: ^2.24.3
+        version: 2.24.3(typescript@5.3.3)(zod@3.22.4)
       yargs:
         specifier: ^17.7.1
         version: 17.7.2
@@ -6067,8 +6067,8 @@ packages:
       - zod
     dev: false
 
-  /viem@2.23.15(typescript@5.3.3)(zod@3.22.4):
-    resolution: {integrity: sha512-2t9lROkSzj/ciEZ08NqAHZ6c+J1wKLwJ4qpUxcHdVHcLBt6GfO9+ycuZycTT05ckfJ6TbwnMXMa3bMonvhtUMw==}
+  /viem@2.24.3(typescript@5.3.3)(zod@3.22.4):
+    resolution: {integrity: sha512-FAoW0hqqpGOlZvfL6GbizDNUd6ZvUyNYYF8HouXbGATrO0RLLh28MOElFNF63hg++uZi2R/EcISs0bvY185z8g==}
     peerDependencies:
       typescript: '>=5.0.4'
     peerDependenciesMeta:
