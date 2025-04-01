@@ -393,7 +393,7 @@ export class RpcHandler {
             )
         }
 
-        if (isVersion06(userOperation) && userOperation.initCode) {
+        if (isVersion06(userOperation) && userOperation.initCode !== "0x") {
             throw new RpcError(
                 "Invalid EIP-7702 authorization: UserOperation cannot contain initCode.",
                 ValidationErrors.InvalidFields
