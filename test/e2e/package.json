@@ -4,7 +4,7 @@
     "type": "module",
     "private": true,
     "scripts": {
-        "test": "vitest dev -c ./vitest.config.ts eth_estimateUserOperationGas.test.ts",
+        "test": "vitest dev -c ./vitest.config.ts",
         "test:ci": "CI=true && vitest -c ./vitest.config.ts"
     },
     "dependencies": {
