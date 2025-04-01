@@ -31,8 +31,8 @@ import {
 import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { sendPflConditional } from "./fastlane"
+import type { SignedAuthorizationList } from "viem"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEStimateGas"
-import type { SignedAuthorizationList } from "viem/experimental"
 
 type HandleOpsTxParams = {
     gas: bigint

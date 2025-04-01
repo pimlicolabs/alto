@@ -5,7 +5,7 @@ import {
     getAddress,
     type PublicClient
 } from "viem"
-import type { SignedAuthorization } from "viem/experimental"
+import type { SignedAuthorization } from "viem"
 
 /// Ensure proper equality by converting both addresses into their checksum type
 export const areAddressesEqual = (a: string, b: string) => {
@@ -39,7 +39,7 @@ async function getAuthorizationStateOverride({
     authorization: SignedAuthorization
 }) {
     const code = await publicClient.getCode({
-        address: authorization.contractAddress
+        address: authorization.address
     })
     return { code }
 }
@@ -62,7 +62,7 @@ export async function getAuthorizationStateOverrides({
                     ...(overrides[op.sender] || {}),
                     ...(await getAuthorizationStateOverride({
                         authorization: {
-                            contractAddress:
+                            address:
                                 "address" in op.eip7702Auth
                                     ? op.eip7702Auth.address
                                     : op.eip7702Auth.contractAddress,

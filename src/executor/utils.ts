@@ -21,7 +21,7 @@ import {
     toBytes
 } from "viem"
 import type { AltoConfig } from "../createConfig"
-import type { SignedAuthorizationList } from "viem/experimental"
+import type { SignedAuthorizationList } from "viem"
 
 export const isTransactionUnderpricedError = (e: BaseError) => {
     const transactionUnderPriceError = e.walk((e: any) =>
@@ -132,7 +132,7 @@ export const getAuthorizationList = (
         .map(({ eip7702Auth }) =>
             eip7702Auth
                 ? {
-                      contractAddress:
+                      address:
                           "address" in eip7702Auth
                               ? eip7702Auth.address
                               : eip7702Auth.contractAddress,
