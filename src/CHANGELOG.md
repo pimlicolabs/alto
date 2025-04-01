@@ -1,5 +1,11 @@
 # @pimlico/alto
 
+## 0.0.15
+
+### Patch Changes
+
+- f2dca181e83376fb09e841a10d1a1078058911b8: Upgraded viem version
+
 ## 0.0.14
 
 ### Patch Changes
