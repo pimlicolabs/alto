@@ -28,7 +28,7 @@ import {
     maxBigInt,
     scaleBigIntByPercent
 } from "@alto/utils"
-import { type Hex, getContract } from "viem"
+import { type Hex, getContract, zeroAddress } from "viem"
 import { base, baseSepolia, optimism } from "viem/chains"
 import type { AltoConfig } from "../createConfig"
 import type { MethodHandler } from "./createMethodHandler"
@@ -49,6 +49,7 @@ export class RpcHandler {
     public logger: Logger
 
     private methodHandlers: Map<string, MethodHandler>
+    private eip7702CodeCache: Map<Address, boolean>
 
     constructor({
         config,
@@ -90,7 +91,9 @@ export class RpcHandler {
                 level: config.rpcLogLevel || config.logLevel
             }
         )
+
         this.methodHandlers = new Map()
+        this.eip7702CodeCache = new Map()
 
         registerHandlers(this)
     }
@@ -369,6 +372,13 @@ export class RpcHandler {
             )
         }
 
+        if (![0, 1].includes(userOperation.eip7702Auth.yParity)) {
+            throw new RpcError(
+                "Invalid EIP-7702 authorization: The yParity value must be either 0 or 1",
+                ValidationErrors.InvalidFields
+            )
+        }
+
         if (nonceOnChain !== userOperation.eip7702Auth.nonce) {
             throw new RpcError(
                 "Invalid EIP-7702 authorization: The nonce does not match the userOperation sender address",
@@ -399,6 +409,36 @@ export class RpcHandler {
                 "Invalid EIP-7702 authorization: UserOperation cannot contain factory that is neither null or 0x7702.",
                 ValidationErrors.InvalidFields
             )
+        }
+
+        // Check delegation designator
+        const delegationDesignator =
+            "address" in userOperation.eip7702Auth
+                ? userOperation.eip7702Auth.address
+                : userOperation.eip7702Auth.contractAddress
+
+        if (delegationDesignator === zeroAddress) {
+            throw new RpcError(
+                "Invalid EIP-7702 authorization: Cannot delegate to the zero address.",
+                ValidationErrors.InvalidFields
+            )
+        }
+
+        const hasCode = this.eip7702CodeCache.has(delegationDesignator)
+
+        if (!hasCode) {
+            const delegateCode = await this.config.publicClient.getCode({
+                address: delegationDesignator
+            })
+
+            if (delegateCode === undefined || delegateCode === "0x") {
+                throw new RpcError(
+                    `Invalid EIP-7702 authorization: Delegate ${delegationDesignator} has no code.`,
+                    ValidationErrors.InvalidFields
+                )
+            }
+
+            this.eip7702CodeCache.set(delegationDesignator, true)
         }
     }
 
