@@ -113,7 +113,7 @@ describe.each([
             expect(owner).toBe(smartAccountClient.account.address)
             expect(spender).toBe(mockSpender)
             expect(type).toBe("approval")
-            
+
             // Check metadata values match the mock implementation
             expect(approveOperation.name).toBe("TEST NFT")
             expect(approveOperation.symbol).toBe("TEST")
@@ -135,7 +135,7 @@ describe.each([
             expect(transferFrom).toBe(smartAccountClient.account.address)
             expect(transferTo).toBe(recipient)
             expect(transferType).toBe("transfer")
-            
+
             // Verify the ERC-721 metadata values
             expect(transferOperation.name).toBe("TEST NFT")
             expect(transferOperation.symbol).toBe("TEST")
@@ -201,7 +201,7 @@ describe.each([
             expect(operatorAddress).toBe(operator)
             expect(isApproved).toBe(approved)
             expect(type).toBe("approvalForAll")
-            
+
             // Verify the ERC-721 metadata values
             expect(approvalForAllOperation.name).toBe("TEST NFT")
             expect(approvalForAllOperation.symbol).toBe("TEST")
@@ -324,7 +324,7 @@ describe.each([
             expect(approveOwner).toBe(smartAccountClient.account.address)
             expect(approveSpender).toBe(spender)
             expect(approveType).toBe("approval")
-            
+
             // Verify the ERC-20 metadata values
             expect(approveOperation.name).toBe("TEST TOKEN")
             expect(approveOperation.symbol).toBe("TEST")
@@ -347,7 +347,7 @@ describe.each([
             expect(transferFrom).toBe(smartAccountClient.account.address)
             expect(transferTo).toBe(recipient)
             expect(transferType).toBe("transfer")
-            
+
             // Verify the ERC-20 metadata values
             expect(transferOperation.name).toBe("TEST TOKEN")
             expect(transferOperation.symbol).toBe("TEST")
