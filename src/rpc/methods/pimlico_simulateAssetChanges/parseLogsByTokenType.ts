@@ -2,13 +2,20 @@ import {
     Address,
     Hex,
     PublicClient,
+    decodeAbiParameters,
     decodeEventLog,
     encodeFunctionData,
     erc20Abi,
     erc721Abi,
     fromHex
 } from "viem"
-import { LogType, TokenInfo, TokenType } from "./types"
+import {
+    LogType,
+    TRANSFER_BATCH_TOPIC_HASH,
+    TRANSFER_SINGLE_TOPIC_HASH,
+    TokenInfo,
+    erc1155Abi
+} from "./types"
 import { AssetChange } from "../../../types/schemas"
 
 export async function getAssetChangesFromLogs(
@@ -69,7 +76,6 @@ export async function getAssetChangesFromLogs(
     }
 
     if (type === "ERC-721") {
-        // Track token transfers by tokenId - for each tokenId, track if it's owned by userOp.sender
         const nftDiff = new Map<bigint, number>()
 
         for (const log of logs) {
@@ -83,13 +89,13 @@ export async function getAssetChangesFromLogs(
 
                 const { from, to, tokenId } = decoded.args
 
-                // If the user is sending the token
+                // If sender is sending the token
                 if (from === userOpSender) {
                     const currentOwnership = nftDiff.get(tokenId) ?? 0
                     nftDiff.set(tokenId, currentOwnership - 1)
                 }
 
-                // If the user is receiving the token
+                // If sender is receiving the token
                 if (to === userOpSender) {
                     const currentOwnership = nftDiff.get(tokenId) ?? 0
                     nftDiff.set(tokenId, currentOwnership + 1)
@@ -102,6 +108,7 @@ export async function getAssetChangesFromLogs(
         const assetChanges: AssetChange[] = []
 
         for (const [tokenId, diff] of nftDiff.entries()) {
+            // No changes in balance
             if (diff === 0) {
                 continue
             }
@@ -126,7 +133,120 @@ export async function getAssetChangesFromLogs(
     }
 
     if (type === "ERC-1155") {
-        return []
+        const nftDiff = new Map<bigint, bigint>()
+
+        for (const log of logs) {
+            try {
+                const eventSig = log.topics[0]
+
+                if (eventSig === TRANSFER_SINGLE_TOPIC_HASH) {
+                    const decoded = decodeEventLog({
+                        abi: erc1155Abi,
+                        data: log.data,
+                        eventName: "TransferSingle",
+                        topics: log.topics as [Hex, ...Hex[]]
+                    })
+
+                    const { from, to, id, value } = decoded.args
+
+                    // If sender is sending the token
+                    if (from === userOpSender) {
+                        const currentOwnership = nftDiff.get(id) ?? 0n
+                        nftDiff.set(id, currentOwnership - value)
+                    }
+
+                    // If sender is receiving the token
+                    if (to === userOpSender) {
+                        const currentOwnership = nftDiff.get(id) ?? 0n
+                        nftDiff.set(id, currentOwnership + value)
+                    }
+                }
+
+                if (eventSig === TRANSFER_BATCH_TOPIC_HASH) {
+                    const decoded = decodeEventLog({
+                        abi: erc1155Abi,
+                        data: log.data,
+                        eventName: "TransferBatch",
+                        topics: log.topics as [Hex, ...Hex[]]
+                    })
+
+                    const { from, to, ids, values } = decoded.args
+
+                    const zippedArray = Array.from(
+                        { length: ids.length },
+                        (_, i) => [ids[i], values[i]]
+                    )
+
+                    for (const [id, value] of zippedArray) {
+                        // If sender is sending the token
+                        if (from === userOpSender) {
+                            const currentOwnership = nftDiff.get(id) ?? 0n
+                            nftDiff.set(id, currentOwnership - value)
+                        }
+
+                        // If sender is receiving the token
+                        if (to === userOpSender) {
+                            const currentOwnership = nftDiff.get(id) ?? 0n
+                            nftDiff.set(id, currentOwnership + value)
+                        }
+                    }
+                }
+            } catch (error) {
+                continue
+            }
+        }
+
+        const assetChanges: AssetChange[] = []
+
+        const accounts = Array(nftDiff.size).fill(userOpSender)
+        const ids = [...nftDiff.keys()]
+
+        const call = await tevmClient.call({
+            to: tokenAddress,
+            data: encodeFunctionData({
+                abi: erc1155Abi,
+                functionName: "balanceOfBatch",
+                args: [accounts, ids]
+            })
+        })
+
+        if (!call.data) {
+            throw new Error("Failed to get post balance")
+        }
+
+        const startingBalances = decodeAbiParameters(
+            [{ type: "uint[]" }],
+            call.data
+        )
+
+        const entries = [...nftDiff.entries()]
+        const zippedArray = Array.from({ length: entries.length }, (_, i) => [
+            entries[i][0],
+            entries[i][1],
+            startingBalances[i]
+        ])
+
+        for (const [tokenId, diff, startingBalance] of zippedArray) {
+            // No changes in balance
+            if (diff === 0n) {
+                continue
+            }
+
+            assetChanges.push({
+                token: {
+                    tokenType: "ERC-1155",
+                    address: tokenAddress,
+                    tokenId,
+                    name: metadata.name,
+                    symbol: metadata.symbol
+                },
+                value: {
+                    diff: BigInt(diff),
+                    pre: diff === 1 ? 0n : 1n,
+                    post: diff === 1 ? 1n : 0n
+                }
+            })
+        }
     }
 
     throw new Error("Invalid token type")

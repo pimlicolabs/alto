@@ -2,7 +2,7 @@ import { createMethodHandler } from "../../createMethodHandler"
 import { RpcError, pimlicoSimulateAssetChangesSchema } from "@alto/types"
 import { createMemoryClient, http } from "tevm"
 import { optimism as tevmOptimism } from "tevm/common"
-import { getAddress, toEventSelector, toHex, Address } from "viem"
+import { getAddress, toHex, Address } from "viem"
 import { isVersion06 } from "../../../utils/userop"
 import type { AltoConfig } from "../../../createConfig"
 import {
@@ -11,22 +11,12 @@ import {
 } from "./userOpSimulationHelper"
 import { getTokenInfo } from "./getTokenMetadata"
 import { getAssetChangesFromLogs } from "./parseLogsByTokenType"
-import { LogType } from "./types"
-
-// Both ERC-20 and ERC-721 use the same event signature
-const TRANSFER_TOPIC_HASH = toEventSelector(
-    "event Transfer(address indexed from, address indexed to, uint256 value)"
-)
-
-// ERC-1155 TransferSingle event
-const TRANSFER_SINGLE_TOPIC_HASH = toEventSelector(
-    "event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)"
-)
-
-// ERC-1155 TransferBatch event
-const TRANSFER_BATCH_TOPIC_HASH = toEventSelector(
-    "event TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)"
-)
+import {
+    LogType,
+    TRANSFER_BATCH_TOPIC_HASH,
+    TRANSFER_SINGLE_TOPIC_HASH,
+    TRANSFER_TOPIC_HASH
+} from "./types"
 
 async function setupTevm(config: AltoConfig, blockNumber?: bigint) {
     const options = {
@@ -226,8 +216,9 @@ export const pimlicoSimulateAssetChangesHandler = createMethodHandler({
 
                     // Parse logs based on token type
                     const assetChanges = getAssetChangesFromLogs(
+                        address as Address,
                         addressLogs,
-                        tokenInfo.type,
+                        tokenInfo,
                         userOperation.sender,
                         tevmClient
                     )
