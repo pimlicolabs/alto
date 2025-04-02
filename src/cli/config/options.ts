@@ -105,6 +105,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: null
     },
+    "enable-simulate-balance-changes-endpoint": {
+        description:
+            "Should the bundler enable the pimlico_simulateAssetChanges endpoint",
+        type: "boolean",
+        default: true
+    },
     "enable-instant-bundling-endpoint": {
         description:
             "Should the bundler enable the pimlico_sendUserOperationNow endpoint",

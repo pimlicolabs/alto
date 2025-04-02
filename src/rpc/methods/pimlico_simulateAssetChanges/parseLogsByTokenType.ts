@@ -214,19 +214,19 @@ export async function getAssetChangesFromLogs(
             throw new Error("Failed to get post balance")
         }
 
-        const startingBalances = decodeAbiParameters(
+        const [startingBalances] = decodeAbiParameters(
             [{ type: "uint[]" }],
             call.data
         )
 
         const entries = [...nftDiff.entries()]
-        const zippedArray = Array.from({ length: entries.length }, (_, i) => [
+        const zip = Array.from({ length: entries.length }, (_, i) => [
             entries[i][0],
             entries[i][1],
             startingBalances[i]
         ])
 
-        for (const [tokenId, diff, startingBalance] of zippedArray) {
+        for (const [tokenId, diff, startingBalance] of zip) {
             // No changes in balance
             if (diff === 0n) {
                 continue
@@ -242,8 +242,8 @@ export async function getAssetChangesFromLogs(
                 },
                 value: {
                     diff: BigInt(diff),
-                    pre: diff === 1 ? 0n : 1n,
-                    post: diff === 1 ? 1n : 0n
+                    pre: startingBalance,
+                    post: startingBalance + diff
                 }
             })
         }

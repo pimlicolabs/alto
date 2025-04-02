@@ -1,5 +1,9 @@
 import { createMethodHandler } from "../../createMethodHandler"
-import { RpcError, pimlicoSimulateAssetChangesSchema } from "@alto/types"
+import {
+    RpcError,
+    ValidationErrors,
+    pimlicoSimulateAssetChangesSchema
+} from "@alto/types"
 import { createMemoryClient, http } from "tevm"
 import { optimism as tevmOptimism } from "tevm/common"
 import { getAddress, toHex, Address } from "viem"
@@ -47,6 +51,16 @@ export const pimlicoSimulateAssetChangesHandler = createMethodHandler({
     schema: pimlicoSimulateAssetChangesSchema,
     handler: async ({ rpcHandler, params }) => {
         const { config } = rpcHandler
+
+        if (!config.enableSimulateBalanceChangesEndpoint) {
+            if (!rpcHandler.config.enableInstantBundlingEndpoint) {
+                throw new RpcError(
+                    "pimlico_simulateAssetChanges is not enabled",
+                    ValidationErrors.InvalidFields
+                )
+            }
+        }
+
         const [userOperation, entryPoint, blockNumber] = params
 
         // Validations
@@ -215,7 +229,7 @@ export const pimlicoSimulateAssetChangesHandler = createMethodHandler({
                     }
 
                     // Parse logs based on token type
-                    const assetChanges = getAssetChangesFromLogs(
+                    const assetChanges = await getAssetChangesFromLogs(
                         address as Address,
                         addressLogs,
                         tokenInfo,
@@ -223,9 +237,7 @@ export const pimlicoSimulateAssetChangesHandler = createMethodHandler({
                         tevmClient
                     )
 
-                    //if (parsedEvents && parsedEvents.length > 0) {
-                    //    tokenEvents.push(...parsedEvents)
-                    //}
+                    assetChanges.push(...assetChanges)
                 }
             )
         )

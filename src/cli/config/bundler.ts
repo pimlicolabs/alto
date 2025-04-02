@@ -79,6 +79,7 @@ export const bundlerArgsSchema = z.object({
                 ","
             )}`
         ),
+    "enable-simulate-balance-changes-endpoint": z.boolean(),
     "enable-instant-bundling-endpoint": z.boolean(),
     "should-check-prefund": z.boolean()
 })
