@@ -70,7 +70,7 @@ export async function getAssetChangesFromLogs(
 
     if (type === "ERC-721") {
         // Track token transfers by tokenId - for each tokenId, track if it's owned by userOp.sender
-        const finalTokenOwnership = new Map<bigint, boolean>()
+        const nftDiff = new Map<bigint, number>()
 
         for (const log of logs) {
             try {
@@ -85,12 +85,14 @@ export async function getAssetChangesFromLogs(
 
                 // If the user is sending the token
                 if (from === userOpSender) {
-                    finalTokenOwnership.set(tokenId, false)
+                    const currentOwnership = nftDiff.get(tokenId) ?? 0
+                    nftDiff.set(tokenId, currentOwnership - 1)
                 }
 
                 // If the user is receiving the token
                 if (to === userOpSender) {
-                    finalTokenOwnership.set(tokenId, true)
+                    const currentOwnership = nftDiff.get(tokenId) ?? 0
+                    nftDiff.set(tokenId, currentOwnership + 1)
                 }
             } catch (error) {
                 continue
@@ -99,7 +101,11 @@ export async function getAssetChangesFromLogs(
 
         const assetChanges: AssetChange[] = []
 
-        for (const [tokenId, hasOwnership] of finalTokenOwnership.entries()) {
+        for (const [tokenId, diff] of nftDiff.entries()) {
+            if (diff === 0) {
+                continue
+            }
+
             assetChanges.push({
                 token: {
                     tokenType: "ERC-721",
@@ -109,9 +115,9 @@ export async function getAssetChangesFromLogs(
                     symbol: metadata.symbol
                 },
                 value: {
-                    diff: 1n,
-                    pre: hasOwnership ? 0n : 1n,
-                    post: hasOwnership ? 1n : 0n
+                    diff: BigInt(diff),
+                    pre: diff === 1 ? 0n : 1n,
+                    post: diff === 1 ? 1n : 0n
                 }
             })
         }
