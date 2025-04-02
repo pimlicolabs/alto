@@ -7,7 +7,7 @@ import {
 } from "@alto/types"
 import { createMemoryClient, http } from "tevm"
 import { optimism as tevmOptimism } from "tevm/common"
-import { getAddress, toHex, Address } from "viem"
+import { getAddress, toHex, Address, slice } from "viem"
 import { isVersion06 } from "../../../utils/userop"
 import type { AltoConfig } from "../../../createConfig"
 import {
@@ -122,12 +122,14 @@ export const pimlicoSimulateAssetChangesHandler = createMethodHandler({
                         )
 
                         // Check if transfer touches userOp.sender
+                        const from = getAddress(slice(topic1, 12, 32))
+                        const to = getAddress(slice(topic2, 12, 32))
                         if (
-                            getAddress(topic1) === userOperation.sender ||
-                            getAddress(topic2) === userOperation.sender
+                            from === userOperation.sender ||
+                            to === userOperation.sender
                         ) {
                             const address = getAddress(
-                                toHex(step.address.bytes)
+                                toHex(step.address.bytes, { size: 20 })
                             )
 
                             if (!logsByAddress[address]) {
@@ -292,7 +294,7 @@ export const pimlicoSimulateAssetChangesHandler = createMethodHandler({
                     }
 
                     // Parse logs based on token type
-                    const assetChanges = await getAssetChangesFromLogs(
+                    const tokenAssetChanges = await getAssetChangesFromLogs(
                         address as Address,
                         addressLogs,
                         tokenInfo,
@@ -300,13 +302,13 @@ export const pimlicoSimulateAssetChangesHandler = createMethodHandler({
                         tevmClient
                     )
 
-                    assetChanges.push(...assetChanges)
+                    assetChanges.push(...tokenAssetChanges)
                 }
             )
         )
 
         // Add ETH transfers to asset changes
-        if (netEthTransfers > 0n) {
+        if (netEthTransfers !== 0n) {
             const balance = await tevmClient.getBalance({
                 address: userOperation.sender
             })

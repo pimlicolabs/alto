@@ -247,6 +247,8 @@ export async function getAssetChangesFromLogs(
                 }
             })
         }
+        
+        return assetChanges
     }
 
     throw new Error("Invalid token type")
