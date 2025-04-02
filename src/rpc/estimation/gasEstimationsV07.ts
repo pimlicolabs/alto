@@ -75,11 +75,9 @@ export class GasEstimatorV07 {
             args: [packedUserOperations]
         })
 
-        const stateOverrides: StateOverrides =
-            await getAuthorizationStateOverrides({
-                userOperations: [...queuedUserOperations, userOperation],
-                publicClient: this.config.publicClient
-            })
+        const stateOverrides: StateOverrides = getAuthorizationStateOverrides({
+            userOperations: [...queuedUserOperations, userOperation]
+        })
 
         const isV8 = isVersion08(userOperation, entryPoint)
 
@@ -273,9 +271,8 @@ export class GasEstimatorV07 {
                     functionName
                 })
 
-            stateOverrides = await getAuthorizationStateOverrides({
+            stateOverrides = getAuthorizationStateOverrides({
                 userOperations: [...queuedOps, targetOp],
-                publicClient: this.config.publicClient,
                 stateOverrides
             })
 
@@ -359,9 +356,8 @@ export class GasEstimatorV07 {
             userOperation,
             queuedUserOperations
         })
-        stateOverrides = await getAuthorizationStateOverrides({
+        stateOverrides = getAuthorizationStateOverrides({
             userOperations: [...queuedUserOperations, userOperation],
-            publicClient: this.config.publicClient,
             stateOverrides
         })
 
@@ -490,9 +486,8 @@ export class GasEstimatorV07 {
             functionName: "binarySearchCallGasLimit"
         })
 
-        stateOverrides = await getAuthorizationStateOverrides({
+        stateOverrides = getAuthorizationStateOverrides({
             userOperations: [...queuedUserOperations, userOperation],
-            publicClient: this.config.publicClient,
             stateOverrides
         })
 

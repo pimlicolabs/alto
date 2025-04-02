@@ -147,9 +147,8 @@ export class GasEstimatorV06 {
             stateOverrides = undefined
         }
 
-        stateOverrides = await getAuthorizationStateOverrides({
+        stateOverrides = getAuthorizationStateOverrides({
             userOperations: [userOperation],
-            publicClient,
             stateOverrides
         })
 
