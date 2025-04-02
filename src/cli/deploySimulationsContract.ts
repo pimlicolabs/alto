@@ -40,6 +40,37 @@ export const deploySimulationsContract = async ({
     entrypointSimulationContractV7: Hex
     entrypointSimulationContractV8: Hex
 }> => {
+    const contractAddressV7 = getContractAddress({
+        opcode: "CREATE2",
+        bytecode: pimlicoEntrypointSimulationsV7DeployBytecode,
+        salt: pimlicoEntrypointSimulationsSalt,
+        from: args.deterministicDeployerAddress
+    })
+
+    const contractAddressV8 = getContractAddress({
+        opcode: "CREATE2",
+        bytecode: pimlicoEntrypointSimulationsV8DeployBytecode,
+        salt: pimlicoEntrypointSimulationsSalt,
+        from: args.deterministicDeployerAddress
+    })
+
+    const [isV7Deployed, isV8Deployed, isDeterministicDeployerDeployed] =
+        await Promise.all([
+            isContractDeployed({ publicClient, address: contractAddressV7 }),
+            isContractDeployed({ publicClient, address: contractAddressV8 }),
+            isContractDeployed({
+                publicClient,
+                address: args.deterministicDeployerAddress
+            })
+        ])
+
+    if (isV7Deployed && isV8Deployed && isDeterministicDeployerDeployed) {
+        return {
+            entrypointSimulationContractV7: contractAddressV7,
+            entrypointSimulationContractV8: contractAddressV8
+        }
+    }
+
     const utilityPrivateKey = args.utilityPrivateKey
     if (!utilityPrivateKey) {
         throw new Error(
@@ -63,12 +94,7 @@ export const deploySimulationsContract = async ({
         account: utilityPrivateKey
     })
 
-    if (
-        !(await isContractDeployed({
-            publicClient,
-            address: args.deterministicDeployerAddress
-        }))
-    ) {
+    if (!isDeterministicDeployerDeployed) {
         const deterministicDeployHash = await walletClient.sendRawTransaction({
             serializedTransaction: DETERMINISTIC_DEPLOYER_TRANSACTION
         })
@@ -77,25 +103,6 @@ export const deploySimulationsContract = async ({
             hash: deterministicDeployHash
         })
     }
-
-    const contractAddressV7 = getContractAddress({
-        opcode: "CREATE2",
-        bytecode: pimlicoEntrypointSimulationsV7DeployBytecode,
-        salt: pimlicoEntrypointSimulationsSalt,
-        from: args.deterministicDeployerAddress
-    })
-
-    const contractAddressV8 = getContractAddress({
-        opcode: "CREATE2",
-        bytecode: pimlicoEntrypointSimulationsV8DeployBytecode,
-        salt: pimlicoEntrypointSimulationsSalt,
-        from: args.deterministicDeployerAddress
-    })
-
-    const [isV7Deployed, isV8Deployed] = await Promise.all([
-        isContractDeployed({ publicClient, address: contractAddressV7 }),
-        isContractDeployed({ publicClient, address: contractAddressV8 })
-    ])
 
     if (!isV7Deployed) {
         const deployHash = await walletClient.sendTransaction({
