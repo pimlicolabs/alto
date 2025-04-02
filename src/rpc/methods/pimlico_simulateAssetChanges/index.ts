@@ -2,7 +2,7 @@ import { createMethodHandler } from "../../createMethodHandler"
 import { RpcError, pimlicoSimulateAssetChangesSchema } from "@alto/types"
 import { createMemoryClient, http } from "tevm"
 import { optimism as tevmOptimism } from "tevm/common"
-import { getAddress, toEventSelector, toHex, Address, Hex } from "viem"
+import { getAddress, toEventSelector, toHex, Address } from "viem"
 import { isVersion06 } from "../../../utils/userop"
 import type { AltoConfig } from "../../../createConfig"
 import {
@@ -10,7 +10,7 @@ import {
     validateSimulateHandleOpResult
 } from "./userOpSimulationHelper"
 import { getTokenInfo } from "./getTokenMetadata"
-import { parseLogsByTokenType } from "./parseLogsByTokenType"
+import { getAssetChangesFromLogs } from "./parseLogsByTokenType"
 import { LogType } from "./types"
 
 // Both ERC-20 and ERC-721 use the same event signature
@@ -203,7 +203,7 @@ export const pimlicoSimulateAssetChangesHandler = createMethodHandler({
         })
 
         // Process logs to extract asset changes
-        const tokenEvents: any[] = []
+        const assetChanges: any[] = []
 
         // Process each address's logs
         await Promise.all(
@@ -225,11 +225,11 @@ export const pimlicoSimulateAssetChangesHandler = createMethodHandler({
                     }
 
                     // Parse logs based on token type
-                    const parsedEvents = parseLogsByTokenType(
-                        address as Address,
+                    const assetChanges = getAssetChangesFromLogs(
                         addressLogs,
-                        tokenInfo,
-                        userOperation.sender
+                        tokenInfo.type,
+                        userOperation.sender,
+                        tevmClient
                     )
 
                     //if (parsedEvents && parsedEvents.length > 0) {
@@ -239,6 +239,6 @@ export const pimlicoSimulateAssetChangesHandler = createMethodHandler({
             )
         )
 
-        return { tokenEvents }
+        return { assetChanges }
     }
 })
