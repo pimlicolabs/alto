@@ -28,7 +28,7 @@ export function getSimulateHandleOpCallData({
     userOp.paymasterPostOpGasLimit = 1_000_000n
     userOp.paymasterVerificationGasLimit = 1_000_000n
 
-    // Set zero gasLimits to skip prefund checks
+    // Set zero gasPrice to skip prefund checks
     userOp.maxFeePerGas = 0n
     userOp.maxPriorityFeePerGas = 0n
 
