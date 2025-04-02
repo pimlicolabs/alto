@@ -346,9 +346,8 @@ export class SafeValidator
         userOperation: UserOperationV06,
         entryPoint: Address
     ): Promise<[ValidationResultV06, BundlerTracerResult]> {
-        const stateOverrides = await getAuthorizationStateOverrides({
-            userOperations: [userOperation],
-            publicClient: this.config.publicClient
+        const stateOverrides = getAuthorizationStateOverrides({
+            userOperations: [userOperation]
         })
 
         const tracerResult = await debug_traceCall(
@@ -521,9 +520,8 @@ export class SafeValidator
             ? this.config.entrypointSimulationContractV8
             : this.config.entrypointSimulationContractV7
 
-        const stateOverrides = await getAuthorizationStateOverrides({
-            userOperations: [userOperation],
-            publicClient: this.config.publicClient
+        const stateOverrides = getAuthorizationStateOverrides({
+            userOperations: [userOperation]
         })
 
         const tracerResult = await debug_traceCall(

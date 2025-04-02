@@ -1,10 +1,5 @@
 import type { StateOverrides, UserOperation } from "@alto/types"
-import {
-    BaseError,
-    type RawContractError,
-    getAddress,
-    type PublicClient
-} from "viem"
+import { BaseError, type RawContractError, getAddress, concat } from "viem"
 import type { SignedAuthorization } from "viem"
 
 /// Ensure proper equality by converting both addresses into their checksum type
@@ -31,54 +26,45 @@ export function getAAError(errorMsg: string) {
 }
 
 // authorizationList is not currently supported in viem's sendTransaction, this is a temporary solution
-async function getAuthorizationStateOverride({
-    publicClient,
+function getAuthorizationStateOverride({
     authorization
 }: {
-    publicClient: PublicClient
     authorization: SignedAuthorization
 }) {
-    const code = await publicClient.getCode({
-        address: authorization.address
-    })
+    const code = concat(["0xef0100", authorization.address])
     return { code }
 }
 
-export async function getAuthorizationStateOverrides({
+export function getAuthorizationStateOverrides({
     userOperations,
-    publicClient,
     stateOverrides
 }: {
     userOperations: UserOperation[]
-    publicClient: PublicClient
     stateOverrides?: StateOverrides
 }) {
     const overrides: StateOverrides = { ...(stateOverrides ?? {}) }
 
-    await Promise.all([
-        ...userOperations.map(async (op) => {
-            if (op.eip7702Auth) {
-                overrides[op.sender] = {
-                    ...(overrides[op.sender] || {}),
-                    ...(await getAuthorizationStateOverride({
-                        authorization: {
-                            address:
-                                "address" in op.eip7702Auth
-                                    ? op.eip7702Auth.address
-                                    : op.eip7702Auth.contractAddress,
-                            chainId: op.eip7702Auth.chainId,
-                            nonce: op.eip7702Auth.nonce,
-                            r: op.eip7702Auth.r,
-                            s: op.eip7702Auth.s,
-                            v: op.eip7702Auth.v,
-                            yParity: op.eip7702Auth.yParity
-                        },
-                        publicClient
-                    }))
-                }
+    for (const op of userOperations) {
+        if (op.eip7702Auth) {
+            overrides[op.sender] = {
+                ...(overrides[op.sender] || {}),
+                ...getAuthorizationStateOverride({
+                    authorization: {
+                        address:
+                            "address" in op.eip7702Auth
+                                ? op.eip7702Auth.address
+                                : op.eip7702Auth.contractAddress,
+                        chainId: op.eip7702Auth.chainId,
+                        nonce: op.eip7702Auth.nonce,
+                        r: op.eip7702Auth.r,
+                        s: op.eip7702Auth.s,
+                        v: op.eip7702Auth.v,
+                        yParity: op.eip7702Auth.yParity
+                    }
+                })
             }
-        })
-    ])
+        }
+    }
 
     return overrides
 }

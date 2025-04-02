@@ -1,5 +1,11 @@
 # @pimlico/alto
 
+## 0.0.16
+
+### Patch Changes
+
+- dbf0c42b47c25b859b42bf142bc369fdc992333c: Improved code overrides for 7702
+
 ## 0.0.15
 
 ### Patch Changes
