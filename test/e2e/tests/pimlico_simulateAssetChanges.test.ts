@@ -24,7 +24,7 @@ describe.each([
         entryPointVersion: "0.7" as EntryPointVersion
     }
 ])(
-    "$entryPointVersion supports pimlico_traceTokenEvents for tokens",
+    "$entryPointVersion supports pimlico_simulateAssetChanges for tokens",
     ({ entryPointVersion }) => {
         const anvilRpc = inject("anvilRpc")
         const altoRpc = inject("altoRpc")
@@ -89,7 +89,7 @@ describe.each([
 
             const res = (await smartAccountClient.request({
                 // @ts-ignore
-                method: "pimlico_traceTokenEvents",
+                method: "pimlico_simulateAssetChanges",
                 params: [deepHexlify(userOp), entryPoint07Address]
             })) as any
 
@@ -175,7 +175,7 @@ describe.each([
 
             const res = (await smartAccountClient.request({
                 // @ts-ignore
-                method: "pimlico_traceTokenEvents",
+                method: "pimlico_simulateAssetChanges",
                 params: [deepHexlify(userOp), entryPoint07Address]
             })) as any
 
@@ -230,7 +230,7 @@ describe.each([
 
             const res = (await smartAccountClient.request({
                 // @ts-ignore
-                method: "pimlico_traceTokenEvents",
+                method: "pimlico_simulateAssetChanges",
                 params: [deepHexlify(userOp), entryPoint07Address]
             })) as any
 
@@ -298,7 +298,7 @@ describe.each([
 
             const res = (await smartAccountClient.request({
                 // @ts-ignore
-                method: "pimlico_traceTokenEvents",
+                method: "pimlico_simulateAssetChanges",
                 params: [deepHexlify(userOp), entryPoint07Address]
             })) as any
 
