@@ -5,6 +5,7 @@ import {
     decodeEventLog,
     encodeFunctionData,
     erc20Abi,
+    erc721Abi,
     fromHex
 } from "viem"
 import { LogType, TokenInfo, TokenType } from "./types"
@@ -68,7 +69,54 @@ export async function getAssetChangesFromLogs(
     }
 
     if (type === "ERC-721") {
-        return []
+        // Track token transfers by tokenId - for each tokenId, track if it's owned by userOp.sender
+        const finalTokenOwnership = new Map<bigint, boolean>()
+
+        for (const log of logs) {
+            try {
+                const decoded = decodeEventLog({
+                    abi: erc721Abi,
+                    data: log.data,
+                    eventName: "Transfer",
+                    topics: log.topics as [Hex, ...Hex[]]
+                })
+
+                const { from, to, tokenId } = decoded.args
+
+                // If the user is sending the token
+                if (from === userOpSender) {
+                    finalTokenOwnership.set(tokenId, false)
+                }
+
+                // If the user is receiving the token
+                if (to === userOpSender) {
+                    finalTokenOwnership.set(tokenId, true)
+                }
+            } catch (error) {
+                continue
+            }
+        }
+
+        const assetChanges: AssetChange[] = []
+
+        for (const [tokenId, hasOwnership] of finalTokenOwnership.entries()) {
+            assetChanges.push({
+                token: {
+                    tokenType: "ERC-721",
+                    address: tokenAddress,
+                    tokenId,
+                    name: metadata.name,
+                    symbol: metadata.symbol
+                },
+                value: {
+                    diff: 1n,
+                    pre: hasOwnership ? 0n : 1n,
+                    post: hasOwnership ? 1n : 0n
+                }
+            })
+        }
+
+        return assetChanges
     }
 
     if (type === "ERC-1155") {
