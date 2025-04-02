@@ -514,9 +514,9 @@ export const tokenSchema = z.discriminatedUnion("tokenType", [
 ])
 
 export const valueDiffSchema = z.object({
-    diff: hexNumberSchema,
-    pre: hexNumberSchema,
-    post: hexNumberSchema
+    diff: z.string(),
+    pre: z.string(),
+    post: z.string()
 })
 
 export const assetChangeSchema = z.object({

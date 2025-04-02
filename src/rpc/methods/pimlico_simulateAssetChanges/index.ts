@@ -316,9 +316,9 @@ export const pimlicoSimulateAssetChangesHandler = createMethodHandler({
             assetChanges.push({
                 token: { tokenType: "NATIVE" as const },
                 value: {
-                    pre: balance,
-                    post: balance + netEthTransfers,
-                    diff: netEthTransfers
+                    pre: balance.toString(),
+                    post: (balance + netEthTransfers).toString(),
+                    diff: netEthTransfers.toString()
                 }
             })
         }

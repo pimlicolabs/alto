@@ -67,9 +67,9 @@ export async function getAssetChangesFromLogs(
                     symbol: metadata.symbol
                 },
                 value: {
-                    diff: diff,
-                    pre,
-                    post: pre + diff
+                    diff: diff.toString(),
+                    pre: pre.toString(),
+                    post: (pre + diff).toString()
                 }
             }
         ]
@@ -122,9 +122,9 @@ export async function getAssetChangesFromLogs(
                     symbol: metadata.symbol
                 },
                 value: {
-                    diff: BigInt(diff),
-                    pre: diff === 1 ? 0n : 1n,
-                    post: diff === 1 ? 1n : 0n
+                    diff: diff.toString(),
+                    pre: (diff === 1 ? 0n : 1n).toString(),
+                    post: (diff === 1 ? 1n : 0n).toString()
                 }
             })
         }
@@ -241,9 +241,9 @@ export async function getAssetChangesFromLogs(
                     symbol: metadata.symbol
                 },
                 value: {
-                    diff: BigInt(diff),
-                    pre: startingBalance,
-                    post: startingBalance + diff
+                    diff: diff.toString(),
+                    pre: startingBalance.toString(),
+                    post: (startingBalance + diff).toString()
                 }
             })
         }
