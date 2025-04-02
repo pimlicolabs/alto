@@ -23,7 +23,7 @@ export function getSimulateHandleOpCallData({
     }
 
     // Set gasLimits for simulation
-    userOp.callGasLimit = 5_000_000n
+    userOp.callGasLimit = 15_000_000n
     userOp.verificationGasLimit = 10_000_000n
     userOp.paymasterPostOpGasLimit = 1_000_000n
     userOp.paymasterVerificationGasLimit = 1_000_000n

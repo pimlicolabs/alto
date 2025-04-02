@@ -1,5 +1,6 @@
 import { createMethodHandler } from "../../createMethodHandler"
 import {
+    AssetChange,
     RpcError,
     ValidationErrors,
     pimlicoSimulateAssetChangesSchema
@@ -84,6 +85,7 @@ export const pimlicoSimulateAssetChangesHandler = createMethodHandler({
 
         // Track logs by contract address
         const logsByAddress: Record<Address, LogType[]> = {}
+        let netEthTransfers = 0n
 
         const callResult = await tevmClient.tevmCall({
             to: config.entrypointSimulationContract,
@@ -144,7 +146,10 @@ export const pimlicoSimulateAssetChangesHandler = createMethodHandler({
                             "Error processing LOG3 event"
                         )
                     }
-                } else if (opcode.name === "LOG4") {
+                }
+
+                // Handle ERC-1155 Transfer events (LOG4)
+                if (opcode.name === "LOG4") {
                     try {
                         const { stack, memory } = step
                         const stackLength = stack.length
@@ -198,6 +203,64 @@ export const pimlicoSimulateAssetChangesHandler = createMethodHandler({
                         )
                     }
                 }
+
+                // Track ETH transfers via CALL opcode
+                if (opcode.name === "CALL" || opcode.name === "CALLCODE") {
+                    try {
+                        const { stack, address } = step
+                        const caller = getAddress(toHex(address.bytes))
+                        const stackLength = stack.length
+
+                        // Stack: [gas, address, value, argsOffset, argsSize, retOffset, retSize]
+                        const to = getAddress(
+                            toHex(stack[stackLength - 2], { size: 20 })
+                        )
+                        const value = stack[stackLength - 3]
+
+                        // Only track calls that involve the userOp sender and have a non-zero value
+                        if (
+                            value > 0n &&
+                            [to, caller].includes(userOperation.sender)
+                        ) {
+                            // If sender is sending ETH, subtract from balance
+                            // If sender is receiving ETH, add to balance
+                            const isSending = caller === userOperation.sender
+
+                            if (isSending) {
+                                netEthTransfers -= value
+                            } else if (to === userOperation.sender) {
+                                netEthTransfers += value
+                            }
+                        }
+                    } catch (err) {
+                        rpcHandler.logger.error(
+                            { err },
+                            "Error processing CALL opcode for ETH transfers"
+                        )
+                    }
+                }
+
+                // Track ETH transfers via CREATE/CREATE2 opcode
+                if (opcode.name === "CREATE" || opcode.name === "CREATE2") {
+                    try {
+                        const { stack, address } = step
+                        const caller = getAddress(toHex(address.bytes))
+                        const stackLength = stack.length
+
+                        // Stack: [value, offset, size, (salt)]
+                        const value = stack[stackLength - 1]
+
+                        // Only track calls that involve the userOp sender and have a non-zero value
+                        if (value > 0n && caller == userOperation.sender) {
+                            netEthTransfers -= value
+                        }
+                    } catch (err) {
+                        rpcHandler.logger.error(
+                            { err },
+                            "Error processing CALL opcode for ETH transfers"
+                        )
+                    }
+                }
             }
         })
 
@@ -207,7 +270,7 @@ export const pimlicoSimulateAssetChangesHandler = createMethodHandler({
         })
 
         // Process logs to extract asset changes
-        const assetChanges: any[] = []
+        const assetChanges: AssetChange[] = []
 
         // Process each address's logs
         await Promise.all(
@@ -241,6 +304,22 @@ export const pimlicoSimulateAssetChangesHandler = createMethodHandler({
                 }
             )
         )
+
+        // Add ETH transfers to asset changes
+        if (netEthTransfers > 0n) {
+            const balance = await tevmClient.getBalance({
+                address: userOperation.sender
+            })
+
+            assetChanges.push({
+                token: { tokenType: "NATIVE" as const },
+                value: {
+                    pre: balance,
+                    post: balance + netEthTransfers,
+                    diff: netEthTransfers
+                }
+            })
+        }
 
         return { assetChanges }
     }
