@@ -7,8 +7,8 @@ import {
     type UserOperationV07,
     logSchema,
     receiptSchema,
-    UserOperationBundle,
-    UserOperationReceipt
+    type UserOperationBundle,
+    type UserOperationReceipt
 } from "@alto/types"
 import * as sentry from "@sentry/node"
 import type { Logger } from "pino"
@@ -549,9 +549,8 @@ export const getUserOperationHashV08 = async ({
     const packedUserOp = toPackedUserOperation(userOperation)
 
     // : concat(["0xef0100", code ?? "0x"])
-    const stateOverrides = await getAuthorizationStateOverrides({
-        userOperations: [userOperation],
-        publicClient
+    const stateOverrides = getAuthorizationStateOverrides({
+        userOperations: [userOperation]
     })
 
     const hash = await publicClient.readContract({
@@ -586,15 +585,7 @@ export const getUserOperationHashV08 = async ({
         stateOverride: [
             ...Object.keys(stateOverrides).map((address) => ({
                 address: address as Address,
-                code: concat([
-                    "0xef0100",
-                    userOperation.eip7702Auth
-                        ? "address" in userOperation.eip7702Auth
-                            ? userOperation.eip7702Auth.address
-                            : userOperation.eip7702Auth.contractAddress
-                        : "0x",
-                    stateOverrides[address as Address]?.code ?? "0x"
-                ])
+                code: stateOverrides[address as Address]?.code ?? "0x"
             }))
         ]
     })
