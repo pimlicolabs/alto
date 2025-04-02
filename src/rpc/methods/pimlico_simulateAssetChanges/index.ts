@@ -10,6 +10,8 @@ import {
     validateSimulateHandleOpResult
 } from "./userOpSimulationHelper"
 import { getTokenInfo } from "./getTokenMetadata"
+import { parseLogsByTokenType } from "./parseLogsByTokenType"
+import { LogType } from "./types"
 
 // Both ERC-20 and ERC-721 use the same event signature
 const TRANSFER_TOPIC_HASH = toEventSelector(
@@ -25,8 +27,6 @@ const TRANSFER_SINGLE_TOPIC_HASH = toEventSelector(
 const TRANSFER_BATCH_TOPIC_HASH = toEventSelector(
     "event TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)"
 )
-
-type LogType = { address: Address; data: Hex; topics: Hex[] }
 
 async function setupTevm(config: AltoConfig, blockNumber?: bigint) {
     const options = {
@@ -232,9 +232,9 @@ export const pimlicoSimulateAssetChangesHandler = createMethodHandler({
                         userOperation.sender
                     )
 
-                    if (parsedEvents && parsedEvents.length > 0) {
-                        tokenEvents.push(...parsedEvents)
-                    }
+                    //if (parsedEvents && parsedEvents.length > 0) {
+                    //    tokenEvents.push(...parsedEvents)
+                    //}
                 }
             )
         )

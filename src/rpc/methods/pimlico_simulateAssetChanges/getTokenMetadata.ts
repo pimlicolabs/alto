@@ -7,18 +7,11 @@ import {
     erc20Abi,
     decodeAbiParameters
 } from "viem"
+import { Metadata, TokenInfo, TokenType } from "./types"
 
 // ERC-165 interface ID for ERC-721 and ERC-1155
 const ERC721_INTERFACE_ID = "0x80ac58cd"
 const ERC1155_INTERFACE_ID = "0xd9b67a26"
-
-type TokenType = "ERC-20" | "ERC-721" | "ERC-1155"
-type Metadata = { name?: string; symbol?: string; decimals?: number }
-
-type TokenInfo = {
-    type: TokenType
-    metadata: Metadata
-}
 
 export const getMetadata = async (
     address: Address,
