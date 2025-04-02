@@ -65,7 +65,6 @@ function rejectUserOps(
 export async function filterOpsAndEstimateGas({
     executor,
     userOpBundle,
-    codeOverrideSupport,
     nonce,
     maxFeePerGas,
     maxPriorityFeePerGas,
@@ -75,7 +74,6 @@ export async function filterOpsAndEstimateGas({
 }: {
     executor: Account
     userOpBundle: UserOperationBundle
-    codeOverrideSupport: boolean
     nonce: number
     maxFeePerGas: bigint
     maxPriorityFeePerGas: bigint
@@ -132,11 +130,9 @@ export async function filterOpsAndEstimateGas({
 
             let stateOverride: StateOverride | undefined = undefined
 
-            if (codeOverrideSupport) {
-                stateOverride = getEip7702DelegationOverrides(
-                    userOpsToBundle.map(({ userOp }) => userOp)
-                )
-            }
+            stateOverride = getEip7702DelegationOverrides(
+                userOpsToBundle.map(({ userOp }) => userOp)
+            )
 
             gasLimit = await epContract.estimateGas.handleOps(
                 // @ts-ignore - ep is set correctly for opsToSend, but typescript doesn't know that

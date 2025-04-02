@@ -280,7 +280,6 @@ export class Executor {
             nonce,
             maxFeePerGas,
             maxPriorityFeePerGas,
-            codeOverrideSupport: this.config.codeOverrideSupport,
             reputationManager: this.reputationManager,
             config: this.config,
             logger: childLogger

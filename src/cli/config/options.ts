@@ -405,13 +405,6 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             require: true,
             default: false
         },
-        "balance-override": {
-            description:
-                "Override the sender native token balance during estimation",
-            type: "boolean",
-            require: true,
-            default: true
-        },
         "flush-stuck-transactions-during-startup": {
             description:
                 "Flush stuck transactions with old nonces during bundler startup",
@@ -478,6 +471,12 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         alias: "r",
         require: true
     },
+    "state-override-support": {
+        description: "Does the RPC support state overrides",
+        type: "boolean",
+        require: true,
+        default: true
+    },
     "send-transaction-rpc-url": {
         description: "RPC url to send transactions to (e.g. flashbots relay)",
         type: "string",
@@ -498,12 +497,6 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
     "block-tag-support": {
         description:
             "Disable sending block tag when sending eth_estimateGas call",
-        type: "boolean",
-        require: false,
-        default: true
-    },
-    "code-override-support": {
-        description: "Does the RPC support code overrides",
         type: "boolean",
         require: false,
         default: true

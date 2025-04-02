@@ -131,7 +131,7 @@ export class GasEstimatorV06 {
         const fixedGasLimitForEstimation =
             this.config.fixedGasLimitForEstimation
 
-        if (this.config.codeOverrideSupport && useCodeOverride) {
+        if (useCodeOverride) {
             if (stateOverrides === undefined) {
                 stateOverrides = {}
             }
@@ -140,11 +140,6 @@ export class GasEstimatorV06 {
                 ...deepHexlify(stateOverrides?.[entryPoint] || {}),
                 code: ENTRYPOINT_V06_SIMULATION_OVERRIDE
             }
-        }
-
-        // Remove state override if not supported by network.
-        if (!this.config.balanceOverride) {
-            stateOverrides = undefined
         }
 
         stateOverrides = await getAuthorizationStateOverrides({

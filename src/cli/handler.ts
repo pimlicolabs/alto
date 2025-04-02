@@ -132,6 +132,18 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
             .extend(publicActions)
     }
 
+    // Some rpcs don't support state overrides, so we need to make sure we don't use them.
+    if (!args.stateOverrideSupport) {
+        publicClient = publicClient
+            .extend((client) => ({
+                async call(args: CallParameters) {
+                    const { stateOverride, ...rest } = args
+                    return await client.call({ ...rest })
+                }
+            }))
+            .extend(publicActions)
+    }
+
     const createWalletTransport = (url: string) =>
         customTransport(url, {
             logger: logger.child(

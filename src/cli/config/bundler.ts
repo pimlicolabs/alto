@@ -141,7 +141,6 @@ export const compatibilityArgsSchema = z.object({
         .enum(["v1", "v2"])
         .optional()
         .transform((val) => val as ApiVersion),
-    "balance-override": z.boolean(),
     "flush-stuck-transactions-during-startup": z.boolean(),
     "is-gas-free-chain": z.boolean(),
     "fixed-gas-limit-for-estimation": z
@@ -163,11 +162,11 @@ export const serverArgsSchema = z.object({
 
 export const rpcArgsSchema = z.object({
     "rpc-url": z.string().url(),
+    "state-override-support": z.boolean().optional().default(true),
     "send-transaction-rpc-url": z.string().url().optional(),
     "polling-interval": z.number().int().min(0),
     "max-block-range": z.number().int().min(0).optional(),
-    "block-tag-support": z.boolean().optional().default(true),
-    "code-override-support": z.boolean().optional().default(false)
+    "block-tag-support": z.boolean().optional().default(true)
 })
 
 export const logArgsSchema = z.object({
