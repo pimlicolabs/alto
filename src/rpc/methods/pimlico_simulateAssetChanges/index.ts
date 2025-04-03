@@ -205,9 +205,12 @@ export const pimlicoSimulateAssetChangesHandler = createMethodHandler({
                             topic0 === TRANSFER_BATCH_TOPIC_HASH
                         ) {
                             // Check if transfer touches userOp.sender (from or to)
+                            const from = getAddress(slice(topic2, 12, 32))
+                            const to = getAddress(slice(topic3, 12, 32))
+
                             if (
-                                getAddress(topic2) === userOperation.sender ||
-                                getAddress(topic3) === userOperation.sender
+                                from === userOperation.sender ||
+                                to === userOperation.sender
                             ) {
                                 const address = getAddress(
                                     toHex(step.address.bytes)

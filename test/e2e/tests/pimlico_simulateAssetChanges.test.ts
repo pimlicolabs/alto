@@ -5,7 +5,8 @@ import {
     encodeFunctionData,
     erc721Abi,
     erc20Abi,
-    parseUnits
+    parseUnits,
+    parseAbi
 } from "viem"
 import {
     type EntryPointVersion,
@@ -16,6 +17,7 @@ import { deployMockERC721, mintERC721 } from "../src/mockERC721.js"
 import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils/index.js"
 import { deployMockERC20, mintERC20 } from "../src/mockErc20.js"
 import { privateKeyToAddress, generatePrivateKey } from "viem/accounts"
+import { deployMockERC1155, mintERC1155 } from "../src/mockErc1155.js"
 
 describe.each([
     {
@@ -30,24 +32,87 @@ describe.each([
 
         let mockERC721Address: Address
         let mockERC20Address: Address
+        let mockERC1155Address: Address
 
         beforeAll(async () => {
             // Deploy mock ERC721 token
             mockERC721Address = await deployMockERC721({ anvilRpc })
             mockERC20Address = await deployMockERC20({ anvilRpc })
+            mockERC1155Address = await deployMockERC1155({ anvilRpc })
         })
 
         beforeEach(async () => {
             await beforeEachCleanUp({ anvilRpc, altoRpc })
         })
 
+        test("Should detect ERC-1155 transfers in user operation", async () => {
+            const smartAccountClient = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const erc721TokenId = 100n
+            const recipient = privateKeyToAddress(generatePrivateKey())
+
+            await mintERC1155({
+                contractAddress: mockERC1155Address,
+                to: smartAccountClient.account.address,
+                amount: 50n,
+                tokenId: erc721TokenId,
+                anvilRpc
+            })
+
+            const userOp = await smartAccountClient.prepareUserOperation({
+                calls: [
+                    {
+                        to: mockERC1155Address,
+                        value: 0n,
+                        data: encodeFunctionData({
+                            abi: parseAbi([
+                                "function safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes calldata data) external"
+                            ]),
+                            args: [
+                                smartAccountClient.account.address,
+                                recipient,
+                                erc721TokenId,
+                                1n,
+                                "0x"
+                            ]
+                        })
+                    }
+                ]
+            })
+
+            const res = (await smartAccountClient.request({
+                // @ts-ignore
+                method: "pimlico_simulateAssetChanges",
+                params: [deepHexlify(userOp), entryPoint07Address]
+            })) as any
+
+            expect(res).toEqual({
+                assetChanges: [
+                    {
+                        token: {
+                            tokenType: "ERC-1155",
+                            address: mockERC1155Address,
+                            tokenId: "0x64"
+                        },
+                        value: {
+                            diff: "-1",
+                            pre: "50",
+                            post: "49"
+                        }
+                    }
+                ]
+            })
+        })
+
         test("Should detect ERC-721 transfers in user operation", async () => {
             const smartAccountClient = await getSmartAccountClient({
                 entryPointVersion,
                 anvilRpc,
-                altoRpc,
-                privateKey:
-                    "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                altoRpc
             })
 
             const erc721TokenId = 500n
