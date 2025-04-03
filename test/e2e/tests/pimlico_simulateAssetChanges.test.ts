@@ -96,7 +96,7 @@ describe.each([
                         token: {
                             tokenType: "ERC-1155",
                             address: mockERC1155Address,
-                            tokenId: "0x64"
+                            tokenId: 100
                         },
                         value: {
                             diff: "-1",
@@ -156,7 +156,7 @@ describe.each([
                             tokenType: "ERC-721",
                             address:
                                 "0xB791449A543E19362BBEfEec30F4116a6b0be9C5",
-                            tokenId: "0x1f4",
+                            tokenId: 500,
                             name: "TEST NFT",
                             symbol: "TEST"
                         },

@@ -500,14 +500,14 @@ export const tokenSchema = z.discriminatedUnion("tokenType", [
     z.object({
         tokenType: z.literal("ERC-721"),
         address: addressSchema,
-        tokenId: hexNumberSchema,
+        tokenId: z.number(),
         name: z.string().optional(),
         symbol: z.string().optional()
     }),
     z.object({
         tokenType: z.literal("ERC-1155"),
         address: addressSchema,
-        tokenId: hexNumberSchema,
+        tokenId: z.number(),
         name: z.string().optional(),
         symbol: z.string().optional()
     })

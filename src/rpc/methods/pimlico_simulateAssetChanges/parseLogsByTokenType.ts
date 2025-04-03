@@ -117,7 +117,7 @@ export async function getAssetChangesFromLogs(
                 token: {
                     tokenType: "ERC-721",
                     address: tokenAddress,
-                    tokenId,
+                    tokenId: Number(tokenId),
                     name: metadata.name,
                     symbol: metadata.symbol
                 },
@@ -236,7 +236,7 @@ export async function getAssetChangesFromLogs(
                 token: {
                     tokenType: "ERC-1155",
                     address: tokenAddress,
-                    tokenId,
+                    tokenId: Number(tokenId),
                     name: metadata.name,
                     symbol: metadata.symbol
                 },
