@@ -7,7 +7,7 @@ import {
 } from "@alto/types"
 import { createMemoryClient, http } from "tevm"
 import { optimism as tevmOptimism } from "tevm/common"
-import { getAddress, toHex, Address, slice } from "viem"
+import { getAddress, toHex, Address, slice, createPublicClient } from "viem"
 import { isVersion06 } from "../../../utils/userop"
 import type { AltoConfig } from "../../../createConfig"
 import {
@@ -173,6 +173,32 @@ export const pimlicoSimulateAssetChangesHandler = createMethodHandler({
                             )
                         )
 
+                        // Some NFT emit using log4
+                        if (topic0 === TRANSFER_TOPIC_HASH) {
+                            // Check if transfer touches userOp.sender
+                            const from = getAddress(slice(topic1, 12, 32))
+                            const to = getAddress(slice(topic2, 12, 32))
+
+                            if (
+                                from === userOperation.sender ||
+                                to === userOperation.sender
+                            ) {
+                                const address = getAddress(
+                                    toHex(step.address.bytes, { size: 20 })
+                                )
+
+                                if (!logsByAddress[address]) {
+                                    logsByAddress[address] = []
+                                }
+
+                                logsByAddress[address].push({
+                                    address,
+                                    topics: [topic0, topic1, topic2, topic3],
+                                    data
+                                })
+                            }
+                        }
+
                         // Check if this is a TransferSingle event
                         if (
                             topic0 === TRANSFER_SINGLE_TOPIC_HASH ||
@@ -309,7 +335,11 @@ export const pimlicoSimulateAssetChangesHandler = createMethodHandler({
 
         // Add ETH transfers to asset changes
         if (netEthTransfers !== 0n) {
-            const balance = await tevmClient.getBalance({
+            const publicClient = createPublicClient({
+                transport: http(config.rpcUrl)
+            })
+
+            const balance = await publicClient.getBalance({
                 address: userOperation.sender
             })
 

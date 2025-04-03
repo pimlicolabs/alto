@@ -5,8 +5,7 @@ import {
     encodeFunctionData,
     erc721Abi,
     erc20Abi,
-    getAddress,
-    fromHex
+    parseUnits
 } from "viem"
 import {
     type EntryPointVersion,
@@ -46,11 +45,12 @@ describe.each([
             const smartAccountClient = await getSmartAccountClient({
                 entryPointVersion,
                 anvilRpc,
-                altoRpc
+                altoRpc,
+                privateKey:
+                    "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
             })
 
             const erc721TokenId = 500n
-            const mockSpender = privateKeyToAddress(generatePrivateKey())
             const recipient = privateKeyToAddress(generatePrivateKey())
 
             await mintERC721({
@@ -84,7 +84,25 @@ describe.each([
                 params: [deepHexlify(userOp), entryPoint07Address]
             })) as any
 
-            console.log(res)
+            expect(res).toEqual({
+                assetChanges: [
+                    {
+                        token: {
+                            tokenType: "ERC-721",
+                            address:
+                                "0xB791449A543E19362BBEfEec30F4116a6b0be9C5",
+                            tokenId: "0x1f4",
+                            name: "TEST NFT",
+                            symbol: "TEST"
+                        },
+                        value: {
+                            diff: "-1",
+                            pre: "1",
+                            post: "0"
+                        }
+                    }
+                ]
+            })
         })
 
         test("Should detect native token transfers in user operation", async () => {
@@ -94,7 +112,7 @@ describe.each([
                 altoRpc
             })
 
-            const nativeAmount = parseEther("0.01") // 0.01 ETH
+            const nativeAmount = parseEther("0.1") // 0.01 ETH
             const recipient = privateKeyToAddress(generatePrivateKey())
 
             // Create a user operation that sends native tokens
@@ -114,7 +132,20 @@ describe.each([
                 params: [deepHexlify(userOp), entryPoint07Address]
             })) as any
 
-            console.log(res)
+            expect(res).toEqual({
+                assetChanges: [
+                    {
+                        token: {
+                            tokenType: "NATIVE"
+                        },
+                        value: {
+                            pre: "100000000000000000000",
+                            post: "99900000000000000000",
+                            diff: "-100000000000000000"
+                        }
+                    }
+                ]
+            })
         })
 
         test("Should detect ERC-20 transfers in user operation", async () => {
@@ -124,14 +155,15 @@ describe.each([
                 altoRpc
             })
 
-            const erc20Amount = parseEther("1")
+            const mintAmount = parseUnits("0.5", 6)
+            const amountToSend = parseUnits("0.1", 6)
             const recipient = privateKeyToAddress(generatePrivateKey())
 
             // Mint some ERC-20 tokens to the smart account
             await mintERC20({
                 contractAddress: mockERC20Address,
                 to: smartAccountClient.account.address,
-                amount: erc20Amount,
+                amount: mintAmount,
                 anvilRpc
             })
 
@@ -143,7 +175,7 @@ describe.each([
                         data: encodeFunctionData({
                             abi: erc20Abi,
                             functionName: "transfer",
-                            args: [recipient, erc20Amount]
+                            args: [recipient, amountToSend]
                         })
                     }
                 ]
@@ -155,7 +187,24 @@ describe.each([
                 params: [deepHexlify(userOp), entryPoint07Address]
             })) as any
 
-            console.log(res)
+            expect(res).toEqual({
+                assetChanges: [
+                    {
+                        token: {
+                            tokenType: "ERC-20",
+                            address: mockERC20Address,
+                            decimals: 6,
+                            name: "TEST TOKEN",
+                            symbol: "TEST"
+                        },
+                        value: {
+                            diff: "-100000",
+                            post: "400000",
+                            pre: "500000"
+                        }
+                    }
+                ]
+            })
         })
     }
 )
