@@ -607,9 +607,17 @@ export class RpcHandler {
                 executionResult.data.executionResult.paymasterPostOpGasLimit ||
                 1n
 
-            paymasterPostOpGasLimit = scaleBigIntByPercent(
-                paymasterPostOpGasLimit,
-                this.config.paymasterGasLimitMultiplier
+            const userOperationPaymasterPostOpGasLimit =
+                "paymasterPostOpGasLimit" in userOperation
+                    ? userOperation.paymasterPostOpGasLimit ?? 1n
+                    : 1n
+
+            paymasterPostOpGasLimit = maxBigInt(
+                userOperationPaymasterPostOpGasLimit,
+                scaleBigIntByPercent(
+                    paymasterPostOpGasLimit,
+                    this.config.paymasterGasLimitMultiplier
+                )
             )
         }
 
