@@ -20,7 +20,7 @@ import { setupServer } from "./setupServer"
 import { type AltoConfig, createConfig } from "../createConfig"
 import { parseArgs } from "./parseArgs"
 import { deploySimulationsContract } from "./deploySimulationsContract"
-import { getSenderManager } from "../executor/senderManager"
+import { getSenderManager } from "../executor/senderManager/index"
 import { UtilityWalletMonitor } from "../executor/utilityWalletMonitor"
 
 const preFlightChecks = async (config: AltoConfig): Promise<void> => {
