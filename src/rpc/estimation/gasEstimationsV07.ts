@@ -75,9 +75,12 @@ export class GasEstimatorV07 {
             args: [packedUserOperations]
         })
 
-        const stateOverrides: StateOverrides = getAuthorizationStateOverrides({
-            userOperations: [...queuedUserOperations, userOperation]
-        })
+        let stateOverrides: StateOverrides | undefined = undefined
+        if (this.config.codeOverrideSupport) {
+            getAuthorizationStateOverrides({
+                userOperations: [...queuedUserOperations, userOperation]
+            })
+        }
 
         const isV8 = isVersion08(userOperation, entryPoint)
 
@@ -271,10 +274,12 @@ export class GasEstimatorV07 {
                     functionName
                 })
 
-            stateOverrides = getAuthorizationStateOverrides({
-                userOperations: [...queuedOps, targetOp],
-                stateOverrides
-            })
+            if (this.config.codeOverrideSupport) {
+                stateOverrides = getAuthorizationStateOverrides({
+                    userOperations: [...queuedOps, targetOp],
+                    stateOverrides
+                })
+            }
 
             const isV8 = isVersion08(targetOp, entryPoint)
 
@@ -356,10 +361,13 @@ export class GasEstimatorV07 {
             userOperation,
             queuedUserOperations
         })
-        stateOverrides = getAuthorizationStateOverrides({
-            userOperations: [...queuedUserOperations, userOperation],
-            stateOverrides
-        })
+
+        if (this.config.codeOverrideSupport) {
+            stateOverrides = getAuthorizationStateOverrides({
+                userOperations: [...queuedUserOperations, userOperation],
+                stateOverrides
+            })
+        }
 
         const isV8 = isVersion08(userOperation, entryPoint)
 
@@ -486,10 +494,12 @@ export class GasEstimatorV07 {
             functionName: "binarySearchCallGasLimit"
         })
 
-        stateOverrides = getAuthorizationStateOverrides({
-            userOperations: [...queuedUserOperations, userOperation],
-            stateOverrides
-        })
+        if (this.config.codeOverrideSupport) {
+            stateOverrides = getAuthorizationStateOverrides({
+                userOperations: [...queuedUserOperations, userOperation],
+                stateOverrides
+            })
+        }
 
         let cause: readonly [Hex, Hex, Hex | null, Hex]
         const isV8 = isVersion08(userOperation, entryPoint)
@@ -812,7 +822,7 @@ export class GasEstimatorV07 {
         })
 
         // Remove state override if not supported by network.
-        if (!this.config.balanceOverride) {
+        if (!this.config.balanceOverride && !this.config.codeOverrideSupport) {
             stateOverrides = undefined
         }
 

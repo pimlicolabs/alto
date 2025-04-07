@@ -142,15 +142,17 @@ export class GasEstimatorV06 {
             }
         }
 
-        // Remove state override if not supported by network.
-        if (!this.config.balanceOverride) {
-            stateOverrides = undefined
+        if (this.config.codeOverrideSupport) {
+            stateOverrides = getAuthorizationStateOverrides({
+                userOperations: [userOperation],
+                stateOverrides
+            })
         }
 
-        stateOverrides = getAuthorizationStateOverrides({
-            userOperations: [userOperation],
-            stateOverrides
-        })
+        // Remove state override if not supported by network.
+        if (!this.config.balanceOverride && !this.config.codeOverrideSupport) {
+            stateOverrides = undefined
+        }
 
         try {
             await publicClient.request({
