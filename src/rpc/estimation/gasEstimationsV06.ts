@@ -142,12 +142,10 @@ export class GasEstimatorV06 {
             }
         }
 
-        if (this.config.codeOverrideSupport) {
-            stateOverrides = getAuthorizationStateOverrides({
-                userOperations: [userOperation],
-                stateOverrides
-            })
-        }
+        stateOverrides = getAuthorizationStateOverrides({
+            userOperations: [userOperation],
+            stateOverrides
+        })
 
         // Remove state override if not supported by network.
         if (!this.config.balanceOverride && !this.config.codeOverrideSupport) {
@@ -195,37 +193,11 @@ export class GasEstimatorV06 {
             const cause = err.walk((err) => err instanceof RpcRequestError)
 
             const causeParseResult = z
-                .union([
-                    z.object({
-                        code: z.literal(3),
-                        message: z.string(),
-                        data: hexDataSchema
-                    }),
-                    /* Fuse RPCs return in this format. */
-                    z.object({
-                        code: z.number(),
-                        message: z.string().regex(/VM execution error.*/),
-                        data: z
-                            .string()
-                            .transform((data) => data.replace("Reverted ", ""))
-                            .pipe(hexDataSchema)
-                    }),
-                    z.object({
-                        code: z.number(),
-                        message: z
-                            .string()
-                            .regex(
-                                /VM Exception while processing transaction:.*/
-                            ),
-                        data: hexDataSchema
-                    }),
-                    /* Monad devnet RPC return in this format */
-                    z.object({
-                        code: z.literal(-32603),
-                        message: z.string().regex(/execution reverted.*/),
-                        data: hexDataSchema
-                    })
-                ])
+                .object({
+                    code: z.union([z.literal(3), z.literal(-32603)]),
+                    message: z.string(),
+                    data: hexDataSchema
+                })
                 .safeParse(cause?.cause)
 
             if (!causeParseResult.success) {

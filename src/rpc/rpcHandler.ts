@@ -338,6 +338,13 @@ export class RpcHandler {
             )
         }
 
+        if (!this.config.codeOverrideSupport) {
+            throw new RpcError(
+                "eip7702Auth is not supported on this chain",
+                ValidationErrors.InvalidFields
+            )
+        }
+
         // Check that auth is valid.
         const sender = validateSender
             ? await recoverAuthorizationAddress({
