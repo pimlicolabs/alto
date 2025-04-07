@@ -75,7 +75,7 @@ export class GasEstimatorV07 {
             args: [packedUserOperations]
         })
 
-        let stateOverrides: StateOverrides = getAuthorizationStateOverrides({
+        const stateOverrides: StateOverrides = getAuthorizationStateOverrides({
             userOperations: [...queuedUserOperations, userOperation]
         })
 
