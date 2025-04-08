@@ -194,7 +194,11 @@ export class GasEstimatorV06 {
 
             const causeParseResult = z
                 .object({
-                    code: z.union([z.literal(3), z.literal(-32603)]),
+                    code: z.union([
+                        z.literal(3),
+                        z.literal(-32603),
+                        z.literal(-32015)
+                    ]),
                     message: z.string(),
                     data: z
                         .string()

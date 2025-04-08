@@ -1073,6 +1073,18 @@ function getSimulateHandleOpResult(data: Hex): SimulateHandleOpResult {
                 code: ValidationErrors.SimulateValidation
             } as const
         }
+
+        if (
+            decodedError &&
+            decodedError.errorName === "CallPhaseReverted" &&
+            decodedError.args
+        ) {
+            return {
+                result: "failed",
+                data: decodedError.args[0],
+                code: ValidationErrors.SimulateValidation
+            } as const
+        }
     } catch {
         // no error we go the result
         const decodedResult: ExecutionResult = decodeFunctionResult({
