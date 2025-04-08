@@ -196,7 +196,10 @@ export class GasEstimatorV06 {
                 .object({
                     code: z.union([z.literal(3), z.literal(-32603)]),
                     message: z.string(),
-                    data: hexDataSchema
+                    data: z
+                        .string()
+                        .transform((data) => data.replace("Reverted ", ""))
+                        .pipe(hexDataSchema)
                 })
                 .safeParse(cause?.cause)
 
