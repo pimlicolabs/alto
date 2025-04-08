@@ -356,6 +356,7 @@ export class GasEstimatorV07 {
             userOperation,
             queuedUserOperations
         })
+
         stateOverrides = getAuthorizationStateOverrides({
             userOperations: [...queuedUserOperations, userOperation],
             stateOverrides
@@ -812,7 +813,7 @@ export class GasEstimatorV07 {
         })
 
         // Remove state override if not supported by network.
-        if (!this.config.balanceOverride) {
+        if (!this.config.balanceOverride && !this.config.codeOverrideSupport) {
             stateOverrides = undefined
         }
 
