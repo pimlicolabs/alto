@@ -40,7 +40,7 @@ export const ethSendUserOperationHandler = createMethodHandler({
             rpcHandler.metrics.userOperationsReceived
                 .labels({
                     status,
-                    type: "regular"
+                    type: !!userOperation.eip7702Auth ? "7702" : "regular"
                 })
                 .inc()
         }
