@@ -144,16 +144,16 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
-    const userOperationsResubmitted = new Counter({
-        name: "alto_user_operations_resubmitted_total",
-        help: "Number of user operations resubmitted",
+    const userOperationsBundleAttempts = new Counter({
+        name: "alto_user_operations_bundling_attempts",
+        help: "Number of times operations were sent back to mempool after bundling attempt",
         labelNames: [] as const,
         registers
     })
 
-    const userOperationsSubmissionAttempts = new Counter({
-        name: "alto_user_operations_submission_attempts_total",
-        help: "Number of submission attempts for user operations that made it on-chain",
+    const userOperationsSubmissionAttempts = new Histogram({
+        name: "alto_user_operations_attempts_before_inclusion",
+        help: "Number of submission attempts needed before a user operation was included on-chain",
         labelNames: [] as const,
         registers
     })
@@ -217,7 +217,7 @@ export function createMetrics(registry: Registry, register = true) {
         verificationGasLimitEstimationTime,
         verificationGasLimitEstimationCount,
         replacedTransactions,
-        userOperationsResubmitted,
+        userOperationsBundleAttempts,
         utilityWalletBalance,
         utilityWalletInsufficientBalance,
         executorWalletsBalances,

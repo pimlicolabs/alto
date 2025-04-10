@@ -988,7 +988,7 @@ export class ExecutorManager {
                 )
                 await this.mempool.removeProcessing({ entryPoint, userOpHash })
                 await this.mempool.add(userOp, entryPoint)
-                this.metrics.userOperationsResubmitted.inc()
+                this.metrics.userOperationsBundleAttempts.inc()
             })
         )
     }
@@ -1039,7 +1039,7 @@ export class ExecutorManager {
                 )
 
                 // Track the number of submission attempts for included ops
-                this.metrics.userOperationsSubmissionAttempts.inc(
+                this.metrics.userOperationsSubmissionAttempts.observe(
                     submissionAttempts
                 )
 
