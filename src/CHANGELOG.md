@@ -1,5 +1,12 @@
 # @pimlico/alto
 
+## 0.0.17
+
+### Patch Changes
+
+- d81e0b5ad3d1dc80de8c21c4baee230a16727632: Fixed eth_getUserOperationByHash when factory data is null
+- 628af0e65c2d4888b2f9989b1987a68156d4707c: Updated entrypoint 0.8 estimations contract
+
 ## 0.0.16
 
 ### Patch Changes
