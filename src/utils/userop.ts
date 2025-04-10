@@ -79,9 +79,10 @@ export function unPackInitCode(initCode: Hex) {
             factoryData: null
         }
     }
+
     return {
         factory: getAddress(slice(initCode, 0, 20)),
-        factoryData: slice(initCode, 20)
+        factoryData: size(initCode) > 20 ? slice(initCode, 20) : null
     }
 }
 
