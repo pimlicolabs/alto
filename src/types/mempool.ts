@@ -14,8 +14,8 @@ export type TransactionInfo = {
     bundle: UserOperationBundle
     executor: Account
     lastReplaced: number
-    firstSubmitted: number
     timesPotentiallyIncluded: number
+    submissionAttempts: number
 }
 
 export type UserOperationBundle = {

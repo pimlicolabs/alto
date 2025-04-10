@@ -18,6 +18,7 @@ import type { BundlingStatus, Logger, Metrics } from "@alto/utils"
 import {
     getAAError,
     getBundleStatus,
+    minBigInt,
     parseUserOperationReceipt,
     scaleBigIntByPercent
 } from "@alto/utils"
@@ -294,7 +295,7 @@ export class ExecutorManager {
                 },
                 previousTransactionHashes: [],
                 lastReplaced: Date.now(),
-                firstSubmitted: Date.now(),
+                submissionAttempts: 1,
                 timesPotentiallyIncluded: 0
             }
 
@@ -729,7 +730,7 @@ export class ExecutorManager {
 
     async replaceTransaction(
         txInfo: TransactionInfo,
-        reason: string
+        reason: "AA95" | "gas_price" | "stuck"
     ): Promise<void> {
         // Setup vars
         const {
@@ -740,13 +741,13 @@ export class ExecutorManager {
         } = txInfo
         const { userOps, entryPoint } = bundle
 
-        const gasPriceParameters = await this.gasPriceManager
+        const gasPriceParams = await this.gasPriceManager
             .tryGetNetworkGasPrice()
             .catch((_) => {
                 return undefined
             })
 
-        if (!gasPriceParameters) {
+        if (!gasPriceParams) {
             const rejectedUserOps = userOps.map((userOpInfo) => ({
                 ...userOpInfo,
                 reason: "Failed to get network gas price during replacement"
@@ -762,20 +763,26 @@ export class ExecutorManager {
             return
         }
 
+        // If the transaction is stuck increase gasPrice based on number of submission attempts.
+        if (reason === "stuck" || reason === "gas_price") {
+            const multiplier = 100n + BigInt(txInfo.submissionAttempts) * 20n
+            const multiplierCeiling = this.config.resubmitMultiplierCeiling
+
+            gasPriceParams.maxFeePerGas = scaleBigIntByPercent(
+                gasPriceParams.maxFeePerGas,
+                minBigInt(multiplier, multiplierCeiling)
+            )
+            gasPriceParams.maxPriorityFeePerGas = scaleBigIntByPercent(
+                gasPriceParams.maxPriorityFeePerGas,
+                minBigInt(multiplier, multiplierCeiling)
+            )
+        }
+
         const bundleResult = await this.executor.bundle({
             executor: executor,
             userOpBundle: bundle,
             nonce: transactionRequest.nonce,
-            gasPriceParams: {
-                maxFeePerGas: scaleBigIntByPercent(
-                    gasPriceParameters.maxFeePerGas,
-                    115n
-                ),
-                maxPriorityFeePerGas: scaleBigIntByPercent(
-                    gasPriceParameters.maxPriorityFeePerGas,
-                    115n
-                )
-            },
+            gasPriceParams,
             gasLimitSuggestion: transactionRequest.gas,
             isReplacementTx: true
         })
@@ -895,6 +902,7 @@ export class ExecutorManager {
                 ...txInfo.previousTransactionHashes
             ],
             lastReplaced: Date.now(),
+            submissionAttempts: txInfo.submissionAttempts + 1,
             bundle: {
                 ...txInfo.bundle,
                 userOps: userOpsReplaced

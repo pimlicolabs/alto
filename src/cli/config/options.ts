@@ -326,6 +326,13 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         require: false,
         default: "125"
     },
+    "resubmit-multiplier-ceiling": {
+        description:
+            "Maximum multiplier for gasPrice when resubmitting transactions",
+        type: "string",
+        require: false,
+        default: "300"
+    },
     "refilling-wallets": {
         description: "Enable refilling wallets",
         type: "boolean",

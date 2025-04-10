@@ -711,7 +711,8 @@ export const userOpDetailsSchema = z.object({
     userOpHash: hexData32Schema,
     // timestamp when the bundling process begins (when it leaves outstanding mempool)
     addedToMempool: z.number(),
-    referencedContracts: referencedCodeHashesSchema.optional()
+    referencedContracts: referencedCodeHashesSchema.optional(),
+    submissionAttempts: z.number()
 })
 
 export const userOpInfoSchema = userOpDetailsSchema.extend({
