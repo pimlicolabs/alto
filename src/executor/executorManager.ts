@@ -277,12 +277,18 @@ export class ExecutorManager {
         }
 
         if (bundleResult.status === "bundle_success") {
-            const {
+            let {
                 userOpsBundled,
                 rejectedUserOps,
                 transactionRequest,
                 transactionHash
             } = bundleResult
+
+            // Increment submission attempts for all userOps submitted.
+            userOpsBundled = userOpsBundled.map((userOpInfo) => ({
+                ...userOpInfo,
+                submissionAttempts: userOpInfo.submissionAttempts + 1
+            }))
 
             const transactionInfo: TransactionInfo = {
                 executor: wallet,
@@ -891,7 +897,11 @@ export class ExecutorManager {
             transactionHash: newTxHash
         } = bundleResult
 
-        const userOpsReplaced = userOpsBundled
+        // Increment submission attempts for all replaced userOps
+        const userOpsReplaced = userOpsBundled.map((userOpInfo) => ({
+            ...userOpInfo,
+            submissionAttempts: userOpInfo.submissionAttempts + 1
+        }))
 
         const newTxInfo: TransactionInfo = {
             ...txInfo,
@@ -930,12 +940,6 @@ export class ExecutorManager {
         userOpsReplaced: UserOpInfo[],
         newTxInfo: TransactionInfo
     ) {
-        // Increment submission attempts for all replaced userOps
-        userOpsReplaced = userOpsReplaced.map((userOpInfo) => ({
-            ...userOpInfo,
-            submissionAttempts: userOpInfo.submissionAttempts + 1
-        }))
-
         // Mark as replaced in mempool
         await Promise.all(
             userOpsReplaced.map(async (userOpInfo) => {
@@ -951,11 +955,6 @@ export class ExecutorManager {
         userOpInfos: UserOpInfo[],
         transactionInfo: TransactionInfo
     ) {
-        // Increment submission attempts for all userOps submitted.
-        userOpInfos = userOpInfos.map((userOpInfo) => ({
-            ...userOpInfo,
-            submissionAttempts: userOpInfo.submissionAttempts + 1
-        }))
         await Promise.all(
             userOpInfos.map(async (userOpInfo) => {
                 const { userOpHash } = userOpInfo
