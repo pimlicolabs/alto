@@ -2809,5 +2809,16 @@ export const EntryPointV07SimulationsAbi = [
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "CallPhaseReverted",
+    "inputs": [
+      {
+        "name": "reason",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ]
   }
 ] as const
