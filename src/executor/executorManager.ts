@@ -1030,13 +1030,16 @@ export class ExecutorManager {
                     .labels({ status: "included" })
                     .inc()
 
-                const { userOpHash, userOp } = userOpInfo
+                const { userOpHash, userOp, submissionAttempts } = userOpInfo
                 const opDetails = userOperationDetails[userOpHash]
 
                 const firstSubmitted = userOpInfo.addedToMempool
                 this.metrics.userOperationInclusionDuration.observe(
                     (Date.now() - firstSubmitted) / 1000
                 )
+                
+                // Track the number of submission attempts for included ops
+                this.metrics.userOperationsSubmissionAttempts.inc(submissionAttempts)
 
                 await this.mempool.removeSubmitted({ entryPoint, userOpHash })
                 this.reputationManager.updateUserOperationIncludedStatus(

@@ -151,6 +151,13 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
+    const userOperationsSubmissionAttempts = new Counter({
+        name: "alto_user_operations_submission_attempts_total",
+        help: "Number of submission attempts for user operations that made it on-chain",
+        labelNames: [] as const,
+        registers
+    })
+
     const utilityWalletBalance = new Gauge({
         name: "alto_utility_wallet_balance",
         help: "Balance of the utility wallet",
@@ -216,6 +223,7 @@ export function createMetrics(registry: Registry, register = true) {
         executorWalletsBalances,
         executorWalletsMinBalance,
         emittedOpEvents,
-        walletsProcessingTime
+        walletsProcessingTime,
+        userOperationsSubmissionAttempts
     }
 }
