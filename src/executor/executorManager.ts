@@ -987,7 +987,7 @@ export class ExecutorManager {
                 )
                 await this.mempool.removeProcessing({ entryPoint, userOpHash })
                 await this.mempool.add(userOp, entryPoint)
-                this.metrics.userOperationsBundleAttempts.inc()
+                this.metrics.userOperationsResubmitted.inc()
             })
         )
     }

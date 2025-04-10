@@ -144,9 +144,9 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
-    const userOperationsBundleAttempts = new Counter({
-        name: "alto_user_operations_bundling_attempts",
-        help: "Number of times operations were sent back to mempool after bundling attempt",
+    const userOperationsResubmitted = new Counter({
+        name: "alto_user_operations_resubmitted_total",
+        help: "Number of user operations resubmitted",
         labelNames: [] as const,
         registers
     })
@@ -217,7 +217,7 @@ export function createMetrics(registry: Registry, register = true) {
         verificationGasLimitEstimationTime,
         verificationGasLimitEstimationCount,
         replacedTransactions,
-        userOperationsBundleAttempts,
+        userOperationsResubmitted,
         utilityWalletBalance,
         utilityWalletInsufficientBalance,
         executorWalletsBalances,
