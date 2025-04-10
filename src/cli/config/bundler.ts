@@ -95,6 +95,7 @@ export const executorArgsSchema = z.object({
         .optional(),
     "utility-wallet-monitor": z.boolean(),
     "utility-wallet-monitor-interval": z.number(),
+    "resubmit-multiplier-ceiling": z.string().transform((val) => BigInt(val)),
     "executor-private-keys": z.union([
         z
             .array(hexData32Schema)

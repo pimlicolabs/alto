@@ -337,7 +337,8 @@ export class Mempool {
                 userOp,
                 userOpHash,
                 referencedContracts,
-                addedToMempool: Date.now()
+                addedToMempool: Date.now(),
+                submissionAttempts: 0
             }
         })
 

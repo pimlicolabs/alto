@@ -49,7 +49,8 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
                 chainId: rpcHandler.config.chainId,
                 publicClient: rpcHandler.config.publicClient
             }),
-            addedToMempool: Date.now()
+            addedToMempool: Date.now(),
+            submissionAttempts: 0
         }
         const bundle: UserOperationBundle = {
             entryPoint,
