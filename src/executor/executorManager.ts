@@ -909,14 +909,7 @@ export class ExecutorManager {
             }
         }
 
-        await Promise.all(
-            userOpsReplaced.map(async (userOpInfo) => {
-                await this.mempool.replaceSubmitted({
-                    userOpInfo,
-                    transactionInfo: newTxInfo
-                })
-            })
-        )
+        await this.markUserOperationsAsReplaced(userOpsReplaced, newTxInfo)
 
         // Drop all userOperations that were rejected during simulation.
         await this.dropUserOps(entryPoint, rejectedUserOps)
@@ -933,12 +926,38 @@ export class ExecutorManager {
         return
     }
 
+    async markUserOperationsAsReplaced(
+        userOpsReplaced: UserOpInfo[],
+        newTxInfo: TransactionInfo
+    ) {
+        // Increment submission attempts for all replaced userOps
+        const updatedUserOpsReplaced = userOpsReplaced.map((userOpInfo) => ({
+            ...userOpInfo,
+            submissionAttempts: userOpInfo.submissionAttempts + 1
+        }))
+
+        // Mark as replaced in mempool
+        await Promise.all(
+            updatedUserOpsReplaced.map(async (userOpInfo) => {
+                await this.mempool.replaceSubmitted({
+                    userOpInfo,
+                    transactionInfo: newTxInfo
+                })
+            })
+        )
+    }
+
     async markUserOperationsAsSubmitted(
         userOpInfos: UserOpInfo[],
         transactionInfo: TransactionInfo
     ) {
+        // Increment submission attempts for all userOps submitted.
+        const updatedUserOpInfos = userOpInfos.map((userOpInfo) => ({
+            ...userOpInfo,
+            submissionAttempts: userOpInfo.submissionAttempts + 1
+        }))
         await Promise.all(
-            userOpInfos.map(async (userOpInfo) => {
+            updatedUserOpInfos.map(async (userOpInfo) => {
                 const { userOpHash } = userOpInfo
                 await this.mempool.markSubmitted({
                     userOpHash,
