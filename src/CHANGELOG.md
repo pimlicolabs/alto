@@ -1,5 +1,11 @@
 # @pimlico/alto
 
+## 0.0.18
+
+### Patch Changes
+
+- dc1cf649989b0a24cd74634a0327bf5bcb575df9: utilityPrivateKey optional if all contracts are deployed
+
 ## 0.0.17
 
 ### Patch Changes
