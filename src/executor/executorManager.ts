@@ -931,14 +931,14 @@ export class ExecutorManager {
         newTxInfo: TransactionInfo
     ) {
         // Increment submission attempts for all replaced userOps
-        const updatedUserOpsReplaced = userOpsReplaced.map((userOpInfo) => ({
+        userOpsReplaced = userOpsReplaced.map((userOpInfo) => ({
             ...userOpInfo,
             submissionAttempts: userOpInfo.submissionAttempts + 1
         }))
 
         // Mark as replaced in mempool
         await Promise.all(
-            updatedUserOpsReplaced.map(async (userOpInfo) => {
+            userOpsReplaced.map(async (userOpInfo) => {
                 await this.mempool.replaceSubmitted({
                     userOpInfo,
                     transactionInfo: newTxInfo
@@ -952,12 +952,12 @@ export class ExecutorManager {
         transactionInfo: TransactionInfo
     ) {
         // Increment submission attempts for all userOps submitted.
-        const updatedUserOpInfos = userOpInfos.map((userOpInfo) => ({
+        userOpInfos = userOpInfos.map((userOpInfo) => ({
             ...userOpInfo,
             submissionAttempts: userOpInfo.submissionAttempts + 1
         }))
         await Promise.all(
-            updatedUserOpInfos.map(async (userOpInfo) => {
+            userOpInfos.map(async (userOpInfo) => {
                 const { userOpHash } = userOpInfo
                 await this.mempool.markSubmitted({
                     userOpHash,
