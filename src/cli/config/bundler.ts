@@ -120,7 +120,11 @@ export const executorArgsSchema = z.object({
         .transform((val) => BigInt(val))
         .optional(),
     "executor-refill-interval": z.number().int().min(0),
-    "executor-gas-multiplier": z.string().transform((val) => BigInt(val))
+    "executor-gas-multiplier": z.string().transform((val) => BigInt(val)),
+    "send-handle-ops-retry-count": z.number().int().default(3),
+    "transaction-underpriced-multiplier": z
+        .string()
+        .transform((val) => BigInt(val))
 })
 
 export const compatibilityArgsSchema = z.object({

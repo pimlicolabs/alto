@@ -117,6 +117,15 @@ export class Executor {
         const { entryPoint, userOps, account, gas, nonce, isUserOpV06 } =
             txParam
 
+        const {
+            executorGasMultiplier,
+            sendHandleOpsRetryCount,
+            transactionUnderpricedMultiplier,
+            enableFastlane,
+            walletClient,
+            publicClient
+        } = this.config
+
         const handleOpsCalldata = encodeHandleOpsCalldata({
             userOps,
             beneficiary: account.address
@@ -132,39 +141,35 @@ export class Executor {
             ...gasOpts
         }
 
-        request.gas = scaleBigIntByPercent(
-            request.gas,
-            this.config.executorGasMultiplier
-        )
+        request.gas = scaleBigIntByPercent(request.gas, executorGasMultiplier)
 
         let attempts = 0
         let transactionHash: Hex | undefined
-        const maxAttempts = 3
+        const maxAttempts = sendHandleOpsRetryCount
 
         // Try sending the transaction and updating relevant fields if there is an error.
         while (attempts < maxAttempts) {
             try {
                 if (
-                    this.config.enableFastlane &&
+                    enableFastlane &&
                     isUserOpV06 &&
                     !txParam.isReplacementTx &&
                     attempts === 0
                 ) {
                     const serializedTransaction =
-                        await this.config.walletClient.signTransaction(request)
+                        await walletClient.signTransaction(request)
 
                     transactionHash = await sendPflConditional({
                         serializedTransaction,
-                        publicClient: this.config.publicClient,
-                        walletClient: this.config.walletClient,
+                        publicClient,
+                        walletClient,
                         logger: this.logger
                     })
 
                     break
                 }
 
-                transactionHash =
-                    await this.config.walletClient.sendTransaction(request)
+                transactionHash = await walletClient.sendTransaction(request)
 
                 break
             } catch (e: unknown) {
@@ -172,11 +177,10 @@ export class Executor {
                     if (isTransactionUnderpricedError(e)) {
                         this.logger.warn("Transaction underpriced, retrying")
 
-                        request.nonce =
-                            await this.config.publicClient.getTransactionCount({
-                                address: account.address,
-                                blockTag: "latest"
-                            })
+                        request.nonce = await publicClient.getTransactionCount({
+                            address: account.address,
+                            blockTag: "latest"
+                        })
 
                         if (
                             request.maxFeePerGas &&
@@ -184,18 +188,18 @@ export class Executor {
                         ) {
                             request.maxFeePerGas = scaleBigIntByPercent(
                                 request.maxFeePerGas,
-                                150n
+                                transactionUnderpricedMultiplier
                             )
                             request.maxPriorityFeePerGas = scaleBigIntByPercent(
                                 request.maxPriorityFeePerGas,
-                                150n
+                                transactionUnderpricedMultiplier
                             )
                         }
 
                         if (request.gasPrice) {
                             request.gasPrice = scaleBigIntByPercent(
                                 request.gasPrice,
-                                150n
+                                transactionUnderpricedMultiplier
                             )
                         }
                     }
@@ -211,11 +215,10 @@ export class Executor {
                         cause instanceof NonceTooHighError
                     ) {
                         this.logger.warn("Nonce too low, retrying")
-                        request.nonce =
-                            await this.config.publicClient.getTransactionCount({
-                                address: request.from,
-                                blockTag: "pending"
-                            })
+                        request.nonce = await publicClient.getTransactionCount({
+                            address: request.from,
+                            blockTag: "pending"
+                        })
                     }
 
                     if (cause instanceof IntrinsicGasTooLowError) {
