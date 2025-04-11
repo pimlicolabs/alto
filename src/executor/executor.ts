@@ -388,7 +388,7 @@ export class Executor {
                 sentry.captureException(err)
                 childLogger.error(
                     { error: JSON.stringify(err) },
-                    "error submitting bundle transaction"
+                    "unknown error submitting bundle transaction"
                 )
                 return {
                     rejectedUserOps,
@@ -397,6 +397,13 @@ export class Executor {
                     reason: "INTERNAL FAILURE"
                 }
             }
+
+            childLogger.error(
+                {
+                    err
+                },
+                "error submitting bundle transaction"
+            )
 
             return {
                 rejectedUserOps,
