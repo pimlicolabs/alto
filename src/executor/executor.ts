@@ -386,7 +386,7 @@ export class Executor {
             // if unknown error, return INTERNAL FAILURE
             if (!e) {
                 sentry.captureException(err)
-                childLogger.error(
+                this.logger.error(
                     { error: JSON.stringify(err) },
                     "unknown error submitting bundle transaction"
                 )
@@ -398,7 +398,7 @@ export class Executor {
                 }
             }
 
-            childLogger.error(
+            this.logger.error(
                 {
                     err
                 },
