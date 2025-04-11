@@ -214,7 +214,7 @@ export class Executor {
                         this.logger.warn("Nonce too low, retrying")
                         request.nonce = await publicClient.getTransactionCount({
                             address: request.from,
-                            blockTag: "pending"
+                            blockTag: "latest"
                         })
                     }
 
