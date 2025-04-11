@@ -210,14 +210,19 @@ export class Executor {
                 if (error instanceof TransactionExecutionError) {
                     const cause = error.cause
 
-                    if (
-                        cause instanceof NonceTooLowError ||
-                        cause instanceof NonceTooHighError
-                    ) {
+                    if (cause instanceof NonceTooLowError) {
                         this.logger.warn("Nonce too low, retrying")
                         request.nonce = await publicClient.getTransactionCount({
                             address: request.from,
                             blockTag: "pending"
+                        })
+                    }
+
+                    if (cause instanceof NonceTooHighError) {
+                        this.logger.warn("Nonce too high, retrying")
+                        request.nonce = await publicClient.getTransactionCount({
+                            address: request.from,
+                            blockTag: "latest"
                         })
                     }
 
