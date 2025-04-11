@@ -393,6 +393,20 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "number",
         require: true,
         default: 60 * 20
+    },
+    "transaction-underpriced-multiplier": {
+        description:
+            "GasPrice Multiplier to use when retrying in event of Transaction Underpriced error",
+        type: "string",
+        require: false,
+        default: "150"
+    },
+    "send-handle-ops-retry-count": {
+        description:
+            "Number of times to retry calling sendHandleOps transaction",
+        type: "number",
+        require: false,
+        default: 3
     }
 }
 
