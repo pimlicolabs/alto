@@ -30,7 +30,6 @@ import {
 } from "./utils"
 import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
-import { sendPflConditional } from "./fastlane"
 import type { SignedAuthorizationList } from "viem"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEStimateGas"
 
@@ -114,14 +113,12 @@ export class Executor {
         txParam: HandleOpsTxParams
         gasOpts: HandleOpsGasParams
     }) {
-        const { entryPoint, userOps, account, gas, nonce, isUserOpV06 } =
-            txParam
+        const { entryPoint, userOps, account, gas, nonce } = txParam
 
         const {
             executorGasMultiplier,
             sendHandleOpsRetryCount,
             transactionUnderpricedMultiplier,
-            enableFastlane,
             walletClient,
             publicClient
         } = this.config
@@ -150,28 +147,7 @@ export class Executor {
         // Try sending the transaction and updating relevant fields if there is an error.
         while (attempts < maxAttempts) {
             try {
-                if (
-                    enableFastlane &&
-                    isUserOpV06 &&
-                    !txParam.isReplacementTx &&
-                    attempts === 0
-                ) {
-                    const serializedTransaction =
-                        await walletClient.signTransaction(request)
-
-                    transactionHash = await sendPflConditional({
-                        serializedTransaction,
-                        publicClient,
-                        walletClient,
-                        logger: this.logger
-                    })
-
-                    break
-                }
-
-                transactionHash = await walletClient.sendTransaction(request)
-
-                break
+                return await walletClient.sendTransaction(request)
             } catch (e: unknown) {
                 if (e instanceof BaseError) {
                     if (isTransactionUnderpricedError(e)) {
