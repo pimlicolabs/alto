@@ -29,7 +29,6 @@ import {
     scaleBigIntByPercent
 } from "@alto/utils"
 import { type Hex, getContract, zeroAddress } from "viem"
-import { base, baseSepolia, optimism } from "viem/chains"
 import type { AltoConfig } from "../createConfig"
 import type { MethodHandler } from "./createMethodHandler"
 import { registerHandlers } from "./methods"
@@ -582,7 +581,6 @@ export class RpcHandler {
         } = calcVerificationGasAndCallGasLimit(
             simulationUserOperation,
             executionResult.data.executionResult,
-            this.config.chainId,
             executionResult.data
         )
 
@@ -626,20 +624,6 @@ export class RpcHandler {
                     this.config.paymasterGasLimitMultiplier
                 )
             )
-        }
-
-        if (
-            this.config.chainId === base.id ||
-            this.config.chainId === baseSepolia.id
-        ) {
-            callGasLimit += 10_000n
-        }
-
-        if (
-            this.config.chainId === base.id ||
-            this.config.chainId === optimism.id
-        ) {
-            callGasLimit = maxBigInt(callGasLimit, 120_000n)
         }
 
         if (simulationUserOperation.callData === "0x") {

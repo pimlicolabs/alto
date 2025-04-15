@@ -464,6 +464,18 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             type: "string",
             require: false,
             default: "v1"
+        },
+        "floor-max-fee-per-gas": {
+            description:
+                "Minimum value for maxFeePerGas to enforce (in gwei)",
+            type: "string",
+            require: false
+        },
+        "floor-max-priority-fee-per-gas": {
+            description:
+                "Minimum value for maxPriorityFeePerGas to enforce (in gwei)",
+            type: "string",
+            require: false
         }
     }
 
