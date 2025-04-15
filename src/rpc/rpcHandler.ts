@@ -2,9 +2,8 @@ import type { Executor, ExecutorManager } from "@alto/executor"
 import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
-    MemoryMempool,
-    Monitor,
-    NonceQueuer
+    Mempool,
+    Monitor
 } from "@alto/mempool"
 import type { ApiVersion, BundlerRequest, StateOverrides } from "@alto/types"
 import {
@@ -28,19 +27,18 @@ import {
     isVersion07,
     scaleBigIntByPercent
 } from "@alto/utils"
-import { type Hex, getContract } from "viem"
+import { type Hex, getContract, zeroAddress } from "viem"
 import type { AltoConfig } from "../createConfig"
-import { recoverAuthorizationAddress } from "viem/experimental"
 import type { MethodHandler } from "./createMethodHandler"
 import { registerHandlers } from "./methods"
+import { recoverAuthorizationAddress } from "viem/utils"
 
 export class RpcHandler {
     public config: AltoConfig
     public validator: InterfaceValidator
-    public mempool: MemoryMempool
+    public mempool: Mempool
     public executor: Executor
     public monitor: Monitor
-    public nonceQueuer: NonceQueuer
     public executorManager: ExecutorManager
     public reputationManager: InterfaceReputationManager
     public metrics: Metrics
@@ -49,6 +47,7 @@ export class RpcHandler {
     public logger: Logger
 
     private methodHandlers: Map<string, MethodHandler>
+    private eip7702CodeCache: Map<Address, boolean>
 
     constructor({
         config,
@@ -56,7 +55,6 @@ export class RpcHandler {
         mempool,
         executor,
         monitor,
-        nonceQueuer,
         executorManager,
         reputationManager,
         metrics,
@@ -65,10 +63,9 @@ export class RpcHandler {
     }: {
         config: AltoConfig
         validator: InterfaceValidator
-        mempool: MemoryMempool
+        mempool: Mempool
         executor: Executor
         monitor: Monitor
-        nonceQueuer: NonceQueuer
         executorManager: ExecutorManager
         reputationManager: InterfaceReputationManager
         metrics: Metrics
@@ -80,7 +77,6 @@ export class RpcHandler {
         this.mempool = mempool
         this.executor = executor
         this.monitor = monitor
-        this.nonceQueuer = nonceQueuer
         this.executorManager = executorManager
         this.reputationManager = reputationManager
         this.metrics = metrics
@@ -93,7 +89,9 @@ export class RpcHandler {
                 level: config.rpcLogLevel || config.logLevel
             }
         )
+
         this.methodHandlers = new Map()
+        this.eip7702CodeCache = new Map()
 
         registerHandlers(this)
     }
@@ -110,6 +108,7 @@ export class RpcHandler {
                 ValidationErrors.InvalidFields
             )
         }
+
         return await handler.handler({
             rpcHandler: this,
             params: request.params,
@@ -131,15 +130,6 @@ export class RpcHandler {
         if (!this.config.enableDebugEndpoints) {
             throw new RpcError(
                 `${methodName} is only available in development environment`
-            )
-        }
-    }
-
-    ensureExperimentalEndpointsAreEnabled(methodName: string) {
-        if (!this.config.enableExperimental7702Endpoints) {
-            throw new RpcError(
-                `${methodName} endpoint is not enabled`,
-                ValidationErrors.InvalidFields
             )
         }
     }
@@ -220,11 +210,12 @@ export class RpcHandler {
     ): Promise<"added" | "queued"> {
         this.ensureEntryPointIsSupported(entryPoint)
 
-        const opHash = getUserOperationHash(
-            userOperation,
-            entryPoint,
-            this.config.publicClient.chain.id
-        )
+        const opHash = await getUserOperationHash({
+            userOperation: userOperation,
+            entryPointAddress: entryPoint,
+            chainId: this.config.chainId,
+            publicClient: this.config.publicClient
+        })
 
         await this.preMempoolChecks(
             opHash,
@@ -255,22 +246,22 @@ export class RpcHandler {
         }
 
         const queuedUserOperations: UserOperation[] =
-            await this.mempool.getQueuedUserOperations(
-                userOperation,
-                entryPoint,
-                currentNonceValue
-            )
+            await this.mempool.getQueuedOustandingUserOps({
+                userOp: userOperation,
+                entryPoint
+            })
 
         if (
             userOperationNonceValue >
             currentNonceValue + BigInt(queuedUserOperations.length)
         ) {
-            this.nonceQueuer.add(userOperation, entryPoint)
+            this.mempool.add(userOperation, entryPoint)
+            this.eventManager.emitQueued(opHash)
             return "queued"
         }
 
         if (this.config.dangerousSkipUserOperationValidation) {
-            const [success, errorReason] = this.mempool.add(
+            const [success, errorReason] = await this.mempool.add(
                 userOperation,
                 entryPoint
             )
@@ -291,7 +282,10 @@ export class RpcHandler {
                 entryPoint
             })
         }
-        await this.mempool.checkEntityMultipleRoleViolation(userOperation)
+        await this.mempool.checkEntityMultipleRoleViolation(
+            entryPoint,
+            userOperation
+        )
 
         // V1 api doesn't check prefund.
         const shouldCheckPrefund =
@@ -309,7 +303,12 @@ export class RpcHandler {
             validationResult
         )
 
-        const [success, errorReason] = this.mempool.add(
+        await this.mempool.checkEntityMultipleRoleViolation(
+            entryPoint,
+            userOperation
+        )
+
+        const [success, errorReason] = await this.mempool.add(
             userOperation,
             entryPoint,
             validationResult.referencedContracts
@@ -337,12 +336,60 @@ export class RpcHandler {
             )
         }
 
+        if (!this.config.codeOverrideSupport) {
+            throw new RpcError(
+                "eip7702Auth is not supported on this chain",
+                ValidationErrors.InvalidFields
+            )
+        }
+
         // Check that auth is valid.
         const sender = validateSender
             ? await recoverAuthorizationAddress({
-                  authorization: userOperation.eip7702Auth
+                  authorization: {
+                      address:
+                          "address" in userOperation.eip7702Auth
+                              ? userOperation.eip7702Auth.address
+                              : userOperation.eip7702Auth.contractAddress,
+                      chainId: userOperation.eip7702Auth.chainId,
+                      nonce: userOperation.eip7702Auth.nonce,
+                      r: userOperation.eip7702Auth.r,
+                      s: userOperation.eip7702Auth.s,
+                      v: userOperation.eip7702Auth.v,
+                      yParity: userOperation.eip7702Auth.yParity
+                  }
               })
             : userOperation.sender
+
+        const nonceOnChain = await this.config.publicClient.getTransactionCount(
+            {
+                address: sender
+            }
+        )
+
+        if (
+            userOperation.eip7702Auth.chainId !== this.config.chainId &&
+            userOperation.eip7702Auth.chainId !== 0
+        ) {
+            throw new RpcError(
+                "Invalid EIP-7702 authorization: The chainId does not match the userOperation sender address",
+                ValidationErrors.InvalidFields
+            )
+        }
+
+        if (![0, 1].includes(userOperation.eip7702Auth.yParity)) {
+            throw new RpcError(
+                "Invalid EIP-7702 authorization: The yParity value must be either 0 or 1",
+                ValidationErrors.InvalidFields
+            )
+        }
+
+        if (nonceOnChain !== userOperation.eip7702Auth.nonce) {
+            throw new RpcError(
+                "Invalid EIP-7702 authorization: The nonce does not match the userOperation sender address",
+                ValidationErrors.SimulateValidation
+            )
+        }
 
         if (sender !== userOperation.sender) {
             throw new RpcError(
@@ -351,7 +398,7 @@ export class RpcHandler {
             )
         }
 
-        if (isVersion06(userOperation) && userOperation.initCode) {
+        if (isVersion06(userOperation) && userOperation.initCode !== "0x") {
             throw new RpcError(
                 "Invalid EIP-7702 authorization: UserOperation cannot contain initCode.",
                 ValidationErrors.InvalidFields
@@ -360,12 +407,43 @@ export class RpcHandler {
 
         if (
             isVersion07(userOperation) &&
-            (userOperation.factoryData || userOperation.factory)
+            userOperation.factory !== "0x7702" &&
+            userOperation.factory !== null
         ) {
             throw new RpcError(
-                "Invalid EIP-7702 authorization: UserOperation cannot contain factory or factoryData.",
+                "Invalid EIP-7702 authorization: UserOperation cannot contain factory that is neither null or 0x7702.",
                 ValidationErrors.InvalidFields
             )
+        }
+
+        // Check delegation designator
+        const delegationDesignator =
+            "address" in userOperation.eip7702Auth
+                ? userOperation.eip7702Auth.address
+                : userOperation.eip7702Auth.contractAddress
+
+        if (delegationDesignator === zeroAddress) {
+            throw new RpcError(
+                "Invalid EIP-7702 authorization: Cannot delegate to the zero address.",
+                ValidationErrors.InvalidFields
+            )
+        }
+
+        const hasCode = this.eip7702CodeCache.has(delegationDesignator)
+
+        if (!hasCode) {
+            const delegateCode = await this.config.publicClient.getCode({
+                address: delegationDesignator
+            })
+
+            if (delegateCode === undefined || delegateCode === "0x") {
+                throw new RpcError(
+                    `Invalid EIP-7702 authorization: Delegate ${delegationDesignator} has no code.`,
+                    ValidationErrors.InvalidFields
+                )
+            }
+
+            this.eip7702CodeCache.set(delegationDesignator, true)
         }
     }
 
@@ -440,11 +518,11 @@ export class RpcHandler {
                 )
             }
 
-            queuedUserOperations = await this.mempool.getQueuedUserOperations(
-                userOperation,
-                entryPoint,
-                currentNonceValue
-            )
+            queuedUserOperations =
+                await this.mempool.getQueuedOustandingUserOps({
+                    userOp: userOperation,
+                    entryPoint
+                })
 
             if (
                 userOperationNonceValue >
@@ -467,6 +545,8 @@ export class RpcHandler {
 
         const simulationUserOperation = {
             ...userOperation,
+            maxFeePerGas: 1n,
+            maxPriorityFeePerGas: 1n,
             preVerificationGas: 0n,
             verificationGasLimit: simulationVerificationGasLimit,
             callGasLimit: simulationCallGasLimit
@@ -490,7 +570,6 @@ export class RpcHandler {
             userOperation: simulationUserOperation,
             entryPoint,
             queuedUserOperations,
-            addSenderBalanceOverride: true,
             stateOverrides: deepHexlify(stateOverrides)
         })
 
@@ -532,9 +611,17 @@ export class RpcHandler {
                 executionResult.data.executionResult.paymasterPostOpGasLimit ||
                 1n
 
-            paymasterPostOpGasLimit = scaleBigIntByPercent(
-                paymasterPostOpGasLimit,
-                this.config.paymasterGasLimitMultiplier
+            const userOperationPaymasterPostOpGasLimit =
+                "paymasterPostOpGasLimit" in userOperation
+                    ? userOperation.paymasterPostOpGasLimit ?? 1n
+                    : 1n
+
+            paymasterPostOpGasLimit = maxBigInt(
+                userOperationPaymasterPostOpGasLimit,
+                scaleBigIntByPercent(
+                    paymasterPostOpGasLimit,
+                    this.config.paymasterGasLimitMultiplier
+                )
             )
         }
 
@@ -588,22 +675,19 @@ export class RpcHandler {
         preVerificationGas = scaleBigIntByPercent(preVerificationGas, 110n)
 
         // Check if userOperation passes without estimation balance overrides
-        if (isVersion06(simulationUserOperation)) {
-            await this.validator.getExecutionResult({
-                userOperation: {
-                    ...simulationUserOperation,
-                    preVerificationGas,
-                    verificationGasLimit,
-                    callGasLimit,
-                    paymasterVerificationGasLimit,
-                    paymasterPostOpGasLimit
-                },
-                entryPoint,
-                queuedUserOperations,
-                addSenderBalanceOverride: false,
-                stateOverrides: deepHexlify(stateOverrides)
-            })
-        }
+        await this.validator.validateHandleOp({
+            userOperation: {
+                ...userOperation,
+                preVerificationGas,
+                verificationGasLimit,
+                callGasLimit,
+                paymasterVerificationGasLimit,
+                paymasterPostOpGasLimit
+            },
+            entryPoint,
+            queuedUserOperations,
+            stateOverrides: deepHexlify(stateOverrides)
+        })
 
         if (isVersion07(simulationUserOperation)) {
             return {

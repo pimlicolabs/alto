@@ -32,7 +32,8 @@ import {
     getAddressFromInitCodeOrPaymasterAndData,
     isVersion06,
     isVersion07,
-    toPackedUserOperation
+    toPackedUserOperation,
+    isVersion08
 } from "@alto/utils"
 import {
     type ExecutionRevertedError,
@@ -176,7 +177,7 @@ export class SafeValidator
             hash = (error.walk() as any).data
         }
 
-        this.senderManager.pushWallet(wallet)
+        this.senderManager.markWalletProcessed(wallet)
 
         return {
             hash,
@@ -341,9 +342,8 @@ export class SafeValidator
         userOperation: UserOperationV06,
         entryPoint: Address
     ): Promise<[ValidationResultV06, BundlerTracerResult]> {
-        const stateOverrides = await getAuthorizationStateOverrides({
-            userOperations: [userOperation],
-            publicClient: this.config.publicClient
+        const stateOverrides = getAuthorizationStateOverrides({
+            userOperations: [userOperation]
         })
 
         const tracerResult = await debug_traceCall(
@@ -510,12 +510,14 @@ export class SafeValidator
             args: [entryPoint, [entryPointSimulationsCallData]]
         })
 
-        const entryPointSimulationsAddress =
-            this.config.entrypointSimulationContract
+        const isV8 = isVersion08(userOperation, entryPoint)
 
-        const stateOverrides = await getAuthorizationStateOverrides({
-            userOperations: [userOperation],
-            publicClient: this.config.publicClient
+        const entryPointSimulationsAddress = isV8
+            ? this.config.entrypointSimulationContractV8
+            : this.config.entrypointSimulationContractV7
+
+        const stateOverrides = getAuthorizationStateOverrides({
+            userOperations: [userOperation]
         })
 
         const tracerResult = await debug_traceCall(

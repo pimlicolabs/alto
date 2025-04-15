@@ -1,11 +1,11 @@
 import type { EventManager, GasPriceManager } from "@alto/handlers"
-import type { InterfaceReputationManager, MemoryMempool } from "@alto/mempool"
-import {
-    type Address,
-    type BundleResult,
-    type HexData32,
-    type UserOperation,
-    type GasPriceParameters,
+import type { InterfaceReputationManager, Mempool } from "@alto/mempool"
+import type {
+    Address,
+    BundleResult,
+    HexData32,
+    UserOperation,
+    GasPriceParameters,
     UserOperationBundle,
     UserOpInfo
 } from "@alto/types"
@@ -31,8 +31,8 @@ import {
 import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { sendPflConditional } from "./fastlane"
+import type { SignedAuthorizationList } from "viem"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEStimateGas"
-import { SignedAuthorizationList } from "viem/experimental"
 
 type HandleOpsTxParams = {
     gas: bigint
@@ -71,7 +71,7 @@ export class Executor {
     metrics: Metrics
     reputationManager: InterfaceReputationManager
     gasPriceManager: GasPriceManager
-    mempool: MemoryMempool
+    mempool: Mempool
     eventManager: EventManager
 
     constructor({
@@ -83,7 +83,7 @@ export class Executor {
         eventManager
     }: {
         config: AltoConfig
-        mempool: MemoryMempool
+        mempool: Mempool
         reputationManager: InterfaceReputationManager
         metrics: Metrics
         gasPriceManager: GasPriceManager
@@ -114,54 +114,62 @@ export class Executor {
         txParam: HandleOpsTxParams
         gasOpts: HandleOpsGasParams
     }) {
-        const { isUserOpV06, entryPoint, userOps } = txParam
+        const { entryPoint, userOps, account, gas, nonce, isUserOpV06 } =
+            txParam
+
+        const {
+            executorGasMultiplier,
+            sendHandleOpsRetryCount,
+            transactionUnderpricedMultiplier,
+            enableFastlane,
+            walletClient,
+            publicClient
+        } = this.config
 
         const handleOpsCalldata = encodeHandleOpsCalldata({
             userOps,
-            beneficiary: txParam.account.address
+            beneficiary: account.address
         })
 
-        const request =
-            await this.config.walletClient.prepareTransactionRequest({
-                to: entryPoint,
-                data: handleOpsCalldata,
-                ...txParam,
-                ...gasOpts
-            })
+        const request = {
+            to: entryPoint,
+            data: handleOpsCalldata,
+            from: account.address,
+            gas,
+            account,
+            nonce,
+            ...gasOpts
+        }
 
-        request.gas = scaleBigIntByPercent(
-            request.gas,
-            this.config.executorGasMultiplier
-        )
+        request.gas = scaleBigIntByPercent(request.gas, executorGasMultiplier)
 
         let attempts = 0
         let transactionHash: Hex | undefined
-        const maxAttempts = 3
+        const maxAttempts = sendHandleOpsRetryCount
 
         // Try sending the transaction and updating relevant fields if there is an error.
         while (attempts < maxAttempts) {
             try {
                 if (
-                    this.config.enableFastlane &&
+                    enableFastlane &&
                     isUserOpV06 &&
                     !txParam.isReplacementTx &&
                     attempts === 0
                 ) {
                     const serializedTransaction =
-                        await this.config.walletClient.signTransaction(request)
+                        await walletClient.signTransaction(request)
 
                     transactionHash = await sendPflConditional({
                         serializedTransaction,
-                        publicClient: this.config.publicClient,
-                        walletClient: this.config.walletClient,
+                        publicClient,
+                        walletClient,
                         logger: this.logger
                     })
 
                     break
                 }
 
-                transactionHash =
-                    await this.config.walletClient.sendTransaction(request)
+                transactionHash = await walletClient.sendTransaction(request)
 
                 break
             } catch (e: unknown) {
@@ -169,14 +177,31 @@ export class Executor {
                     if (isTransactionUnderpricedError(e)) {
                         this.logger.warn("Transaction underpriced, retrying")
 
-                        request.maxFeePerGas = scaleBigIntByPercent(
-                            request.maxFeePerGas,
-                            150n
-                        )
-                        request.maxPriorityFeePerGas = scaleBigIntByPercent(
-                            request.maxPriorityFeePerGas,
-                            150n
-                        )
+                        request.nonce = await publicClient.getTransactionCount({
+                            address: account.address,
+                            blockTag: "latest"
+                        })
+
+                        if (
+                            request.maxFeePerGas &&
+                            request.maxPriorityFeePerGas
+                        ) {
+                            request.maxFeePerGas = scaleBigIntByPercent(
+                                request.maxFeePerGas,
+                                transactionUnderpricedMultiplier
+                            )
+                            request.maxPriorityFeePerGas = scaleBigIntByPercent(
+                                request.maxPriorityFeePerGas,
+                                transactionUnderpricedMultiplier
+                            )
+                        }
+
+                        if (request.gasPrice) {
+                            request.gasPrice = scaleBigIntByPercent(
+                                request.gasPrice,
+                                transactionUnderpricedMultiplier
+                            )
+                        }
                     }
                 }
 
@@ -185,16 +210,20 @@ export class Executor {
                 if (error instanceof TransactionExecutionError) {
                     const cause = error.cause
 
-                    if (
-                        cause instanceof NonceTooLowError ||
-                        cause instanceof NonceTooHighError
-                    ) {
+                    if (cause instanceof NonceTooLowError) {
                         this.logger.warn("Nonce too low, retrying")
-                        request.nonce =
-                            await this.config.publicClient.getTransactionCount({
-                                address: request.from,
-                                blockTag: "pending"
-                            })
+                        request.nonce = await publicClient.getTransactionCount({
+                            address: request.from,
+                            blockTag: "latest"
+                        })
+                    }
+
+                    if (cause instanceof NonceTooHighError) {
+                        this.logger.warn("Nonce too high, retrying")
+                        request.nonce = await publicClient.getTransactionCount({
+                            address: request.from,
+                            blockTag: "latest"
+                        })
                     }
 
                     if (cause instanceof IntrinsicGasTooLowError) {
@@ -259,6 +288,7 @@ export class Executor {
             nonce,
             maxFeePerGas,
             maxPriorityFeePerGas,
+            codeOverrideSupport: this.config.codeOverrideSupport,
             reputationManager: this.reputationManager,
             config: this.config,
             logger: childLogger
@@ -293,11 +323,11 @@ export class Executor {
         })
 
         // Ensure that we don't submit with gas too low leading to AA95.
-        const aa95GasFloor = calculateAA95GasFloor(userOpsToBundle)
-
-        if (gasLimit < aa95GasFloor) {
-            gasLimit += aa95GasFloor
-        }
+        const aa95GasFloor = calculateAA95GasFloor(
+            userOpsToBundle,
+            executor.address
+        )
+        gasLimit = maxBigInt(gasLimit, aa95GasFloor)
 
         // sometimes the estimation rounds down, adding a fixed constant accounts for this
         gasLimit += 10_000n
@@ -358,7 +388,7 @@ export class Executor {
                 sentry.captureException(err)
                 childLogger.error(
                     { error: JSON.stringify(err) },
-                    "error submitting bundle transaction"
+                    "unknown error submitting bundle transaction"
                 )
                 return {
                     rejectedUserOps,
@@ -367,6 +397,15 @@ export class Executor {
                     reason: "INTERNAL FAILURE"
                 }
             }
+
+            childLogger.error(
+                {
+                    err: JSON.stringify(err, (_key, value) =>
+                        typeof value === "bigint" ? value.toString() : value
+                    )
+                },
+                "error submitting bundle transaction"
+            )
 
             return {
                 rejectedUserOps,

@@ -80,7 +80,6 @@ export const bundlerArgsSchema = z.object({
             )}`
         ),
     "enable-instant-bundling-endpoint": z.boolean(),
-    "enable-experimental-7702-endpoints": z.boolean(),
     "should-check-prefund": z.boolean()
 })
 
@@ -96,6 +95,7 @@ export const executorArgsSchema = z.object({
         .optional(),
     "utility-wallet-monitor": z.boolean(),
     "utility-wallet-monitor-interval": z.number(),
+    "resubmit-multiplier-ceiling": z.string().transform((val) => BigInt(val)),
     "executor-private-keys": z.union([
         z
             .array(hexData32Schema)
@@ -120,7 +120,11 @@ export const executorArgsSchema = z.object({
         .transform((val) => BigInt(val))
         .optional(),
     "executor-refill-interval": z.number().int().min(0),
-    "executor-gas-multiplier": z.string().transform((val) => BigInt(val))
+    "executor-gas-multiplier": z.string().transform((val) => BigInt(val)),
+    "send-handle-ops-retry-count": z.number().int().default(3),
+    "transaction-underpriced-multiplier": z
+        .string()
+        .transform((val) => BigInt(val))
 })
 
 export const compatibilityArgsSchema = z.object({
@@ -181,7 +185,10 @@ export const rpcArgsSchema = z.object({
 
 export const logArgsSchema = z.object({
     "redis-queue-endpoint": z.string().optional(),
-    "redis-event-manager-queue-name": z.string().optional(),
+    "redis-event-manager-queue-name": z.preprocess(
+        (v) => (v === "" ? undefined : v),
+        z.string().optional()
+    ),
     json: z.boolean(),
     "log-level": logLevel,
     "public-client-log-level": logLevel.optional(),
@@ -202,7 +209,11 @@ export const debugArgsSchema = z.object({
 })
 
 export const gasEstimationArgsSchema = z.object({
-    "entrypoint-simulation-contract": z.preprocess(
+    "entrypoint-simulation-contract-v7": z.preprocess(
+        (v) => (v === "" ? undefined : v),
+        addressSchema.optional()
+    ),
+    "entrypoint-simulation-contract-v8": z.preprocess(
         (v) => (v === "" ? undefined : v),
         addressSchema.optional()
     ),
@@ -245,6 +256,19 @@ export const gasEstimationArgsSchema = z.object({
     "split-simulation-calls": z.boolean()
 })
 
+export const mempoolArgsSchema = z.object({
+    "redis-mempool-url": z.string().optional(),
+    "redis-mempool-concurrency": z.number().int().min(0).default(10),
+    "redis-mempool-queue-name": z.string(),
+    "redis-sender-manager-url": z.string().optional(),
+    "redis-sender-manager-queue-name": z.string(),
+    "redis-gas-price-queue-url": z.string().optional(),
+    "redis-gas-price-queue-name": z.string(),
+    "mempool-max-parallel-ops": z.number().int().min(0).default(10),
+    "mempool-max-queued-ops": z.number().int().min(0).default(0),
+    "enforce-unique-senders-per-bundle": z.boolean().default(true)
+})
+
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>
 export type IBundlerArgsInput = z.input<typeof bundlerArgsSchema>
 
@@ -269,6 +293,9 @@ export type IDebugArgsInput = z.input<typeof debugArgsSchema>
 export type IGasEstimationArgs = z.infer<typeof gasEstimationArgsSchema>
 export type IGasEstimationArgsInput = z.input<typeof gasEstimationArgsSchema>
 
+export type IMempoolArgs = z.infer<typeof mempoolArgsSchema>
+export type IMempoolArgsInput = z.input<typeof mempoolArgsSchema>
+
 export const optionArgsSchema = z.object({
     ...bundlerArgsSchema.shape,
     ...compatibilityArgsSchema.shape,
@@ -277,7 +304,8 @@ export const optionArgsSchema = z.object({
     ...rpcArgsSchema.shape,
     ...debugArgsSchema.shape,
     ...gasEstimationArgsSchema.shape,
-    ...executorArgsSchema.shape
+    ...executorArgsSchema.shape,
+    ...mempoolArgsSchema.shape
 })
 
 export type IOptions = z.infer<typeof optionArgsSchema>

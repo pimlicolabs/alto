@@ -26,11 +26,12 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         const [userOperation, entryPoint] = params
 
         rpcHandler.ensureEntryPointIsSupported(entryPoint)
-        const opHash = getUserOperationHash(
-            userOperation,
-            entryPoint,
-            rpcHandler.config.publicClient.chain.id
-        )
+        const opHash = await getUserOperationHash({
+            userOperation: userOperation,
+            entryPointAddress: entryPoint,
+            chainId: rpcHandler.config.chainId,
+            publicClient: rpcHandler.config.publicClient
+        })
 
         await rpcHandler.preMempoolChecks(
             opHash,
@@ -42,13 +43,14 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         // Prepare bundle
         const userOperationInfo: UserOpInfo = {
             userOp: userOperation,
-            entryPoint,
-            userOpHash: getUserOperationHash(
-                userOperation,
-                entryPoint,
-                rpcHandler.config.publicClient.chain.id
-            ),
-            addedToMempool: Date.now()
+            userOpHash: await getUserOperationHash({
+                userOperation: userOperation,
+                entryPointAddress: entryPoint,
+                chainId: rpcHandler.config.chainId,
+                publicClient: rpcHandler.config.publicClient
+            }),
+            addedToMempool: Date.now(),
+            submissionAttempts: 0
         }
         const bundle: UserOperationBundle = {
             entryPoint,

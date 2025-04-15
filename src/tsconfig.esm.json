@@ -37,6 +37,9 @@
             ],
             "@alto/handlers": [
                 "./handlers"
+            ],
+            "@alto/store": [
+                "./store"
             ]
         }
     },

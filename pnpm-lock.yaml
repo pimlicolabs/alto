@@ -95,6 +95,9 @@ importers:
       '@opentelemetry/semantic-conventions':
         specifier: ^1.25.1
         version: 1.25.1
+      '@pimlico/opentelemetry-instrumentation-viem':
+        specifier: ^0.0.4
+        version: 0.0.4(@opentelemetry/api@1.9.0)
       '@sentry/node':
         specifier: ^7.83.0
         version: 7.100.1
@@ -141,8 +144,8 @@ importers:
         specifier: ^4.35.0
         version: 4.35.0
       viem:
-        specifier: ^2.19.0
-        version: 2.21.12(typescript@5.3.3)(zod@3.22.4)
+        specifier: ^2.24.3
+        version: 2.24.3(typescript@5.3.3)(zod@3.22.4)
       yargs:
         specifier: ^17.7.1
         version: 17.7.2
@@ -200,7 +203,7 @@ importers:
         version: 10.9.2(@swc/core@1.3.105)(@types/node@18.16.3)(typescript@5.3.3)
       viem:
         specifier: ^2.9.5
-        version: 2.21.12(typescript@5.3.3)(zod@3.22.4)
+        version: 2.21.12(typescript@5.3.3)
       vitest:
         specifier: ^1.6.0
         version: 1.6.0(@types/node@18.16.3)
@@ -212,6 +215,10 @@ packages:
 
   /@adraffy/ens-normalize@1.10.0:
     resolution: {integrity: sha512-nA9XHtlAkYfJxY7bce8DcN7eKxWWCWkU+1GR9d+U6MbNpfwQp8TI7vqOsBsMcHoT4mBu2kypKoSKnghEzOOq5Q==}
+    dev: false
+
+  /@adraffy/ens-normalize@1.11.0:
+    resolution: {integrity: sha512-/3DDPKHqqIqxUULp8yP4zODUY1i+2xvVWsv8A79xGWdCAG+8sb0hRh0Rk2QyOJUnnbyPUAZYcpBuRe3nS2OIUg==}
     dev: false
 
   /@ampproject/remapping@2.2.1:
@@ -249,7 +256,7 @@ packages:
       '@babel/traverse': 7.21.5
       '@babel/types': 7.21.5
       convert-source-map: 1.9.0
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.6
       gensync: 1.0.0-beta.2
       json5: 2.2.3
       semver: 6.3.1
@@ -409,7 +416,7 @@ packages:
       '@babel/helper-split-export-declaration': 7.18.6
       '@babel/parser': 7.21.5
       '@babel/types': 7.21.5
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.6
       globals: 11.12.0
     transitivePeerDependencies:
       - supports-color
@@ -1174,6 +1181,13 @@ packages:
       '@noble/hashes': 1.4.0
     dev: false
 
+  /@noble/curves@1.8.1:
+    resolution: {integrity: sha512-warwspo+UYUPep0Q+vtdVB4Ugn8GGQj8iyB3gnRWsztmUHTI3S1nhdiWNsPUGL0vud7JlRRk1XEu7Lq1KGTnMQ==}
+    engines: {node: ^14.21.3 || >=16}
+    dependencies:
+      '@noble/hashes': 1.7.1
+    dev: false
+
   /@noble/hashes@1.3.2:
     resolution: {integrity: sha512-MVC8EAQp7MvEcm30KWENFjgR+Mkmf+D189XJTkFIlwohU5hcBbn1ZkKq7KVTi2Hme3PMGF390DaL52beVrIihQ==}
     engines: {node: '>= 16'}
@@ -1186,6 +1200,11 @@ packages:
 
   /@noble/hashes@1.5.0:
     resolution: {integrity: sha512-1j6kQFb7QRru7eKN3ZDvRcP13rugwdxZqCjbiAVZfIJwgj2A65UmT4TgARXGlXgnRkORLTDTrO19ZErt7+QXgA==}
+    engines: {node: ^14.21.3 || >=16}
+    dev: false
+
+  /@noble/hashes@1.7.1:
+    resolution: {integrity: sha512-B8XBPsn4vT/KJAGqDzbwztd+6Yte3P4V7iafm24bxgDe/mlRuK6xmWPuCNrKt2vDafZ8MfJLlchDG/vYafQEjQ==}
     engines: {node: ^14.21.3 || >=16}
     dev: false
 
@@ -1209,6 +1228,13 @@ packages:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.17.1
     dev: true
+
+  /@opentelemetry/api-logs@0.200.0:
+    resolution: {integrity: sha512-IKJBQxh91qJ+3ssRly5hYEJ8NDHu9oY/B1PXVSCWf7zytmYO9RNLB0Ox9XQ/fJ8m6gY6Q6NtBWlmXfaXt5Uc4Q==}
+    engines: {node: '>=8.0.0'}
+    dependencies:
+      '@opentelemetry/api': 1.9.0
+    dev: false
 
   /@opentelemetry/api-logs@0.52.1:
     resolution: {integrity: sha512-qnSqB2DQ9TPP96dl8cDubDvrUyWc0/sK81xHTK8eSUspzDM3bsewX903qclQFvVhgStjRWdC5bLb3kQqMkfV5A==}
@@ -1363,6 +1389,22 @@ packages:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/core': 1.25.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/instrumentation': 0.52.1(@opentelemetry/api@1.9.0)
+    transitivePeerDependencies:
+      - supports-color
+    dev: false
+
+  /@opentelemetry/instrumentation@0.200.0(@opentelemetry/api@1.9.0):
+    resolution: {integrity: sha512-pmPlzfJd+vvgaZd/reMsC8RWgTXn2WY1OWT5RT42m3aOn5532TozwXNDhg1vzqJ+jnvmkREcdLr27ebJEQt0Jg==}
+    engines: {node: ^18.19.0 || >=20.6.0}
+    peerDependencies:
+      '@opentelemetry/api': ^1.3.0
+    dependencies:
+      '@opentelemetry/api': 1.9.0
+      '@opentelemetry/api-logs': 0.200.0
+      '@types/shimmer': 1.2.0
+      import-in-the-middle: 1.10.0
+      require-in-the-middle: 7.4.0
+      shimmer: 1.2.1
     transitivePeerDependencies:
       - supports-color
     dev: false
@@ -1554,6 +1596,15 @@ packages:
   /@opentelemetry/semantic-conventions@1.25.1:
     resolution: {integrity: sha512-ZDjMJJQRlyk8A1KZFCc+bCbsyrn1wTwdNt56F7twdfUfnHUZUq77/WfONCj8p72NZOyP7pNTdUWSTYC3GTbuuQ==}
     engines: {node: '>=14'}
+    dev: false
+
+  /@pimlico/opentelemetry-instrumentation-viem@0.0.4(@opentelemetry/api@1.9.0):
+    resolution: {integrity: sha512-FlFIXU7CVgfDAn0ay2JeV3F6mO7pLR6UgP/DZMx/gN7RZ/HV2rW+ibk1QmcKAF7NGPk5II8vYyu02irb0u158A==}
+    dependencies:
+      '@opentelemetry/instrumentation': 0.200.0(@opentelemetry/api@1.9.0)
+    transitivePeerDependencies:
+      - '@opentelemetry/api'
+      - supports-color
     dev: false
 
   /@pkgjs/parseargs@0.11.0:
@@ -1814,6 +1865,10 @@ packages:
     resolution: {integrity: sha512-8YKhl8GHiNI/pU2VMaofa2Tor7PJRAjwQLBBuilkJ9L5+13yVbC7JO/wS7piioAvPSwR3JKM1IJ/u4xQzbcXKg==}
     dev: false
 
+  /@scure/base@1.2.4:
+    resolution: {integrity: sha512-5Yy9czTO47mqz+/J8GM6GIId4umdCk1wc1q8rKERQulIoc8VP9pzDcghv10Tl2E7R96ZUx/PhND3ESYUQX8NuQ==}
+    dev: false
+
   /@scure/bip32@1.3.2:
     resolution: {integrity: sha512-N1ZhksgwD3OBlwTv3R6KFEcPojl/W4ElJOeCZdi+vuI5QmTFwLq3OFf2zd2ROpKvxFdgZ6hUpb0dx9bVNEwYCA==}
     dependencies:
@@ -1830,6 +1885,14 @@ packages:
       '@scure/base': 1.1.9
     dev: false
 
+  /@scure/bip32@1.6.2:
+    resolution: {integrity: sha512-t96EPDMbtGgtb7onKKqxRLfE5g05k7uHnHRM2xdE6BP/ZmxaLtPek4J4KfVn/90IQNrU1IOAqMgiDtUdtbe3nw==}
+    dependencies:
+      '@noble/curves': 1.8.1
+      '@noble/hashes': 1.7.1
+      '@scure/base': 1.2.4
+    dev: false
+
   /@scure/bip39@1.2.1:
     resolution: {integrity: sha512-Z3/Fsz1yr904dduJD0NpiyRHhRYHdcnyh73FZWiV+/qhWi83wNJ3NWolYqCEN+ZWsUz2TWwajJggcRE9r1zUYg==}
     dependencies:
@@ -1842,6 +1905,13 @@ packages:
     dependencies:
       '@noble/hashes': 1.5.0
       '@scure/base': 1.1.9
+    dev: false
+
+  /@scure/bip39@1.5.4:
+    resolution: {integrity: sha512-TFM4ni0vKvCfBpohoh+/lY05i9gRbSwXWngAsF4CABQxoaOHijxuaZ2R6cStDQ5CHtHO9aGJTr4ksVJASRRyMA==}
+    dependencies:
+      '@noble/hashes': 1.7.1
+      '@scure/base': 1.2.4
     dev: false
 
   /@sec-ant/readable-stream@0.4.1:
@@ -2135,8 +2205,22 @@ packages:
       typescript: 5.3.3
     dev: false
 
-  /abitype@1.0.5(typescript@5.3.3)(zod@3.22.4):
+  /abitype@1.0.5(typescript@5.3.3):
     resolution: {integrity: sha512-YzDhti7cjlfaBhHutMaboYB21Ha3rXR9QTkNJFzYC4kC8YclaiwPBBBJY8ejFdu2wnJeZCVZSMlQJ7fi8S6hsw==}
+    peerDependencies:
+      typescript: '>=5.0.4'
+      zod: ^3 >=3.22.0
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+      zod:
+        optional: true
+    dependencies:
+      typescript: 5.3.3
+    dev: false
+
+  /abitype@1.0.8(typescript@5.3.3)(zod@3.22.4):
+    resolution: {integrity: sha512-ZeiI6h3GnW06uYDLx0etQtX/p8E24UaHHBj57RSjK7YBFe7iuVn07EDpOeP451D06sF27VOz9JJPlIKJmXgkEg==}
     peerDependencies:
       typescript: '>=5.0.4'
       zod: ^3 >=3.22.0
@@ -2169,12 +2253,12 @@ packages:
       acorn: 8.12.1
     dev: false
 
-  /acorn-import-attributes@1.9.5(acorn@8.12.1):
+  /acorn-import-attributes@1.9.5(acorn@8.14.0):
     resolution: {integrity: sha512-n02Vykv5uA3eHGM/Z2dQrcD56kL8TyDb2p1+0P83PClMnC/nc+anbQRhIOWnSq4Ke/KvDPrY3C9hDtC/A3eHnQ==}
     peerDependencies:
       acorn: ^8
     dependencies:
-      acorn: 8.12.1
+      acorn: 8.14.0
     dev: false
 
   /acorn-walk@8.2.0:
@@ -2185,7 +2269,7 @@ packages:
     resolution: {integrity: sha512-ueEepnujpqee2o5aIYnvHU6C0A42MNdsIDeqy5BydrkuC5R1ZuUFnm27EeFJGoEHJQgn3uleRvmTXaJgfXbt4g==}
     engines: {node: '>=0.4.0'}
     dependencies:
-      acorn: 8.12.1
+      acorn: 8.14.0
     dev: false
 
   /acorn@8.12.1:
@@ -2375,7 +2459,7 @@ packages:
     dependencies:
       '@fastify/error': 3.4.1
       archy: 1.0.0
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.4
       fastq: 1.17.1
     transitivePeerDependencies:
       - supports-color
@@ -2757,6 +2841,17 @@ packages:
     resolution: {integrity: sha512-2P0p0pFGzHS5EMnhdxQi7aJN+iMheud0UhG4dlE1DLAlvL8JHjJJTX/CSm4JXwV0Ka5nGk3zC5mcb5bUQUxxMA==}
     dev: false
 
+  /debug@4.3.4:
+    resolution: {integrity: sha512-PRWFHuSU3eDtQJPvnNY7Jcket1j0t5OuOsFzPPzsekD52Zl8qUfFIPEiswXqIvHWGVHOgX+7G/vCNNhehwxfkQ==}
+    engines: {node: '>=6.0'}
+    peerDependencies:
+      supports-color: '*'
+    peerDependenciesMeta:
+      supports-color:
+        optional: true
+    dependencies:
+      ms: 2.1.2
+
   /debug@4.3.4(supports-color@5.5.0):
     resolution: {integrity: sha512-PRWFHuSU3eDtQJPvnNY7Jcket1j0t5OuOsFzPPzsekD52Zl8qUfFIPEiswXqIvHWGVHOgX+7G/vCNNhehwxfkQ==}
     engines: {node: '>=6.0'}
@@ -2781,6 +2876,7 @@ packages:
     dependencies:
       ms: 2.1.2
       supports-color: 8.1.1
+    dev: true
 
   /debug@4.3.6:
     resolution: {integrity: sha512-O/09Bd4Z1fBrU4VzkhFqVgpPzaGbw6Sm9FEkBT1A/YBXQFGuuSxa1dN2nxgxS34JmKXqYx8CZAwEVoJFImUXIg==}
@@ -2792,7 +2888,6 @@ packages:
         optional: true
     dependencies:
       ms: 2.1.2
-    dev: false
 
   /decamelize-keys@1.1.1:
     resolution: {integrity: sha512-WiPxgEirIV0/eIOMcnFBA3/IJZAZqKnwAwWyvvdi4lsr1WCN22nhdf/3db3DoZcUjTV2SqfzIwNyp6y2xs3nmg==}
@@ -3672,8 +3767,8 @@ packages:
   /import-in-the-middle@1.10.0:
     resolution: {integrity: sha512-Z1jumVdF2GwnnYfM0a/y2ts7mZbwFMgt5rRuVmLgobgahC6iKgN5MBuXjzfTIOUpq5LSU10vJIPpVKe0X89fIw==}
     dependencies:
-      acorn: 8.12.1
-      acorn-import-attributes: 1.9.5(acorn@8.12.1)
+      acorn: 8.14.0
+      acorn-import-attributes: 1.9.5(acorn@8.14.0)
       cjs-module-lexer: 1.3.1
       module-details-from-path: 1.0.3
     dev: false
@@ -3722,7 +3817,7 @@ packages:
     dependencies:
       '@ioredis/commands': 1.2.0
       cluster-key-slot: 1.1.2
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.4
       denque: 2.1.0
       lodash.defaults: 4.2.0
       lodash.isarguments: 3.1.0
@@ -3950,6 +4045,14 @@ packages:
       ws: 8.17.1
     dev: false
 
+  /isows@1.0.6(ws@8.18.1):
+    resolution: {integrity: sha512-lPHCayd40oW98/I0uvgaHKWCSvkzY27LjWLbtzOm64yQ+G3Q5npjjbdppU65iZXkK1Zt+kH9pfegli0AYfwYYw==}
+    peerDependencies:
+      ws: '*'
+    dependencies:
+      ws: 8.18.1
+    dev: false
+
   /istanbul-lib-coverage@3.2.0:
     resolution: {integrity: sha512-eOeJ5BHCmHYvQK7xt9GkdHuzuCGS1Y6g9Gvnx3Ym33fz/HpLRYxiS0wHNr+m/MBC8B647Xt608vCDEvhl9c6Mw==}
     engines: {node: '>=8'}
@@ -3999,7 +4102,7 @@ packages:
     resolution: {integrity: sha512-n3s8EwkdFIJCG3BPKBYvskgXGoy88ARzvegkitk60NxRdwltLOTaH7CUiMRXvwYorl0Q712iEjcWB+fK/MrWVw==}
     engines: {node: '>=10'}
     dependencies:
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.4
       istanbul-lib-coverage: 3.2.0
       source-map: 0.6.1
     transitivePeerDependencies:
@@ -4602,6 +4705,26 @@ packages:
     resolution: {integrity: sha512-/jHxFIzoMXdqPzTaCpFzAAWhpkSjZPF4Vsn6jAfNpmbH/ymsmd7Qc6VE9BGn0L6YMj6uwpQLxCECpus4ukKS9Q==}
     dev: true
 
+  /ox@0.6.9(typescript@5.3.3)(zod@3.22.4):
+    resolution: {integrity: sha512-wi5ShvzE4eOcTwQVsIPdFr+8ycyX+5le/96iAJutaZAvCes1J0+RvpEPg5QDPDiaR0XQQAvZVl7AwqQcINuUug==}
+    peerDependencies:
+      typescript: '>=5.4.0'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+    dependencies:
+      '@adraffy/ens-normalize': 1.11.0
+      '@noble/curves': 1.8.1
+      '@noble/hashes': 1.7.1
+      '@scure/bip32': 1.6.2
+      '@scure/bip39': 1.5.4
+      abitype: 1.0.8(typescript@5.3.3)(zod@3.22.4)
+      eventemitter3: 5.0.1
+      typescript: 5.3.3
+    transitivePeerDependencies:
+      - zod
+    dev: false
+
   /p-filter@2.1.0:
     resolution: {integrity: sha512-ZBxxZ5sL2HghephhpGAQdoskxplTwr7ICaehZwLIlfL6acuVgZPm8yBNuRAFBGEqtD/hmUeq9eqLg2ys9Xr/yw==}
     engines: {node: '>=8'}
@@ -4739,7 +4862,7 @@ packages:
       viem: ^2.21.54
       webauthn-p256: 0.0.10
     dependencies:
-      viem: 2.21.12(typescript@5.3.3)(zod@3.22.4)
+      viem: 2.21.12(typescript@5.3.3)
       webauthn-p256: 0.0.10
     dev: false
 
@@ -5610,6 +5733,7 @@ packages:
     engines: {node: '>=10'}
     dependencies:
       has-flag: 4.0.0
+    dev: true
 
   /supports-preserve-symlinks-flag@1.0.0:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
@@ -5919,7 +6043,7 @@ packages:
       spdx-expression-parse: 3.0.1
     dev: true
 
-  /viem@2.21.12(typescript@5.3.3)(zod@3.22.4):
+  /viem@2.21.12(typescript@5.3.3):
     resolution: {integrity: sha512-yPZulbPdoDnuB8Gm2m+Qc9Mjgl6gC1YgNU6zcO+C8XZNYwaCNE6mokPiy30m8o5I1XkfvMc35jMmtT1zCb8yxA==}
     peerDependencies:
       typescript: '>=5.0.4'
@@ -5932,11 +6056,34 @@ packages:
       '@noble/hashes': 1.4.0
       '@scure/bip32': 1.4.0
       '@scure/bip39': 1.4.0
-      abitype: 1.0.5(typescript@5.3.3)(zod@3.22.4)
+      abitype: 1.0.5(typescript@5.3.3)
       isows: 1.0.4(ws@8.17.1)
       typescript: 5.3.3
       webauthn-p256: 0.0.5
       ws: 8.17.1
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+      - zod
+    dev: false
+
+  /viem@2.24.3(typescript@5.3.3)(zod@3.22.4):
+    resolution: {integrity: sha512-FAoW0hqqpGOlZvfL6GbizDNUd6ZvUyNYYF8HouXbGATrO0RLLh28MOElFNF63hg++uZi2R/EcISs0bvY185z8g==}
+    peerDependencies:
+      typescript: '>=5.0.4'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+    dependencies:
+      '@noble/curves': 1.8.1
+      '@noble/hashes': 1.7.1
+      '@scure/bip32': 1.6.2
+      '@scure/bip39': 1.5.4
+      abitype: 1.0.8(typescript@5.3.3)(zod@3.22.4)
+      isows: 1.0.6(ws@8.18.1)
+      ox: 0.6.9(typescript@5.3.3)(zod@3.22.4)
+      typescript: 5.3.3
+      ws: 8.18.1
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -6105,15 +6252,15 @@ packages:
   /webauthn-p256@0.0.10:
     resolution: {integrity: sha512-EeYD+gmIT80YkSIDb2iWq0lq2zbHo1CxHlQTeJ+KkCILWpVy3zASH3ByD4bopzfk0uCwXxLqKGLqp2W4O28VFA==}
     dependencies:
-      '@noble/curves': 1.4.0
-      '@noble/hashes': 1.5.0
+      '@noble/curves': 1.8.1
+      '@noble/hashes': 1.7.1
     dev: false
 
   /webauthn-p256@0.0.5:
     resolution: {integrity: sha512-drMGNWKdaixZNobeORVIqq7k5DsRC9FnG201K2QjeOoQLmtSDaSsVZdkg6n5jUALJKcAG++zBPJXmv6hy0nWFg==}
     dependencies:
-      '@noble/curves': 1.4.0
-      '@noble/hashes': 1.5.0
+      '@noble/curves': 1.8.1
+      '@noble/hashes': 1.7.1
     dev: false
 
   /webidl-conversions@3.0.1:
@@ -6240,6 +6387,19 @@ packages:
 
   /ws@8.17.1:
     resolution: {integrity: sha512-6XQFvXTkbfUOZOKKILFG1PDK2NDQs4azKQl26T0YS5CxqWLgXajbPZ+h4gZekJyRqFU8pvnbAbbs/3TgRPy+GQ==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+    dev: false
+
+  /ws@8.18.1:
+    resolution: {integrity: sha512-RKW2aJZMXeMxVpnZ6bck+RswznaxmzdULiBr6KY7XkTnW8uvt0iT9H5DkHUChXrc+uurzwa0rVI16n/Xzjdz1w==}
     engines: {node: '>=10.0.0'}
     peerDependencies:
       bufferutil: ^4.0.1

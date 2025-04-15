@@ -1,7 +1,8 @@
 import {
     DETERMINISTIC_DEPLOYER_TRANSACTION,
-    pimlicoEntrypointSimulationsDeployBytecode,
-    pimlicoEntrypointSimulationsSalt
+    pimlicoEntrypointSimulationsV7DeployBytecode,
+    pimlicoEntrypointSimulationsSalt,
+    pimlicoEntrypointSimulationsV8DeployBytecode
 } from "@alto/types"
 import {
     type Chain,
@@ -15,6 +16,7 @@ import {
 } from "viem"
 import type { CamelCasedProperties } from "./parseArgs"
 import type { IOptions } from "@alto/cli"
+import type { Logger } from "pino"
 
 const isContractDeployed = async ({
     publicClient,
@@ -27,12 +29,48 @@ const isContractDeployed = async ({
 }
 
 export const deploySimulationsContract = async ({
+    logger,
     args,
     publicClient
 }: {
+    logger: Logger
     args: CamelCasedProperties<IOptions>
     publicClient: PublicClient<Transport, Chain>
-}): Promise<Hex> => {
+}): Promise<{
+    entrypointSimulationContractV7: Hex
+    entrypointSimulationContractV8: Hex
+}> => {
+    const contractAddressV7 = getContractAddress({
+        opcode: "CREATE2",
+        bytecode: pimlicoEntrypointSimulationsV7DeployBytecode,
+        salt: pimlicoEntrypointSimulationsSalt,
+        from: args.deterministicDeployerAddress
+    })
+
+    const contractAddressV8 = getContractAddress({
+        opcode: "CREATE2",
+        bytecode: pimlicoEntrypointSimulationsV8DeployBytecode,
+        salt: pimlicoEntrypointSimulationsSalt,
+        from: args.deterministicDeployerAddress
+    })
+
+    const [isV7Deployed, isV8Deployed, isDeterministicDeployerDeployed] =
+        await Promise.all([
+            isContractDeployed({ publicClient, address: contractAddressV7 }),
+            isContractDeployed({ publicClient, address: contractAddressV8 }),
+            isContractDeployed({
+                publicClient,
+                address: args.deterministicDeployerAddress
+            })
+        ])
+
+    if (isV7Deployed && isV8Deployed && isDeterministicDeployerDeployed) {
+        return {
+            entrypointSimulationContractV7: contractAddressV7,
+            entrypointSimulationContractV8: contractAddressV8
+        }
+    }
+
     const utilityPrivateKey = args.utilityPrivateKey
     if (!utilityPrivateKey) {
         throw new Error(
@@ -56,12 +94,7 @@ export const deploySimulationsContract = async ({
         account: utilityPrivateKey
     })
 
-    if (
-        !(await isContractDeployed({
-            publicClient,
-            address: args.deterministicDeployerAddress
-        }))
-    ) {
+    if (!isDeterministicDeployerDeployed) {
         const deterministicDeployHash = await walletClient.sendRawTransaction({
             serializedTransaction: DETERMINISTIC_DEPLOYER_TRANSACTION
         })
@@ -71,32 +104,54 @@ export const deploySimulationsContract = async ({
         })
     }
 
-    const contractAddress = getContractAddress({
-        opcode: "CREATE2",
-        bytecode: pimlicoEntrypointSimulationsDeployBytecode,
-        salt: pimlicoEntrypointSimulationsSalt,
-        from: args.deterministicDeployerAddress
-    })
+    if (!isV7Deployed) {
+        const deployHash = await walletClient.sendTransaction({
+            chain: publicClient.chain,
+            to: args.deterministicDeployerAddress,
+            data: concat([
+                pimlicoEntrypointSimulationsSalt,
+                pimlicoEntrypointSimulationsV7DeployBytecode
+            ])
+        })
 
-    if (await isContractDeployed({ publicClient, address: contractAddress })) {
-        return contractAddress
+        await publicClient.waitForTransactionReceipt({
+            hash: deployHash
+        })
     }
 
-    const deployHash = await walletClient.sendTransaction({
-        chain: publicClient.chain,
-        to: args.deterministicDeployerAddress,
-        data: concat([
-            pimlicoEntrypointSimulationsSalt,
-            pimlicoEntrypointSimulationsDeployBytecode
-        ])
-    })
+    if (!isV8Deployed) {
+        try {
+            const deployHash = await walletClient.sendTransaction({
+                chain: publicClient.chain,
+                to: args.deterministicDeployerAddress,
+                data: concat([
+                    pimlicoEntrypointSimulationsSalt,
+                    pimlicoEntrypointSimulationsV8DeployBytecode
+                ])
+            })
 
-    await publicClient.waitForTransactionReceipt({
-        hash: deployHash
-    })
+            await publicClient.waitForTransactionReceipt({
+                hash: deployHash
+            })
+        } catch {
+            logger.error("Failed to deploy simulationsContract V8")
+        }
+    }
 
-    if (await isContractDeployed({ publicClient, address: contractAddress })) {
-        return contractAddress
+    const deployStatus = await Promise.all([
+        isContractDeployed({ publicClient, address: contractAddressV7 }),
+        isContractDeployed({ publicClient, address: contractAddressV8 })
+    ])
+
+    if (!deployStatus[1]) {
+        logger.error("Failed to deploy simulationsContract V8")
+    }
+
+    if (deployStatus[0]) {
+        return {
+            entrypointSimulationContractV7: contractAddressV7,
+            entrypointSimulationContractV8: contractAddressV8
+        }
     }
 
     throw new Error("Failed to deploy simulationsContract")

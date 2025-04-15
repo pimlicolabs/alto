@@ -15,11 +15,12 @@ export const ethSendUserOperationHandler = createMethodHandler({
             })
         }
 
-        const hash = getUserOperationHash(
+        const hash = await getUserOperationHash({
             userOperation,
-            entryPoint,
-            rpcHandler.config.publicClient.chain.id
-        )
+            entryPointAddress: entryPoint,
+            chainId: rpcHandler.config.chainId,
+            publicClient: rpcHandler.config.publicClient
+        })
 
         let status: "added" | "queued" | "rejected" = "rejected"
         try {
@@ -29,7 +30,7 @@ export const ethSendUserOperationHandler = createMethodHandler({
                 apiVersion
             )
 
-            rpcHandler.eventManager.emitReceived(hash)
+            await rpcHandler.eventManager.emitReceived(hash)
 
             return hash
         } catch (error) {
