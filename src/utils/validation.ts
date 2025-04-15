@@ -37,7 +37,6 @@ import {
     concat,
     slice
 } from "viem"
-import { base, baseGoerli, baseSepolia, lineaSepolia } from "viem/chains"
 import { maxBigInt, minBigInt, scaleBigIntByPercent } from "./bigInt"
 import { isVersion06, isVersion07, toPackedUserOperation } from "./userop"
 import type { AltoConfig } from "../createConfig"
@@ -314,10 +313,6 @@ export async function calcPreVerificationGas({
         overheads
     )
 
-    if (config.chainId == lineaSepolia.id) {
-        return preVerificationGas * 2n
-    }
-
     switch (config.chainType) {
         case "op-stack":
             return await calcOptimismPreVerificationGas(
@@ -357,7 +352,6 @@ export function calcVerificationGasAndCallGasLimit(
         preOpGas: bigint
         paid: bigint
     },
-    chainId: number,
     gasLimits?: {
         callGasLimit?: bigint
         verificationGasLimit?: bigint
@@ -380,14 +374,6 @@ export function calcVerificationGasAndCallGasLimit(
 
     if (isVersion06(userOperation)) {
         callGasLimit += 21_000n + 50_000n
-    }
-
-    if (
-        chainId === baseGoerli.id ||
-        chainId === baseSepolia.id ||
-        chainId === base.id
-    ) {
-        callGasLimit = scaleBigIntByPercent(callGasLimit, 110n)
     }
 
     return {

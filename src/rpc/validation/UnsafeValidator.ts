@@ -581,14 +581,10 @@ export class UnsafeValidator implements InterfaceValidator {
                 const prefund = validationResult.returnInfo.prefund
 
                 const { verificationGasLimit, callGasLimit } =
-                    calcVerificationGasAndCallGasLimit(
-                        userOperation,
-                        {
-                            preOpGas: validationResult.returnInfo.preOpGas,
-                            paid: validationResult.returnInfo.prefund
-                        },
-                        this.config.chainId
-                    )
+                    calcVerificationGasAndCallGasLimit(userOperation, {
+                        preOpGas: validationResult.returnInfo.preOpGas,
+                        paid: validationResult.returnInfo.prefund
+                    })
 
                 let mul = 1n
 
