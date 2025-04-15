@@ -25,6 +25,7 @@ import {
     getUserOperationHash,
     isVersion06,
     isVersion07,
+    maxBigInt,
     scaleBigIntByPercent
 } from "@alto/utils"
 import { type Hex, getContract, zeroAddress } from "viem"
