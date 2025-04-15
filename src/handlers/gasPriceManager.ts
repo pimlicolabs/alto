@@ -267,7 +267,7 @@ export class GasPriceManager {
         let maxFeePerGas = 0n
         let maxPriorityFeePerGas = 0n
 
-        if (this.config.publicClient.chain.id === polygon.id) {
+        if (this.config.chainId === polygon.id) {
             const polygonEstimate = await this.getPolygonGasPriceParameters()
             if (polygonEstimate) {
                 const gasPrice = this.bumpTheGasPrice({
