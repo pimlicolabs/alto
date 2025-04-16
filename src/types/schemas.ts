@@ -52,23 +52,21 @@ export type StateOverrides = z.infer<typeof stateOverridesSchema>
 const partialAuthorizationSchema = z.object({
     contractAddress: addressSchema,
     chainId: hexNumberSchema
-        .transform((val) => (val ? Number(val) : 1))
-        .optional(),
+        .optional()
+        .transform((val) => (val ? Number(val) : 1)),
     nonce: hexNumberSchema
-        .transform((val) => (val ? Number(val) : 0))
-        .optional(),
+        .optional()
+        .transform((val) => (val ? Number(val) : 0)),
     r: hexDataSchema
-        .transform((val) => val as Hex)
         .optional()
-        .transform((val) => val ?? pad("0x", { size: 32 })),
+        .transform((val) => (val as Hex) ?? pad("0x", { size: 32 })),
     s: hexDataSchema
-        .transform((val) => val as Hex)
         .optional()
-        .transform((val) => val ?? pad("0x", { size: 32 })),
+        .transform((val) => (val as Hex) ?? pad("0x", { size: 32 })),
     v: hexNumberSchema.optional(),
     yParity: hexNumberSchema
-        .transform((val) => (val ? Number(val) : 0))
         .optional()
+        .transform((val) => (val ? Number(val) : 0))
 })
 
 const signedAuthorizationSchema = z.union([
