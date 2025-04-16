@@ -1,4 +1,4 @@
-import { type Hash, type Hex, getAddress, maxUint256 } from "viem"
+import { type Hash, type Hex, getAddress, maxUint256, pad } from "viem"
 import { z } from "zod"
 
 const hexDataPattern = /^0x[0-9A-Fa-f]*$/
@@ -52,34 +52,23 @@ export type StateOverrides = z.infer<typeof stateOverridesSchema>
 const partialAuthorizationSchema = z.object({
     contractAddress: addressSchema,
     chainId: hexNumberSchema
-        .transform((val) => Number(val))
-        .optional()
-        .transform((val) => val ?? 1),
+        .transform((val) => (val ? Number(val) : 1))
+        .optional(),
     nonce: hexNumberSchema
-        .transform((val) => Number(val))
-        .optional()
-        .transform((val) => val ?? 0),
+        .transform((val) => (val ? Number(val) : 0))
+        .optional(),
     r: hexDataSchema
         .transform((val) => val as Hex)
         .optional()
-        .transform(
-            (val) =>
-                val ??
-                "0x0000000000000000000000000000000000000000000000000000000000000000"
-        ),
+        .transform((val) => val ?? pad("0x", { size: 32 })),
     s: hexDataSchema
         .transform((val) => val as Hex)
         .optional()
-        .transform(
-            (val) =>
-                val ??
-                "0x0000000000000000000000000000000000000000000000000000000000000000"
-        ),
+        .transform((val) => val ?? pad("0x", { size: 32 })),
     v: hexNumberSchema.optional(),
     yParity: hexNumberSchema
-        .transform((val) => Number(val))
+        .transform((val) => (val ? Number(val) : 0))
         .optional()
-        .transform((val) => val ?? 0)
 })
 
 const signedAuthorizationSchema = z.union([
