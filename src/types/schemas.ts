@@ -1,4 +1,4 @@
-import { type Hash, type Hex, getAddress, maxUint256 } from "viem"
+import { type Hash, type Hex, getAddress, maxUint256, pad } from "viem"
 import { z } from "zod"
 
 const hexDataPattern = /^0x[0-9A-Fa-f]*$/
@@ -48,6 +48,47 @@ export type HexNumber = z.infer<typeof hexNumberSchema>
 export type HexData = z.infer<typeof hexDataSchema>
 export type HexData32 = z.infer<typeof hexData32Schema>
 export type StateOverrides = z.infer<typeof stateOverridesSchema>
+
+const partialAuthorizationSchema = z.union([
+    z.object({
+        contractAddress: addressSchema,
+        chainId: hexNumberSchema
+            .optional()
+            .transform((val) => (val ? Number(val) : 1)),
+        nonce: hexNumberSchema
+            .optional()
+            .transform((val) => (val ? Number(val) : 0)),
+        r: hexDataSchema
+            .optional()
+            .transform((val) => (val as Hex) ?? pad("0x", { size: 32 })),
+        s: hexDataSchema
+            .optional()
+            .transform((val) => (val as Hex) ?? pad("0x", { size: 32 })),
+        v: hexNumberSchema.optional(),
+        yParity: hexNumberSchema
+            .optional()
+            .transform((val) => (val ? Number(val) : 0))
+    }),
+    z.object({
+        address: addressSchema,
+        chainId: hexNumberSchema
+            .optional()
+            .transform((val) => (val ? Number(val) : 1)),
+        nonce: hexNumberSchema
+            .optional()
+            .transform((val) => (val ? Number(val) : 0)),
+        r: hexDataSchema
+            .optional()
+            .transform((val) => (val as Hex) ?? pad("0x", { size: 32 })),
+        s: hexDataSchema
+            .optional()
+            .transform((val) => (val as Hex) ?? pad("0x", { size: 32 })),
+        v: hexNumberSchema.optional(),
+        yParity: hexNumberSchema
+            .optional()
+            .transform((val) => (val ? Number(val) : 0))
+    })
+])
 
 const signedAuthorizationSchema = z.union([
     z.object({
@@ -184,7 +225,7 @@ const partialUserOperationV06Schema = z
         maxFeePerGas: hexNumberSchema.default(1n),
         paymasterAndData: hexDataSchema,
         signature: hexDataSchema,
-        eip7702Auth: signedAuthorizationSchema.optional().nullable()
+        eip7702Auth: partialAuthorizationSchema.optional().nullable()
     })
     .strict()
     .transform((val) => {
@@ -226,7 +267,7 @@ const partialUserOperationV07Schema = z
             .optional()
             .transform((val) => val ?? null),
         signature: hexDataSchema,
-        eip7702Auth: signedAuthorizationSchema.optional().nullable()
+        eip7702Auth: partialAuthorizationSchema.optional().nullable()
     })
     .strict()
     .transform((val) => val)
@@ -267,7 +308,7 @@ const partialUserOperationV08Schema = z
             .optional()
             .transform((val) => val ?? null),
         signature: hexDataSchema,
-        eip7702Auth: signedAuthorizationSchema.optional().nullable()
+        eip7702Auth: partialAuthorizationSchema.optional().nullable()
     })
     .strict()
     .transform((val) => val)
