@@ -49,6 +49,39 @@ export type HexData = z.infer<typeof hexDataSchema>
 export type HexData32 = z.infer<typeof hexData32Schema>
 export type StateOverrides = z.infer<typeof stateOverridesSchema>
 
+const partialAuthorizationSchema = z.object({
+    contractAddress: addressSchema,
+    chainId: hexNumberSchema
+        .transform((val) => Number(val))
+        .optional()
+        .transform((val) => val ?? 1),
+    nonce: hexNumberSchema
+        .transform((val) => Number(val))
+        .optional()
+        .transform((val) => val ?? 0),
+    r: hexDataSchema
+        .transform((val) => val as Hex)
+        .optional()
+        .transform(
+            (val) =>
+                val ??
+                "0x0000000000000000000000000000000000000000000000000000000000000000"
+        ),
+    s: hexDataSchema
+        .transform((val) => val as Hex)
+        .optional()
+        .transform(
+            (val) =>
+                val ??
+                "0x0000000000000000000000000000000000000000000000000000000000000000"
+        ),
+    v: hexNumberSchema.optional(),
+    yParity: hexNumberSchema
+        .transform((val) => Number(val))
+        .optional()
+        .transform((val) => val ?? 0)
+})
+
 const signedAuthorizationSchema = z.union([
     z.object({
         contractAddress: addressSchema,
@@ -184,7 +217,7 @@ const partialUserOperationV06Schema = z
         maxFeePerGas: hexNumberSchema.default(1n),
         paymasterAndData: hexDataSchema,
         signature: hexDataSchema,
-        eip7702Auth: signedAuthorizationSchema.optional().nullable()
+        eip7702Auth: partialAuthorizationSchema.optional().nullable()
     })
     .strict()
     .transform((val) => {
@@ -226,7 +259,7 @@ const partialUserOperationV07Schema = z
             .optional()
             .transform((val) => val ?? null),
         signature: hexDataSchema,
-        eip7702Auth: signedAuthorizationSchema.optional().nullable()
+        eip7702Auth: partialAuthorizationSchema.optional().nullable()
     })
     .strict()
     .transform((val) => val)
@@ -267,7 +300,7 @@ const partialUserOperationV08Schema = z
             .optional()
             .transform((val) => val ?? null),
         signature: hexDataSchema,
-        eip7702Auth: signedAuthorizationSchema.optional().nullable()
+        eip7702Auth: partialAuthorizationSchema.optional().nullable()
     })
     .strict()
     .transform((val) => val)
