@@ -49,25 +49,46 @@ export type HexData = z.infer<typeof hexDataSchema>
 export type HexData32 = z.infer<typeof hexData32Schema>
 export type StateOverrides = z.infer<typeof stateOverridesSchema>
 
-const partialAuthorizationSchema = z.object({
-    contractAddress: addressSchema,
-    chainId: hexNumberSchema
-        .optional()
-        .transform((val) => (val ? Number(val) : 1)),
-    nonce: hexNumberSchema
-        .optional()
-        .transform((val) => (val ? Number(val) : 0)),
-    r: hexDataSchema
-        .optional()
-        .transform((val) => (val as Hex) ?? pad("0x", { size: 32 })),
-    s: hexDataSchema
-        .optional()
-        .transform((val) => (val as Hex) ?? pad("0x", { size: 32 })),
-    v: hexNumberSchema.optional(),
-    yParity: hexNumberSchema
-        .optional()
-        .transform((val) => (val ? Number(val) : 0))
-})
+const partialAuthorizationSchema = z.union([
+    z.object({
+        contractAddress: addressSchema,
+        chainId: hexNumberSchema
+            .optional()
+            .transform((val) => (val ? Number(val) : 1)),
+        nonce: hexNumberSchema
+            .optional()
+            .transform((val) => (val ? Number(val) : 0)),
+        r: hexDataSchema
+            .optional()
+            .transform((val) => (val as Hex) ?? pad("0x", { size: 32 })),
+        s: hexDataSchema
+            .optional()
+            .transform((val) => (val as Hex) ?? pad("0x", { size: 32 })),
+        v: hexNumberSchema.optional(),
+        yParity: hexNumberSchema
+            .optional()
+            .transform((val) => (val ? Number(val) : 0))
+    }),
+    z.object({
+        address: addressSchema,
+        chainId: hexNumberSchema
+            .optional()
+            .transform((val) => (val ? Number(val) : 1)),
+        nonce: hexNumberSchema
+            .optional()
+            .transform((val) => (val ? Number(val) : 0)),
+        r: hexDataSchema
+            .optional()
+            .transform((val) => (val as Hex) ?? pad("0x", { size: 32 })),
+        s: hexDataSchema
+            .optional()
+            .transform((val) => (val as Hex) ?? pad("0x", { size: 32 })),
+        v: hexNumberSchema.optional(),
+        yParity: hexNumberSchema
+            .optional()
+            .transform((val) => (val ? Number(val) : 0))
+    })
+])
 
 const signedAuthorizationSchema = z.union([
     z.object({
