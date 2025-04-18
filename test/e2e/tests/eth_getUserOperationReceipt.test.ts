@@ -1,9 +1,17 @@
-import { parseGwei, type Address, type Hex, concat } from "viem"
 import {
-    entryPoint06Address,
-    entryPoint07Address,
+    parseGwei,
+    type Address,
+    type Hex,
+    concat,
+    encodeFunctionData
+} from "viem"
+import {
     type UserOperation,
-    getUserOperationHash
+    getUserOperationHash,
+    entryPoint07Abi,
+    toPackedUserOperation,
+    entryPoint06Address,
+    entryPoint07Address
 } from "viem/account-abstraction"
 import { beforeAll, beforeEach, describe, expect, inject, test } from "vitest"
 import {
@@ -12,7 +20,11 @@ import {
     getRevertCall
 } from "../src/revertingContract.js"
 import { deployPaymaster } from "../src/testPaymaster.js"
-import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils/index.js"
+import {
+    beforeEachCleanUp,
+    getPublicClient,
+    getSmartAccountClient
+} from "../src/utils/index.js"
 import { deepHexlify } from "permissionless"
 import { foundry } from "viem/chains"
 import {
@@ -58,7 +70,7 @@ describe.each([
         })
 
         // uses pimlico_sendUserOperationNow to force send a reverting op (because it skips validation)
-        test("Returns revert bytes when UserOperation reverts", async () => {
+        test.only("Returns revert bytes when UserOperation reverts", async () => {
             const smartAccountClient = await getSmartAccountClient({
                 entryPointVersion,
                 anvilRpc,
@@ -123,14 +135,32 @@ describe.each([
 
             await new Promise((resolve) => setTimeout(resolve, 1500))
 
-            const receipt = await smartAccountClient.getUserOperationReceipt({
-                hash: getUserOperationHash({
+            let hash: Hex
+            if (entryPointVersion === "0.8") {
+                const publicClient = getPublicClient(anvilRpc)
+
+                const res = await publicClient.call({
+                    to: entryPoint,
+                    data: encodeFunctionData({
+                        abi: entryPoint07Abi,
+                        functionName: "getUserOpHash",
+                        args: [toPackedUserOperation(op)]
+                    })
+                })
+
+                hash = res.data as Hex
+            } else {
+                hash = getUserOperationHash({
                     userOperation: op,
                     chainId: foundry.id,
                     entryPointAddress: entryPoint,
                     entryPointVersion:
                         getViemEntryPointVersion(entryPointVersion)
                 })
+            }
+
+            const receipt = await smartAccountClient.getUserOperationReceipt({
+                hash
             })
 
             expect(receipt).not.toBeNull()
