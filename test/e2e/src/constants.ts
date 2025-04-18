@@ -12,7 +12,7 @@ export const SIMPLE_ACCOUNT_FACTORY_V07 = "0x91E60e0613810449d098b0b5Ec8b51A0FE8
 export const SIMPLE_ACCOUNT_FACTORY_V08 = "0x13E9ed32155810FDbd067D4522C492D6f68E5944"
 
 // biome-ignore format:
-export const entryPoint08Address: Address = "0x4337084d9e255ff0702461cf8895ce9e3b5ff108"
+export const entryPoint08Address: Address = "0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108"
 
 export type EntryPointVersion = "0.6" | "0.7" | "0.8"
 
