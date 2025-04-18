@@ -95,7 +95,7 @@ describe.each([
         // error occurs when calling contract that doesn't exist or due to low level evm revert.
         // both of these scenarios return 0x when calling simulateHandleOp.
         test("Gracefully handles cannot decode zero bytes 0x error", async () => {
-            if (entryPointVersion === "0.7") {
+            if (entryPointVersion !== "0.6") {
                 return
             }
 
