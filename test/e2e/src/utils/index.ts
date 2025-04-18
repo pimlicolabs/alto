@@ -14,18 +14,18 @@ import {
     createWalletClient,
     parseEther
 } from "viem"
-import {
-    type EntryPointVersion,
-    type SmartAccount,
-    entryPoint06Address,
-    entryPoint07Address
-} from "viem/account-abstraction"
+import { type SmartAccount } from "viem/account-abstraction"
 import {
     generatePrivateKey,
     mnemonicToAccount,
     privateKeyToAccount
 } from "viem/accounts"
 import { foundry } from "viem/chains"
+import {
+    EntryPointVersion,
+    getEntryPointAddress,
+    getViemEntryPointVersion
+} from "../constants.js"
 
 export type AAParamType = {
     entryPointVersion: EntryPointVersion
@@ -53,7 +53,7 @@ export const getAnvilWalletClient = ({
     })
 }
 
-export const getPimlicoClient = <EntryPointVersion extends "0.6" | "0.7">({
+export const getPimlicoClient = ({
     entryPointVersion,
     altoRpc
 }: {
@@ -63,12 +63,8 @@ export const getPimlicoClient = <EntryPointVersion extends "0.6" | "0.7">({
     createPimlicoClient({
         chain: foundry,
         entryPoint: {
-            address: (entryPointVersion === "0.6"
-                ? entryPoint06Address
-                : entryPoint07Address) as EntryPointVersion extends "0.6"
-                ? typeof entryPoint06Address
-                : typeof entryPoint07Address,
-            version: entryPointVersion
+            address: getEntryPointAddress(entryPointVersion),
+            version: getViemEntryPointVersion(entryPointVersion)
         },
         transport: http(altoRpc)
     })
@@ -87,9 +83,7 @@ export const getPublicClient = (anvilRpc: string) => {
     })
 }
 
-export const getSmartAccountClient = async <
-    EntryPointVersion extends "0.6" | "0.7"
->({
+export const getSmartAccountClient = async ({
     entryPointVersion,
     anvilRpc,
     altoRpc,
@@ -97,16 +91,11 @@ export const getSmartAccountClient = async <
 }: AAParamType): Promise<
     SmartAccountClient<Transport, Chain, SmartAccount>
 > => {
-    const account = await toSimpleSmartAccount<EntryPointVersion>({
+    const account = await toSimpleSmartAccount({
         client: getPublicClient(anvilRpc),
         entryPoint: {
-            address:
-                entryPointVersion === "0.6"
-                    ? entryPoint06Address
-                    : entryPoint07Address,
-            version: (entryPointVersion === "0.6"
-                ? "0.6"
-                : "0.7") as EntryPointVersion
+            address: getEntryPointAddress(entryPointVersion),
+            version: getViemEntryPointVersion(entryPointVersion)
         },
         owner: privateKeyToAccount(privateKey)
     })

@@ -1,7 +1,6 @@
 import { deepHexlify } from "permissionless"
 import { http, createClient, parseEther } from "viem"
 import {
-    type EntryPointVersion,
     type UserOperation,
     type UserOperationReceipt,
     entryPoint06Address,
@@ -9,6 +8,10 @@ import {
 } from "viem/account-abstraction"
 import { beforeEach, describe, expect, inject, test } from "vitest"
 import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils/index.js"
+import {
+    type EntryPointVersion,
+    entryPoint08Address
+} from "../src/constants.js"
 
 describe.each([
     {
@@ -18,6 +21,10 @@ describe.each([
     {
         entryPoint: entryPoint07Address,
         entryPointVersion: "0.7" as EntryPointVersion
+    },
+    {
+        entryPoint: entryPoint08Address,
+        entryPointVersion: "0.8" as EntryPointVersion
     }
 ])(
     "$entryPointVersion supports pimlico_sendUserOperationNow",
@@ -44,7 +51,7 @@ describe.each([
                         data: "0x"
                     }
                 ]
-            })) as UserOperation<typeof entryPointVersion>
+            })) as UserOperation
             op.signature =
                 await smartAccountClient.account.signUserOperation(op)
 
