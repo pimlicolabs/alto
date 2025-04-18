@@ -127,7 +127,7 @@ export class Executor {
         } = this.config
 
         const handleOpsCalldata = encodeHandleOpsCalldata({
-            userOps,
+            userOps: userOps.map(({ userOp }) => userOp),
             beneficiary: account.address
         })
 
@@ -323,10 +323,10 @@ export class Executor {
         })
 
         // Ensure that we don't submit with gas too low leading to AA95.
-        const aa95GasFloor = calculateAA95GasFloor(
-            userOpsToBundle,
-            executor.address
-        )
+        const aa95GasFloor = calculateAA95GasFloor({
+            userOps: userOpsToBundle.map(({ userOp }) => userOp),
+            beneficiary: executor.address
+        })
         gasLimit = maxBigInt(gasLimit, aa95GasFloor)
 
         // sometimes the estimation rounds down, adding a fixed constant accounts for this

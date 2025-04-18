@@ -1,4 +1,8 @@
-import type { Executor, ExecutorManager } from "@alto/executor"
+import {
+    calculateAA95GasFloor,
+    type Executor,
+    type ExecutorManager
+} from "@alto/executor"
 import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
@@ -33,6 +37,7 @@ import type { AltoConfig } from "../createConfig"
 import type { MethodHandler } from "./createMethodHandler"
 import { registerHandlers } from "./methods"
 import { recoverAuthorizationAddress } from "viem/utils"
+import { privateKeyToAddress, generatePrivateKey } from "viem/accounts"
 
 export class RpcHandler {
     public config: AltoConfig
@@ -175,31 +180,18 @@ export class RpcHandler {
             throw new RpcError(reason)
         }
 
-        if (isVersion07(userOperation)) {
-            const gasLimits =
-                userOperation.callGasLimit +
-                userOperation.verificationGasLimit +
-                (userOperation.paymasterPostOpGasLimit ?? 0n) +
-                (userOperation.paymasterVerificationGasLimit ?? 0n)
+        const beneficiary =
+            this.config.utilityPrivateKey?.address ||
+            privateKeyToAddress(generatePrivateKey())
+        const gasLimits = calculateAA95GasFloor({
+            userOps: [userOperation],
+            beneficiary
+        })
 
-            if (gasLimits > this.config.maxGasPerBundle) {
-                throw new RpcError(
-                    `User operation gas limits exceed the max gas per bundle: ${gasLimits} > ${this.config.maxGasPerBundle}`
-                )
-            }
-        }
-
-        if (isVersion06(userOperation)) {
-            const gasLimits =
-                userOperation.callGasLimit + userOperation.verificationGasLimit
-
-            const maxGasPerBundle = (this.config.maxGasPerBundle * 130n) / 100n
-
-            if (gasLimits > maxGasPerBundle) {
-                throw new RpcError(
-                    `User operation gas limits exceed the max gas per bundle: ${gasLimits} > ${this.config.maxGasPerBundle}`
-                )
-            }
+        if (gasLimits > this.config.maxGasPerBundle) {
+            throw new RpcError(
+                `User operation gas limits exceed the max gas per bundle: ${gasLimits} > ${this.config.maxGasPerBundle}`
+            )
         }
     }
 

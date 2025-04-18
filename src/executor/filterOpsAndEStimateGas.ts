@@ -128,7 +128,9 @@ export async function filterOpsAndEstimateGas({
         }
 
         try {
-            const packedUserOps = packUserOps(userOpsToBundle)
+            const packedUserOps = packUserOps(
+                userOpsToBundle.map(({ userOp }) => userOp)
+            )
 
             let stateOverride: StateOverride | undefined = undefined
 
