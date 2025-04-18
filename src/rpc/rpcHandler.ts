@@ -183,7 +183,10 @@ export class RpcHandler {
         const beneficiary =
             this.config.utilityPrivateKey?.address ||
             privateKeyToAddress(generatePrivateKey())
-        const gasLimits = calculateAA95GasFloor([userOperation], beneficiary)
+        const gasLimits = calculateAA95GasFloor({
+            userOps: [userOperation],
+            beneficiary
+        })
 
         if (gasLimits > this.config.maxGasPerBundle) {
             throw new RpcError(

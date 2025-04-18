@@ -97,10 +97,10 @@ export function calculateAA95GasFloorV6(
 }
 
 // Main function that determines the correct version to use
-export function calculateAA95GasFloor(
-    userOps: UserOperation[],
-    beneficiary: Address
-): bigint {
+export function calculateAA95GasFloor({
+    userOps,
+    beneficiary
+}: { userOps: UserOperation[]; beneficiary: Address }): bigint {
     let gasFloor = 0n
 
     for (const userOp of userOps) {
