@@ -22,6 +22,7 @@ import {
     BaseError
 } from "viem"
 import {
+    formatHandleOpsRequest,
     calculateAA95GasFloor,
     encodeHandleOpsCalldata,
     getAuthorizationList,
@@ -135,6 +136,7 @@ export class Executor {
             to: entryPoint,
             data: handleOpsCalldata,
             from: account.address,
+            chain: publicClient.chain,
             gas,
             account,
             nonce,
@@ -169,7 +171,12 @@ export class Executor {
                     break
                 }
 
-                transactionHash = await walletClient.sendTransaction(request)
+                transactionHash = await walletClient.sendTransaction(
+                    formatHandleOpsRequest({
+                        request,
+                        label: this.config.bundlerLabel
+                    })
+                )
 
                 break
             } catch (e: unknown) {

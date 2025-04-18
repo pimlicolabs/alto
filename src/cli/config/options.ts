@@ -333,6 +333,12 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         require: false,
         default: "300"
     },
+    "bundler-label": {
+        description: "Unique identifier for this bundler (up to 4 digits)",
+        type: "string",
+        require: false,
+        default: "4337"
+    },
     "refilling-wallets": {
         description: "Enable refilling wallets",
         type: "boolean",
@@ -466,8 +472,7 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             default: "v1"
         },
         "floor-max-fee-per-gas": {
-            description:
-                "Minimum value for maxFeePerGas to enforce (in gwei)",
+            description: "Minimum value for maxFeePerGas to enforce (in gwei)",
             type: "string",
             require: false
         },

@@ -15,3 +15,11 @@ export const scaleBigIntByPercent = (
 ): bigint => {
     return (value * percent) / 100n
 }
+
+export const ceilingBigInt = ({
+    value,
+    multiple
+}: { value: bigint; multiple: bigint }): bigint => {
+    const remainder = value % multiple
+    return remainder === 0n ? value : value + (multiple - remainder)
+}

@@ -96,6 +96,15 @@ export const executorArgsSchema = z.object({
     "utility-wallet-monitor": z.boolean(),
     "utility-wallet-monitor-interval": z.number(),
     "resubmit-multiplier-ceiling": z.string().transform((val) => BigInt(val)),
+    "bundler-label": z
+        .string()
+        .transform((val) => BigInt(val))
+        .refine(
+            (value) => value >= 0n && value < 10000n,
+            "Bundler label must be a non-negative number with up to 4 digits"
+        )
+        .optional()
+        .default("4337"),
     "executor-private-keys": z.union([
         z
             .array(hexData32Schema)
