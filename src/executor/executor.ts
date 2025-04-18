@@ -172,7 +172,10 @@ export class Executor {
                 }
 
                 transactionHash = await walletClient.sendTransaction(
-                    formatHandleOpsRequest({ request, label: 4444n })
+                    formatHandleOpsRequest({
+                        request,
+                        label: this.config.bundlerLabel
+                    })
                 )
 
                 break
