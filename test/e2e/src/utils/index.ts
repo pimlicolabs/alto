@@ -12,18 +12,28 @@ import {
     createPublicClient,
     createTestClient,
     createWalletClient,
-    parseEther
+    parseEther,
+    UnionPartialBy,
+    encodeFunctionData,
+    encodePacked
 } from "viem"
-import { type SmartAccount } from "viem/account-abstraction"
+import {
+    UserOperation,
+    entryPoint07Abi,
+    toPackedUserOperation,
+    type SmartAccount
+} from "viem/account-abstraction"
 import {
     generatePrivateKey,
     mnemonicToAccount,
-    privateKeyToAccount
+    privateKeyToAccount,
+    sign
 } from "viem/accounts"
 import { foundry } from "viem/chains"
 import {
     EntryPointVersion,
     getEntryPointAddress,
+    getFactoryAddress,
     getViemEntryPointVersion
 } from "../constants.js"
 
@@ -91,14 +101,54 @@ export const getSmartAccountClient = async ({
 }: AAParamType): Promise<
     SmartAccountClient<Transport, Chain, SmartAccount>
 > => {
+    const publicClient = getPublicClient(anvilRpc)
+
     const account = await toSimpleSmartAccount({
-        client: getPublicClient(anvilRpc),
+        client: publicClient,
         entryPoint: {
             address: getEntryPointAddress(entryPointVersion),
             version: getViemEntryPointVersion(entryPointVersion)
         },
+        factoryAddress: getFactoryAddress(entryPointVersion),
         owner: privateKeyToAccount(privateKey)
     })
+
+    if (entryPointVersion === "0.8") {
+        account.signUserOperation = async (
+            parameters: UnionPartialBy<UserOperation, "sender"> & {
+                chainId?: number | undefined
+            }
+        ): Promise<Hex> => {
+            const { ...userOperation } = parameters
+
+            const call = await publicClient.call({
+                to: getEntryPointAddress(entryPointVersion),
+                data: encodeFunctionData({
+                    abi: entryPoint07Abi,
+                    functionName: "getUserOpHash",
+                    args: [
+                        toPackedUserOperation(userOperation as UserOperation)
+                    ]
+                })
+            })
+
+            if (!call.data) {
+                throw new Error("getUserOpHash call failed")
+            }
+
+            const { r, s, v } = await sign({
+                hash: call.data,
+                privateKey
+            })
+
+            const signature = encodePacked(
+                ["bytes32", "bytes32", "uint8"],
+                [r, s, Number(v)]
+            )
+
+            return signature
+        }
+    }
 
     const anvilClient = createTestClient({
         transport: http(anvilRpc),

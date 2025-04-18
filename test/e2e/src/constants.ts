@@ -16,6 +16,17 @@ export const entryPoint08Address: Address = "0x4337084d9e255ff0702461cf8895ce9e3
 
 export type EntryPointVersion = "0.6" | "0.7" | "0.8"
 
+export const getFactoryAddress = (version: EntryPointVersion) => {
+    switch (version) {
+        case "0.6":
+            return SIMPLE_ACCOUNT_FACTORY_V06
+        case "0.7":
+            return SIMPLE_ACCOUNT_FACTORY_V07
+        case "0.8":
+            return SIMPLE_ACCOUNT_FACTORY_V08
+    }
+}
+
 export const getEntryPointAddress = (version: EntryPointVersion) => {
     switch (version) {
         case "0.6":
