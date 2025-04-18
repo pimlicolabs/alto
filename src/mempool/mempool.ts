@@ -23,7 +23,7 @@ import {
     isVersion07,
     scaleBigIntByPercent
 } from "@alto/utils"
-import { getAddress, getContract, zeroAddress } from "viem"
+import { getAddress, getContract } from "viem"
 import type { Monitor } from "./monitoring"
 import {
     type InterfaceReputationManager,
