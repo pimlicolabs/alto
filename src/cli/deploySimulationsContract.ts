@@ -1,7 +1,6 @@
 import {
     DETERMINISTIC_DEPLOYER_TRANSACTION,
     pimlicoEntrypointSimulationsV7DeployBytecode,
-    pimlicoEntrypointSimulationsSalt,
     pimlicoEntrypointSimulationsV8DeployBytecode
 } from "@alto/types"
 import {
@@ -12,7 +11,8 @@ import {
     http,
     type PublicClient,
     type Transport,
-    concat
+    concat,
+    keccak256
 } from "viem"
 import type { CamelCasedProperties } from "./parseArgs"
 import type { IOptions } from "@alto/cli"
@@ -40,17 +40,26 @@ export const deploySimulationsContract = async ({
     entrypointSimulationContractV7: Hex
     entrypointSimulationContractV8: Hex
 }> => {
+    const utilityPrivateKey = args.utilityPrivateKey
+    if (!utilityPrivateKey) {
+        throw new Error(
+            "Cannot deploy entryPoint simulations without utility-private-key"
+        )
+    }
+
+    const salt = keccak256(utilityPrivateKey.address)
+
     const contractAddressV7 = getContractAddress({
         opcode: "CREATE2",
         bytecode: pimlicoEntrypointSimulationsV7DeployBytecode,
-        salt: pimlicoEntrypointSimulationsSalt,
+        salt,
         from: args.deterministicDeployerAddress
     })
 
     const contractAddressV8 = getContractAddress({
         opcode: "CREATE2",
         bytecode: pimlicoEntrypointSimulationsV8DeployBytecode,
-        salt: pimlicoEntrypointSimulationsSalt,
+        salt,
         from: args.deterministicDeployerAddress
     })
 
@@ -71,24 +80,6 @@ export const deploySimulationsContract = async ({
         }
     }
 
-    const utilityPrivateKey = args.utilityPrivateKey
-    if (!utilityPrivateKey) {
-        throw new Error(
-            "Cannot deploy entryPoint simulations without utility-private-key"
-        )
-    }
-
-    // if (args.entrypointSimulationContract) {
-    //     if (
-    //         await isContractDeployed({
-    //             publicClient,
-    //             address: args.entrypointSimulationContract
-    //         })
-    //     ) {
-    //         return args.entrypointSimulationContract
-    //     }
-    // }
-
     const walletClient = createWalletClient({
         transport: http(args.rpcUrl),
         account: utilityPrivateKey
@@ -108,10 +99,7 @@ export const deploySimulationsContract = async ({
         const deployHash = await walletClient.sendTransaction({
             chain: publicClient.chain,
             to: args.deterministicDeployerAddress,
-            data: concat([
-                pimlicoEntrypointSimulationsSalt,
-                pimlicoEntrypointSimulationsV7DeployBytecode
-            ])
+            data: concat([salt, pimlicoEntrypointSimulationsV7DeployBytecode])
         })
 
         await publicClient.waitForTransactionReceipt({
@@ -125,7 +113,7 @@ export const deploySimulationsContract = async ({
                 chain: publicClient.chain,
                 to: args.deterministicDeployerAddress,
                 data: concat([
-                    pimlicoEntrypointSimulationsSalt,
+                    salt,
                     pimlicoEntrypointSimulationsV8DeployBytecode
                 ])
             })

@@ -22,6 +22,7 @@ import {
     BaseError
 } from "viem"
 import {
+    addLabel,
     calculateAA95GasFloor,
     encodeHandleOpsCalldata,
     getAuthorizationList,
@@ -169,7 +170,9 @@ export class Executor {
                     break
                 }
 
-                transactionHash = await walletClient.sendTransaction(request)
+                transactionHash = await walletClient.sendTransaction(
+                    addLabel({ request, label: 4444n })
+                )
 
                 break
             } catch (e: unknown) {

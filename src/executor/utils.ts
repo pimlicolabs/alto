@@ -10,7 +10,8 @@ import {
     isVersion06,
     toPackedUserOperation,
     type Logger,
-    isVersion07
+    isVersion07,
+    ceilingBigInt
 } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
@@ -22,7 +23,7 @@ import {
     toBytes
 } from "viem"
 import type { AltoConfig } from "../createConfig"
-import type { SignedAuthorizationList } from "viem"
+import type { SendTransactionParameters, SignedAuthorizationList } from "viem"
 
 export const isTransactionUnderpricedError = (e: BaseError) => {
     const transactionUnderPriceError = e.walk((e: any) =>
@@ -31,6 +32,39 @@ export const isTransactionUnderpricedError = (e: BaseError) => {
             .includes("replacement transaction underpriced")
     )
     return transactionUnderPriceError !== null
+}
+
+export function addLabel({
+    label,
+    request
+}: {
+    label: bigint
+    request: SendTransactionParameters
+}) {
+    const multiple = 10_000n
+
+    if (request.gasPrice && request.gasPrice > multiple) {
+        const rounded = ceilingBigInt({ value: request.gasPrice, multiple })
+        request.gasPrice = rounded + label
+    }
+
+    if (request.maxFeePerGas && request.maxFeePerGas > multiple) {
+        const rounded = ceilingBigInt({ value: request.maxFeePerGas, multiple })
+        request.maxFeePerGas = rounded + label
+    }
+
+    if (
+        request.maxPriorityFeePerGas &&
+        request.maxPriorityFeePerGas > multiple
+    ) {
+        const rounded = ceilingBigInt({
+            value: request.maxPriorityFeePerGas,
+            multiple
+        })
+        request.maxPriorityFeePerGas = rounded + label
+    }
+
+    return request
 }
 
 // V7 source: https://github.com/eth-infinitism/account-abstraction/blob/releases/v0.7/contracts/core/EntryPoint.sol
