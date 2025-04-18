@@ -38,7 +38,7 @@ export class Mempool {
     private config: AltoConfig
     private monitor: Monitor
     private reputationManager: InterfaceReputationManager
-    private store: MempoolStore
+    public store: MempoolStore
     private throttledEntityBundleCount: number
     private logger: Logger
     private validator: InterfaceValidator

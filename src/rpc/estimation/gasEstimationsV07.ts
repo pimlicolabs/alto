@@ -1091,7 +1091,7 @@ function getSimulateHandleOpResult(data: Hex): SimulateHandleOpResult {
             abi: EntryPointV07SimulationsAbi,
             functionName: "simulateHandleOp",
             data
-        }) as unknown as ExecutionResult
+        })
 
         return {
             result: "execution",

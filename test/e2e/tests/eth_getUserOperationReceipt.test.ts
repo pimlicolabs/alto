@@ -1,10 +1,17 @@
-import { parseGwei, type Address, type Hex, concat } from "viem"
 import {
-    type EntryPointVersion,
-    entryPoint06Address,
-    entryPoint07Address,
+    parseGwei,
+    type Address,
+    type Hex,
+    concat,
+    encodeFunctionData
+} from "viem"
+import {
     type UserOperation,
-    getUserOperationHash
+    getUserOperationHash,
+    entryPoint07Abi,
+    toPackedUserOperation,
+    entryPoint06Address,
+    entryPoint07Address
 } from "viem/account-abstraction"
 import { beforeAll, beforeEach, describe, expect, inject, test } from "vitest"
 import {
@@ -13,9 +20,18 @@ import {
     getRevertCall
 } from "../src/revertingContract.js"
 import { deployPaymaster } from "../src/testPaymaster.js"
-import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils/index.js"
+import {
+    beforeEachCleanUp,
+    getPublicClient,
+    getSmartAccountClient
+} from "../src/utils/index.js"
 import { deepHexlify } from "permissionless"
 import { foundry } from "viem/chains"
+import {
+    type EntryPointVersion,
+    entryPoint08Address,
+    getViemEntryPointVersion
+} from "../src/constants.js"
 
 describe.each([
     {
@@ -25,6 +41,10 @@ describe.each([
     {
         entryPoint: entryPoint07Address,
         entryPointVersion: "0.7" as EntryPointVersion
+    },
+    {
+        entryPoint: entryPoint08Address,
+        entryPointVersion: "0.8" as EntryPointVersion
     }
 ])(
     "$entryPointVersion supports eth_getUserOperationReceipt",
@@ -60,7 +80,7 @@ describe.each([
             const { factory, factoryData } =
                 await smartAccountClient.account.getFactoryArgs()
 
-            let op: UserOperation<typeof entryPointVersion>
+            let op: UserOperation
             if (entryPointVersion === "0.6") {
                 op = {
                     callData: await smartAccountClient.account.encodeCalls([
@@ -79,7 +99,7 @@ describe.each([
                     nonce: 0n,
                     maxFeePerGas: parseGwei("10"),
                     maxPriorityFeePerGas: parseGwei("10")
-                } as UserOperation<typeof entryPointVersion>
+                } as UserOperation<"0.6">
             } else {
                 op = {
                     sender: smartAccountClient.account.address,
@@ -101,7 +121,7 @@ describe.each([
                     paymaster,
                     paymasterVerificationGasLimit: 100_000n,
                     paymasterPostOpGasLimit: 50_000n
-                } as UserOperation<typeof entryPointVersion>
+                } as UserOperation<"0.7">
             }
 
             op.signature =
@@ -115,13 +135,32 @@ describe.each([
 
             await new Promise((resolve) => setTimeout(resolve, 1500))
 
-            const receipt = await smartAccountClient.getUserOperationReceipt({
-                hash: getUserOperationHash({
+            let hash: Hex
+            if (entryPointVersion === "0.8") {
+                const publicClient = getPublicClient(anvilRpc)
+
+                const res = await publicClient.call({
+                    to: entryPoint,
+                    data: encodeFunctionData({
+                        abi: entryPoint07Abi,
+                        functionName: "getUserOpHash",
+                        args: [toPackedUserOperation(op)]
+                    })
+                })
+
+                hash = res.data as Hex
+            } else {
+                hash = getUserOperationHash({
                     userOperation: op,
                     chainId: foundry.id,
                     entryPointAddress: entryPoint,
-                    entryPointVersion
+                    entryPointVersion:
+                        getViemEntryPointVersion(entryPointVersion)
                 })
+            }
+
+            const receipt = await smartAccountClient.getUserOperationReceipt({
+                hash
             })
 
             expect(receipt).not.toBeNull()
