@@ -112,7 +112,7 @@ export const executionResultSchemaV07 = z
         return {
             preOpGas: val[0],
             paid: val[1],
-            validationData: val[2],
+            accountValidationData: val[2],
             paymasterValidationData: val[3],
             paymasterVerificationGasLimit: val[4],
             paymasterPostOpGasLimit: val[5],
