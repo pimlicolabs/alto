@@ -1,9 +1,11 @@
 import {
     EntryPointV06Abi,
     EntryPointV07Abi,
+    UserOperationV06,
     type PackedUserOperation,
     type UserOpInfo,
-    type UserOperationV07
+    type UserOperationV07,
+    UserOperation
 } from "@alto/types"
 import {
     isVersion06,
@@ -33,7 +35,68 @@ export const isTransactionUnderpricedError = (e: BaseError) => {
 }
 
 // V7 source: https://github.com/eth-infinitism/account-abstraction/blob/releases/v0.7/contracts/core/EntryPoint.sol
+export function calculateAA95GasFloorV7(
+    userOp: UserOperationV07,
+    beneficiary: Address
+): bigint {
+    let gasFloor = 0n
+
+    const totalGas =
+        userOp.callGasLimit + (userOp.paymasterPostOpGasLimit || 0n) + 10_000n
+    gasFloor += (totalGas * 64n) / 63n
+
+    // AA95 check happens after verification + paymaster verification
+    gasFloor +=
+        userOp.verificationGasLimit +
+        (userOp.paymasterVerificationGasLimit || 0n)
+
+    // There is a ~27,170 gas overhead for EntryPoint's re-entrency check
+    gasFloor += 30_000n
+
+    // There is a variable gas overhead for calldata gas when calling handleOps
+    const calldata = encodeHandleOpsCalldata({
+        userOps: [userOp],
+        beneficiary
+    })
+    const handleOpsCalldataCost = toBytes(calldata)
+        .map((x) => (x === 0 ? 4 : 16))
+        .reduce((sum, x) => sum + x)
+
+    gasFloor += BigInt(handleOpsCalldataCost)
+
+    return gasFloor
+}
+
 // V6 source: https://github.com/eth-infinitism/account-abstraction/blob/fa61290d37d079e928d92d53a122efcc63822214/contracts/core/EntryPoint.sol#L236
+export function calculateAA95GasFloorV6(
+    userOp: UserOperationV06,
+    beneficiary: Address
+): bigint {
+    let gasFloor = 0n
+
+    gasFloor += userOp.callGasLimit + userOp.verificationGasLimit + 5000n
+
+    // AA95 check happens after verification + paymaster verification
+    gasFloor += userOp.verificationGasLimit
+
+    // There is a ~27,179 gas overhead for EntryPoint's re-entrency check
+    gasFloor += 30_000n
+
+    // There is a variable gas overhead for calldata gas when calling handleOps
+    const calldata = encodeHandleOpsCalldata({
+        userOps: [userOp],
+        beneficiary
+    })
+    const handleOpsCalldataCost = toBytes(calldata)
+        .map((x) => (x === 0 ? 4 : 16))
+        .reduce((sum, x) => sum + x)
+
+    gasFloor += BigInt(handleOpsCalldataCost)
+
+    return gasFloor
+}
+
+// Main function that determines the correct version to use
 export function calculateAA95GasFloor(
     userOps: UserOpInfo[],
     beneficiary: Address
@@ -43,50 +106,9 @@ export function calculateAA95GasFloor(
     for (const userOpInfo of userOps) {
         const { userOp } = userOpInfo
         if (isVersion07(userOp)) {
-            const totalGas =
-                userOp.callGasLimit +
-                (userOp.paymasterPostOpGasLimit || 0n) +
-                10_000n
-            gasFloor += (totalGas * 64n) / 63n
-
-            // AA95 check happens after verification + paymaster verification
-            gasFloor +=
-                userOp.verificationGasLimit +
-                (userOp.paymasterVerificationGasLimit || 0n)
-
-            // There is a ~27,170 gas overhead for EntryPoint's re-entrency check
-            gasFloor += 30_000n
-
-            // There is a variable gas overhead for calldata gas when calling handleOps
-            const calldata = encodeHandleOpsCalldata({
-                userOps: userOps,
-                beneficiary
-            })
-            const handleOpsCalldataCost = toBytes(calldata)
-                .map((x) => (x === 0 ? 4 : 16))
-                .reduce((sum, x) => sum + x)
-
-            gasFloor += BigInt(handleOpsCalldataCost)
+            gasFloor += calculateAA95GasFloorV7(userOp, beneficiary)
         } else {
-            gasFloor +=
-                userOp.callGasLimit + userOp.verificationGasLimit + 5000n
-
-            // AA95 check happens after verification + paymaster verification
-            gasFloor += userOp.verificationGasLimit
-
-            // There is a ~27,179 gas overhead for EntryPoint's re-entrency check
-            gasFloor += 30_000n
-
-            // There is a variable gas overhead for calldata gas when calling handleOps
-            const calldata = encodeHandleOpsCalldata({
-                userOps: userOps,
-                beneficiary
-            })
-            const handleOpsCalldataCost = toBytes(calldata)
-                .map((x) => (x === 0 ? 4 : 16))
-                .reduce((sum, x) => sum + x)
-
-            gasFloor += BigInt(handleOpsCalldataCost)
+            gasFloor += calculateAA95GasFloorV6(userOp, beneficiary)
         }
     }
 
@@ -97,8 +119,7 @@ export const getUserOpHashes = (userOpInfos: UserOpInfo[]) => {
     return userOpInfos.map(({ userOpHash }) => userOpHash)
 }
 
-export const packUserOps = (userOpInfos: UserOpInfo[]) => {
-    const userOps = userOpInfos.map(({ userOp }) => userOp)
+export const packUserOps = (userOps: UserOperation[]) => {
     const isV06 = isVersion06(userOps[0])
     const packedUserOps = isV06
         ? userOps
@@ -110,11 +131,10 @@ export const encodeHandleOpsCalldata = ({
     userOps,
     beneficiary
 }: {
-    userOps: UserOpInfo[]
+    userOps: UserOperation[]
     beneficiary: Address
 }): Hex => {
-    const ops = userOps.map(({ userOp }) => userOp)
-    const isV06 = isVersion06(ops[0])
+    const isV06 = isVersion06(userOps[0])
     const packedUserOps = packUserOps(userOps)
 
     return encodeFunctionData({

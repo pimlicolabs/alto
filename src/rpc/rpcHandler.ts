@@ -191,11 +191,11 @@ export class RpcHandler {
 
         if (isVersion06(userOperation)) {
             const gasLimits =
-                userOperation.callGasLimit + userOperation.verificationGasLimit
+                userOperation.callGasLimit +
+                userOperation.verificationGasLimit +
+                userOperation.verificationGasLimit
 
-            const maxGasPerBundle = (this.config.maxGasPerBundle * 130n) / 100n
-
-            if (gasLimits > maxGasPerBundle) {
+            if (gasLimits > this.config.maxGasPerBundle) {
                 throw new RpcError(
                     `User operation gas limits exceed the max gas per bundle: ${gasLimits} > ${this.config.maxGasPerBundle}`
                 )

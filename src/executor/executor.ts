@@ -127,7 +127,7 @@ export class Executor {
         } = this.config
 
         const handleOpsCalldata = encodeHandleOpsCalldata({
-            userOps,
+            userOps: userOps.map(({ userOp }) => userOp),
             beneficiary: account.address
         })
 

@@ -23,7 +23,7 @@ import {
     isVersion07,
     scaleBigIntByPercent
 } from "@alto/utils"
-import { getAddress, getContract } from "viem"
+import { getAddress, getContract, zeroAddress } from "viem"
 import type { Monitor } from "./monitoring"
 import {
     type InterfaceReputationManager,
@@ -31,6 +31,11 @@ import {
 } from "./reputationManager"
 import type { AltoConfig } from "../createConfig"
 import type { MempoolStore } from "@alto/store"
+import {
+    calculateAA95GasFloorV6,
+    calculateAA95GasFloorV7
+} from "../executor/utils"
+import { privateKeyToAddress, generatePrivateKey } from "viem/accounts"
 
 export class Mempool {
     private config: AltoConfig
@@ -726,13 +731,13 @@ export class Mempool {
                     continue
                 }
 
-                gasUsed +=
-                    userOp.callGasLimit +
-                    userOp.verificationGasLimit +
-                    (isVersion07(userOp)
-                        ? (userOp.paymasterPostOpGasLimit || 0n) +
-                          (userOp.paymasterVerificationGasLimit || 0n)
-                        : 0n)
+                const beneficiary =
+                    this.config.utilityPrivateKey?.address ||
+                    privateKeyToAddress(generatePrivateKey())
+
+                gasUsed += isVersion06(userOp)
+                    ? calculateAA95GasFloorV6(userOp, beneficiary)
+                    : calculateAA95GasFloorV7(userOp, beneficiary)
 
                 // Only break on gas limit if we've hit minOpsPerBundle
                 if (
