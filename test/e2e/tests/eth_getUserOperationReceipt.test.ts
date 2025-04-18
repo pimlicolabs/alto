@@ -70,7 +70,7 @@ describe.each([
         })
 
         // uses pimlico_sendUserOperationNow to force send a reverting op (because it skips validation)
-        test.only("Returns revert bytes when UserOperation reverts", async () => {
+        test("Returns revert bytes when UserOperation reverts", async () => {
             const smartAccountClient = await getSmartAccountClient({
                 entryPointVersion,
                 anvilRpc,
