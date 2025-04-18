@@ -324,7 +324,7 @@ export class Executor {
 
         // Ensure that we don't submit with gas too low leading to AA95.
         const aa95GasFloor = calculateAA95GasFloor(
-            userOpsToBundle,
+            userOpsToBundle.map(({ userOp }) => userOp),
             executor.address
         )
         gasLimit = maxBigInt(gasLimit, aa95GasFloor)
