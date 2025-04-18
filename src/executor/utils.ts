@@ -34,7 +34,7 @@ export const isTransactionUnderpricedError = (e: BaseError) => {
     return transactionUnderPriceError !== null
 }
 
-export function addLabel({
+export function formatHandleOpsRequest({
     label,
     request
 }: {
