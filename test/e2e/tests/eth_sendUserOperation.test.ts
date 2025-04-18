@@ -489,15 +489,15 @@ describe.each([
 
             const invalidPaymasterSignature = "0xff"
 
-            if (entryPointVersion === "0.7") {
-                op.paymaster = paymaster
-                op.paymasterData = invalidPaymasterSignature // FAILING CONDITION
-                op.paymasterVerificationGasLimit = 100_000n
-            } else {
+            if (entryPointVersion === "0.6") {
                 op.paymasterAndData = concat([
                     paymaster,
                     invalidPaymasterSignature
                 ])
+            } else {
+                op.paymaster = paymaster
+                op.paymasterData = invalidPaymasterSignature // FAILING CONDITION
+                op.paymasterVerificationGasLimit = 100_000n
             }
 
             op.signature = await client.account.signUserOperation(op)
