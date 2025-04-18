@@ -33,7 +33,8 @@ export const isTransactionUnderpricedError = (e: BaseError) => {
     return transactionUnderPriceError !== null
 }
 
-// Main function that determines the correct version to use
+// V7 source: https://github.com/eth-infinitism/account-abstraction/blob/releases/v0.7/contracts/core/EntryPoint.sol
+// V6 source: https://github.com/eth-infinitism/account-abstraction/blob/fa61290d37d079e928d92d53a122efcc63822214/contracts/core/EntryPoint.sol#L236
 export function calculateAA95GasFloor({
     userOps,
     beneficiary
@@ -41,7 +42,6 @@ export function calculateAA95GasFloor({
     let gasFloor = 0n
 
     for (const userOp of userOps) {
-        // V7 source: https://github.com/eth-infinitism/account-abstraction/blob/releases/v0.7/contracts/core/EntryPoint.sol
         if (isVersion07(userOp)) {
             const totalGas =
                 userOp.callGasLimit +
@@ -69,7 +69,6 @@ export function calculateAA95GasFloor({
 
             gasFloor += BigInt(handleOpsCalldataCost)
         } else {
-            // V6 source: https://github.com/eth-infinitism/account-abstraction/blob/fa61290d37d079e928d92d53a122efcc63822214/contracts/core/EntryPoint.sol#L236
             gasFloor +=
                 userOp.callGasLimit + userOp.verificationGasLimit + 5000n
 
