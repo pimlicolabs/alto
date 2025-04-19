@@ -1,6 +1,5 @@
 import { http, createTestClient } from "viem"
 import {
-    type EntryPointVersion,
     UserOperationNotFoundError,
     UserOperationReceiptNotFoundError,
     entryPoint06Address,
@@ -13,6 +12,7 @@ import {
     getPimlicoClient,
     getSmartAccountClient
 } from "../src/utils/index.js"
+import { EntryPointVersion, entryPoint08Address } from "../src/constants.js"
 
 describe.each([
     {
@@ -22,6 +22,10 @@ describe.each([
     {
         entryPoint: entryPoint07Address,
         entryPointVersion: "0.7" as EntryPointVersion
+    },
+    {
+        entryPoint: entryPoint08Address,
+        entryPointVersion: "0.8" as EntryPointVersion
     }
 ])(
     "$entryPointVersion supports eth_getUserOperationByHash",

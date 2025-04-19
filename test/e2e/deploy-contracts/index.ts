@@ -8,11 +8,12 @@ import {
 import { mnemonicToAccount } from "viem/accounts"
 import { foundry } from "viem/chains"
 import {
-    ENTRY_POINT_SIMULATIONS_CREATECALL,
-    ENTRY_POINT_V06_CREATECALL,
+    ENTRY_POINT_V08_CREATECALL,
     ENTRY_POINT_V07_CREATECALL,
-    SIMPLE_ACCOUNT_FACTORY_V06_CREATECALL,
-    SIMPLE_ACCOUNT_FACTORY_V07_CREATECALL
+    ENTRY_POINT_V06_CREATECALL,
+    SIMPLE_ACCOUNT_FACTORY_V08_CREATECALL,
+    SIMPLE_ACCOUNT_FACTORY_V07_CREATECALL,
+    SIMPLE_ACCOUNT_FACTORY_V06_CREATECALL
 } from "./constants.js"
 
 const DETERMINISTIC_DEPLOYER = "0x4e59b44847b379578588920ca78fbf26c0b4956c"
@@ -51,6 +52,24 @@ export async function setupContracts({ anvilRpc }: { anvilRpc: string }) {
     walletClient
         .sendTransaction({
             to: DETERMINISTIC_DEPLOYER,
+            data: ENTRY_POINT_V08_CREATECALL,
+            gas: 15_000_000n,
+            nonce: nonce++
+        })
+        .then(() => console.log("[V0.8 CORE] Deploying EntryPoint"))
+
+    walletClient
+        .sendTransaction({
+            to: DETERMINISTIC_DEPLOYER,
+            data: SIMPLE_ACCOUNT_FACTORY_V08_CREATECALL,
+            gas: 15_000_000n,
+            nonce: nonce++
+        })
+        .then(() => console.log("[V0.8 CORE] Deploying SimpleAccountFactory"))
+
+    walletClient
+        .sendTransaction({
+            to: DETERMINISTIC_DEPLOYER,
             data: ENTRY_POINT_V07_CREATECALL,
             gas: 15_000_000n,
             nonce: nonce++
@@ -65,17 +84,6 @@ export async function setupContracts({ anvilRpc }: { anvilRpc: string }) {
             nonce: nonce++
         })
         .then(() => console.log("[V0.7 CORE] Deploying SimpleAccountFactory"))
-
-    walletClient
-        .sendTransaction({
-            to: DETERMINISTIC_DEPLOYER,
-            data: ENTRY_POINT_SIMULATIONS_CREATECALL,
-            gas: 15_000_000n,
-            nonce: nonce++
-        })
-        .then(async () =>
-            console.log("[V0.7 CORE] Deploying EntryPointSimulations")
-        )
 
     walletClient
         .sendTransaction({
@@ -112,7 +120,8 @@ export async function setupContracts({ anvilRpc }: { anvilRpc: string }) {
             "0x4e59b44847b379578588920ca78fbf26c0b4956c",
             "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
             "0x91E60e0613810449d098b0b5Ec8b51A0FE8c8985",
-            "0xe1b9bcD4DbfAE61585691bdB9A100fbaAF6C8dB0" // 0.7 Simulations Contract
+            "0x4337084d9e255ff0702461cf8895ce9e3b5ff108",
+            "0x13E9ed32155810FDbd067D4522C492D6f68E5944"
         ]
     })
 }
