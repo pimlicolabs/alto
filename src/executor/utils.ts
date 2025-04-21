@@ -10,8 +10,7 @@ import {
     isVersion06,
     toPackedUserOperation,
     type Logger,
-    isVersion07,
-    roundUpBigInt
+    isVersion07
 } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
@@ -23,7 +22,7 @@ import {
     toBytes
 } from "viem"
 import type { AltoConfig } from "../createConfig"
-import type { SendTransactionParameters, SignedAuthorizationList } from "viem"
+import type { SignedAuthorizationList } from "viem"
 
 export const isTransactionUnderpricedError = (e: BaseError) => {
     const transactionUnderPriceError = e.walk((e: any) =>
