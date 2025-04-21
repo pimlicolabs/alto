@@ -11,7 +11,7 @@ import {
     toPackedUserOperation,
     type Logger,
     isVersion07,
-    ceilingBigInt
+    roundUpBigInt
 } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
@@ -32,39 +32,6 @@ export const isTransactionUnderpricedError = (e: BaseError) => {
             .includes("replacement transaction underpriced")
     )
     return transactionUnderPriceError !== null
-}
-
-export function formatHandleOpsRequest({
-    label,
-    request
-}: {
-    label: bigint
-    request: SendTransactionParameters
-}) {
-    const multiple = 10_000n
-
-    if (request.gasPrice && request.gasPrice > multiple) {
-        const rounded = ceilingBigInt({ value: request.gasPrice, multiple })
-        request.gasPrice = rounded + label
-    }
-
-    if (request.maxFeePerGas && request.maxFeePerGas > multiple) {
-        const rounded = ceilingBigInt({ value: request.maxFeePerGas, multiple })
-        request.maxFeePerGas = rounded + label
-    }
-
-    if (
-        request.maxPriorityFeePerGas &&
-        request.maxPriorityFeePerGas > multiple
-    ) {
-        const rounded = ceilingBigInt({
-            value: request.maxPriorityFeePerGas,
-            multiple
-        })
-        request.maxPriorityFeePerGas = rounded + label
-    }
-
-    return request
 }
 
 // V7 source: https://github.com/eth-infinitism/account-abstraction/blob/releases/v0.7/contracts/core/EntryPoint.sol

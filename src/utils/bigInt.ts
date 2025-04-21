@@ -16,7 +16,7 @@ export const scaleBigIntByPercent = (
     return (value * percent) / 100n
 }
 
-export const ceilingBigInt = ({
+export const roundUpBigInt = ({
     value,
     multiple
 }: { value: bigint; multiple: bigint }): bigint => {

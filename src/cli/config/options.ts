@@ -333,8 +333,8 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         require: false,
         default: "300"
     },
-    "bundler-label": {
-        description: "Unique identifier for this bundler (up to 4 digits)",
+    "gas-limit-rounding-multiple": {
+        description: "Value to round transaction gas limit to the nearest multiple of",
         type: "string",
         require: false,
         default: "4337"
