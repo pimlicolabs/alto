@@ -27,7 +27,6 @@ import {
     BaseError
 } from "viem"
 import {
-    formatHandleOpsRequest,
     calculateAA95GasFloor,
     encodeHandleOpsCalldata,
     getAuthorizationList,
