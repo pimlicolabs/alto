@@ -33,6 +33,9 @@ export const PimlicoEntryPointSimulationsAbi = [
 export const DETERMINISTIC_DEPLOYER_TRANSACTION =
     "0xf8a58085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf31ba02222222222222222222222222222222222222222222222222222222222222222a02222222222222222222222222222222222222222222222222222222222222222"
 
+export const pimlicoEntrypointSimulationsSalt =
+    "0x3132333400000000000000000000000000000000000000000000000000000000"
+
 // https://github.com/pimlicolabs/contracts/blob/1ba9fa6d53f47cf5dbdf1d7522c4a77249f8de66/src/v08/PimlicoEntryPointSimulationsV8.sol
 // compiled with solc 0.8.28 and evm_version: cancun
 export const pimlicoEntrypointSimulationsV8DeployBytecode =
