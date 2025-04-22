@@ -48,15 +48,31 @@ export const createMethodHandler = <T extends z.ZodType>(methodConfig: {
     return {
         schema: methodConfig.schema,
         method: methodConfig.method,
-        handler: (args) => {
+        handler: async (args) => {
+            const handlerStartTime = performance.now()
+            console.log(`[LATENCY] STEP 5.3.0: Creating frozen params for ${methodConfig.method}`)
+            
+            const freezeStart = performance.now()
             const frozenParams = freezeDeep(args.params)
+            const freezeEnd = performance.now()
+            
+            console.log(`[LATENCY] STEP 5.3.0.1: Parameter freezing for ${methodConfig.method} took ${freezeEnd - freezeStart}ms`)
 
             // Call the handler with frozen params
-            return methodConfig.handler({
+            console.log(`[LATENCY] STEP 5.3.0.2: Calling actual handler for ${methodConfig.method}`)
+            const handlerCallStart = performance.now()
+            
+            const result = await methodConfig.handler({
                 rpcHandler: args.rpcHandler,
                 params: frozenParams,
                 apiVersion: args.apiVersion
             })
+            
+            const handlerCallEnd = performance.now()
+            console.log(`[LATENCY] STEP 5.3.0.3: Actual handler for ${methodConfig.method} took ${handlerCallEnd - handlerCallStart}ms`)
+            console.log(`[LATENCY] STEP 5.3.0.4: Total handler wrapper time for ${methodConfig.method}: ${handlerCallEnd - handlerStartTime}ms`)
+            
+            return result
         }
     }
 }
