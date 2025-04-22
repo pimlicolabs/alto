@@ -68,11 +68,6 @@ export interface InterfaceValidator {
         }
     >
 
-    validatePreVerificationGas(args: {
-        userOperation: UserOperation
-        entryPoint: Address
-    }): Promise<void>
-
     validateUserOperation(args: {
         shouldCheckPrefund: boolean
         userOperation: UserOperation

@@ -195,28 +195,7 @@ export class RpcHandler {
         }
     }
 
-    // check if we want to bundle userOperation. If yes, add to mempool
-    async addToMempoolIfValid(
-        userOperation: UserOperation,
-        entryPoint: Address,
-        apiVersion: ApiVersion
-    ): Promise<"added" | "queued"> {
-        this.ensureEntryPointIsSupported(entryPoint)
-
-        const opHash = await getUserOperationHash({
-            userOperation: userOperation,
-            entryPointAddress: entryPoint,
-            chainId: this.config.chainId,
-            publicClient: this.config.publicClient
-        })
-
-        await this.preMempoolChecks(
-            opHash,
-            userOperation,
-            apiVersion,
-            entryPoint
-        )
-
+    async getNonceValues(userOperation: UserOperation, entryPoint: Address) {
         const currentNonceValue = await this.getNonceValue(
             userOperation,
             entryPoint
@@ -225,34 +204,72 @@ export class RpcHandler {
             userOperation.nonce
         )
 
-        if (userOperationNonceValue < currentNonceValue) {
-            const reason =
-                "UserOperation failed validation with reason: AA25 invalid account nonce"
-            this.eventManager.emitFailedValidation(opHash, reason, "AA25")
-            throw new RpcError(reason, ValidationErrors.InvalidFields)
-        }
-        if (userOperationNonceValue > currentNonceValue + 10n) {
-            const reason =
-                "UserOperation failed validaiton with reason: AA25 invalid account nonce"
-            this.eventManager.emitFailedValidation(opHash, reason, "AA25")
-            throw new RpcError(reason, ValidationErrors.InvalidFields)
-        }
-
         const queuedUserOperations: UserOperation[] =
             await this.mempool.getQueuedOustandingUserOps({
                 userOp: userOperation,
                 entryPoint
             })
 
+        return {
+            currentNonceValue,
+            userOperationNonceValue,
+            queuedUserOperations
+        }
+    }
+
+    // check if we want to bundle userOperation. If yes, add to mempool
+    async addToMempoolIfValid(
+        userOperation: UserOperation,
+        entryPoint: Address,
+        apiVersion: ApiVersion
+    ): Promise<"added" | "queued"> {
+        this.ensureEntryPointIsSupported(entryPoint)
+
+        const userOpHash = await getUserOperationHash({
+            userOperation: userOperation,
+            entryPointAddress: entryPoint,
+            chainId: this.config.chainId,
+            publicClient: this.config.publicClient
+        })
+
+        await this.preMempoolChecks(
+            userOpHash,
+            userOperation,
+            apiVersion,
+            entryPoint
+        )
+
+        // Nonce validation
+        const {
+            userOperationNonceValue,
+            currentNonceValue,
+            queuedUserOperations
+        } = await this.getNonceValues(userOperation, entryPoint)
+
+        if (userOperationNonceValue < currentNonceValue) {
+            const reason =
+                "UserOperation failed validation with reason: AA25 invalid account nonce"
+            this.eventManager.emitFailedValidation(userOpHash, reason, "AA25")
+            throw new RpcError(reason, ValidationErrors.InvalidFields)
+        }
+
+        if (userOperationNonceValue > currentNonceValue + 10n) {
+            const reason =
+                "UserOperation failed validaiton with reason: AA25 invalid account nonce"
+            this.eventManager.emitFailedValidation(userOpHash, reason, "AA25")
+            throw new RpcError(reason, ValidationErrors.InvalidFields)
+        }
+
         if (
             userOperationNonceValue >
             currentNonceValue + BigInt(queuedUserOperations.length)
         ) {
             this.mempool.add(userOperation, entryPoint)
-            this.eventManager.emitQueued(opHash)
+            this.eventManager.emitQueued(userOpHash)
             return "queued"
         }
 
+        // userOp validation
         if (this.config.dangerousSkipUserOperationValidation) {
             const [success, errorReason] = await this.mempool.add(
                 userOperation,
@@ -260,7 +277,7 @@ export class RpcHandler {
             )
             if (!success) {
                 this.eventManager.emitFailedValidation(
-                    opHash,
+                    userOpHash,
                     errorReason,
                     getAAError(errorReason)
                 )
@@ -269,16 +286,23 @@ export class RpcHandler {
             return "added"
         }
 
+        // PVG validation
         if (apiVersion !== "v1") {
-            await this.validator.validatePreVerificationGas({
+            const requiredPvg = await calcPreVerificationGas({
+                config: this.config,
                 userOperation,
-                entryPoint
+                entryPoint,
+                gasPriceManager: this.gasPriceManager,
+                validate: true
             })
+
+            if (requiredPvg > userOperation.preVerificationGas) {
+                throw new RpcError(
+                    `preVerificationGas is not enough, required: ${requiredPvg}, got: ${userOperation.preVerificationGas}`,
+                    ValidationErrors.SimulateValidation
+                )
+            }
         }
-        await this.mempool.checkEntityMultipleRoleViolation(
-            entryPoint,
-            userOperation
-        )
 
         // V1 api doesn't check prefund.
         const shouldCheckPrefund =
@@ -309,7 +333,7 @@ export class RpcHandler {
 
         if (!success) {
             this.eventManager.emitFailedValidation(
-                opHash,
+                userOpHash,
                 errorReason,
                 getAAError(errorReason)
             )
