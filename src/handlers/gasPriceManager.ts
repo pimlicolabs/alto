@@ -206,23 +206,30 @@ export class GasPriceManager {
     }
 
     private async estimateGasPrice(): Promise<GasPriceParameters> {
-        const startTime = performance.now()
-        this.logger.info(`[LATENCY] STEP 5.3.2.1.1.1.9.1: estimateGasPrice method started`)
-        
+        this.logger.info(
+            `[LATENCY] STEP 5.3.2.1.1.1.9.1: estimateGasPrice method started`
+        )
+
         let maxFeePerGas: bigint | undefined
         let maxPriorityFeePerGas: bigint | undefined
 
         try {
             const rpcCallStart = performance.now()
-            this.logger.info(`[LATENCY] STEP 5.3.2.1.1.1.9.2: Starting RPC call to estimateFeesPerGas`)
-            
+            this.logger.info(
+                `[LATENCY] STEP 5.3.2.1.1.1.9.2: Starting RPC call to estimateFeesPerGas`
+            )
+
             const fees = await this.config.publicClient.estimateFeesPerGas({
                 chain: this.config.publicClient.chain
             })
-            
+
             const rpcCallEnd = performance.now()
-            this.logger.info(`[LATENCY] STEP 5.3.2.1.1.1.9.3: RPC call to estimateFeesPerGas completed: ${rpcCallEnd - rpcCallStart}ms`)
-            
+            this.logger.info(
+                `[LATENCY] STEP 5.3.2.1.1.1.9.3: RPC call to estimateFeesPerGas completed: ${
+                    rpcCallEnd - rpcCallStart
+                }ms`
+            )
+
             maxFeePerGas = fees.maxFeePerGas
             maxPriorityFeePerGas = fees.maxPriorityFeePerGas
         } catch (e) {
@@ -274,19 +281,26 @@ export class GasPriceManager {
 
     // This method throws if it can't get a valid RPC response.
     private async innerGetGasPrice(): Promise<GasPriceParameters> {
-        const startTime = performance.now()
-        this.logger.info(`[LATENCY] STEP 5.3.2.1.1.1.1: innerGetGasPrice method started`)
-        
+        this.logger.info(
+            `[LATENCY] STEP 5.3.2.1.1.1.1: innerGetGasPrice method started`
+        )
+
         let maxFeePerGas = 0n
         let maxPriorityFeePerGas = 0n
 
         if (this.config.chainId === polygon.id) {
-            this.logger.info(`[LATENCY] STEP 5.3.2.1.1.1.2: Using Polygon gas price API`)
+            this.logger.info(
+                `[LATENCY] STEP 5.3.2.1.1.1.2: Using Polygon gas price API`
+            )
             const polygonStart = performance.now()
             const polygonEstimate = await this.getPolygonGasPriceParameters()
             const polygonEnd = performance.now()
-            this.logger.info(`[LATENCY] STEP 5.3.2.1.1.1.3: Polygon gas price fetch completed: ${polygonEnd - polygonStart}ms`)
-            
+            this.logger.info(
+                `[LATENCY] STEP 5.3.2.1.1.1.3: Polygon gas price fetch completed: ${
+                    polygonEnd - polygonStart
+                }ms`
+            )
+
             if (polygonEstimate) {
                 const bumpStart = performance.now()
                 const gasPrice = this.bumpTheGasPrice({
@@ -294,7 +308,11 @@ export class GasPriceManager {
                     maxPriorityFeePerGas: polygonEstimate.maxPriorityFeePerGas
                 })
                 const bumpEnd = performance.now()
-                this.logger.info(`[LATENCY] STEP 5.3.2.1.1.1.4: Gas price bumping completed: ${bumpEnd - bumpStart}ms`)
+                this.logger.info(
+                    `[LATENCY] STEP 5.3.2.1.1.1.4: Gas price bumping completed: ${
+                        bumpEnd - bumpStart
+                    }ms`
+                )
 
                 return {
                     maxFeePerGas: maxBigInt(
@@ -310,17 +328,27 @@ export class GasPriceManager {
         }
 
         if (this.config.legacyTransactions) {
-            this.logger.info(`[LATENCY] STEP 5.3.2.1.1.1.5: Using legacy transactions gas price`)
+            this.logger.info(
+                `[LATENCY] STEP 5.3.2.1.1.1.5: Using legacy transactions gas price`
+            )
             const legacyStart = performance.now()
             const legacyGasPrice = await this.getLegacyTransactionGasPrice()
             const legacyEnd = performance.now()
-            this.logger.info(`[LATENCY] STEP 5.3.2.1.1.1.6: Legacy gas price fetch completed: ${legacyEnd - legacyStart}ms`)
-            
+            this.logger.info(
+                `[LATENCY] STEP 5.3.2.1.1.1.6: Legacy gas price fetch completed: ${
+                    legacyEnd - legacyStart
+                }ms`
+            )
+
             const bumpStart = performance.now()
             const gasPrice = this.bumpTheGasPrice(legacyGasPrice)
             const bumpEnd = performance.now()
-            this.logger.info(`[LATENCY] STEP 5.3.2.1.1.1.7: Legacy gas price bumping completed: ${bumpEnd - bumpStart}ms`)
-            
+            this.logger.info(
+                `[LATENCY] STEP 5.3.2.1.1.1.7: Legacy gas price bumping completed: ${
+                    bumpEnd - bumpStart
+                }ms`
+            )
+
             return {
                 maxFeePerGas: maxBigInt(gasPrice.maxFeePerGas, maxFeePerGas),
                 maxPriorityFeePerGas: maxBigInt(
@@ -330,11 +358,17 @@ export class GasPriceManager {
             }
         }
 
-        this.logger.info(`[LATENCY] STEP 5.3.2.1.1.1.8: Using EIP-1559 gas price estimation`)
+        this.logger.info(
+            `[LATENCY] STEP 5.3.2.1.1.1.8: Using EIP-1559 gas price estimation`
+        )
         const estimateStart = performance.now()
         const estimatedPrice = await this.estimateGasPrice()
         const estimateEnd = performance.now()
-        this.logger.info(`[LATENCY] STEP 5.3.2.1.1.1.9: EIP-1559 gas price estimation completed: ${estimateEnd - estimateStart}ms`)
+        this.logger.info(
+            `[LATENCY] STEP 5.3.2.1.1.1.9: EIP-1559 gas price estimation completed: ${
+                estimateEnd - estimateStart
+            }ms`
+        )
 
         maxFeePerGas = estimatedPrice.maxFeePerGas
         maxPriorityFeePerGas = estimatedPrice.maxPriorityFeePerGas
@@ -345,7 +379,11 @@ export class GasPriceManager {
             maxPriorityFeePerGas
         })
         const bumpEnd = performance.now()
-        this.logger.info(`[LATENCY] STEP 5.3.2.1.1.1.10: EIP-1559 gas price bumping completed: ${bumpEnd - bumpStart}ms`)
+        this.logger.info(
+            `[LATENCY] STEP 5.3.2.1.1.1.10: EIP-1559 gas price bumping completed: ${
+                bumpEnd - bumpStart
+            }ms`
+        )
         return {
             maxFeePerGas: maxBigInt(gasPrice.maxFeePerGas, maxFeePerGas),
             maxPriorityFeePerGas: maxBigInt(
@@ -399,34 +437,58 @@ export class GasPriceManager {
     // This method throws if it can't get a valid RPC response.
     private async tryUpdateGasPrice(): Promise<GasPriceParameters> {
         const startTime = performance.now()
-        this.logger.info(`[LATENCY] STEP 5.3.2.1.1.1: innerGetGasPrice starting`)
-        
+        this.logger.info(
+            `[LATENCY] STEP 5.3.2.1.1.1: innerGetGasPrice starting`
+        )
+
         const gasPrice = await this.innerGetGasPrice()
-        
+
         const gasPriceTime = performance.now()
-        this.logger.info(`[LATENCY] STEP 5.3.2.1.1.2: innerGetGasPrice completed: ${gasPriceTime - startTime}ms`)
+        this.logger.info(
+            `[LATENCY] STEP 5.3.2.1.1.2: innerGetGasPrice completed: ${
+                gasPriceTime - startTime
+            }ms`
+        )
 
         const saveStart = performance.now()
         await this.maxFeePerGasQueue.saveValue(gasPrice.maxFeePerGas)
         const saveFeeTime = performance.now()
-        this.logger.info(`[LATENCY] STEP 5.3.2.1.1.3: maxFeePerGasQueue.saveValue time: ${saveFeeTime - saveStart}ms`)
-        
-        await this.maxPriorityFeePerGasQueue.saveValue(gasPrice.maxPriorityFeePerGas)
+        this.logger.info(
+            `[LATENCY] STEP 5.3.2.1.1.3: maxFeePerGasQueue.saveValue time: ${
+                saveFeeTime - saveStart
+            }ms`
+        )
+
+        await this.maxPriorityFeePerGasQueue.saveValue(
+            gasPrice.maxPriorityFeePerGas
+        )
         const savePriorityTime = performance.now()
-        this.logger.info(`[LATENCY] STEP 5.3.2.1.1.4: maxPriorityFeePerGasQueue.saveValue time: ${savePriorityTime - saveFeeTime}ms`)
+        this.logger.info(
+            `[LATENCY] STEP 5.3.2.1.1.4: maxPriorityFeePerGasQueue.saveValue time: ${
+                savePriorityTime - saveFeeTime
+            }ms`
+        )
 
         const endTime = performance.now()
-        this.logger.info(`[LATENCY] STEP 5.3.2.1.1.5: tryUpdateGasPrice total time: ${endTime - startTime}ms`)
+        this.logger.info(
+            `[LATENCY] STEP 5.3.2.1.1.5: tryUpdateGasPrice total time: ${
+                endTime - startTime
+            }ms`
+        )
         return gasPrice
     }
 
     public async getGasPrice(): Promise<GasPriceParameters> {
         const gasPriceStartTime = performance.now()
         this.logger.info("[LATENCY] STEP 5.3.2.1: getGasPrice method started")
-        
+
         if (this.config.isGasFreeChain) {
             const endTime = performance.now()
-            this.logger.info(`[LATENCY] getGasPrice early return (gas free chain): ${endTime - gasPriceStartTime}ms`)
+            this.logger.info(
+                `[LATENCY] getGasPrice early return (gas free chain): ${
+                    endTime - gasPriceStartTime
+                }ms`
+            )
             return {
                 maxFeePerGas: 0n,
                 maxPriorityFeePerGas: 0n
@@ -436,53 +498,95 @@ export class GasPriceManager {
         if (this.config.gasPriceRefreshInterval === 0) {
             try {
                 const updateStartTime = performance.now()
-                
+
                 // Capture RPC call times
                 const rpcCallStart = performance.now()
-                this.logger.info(`[LATENCY] STEP 5.3.2.1.1: Starting RPC call for gas price`)
-                
+                this.logger.info(
+                    `[LATENCY] STEP 5.3.2.1.1: Starting RPC call for gas price`
+                )
+
                 const result = await this.tryUpdateGasPrice()
-                
+
                 const rpcCallEnd = performance.now()
-                this.logger.info(`[LATENCY] STEP 5.3.2.1.2: RPC call for gas price completed: ${rpcCallEnd - rpcCallStart}ms`)
-                
+                this.logger.info(
+                    `[LATENCY] STEP 5.3.2.1.2: RPC call for gas price completed: ${
+                        rpcCallEnd - rpcCallStart
+                    }ms`
+                )
+
                 const endTime = performance.now()
-                this.logger.info(`[LATENCY] STEP 5.3.2.1.3: tryUpdateGasPrice completed: ${endTime - updateStartTime}ms`)
-                this.logger.info(`[LATENCY] STEP 5.3.2.4: getGasPrice total time: ${endTime - gasPriceStartTime}ms`)
+                this.logger.info(
+                    `[LATENCY] STEP 5.3.2.1.3: tryUpdateGasPrice completed: ${
+                        endTime - updateStartTime
+                    }ms`
+                )
+                this.logger.info(
+                    `[LATENCY] STEP 5.3.2.4: getGasPrice total time: ${
+                        endTime - gasPriceStartTime
+                    }ms`
+                )
                 return result
             } catch (e) {
                 const endTime = performance.now()
-                this.logger.error(e, `[LATENCY] getGasPrice error after: ${endTime - gasPriceStartTime}ms`)
+                this.logger.error(
+                    e,
+                    `[LATENCY] getGasPrice error after: ${
+                        endTime - gasPriceStartTime
+                    }ms`
+                )
                 throw new RpcError("No gas price available")
             }
         }
 
         const queueStartTime = performance.now()
-        this.logger.info("[LATENCY] STEP 5.3.2.2: Starting queue value retrieval")
-        
+        this.logger.info(
+            "[LATENCY] STEP 5.3.2.2: Starting queue value retrieval"
+        )
+
         // Track timing of each queue operation separately
         const maxFeeStart = performance.now()
         const maxFeePerGas = await this.maxFeePerGasQueue.getLatestValue()
         const maxFeeEnd = performance.now()
-        this.logger.info(`[LATENCY] STEP 5.3.2.2.1: maxFeePerGasQueue.getLatestValue time: ${maxFeeEnd - maxFeeStart}ms`)
-        
+        this.logger.info(
+            `[LATENCY] STEP 5.3.2.2.1: maxFeePerGasQueue.getLatestValue time: ${
+                maxFeeEnd - maxFeeStart
+            }ms`
+        )
+
         const maxPriorityFeeStart = performance.now()
-        const maxPriorityFeePerGas = await this.maxPriorityFeePerGasQueue.getLatestValue()
+        const maxPriorityFeePerGas =
+            await this.maxPriorityFeePerGasQueue.getLatestValue()
         const maxPriorityFeeEnd = performance.now()
-        this.logger.info(`[LATENCY] STEP 5.3.2.2.2: maxPriorityFeePerGasQueue.getLatestValue time: ${maxPriorityFeeEnd - maxPriorityFeeStart}ms`)
-        
+        this.logger.info(
+            `[LATENCY] STEP 5.3.2.2.2: maxPriorityFeePerGasQueue.getLatestValue time: ${
+                maxPriorityFeeEnd - maxPriorityFeeStart
+            }ms`
+        )
+
         const queueEndTime = performance.now()
-        this.logger.info(`[LATENCY] STEP 5.3.2.3: Queue value retrieval completed: ${queueEndTime - queueStartTime}ms`)
+        this.logger.info(
+            `[LATENCY] STEP 5.3.2.3: Queue value retrieval completed: ${
+                queueEndTime - queueStartTime
+            }ms`
+        )
 
         if (!maxFeePerGas || !maxPriorityFeePerGas) {
             const endTime = performance.now()
-            this.logger.error(`[LATENCY] getGasPrice error (missing values) after: ${endTime - gasPriceStartTime}ms`)
+            this.logger.error(
+                `[LATENCY] getGasPrice error (missing values) after: ${
+                    endTime - gasPriceStartTime
+                }ms`
+            )
             throw new RpcError("No gas price available")
         }
 
         const endTime = performance.now()
-        this.logger.info(`[LATENCY] STEP 5.3.2.4: getGasPrice total time: ${endTime - gasPriceStartTime}ms`)
-        
+        this.logger.info(
+            `[LATENCY] STEP 5.3.2.4: getGasPrice total time: ${
+                endTime - gasPriceStartTime
+            }ms`
+        )
+
         return {
             maxFeePerGas,
             maxPriorityFeePerGas
