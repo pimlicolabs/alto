@@ -32,7 +32,7 @@ import {
     maxBigInt,
     scaleBigIntByPercent
 } from "@alto/utils"
-import { type Hex, getContract, zeroAddress } from "viem"
+import { getContract, zeroAddress } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { MethodHandler } from "./createMethodHandler"
 import { registerHandlers } from "./methods"
@@ -141,58 +141,71 @@ export class RpcHandler {
     }
 
     async preMempoolChecks(
-        opHash: Hex,
         userOperation: UserOperation,
-        apiVersion: ApiVersion,
-        entryPoint: Address
-    ) {
+        apiVersion: ApiVersion
+    ): Promise<{ valid: true } | { valid: false; reason: string }> {
         if (
             this.config.legacyTransactions &&
             userOperation.maxFeePerGas !== userOperation.maxPriorityFeePerGas
         ) {
-            const reason =
-                "maxPriorityFeePerGas must equal maxFeePerGas on chains that don't support EIP-1559"
-            this.eventManager.emitFailedValidation(opHash, reason)
-            throw new RpcError(reason)
+            return {
+                valid: false,
+                reason: "maxPriorityFeePerGas must equal maxFeePerGas on chains that don't support EIP-1559"
+            }
         }
 
         if (apiVersion !== "v1" && !this.config.safeMode) {
-            await this.gasPriceManager.validateGasPrice({
-                maxFeePerGas: userOperation.maxFeePerGas,
-                maxPriorityFeePerGas: userOperation.maxPriorityFeePerGas
-            })
+            const { lowestMaxFeePerGas, lowestMaxPriorityFeePerGas } =
+                await this.gasPriceManager.getLowestValidGasPrices()
+
+            const maxFeePerGas = userOperation.maxFeePerGas
+            const maxPriorityFeePerGas = userOperation.maxPriorityFeePerGas
+
+            if (maxFeePerGas < lowestMaxFeePerGas) {
+                return {
+                    valid: false,
+                    reason: `maxFeePerGas must be at least ${lowestMaxFeePerGas} (current maxFeePerGas: ${maxFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
+                }
+            }
+
+            if (maxPriorityFeePerGas < lowestMaxPriorityFeePerGas) {
+                return {
+                    valid: false,
+                    reason: `maxPriorityFeePerGas must be at least ${lowestMaxPriorityFeePerGas} (current maxPriorityFeePerGas: ${maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
+                }
+            }
         }
 
         if (userOperation.verificationGasLimit < 10000n) {
-            const reason = "verificationGasLimit must be at least 10000"
-            this.eventManager.emitFailedValidation(opHash, reason)
-            throw new RpcError(reason)
+            return {
+                valid: false,
+                reason: "verificationGasLimit must be at least 10000"
+            }
         }
-
-        this.logger.trace({ userOperation, entryPoint }, "beginning validation")
 
         if (
             userOperation.preVerificationGas === 0n ||
             userOperation.verificationGasLimit === 0n
         ) {
-            const reason = "user operation gas limits must be larger than 0"
-            this.eventManager.emitFailedValidation(opHash, reason)
-            throw new RpcError(reason)
+            return {
+                valid: false,
+                reason: "user operation gas limits must be larger than 0"
+            }
         }
 
-        const beneficiary =
-            this.config.utilityPrivateKey?.address ||
-            privateKeyToAddress(generatePrivateKey())
         const gasLimits = calculateAA95GasFloor({
             userOps: [userOperation],
-            beneficiary
+            beneficiary: privateKeyToAddress(generatePrivateKey())
         })
 
         if (gasLimits > this.config.maxGasPerBundle) {
-            throw new RpcError(
-                `User operation gas limits exceed the max gas per bundle: ${gasLimits} > ${this.config.maxGasPerBundle}`
-            )
+            return {
+                valid: false,
+                reason: `User operation gas limits exceed the max gas per bundle: ${gasLimits} > ${this.config.maxGasPerBundle}`
+            }
         }
+
+        return { valid: true }
     }
 
     async getNonceValues(userOperation: UserOperation, entryPoint: Address) {
@@ -225,19 +238,35 @@ export class RpcHandler {
     ): Promise<"added" | "queued"> {
         this.ensureEntryPointIsSupported(entryPoint)
 
+        // V1 api doesn't check prefund.
+        const shouldCheckPrefund =
+            apiVersion !== "v1" && this.config.shouldCheckPrefund
+
         const userOpHash = await getUserOperationHash({
             userOperation: userOperation,
             entryPointAddress: entryPoint,
             chainId: this.config.chainId,
             publicClient: this.config.publicClient
         })
-
-        await this.preMempoolChecks(
-            userOpHash,
+        const validationResult = await this.validator.validateUserOperation({
+            shouldCheckPrefund,
             userOperation,
-            apiVersion,
+            queuedUserOperations: [],
             entryPoint
+        })
+
+        const preMempoolChecks = await this.preMempoolChecks(
+            userOperation,
+            apiVersion
         )
+
+        if (!preMempoolChecks.valid) {
+            this.eventManager.emitFailedValidation(
+                userOpHash,
+                preMempoolChecks.reason
+            )
+            throw new RpcError(preMempoolChecks.reason)
+        }
 
         // Nonce validation
         const {
@@ -304,17 +333,7 @@ export class RpcHandler {
             }
         }
 
-        // V1 api doesn't check prefund.
-        const shouldCheckPrefund =
-            apiVersion !== "v1" && this.config.shouldCheckPrefund
-        const validationResult = await this.validator.validateUserOperation({
-            shouldCheckPrefund,
-            userOperation,
-            queuedUserOperations,
-            entryPoint
-        })
-
-        await this.reputationManager.checkReputation(
+        this.reputationManager.checkReputation(
             userOperation,
             entryPoint,
             validationResult
