@@ -144,7 +144,8 @@ export class GasPriceManager {
                 : result.maxPriorityFeePerGas
 
             return {
-                maxFeePerGas,
+                // Ensure that maxFeePerGas is always greater or equal than maxPriorityFeePerGas
+                maxFeePerGas: maxBigInt(maxFeePerGas, maxPriorityFeePerGas),
                 maxPriorityFeePerGas
             }
         }
