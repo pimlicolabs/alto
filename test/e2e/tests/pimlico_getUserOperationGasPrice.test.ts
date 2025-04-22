@@ -1,13 +1,14 @@
 import type { PimlicoClient } from "permissionless/clients/pimlico"
 import { http, createPublicClient } from "viem"
-import type { EntryPointVersion } from "viem/account-abstraction"
 import { foundry } from "viem/chains"
 import { beforeAll, beforeEach, describe, expect, inject, test } from "vitest"
 import { beforeEachCleanUp, getPimlicoClient } from "../src/utils/index.js"
+import { EntryPointVersion } from "../src/constants.js"
 
 describe.each([
     { entryPointVersion: "0.6" as EntryPointVersion },
-    { entryPointVersion: "0.7" as EntryPointVersion }
+    { entryPointVersion: "0.7" as EntryPointVersion },
+    { entryPointVersion: "0.8" as EntryPointVersion }
 ])(
     "$entryPointVersion supports eth_sendUserOperation",
     ({ entryPointVersion }) => {

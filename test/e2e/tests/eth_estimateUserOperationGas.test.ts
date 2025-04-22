@@ -1,7 +1,6 @@
 import {
     UserOperation,
     createBundlerClient,
-    type EntryPointVersion,
     entryPoint06Address,
     entryPoint07Address
 } from "viem/account-abstraction"
@@ -14,6 +13,7 @@ import {
 import { type Address, BaseError, Hex, http, zeroAddress } from "viem"
 import { deepHexlify } from "permissionless"
 import { foundry } from "viem/chains"
+import { entryPoint08Address, EntryPointVersion } from "../src/constants.js"
 
 describe.each([
     {
@@ -23,6 +23,10 @@ describe.each([
     {
         entryPoint: entryPoint07Address,
         entryPointVersion: "0.7" as EntryPointVersion
+    },
+    {
+        entryPoint: entryPoint08Address,
+        entryPointVersion: "0.8" as EntryPointVersion
     }
 ])(
     "$entryPointVersion supports eth_estimateUserOperationGas",
@@ -91,7 +95,7 @@ describe.each([
         // error occurs when calling contract that doesn't exist or due to low level evm revert.
         // both of these scenarios return 0x when calling simulateHandleOp.
         test("Gracefully handles cannot decode zero bytes 0x error", async () => {
-            if (entryPointVersion === "0.7") {
+            if (entryPointVersion !== "0.6") {
                 return
             }
 

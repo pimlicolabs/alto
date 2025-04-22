@@ -11,7 +11,6 @@ import {
     concat
 } from "viem"
 import {
-    type EntryPointVersion,
     UserOperationReceiptNotFoundError,
     entryPoint06Address,
     entryPoint07Address,
@@ -29,6 +28,10 @@ import {
 import { ENTRYPOINT_V06_ABI, ENTRYPOINT_V07_ABI } from "../src/utils/abi.js"
 import { getNonceKeyAndValue } from "../src/utils/userop.js"
 import { deployPaymaster } from "../src/testPaymaster.js"
+import {
+    type EntryPointVersion,
+    entryPoint08Address
+} from "../src/constants.js"
 
 describe.each([
     {
@@ -38,6 +41,10 @@ describe.each([
     {
         entryPoint: entryPoint07Address,
         entryPointVersion: "0.7" as EntryPointVersion
+    },
+    {
+        entryPoint: entryPoint08Address,
+        entryPointVersion: "0.8" as EntryPointVersion
     }
 ])(
     "$entryPointVersion supports eth_sendUserOperation",
@@ -482,15 +489,15 @@ describe.each([
 
             const invalidPaymasterSignature = "0xff"
 
-            if (entryPointVersion === "0.7") {
-                op.paymaster = paymaster
-                op.paymasterData = invalidPaymasterSignature // FAILING CONDITION
-                op.paymasterVerificationGasLimit = 100_000n
-            } else {
+            if (entryPointVersion === "0.6") {
                 op.paymasterAndData = concat([
                     paymaster,
                     invalidPaymasterSignature
                 ])
+            } else {
+                op.paymaster = paymaster
+                op.paymasterData = invalidPaymasterSignature // FAILING CONDITION
+                op.paymasterVerificationGasLimit = 100_000n
             }
 
             op.signature = await client.account.signUserOperation(op)

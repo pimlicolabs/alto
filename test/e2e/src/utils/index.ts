@@ -12,20 +12,30 @@ import {
     createPublicClient,
     createTestClient,
     createWalletClient,
-    parseEther
+    parseEther,
+    UnionPartialBy,
+    encodeFunctionData,
+    encodePacked
 } from "viem"
 import {
-    type EntryPointVersion,
-    type SmartAccount,
-    entryPoint06Address,
-    entryPoint07Address
+    UserOperation,
+    entryPoint07Abi,
+    toPackedUserOperation,
+    type SmartAccount
 } from "viem/account-abstraction"
 import {
     generatePrivateKey,
     mnemonicToAccount,
-    privateKeyToAccount
+    privateKeyToAccount,
+    sign
 } from "viem/accounts"
 import { foundry } from "viem/chains"
+import {
+    EntryPointVersion,
+    getEntryPointAddress,
+    getFactoryAddress,
+    getViemEntryPointVersion
+} from "../constants.js"
 
 export type AAParamType = {
     entryPointVersion: EntryPointVersion
@@ -53,7 +63,7 @@ export const getAnvilWalletClient = ({
     })
 }
 
-export const getPimlicoClient = <EntryPointVersion extends "0.6" | "0.7">({
+export const getPimlicoClient = ({
     entryPointVersion,
     altoRpc
 }: {
@@ -63,12 +73,8 @@ export const getPimlicoClient = <EntryPointVersion extends "0.6" | "0.7">({
     createPimlicoClient({
         chain: foundry,
         entryPoint: {
-            address: (entryPointVersion === "0.6"
-                ? entryPoint06Address
-                : entryPoint07Address) as EntryPointVersion extends "0.6"
-                ? typeof entryPoint06Address
-                : typeof entryPoint07Address,
-            version: entryPointVersion
+            address: getEntryPointAddress(entryPointVersion),
+            version: getViemEntryPointVersion(entryPointVersion)
         },
         transport: http(altoRpc)
     })
@@ -87,9 +93,7 @@ export const getPublicClient = (anvilRpc: string) => {
     })
 }
 
-export const getSmartAccountClient = async <
-    EntryPointVersion extends "0.6" | "0.7"
->({
+export const getSmartAccountClient = async ({
     entryPointVersion,
     anvilRpc,
     altoRpc,
@@ -97,19 +101,54 @@ export const getSmartAccountClient = async <
 }: AAParamType): Promise<
     SmartAccountClient<Transport, Chain, SmartAccount>
 > => {
-    const account = await toSimpleSmartAccount<EntryPointVersion>({
-        client: getPublicClient(anvilRpc),
+    const publicClient = getPublicClient(anvilRpc)
+
+    const account = await toSimpleSmartAccount({
+        client: publicClient,
         entryPoint: {
-            address:
-                entryPointVersion === "0.6"
-                    ? entryPoint06Address
-                    : entryPoint07Address,
-            version: (entryPointVersion === "0.6"
-                ? "0.6"
-                : "0.7") as EntryPointVersion
+            address: getEntryPointAddress(entryPointVersion),
+            version: getViemEntryPointVersion(entryPointVersion)
         },
+        factoryAddress: getFactoryAddress(entryPointVersion),
         owner: privateKeyToAccount(privateKey)
     })
+
+    if (entryPointVersion === "0.8") {
+        account.signUserOperation = async (
+            parameters: UnionPartialBy<UserOperation, "sender"> & {
+                chainId?: number | undefined
+            }
+        ): Promise<Hex> => {
+            const { ...userOperation } = parameters
+
+            const call = await publicClient.call({
+                to: getEntryPointAddress(entryPointVersion),
+                data: encodeFunctionData({
+                    abi: entryPoint07Abi,
+                    functionName: "getUserOpHash",
+                    args: [
+                        toPackedUserOperation(userOperation as UserOperation)
+                    ]
+                })
+            })
+
+            if (!call.data) {
+                throw new Error("getUserOpHash call failed")
+            }
+
+            const { r, s, v } = await sign({
+                hash: call.data,
+                privateKey
+            })
+
+            const signature = encodePacked(
+                ["bytes32", "bytes32", "uint8"],
+                [r, s, Number(v)]
+            )
+
+            return signature
+        }
+    }
 
     const anvilClient = createTestClient({
         transport: http(anvilRpc),

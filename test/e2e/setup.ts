@@ -111,13 +111,11 @@ export const alto = defineInstance(
 
 // biome-ignore lint/style/noDefaultExport: vitest needs this
 export default async function setup({ provide }) {
-    const anvilPrivateKey =
-        "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-
     const anvilInstance = anvil({
         chainId: foundry.id,
         port: 8545,
-        codeSizeLimit: 1000_000
+        codeSizeLimit: 1000_000,
+        gasLimit: 30_000_000
     })
     await anvilInstance.start()
     const anvilRpc = `http://${anvilInstance.host}:${anvilInstance.port}`
