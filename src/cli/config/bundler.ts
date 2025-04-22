@@ -96,6 +96,15 @@ export const executorArgsSchema = z.object({
     "utility-wallet-monitor": z.boolean(),
     "utility-wallet-monitor-interval": z.number(),
     "resubmit-multiplier-ceiling": z.string().transform((val) => BigInt(val)),
+    "gas-limit-rounding-multiple": z
+        .string()
+        .transform((val) => BigInt(val))
+        .refine(
+            (value) => value > 0n,
+            "Gas limit rounding multiple must be a positive number"
+        )
+        .optional()
+        .default("4337"),
     "executor-private-keys": z.union([
         z
             .array(hexData32Schema)

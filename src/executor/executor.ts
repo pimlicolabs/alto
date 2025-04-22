@@ -10,7 +10,12 @@ import type {
     UserOpInfo
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
-import { maxBigInt, parseViemError, scaleBigIntByPercent } from "@alto/utils"
+import {
+    roundUpBigInt,
+    maxBigInt,
+    parseViemError,
+    scaleBigIntByPercent
+} from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
     IntrinsicGasTooLowError,
@@ -135,6 +140,7 @@ export class Executor {
             to: entryPoint,
             data: handleOpsCalldata,
             from: account.address,
+            chain: publicClient.chain,
             gas,
             account,
             nonce,
@@ -168,6 +174,12 @@ export class Executor {
 
                     break
                 }
+
+                // Round up gasLimit to nearest multiple
+                request.gas = roundUpBigInt({
+                    value: request.gas,
+                    multiple: this.config.gasLimitRoundingMultiple
+                })
 
                 transactionHash = await walletClient.sendTransaction(request)
 
