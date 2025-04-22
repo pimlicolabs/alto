@@ -175,7 +175,7 @@ export class Executor {
                     break
                 }
 
-                // Round up gasLimit to neareest multiple
+                // Round up gasLimit to nearest multiple
                 request.gas = roundUpBigInt({
                     value: request.gas,
                     multiple: this.config.gasLimitRoundingMultiple
