@@ -371,7 +371,12 @@ export class GasPriceManager {
     }
 
     public async getGasPrice(): Promise<GasPriceParameters> {
+        const gasPriceStartTime = performance.now()
+        this.logger.info("[LATENCY] getGasPrice method started")
+        
         if (this.config.isGasFreeChain) {
+            const endTime = performance.now()
+            this.logger.info(`[LATENCY] getGasPrice early return (gas free chain): ${endTime - gasPriceStartTime}ms`)
             return {
                 maxFeePerGas: 0n,
                 maxPriorityFeePerGas: 0n
@@ -380,22 +385,39 @@ export class GasPriceManager {
 
         if (this.config.gasPriceRefreshInterval === 0) {
             try {
-                return await this.tryUpdateGasPrice()
+                const updateStartTime = performance.now()
+                const result = await this.tryUpdateGasPrice()
+                const endTime = performance.now()
+                this.logger.info(`[LATENCY] tryUpdateGasPrice completed: ${endTime - updateStartTime}ms`)
+                this.logger.info(`[LATENCY] getGasPrice total time: ${endTime - gasPriceStartTime}ms`)
+                return result
             } catch (e) {
-                this.logger.error(e, "No gas price available")
+                const endTime = performance.now()
+                this.logger.error(e, `[LATENCY] getGasPrice error after: ${endTime - gasPriceStartTime}ms`)
                 throw new RpcError("No gas price available")
             }
         }
 
+        const queueStartTime = performance.now()
+        this.logger.info("[LATENCY] Starting queue value retrieval")
+        
         const [maxFeePerGas, maxPriorityFeePerGas] = await Promise.all([
             this.maxFeePerGasQueue.getLatestValue(),
             this.maxPriorityFeePerGasQueue.getLatestValue()
         ])
+        
+        const queueEndTime = performance.now()
+        this.logger.info(`[LATENCY] Queue value retrieval completed: ${queueEndTime - queueStartTime}ms`)
 
         if (!maxFeePerGas || !maxPriorityFeePerGas) {
+            const endTime = performance.now()
+            this.logger.error(`[LATENCY] getGasPrice error (missing values) after: ${endTime - gasPriceStartTime}ms`)
             throw new RpcError("No gas price available")
         }
 
+        const endTime = performance.now()
+        this.logger.info(`[LATENCY] getGasPrice total time: ${endTime - gasPriceStartTime}ms`)
+        
         return {
             maxFeePerGas,
             maxPriorityFeePerGas

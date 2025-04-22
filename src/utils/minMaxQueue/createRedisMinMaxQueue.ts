@@ -60,24 +60,34 @@ class SortedTtlSet {
     }
 
     async pruneExpiredEntries() {
+        const pruneStart = performance.now()
         const timestamp = Date.now() / 1_000
         const cutoffTime = timestamp - this.queueValidity
 
         // Get expired unique IDs from time queue
+        const rangeStart = performance.now()
         const expiredMembers = await this.redis.zrangebyscore(
             this.timestampKey,
             "-inf",
             `(${cutoffTime}` // exclusive upper bound
         )
+        const rangeEnd = performance.now()
+        console.log(`[LATENCY] Redis zrangebyscore operation time: ${rangeEnd - rangeStart}ms`)
 
         if (expiredMembers.length) {
+            const multiStart = performance.now()
             const multi = this.redis.multi()
 
             // Remove expired entries from both sets
             multi.zrem(this.timestampKey, ...expiredMembers)
             multi.zrem(this.valueKey, ...expiredMembers)
             await multi.exec()
+            const multiEnd = performance.now()
+            console.log(`[LATENCY] Redis multi-zrem operation time: ${multiEnd - multiStart}ms`)
         }
+        
+        const pruneEnd = performance.now()
+        console.log(`[LATENCY] Redis pruneExpiredEntries total time: ${pruneEnd - pruneStart}ms`)
     }
 
     async getMin(): Promise<bigint | null> {
@@ -103,13 +113,27 @@ class SortedTtlSet {
     }
 
     async getLatestValue(): Promise<bigint | null> {
+        const startTime = performance.now()
+        
         // Prune expired entries
+        const pruneStartTime = performance.now()
         await this.pruneExpiredEntries()
+        const pruneEndTime = performance.now()
+        
+        console.log(`[LATENCY] Redis queue prune time: ${pruneEndTime - pruneStartTime}ms`)
 
         // Get the member with highest TTL (most recent timestamp)
+        const zrangeStartTime = performance.now()
         const values = await this.redis.zrange(this.timestampKey, -1, -1)
+        const zrangeEndTime = performance.now()
+        
+        console.log(`[LATENCY] Redis zrange operation time: ${zrangeEndTime - zrangeStartTime}ms`)
+        
         if (!values.length) return null
 
+        const endTime = performance.now()
+        console.log(`[LATENCY] Redis getLatestValue total time: ${endTime - startTime}ms`)
+        
         return BigInt(values[0])
     }
 }
