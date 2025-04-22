@@ -205,8 +205,11 @@ export class Server {
     }
 
     private async rpc(request: FastifyRequest, reply: RpcReply): Promise<void> {
+        const startTime = performance.now()
         let requestId: number | null = null
-
+        
+        this.fastify.log.info(`[LATENCY] Request processing started`)
+        
         const versionParsingResult = altoVersions.safeParse(
             (request.params as any)?.version ?? this.config.defaultApiVersion
         )
@@ -258,6 +261,9 @@ export class Server {
             const jsonRpcRequest = jsonRpcParsing.data
 
             requestId = jsonRpcRequest.id
+            
+            const parseTime = performance.now()
+            this.fastify.log.info(`[LATENCY] JSON-RPC parsing completed: ${parseTime - startTime}ms`)
 
             const bundlerRequestParsing =
                 bundlerRequestSchema.safeParse(jsonRpcRequest)
@@ -285,6 +291,9 @@ export class Server {
 
             const bundlerRequest = bundlerRequestParsing.data
             request.rpcMethod = bundlerRequest.method
+            
+            const validationTime = performance.now()
+            this.fastify.log.info(`[LATENCY] Request validation completed: ${validationTime - parseTime}ms`)
 
             if (
                 this.config.rpcMethods !== null &&
@@ -303,10 +312,17 @@ export class Server {
                 },
                 "incoming request"
             )
+            
+            const preHandleTime = performance.now()
+            this.fastify.log.info(`[LATENCY] Pre-handling setup completed: ${preHandleTime - validationTime}ms`)
+            
             const result = await this.rpcEndpoint.handleMethod(
                 bundlerRequest,
                 apiVersion
             )
+            
+            const postHandleTime = performance.now()
+            this.fastify.log.info(`[LATENCY] RPC method handling completed: ${postHandleTime - preHandleTime}ms`)
             const jsonRpcResponse: JSONRPCResponse = {
                 jsonrpc: "2.0",
                 id: jsonRpcRequest.id,
@@ -317,6 +333,10 @@ export class Server {
                 .setRpcStatus(RpcStatus.Success)
                 .status(200)
                 .send(jsonRpcResponse)
+                
+            const responseTime = performance.now()
+            this.fastify.log.info(`[LATENCY] Response sent: ${responseTime - postHandleTime}ms`)
+            this.fastify.log.info(`[LATENCY] Total request processing time: ${responseTime - startTime}ms`)
 
             this.fastify.log.info(
                 {
@@ -334,6 +354,9 @@ export class Server {
                 "sent reply"
             )
         } catch (err) {
+            const errorTime = performance.now()
+            this.fastify.log.info(`[LATENCY] Error encountered after: ${errorTime - startTime}ms`)
+            
             if (err instanceof RpcError) {
                 const rpcError = {
                     jsonrpc: "2.0",
