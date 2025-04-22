@@ -7,14 +7,14 @@ export const pimlicoGetUserOperationGasPriceHandler = createMethodHandler({
     schema: pimlicoGetUserOperationGasPriceSchema,
     handler: async ({ rpcHandler }) => {
         const startTime = performance.now()
-        rpcHandler.logger.info(`[LATENCY] Handler function started`)
+        rpcHandler.logger.info(`[LATENCY] STEP 5.3.1: Handler function started`)
         
         const getGasPriceStartTime = performance.now()
         let { maxFeePerGas, maxPriorityFeePerGas } =
             await rpcHandler.gasPriceManager.getGasPrice()
             
         const getGasPriceEndTime = performance.now()
-        rpcHandler.logger.info(`[LATENCY] getGasPrice call completed: ${getGasPriceEndTime - getGasPriceStartTime}ms`)
+        rpcHandler.logger.info(`[LATENCY] STEP 5.3.2: getGasPrice call completed: ${getGasPriceEndTime - getGasPriceStartTime}ms`)
 
         if (rpcHandler.config.chainType === "hedera") {
             maxFeePerGas /= 10n ** 9n
@@ -49,8 +49,8 @@ export const pimlicoGetUserOperationGasPriceHandler = createMethodHandler({
         }
         
         const endTime = performance.now()
-        rpcHandler.logger.info(`[LATENCY] Gas price scaling completed: ${endTime - scalingStartTime}ms`)
-        rpcHandler.logger.info(`[LATENCY] Total handler execution time: ${endTime - startTime}ms`)
+        rpcHandler.logger.info(`[LATENCY] STEP 5.3.3: Gas price scaling completed: ${endTime - scalingStartTime}ms`)
+        rpcHandler.logger.info(`[LATENCY] STEP 5.3.4: Total handler execution time: ${endTime - startTime}ms`)
         
         return result
     }

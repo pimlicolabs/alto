@@ -73,6 +73,11 @@ export const createMemoryMinMaxQueue = ({
             latestValue = value
         },
         getLatestValue: async () => {
+            const startTime = performance.now()
+            console.log(`[LATENCY] STEP 5.3.2.3: Memory getLatestValue started`)
+            
+            const endTime = performance.now()
+            console.log(`[LATENCY] STEP 5.3.2.3: Memory getLatestValue completed: ${endTime - startTime}ms`)
             return latestValue
         },
         getMinValue: async () => {

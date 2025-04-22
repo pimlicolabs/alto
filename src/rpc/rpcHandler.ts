@@ -108,8 +108,10 @@ export class RpcHandler {
 
     async handleMethod(request: BundlerRequest, apiVersion: ApiVersion) {
         const methodStartTime = performance.now()
-        this.logger.info(`[LATENCY] Method ${request.method} handling started`)
-        
+        this.logger.info(
+            `[LATENCY] STEP 5.1: Method ${request.method} handling started`
+        )
+
         const handler = this.methodHandlers.get(request.method)
         if (!handler) {
             throw new RpcError(
@@ -119,18 +121,30 @@ export class RpcHandler {
         }
 
         const handlerLookupTime = performance.now()
-        this.logger.info(`[LATENCY] Handler lookup time: ${handlerLookupTime - methodStartTime}ms`)
-        
+        this.logger.info(
+            `[LATENCY] STEP 5.2: Handler lookup time: ${
+                handlerLookupTime - methodStartTime
+            }ms`
+        )
+
         const result = await handler.handler({
             rpcHandler: this,
             params: request.params,
             apiVersion
         })
-        
+
         const handlerCompletionTime = performance.now()
-        this.logger.info(`[LATENCY] Handler execution time: ${handlerCompletionTime - handlerLookupTime}ms`)
-        this.logger.info(`[LATENCY] Total method handling time: ${handlerCompletionTime - methodStartTime}ms`)
-        
+        this.logger.info(
+            `[LATENCY] STEP 5.3: Handler execution time: ${
+                handlerCompletionTime - handlerLookupTime
+            }ms`
+        )
+        this.logger.info(
+            `[LATENCY] STEP 5.4: Total method handling time: ${
+                handlerCompletionTime - methodStartTime
+            }ms`
+        )
+
         return result
     }
 

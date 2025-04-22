@@ -208,7 +208,7 @@ export class Server {
         const startTime = performance.now()
         let requestId: number | null = null
         
-        this.fastify.log.info(`[LATENCY] Request processing started`)
+        this.fastify.log.info(`[LATENCY] STEP 1: Request processing started`)
         
         const versionParsingResult = altoVersions.safeParse(
             (request.params as any)?.version ?? this.config.defaultApiVersion
@@ -263,7 +263,7 @@ export class Server {
             requestId = jsonRpcRequest.id
             
             const parseTime = performance.now()
-            this.fastify.log.info(`[LATENCY] JSON-RPC parsing completed: ${parseTime - startTime}ms`)
+            this.fastify.log.info(`[LATENCY] STEP 2: JSON-RPC parsing completed: ${parseTime - startTime}ms`)
 
             const bundlerRequestParsing =
                 bundlerRequestSchema.safeParse(jsonRpcRequest)
@@ -293,7 +293,7 @@ export class Server {
             request.rpcMethod = bundlerRequest.method
             
             const validationTime = performance.now()
-            this.fastify.log.info(`[LATENCY] Request validation completed: ${validationTime - parseTime}ms`)
+            this.fastify.log.info(`[LATENCY] STEP 3: Request validation completed: ${validationTime - parseTime}ms`)
 
             if (
                 this.config.rpcMethods !== null &&
@@ -314,7 +314,7 @@ export class Server {
             )
             
             const preHandleTime = performance.now()
-            this.fastify.log.info(`[LATENCY] Pre-handling setup completed: ${preHandleTime - validationTime}ms`)
+            this.fastify.log.info(`[LATENCY] STEP 4: Pre-handling setup completed: ${preHandleTime - validationTime}ms`)
             
             const result = await this.rpcEndpoint.handleMethod(
                 bundlerRequest,
@@ -322,7 +322,7 @@ export class Server {
             )
             
             const postHandleTime = performance.now()
-            this.fastify.log.info(`[LATENCY] RPC method handling completed: ${postHandleTime - preHandleTime}ms`)
+            this.fastify.log.info(`[LATENCY] STEP 5: RPC method handling completed: ${postHandleTime - preHandleTime}ms`)
             const jsonRpcResponse: JSONRPCResponse = {
                 jsonrpc: "2.0",
                 id: jsonRpcRequest.id,
@@ -335,8 +335,8 @@ export class Server {
                 .send(jsonRpcResponse)
                 
             const responseTime = performance.now()
-            this.fastify.log.info(`[LATENCY] Response sent: ${responseTime - postHandleTime}ms`)
-            this.fastify.log.info(`[LATENCY] Total request processing time: ${responseTime - startTime}ms`)
+            this.fastify.log.info(`[LATENCY] STEP 6: Response sent: ${responseTime - postHandleTime}ms`)
+            this.fastify.log.info(`[LATENCY] STEP 7: Total request processing time: ${responseTime - startTime}ms`)
 
             this.fastify.log.info(
                 {

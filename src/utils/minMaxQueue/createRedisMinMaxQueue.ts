@@ -21,7 +21,30 @@ class SortedTtlSet {
             throw new Error("Redis URL not provided")
         }
 
+        const startTime = performance.now()
+        console.log(`[LATENCY] Redis connection initialization started`)
+        
         const redis = new Redis(config.redisGasPriceQueueUrl)
+        const endTime = performance.now()
+        console.log(`[LATENCY] STEP 0: Redis connection initialization time: ${endTime - startTime}ms`)
+        
+        // Add connection status listener
+        redis.on('ready', () => {
+            console.log(`[LATENCY] Redis connection ready`)
+        })
+        
+        redis.on('error', (err) => {
+            console.error(`[LATENCY] Redis connection error: ${err}`)
+        })
+        
+        redis.on('connect', () => {
+            console.log(`[LATENCY] Redis connected`)
+        })
+        
+        redis.on('reconnecting', () => {
+            console.log(`[LATENCY] Redis reconnecting...`)
+        })
+        
         const queueValidity = config.gasPriceExpiry
 
         const redisKey = `${config.chainId}:${keyPrefix}`
@@ -72,7 +95,7 @@ class SortedTtlSet {
             `(${cutoffTime}` // exclusive upper bound
         )
         const rangeEnd = performance.now()
-        console.log(`[LATENCY] Redis zrangebyscore operation time: ${rangeEnd - rangeStart}ms`)
+        console.log(`[LATENCY] STEP 5.3.2.3.1.1: Redis zrangebyscore operation time: ${rangeEnd - rangeStart}ms`)
 
         if (expiredMembers.length) {
             const multiStart = performance.now()
@@ -83,11 +106,11 @@ class SortedTtlSet {
             multi.zrem(this.valueKey, ...expiredMembers)
             await multi.exec()
             const multiEnd = performance.now()
-            console.log(`[LATENCY] Redis multi-zrem operation time: ${multiEnd - multiStart}ms`)
+            console.log(`[LATENCY] STEP 5.3.2.3.1.2: Redis multi-zrem operation time: ${multiEnd - multiStart}ms`)
         }
         
         const pruneEnd = performance.now()
-        console.log(`[LATENCY] Redis pruneExpiredEntries total time: ${pruneEnd - pruneStart}ms`)
+        console.log(`[LATENCY] STEP 5.3.2.3.1.3: Redis pruneExpiredEntries total time: ${pruneEnd - pruneStart}ms`)
     }
 
     async getMin(): Promise<bigint | null> {
@@ -120,19 +143,19 @@ class SortedTtlSet {
         await this.pruneExpiredEntries()
         const pruneEndTime = performance.now()
         
-        console.log(`[LATENCY] Redis queue prune time: ${pruneEndTime - pruneStartTime}ms`)
+        console.log(`[LATENCY] STEP 5.3.2.3.1: Redis queue prune time: ${pruneEndTime - pruneStartTime}ms`)
 
         // Get the member with highest TTL (most recent timestamp)
         const zrangeStartTime = performance.now()
         const values = await this.redis.zrange(this.timestampKey, -1, -1)
         const zrangeEndTime = performance.now()
         
-        console.log(`[LATENCY] Redis zrange operation time: ${zrangeEndTime - zrangeStartTime}ms`)
+        console.log(`[LATENCY] STEP 5.3.2.3.2: Redis zrange operation time: ${zrangeEndTime - zrangeStartTime}ms`)
         
         if (!values.length) return null
 
         const endTime = performance.now()
-        console.log(`[LATENCY] Redis getLatestValue total time: ${endTime - startTime}ms`)
+        console.log(`[LATENCY] STEP 5.3.2.3.3: Redis getLatestValue total time: ${endTime - startTime}ms`)
         
         return BigInt(values[0])
     }
