@@ -280,11 +280,7 @@ export class RpcHandler {
             userOperation
         )
 
-        // V1 api doesn't check prefund.
-        const shouldCheckPrefund =
-            apiVersion !== "v1" && this.config.shouldCheckPrefund
         const validationResult = await this.validator.validateUserOperation({
-            shouldCheckPrefund,
             userOperation,
             queuedUserOperations,
             entryPoint
