@@ -74,7 +74,6 @@ export interface InterfaceValidator {
     }): Promise<void>
 
     validateUserOperation(args: {
-        shouldCheckPrefund: boolean
         userOperation: UserOperation
         queuedUserOperations: UserOperation[]
         entryPoint: Address
