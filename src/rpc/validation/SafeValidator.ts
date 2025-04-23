@@ -27,12 +27,7 @@ import {
 } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import {
-    getAuthorizationStateOverrides,
-    calcVerificationGasAndCallGasLimit,
-    getAddressFromInitCodeOrPaymasterAndData,
-    isVersion06,
-    isVersion07,
-    toPackedUserOperation,
+    getAuthorizationStateOverrides, getAddressFromInitCodeOrPaymasterAndData, toPackedUserOperation,
     isVersion08
 } from "@alto/utils"
 import {
