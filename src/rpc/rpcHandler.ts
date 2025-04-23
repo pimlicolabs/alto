@@ -24,9 +24,7 @@ import {
     calcPreVerificationGas,
     calcVerificationGasAndCallGasLimit,
     deepHexlify,
-    getAAError,
     getNonceKeyAndSequence,
-    getUserOperationHash,
     isVersion06,
     isVersion07,
     maxBigInt,
@@ -143,15 +141,15 @@ export class RpcHandler {
     async preMempoolChecks(
         userOperation: UserOperation,
         apiVersion: ApiVersion
-    ): Promise<{ valid: true } | { valid: false; reason: string }> {
+    ): Promise<[boolean, string]> {
         if (
             this.config.legacyTransactions &&
             userOperation.maxFeePerGas !== userOperation.maxPriorityFeePerGas
         ) {
-            return {
-                valid: false,
-                reason: "maxPriorityFeePerGas must equal maxFeePerGas on chains that don't support EIP-1559"
-            }
+            return [
+                false,
+                "maxPriorityFeePerGas must equal maxFeePerGas on chains that don't support EIP-1559"
+            ]
         }
 
         if (apiVersion !== "v1" && !this.config.safeMode) {
@@ -162,35 +160,29 @@ export class RpcHandler {
             const maxPriorityFeePerGas = userOperation.maxPriorityFeePerGas
 
             if (maxFeePerGas < lowestMaxFeePerGas) {
-                return {
-                    valid: false,
-                    reason: `maxFeePerGas must be at least ${lowestMaxFeePerGas} (current maxFeePerGas: ${maxFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
-                }
+                return [
+                    false,
+                    `maxFeePerGas must be at least ${lowestMaxFeePerGas} (current maxFeePerGas: ${maxFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
+                ]
             }
 
             if (maxPriorityFeePerGas < lowestMaxPriorityFeePerGas) {
-                return {
-                    valid: false,
-                    reason: `maxPriorityFeePerGas must be at least ${lowestMaxPriorityFeePerGas} (current maxPriorityFeePerGas: ${maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
-                }
+                return [
+                    false,
+                    `maxPriorityFeePerGas must be at least ${lowestMaxPriorityFeePerGas} (current maxPriorityFeePerGas: ${maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
+                ]
             }
         }
 
         if (userOperation.verificationGasLimit < 10000n) {
-            return {
-                valid: false,
-                reason: "verificationGasLimit must be at least 10000"
-            }
+            return [false, "verificationGasLimit must be at least 10000"]
         }
 
         if (
             userOperation.preVerificationGas === 0n ||
             userOperation.verificationGasLimit === 0n
         ) {
-            return {
-                valid: false,
-                reason: "user operation gas limits must be larger than 0"
-            }
+            return [false, "user operation gas limits must be larger than 0"]
         }
 
         const gasLimits = calculateAA95GasFloor({
@@ -199,37 +191,14 @@ export class RpcHandler {
         })
 
         if (gasLimits > this.config.maxGasPerBundle) {
-            return {
-                valid: false,
-                reason: `User operation gas limits exceed the max gas per bundle: ${gasLimits} > ${this.config.maxGasPerBundle}`
-            }
+            return [
+                false,
+                `User operation gas limits exceed the max gas per bundle: ${gasLimits} > ${this.config.maxGasPerBundle}`
+            ]
         }
 
-        return { valid: true }
+        return [true, ""]
     }
-
-    async getNonceValues(userOperation: UserOperation, entryPoint: Address) {
-        const currentNonceValue = await this.getNonceValue(
-            userOperation,
-            entryPoint
-        )
-        const [, userOperationNonceValue] = getNonceKeyAndSequence(
-            userOperation.nonce
-        )
-
-        const queuedUserOperations: UserOperation[] =
-            await this.mempool.getQueuedOustandingUserOps({
-                userOp: userOperation,
-                entryPoint
-            })
-
-        return {
-            currentNonceValue,
-            userOperationNonceValue,
-            queuedUserOperations
-        }
-    }
-
 
     async validateEip7702Auth({
         userOperation,
@@ -353,7 +322,7 @@ export class RpcHandler {
         }
     }
 
-    async getNonceValue(userOperation: UserOperation, entryPoint: Address) {
+    async getNonceSeq(userOperation: UserOperation, entryPoint: Address) {
         const entryPointContract = getContract({
             address: entryPoint,
             abi: isVersion06(userOperation)
@@ -373,9 +342,9 @@ export class RpcHandler {
             }
         )
 
-        const [_, currentNonceValue] = getNonceKeyAndSequence(getNonceResult)
+        const [_, currentNonceSeq] = getNonceKeyAndSequence(getNonceResult)
 
-        return currentNonceValue
+        return currentNonceSeq
     }
 
     async estimateGas({
@@ -400,22 +369,20 @@ export class RpcHandler {
         // Check if the nonce is valid
         // If the nonce is less than the current nonce, the user operation has already been executed
         // If the nonce is greater than the current nonce, we may have missing user operations in the mempool
-        const currentNonceValue = await this.getNonceValue(
+        const currentNonceSeq = await this.getNonceSeq(
             userOperation,
             entryPoint
         )
-        const [, userOperationNonceValue] = getNonceKeyAndSequence(
-            userOperation.nonce
-        )
+        const [, userOpNonceSeq] = getNonceKeyAndSequence(userOperation.nonce)
 
         let queuedUserOperations: UserOperation[] = []
-        if (userOperationNonceValue < currentNonceValue) {
+        if (userOpNonceSeq < currentNonceSeq) {
             throw new RpcError(
                 "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
                 ValidationErrors.InvalidFields
             )
         }
-        if (userOperationNonceValue > currentNonceValue) {
+        if (userOpNonceSeq > currentNonceSeq) {
             // Nonce queues are supported only for v7 user operations
             if (isVersion06(userOperation)) {
                 throw new RpcError(
@@ -431,8 +398,8 @@ export class RpcHandler {
                 })
 
             if (
-                userOperationNonceValue >
-                currentNonceValue + BigInt(queuedUserOperations.length)
+                userOpNonceSeq >
+                currentNonceSeq + BigInt(queuedUserOperations.length)
             ) {
                 throw new RpcError(
                     "UserOperation reverted during simulation with reason: AA25 invalid account nonce",

@@ -1,4 +1,7 @@
-import { getUserOperationHash } from "../../utils/userop"
+import {
+    getNonceKeyAndSequence,
+    getUserOperationHash
+} from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import {
     sendUserOperationSchema,
@@ -29,38 +32,45 @@ export async function addToMempoolIfValid(
         chainId: rpcHandler.config.chainId,
         publicClient: rpcHandler.config.publicClient
     })
+
+    const queuedUserOperations: UserOperation[] =
+        await rpcHandler.mempool.getQueuedOustandingUserOps({
+            userOp: userOperation,
+            entryPoint
+        })
     const validationResult = await rpcHandler.validator.validateUserOperation({
         shouldCheckPrefund,
         userOperation,
-        queuedUserOperations: [],
+        queuedUserOperations,
         entryPoint
     })
 
-    const preMempoolChecks = await rpcHandler.preMempoolChecks(
-        userOperation,
-        apiVersion
-    )
+    const [isPreMempoolValid, preMempoolError] =
+        await rpcHandler.preMempoolChecks(userOperation, apiVersion)
 
-    if (!preMempoolChecks.valid) {
+    if (!isPreMempoolValid) {
         rpcHandler.eventManager.emitFailedValidation(
             userOpHash,
-            preMempoolChecks.reason
+            preMempoolError
         )
-        throw new RpcError(preMempoolChecks.reason)
+        throw new RpcError(preMempoolError)
     }
 
     // Nonce validation
-    const { userOperationNonceValue, currentNonceValue, queuedUserOperations } =
-        await rpcHandler.getNonceValues(userOperation, entryPoint)
+    const currentNonceSeq = await rpcHandler.getNonceSeq(
+        userOperation,
+        entryPoint
+    )
+    const [, userOpNonceSeq] = getNonceKeyAndSequence(userOperation.nonce)
 
-    if (userOperationNonceValue < currentNonceValue) {
+    if (userOpNonceSeq < currentNonceSeq) {
         const reason =
             "UserOperation failed validation with reason: AA25 invalid account nonce"
         rpcHandler.eventManager.emitFailedValidation(userOpHash, reason, "AA25")
         throw new RpcError(reason, ValidationErrors.InvalidFields)
     }
 
-    if (userOperationNonceValue > currentNonceValue + 10n) {
+    if (userOpNonceSeq > currentNonceSeq + 10n) {
         const reason =
             "UserOperation failed validaiton with reason: AA25 invalid account nonce"
         rpcHandler.eventManager.emitFailedValidation(userOpHash, reason, "AA25")
@@ -68,8 +78,8 @@ export async function addToMempoolIfValid(
     }
 
     if (
-        userOperationNonceValue >
-        currentNonceValue + BigInt(queuedUserOperations.length)
+        userOpNonceSeq >
+        currentNonceSeq + BigInt(queuedUserOperations.length)
     ) {
         rpcHandler.mempool.add(userOperation, entryPoint)
         rpcHandler.eventManager.emitQueued(userOpHash)
@@ -78,17 +88,16 @@ export async function addToMempoolIfValid(
 
     // userOp validation
     if (rpcHandler.config.dangerousSkipUserOperationValidation) {
-        const [success, errorReason] = await rpcHandler.mempool.add(
-            userOperation,
-            entryPoint
-        )
-        if (!success) {
+        const [isMempoolAddSuccess, mempoolAddError] =
+            await rpcHandler.mempool.add(userOperation, entryPoint)
+
+        if (!isMempoolAddSuccess) {
             rpcHandler.eventManager.emitFailedValidation(
                 userOpHash,
-                errorReason,
-                getAAError(errorReason)
+                mempoolAddError,
+                getAAError(mempoolAddError)
             )
-            throw new RpcError(errorReason, ValidationErrors.InvalidFields)
+            throw new RpcError(mempoolAddError, ValidationErrors.InvalidFields)
         }
         return "added"
     }
@@ -122,19 +131,19 @@ export async function addToMempoolIfValid(
         userOperation
     )
 
-    const [success, errorReason] = await rpcHandler.mempool.add(
+    const [isMempoolAddSuccess, mempoolAddError] = await rpcHandler.mempool.add(
         userOperation,
         entryPoint,
         validationResult.referencedContracts
     )
 
-    if (!success) {
+    if (!isMempoolAddSuccess) {
         rpcHandler.eventManager.emitFailedValidation(
             userOpHash,
-            errorReason,
-            getAAError(errorReason)
+            mempoolAddError,
+            getAAError(mempoolAddError)
         )
-        throw new RpcError(errorReason, ValidationErrors.InvalidFields)
+        throw new RpcError(mempoolAddError, ValidationErrors.InvalidFields)
     }
     return "added"
 }
