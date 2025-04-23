@@ -110,12 +110,6 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
             "Should the bundler enable the pimlico_sendUserOperationNow endpoint",
         type: "boolean",
         default: false
-    },
-    "should-check-prefund": {
-        description:
-            "Should the bundler check userOp's prefund before accepting it",
-        type: "boolean",
-        default: true
     }
 }
 
@@ -334,7 +328,8 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         default: "300"
     },
     "gas-limit-rounding-multiple": {
-        description: "Value to round transaction gas limit to the nearest multiple of",
+        description:
+            "Value to round transaction gas limit to the nearest multiple of",
         type: "string",
         require: false,
         default: "4337"
