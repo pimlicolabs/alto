@@ -539,7 +539,7 @@ describe.each([
                 entryPointVersion: getViemEntryPointVersion(entryPointVersion)
             })
 
-            // Set throw when there is insufficient prefund
+            // Should throw when there is insufficient prefund
             await anvilClient.setBalance({
                 address: client.account.address,
                 value: requiedPrefund - 1n
@@ -554,7 +554,7 @@ describe.each([
                 })
             )
 
-            // Should be able to send userOperation when there is sufficient funds
+            // Should be able to send userOperation when there is sufficient prefund
             await anvilClient.setBalance({
                 address: client.account.address,
                 value: requiedPrefund
