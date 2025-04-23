@@ -69,7 +69,6 @@ export interface InterfaceValidator {
     >
 
     validateUserOperation(args: {
-        shouldCheckPrefund: boolean
         userOperation: UserOperation
         queuedUserOperations: UserOperation[]
         entryPoint: Address
