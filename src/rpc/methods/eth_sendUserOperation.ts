@@ -84,31 +84,27 @@ export async function addToMempoolIfValid(
 ): Promise<"added" | "queued"> {
     rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
-    const userOpHash = await getUserOperationHash({
-        userOperation: userOperation,
-        entryPointAddress: entryPoint,
-        chainId: rpcHandler.config.chainId,
-        publicClient: rpcHandler.config.publicClient
-    })
+    // Execute multiple async operations in parallel
+    const [
+        userOpHash,
+        { queuedUserOperations, validationResult },
+        currentNonceSeq,
+        [pvgSuccess, pvgErrorReason],
+        [preMempoolSuccess, preMempoolError]
+    ] = await Promise.all([
+        getUserOperationHash({
+            userOperation: userOperation,
+            entryPointAddress: entryPoint,
+            chainId: rpcHandler.config.chainId,
+            publicClient: rpcHandler.config.publicClient
+        }),
+        getUserOpValidationResult(rpcHandler, userOperation, entryPoint),
+        rpcHandler.getNonceSeq(userOperation, entryPoint),
+        validatePvg(apiVersion, rpcHandler, userOperation, entryPoint),
+        rpcHandler.preMempoolChecks(userOperation, apiVersion)
+    ])
 
-    const { queuedUserOperations, validationResult } =
-        await getUserOpValidationResult(rpcHandler, userOperation, entryPoint)
-
-    const [pvgSuccess, pvgErrorReason] = await validatePvg(
-        apiVersion,
-        rpcHandler,
-        userOperation,
-        entryPoint
-    )
-
-    const currentNonceSeq = await rpcHandler.getNonceSeq(
-        userOperation,
-        entryPoint
-    )
     const [, userOpNonceSeq] = getNonceKeyAndSequence(userOperation.nonce)
-
-    const [preMempoolSuccess, preMempoolError] =
-        await rpcHandler.preMempoolChecks(userOperation, apiVersion)
 
     // Pre mempool validation
     if (!preMempoolSuccess) {
