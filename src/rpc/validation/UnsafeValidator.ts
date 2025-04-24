@@ -25,7 +25,7 @@ import {
     entryPointExecutionErrorSchemaV07
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
-import { calcPreVerificationGas, isVersion06 } from "@alto/utils"
+import { isVersion06 } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
     BaseError,
