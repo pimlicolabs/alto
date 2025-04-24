@@ -9,10 +9,72 @@ import {
     ValidationErrors,
     type UserOperation,
     type Address,
-    type ApiVersion
+    type ApiVersion,
+    ReferencedCodeHashes
 } from "@alto/types"
 import { calcPreVerificationGas, getAAError } from "@alto/utils"
 import { RpcHandler } from "../rpcHandler"
+import type * as validation from "@alto/types"
+
+const validatePvg = async (
+    apiVersion: ApiVersion,
+    rpcHandler: RpcHandler,
+    userOperation: UserOperation,
+    entryPoint: Address
+): Promise<[boolean, string]> => {
+    // PVG validation is skipped for v1
+    if (apiVersion == "v1") {
+        return [true, ""]
+    }
+
+    const requiredPvg = await calcPreVerificationGas({
+        config: rpcHandler.config,
+        userOperation,
+        entryPoint,
+        gasPriceManager: rpcHandler.gasPriceManager,
+        validate: true
+    })
+
+    if (requiredPvg > userOperation.preVerificationGas) {
+        return [
+            false,
+            `preVerificationGas is not enough, required: ${requiredPvg}, got: ${userOperation.preVerificationGas}`
+        ]
+    }
+
+    return [true, ""]
+}
+
+const getUserOpValidationResult = async (
+    rpcHandler: RpcHandler,
+    userOperation: UserOperation,
+    entryPoint: Address
+): Promise<{
+    queuedUserOperations: UserOperation[]
+    validationResult: (
+        | validation.ValidationResult
+        | validation.ValidationResultWithAggregation
+    ) & {
+        storageMap: validation.StorageMap
+        referencedContracts?: ReferencedCodeHashes
+    }
+}> => {
+    const queuedUserOperations: UserOperation[] =
+        await rpcHandler.mempool.getQueuedOustandingUserOps({
+            userOp: userOperation,
+            entryPoint
+        })
+    const validationResult = await rpcHandler.validator.validateUserOperation({
+        userOperation,
+        queuedUserOperations,
+        entryPoint
+    })
+
+    return {
+        queuedUserOperations,
+        validationResult
+    }
+}
 
 export async function addToMempoolIfValid(
     rpcHandler: RpcHandler,
@@ -22,10 +84,6 @@ export async function addToMempoolIfValid(
 ): Promise<"added" | "queued"> {
     rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
-    // V1 api doesn't check prefund.
-    const shouldCheckPrefund =
-        apiVersion !== "v1" && rpcHandler.config.shouldCheckPrefund
-
     const userOpHash = await getUserOperationHash({
         userOperation: userOperation,
         entryPointAddress: entryPoint,
@@ -33,22 +91,27 @@ export async function addToMempoolIfValid(
         publicClient: rpcHandler.config.publicClient
     })
 
-    const queuedUserOperations: UserOperation[] =
-        await rpcHandler.mempool.getQueuedOustandingUserOps({
-            userOp: userOperation,
-            entryPoint
-        })
-    const validationResult = await rpcHandler.validator.validateUserOperation({
-        shouldCheckPrefund,
-        userOperation,
-        queuedUserOperations,
-        entryPoint
-    })
+    const { queuedUserOperations, validationResult } =
+        await getUserOpValidationResult(rpcHandler, userOperation, entryPoint)
 
-    const [isPreMempoolValid, preMempoolError] =
+    const [pvgSuccess, pvgErrorReason] = await validatePvg(
+        apiVersion,
+        rpcHandler,
+        userOperation,
+        entryPoint
+    )
+
+    const currentNonceSeq = await rpcHandler.getNonceSeq(
+        userOperation,
+        entryPoint
+    )
+    const [, userOpNonceSeq] = getNonceKeyAndSequence(userOperation.nonce)
+
+    const [preMempoolSuccess, preMempoolError] =
         await rpcHandler.preMempoolChecks(userOperation, apiVersion)
 
-    if (!isPreMempoolValid) {
+    // Pre mempool validation
+    if (!preMempoolSuccess) {
         rpcHandler.eventManager.emitFailedValidation(
             userOpHash,
             preMempoolError
@@ -56,13 +119,12 @@ export async function addToMempoolIfValid(
         throw new RpcError(preMempoolError)
     }
 
-    // Nonce validation
-    const currentNonceSeq = await rpcHandler.getNonceSeq(
-        userOperation,
-        entryPoint
-    )
-    const [, userOpNonceSeq] = getNonceKeyAndSequence(userOperation.nonce)
+    if (!pvgSuccess) {
+        rpcHandler.eventManager.emitFailedValidation(userOpHash, pvgErrorReason)
+        throw new RpcError(pvgErrorReason, ValidationErrors.SimulateValidation)
+    }
 
+    // Nonce validation
     if (userOpNonceSeq < currentNonceSeq) {
         const reason =
             "UserOperation failed validation with reason: AA25 invalid account nonce"
@@ -102,24 +164,7 @@ export async function addToMempoolIfValid(
         return "added"
     }
 
-    // PVG validation
-    if (apiVersion !== "v1") {
-        const requiredPvg = await calcPreVerificationGas({
-            config: rpcHandler.config,
-            userOperation,
-            entryPoint,
-            gasPriceManager: rpcHandler.gasPriceManager,
-            validate: true
-        })
-
-        if (requiredPvg > userOperation.preVerificationGas) {
-            throw new RpcError(
-                `preVerificationGas is not enough, required: ${requiredPvg}, got: ${userOperation.preVerificationGas}`,
-                ValidationErrors.SimulateValidation
-            )
-        }
-    }
-
+    // ERC-7562 scope rule validation
     rpcHandler.reputationManager.checkReputation(
         userOperation,
         entryPoint,
@@ -131,6 +176,7 @@ export async function addToMempoolIfValid(
         userOperation
     )
 
+    // Finally, add to mempool
     const [isMempoolAddSuccess, mempoolAddError] = await rpcHandler.mempool.add(
         userOperation,
         entryPoint,
@@ -145,6 +191,7 @@ export async function addToMempoolIfValid(
         )
         throw new RpcError(mempoolAddError, ValidationErrors.InvalidFields)
     }
+
     return "added"
 }
 
