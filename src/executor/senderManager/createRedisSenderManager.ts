@@ -31,7 +31,7 @@ async function createRedisQueue({
                 "Redis transaction failed in createRedisQueue"
             )
             sentry.captureException(err)
-            throw new Error(`Redis transaction failed in createRedisQueue: ${err instanceof Error ? err.message : String(err)}`)
+            throw new Error("Redis transaction failed in createRedisQueue")
         }
     }
 

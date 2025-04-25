@@ -63,11 +63,8 @@ class SortedTtlSet {
                     "Redis transaction failed in SortedTtlSet.add (update)"
                 )
                 sentry.captureException(err)
-                throw new Error(
-                    `Redis transaction failed in SortedTtlSet.add (update): ${
-                        err instanceof Error ? err.message : String(err)
-                    }`
-                )
+                throw new Error("Redis transaction failed in SortedTtlSet.add (update)")
+                
             }
         } else {
             // If it's a new value, add entry to timestamp and value queues
@@ -84,11 +81,8 @@ class SortedTtlSet {
                     "Redis transaction failed in SortedTtlSet.add (new)"
                 )
                 sentry.captureException(err)
-                throw new Error(
-                    `Redis transaction failed in SortedTtlSet.add (new): ${
-                        err instanceof Error ? err.message : String(err)
-                    }`
-                )
+                throw new Error("Redis transaction failed in SortedTtlSet.add (new)")
+                
             }
         }
     }
@@ -120,11 +114,8 @@ class SortedTtlSet {
                     "Redis transaction failed in SortedTtlSet.pruneExpiredEntries"
                 )
                 sentry.captureException(err)
-                throw new Error(
-                    `Redis transaction failed in SortedTtlSet.pruneExpiredEntries: ${
-                        err instanceof Error ? err.message : String(err)
-                    }`
-                )
+                throw new Error("Redis transaction failed in SortedTtlSet.pruneExpiredEntries")
+                
             }
         }
     }

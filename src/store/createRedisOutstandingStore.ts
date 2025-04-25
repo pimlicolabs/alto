@@ -356,7 +356,7 @@ class RedisOutstandingQueue implements OutstandingStore {
                 "Redis transaction failed in RedisOutstandingQueue.add"
             )
             sentry.captureException(err)
-            throw new Error(`Redis transaction failed in RedisOutstandingQueue.add: ${err instanceof Error ? err.message : String(err)}`)
+            throw new Error("Redis transaction failed in RedisOutstandingQueue.add")
         }
     }
 
@@ -439,7 +439,7 @@ class RedisOutstandingQueue implements OutstandingStore {
                 "Redis transaction failed in RedisOutstandingQueue.remove"
             )
             sentry.captureException(err)
-            throw new Error(`Redis transaction failed in RedisOutstandingQueue.remove: ${err instanceof Error ? err.message : String(err)}`)
+            throw new Error("Redis transaction failed in RedisOutstandingQueue.remove")
         }
 
         return true
@@ -484,7 +484,7 @@ class RedisOutstandingQueue implements OutstandingStore {
                 "Redis transaction failed in RedisOutstandingQueue.pop"
             )
             sentry.captureException(err)
-            throw new Error(`Redis transaction failed in RedisOutstandingQueue.pop: ${err instanceof Error ? err.message : String(err)}`)
+            throw new Error("Redis transaction failed in RedisOutstandingQueue.pop")
         }
 
         // Check if there are more operations in this set

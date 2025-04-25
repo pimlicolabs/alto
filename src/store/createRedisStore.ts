@@ -118,7 +118,7 @@ export const createRedisStore = <T extends UserOpType>({
                     "Redis transaction failed in RedisStore.add"
                 )
                 sentry.captureException(err)
-                throw new Error(`Redis transaction failed in RedisStore.add: ${err instanceof Error ? err.message : String(err)}`)
+                throw new Error("Redis transaction failed in RedisStore.add")
             }
         },
         remove: async (userOpHash: HexData32) => {
@@ -151,7 +151,7 @@ export const createRedisStore = <T extends UserOpType>({
                     "Redis transaction failed in RedisStore.remove"
                 )
                 sentry.captureException(err)
-                throw new Error(`Redis transaction failed in RedisStore.remove: ${err instanceof Error ? err.message : String(err)}`)
+                throw new Error("Redis transaction failed in RedisStore.remove")
             }
 
             return true
