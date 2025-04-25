@@ -2,6 +2,7 @@ import Redis from "ioredis"
 
 import { MinMaxQueue } from "."
 import { AltoConfig } from "../../createConfig"
+import { Logger } from "@alto/utils"
 
 // Sorted TTL queue, one queue to keep track of values and other queue to keep track of TTL.
 class SortedTtlSet {
@@ -9,6 +10,7 @@ class SortedTtlSet {
     valueKey: string
     timestampKey: string
     queueValidity: number
+    logger: Logger
 
     constructor({
         keyPrefix,
@@ -30,6 +32,7 @@ class SortedTtlSet {
         this.valueKey = `${redisKey}:value`
         this.timestampKey = `${redisKey}:timestamp`
         this.queueValidity = queueValidity
+        this.logger = config.getLogger({ module: "redis-minmax-queue" })
     }
 
     async add(value: bigint) {
@@ -49,13 +52,29 @@ class SortedTtlSet {
             const multi = this.redis.multi()
             multi.zrem(this.timestampKey, valueStr) // Remove old timestamp
             multi.zadd(this.timestampKey, now, valueStr) // Add new timestamp
-            await multi.exec()
+            try {
+                await multi.exec()
+            } catch (error) {
+                this.logger.error(
+                    { error: error instanceof Error ? error.message : String(error) },
+                    "Redis transaction failed in SortedTtlSet.add (update)"
+                )
+                throw new Error(`Redis transaction failed in SortedTtlSet.add (update): ${error instanceof Error ? error.message : String(error)}`)
+            }
         } else {
             // If it's a new value, add entry to timestamp and value queues
             const multi = this.redis.multi()
             multi.zadd(this.timestampKey, now, valueStr)
             multi.zadd(this.valueKey, valueStr, valueStr)
-            await multi.exec()
+            try {
+                await multi.exec()
+            } catch (error) {
+                this.logger.error(
+                    { error: error instanceof Error ? error.message : String(error) },
+                    "Redis transaction failed in SortedTtlSet.add (new)"
+                )
+                throw new Error(`Redis transaction failed in SortedTtlSet.add (new): ${error instanceof Error ? error.message : String(error)}`)
+            }
         }
     }
 
@@ -76,7 +95,15 @@ class SortedTtlSet {
             // Remove expired entries from both sets
             multi.zrem(this.timestampKey, ...expiredMembers)
             multi.zrem(this.valueKey, ...expiredMembers)
-            await multi.exec()
+            try {
+                await multi.exec()
+            } catch (error) {
+                this.logger.error(
+                    { error: error instanceof Error ? error.message : String(error) },
+                    "Redis transaction failed in SortedTtlSet.pruneExpiredEntries"
+                )
+                throw new Error(`Redis transaction failed in SortedTtlSet.pruneExpiredEntries: ${error instanceof Error ? error.message : String(error)}`)
+            }
         }
     }
 

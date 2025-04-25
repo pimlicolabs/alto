@@ -22,7 +22,15 @@ async function createRedisQueue({
         const multi = redis.multi()
         multi.del(name)
         multi.rpush(name, ...entries)
-        await multi.exec()
+        try {
+            await multi.exec()
+        } catch (error) {
+            logger.error(
+                { error: error instanceof Error ? error.message : String(error) },
+                "Redis transaction failed in createRedisQueue"
+            )
+            throw new Error(`Redis transaction failed in createRedisQueue: ${error instanceof Error ? error.message : String(error)}`)
+        }
     }
 
     return {

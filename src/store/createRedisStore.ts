@@ -3,6 +3,7 @@ import { Store, UserOpType } from "."
 import { AltoConfig } from "../createConfig"
 import { HexData32, UserOperation, userOperationSchema } from "../types/schemas"
 import { isVersion06, isVersion07 } from "../utils/userop"
+import { Logger } from "@alto/utils"
 import { Address, toHex } from "viem"
 import { RedisHash } from "./createRedisOutstandingStore"
 import { createMemoryStore } from "./createStore"
@@ -51,6 +52,7 @@ export const createRedisStore = <T extends UserOpType>({
     storeType: string
     entryPoint: Address
 }): Store<T> => {
+    const logger = config.getLogger({ module: "redis-store" })
     if (!config.redisMempoolUrl) {
         throw new Error("Missing required redisMempoolUrl")
     }
@@ -107,7 +109,15 @@ export const createRedisStore = <T extends UserOpType>({
                 })
             }
 
-            await multi.exec()
+            try {
+                await multi.exec()
+            } catch (error) {
+                logger.error(
+                    { error: error instanceof Error ? error.message : String(error) },
+                    "Redis transaction failed in RedisStore.add"
+                )
+                throw new Error(`Redis transaction failed in RedisStore.add: ${error instanceof Error ? error.message : String(error)}`)
+            }
         },
         remove: async (userOpHash: HexData32) => {
             // Local memory logic
@@ -131,7 +141,15 @@ export const createRedisStore = <T extends UserOpType>({
             if (isDeploymentOperation(userOp)) {
                 await factoryLookup.delete({ key: userOp.sender, multi })
             }
-            await multi.exec()
+            try {
+                await multi.exec()
+            } catch (error) {
+                logger.error(
+                    { error: error instanceof Error ? error.message : String(error) },
+                    "Redis transaction failed in RedisStore.remove"
+                )
+                throw new Error(`Redis transaction failed in RedisStore.remove: ${error instanceof Error ? error.message : String(error)}`)
+            }
 
             return true
         },

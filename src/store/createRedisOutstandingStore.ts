@@ -11,6 +11,7 @@ import {
     UserOpInfo,
     userOpInfoSchema
 } from "@alto/types"
+import { Logger } from "@alto/utils"
 import { OutstandingStore } from "."
 import { ChainableCommander, Redis } from "ioredis"
 import { toHex } from "viem/utils"
@@ -176,6 +177,7 @@ class RedisOutstandingQueue implements OutstandingStore {
     private redis: Redis
     private chainId: number
     private entryPoint: Address
+    private logger: Logger
 
     // Redis data structures
     private readyOpsQueue: RedisSortedSet // gasPrice -> pendingOpsKey
@@ -193,6 +195,7 @@ class RedisOutstandingQueue implements OutstandingStore {
         this.redis = new Redis(config.redisMempoolUrl, {})
         this.chainId = config.chainId
         this.entryPoint = entryPoint
+        this.logger = config.getLogger({ module: "redis-outstanding-store" })
 
         // Initialize Redis data structures
         const factoryLookupKey = `${this.chainId}:outstanding:factory-lookup:${this.entryPoint}`
@@ -344,7 +347,15 @@ class RedisOutstandingQueue implements OutstandingStore {
             })
         }
 
-        await multi.exec()
+        try {
+            await multi.exec()
+        } catch (error) {
+            this.logger.error(
+                { error: error instanceof Error ? error.message : String(error) },
+                "Redis transaction failed in RedisOutstandingQueue.add"
+            )
+            throw new Error(`Redis transaction failed in RedisOutstandingQueue.add: ${error instanceof Error ? error.message : String(error)}`)
+        }
     }
 
     async remove(userOpHash: HexData32): Promise<boolean> {
@@ -418,7 +429,15 @@ class RedisOutstandingQueue implements OutstandingStore {
         }
 
         // Execute transaction
-        await multi.exec()
+        try {
+            await multi.exec()
+        } catch (error) {
+            this.logger.error(
+                { error: error instanceof Error ? error.message : String(error) },
+                "Redis transaction failed in RedisOutstandingQueue.remove"
+            )
+            throw new Error(`Redis transaction failed in RedisOutstandingQueue.remove: ${error instanceof Error ? error.message : String(error)}`)
+        }
 
         return true
     }
@@ -454,7 +473,15 @@ class RedisOutstandingQueue implements OutstandingStore {
         })
 
         // Execute transaction
-        await multi.exec()
+        try {
+            await multi.exec()
+        } catch (error) {
+            this.logger.error(
+                { error: error instanceof Error ? error.message : String(error) },
+                "Redis transaction failed in RedisOutstandingQueue.pop"
+            )
+            throw new Error(`Redis transaction failed in RedisOutstandingQueue.pop: ${error instanceof Error ? error.message : String(error)}`)
+        }
 
         // Check if there are more operations in this set
         if (ops.length > 1) {
