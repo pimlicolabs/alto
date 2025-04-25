@@ -350,13 +350,13 @@ class RedisOutstandingQueue implements OutstandingStore {
 
         try {
             await multi.exec()
-        } catch (error) {
+        } catch (err) {
             this.logger.error(
-                { error: error instanceof Error ? error.message : String(error) },
+                { err },
                 "Redis transaction failed in RedisOutstandingQueue.add"
             )
-            sentry.captureException(error)
-            throw new Error(`Redis transaction failed in RedisOutstandingQueue.add: ${error instanceof Error ? error.message : String(error)}`)
+            sentry.captureException(err)
+            throw new Error(`Redis transaction failed in RedisOutstandingQueue.add: ${err instanceof Error ? err.message : String(err)}`)
         }
     }
 
@@ -433,13 +433,13 @@ class RedisOutstandingQueue implements OutstandingStore {
         // Execute transaction
         try {
             await multi.exec()
-        } catch (error) {
+        } catch (err) {
             this.logger.error(
-                { error: error instanceof Error ? error.message : String(error) },
+                { err },
                 "Redis transaction failed in RedisOutstandingQueue.remove"
             )
-            sentry.captureException(error)
-            throw new Error(`Redis transaction failed in RedisOutstandingQueue.remove: ${error instanceof Error ? error.message : String(error)}`)
+            sentry.captureException(err)
+            throw new Error(`Redis transaction failed in RedisOutstandingQueue.remove: ${err instanceof Error ? err.message : String(err)}`)
         }
 
         return true
@@ -478,13 +478,13 @@ class RedisOutstandingQueue implements OutstandingStore {
         // Execute transaction
         try {
             await multi.exec()
-        } catch (error) {
+        } catch (err) {
             this.logger.error(
-                { error: error instanceof Error ? error.message : String(error) },
+                { err },
                 "Redis transaction failed in RedisOutstandingQueue.pop"
             )
-            sentry.captureException(error)
-            throw new Error(`Redis transaction failed in RedisOutstandingQueue.pop: ${error instanceof Error ? error.message : String(error)}`)
+            sentry.captureException(err)
+            throw new Error(`Redis transaction failed in RedisOutstandingQueue.pop: ${err instanceof Error ? err.message : String(err)}`)
         }
 
         // Check if there are more operations in this set

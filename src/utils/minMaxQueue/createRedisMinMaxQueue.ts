@@ -55,20 +55,17 @@ class SortedTtlSet {
             multi.zadd(this.timestampKey, now, valueStr) // Add new timestamp
             try {
                 await multi.exec()
-            } catch (error) {
+            } catch (err) {
                 this.logger.error(
                     {
-                        error:
-                            error instanceof Error
-                                ? error.message
-                                : String(error)
+                        err
                     },
                     "Redis transaction failed in SortedTtlSet.add (update)"
                 )
-                sentry.captureException(error)
+                sentry.captureException(err)
                 throw new Error(
                     `Redis transaction failed in SortedTtlSet.add (update): ${
-                        error instanceof Error ? error.message : String(error)
+                        err instanceof Error ? err.message : String(err)
                     }`
                 )
             }
@@ -79,20 +76,17 @@ class SortedTtlSet {
             multi.zadd(this.valueKey, valueStr, valueStr)
             try {
                 await multi.exec()
-            } catch (error) {
+            } catch (err) {
                 this.logger.error(
                     {
-                        error:
-                            error instanceof Error
-                                ? error.message
-                                : String(error)
+                        err
                     },
                     "Redis transaction failed in SortedTtlSet.add (new)"
                 )
-                sentry.captureException(error)
+                sentry.captureException(err)
                 throw new Error(
                     `Redis transaction failed in SortedTtlSet.add (new): ${
-                        error instanceof Error ? error.message : String(error)
+                        err instanceof Error ? err.message : String(err)
                     }`
                 )
             }
@@ -118,20 +112,17 @@ class SortedTtlSet {
             multi.zrem(this.valueKey, ...expiredMembers)
             try {
                 await multi.exec()
-            } catch (error) {
+            } catch (err) {
                 this.logger.error(
                     {
-                        error:
-                            error instanceof Error
-                                ? error.message
-                                : String(error)
+                        err
                     },
                     "Redis transaction failed in SortedTtlSet.pruneExpiredEntries"
                 )
-                sentry.captureException(error)
+                sentry.captureException(err)
                 throw new Error(
                     `Redis transaction failed in SortedTtlSet.pruneExpiredEntries: ${
-                        error instanceof Error ? error.message : String(error)
+                        err instanceof Error ? err.message : String(err)
                     }`
                 )
             }

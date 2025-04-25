@@ -112,13 +112,13 @@ export const createRedisStore = <T extends UserOpType>({
 
             try {
                 await multi.exec()
-            } catch (error) {
+            } catch (err) {
                 logger.error(
-                    { error: error instanceof Error ? error.message : String(error) },
+                    { err },
                     "Redis transaction failed in RedisStore.add"
                 )
-                sentry.captureException(error)
-                throw new Error(`Redis transaction failed in RedisStore.add: ${error instanceof Error ? error.message : String(error)}`)
+                sentry.captureException(err)
+                throw new Error(`Redis transaction failed in RedisStore.add: ${err instanceof Error ? err.message : String(err)}`)
             }
         },
         remove: async (userOpHash: HexData32) => {
@@ -145,13 +145,13 @@ export const createRedisStore = <T extends UserOpType>({
             }
             try {
                 await multi.exec()
-            } catch (error) {
+            } catch (err) {
                 logger.error(
-                    { error: error instanceof Error ? error.message : String(error) },
+                    { err },
                     "Redis transaction failed in RedisStore.remove"
                 )
-                sentry.captureException(error)
-                throw new Error(`Redis transaction failed in RedisStore.remove: ${error instanceof Error ? error.message : String(error)}`)
+                sentry.captureException(err)
+                throw new Error(`Redis transaction failed in RedisStore.remove: ${err instanceof Error ? err.message : String(err)}`)
             }
 
             return true

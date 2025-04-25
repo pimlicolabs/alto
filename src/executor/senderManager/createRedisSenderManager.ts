@@ -25,13 +25,13 @@ async function createRedisQueue({
         multi.rpush(name, ...entries)
         try {
             await multi.exec()
-        } catch (error) {
+        } catch (err) {
             logger.error(
-                { error: error instanceof Error ? error.message : String(error) },
+                { err },
                 "Redis transaction failed in createRedisQueue"
             )
-            sentry.captureException(error)
-            throw new Error(`Redis transaction failed in createRedisQueue: ${error instanceof Error ? error.message : String(error)}`)
+            sentry.captureException(err)
+            throw new Error(`Redis transaction failed in createRedisQueue: ${err instanceof Error ? err.message : String(err)}`)
         }
     }
 
