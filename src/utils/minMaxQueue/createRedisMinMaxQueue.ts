@@ -3,6 +3,7 @@ import Redis from "ioredis"
 import { MinMaxQueue } from "."
 import { AltoConfig } from "../../createConfig"
 import { Logger } from "@alto/utils"
+import * as sentry from "@sentry/node"
 
 // Sorted TTL queue, one queue to keep track of values and other queue to keep track of TTL.
 class SortedTtlSet {
@@ -56,10 +57,20 @@ class SortedTtlSet {
                 await multi.exec()
             } catch (error) {
                 this.logger.error(
-                    { error: error instanceof Error ? error.message : String(error) },
+                    {
+                        error:
+                            error instanceof Error
+                                ? error.message
+                                : String(error)
+                    },
                     "Redis transaction failed in SortedTtlSet.add (update)"
                 )
-                throw new Error(`Redis transaction failed in SortedTtlSet.add (update): ${error instanceof Error ? error.message : String(error)}`)
+                sentry.captureException(error)
+                throw new Error(
+                    `Redis transaction failed in SortedTtlSet.add (update): ${
+                        error instanceof Error ? error.message : String(error)
+                    }`
+                )
             }
         } else {
             // If it's a new value, add entry to timestamp and value queues
@@ -70,10 +81,20 @@ class SortedTtlSet {
                 await multi.exec()
             } catch (error) {
                 this.logger.error(
-                    { error: error instanceof Error ? error.message : String(error) },
+                    {
+                        error:
+                            error instanceof Error
+                                ? error.message
+                                : String(error)
+                    },
                     "Redis transaction failed in SortedTtlSet.add (new)"
                 )
-                throw new Error(`Redis transaction failed in SortedTtlSet.add (new): ${error instanceof Error ? error.message : String(error)}`)
+                sentry.captureException(error)
+                throw new Error(
+                    `Redis transaction failed in SortedTtlSet.add (new): ${
+                        error instanceof Error ? error.message : String(error)
+                    }`
+                )
             }
         }
     }
@@ -99,10 +120,20 @@ class SortedTtlSet {
                 await multi.exec()
             } catch (error) {
                 this.logger.error(
-                    { error: error instanceof Error ? error.message : String(error) },
+                    {
+                        error:
+                            error instanceof Error
+                                ? error.message
+                                : String(error)
+                    },
                     "Redis transaction failed in SortedTtlSet.pruneExpiredEntries"
                 )
-                throw new Error(`Redis transaction failed in SortedTtlSet.pruneExpiredEntries: ${error instanceof Error ? error.message : String(error)}`)
+                sentry.captureException(error)
+                throw new Error(
+                    `Redis transaction failed in SortedTtlSet.pruneExpiredEntries: ${
+                        error instanceof Error ? error.message : String(error)
+                    }`
+                )
             }
         }
     }

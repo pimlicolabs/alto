@@ -4,6 +4,7 @@ import { SenderManager } from "../senderManager"
 import { getAvailableWallets } from "."
 import { Account } from "viem"
 import Redis from "ioredis"
+import * as sentry from "@sentry/node"
 
 async function createRedisQueue({
     redis,
@@ -29,6 +30,7 @@ async function createRedisQueue({
                 { error: error instanceof Error ? error.message : String(error) },
                 "Redis transaction failed in createRedisQueue"
             )
+            sentry.captureException(error)
             throw new Error(`Redis transaction failed in createRedisQueue: ${error instanceof Error ? error.message : String(error)}`)
         }
     }

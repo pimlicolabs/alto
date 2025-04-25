@@ -15,6 +15,7 @@ import { Logger } from "@alto/utils"
 import { OutstandingStore } from "."
 import { ChainableCommander, Redis } from "ioredis"
 import { toHex } from "viem/utils"
+import * as sentry from "@sentry/node"
 
 const serializeUserOpInfo = (userOpInfo: UserOpInfo): string => {
     return JSON.stringify(userOpInfo, (_, value) =>
@@ -354,6 +355,7 @@ class RedisOutstandingQueue implements OutstandingStore {
                 { error: error instanceof Error ? error.message : String(error) },
                 "Redis transaction failed in RedisOutstandingQueue.add"
             )
+            sentry.captureException(error)
             throw new Error(`Redis transaction failed in RedisOutstandingQueue.add: ${error instanceof Error ? error.message : String(error)}`)
         }
     }
@@ -436,6 +438,7 @@ class RedisOutstandingQueue implements OutstandingStore {
                 { error: error instanceof Error ? error.message : String(error) },
                 "Redis transaction failed in RedisOutstandingQueue.remove"
             )
+            sentry.captureException(error)
             throw new Error(`Redis transaction failed in RedisOutstandingQueue.remove: ${error instanceof Error ? error.message : String(error)}`)
         }
 
@@ -480,6 +483,7 @@ class RedisOutstandingQueue implements OutstandingStore {
                 { error: error instanceof Error ? error.message : String(error) },
                 "Redis transaction failed in RedisOutstandingQueue.pop"
             )
+            sentry.captureException(error)
             throw new Error(`Redis transaction failed in RedisOutstandingQueue.pop: ${error instanceof Error ? error.message : String(error)}`)
         }
 

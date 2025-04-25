@@ -7,6 +7,7 @@ import { Logger } from "@alto/utils"
 import { Address, toHex } from "viem"
 import { RedisHash } from "./createRedisOutstandingStore"
 import { createMemoryStore } from "./createStore"
+import * as sentry from "@sentry/node"
 
 const isDeploymentOperation = (userOp: UserOperation): boolean => {
     const isV6Deployment =
@@ -116,6 +117,7 @@ export const createRedisStore = <T extends UserOpType>({
                     { error: error instanceof Error ? error.message : String(error) },
                     "Redis transaction failed in RedisStore.add"
                 )
+                sentry.captureException(error)
                 throw new Error(`Redis transaction failed in RedisStore.add: ${error instanceof Error ? error.message : String(error)}`)
             }
         },
@@ -148,6 +150,7 @@ export const createRedisStore = <T extends UserOpType>({
                     { error: error instanceof Error ? error.message : String(error) },
                     "Redis transaction failed in RedisStore.remove"
                 )
+                sentry.captureException(error)
                 throw new Error(`Redis transaction failed in RedisStore.remove: ${error instanceof Error ? error.message : String(error)}`)
             }
 
