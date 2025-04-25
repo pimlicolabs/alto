@@ -2,6 +2,7 @@ import { Metrics } from "@alto/utils"
 import { AltoConfig } from "../../createConfig"
 import { SenderManager } from "../senderManager"
 import { getAvailableWallets } from "."
+import { Logger } from "pino"
 import { Account } from "viem"
 import Redis from "ioredis"
 import * as sentry from "@sentry/node"
@@ -9,11 +10,13 @@ import * as sentry from "@sentry/node"
 async function createRedisQueue({
     redis,
     name,
-    entries
+    entries,
+    logger
 }: {
     redis: Redis
     name: string
     entries: string[]
+    logger: Logger
 }) {
     const hasElements = await redis.llen(name)
 
@@ -69,7 +72,8 @@ export const createRedisSenderManager = async ({
     const redisQueue = await createRedisQueue({
         redis,
         name: redisQueueName,
-        entries: wallets.map((w) => w.address)
+        entries: wallets.map((w) => w.address),
+        logger
     })
 
     // Track active wallets for this instance
