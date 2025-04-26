@@ -240,7 +240,7 @@ export class EventManager {
                 removeOnComplete: true,
                 removeOnFail: true
             }),
-            1000
+            500 // 500ms timeout
         )
             .then(() => {
                 this.metrics.emittedOpEvents
@@ -254,7 +254,7 @@ export class EventManager {
                 if (err instanceof AsyncTimeoutError) {
                     this.logger.warn(
                         { userOpHash: entry.userOperationHash, eventType },
-                        "Event emission timed out after 1 second"
+                        "Event emission timed out after 500ms"
                     )
                     this.metrics.emittedOpEvents
                         .labels({
