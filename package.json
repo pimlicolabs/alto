@@ -17,7 +17,7 @@
         "start": "node src/lib/cli/alto.js run",
         "dev": "pnpm run build:contracts && nodemon --ext ts,js,json --watch src --exec DOTENV_CONFIG_PATH=$(pwd)/.env ts-node --project src/tsconfig.json -r tsconfig-paths/register src/cli/alto.ts run",
         "test": "pnpm --filter e2e run test",
-        "test:ci": "pnpm --filter e2e run test:ci",
+        "test:ci": "pnpm run build:contracts && pnpm --filter e2e run test:ci",
         "test:spec": "./test/spec-tests/run-spec-tests.sh",
         "lint": "biome check .",
         "lint:fix": "pnpm run lint --apply",
