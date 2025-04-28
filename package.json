@@ -12,7 +12,7 @@
         "prepare": "pnpm run build",
         "clean": "rm -rf ./src/lib ./src/*.tsbuildinfo",
         "clean-modules": "rm -rf ./src/node_modules node_modules",
-        "build": "pnpm run build:contracts && pnpm -r run build",
+        "build": "pnpm -r run build",
         "build:contracts": "cd contracts/ && forge build --evm-version london --out ../src/contracts/ src/v06/EntryPointCodeOverride.sol && forge build --evm-version london --out ../src/contracts/ src/v07/PimlicoEntryPointSimulationsV7.sol && forge build --evm-version cancun --out ../src/contracts/ src/v08/PimlicoEntryPointSimulationsV8.sol",
         "build:esm": "pnpm -r run build:esm",
         "start": "node src/lib/cli/alto.js run",
