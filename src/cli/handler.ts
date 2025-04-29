@@ -164,6 +164,15 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
             deployedContracts.entrypointSimulationContractV7
         args.entrypointSimulationContractV8 =
             deployedContracts.entrypointSimulationContractV8
+        logger.info(
+            {
+                entrypointSimulationContractV7:
+                    deployedContracts.entrypointSimulationContractV7,
+                entrypointSimulationContractV8:
+                    deployedContracts.entrypointSimulationContractV8
+            },
+            "Contracts used for simulation"
+        )
     }
 
     const config = createConfig({ ...args, logger, publicClient, walletClient })
