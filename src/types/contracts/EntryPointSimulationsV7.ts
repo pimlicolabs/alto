@@ -1407,6 +1407,11 @@ export const EntryPointV07SimulationsAbi = [
         "name": "targetCallData",
         "type": "bytes",
         "internalType": "bytes"
+      },
+      {
+        "name": "throwPostOpRevert",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "outputs": [
