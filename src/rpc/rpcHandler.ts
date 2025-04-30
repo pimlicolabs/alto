@@ -9,7 +9,7 @@ import type {
     Mempool,
     Monitor
 } from "@alto/mempool"
-import type { ApiVersion, BundlerRequest, StateOverrides } from "@alto/types"
+import type { ApiVersion, BundlerRequest } from "@alto/types"
 import {
     type Address,
     EntryPointV06Abi,
@@ -20,16 +20,7 @@ import {
     ValidationErrors
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
-import {
-    calcPreVerificationGas,
-    calcVerificationGasAndCallGasLimit,
-    deepHexlify,
-    getNonceKeyAndSequence,
-    isVersion06,
-    isVersion07,
-    maxBigInt,
-    scaleBigIntByPercent
-} from "@alto/utils"
+import { getNonceKeyAndSequence, isVersion06, isVersion07 } from "@alto/utils"
 import { getContract, zeroAddress } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { MethodHandler } from "./createMethodHandler"
@@ -203,19 +194,15 @@ export class RpcHandler {
     async validateEip7702Auth({
         userOperation,
         validateSender = false
-    }: { userOperation: UserOperation; validateSender?: boolean }) {
+    }: { userOperation: UserOperation; validateSender?: boolean }): Promise<
+        [boolean, string]
+    > {
         if (!userOperation.eip7702Auth) {
-            throw new RpcError(
-                "UserOperation is missing eip7702Auth",
-                ValidationErrors.InvalidFields
-            )
+            return [true, ""]
         }
 
         if (!this.config.codeOverrideSupport) {
-            throw new RpcError(
-                "eip7702Auth is not supported on this chain",
-                ValidationErrors.InvalidFields
-            )
+            return [false, "eip7702Auth is not supported on this chain"]
         }
 
         // Check that auth is valid.
@@ -246,38 +233,38 @@ export class RpcHandler {
             userOperation.eip7702Auth.chainId !== this.config.chainId &&
             userOperation.eip7702Auth.chainId !== 0
         ) {
-            throw new RpcError(
-                "Invalid EIP-7702 authorization: The chainId does not match the userOperation sender address",
-                ValidationErrors.InvalidFields
-            )
+            return [
+                false,
+                "Invalid EIP-7702 authorization: The chainId does not match the userOperation sender address"
+            ]
         }
 
         if (![0, 1].includes(userOperation.eip7702Auth.yParity)) {
-            throw new RpcError(
-                "Invalid EIP-7702 authorization: The yParity value must be either 0 or 1",
-                ValidationErrors.InvalidFields
-            )
+            return [
+                false,
+                "Invalid EIP-7702 authorization: The yParity value must be either 0 or 1"
+            ]
         }
 
         if (nonceOnChain !== userOperation.eip7702Auth.nonce) {
-            throw new RpcError(
-                "Invalid EIP-7702 authorization: The nonce does not match the userOperation sender address",
-                ValidationErrors.SimulateValidation
-            )
+            return [
+                false,
+                "Invalid EIP-7702 authorization: The nonce does not match the userOperation sender address"
+            ]
         }
 
         if (sender !== userOperation.sender) {
-            throw new RpcError(
-                "Invalid EIP-7702 authorization: The recovered signer address does not match the userOperation sender address",
-                ValidationErrors.InvalidFields
-            )
+            return [
+                false,
+                "Invalid EIP-7702 authorization: The recovered signer address does not match the userOperation sender address"
+            ]
         }
 
         if (isVersion06(userOperation) && userOperation.initCode !== "0x") {
-            throw new RpcError(
-                "Invalid EIP-7702 authorization: UserOperation cannot contain initCode.",
-                ValidationErrors.InvalidFields
-            )
+            return [
+                false,
+                "Invalid EIP-7702 authorization: UserOperation cannot contain initCode."
+            ]
         }
 
         if (
@@ -285,10 +272,10 @@ export class RpcHandler {
             userOperation.factory !== "0x7702" &&
             userOperation.factory !== null
         ) {
-            throw new RpcError(
-                "Invalid EIP-7702 authorization: UserOperation cannot contain factory that is neither null or 0x7702.",
-                ValidationErrors.InvalidFields
-            )
+            return [
+                false,
+                "Invalid EIP-7702 authorization: UserOperation cannot contain factory that is neither null or 0x7702."
+            ]
         }
 
         // Check delegation designator
@@ -298,10 +285,10 @@ export class RpcHandler {
                 : userOperation.eip7702Auth.contractAddress
 
         if (delegationDesignator === zeroAddress) {
-            throw new RpcError(
-                "Invalid EIP-7702 authorization: Cannot delegate to the zero address.",
-                ValidationErrors.InvalidFields
-            )
+            return [
+                false,
+                "Invalid EIP-7702 authorization: Cannot delegate to the zero address."
+            ]
         }
 
         const hasCode = this.eip7702CodeCache.has(delegationDesignator)
@@ -312,14 +299,16 @@ export class RpcHandler {
             })
 
             if (delegateCode === undefined || delegateCode === "0x") {
-                throw new RpcError(
-                    `Invalid EIP-7702 authorization: Delegate ${delegationDesignator} has no code.`,
-                    ValidationErrors.InvalidFields
-                )
+                return [
+                    false,
+                    `Invalid EIP-7702 authorization: Delegate ${delegationDesignator} has no code.`
+                ]
             }
 
             this.eip7702CodeCache.set(delegationDesignator, true)
         }
+
+        return [true, ""]
     }
 
     async getNonceSeq(userOperation: UserOperation, entryPoint: Address) {
@@ -345,246 +334,5 @@ export class RpcHandler {
         const [_, currentNonceSeq] = getNonceKeyAndSequence(getNonceResult)
 
         return currentNonceSeq
-    }
-
-    async estimateGas({
-        apiVersion,
-        userOperation,
-        entryPoint,
-        stateOverrides
-    }: {
-        apiVersion: ApiVersion
-        userOperation: UserOperation
-        entryPoint: Address
-        stateOverrides?: StateOverrides
-    }) {
-        this.ensureEntryPointIsSupported(entryPoint)
-
-        if (userOperation.maxFeePerGas === 0n && !this.config.isGasFreeChain) {
-            throw new RpcError(
-                "user operation max fee per gas must be larger than 0 during gas estimation"
-            )
-        }
-
-        // Check if the nonce is valid
-        // If the nonce is less than the current nonce, the user operation has already been executed
-        // If the nonce is greater than the current nonce, we may have missing user operations in the mempool
-        const currentNonceSeq = await this.getNonceSeq(
-            userOperation,
-            entryPoint
-        )
-        const [, userOpNonceSeq] = getNonceKeyAndSequence(userOperation.nonce)
-
-        let queuedUserOperations: UserOperation[] = []
-        if (userOpNonceSeq < currentNonceSeq) {
-            throw new RpcError(
-                "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
-                ValidationErrors.InvalidFields
-            )
-        }
-        if (userOpNonceSeq > currentNonceSeq) {
-            // Nonce queues are supported only for v7 user operations
-            if (isVersion06(userOperation)) {
-                throw new RpcError(
-                    "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
-                    ValidationErrors.InvalidFields
-                )
-            }
-
-            queuedUserOperations =
-                await this.mempool.getQueuedOustandingUserOps({
-                    userOp: userOperation,
-                    entryPoint
-                })
-
-            if (
-                userOpNonceSeq >
-                currentNonceSeq + BigInt(queuedUserOperations.length)
-            ) {
-                throw new RpcError(
-                    "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
-                    ValidationErrors.InvalidFields
-                )
-            }
-        }
-
-        // Prepare userOperation for simulation
-        const {
-            simulationVerificationGasLimit,
-            simulationCallGasLimit,
-            simulationPaymasterVerificationGasLimit,
-            simulationPaymasterPostOpGasLimit
-        } = this.config
-
-        const simulationUserOperation = {
-            ...userOperation,
-            maxFeePerGas: 1n,
-            maxPriorityFeePerGas: 1n,
-            preVerificationGas: 0n,
-            verificationGasLimit: simulationVerificationGasLimit,
-            callGasLimit: simulationCallGasLimit
-        }
-
-        if (isVersion07(simulationUserOperation)) {
-            simulationUserOperation.paymasterVerificationGasLimit =
-                simulationPaymasterVerificationGasLimit
-            simulationUserOperation.paymasterPostOpGasLimit =
-                simulationPaymasterPostOpGasLimit
-        }
-
-        // This is necessary because entryPoint pays
-        // min(maxFeePerGas, baseFee + maxPriorityFeePerGas) for the verification
-        // Since we don't want our estimations to depend upon baseFee, we set
-        // maxFeePerGas to maxPriorityFeePerGas
-        simulationUserOperation.maxPriorityFeePerGas =
-            simulationUserOperation.maxFeePerGas
-
-        const executionResult = await this.validator.getExecutionResult({
-            userOperation: simulationUserOperation,
-            entryPoint,
-            queuedUserOperations,
-            stateOverrides: deepHexlify(stateOverrides)
-        })
-
-        let {
-            verificationGasLimit,
-            callGasLimit,
-            paymasterVerificationGasLimit
-        } = calcVerificationGasAndCallGasLimit(
-            simulationUserOperation,
-            executionResult.data.executionResult,
-            executionResult.data
-        )
-
-        let paymasterPostOpGasLimit = 0n
-
-        if (
-            !paymasterVerificationGasLimit &&
-            isVersion07(simulationUserOperation) &&
-            simulationUserOperation.paymaster !== null &&
-            "paymasterVerificationGasLimit" in
-                executionResult.data.executionResult
-        ) {
-            paymasterVerificationGasLimit =
-                executionResult.data.executionResult
-                    .paymasterVerificationGasLimit || 1n
-
-            paymasterVerificationGasLimit = scaleBigIntByPercent(
-                paymasterVerificationGasLimit,
-                this.config.paymasterGasLimitMultiplier
-            )
-        }
-
-        if (
-            isVersion07(simulationUserOperation) &&
-            simulationUserOperation.paymaster !== null &&
-            "paymasterPostOpGasLimit" in executionResult.data.executionResult
-        ) {
-            paymasterPostOpGasLimit =
-                executionResult.data.executionResult.paymasterPostOpGasLimit ||
-                1n
-
-            const userOperationPaymasterPostOpGasLimit =
-                "paymasterPostOpGasLimit" in userOperation
-                    ? userOperation.paymasterPostOpGasLimit ?? 1n
-                    : 1n
-
-            paymasterPostOpGasLimit = maxBigInt(
-                userOperationPaymasterPostOpGasLimit,
-                scaleBigIntByPercent(
-                    paymasterPostOpGasLimit,
-                    this.config.paymasterGasLimitMultiplier
-                )
-            )
-        }
-
-        if (simulationUserOperation.callData === "0x") {
-            callGasLimit = 0n
-        }
-
-        if (isVersion06(simulationUserOperation)) {
-            callGasLimit = scaleBigIntByPercent(
-                callGasLimit,
-                this.config.v6CallGasLimitMultiplier
-            )
-            verificationGasLimit = scaleBigIntByPercent(
-                verificationGasLimit,
-                this.config.v6VerificationGasLimitMultiplier
-            )
-        }
-
-        if (isVersion07(simulationUserOperation)) {
-            verificationGasLimit = scaleBigIntByPercent(
-                verificationGasLimit,
-                this.config.v7VerificationGasLimitMultiplier
-            )
-            paymasterVerificationGasLimit = scaleBigIntByPercent(
-                paymasterVerificationGasLimit,
-                this.config.v7PaymasterVerificationGasLimitMultiplier
-            )
-            callGasLimit = scaleBigIntByPercent(
-                callGasLimit,
-                this.config.v7CallGasLimitMultiplier
-            )
-            paymasterPostOpGasLimit = scaleBigIntByPercent(
-                paymasterPostOpGasLimit,
-                this.config.v7PaymasterPostOpGasLimitMultiplier
-            )
-        }
-
-        let preVerificationGas = await calcPreVerificationGas({
-            config: this.config,
-            userOperation: {
-                ...userOperation,
-                callGasLimit, // use actual callGasLimit
-                verificationGasLimit, // use actual verificationGasLimit
-                paymasterPostOpGasLimit, // use actual paymasterPostOpGasLimit
-                paymasterVerificationGasLimit // use actual paymasterVerificationGasLimit
-            },
-            entryPoint,
-            gasPriceManager: this.gasPriceManager,
-            validate: false
-        })
-        preVerificationGas = scaleBigIntByPercent(preVerificationGas, 110n)
-
-        // Check if userOperation passes without estimation balance overrides
-        await this.validator.validateHandleOp({
-            userOperation: {
-                ...userOperation,
-                preVerificationGas,
-                verificationGasLimit,
-                callGasLimit,
-                paymasterVerificationGasLimit,
-                paymasterPostOpGasLimit
-            },
-            entryPoint,
-            queuedUserOperations,
-            stateOverrides: deepHexlify(stateOverrides)
-        })
-
-        if (isVersion07(simulationUserOperation)) {
-            return {
-                preVerificationGas,
-                verificationGasLimit,
-                callGasLimit,
-                paymasterVerificationGasLimit,
-                paymasterPostOpGasLimit
-            }
-        }
-
-        if (apiVersion === "v2") {
-            return {
-                preVerificationGas,
-                verificationGasLimit,
-                callGasLimit
-            }
-        }
-
-        return {
-            preVerificationGas,
-            verificationGas: verificationGasLimit,
-            verificationGasLimit,
-            callGasLimit
-        }
     }
 }

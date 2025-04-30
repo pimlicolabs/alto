@@ -15,6 +15,7 @@ import {
 import { calcPreVerificationGas, getAAError } from "@alto/utils"
 import { RpcHandler } from "../rpcHandler"
 import type * as validation from "@alto/types"
+import { Hex } from "viem"
 
 const validatePvg = async (
     apiVersion: ApiVersion,
@@ -81,7 +82,7 @@ export async function addToMempoolIfValid(
     userOperation: UserOperation,
     entryPoint: Address,
     apiVersion: ApiVersion
-): Promise<"added" | "queued"> {
+): Promise<{ userOpHash: Hex; result: "added" | "queued" }> {
     rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
     // Execute multiple async operations in parallel
@@ -90,7 +91,8 @@ export async function addToMempoolIfValid(
         { queuedUserOperations, validationResult },
         currentNonceSeq,
         [pvgSuccess, pvgErrorReason],
-        [preMempoolSuccess, preMempoolError]
+        [preMempoolSuccess, preMempoolError],
+        [validEip7702Auth, validEip7702AuthError]
     ] = await Promise.all([
         getUserOperationHash({
             userOperation: userOperation,
@@ -101,10 +103,24 @@ export async function addToMempoolIfValid(
         getUserOpValidationResult(rpcHandler, userOperation, entryPoint),
         rpcHandler.getNonceSeq(userOperation, entryPoint),
         validatePvg(apiVersion, rpcHandler, userOperation, entryPoint),
-        rpcHandler.preMempoolChecks(userOperation, apiVersion)
+        rpcHandler.preMempoolChecks(userOperation, apiVersion),
+        rpcHandler.validateEip7702Auth({
+            userOperation,
+            validateSender: true
+        })
     ])
 
-    const [, userOpNonceSeq] = getNonceKeyAndSequence(userOperation.nonce)
+    // Validate eip7702Auth
+    if (!validEip7702Auth) {
+        rpcHandler.eventManager.emitFailedValidation(
+            userOpHash,
+            validEip7702AuthError
+        )
+        throw new RpcError(
+            validEip7702AuthError,
+            ValidationErrors.InvalidFields
+        )
+    }
 
     // Pre mempool validation
     if (!preMempoolSuccess) {
@@ -115,12 +131,14 @@ export async function addToMempoolIfValid(
         throw new RpcError(preMempoolError)
     }
 
+    // PreVerificationGas validation
     if (!pvgSuccess) {
         rpcHandler.eventManager.emitFailedValidation(userOpHash, pvgErrorReason)
         throw new RpcError(pvgErrorReason, ValidationErrors.SimulateValidation)
     }
 
     // Nonce validation
+    const [, userOpNonceSeq] = getNonceKeyAndSequence(userOperation.nonce)
     if (userOpNonceSeq < currentNonceSeq) {
         const reason =
             "UserOperation failed validation with reason: AA25 invalid account nonce"
@@ -141,7 +159,7 @@ export async function addToMempoolIfValid(
     ) {
         rpcHandler.mempool.add(userOperation, entryPoint)
         rpcHandler.eventManager.emitQueued(userOpHash)
-        return "queued"
+        return { result: "queued", userOpHash }
     }
 
     // userOp validation
@@ -157,7 +175,7 @@ export async function addToMempoolIfValid(
             )
             throw new RpcError(mempoolAddError, ValidationErrors.InvalidFields)
         }
-        return "added"
+        return { result: "added", userOpHash }
     }
 
     // ERC-7562 scope rule validation
@@ -188,7 +206,7 @@ export async function addToMempoolIfValid(
         throw new RpcError(mempoolAddError, ValidationErrors.InvalidFields)
     }
 
-    return "added"
+    return { result: "added", userOpHash }
 }
 
 export const ethSendUserOperationHandler = createMethodHandler({
@@ -197,32 +215,20 @@ export const ethSendUserOperationHandler = createMethodHandler({
     handler: async ({ rpcHandler, params, apiVersion }) => {
         const [userOperation, entryPoint] = params
 
-        if (userOperation.eip7702Auth) {
-            await rpcHandler.validateEip7702Auth({
-                userOperation,
-                validateSender: true
-            })
-        }
-
-        const hash = await getUserOperationHash({
-            userOperation,
-            entryPointAddress: entryPoint,
-            chainId: rpcHandler.config.chainId,
-            publicClient: rpcHandler.config.publicClient
-        })
-
         let status: "added" | "queued" | "rejected" = "rejected"
         try {
-            status = await addToMempoolIfValid(
+            const { result, userOpHash } = await addToMempoolIfValid(
                 rpcHandler,
                 userOperation,
                 entryPoint,
                 apiVersion
             )
 
-            rpcHandler.eventManager.emitReceived(hash)
+            status = result
 
-            return hash
+            rpcHandler.eventManager.emitReceived(userOpHash)
+
+            return userOpHash
         } catch (error) {
             status = "rejected"
             throw error
