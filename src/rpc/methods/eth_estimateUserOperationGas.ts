@@ -7,7 +7,8 @@ import {
 } from "../../utils/userop"
 import {
     calcVerificationGasAndCallGasLimit,
-    calcPreVerificationGas
+    calcPreVerificationGas,
+    calcDefaultPreVerificationGas
 } from "../../utils/validation"
 import { createMethodHandler } from "../createMethodHandler"
 import {
@@ -252,12 +253,15 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
                 gasPriceManager: rpcHandler.gasPriceManager,
                 validate: false
             }),
-            // Check if userOperation passes without estimation balance overrides
+            // Check if userOperation passes without estimation balance overrides (will throw error if it fails validation)
             await rpcHandler.validator.validateHandleOp({
                 userOperation: {
                     ...userOperation,
                     ...estimates, // use actual callGasLimit, verificationGasLimit, paymasterPostOpGasLimit, paymasterVerificationGasLimit
-                    preVerificationGas: 0n // Skip PVG validation
+                    preVerificationGas: calcDefaultPreVerificationGas({
+                        ...userOperation,
+                        ...estimates
+                    }) // skip chain specific PVG overhead validation
                 },
                 entryPoint,
                 queuedUserOperations,
