@@ -69,11 +69,11 @@ library Eip7702Support {
         }
         // To be a valid EIP-7702 delegate, the first 3 bytes are EIP7702_PREFIX
         // followed by the delegate address
-        if (bytes3(senderCode) != EIP7702_PREFIX) {
-            // instead of just "not an EIP-7702 delegate", if some info.
-            require(sender.code.length > 0, "sender has no code");
-            revert("not an EIP-7702 delegate");
-        }
+        // if (bytes3(senderCode) != EIP7702_PREFIX) {
+        //     // instead of just "not an EIP-7702 delegate", if some info.
+        //     require(sender.code.length > 0, "sender has no code");
+        //     revert("not an EIP-7702 delegate");
+        // }
         return address(bytes20(senderCode << 24));
     }
 }
