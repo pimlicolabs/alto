@@ -206,28 +206,35 @@ export class RpcHandler {
         }
 
         // Check that auth is valid.
-        const sender = validateSender
-            ? await recoverAuthorizationAddress({
-                  authorization: {
-                      address:
-                          "address" in userOperation.eip7702Auth
-                              ? userOperation.eip7702Auth.address
-                              : userOperation.eip7702Auth.contractAddress,
-                      chainId: userOperation.eip7702Auth.chainId,
-                      nonce: userOperation.eip7702Auth.nonce,
-                      r: userOperation.eip7702Auth.r,
-                      s: userOperation.eip7702Auth.s,
-                      v: userOperation.eip7702Auth.v,
-                      yParity: userOperation.eip7702Auth.yParity
-                  }
-              })
-            : userOperation.sender
+        const delegationDesignator =
+            "address" in userOperation.eip7702Auth
+                ? userOperation.eip7702Auth.address
+                : userOperation.eip7702Auth.contractAddress
 
-        const nonceOnChain = await this.config.publicClient.getTransactionCount(
-            {
-                address: sender
-            }
-        )
+        // Fetch onchain data in parallel
+        const [sender, nonceOnChain, delegateCode] = await Promise.all([
+            validateSender
+                ? recoverAuthorizationAddress({
+                      authorization: {
+                          address: delegationDesignator,
+                          chainId: userOperation.eip7702Auth.chainId,
+                          nonce: userOperation.eip7702Auth.nonce,
+                          r: userOperation.eip7702Auth.r,
+                          s: userOperation.eip7702Auth.s,
+                          v: userOperation.eip7702Auth.v,
+                          yParity: userOperation.eip7702Auth.yParity
+                      }
+                  })
+                : Promise.resolve(userOperation.sender),
+            this.config.publicClient.getTransactionCount({
+                address: userOperation.sender
+            }),
+            this.eip7702CodeCache.has(delegationDesignator)
+                ? Promise.resolve("has-code")
+                : this.config.publicClient.getCode({
+                      address: delegationDesignator
+                  })
+        ])
 
         if (
             userOperation.eip7702Auth.chainId !== this.config.chainId &&
@@ -279,11 +286,6 @@ export class RpcHandler {
         }
 
         // Check delegation designator
-        const delegationDesignator =
-            "address" in userOperation.eip7702Auth
-                ? userOperation.eip7702Auth.address
-                : userOperation.eip7702Auth.contractAddress
-
         if (delegationDesignator === zeroAddress) {
             return [
                 false,
@@ -291,13 +293,10 @@ export class RpcHandler {
             ]
         }
 
+        // Use the delegateCode we already got from Promise.all
         const hasCode = this.eip7702CodeCache.has(delegationDesignator)
 
         if (!hasCode) {
-            const delegateCode = await this.config.publicClient.getCode({
-                address: delegationDesignator
-            })
-
             if (delegateCode === undefined || delegateCode === "0x") {
                 return [
                     false,
