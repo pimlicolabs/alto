@@ -1,10 +1,5 @@
 import { scaleBigIntByPercent, maxBigInt } from "../../utils/bigInt"
-import {
-    getNonceKeyAndSequence,
-    isVersion06,
-    isVersion07,
-    deepHexlify
-} from "../../utils/userop"
+import { isVersion06, isVersion07, deepHexlify } from "../../utils/userop"
 import {
     calcVerificationGasAndCallGasLimit,
     calcPreVerificationGas,
@@ -178,13 +173,11 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         // Execute multiple async operations in parallel
         const [
             [validEip7702Auth, validEip7702AuthError],
-            currentNonceSeq,
             { queuedUserOperations, estimates }
         ] = await Promise.all([
             rpcHandler.validateEip7702Auth({
                 userOperation
             }),
-            rpcHandler.getNonceSeq(userOperation, entryPoint),
             getGasEstimates({
                 rpcHandler,
                 userOperation,
@@ -209,36 +202,6 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             throw new RpcError(
                 "user operation max fee per gas must be larger than 0 during gas estimation"
             )
-        }
-
-        // Nonce validation
-        // If the nonce is less than the current nonce, the user operation has already been executed
-        // If the nonce is greater than the current nonce, we may have missing user operations in the mempool
-        const [, userOpNonceSeq] = getNonceKeyAndSequence(userOperation.nonce)
-        if (userOpNonceSeq < currentNonceSeq) {
-            throw new RpcError(
-                "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
-                ValidationErrors.InvalidFields
-            )
-        }
-        if (userOpNonceSeq > currentNonceSeq) {
-            // Nonce queues are supported only for v7 user operations
-            if (isVersion06(userOperation)) {
-                throw new RpcError(
-                    "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
-                    ValidationErrors.InvalidFields
-                )
-            }
-
-            if (
-                userOpNonceSeq >
-                currentNonceSeq + BigInt(queuedUserOperations.length)
-            ) {
-                throw new RpcError(
-                    "UserOperation reverted during simulation with reason: AA25 invalid account nonce",
-                    ValidationErrors.InvalidFields
-                )
-            }
         }
 
         // Get PVG and validateUserOperation in parallel
