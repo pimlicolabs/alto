@@ -24,7 +24,6 @@ import {
 } from "@alto/utils"
 import {
     type Address,
-    type Block,
     type Hash,
     type TransactionReceipt,
     TransactionReceiptNotFoundError,
@@ -125,7 +124,6 @@ export class ExecutorManager {
                 this.logger.error({ error }, "error while watching blocks")
             },
             emitMissed: false,
-            includeTransactions: false,
             pollingInterval: this.config.pollingInterval
         })
     }
@@ -661,6 +659,10 @@ export class ExecutorManager {
 
     async handleBlock(blockNumber: bigint) {
         this.latestBlockNumber = blockNumber
+
+        if (!this.monitorForInclusion) {
+            return
+        }
 
         if (this.currentlyHandlingBlock) {
             return

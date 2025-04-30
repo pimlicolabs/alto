@@ -21,7 +21,7 @@ import {
 } from "@alto/types"
 import { RpcHandler } from "../rpcHandler"
 
-const getUserOpGasEstimates = async ({
+const getGasEstimates = async ({
     rpcHandler,
     userOperation,
     entryPoint,
@@ -185,7 +185,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
                 userOperation
             }),
             rpcHandler.getNonceSeq(userOperation, entryPoint),
-            getUserOpGasEstimates({
+            getGasEstimates({
                 rpcHandler,
                 userOperation,
                 entryPoint,
