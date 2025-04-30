@@ -119,7 +119,7 @@ export class ExecutorManager {
 
         // Listen for new blocks, needed to keep track of latestBlock and for logic to check for transactionInclusions
         this.unWatch = this.config.publicClient.watchBlockNumber({
-            onBlockNumber: this.handleBlock,
+            onBlockNumber: (blockNumber) => this.handleBlock(blockNumber),
             onError: (error) => {
                 this.logger.error({ error }, "error while watching blocks")
             },

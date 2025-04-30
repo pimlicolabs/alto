@@ -2,8 +2,7 @@ import { scaleBigIntByPercent, maxBigInt } from "../../utils/bigInt"
 import { isVersion06, isVersion07, deepHexlify } from "../../utils/userop"
 import {
     calcVerificationGasAndCallGasLimit,
-    calcPreVerificationGas,
-    calcDefaultPreVerificationGas
+    calcPreVerificationGas
 } from "../../utils/validation"
 import { createMethodHandler } from "../createMethodHandler"
 import {
@@ -171,9 +170,10 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
         // Execute multiple async operations in parallel
-        const [
+        let [
             [validEip7702Auth, validEip7702AuthError],
-            { queuedUserOperations, estimates }
+            { queuedUserOperations, estimates },
+            preVerificationGas
         ] = await Promise.all([
             rpcHandler.validateEip7702Auth({
                 userOperation
@@ -183,8 +183,30 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
                 userOperation,
                 entryPoint,
                 stateOverrides
+            }),
+            calcPreVerificationGas({
+                config: rpcHandler.config,
+                userOperation,
+                entryPoint,
+                gasPriceManager: rpcHandler.gasPriceManager,
+                validate: false
             })
         ])
+
+        // Add multipliers to pvg
+        if (isVersion07(userOperation)) {
+            preVerificationGas = scaleBigIntByPercent(
+                preVerificationGas,
+                rpcHandler.config.v7PreVerificationGasLimitMultiplier
+            )
+        }
+
+        if (isVersion06(userOperation)) {
+            preVerificationGas = scaleBigIntByPercent(
+                preVerificationGas,
+                rpcHandler.config.v6PreVerificationGasLimitMultiplier
+            )
+        }
 
         // Validate eip7702Auth
         if (!validEip7702Auth) {
@@ -204,33 +226,17 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             )
         }
 
-        // Get PVG and validateUserOperation in parallel
-        const [preVerificationGas, _validationResult] = await Promise.all([
-            calcPreVerificationGas({
-                config: rpcHandler.config,
-                userOperation: {
-                    ...userOperation,
-                    ...estimates // use actual callGasLimit, verificationGasLimit, paymasterPostOpGasLimit, paymasterVerificationGasLimit
-                },
-                entryPoint,
-                gasPriceManager: rpcHandler.gasPriceManager,
-                validate: false
-            }),
-            // Check if userOperation passes without estimation balance overrides (will throw error if it fails validation)
-            await rpcHandler.validator.validateHandleOp({
-                userOperation: {
-                    ...userOperation,
-                    ...estimates, // use actual callGasLimit, verificationGasLimit, paymasterPostOpGasLimit, paymasterVerificationGasLimit
-                    preVerificationGas: calcDefaultPreVerificationGas({
-                        ...userOperation,
-                        ...estimates
-                    }) // skip chain specific PVG overhead validation
-                },
-                entryPoint,
-                queuedUserOperations,
-                stateOverrides: deepHexlify(stateOverrides)
-            })
-        ])
+        // Check if userOperation passes without estimation balance overrides (will throw error if it fails validation)
+        await rpcHandler.validator.validateHandleOp({
+            userOperation: {
+                ...userOperation,
+                ...estimates, // use actual callGasLimit, verificationGasLimit, paymasterPostOpGasLimit, paymasterVerificationGasLimit
+                preVerificationGas
+            },
+            entryPoint,
+            queuedUserOperations,
+            stateOverrides: deepHexlify(stateOverrides)
+        })
 
         // Extrace values for returning
         const {
@@ -242,10 +248,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
 
         if (isVersion07(userOperation)) {
             return {
-                preVerificationGas: scaleBigIntByPercent(
-                    preVerificationGas,
-                    rpcHandler.config.v7PreVerificationGasLimitMultiplier
-                ),
+                preVerificationGas,
                 verificationGasLimit,
                 callGasLimit,
                 paymasterVerificationGasLimit,
@@ -255,20 +258,14 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
 
         if (apiVersion === "v2") {
             return {
-                preVerificationGas: scaleBigIntByPercent(
-                    preVerificationGas,
-                    rpcHandler.config.v6PreVerificationGasLimitMultiplier
-                ),
+                preVerificationGas,
                 verificationGasLimit,
                 callGasLimit
             }
         }
 
         return {
-            preVerificationGas: scaleBigIntByPercent(
-                preVerificationGas,
-                rpcHandler.config.v6PreVerificationGasLimitMultiplier
-            ),
+            preVerificationGas,
             verificationGas: verificationGasLimit,
             verificationGasLimit,
             callGasLimit

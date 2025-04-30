@@ -37,7 +37,12 @@ import {
     concat,
     slice
 } from "viem"
-import { maxBigInt, minBigInt, scaleBigIntByPercent } from "./bigInt"
+import {
+    maxBigInt,
+    minBigInt,
+    randomBigInt,
+    scaleBigIntByPercent
+} from "./bigInt"
 import { isVersion06, isVersion07, toPackedUserOperation } from "./userop"
 import type { AltoConfig } from "../createConfig"
 import { ArbitrumL1FeeAbi } from "../types/contracts/ArbitrumL1FeeAbi"
@@ -308,8 +313,32 @@ export async function calcPreVerificationGas({
     validate: boolean // when calculating preVerificationGas for validation
     overheads?: GasOverheads
 }): Promise<bigint> {
+    let simulationUserOp = {
+        ...userOperation
+    }
+
+    // Add random gasFields during estimations
+    if (!validate) {
+        simulationUserOp.callGasLimit = randomBigInt({ upper: 10_000_000n })
+        simulationUserOp.verificationGasLimit = randomBigInt({
+            upper: 10_000_000n
+        })
+        simulationUserOp.preVerificationGas = randomBigInt({
+            upper: 10_000_000n
+        })
+
+        if (isVersion07(simulationUserOp)) {
+            simulationUserOp.paymasterVerificationGasLimit = randomBigInt({
+                upper: 10_000_000n
+            })
+            simulationUserOp.paymasterPostOpGasLimit = randomBigInt({
+                upper: 10_000_000n
+            })
+        }
+    }
+
     let preVerificationGas = calcDefaultPreVerificationGas(
-        userOperation,
+        simulationUserOp,
         overheads
     )
 
@@ -317,7 +346,7 @@ export async function calcPreVerificationGas({
         case "op-stack":
             return await calcOptimismPreVerificationGas(
                 config.publicClient,
-                userOperation,
+                simulationUserOp,
                 entryPoint,
                 preVerificationGas,
                 gasPriceManager,
@@ -326,7 +355,7 @@ export async function calcPreVerificationGas({
         case "arbitrum":
             return await calcArbitrumPreVerificationGas(
                 config.publicClient,
-                userOperation,
+                simulationUserOp,
                 entryPoint,
                 preVerificationGas,
                 gasPriceManager,
@@ -335,7 +364,7 @@ export async function calcPreVerificationGas({
         case "mantle":
             return await calcMantlePreVerificationGas(
                 config.publicClient,
-                userOperation,
+                simulationUserOp,
                 entryPoint,
                 preVerificationGas,
                 gasPriceManager,

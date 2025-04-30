@@ -23,3 +23,18 @@ export const roundUpBigInt = ({
     const remainder = value % multiple
     return remainder === 0n ? value : value + (multiple - remainder)
 }
+
+/// Returns a random BigInt between lower and upper bounds (inclusive).
+export const randomBigInt = ({
+    lower = 0n,
+    upper
+}: { lower?: bigint; upper: bigint }): bigint => {
+    if (lower > upper) {
+        throw new Error("Lower bound must be less than or equal to upper bound")
+    }
+
+    const range = upper - lower + 1n
+    const random = BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER))
+
+    return lower + (random % range)
+}
