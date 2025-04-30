@@ -220,7 +220,7 @@ export const ethSendUserOperationHandler = createMethodHandler({
                 apiVersion
             )
 
-            await rpcHandler.eventManager.emitReceived(hash)
+            rpcHandler.eventManager.emitReceived(hash)
 
             return hash
         } catch (error) {

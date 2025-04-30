@@ -5,6 +5,7 @@ import type { Hex } from "viem"
 import type { OpEventType } from "../types/schemas"
 import type { AltoConfig } from "../createConfig"
 import Queue, { type Queue as QueueType } from "bull"
+import { asyncCallWithTimeout, AsyncTimeoutError } from "../utils/asyncTimeout"
 
 type QueueMessage = OpEventType & {
     userOperationHash: Hex
@@ -54,13 +55,13 @@ export class EventManager {
     }
 
     // emits when the userOperation was mined onchain but reverted during the callphase
-    async emitExecutionRevertedOnChain(
+    emitExecutionRevertedOnChain(
         userOperationHash: Hex,
         transactionHash: Hex,
         reason: Hex,
         blockNumber: bigint
     ) {
-        await this.emitEvent({
+        this.emitEvent({
             userOperationHash,
             event: {
                 eventType: "execution_reverted_onchain",
@@ -74,12 +75,12 @@ export class EventManager {
     }
 
     // emits when the userOperation was mined onchain but failed EntryPoint validation
-    async emitFailedOnChain(
+    emitFailedOnChain(
         userOperationHash: Hex,
         transactionHash: Hex,
         blockNumber: bigint
     ) {
-        await this.emitEvent({
+        this.emitEvent({
             userOperationHash,
             event: {
                 eventType: "failed_onchain",
@@ -92,12 +93,12 @@ export class EventManager {
     }
 
     // emits when the userOperation has been included onchain but bundled by a frontrunner
-    async emitFrontranOnChain(
+    emitFrontranOnChain(
         userOperationHash: Hex,
         transactionHash: Hex,
         blockNumber: bigint
     ) {
-        await this.emitEvent({
+        this.emitEvent({
             userOperationHash,
             event: {
                 eventType: "frontran_onchain",
@@ -110,12 +111,12 @@ export class EventManager {
     }
 
     // emits when the userOperation is included onchain
-    async emitIncludedOnChain(
+    emitIncludedOnChain(
         userOperationHash: Hex,
         transactionHash: Hex,
         blockNumber: bigint
     ) {
-        await this.emitEvent({
+        this.emitEvent({
             userOperationHash,
             event: {
                 eventType: "included_onchain",
@@ -128,8 +129,8 @@ export class EventManager {
     }
 
     // emits when the userOperation is placed in the nonce queue
-    async emitQueued(userOperationHash: Hex) {
-        await this.emitEvent({
+    emitQueued(userOperationHash: Hex) {
+        this.emitEvent({
             userOperationHash,
             event: {
                 eventType: "queued"
@@ -138,8 +139,8 @@ export class EventManager {
     }
 
     // emits when the userOperation is first seen
-    async emitReceived(userOperationHash: Hex, timestamp?: number) {
-        await this.emitEvent({
+    emitReceived(userOperationHash: Hex, timestamp?: number) {
+        this.emitEvent({
             userOperationHash,
             event: {
                 eventType: "received"
@@ -149,12 +150,12 @@ export class EventManager {
     }
 
     // emits when the userOperation failed to get added to the mempool
-    async emitFailedValidation(
+    emitFailedValidation(
         userOperationHash: Hex,
         reason?: string,
         aaError?: string
     ) {
-        await this.emitEvent({
+        this.emitEvent({
             userOperationHash,
             event: {
                 eventType: "failed_validation",
@@ -167,12 +168,12 @@ export class EventManager {
     }
 
     // emits when the userOperation has been submitted to the network
-    async emitSubmitted({
+    emitSubmitted({
         userOpHashes,
         transactionHash
     }: { userOpHashes: Hex[]; transactionHash: Hex }) {
         for (const hash of userOpHashes) {
-            await this.emitEvent({
+            this.emitEvent({
                 userOperationHash: hash,
                 event: {
                     eventType: "submitted",
@@ -183,12 +184,12 @@ export class EventManager {
     }
 
     // emits when the userOperation was dropped from the internal mempool
-    async emitDropped(
+    emitDropped(
         userOperationHash: Hex,
         reason?: string,
         aaError?: string
     ) {
-        await this.emitEvent({
+        this.emitEvent({
             userOperationHash,
             event: {
                 eventType: "dropped",
@@ -201,8 +202,8 @@ export class EventManager {
     }
 
     // emits when the userOperation was added to the internal mempool
-    async emitAddedToMempool(userOperationHash: Hex) {
-        await this.emitEvent({
+    emitAddedToMempool(userOperationHash: Hex) {
+        this.emitEvent({
             userOperationHash,
             event: {
                 eventType: "added_to_mempool"
@@ -210,7 +211,7 @@ export class EventManager {
         })
     }
 
-    private async emitEvent({
+    private emitEvent({
         userOperationHash,
         event,
         timestamp
@@ -230,28 +231,50 @@ export class EventManager {
             ...event
         }
 
-        // log to redis here
-        let jobStatus: string
-        try {
-            await this.redisEventManagerQueue.add(entry, {
+        this.emitWithTimeout(entry, event.eventType)
+    }
+
+    private emitWithTimeout(entry: QueueMessage, eventType: string) {
+        asyncCallWithTimeout(
+            this.redisEventManagerQueue!.add(entry, {
                 removeOnComplete: true,
                 removeOnFail: true
+            }),
+            500 // 500ms timeout
+        )
+            .then(() => {
+                this.metrics.emittedOpEvents
+                    .labels({
+                        event_type: eventType,
+                        status: "success"
+                    })
+                    .inc()
             })
-            jobStatus = "success"
-        } catch (err) {
-            this.logger.error(
-                { err },
-                "Failed to send userOperation status event"
-            )
-            sentry.captureException(err)
-            jobStatus = "failed"
-        }
-
-        this.metrics.emittedOpEvents
-            .labels({
-                event_type: event.eventType,
-                status: jobStatus
+            .catch((err) => {
+                if (err instanceof AsyncTimeoutError) {
+                    this.logger.warn(
+                        { userOpHash: entry.userOperationHash, eventType },
+                        "Event emission timed out after 500ms"
+                    )
+                    this.metrics.emittedOpEvents
+                        .labels({
+                            event_type: eventType,
+                            status: "timeout"
+                        })
+                        .inc()
+                } else {
+                    this.logger.error(
+                        { err },
+                        "Failed to send userOperation status event"
+                    )
+                    sentry.captureException(err)
+                    this.metrics.emittedOpEvents
+                        .labels({
+                            event_type: eventType,
+                            status: "failed"
+                        })
+                        .inc()
+                }
             })
-            .inc()
     }
 }

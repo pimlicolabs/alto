@@ -12,7 +12,6 @@ src/**/lib
 **/coverage
 **/node_modules
 **/test
-**/lib
 **/.tmp
 **/dist
 *.log
@@ -21,4 +20,3 @@ src/**/lib
 .tmp
 
 .env
-contracts

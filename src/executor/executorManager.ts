@@ -470,7 +470,7 @@ export class ExecutorManager {
                                 }
                             )
 
-                            await this.eventManager.emitFrontranOnChain(
+                            this.eventManager.emitFrontranOnChain(
                                 userOpHash,
                                 transactionHash,
                                 blockNumber
@@ -495,7 +495,7 @@ export class ExecutorManager {
                                     transactionHash
                                 }
                             )
-                            await this.eventManager.emitFailedOnChain(
+                            this.eventManager.emitFailedOnChain(
                                 userOpHash,
                                 transactionHash,
                                 blockNumber
@@ -1050,13 +1050,13 @@ export class ExecutorManager {
                 )
 
                 if (opDetails.status === "succesful") {
-                    await this.eventManager.emitIncludedOnChain(
+                    this.eventManager.emitIncludedOnChain(
                         userOpHash,
                         transactionHash,
                         blockNumber as bigint
                     )
                 } else {
-                    await this.eventManager.emitExecutionRevertedOnChain(
+                    this.eventManager.emitExecutionRevertedOnChain(
                         userOpHash,
                         transactionHash,
                         opDetails.revertReason || "0x",
@@ -1086,7 +1086,7 @@ export class ExecutorManager {
                 const { userOp, reason, userOpHash } = rejectedUserOp
                 await this.mempool.removeProcessing({ entryPoint, userOpHash })
                 await this.mempool.removeSubmitted({ entryPoint, userOpHash })
-                await this.eventManager.emitDropped(
+                this.eventManager.emitDropped(
                     userOpHash,
                     reason,
                     getAAError(reason)

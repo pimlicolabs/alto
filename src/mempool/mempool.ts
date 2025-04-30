@@ -349,7 +349,7 @@ export class Mempool {
             transactionHash: null
         })
 
-        await this.eventManager.emitAddedToMempool(userOpHash)
+        this.eventManager.emitAddedToMempool(userOpHash)
         return [true, ""]
     }
 

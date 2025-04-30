@@ -1,8 +1,4 @@
-import {
-    DETERMINISTIC_DEPLOYER_TRANSACTION,
-    pimlicoEntrypointSimulationsV7DeployBytecode,
-    pimlicoEntrypointSimulationsV8DeployBytecode
-} from "@alto/types"
+import { DETERMINISTIC_DEPLOYER_TRANSACTION } from "@alto/types"
 import {
     type Chain,
     createWalletClient,
@@ -17,6 +13,8 @@ import {
 import type { CamelCasedProperties } from "./parseArgs"
 import type { IOptions } from "@alto/cli"
 import type { Logger } from "pino"
+import pimlicoEntrypointSimulationsV8DeployBytecode from "../contracts/PimlicoEntryPointSimulationsV8.sol/PimlicoEntryPointSimulationsV8.json"
+import pimlicoEntrypointSimulationsV7DeployBytecode from "../contracts/PimlicoEntryPointSimulationsV7.sol/PimlicoEntryPointSimulationsV7.json"
 
 const isContractDeployed = async ({
     publicClient,
@@ -51,14 +49,16 @@ export const deploySimulationsContract = async ({
 
     const contractAddressV7 = getContractAddress({
         opcode: "CREATE2",
-        bytecode: pimlicoEntrypointSimulationsV7DeployBytecode,
+        bytecode: pimlicoEntrypointSimulationsV7DeployBytecode.bytecode
+            .object as Hex,
         salt,
         from: args.deterministicDeployerAddress
     })
 
     const contractAddressV8 = getContractAddress({
         opcode: "CREATE2",
-        bytecode: pimlicoEntrypointSimulationsV8DeployBytecode,
+        bytecode: pimlicoEntrypointSimulationsV8DeployBytecode.bytecode
+            .object as Hex,
         salt,
         from: args.deterministicDeployerAddress
     })
@@ -99,7 +99,11 @@ export const deploySimulationsContract = async ({
         const deployHash = await walletClient.sendTransaction({
             chain: publicClient.chain,
             to: args.deterministicDeployerAddress,
-            data: concat([salt, pimlicoEntrypointSimulationsV7DeployBytecode])
+            data: concat([
+                salt,
+                pimlicoEntrypointSimulationsV7DeployBytecode.bytecode
+                    .object as Hex
+            ])
         })
 
         await publicClient.waitForTransactionReceipt({
@@ -114,7 +118,8 @@ export const deploySimulationsContract = async ({
                 to: args.deterministicDeployerAddress,
                 data: concat([
                     salt,
-                    pimlicoEntrypointSimulationsV8DeployBytecode
+                    pimlicoEntrypointSimulationsV8DeployBytecode.bytecode
+                        .object as Hex
                 ])
             })
 
