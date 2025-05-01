@@ -207,6 +207,12 @@ export class UnsafeValidator implements InterfaceValidator {
 
             if (error.data.toString().includes("AA23")) {
                 errorCode = ValidationErrors.SimulateValidation
+
+                return {
+                    result: "failed",
+                    data: error.data,
+                    code: errorCode
+                }
             }
 
             return {
