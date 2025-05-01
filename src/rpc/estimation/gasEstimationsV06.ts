@@ -31,10 +31,11 @@ export class GasEstimatorV06 {
 
     decodeSimulateHandleOpResult(data: Hex): SimulateHandleOpResult {
         if (data === "0x") {
-            throw new RpcError(
-                "AA23 reverted: UserOperation called non-existant contract, or reverted with 0x",
-                ValidationErrors.SimulateValidation
-            )
+            return {
+                result: "failed",
+                data: "AA23 reverted: UserOperation called non-existant contract, or reverted with 0x",
+                code: ValidationErrors.SimulateValidation
+            }
         }
 
         const decodedError = decodeErrorResult({
