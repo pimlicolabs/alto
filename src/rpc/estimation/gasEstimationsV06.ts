@@ -2,7 +2,6 @@ import {
     ENTRYPOINT_V06_SIMULATION_OVERRIDE,
     EntryPointV06Abi,
     EntryPointV06SimulationsAbi,
-    RpcError,
     ValidationErrors,
     executionResultSchema,
     hexDataSchema
