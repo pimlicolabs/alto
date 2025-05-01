@@ -14,6 +14,24 @@ import {
     estimateUserOperationGasSchema
 } from "@alto/types"
 import { RpcHandler } from "../rpcHandler"
+import { SimulateHandleOpResult } from "../estimation/types"
+
+type GasEstimateResult =
+    | {
+          status: "success"
+          estimates: {
+              verificationGasLimit: bigint
+              callGasLimit: bigint
+              paymasterVerificationGasLimit: bigint
+              paymasterPostOpGasLimit: bigint
+          }
+          queuedUserOperations: UserOperation[]
+      }
+    | {
+          status: "failed"
+          error: string
+          code?: number
+      }
 
 const getGasEstimates = async ({
     rpcHandler,
@@ -25,7 +43,7 @@ const getGasEstimates = async ({
     userOperation: UserOperation
     entryPoint: Address
     stateOverrides?: StateOverrides
-}) => {
+}): Promise<GasEstimateResult> => {
     // get queued userOps
     const queuedUserOperations =
         await rpcHandler.mempool.getQueuedOustandingUserOps({
@@ -70,11 +88,23 @@ const getGasEstimates = async ({
         stateOverrides: deepHexlify(stateOverrides)
     })
 
+    if (executionResult.result === "failed") {
+        const errorResult = executionResult as SimulateHandleOpResult<"failed">
+        return {
+            status: "failed",
+            error: errorResult.data,
+            code: errorResult.code
+        }
+    }
+
+    // type cast as typescript doesn't know the type
+    const successResult = executionResult as SimulateHandleOpResult<"execution">
+
     let { verificationGasLimit, callGasLimit, paymasterVerificationGasLimit } =
         calcVerificationGasAndCallGasLimit(
             simulationUserOp,
-            executionResult.data.executionResult,
-            executionResult.data
+            successResult.data.executionResult,
+            successResult.data
         )
 
     let paymasterPostOpGasLimit = 0n
@@ -83,11 +113,11 @@ const getGasEstimates = async ({
         !paymasterVerificationGasLimit &&
         isVersion07(simulationUserOp) &&
         simulationUserOp.paymaster !== null &&
-        "paymasterVerificationGasLimit" in executionResult.data.executionResult
+        "paymasterVerificationGasLimit" in successResult.data.executionResult
     ) {
         paymasterVerificationGasLimit =
-            executionResult.data.executionResult
-                .paymasterVerificationGasLimit || 1n
+            successResult.data.executionResult.paymasterVerificationGasLimit ||
+            1n
 
         paymasterVerificationGasLimit = scaleBigIntByPercent(
             paymasterVerificationGasLimit,
@@ -98,10 +128,10 @@ const getGasEstimates = async ({
     if (
         isVersion07(simulationUserOp) &&
         simulationUserOp.paymaster !== null &&
-        "paymasterPostOpGasLimit" in executionResult.data.executionResult
+        "paymasterPostOpGasLimit" in successResult.data.executionResult
     ) {
         paymasterPostOpGasLimit =
-            executionResult.data.executionResult.paymasterPostOpGasLimit || 1n
+            successResult.data.executionResult.paymasterPostOpGasLimit || 1n
 
         const userOperationPaymasterPostOpGasLimit =
             "paymasterPostOpGasLimit" in userOperation
@@ -152,6 +182,7 @@ const getGasEstimates = async ({
     }
 
     return {
+        status: "success",
         estimates: {
             verificationGasLimit,
             callGasLimit,
@@ -172,7 +203,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         // Execute multiple async operations in parallel
         let [
             [validEip7702Auth, validEip7702AuthError],
-            { queuedUserOperations, estimates },
+            gasEstimateResult,
             preVerificationGas
         ] = await Promise.all([
             rpcHandler.validateEip7702Auth({
@@ -193,21 +224,6 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             })
         ])
 
-        // Add multipliers to pvg
-        if (isVersion07(userOperation)) {
-            preVerificationGas = scaleBigIntByPercent(
-                preVerificationGas,
-                rpcHandler.config.v7PreVerificationGasLimitMultiplier
-            )
-        }
-
-        if (isVersion06(userOperation)) {
-            preVerificationGas = scaleBigIntByPercent(
-                preVerificationGas,
-                rpcHandler.config.v6PreVerificationGasLimitMultiplier
-            )
-        }
-
         // Validate eip7702Auth
         if (!validEip7702Auth) {
             throw new RpcError(
@@ -226,15 +242,37 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             )
         }
 
+        // Validate gas estimation result
+        if (gasEstimateResult.status === "failed") {
+            throw new RpcError(
+                `Failed to estimate gas: ${gasEstimateResult.error}`
+            )
+        }
+
+        // Add multipliers to pvg
+        if (isVersion07(userOperation)) {
+            preVerificationGas = scaleBigIntByPercent(
+                preVerificationGas,
+                rpcHandler.config.v7PreVerificationGasLimitMultiplier
+            )
+        }
+
+        if (isVersion06(userOperation)) {
+            preVerificationGas = scaleBigIntByPercent(
+                preVerificationGas,
+                rpcHandler.config.v6PreVerificationGasLimitMultiplier
+            )
+        }
+
         // Check if userOperation passes without estimation balance overrides (will throw error if it fails validation)
         await rpcHandler.validator.validateHandleOp({
             userOperation: {
                 ...userOperation,
-                ...estimates, // use actual callGasLimit, verificationGasLimit, paymasterPostOpGasLimit, paymasterVerificationGasLimit
+                ...gasEstimateResult.estimates, // use actual callGasLimit, verificationGasLimit, paymasterPostOpGasLimit, paymasterVerificationGasLimit
                 preVerificationGas
             },
             entryPoint,
-            queuedUserOperations,
+            queuedUserOperations: gasEstimateResult.queuedUserOperations,
             stateOverrides: deepHexlify(stateOverrides)
         })
 
@@ -244,7 +282,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             callGasLimit,
             paymasterVerificationGasLimit,
             paymasterPostOpGasLimit
-        } = estimates
+        } = gasEstimateResult.estimates
 
         if (isVersion07(userOperation)) {
             return {

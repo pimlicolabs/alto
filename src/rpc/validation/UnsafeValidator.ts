@@ -192,7 +192,7 @@ export class UnsafeValidator implements InterfaceValidator {
         entryPoint: Address
         queuedUserOperations: UserOperation[]
         stateOverrides?: StateOverrides
-    }): Promise<SimulateHandleOpResult<"execution">> {
+    }): Promise<SimulateHandleOpResult<"execution" | "failed">> {
         const error = await this.gasEstimationHandler.simulateHandleOp({
             userOperation,
             queuedUserOperations,
@@ -209,10 +209,11 @@ export class UnsafeValidator implements InterfaceValidator {
                 errorCode = ValidationErrors.SimulateValidation
             }
 
-            throw new RpcError(
-                `UserOperation reverted during simulation with reason: ${error.data}`,
-                errorCode
-            )
+            return {
+                result: "failed",
+                data: `UserOperation reverted during simulation with reason: ${error.data}`,
+                code: errorCode
+            }
         }
 
         return error as SimulateHandleOpResult<"execution">

@@ -22,7 +22,7 @@ export interface InterfaceValidator {
         entryPoint: Address
         queuedUserOperations: UserOperation[]
         stateOverrides?: StateOverrides
-    }): Promise<SimulateHandleOpResult<"execution">>
+    }): Promise<SimulateHandleOpResult<"execution" | "failed">>
 
     getValidationResultV06(args: {
         userOperation: UserOperationV06
