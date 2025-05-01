@@ -110,6 +110,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
             "Should the bundler enable the pimlico_sendUserOperationNow endpoint",
         type: "boolean",
         default: false
+    },
+    "local-gas-calculation": {
+        description:
+            "Should bundler use local gas calculations instead eth_estimateGas result when calling handleOps",
+        type: "boolean",
+        default: false
     }
 }
 

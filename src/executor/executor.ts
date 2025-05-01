@@ -341,6 +341,13 @@ export class Executor {
         })
         gasLimit = maxBigInt(gasLimit, aa95GasFloor)
 
+        if (this.config.localGasCalculation) {
+            const eip7702Overhead =
+                userOpBundle.userOps.filter(({ userOp }) => userOp.eip7702Auth)
+                    .length * 40000
+            gasLimit = aa95GasFloor + BigInt(eip7702Overhead)
+        }
+
         // sometimes the estimation rounds down, adding a fixed constant accounts for this
         gasLimit += 10_000n
         gasLimit = gasLimitSuggestion
