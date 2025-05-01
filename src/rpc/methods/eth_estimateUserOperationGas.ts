@@ -244,9 +244,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
 
         // Validate gas estimation result
         if (gasEstimateResult.status === "failed") {
-            throw new RpcError(
-                `Failed to estimate gas: ${gasEstimateResult.error}`
-            )
+            throw new RpcError(gasEstimateResult.error, gasEstimateResult.code)
         }
 
         // Add multipliers to pvg
