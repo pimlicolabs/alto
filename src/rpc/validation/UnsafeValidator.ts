@@ -25,7 +25,7 @@ import {
     entryPointExecutionErrorSchemaV07
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
-import { calcPreVerificationGas, isVersion06 } from "@alto/utils"
+import { isVersion06 } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
     BaseError,
@@ -192,7 +192,7 @@ export class UnsafeValidator implements InterfaceValidator {
         entryPoint: Address
         queuedUserOperations: UserOperation[]
         stateOverrides?: StateOverrides
-    }): Promise<SimulateHandleOpResult<"execution">> {
+    }): Promise<SimulateHandleOpResult<"execution" | "failed">> {
         const error = await this.gasEstimationHandler.simulateHandleOp({
             userOperation,
             queuedUserOperations,
@@ -207,12 +207,19 @@ export class UnsafeValidator implements InterfaceValidator {
 
             if (error.data.toString().includes("AA23")) {
                 errorCode = ValidationErrors.SimulateValidation
+
+                return {
+                    result: "failed",
+                    data: error.data,
+                    code: errorCode
+                }
             }
 
-            throw new RpcError(
-                `UserOperation reverted during simulation with reason: ${error.data}`,
-                errorCode
-            )
+            return {
+                result: "failed",
+                data: `UserOperation reverted during simulation with reason: ${error.data}`,
+                code: errorCode
+            }
         }
 
         return error as SimulateHandleOpResult<"execution">
@@ -523,29 +530,6 @@ export class UnsafeValidator implements InterfaceValidator {
             queuedUserOperations: queuedUserOperations as UserOperationV07[],
             entryPoint
         })
-    }
-
-    async validatePreVerificationGas({
-        userOperation,
-        entryPoint
-    }: {
-        userOperation: UserOperation
-        entryPoint: Address
-    }) {
-        const preVerificationGas = await calcPreVerificationGas({
-            config: this.config,
-            userOperation,
-            entryPoint,
-            gasPriceManager: this.gasPriceManager,
-            validate: true
-        })
-
-        if (preVerificationGas > userOperation.preVerificationGas) {
-            throw new RpcError(
-                `preVerificationGas is not enough, required: ${preVerificationGas}, got: ${userOperation.preVerificationGas}`,
-                ValidationErrors.SimulateValidation
-            )
-        }
     }
 
     async validateUserOperation({

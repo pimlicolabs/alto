@@ -24,8 +24,8 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         }
 
         const [userOperation, entryPoint] = params
-
         rpcHandler.ensureEntryPointIsSupported(entryPoint)
+
         const opHash = await getUserOperationHash({
             userOperation: userOperation,
             entryPointAddress: entryPoint,
@@ -33,12 +33,12 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             publicClient: rpcHandler.config.publicClient
         })
 
-        await rpcHandler.preMempoolChecks(
-            opHash,
-            userOperation,
-            apiVersion,
-            entryPoint
-        )
+        const [preMempoolValid, preMempoolError] =
+            await rpcHandler.preMempoolChecks(userOperation, apiVersion)
+
+        if (!preMempoolValid) {
+            throw new RpcError(preMempoolError)
+        }
 
         // Prepare bundle
         const userOpInfo: UserOpInfo = {

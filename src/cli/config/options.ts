@@ -111,12 +111,6 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "boolean",
         default: false
     },
-    "should-check-prefund": {
-        description:
-            "Should the bundler check userOp's prefund before accepting it",
-        type: "boolean",
-        default: true
-    },
     "local-gas-calculation": {
         description:
             "Should bundler use local gas calculations instead eth_estimateGas result when calling handleOps",
@@ -235,6 +229,13 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
             require: true,
             default: "100"
         },
+        "v6-pre-verification-gas-limit-multiplier": {
+            description:
+                "Amount to multiply the preVerificationGas limits fetched from simulations for v6 userOperations",
+            type: "string",
+            require: true,
+            default: "110"
+        },
         "v7-call-gas-limit-multiplier": {
             description:
                 "Amount to multiply the callGasLimit fetched from simulations for v7 userOperations",
@@ -262,6 +263,13 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
             type: "string",
             require: true,
             default: "120"
+        },
+        "v7-pre-verification-gas-limit-multiplier": {
+            description:
+                "Amount to multiply the preVerificationGas limits fetched from simulations for v7 userOperations",
+            type: "string",
+            require: true,
+            default: "110"
         },
         "paymaster-gas-limit-multiplier": {
             description:

@@ -80,8 +80,7 @@ export const bundlerArgsSchema = z.object({
             )}`
         ),
     "enable-instant-bundling-endpoint": z.boolean(),
-    "local-gas-calculation": z.boolean(),
-    "should-check-prefund": z.boolean()
+    "local-gas-calculation": z.boolean()
 })
 
 export const executorArgsSchema = z.object({
@@ -239,6 +238,9 @@ export const gasEstimationArgsSchema = z.object({
     "v6-verification-gas-limit-multiplier": z
         .string()
         .transform((val) => BigInt(val)),
+    "v6-pre-verification-gas-limit-multiplier": z
+        .string()
+        .transform((val) => BigInt(val)),
     "v7-call-gas-limit-multiplier": z.string().transform((val) => BigInt(val)),
     "v7-verification-gas-limit-multiplier": z
         .string()
@@ -247,6 +249,9 @@ export const gasEstimationArgsSchema = z.object({
         .string()
         .transform((val) => BigInt(val)),
     "v7-paymaster-post-op-gas-limit-multiplier": z
+        .string()
+        .transform((val) => BigInt(val)),
+    "v7-pre-verification-gas-limit-multiplier": z
         .string()
         .transform((val) => BigInt(val)),
     "simulation-call-gas-limit": z.string().transform((val) => BigInt(val)),

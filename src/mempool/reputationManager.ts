@@ -21,7 +21,7 @@ export interface InterfaceReputationManager {
         userOperation: UserOperation,
         entryPoint: Address,
         validationResult: ValidationResult | ValidationResultWithAggregation
-    ): Promise<void>
+    ): void
     increaseUserOperationSeenStatus(
         userOperation: UserOperation,
         entryPoint: Address
@@ -112,8 +112,8 @@ export class NullReputationManager implements InterfaceReputationManager {
         _userOperation: UserOperation,
         _entryPoint: Address,
         _validationResult: ValidationResult | ValidationResultWithAggregation
-    ): Promise<void> {
-        return Promise.resolve()
+    ): void {
+        return
     }
 
     increaseUserOperationCount(_: UserOperation): void {
@@ -321,7 +321,7 @@ export class ReputationManager implements InterfaceReputationManager {
         userOperation: UserOperation,
         entryPoint: Address,
         validationResult: ValidationResult | ValidationResultWithAggregation
-    ): Promise<void> {
+    ): void {
         this.increaseUserOperationCount(userOperation)
 
         this.checkReputationStatus(
@@ -356,8 +356,6 @@ export class ReputationManager implements InterfaceReputationManager {
                 aggregatorValidationResult.aggregatorInfo.stakeInfo
             )
         }
-
-        return Promise.resolve()
     }
 
     getEntityCount(address: Address): bigint {
