@@ -14,6 +14,7 @@ import { type Address, BaseError, Hex, http, zeroAddress } from "viem"
 import { deepHexlify } from "permissionless"
 import { foundry } from "viem/chains"
 import { entryPoint08Address, EntryPointVersion } from "../src/constants.js"
+import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
 
 describe.each([
     {
@@ -41,6 +42,29 @@ describe.each([
                 anvilRpc
             })
             await beforeEachCleanUp({ anvilRpc, altoRpc })
+        })
+
+        test("Should throw if EntryPoint is not supported", async () => {
+            const smartAccountClient = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const fakeEntryPoint = privateKeyToAddress(generatePrivateKey())
+
+            await expect(async () =>
+                smartAccountClient.estimateUserOperationGas({
+                    calls: [
+                        {
+                            to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
+                            data: "0x",
+                            value: 0n
+                        }
+                    ],
+                    entryPointAddress: fakeEntryPoint
+                })
+            ).rejects.toThrow(/EntryPoint .* not supported/)
         })
 
         test("Can estimate with empty gasLimit values", async () => {
