@@ -1,9 +1,6 @@
 import { scaleBigIntByPercent, maxBigInt } from "../../utils/bigInt"
 import { isVersion06, isVersion07, deepHexlify } from "../../utils/userop"
-import {
-    calcVerificationGasAndCallGasLimit,
-    calcPreVerificationGas
-} from "../../utils/validation"
+import { calcPreVerificationGas } from "../../utils/validation"
 import { createMethodHandler } from "../createMethodHandler"
 import {
     Address,
@@ -32,6 +29,44 @@ type GasEstimateResult =
           error: string
           code?: number
       }
+
+function calcVerificationGasAndCallGasLimit(
+    userOperation: UserOperation,
+    executionResult: {
+        preOpGas: bigint
+        paid: bigint
+    },
+    gasLimits?: {
+        callGasLimit?: bigint
+        verificationGasLimit?: bigint
+        paymasterVerificationGasLimit?: bigint
+    }
+) {
+    const verificationGasLimit =
+        gasLimits?.verificationGasLimit ??
+        scaleBigIntByPercent(
+            executionResult.preOpGas - userOperation.preVerificationGas,
+            150n
+        )
+
+    const calculatedCallGasLimit =
+        gasLimits?.callGasLimit ??
+        executionResult.paid / userOperation.maxFeePerGas -
+            executionResult.preOpGas
+
+    let callGasLimit = maxBigInt(calculatedCallGasLimit, 9000n)
+
+    if (isVersion06(userOperation)) {
+        callGasLimit += 21_000n + 50_000n
+    }
+
+    return {
+        verificationGasLimit,
+        callGasLimit,
+        paymasterVerificationGasLimit:
+            gasLimits?.paymasterVerificationGasLimit ?? 0n
+    }
+}
 
 const getGasEstimates = async ({
     rpcHandler,
