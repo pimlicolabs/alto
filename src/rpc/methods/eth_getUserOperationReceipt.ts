@@ -13,7 +13,7 @@ export const ethGetUserOperationReceiptHandler = createMethodHandler({
         } catch (err) {
             rpcHandler.logger.error(
                 { err, userOperationHash },
-                "Error in eth_getUserOperationReceipt"
+                "Unexpected error while getting user operation receipt"
             )
             throw new RpcError("Failed to get user operation receipt")
         }
