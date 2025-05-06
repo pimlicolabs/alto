@@ -2,6 +2,8 @@ import Redis from "ioredis"
 
 import { MinMaxQueue } from "."
 import { AltoConfig } from "../../createConfig"
+import * as sentry from "@sentry/node"
+import { Logger } from "pino"
 
 // Sorted TTL queue, one queue to keep track of values and other queue to keep track of TTL.
 class SortedTtlSet {
@@ -32,8 +34,8 @@ class SortedTtlSet {
         this.queueValidity = queueValidity
     }
 
-    async add(value: bigint) {
-        await this.pruneExpiredEntries()
+    async add(value: bigint, logger: Logger) {
+        await this.pruneExpiredEntries(logger)
         if (value === 0n) {
             return
         }
@@ -59,30 +61,35 @@ class SortedTtlSet {
         }
     }
 
-    async pruneExpiredEntries() {
-        const timestamp = Date.now() / 1_000
-        const cutoffTime = timestamp - this.queueValidity
+    async pruneExpiredEntries(logger: Logger) {
+        try {
+            const timestamp = Date.now() / 1_000
+            const cutoffTime = timestamp - this.queueValidity
 
-        // Get expired unique IDs from time queue
-        const expiredMembers = await this.redis.zrangebyscore(
-            this.timestampKey,
-            "-inf",
-            `(${cutoffTime}` // exclusive upper bound
-        )
+            // Get expired unique IDs from time queue
+            const expiredMembers = await this.redis.zrangebyscore(
+                this.timestampKey,
+                "-inf",
+                `(${cutoffTime}` // exclusive upper bound
+            )
 
-        if (expiredMembers.length) {
-            const multi = this.redis.multi()
+            if (expiredMembers.length) {
+                const multi = this.redis.multi()
 
-            // Remove expired entries from both sets
-            multi.zrem(this.timestampKey, ...expiredMembers)
-            multi.zrem(this.valueKey, ...expiredMembers)
-            await multi.exec()
+                // Remove expired entries from both sets
+                multi.zrem(this.timestampKey, ...expiredMembers)
+                multi.zrem(this.valueKey, ...expiredMembers)
+                await multi.exec()
+            }
+        } catch (err) {
+            logger.error({ err }, "Failed to prune expired entries")
+            sentry.captureException(err)
         }
     }
 
-    async getMin(): Promise<bigint | null> {
+    async getMin(logger: Logger): Promise<bigint | null> {
         // Prune expired entries
-        await this.pruneExpiredEntries()
+        await this.pruneExpiredEntries(logger)
 
         // Get the smallest value from the value set
         const values = await this.redis.zrange(this.valueKey, 0, 0)
@@ -91,9 +98,9 @@ class SortedTtlSet {
         return BigInt(values[0])
     }
 
-    async getMax(): Promise<bigint | null> {
+    async getMax(logger: Logger): Promise<bigint | null> {
         // Prune expired entries
-        await this.pruneExpiredEntries()
+        await this.pruneExpiredEntries(logger)
 
         // Get the largest value from the value set (using reverse range)
         const values = await this.redis.zrange(this.valueKey, -1, -1)
@@ -102,9 +109,9 @@ class SortedTtlSet {
         return BigInt(values[0])
     }
 
-    async getLatestValue(): Promise<bigint | null> {
+    async getLatestValue(logger: Logger): Promise<bigint | null> {
         // Prune expired entries
-        await this.pruneExpiredEntries()
+        await this.pruneExpiredEntries(logger)
 
         // Get the member with highest TTL (most recent timestamp)
         const values = await this.redis.zrange(this.timestampKey, -1, -1)
@@ -125,11 +132,24 @@ export const createRedisMinMaxQueue = ({
         config,
         keyPrefix: `${keyPrefix}:minMaxQueue`
     })
+    const logger = config.getLogger(
+        { module: "minMaxQueue" },
+        {
+            level: config.logLevel
+        }
+    )
 
     return {
-        saveValue: async (value: bigint) => queue.add(value),
-        getLatestValue: async () => queue.getLatestValue(),
-        getMinValue: async () => queue.getMin(),
-        getMaxValue: async () => queue.getMax()
+        saveValue: async (value: bigint) => {
+            try {
+                queue.add(value, logger)
+            } catch (err) {
+                logger.error({ err }, "Failed to save value to minMaxQueue")
+                sentry.captureException(err)
+            }
+        },
+        getLatestValue: async () => queue.getLatestValue(logger),
+        getMinValue: async () => queue.getMin(logger),
+        getMaxValue: async () => queue.getMax(logger)
     }
 }
