@@ -117,7 +117,7 @@ if [ -n "$localMode" ] && [ -z "$forkMode" ]; then
     fi
 fi
 
-if [ -n $forkMode ] && [ -z "$localMode" ]; then
+if [ -n "$forkMode" ] && [ -z "$localMode" ]; then
     forkTimestamp=$(cast block $blockNum --rpc-url $rpcUrl | grep time | awk '{print $2}' | tr -d '\n')
 
     # build alto intance.

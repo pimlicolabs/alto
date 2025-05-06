@@ -48,13 +48,13 @@ export class GasPriceManager {
 
         // Periodically update gas prices if specified
         if (this.config.gasPriceRefreshInterval > 0) {
-            setInterval(() => {
+            setInterval(async () => {
                 try {
                     if (this.config.legacyTransactions === false) {
-                        this.updateBaseFee()
+                        await this.updateBaseFee()
                     }
 
-                    this.tryUpdateGasPrice()
+                    await this.tryUpdateGasPrice()
                 } catch (error) {
                     this.logger.error(
                         { error },
@@ -460,7 +460,7 @@ export class GasPriceManager {
         return minMaxPriorityFeePerGas
     }
 
-    public async validateGasPrice(gasPrice: GasPriceParameters) {
+    public async getLowestValidGasPrices() {
         let lowestMaxFeePerGas = await this.getMinMaxFeePerGas()
         let lowestMaxPriorityFeePerGas = await this.getMinMaxPriorityFeePerGas()
 
@@ -469,16 +469,9 @@ export class GasPriceManager {
             lowestMaxPriorityFeePerGas /= 10n ** 9n
         }
 
-        if (gasPrice.maxFeePerGas < lowestMaxFeePerGas) {
-            throw new RpcError(
-                `maxFeePerGas must be at least ${lowestMaxFeePerGas} (current maxFeePerGas: ${gasPrice.maxFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
-            )
-        }
-
-        if (gasPrice.maxPriorityFeePerGas < lowestMaxPriorityFeePerGas) {
-            throw new RpcError(
-                `maxPriorityFeePerGas must be at least ${lowestMaxPriorityFeePerGas} (current maxPriorityFeePerGas: ${gasPrice.maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
-            )
+        return {
+            lowestMaxFeePerGas,
+            lowestMaxPriorityFeePerGas
         }
     }
 }

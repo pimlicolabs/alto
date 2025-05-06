@@ -22,7 +22,7 @@ export interface InterfaceValidator {
         entryPoint: Address
         queuedUserOperations: UserOperation[]
         stateOverrides?: StateOverrides
-    }): Promise<SimulateHandleOpResult<"execution">>
+    }): Promise<SimulateHandleOpResult<"execution" | "failed">>
 
     getValidationResultV06(args: {
         userOperation: UserOperationV06
@@ -67,11 +67,6 @@ export interface InterfaceValidator {
             referencedContracts?: ReferencedCodeHashes
         }
     >
-
-    validatePreVerificationGas(args: {
-        userOperation: UserOperation
-        entryPoint: Address
-    }): Promise<void>
 
     validateUserOperation(args: {
         userOperation: UserOperation
