@@ -212,6 +212,8 @@ export const logArgsSchema = z.object({
 
 export const debugArgsSchema = z.object({
     "bundle-mode": z.enum(["auto", "manual"]),
+    "min-bundle-interval": z.number().int().min(1).default(100),
+    "max-bundle-interval": z.number().int().min(1).default(1000),
     "enable-debug-endpoints": z.boolean(),
     "expiration-check": z.boolean(),
     "dangerous-skip-user-operation-validation": z.boolean(),

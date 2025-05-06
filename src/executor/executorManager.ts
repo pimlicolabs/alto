@@ -50,9 +50,7 @@ function getTransactionsFromUserOperationEntries(
     return Array.from(new Set(transactionInfos))
 }
 
-const MIN_INTERVAL = 100 // 0.1 seconds (100ms)
-const MAX_INTERVAL = 1000 // Capped at 1 second (1000ms)
-const SCALE_FACTOR = 10 // Interval increases by 5ms per task per minute
+const SCALE_FACTOR = 10 // Interval increases by 10ms per task per minute
 const RPM_WINDOW = 60000 // 1 minute window in ms
 
 export class ExecutorManager {
@@ -133,7 +131,7 @@ export class ExecutorManager {
 
         if (bundleMode === "manual") {
             await new Promise((resolve) =>
-                setTimeout(resolve, 2 * MAX_INTERVAL)
+                setTimeout(resolve, 2 * this.config.maxBundleInterval)
             )
         }
 
@@ -170,8 +168,8 @@ export class ExecutorManager {
         const rpm: number = this.opsCount.length
         // Calculate next interval with linear scaling
         const nextInterval: number = Math.min(
-            MIN_INTERVAL + rpm * SCALE_FACTOR, // Linear scaling
-            MAX_INTERVAL // Cap at 1000ms
+            this.config.minBundleInterval + rpm * SCALE_FACTOR, // Linear scaling
+            this.config.maxBundleInterval // Cap at configured max interval
         )
 
         if (this.bundlingMode === "auto") {
