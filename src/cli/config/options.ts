@@ -648,6 +648,18 @@ export const debugOptions: CliCommandOptions<IDebugArgsInput> = {
         default: "auto",
         choices: ["auto", "manual"]
     },
+    "min-bundle-interval": {
+        description: "Minimum interval in milliseconds between bundling operations in auto mode",
+        type: "number",
+        require: false,
+        default: 100
+    },
+    "max-bundle-interval": {
+        description: "Maximum interval in milliseconds between bundling operations in auto mode",
+        type: "number",
+        require: false,
+        default: 1000
+    },
     "enable-debug-endpoints": {
         description: "Enable debug endpoints",
         type: "boolean",
