@@ -35,29 +35,34 @@ class SortedTtlSet {
     }
 
     async add(value: bigint, logger: Logger) {
-        await this.pruneExpiredEntries(logger)
-        if (value === 0n) {
-            return
-        }
+        try {
+            await this.pruneExpiredEntries(logger)
+            if (value === 0n) {
+                return
+            }
 
-        const now = Date.now() / 1_000
-        const valueStr = value.toString()
+            const now = Date.now() / 1_000
+            const valueStr = value.toString()
 
-        // Check if value exists in the value set
-        const exists = await this.redis.zscore(this.valueKey, valueStr)
+            // Check if value exists in the value set
+            const exists = await this.redis.zscore(this.valueKey, valueStr)
 
-        if (exists) {
-            // If value exists, only update its timestamp
-            const multi = this.redis.multi()
-            multi.zrem(this.timestampKey, valueStr) // Remove old timestamp
-            multi.zadd(this.timestampKey, now, valueStr) // Add new timestamp
-            await multi.exec()
-        } else {
-            // If it's a new value, add entry to timestamp and value queues
-            const multi = this.redis.multi()
-            multi.zadd(this.timestampKey, now, valueStr)
-            multi.zadd(this.valueKey, valueStr, valueStr)
-            await multi.exec()
+            if (exists) {
+                // If value exists, only update its timestamp
+                const multi = this.redis.multi()
+                multi.zrem(this.timestampKey, valueStr) // Remove old timestamp
+                multi.zadd(this.timestampKey, now, valueStr) // Add new timestamp
+                await multi.exec()
+            } else {
+                // If it's a new value, add entry to timestamp and value queues
+                const multi = this.redis.multi()
+                multi.zadd(this.timestampKey, now, valueStr)
+                multi.zadd(this.valueKey, valueStr, valueStr)
+                await multi.exec()
+            }
+        } catch (err) {
+            logger.error({ err }, "Failed to save value to minMaxQueue")
+            sentry.captureException(err)
         }
     }
 
@@ -140,14 +145,7 @@ export const createRedisMinMaxQueue = ({
     )
 
     return {
-        saveValue: async (value: bigint) => {
-            try {
-                queue.add(value, logger)
-            } catch (err) {
-                logger.error({ err }, "Failed to save value to minMaxQueue")
-                sentry.captureException(err)
-            }
-        },
+        saveValue: async (value: bigint) => queue.add(value, logger),
         getLatestValue: async () => queue.getLatestValue(logger),
         getMinValue: async () => queue.getMin(logger),
         getMaxValue: async () => queue.getMax(logger)
