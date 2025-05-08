@@ -207,9 +207,18 @@ export const createMempoolStore = ({
             entryPoint,
             userOpHash
         }: EntryPointUserOpHashParam) => {
-            const { outstanding } = getStoreHandlers(entryPoint)
-            const removed = await outstanding.remove(userOpHash)
-            logRemoveOperation(userOpHash, "outstanding", removed)
+            try {
+                const { outstanding } = getStoreHandlers(entryPoint)
+                const removed = await outstanding.remove(userOpHash)
+                logRemoveOperation(userOpHash, "outstanding", removed)
+            } catch (err) {
+                logger.error(
+                    { err },
+                    "Failed to remove from outstanding mempool"
+                )
+                sentry.captureException(err)
+                return Promise.resolve()
+            }
         },
         removeProcessing: async ({
             entryPoint,
