@@ -36,6 +36,10 @@ pnpm test # note: foundry must be installed on the machine for this to work
 - :gear: [NodeJS](https://nodejs.org/) (LTS)
 - :toolbox: [Pnpm](https://pnpm.io/)
 
+## How to run E2E tests
+
+- pnpm run test
+
 ## How to test bundler specs
 
 - Run Geth node or any other node that support debug_traceCall
