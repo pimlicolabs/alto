@@ -36,7 +36,7 @@ pnpm test # note: foundry must be installed on the machine for this to work
 - :gear: [NodeJS](https://nodejs.org/) (LTS)
 - :toolbox: [Pnpm](https://pnpm.io/)
 
-## How to test E2E tests
+## How to run E2E tests
 
 - pnpm run test
 
