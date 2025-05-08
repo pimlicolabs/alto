@@ -37,6 +37,7 @@ if (process.env.SENTRY_DSN) {
         environment: process.env.ENVIRONMENT,
         tracesSampleRate: 0,
         profilesSampleRate: 0,
+        integrations: [sentry.httpIntegration({ spans: false })],
         beforeSend(event, hint) {
             const errorType = event.exception?.values?.[0]?.type
 
