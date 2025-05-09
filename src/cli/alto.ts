@@ -35,6 +35,7 @@ if (process.env.SENTRY_DSN) {
     sentry.init({
         dsn: process.env.SENTRY_DSN,
         environment: process.env.ENVIRONMENT,
+        skipOpenTelemetrySetup: true,
         tracesSampleRate: 0,
         profilesSampleRate: 0,
         integrations: [sentry.httpIntegration({ spans: false })],
