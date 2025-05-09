@@ -1,8 +1,10 @@
 import {
+    EntryPointVersion,
     UserOperation,
     createBundlerClient,
     entryPoint06Address,
-    entryPoint07Address
+    entryPoint07Address,
+    entryPoint08Address
 } from "viem/account-abstraction"
 import { beforeEach, describe, expect, inject, test } from "vitest"
 import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils/index.js"
@@ -13,7 +15,6 @@ import {
 import { type Address, BaseError, Hex, http, zeroAddress } from "viem"
 import { deepHexlify } from "permissionless"
 import { foundry } from "viem/chains"
-import { entryPoint08Address, EntryPointVersion } from "../src/constants.js"
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
 
 describe.each([
@@ -193,7 +194,11 @@ describe.each([
             } catch (e: any) {
                 expect(e).toBeInstanceOf(BaseError)
                 const err = e.walk()
-                expect(err.reason).toEqual("foobar")
+                console.log(err)
+                expect(err.message).toEqual(
+                    "UserOperation reverted during simulation with reason: 0x08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000006666f6f6261720000000000000000000000000000000000000000000000000000"
+                )
+                expect(err.code).toEqual(-32521)
             }
         })
 

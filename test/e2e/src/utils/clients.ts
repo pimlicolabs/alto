@@ -2,12 +2,10 @@ import { toSimpleSmartAccount } from "permissionless/accounts"
 import { createSmartAccountClient } from "permissionless/clients"
 import { createPimlicoClient } from "permissionless/clients/pimlico"
 import { http, Hex, createPublicClient } from "viem"
-import {
-    entryPoint06Address,
-    entryPoint07Address
-} from "viem/account-abstraction"
+import { EntryPointVersion } from "viem/account-abstraction"
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import { base } from "viem/chains"
+import { getEntryPointAddress } from "./entrypoint.js"
 
 export async function createClients({
     anvilRpc,
@@ -20,7 +18,7 @@ export async function createClients({
     altoRpc: string
     paymasterRpc: string
     ownerPrivateKey?: Hex
-    entryPointVersion?: "0.6" | "0.7"
+    entryPointVersion?: EntryPointVersion
 }) {
     const owner = privateKeyToAccount(ownerPrivateKey ?? generatePrivateKey())
 
@@ -33,10 +31,7 @@ export async function createClients({
         owner,
         client: publicClient,
         entryPoint: {
-            address:
-                entryPointVersion === "0.6"
-                    ? entryPoint06Address
-                    : entryPoint07Address,
+            address: getEntryPointAddress(entryPointVersion),
             version: entryPointVersion
         }
     })
@@ -45,10 +40,7 @@ export async function createClients({
         chain: base,
         transport: http(paymasterRpc),
         entryPoint: {
-            address:
-                entryPointVersion === "0.6"
-                    ? entryPoint06Address
-                    : entryPoint07Address,
+            address: getEntryPointAddress(entryPointVersion),
             version: entryPointVersion
         }
     })
