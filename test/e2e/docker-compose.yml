@@ -1,0 +1,22 @@
+services:
+  anvil:
+    image: ghcr.io/foundry-rs/foundry:nightly-503792a1dbadd901a4c02f6fcd1de1caff1573ff
+    ports: [ "8545:8545" ]
+    entrypoint: [ "anvil", "--host", "0.0.0.0", "--silent", "--code-size-limit", "100000000" ]
+    platform: linux/amd64/v8
+
+  deploy-contracts:
+    build:
+      context: ./deploy-contracts
+    environment:
+      - ANVIL_RPC=http://anvil:8545
+
+  alto:
+    build: ../../
+    ports: [ "4337:4337" ]
+    command: --config alto-config.json
+    volumes:
+      - ./alto-config.json:/app/alto-config.json
+    depends_on:
+      deploy-contracts:
+        condition: service_completed_successfully
