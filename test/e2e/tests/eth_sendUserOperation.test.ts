@@ -601,17 +601,6 @@ describe.each([
                 use7702: true
             })
 
-            console.log(
-                await publicClient.call({
-                    to: getSimple7702AccountImplementationAddress(
-                        entryPointVersion
-                    ),
-                    data: encodeFunctionData({
-                        abi: parseAbi(["function entryPoint()"])
-                    })
-                })
-            )
-
             const owner = privateKeyToAccount(privateKey)
 
             const authorization = await owner.signAuthorization({
