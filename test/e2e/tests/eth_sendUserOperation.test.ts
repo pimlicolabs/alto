@@ -591,7 +591,7 @@ describe.each([
             expect(receipt.success).toEqual(true)
         })
 
-        test.only("Should send userOp with 7702Auth", async () => {
+        test("Should send userOp with 7702Auth", async () => {
             const privateKey = generatePrivateKey()
             const smartAccountClient = await getSmartAccountClient({
                 entryPointVersion,
