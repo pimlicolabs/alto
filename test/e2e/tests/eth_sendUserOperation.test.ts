@@ -20,19 +20,29 @@ import {
     entryPoint07Address,
     type UserOperation,
     EntryPointVersion,
-    entryPoint08Address
+    entryPoint08Address,
+    toSimple7702SmartAccount
 } from "viem/account-abstraction"
-import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
+import {
+    generatePrivateKey,
+    privateKeyToAccount,
+    privateKeyToAddress,
+    signAuthorization
+} from "viem/accounts"
 import { foundry } from "viem/chains"
 import { beforeEach, describe, expect, inject, test } from "vitest"
 import {
     beforeEachCleanUp,
+    getPimlicoClient,
+    getPublicClient,
+    getSimple7702AccountImplementationAddress,
     getSmartAccountClient,
     sendBundleNow,
     setBundlingMode
 } from "../src/utils/index.js"
 import { deployPaymaster } from "../src/testPaymaster.js"
 import { getEntryPointAbi } from "../src/utils/entrypoint.js"
+import { createSmartAccountClient } from "permissionless"
 
 describe.each([
     {
@@ -581,6 +591,47 @@ describe.each([
 
             const receipt = await client.waitForUserOperationReceipt({ hash })
             expect(receipt.success).toEqual(true)
+        })
+
+        test.only("Should send userOp with 7702Auth", async () => {
+            const privateKey = generatePrivateKey()
+            const smartAccountClient = await getSmartAccountClient({
+                entryPointVersion,
+                privateKey,
+                anvilRpc,
+                altoRpc,
+                use7702: true
+            })
+
+            const owner = privateKeyToAccount(privateKey)
+
+            const authorization = await owner.signAuthorization({
+                chainId: foundry.id,
+                nonce: await publicClient.getTransactionCount({
+                    address: owner.address
+                }),
+                contractAddress:
+                    getSimple7702AccountImplementationAddress(entryPointVersion)
+            })
+
+            const hash = await smartAccountClient.sendUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        data: "0x",
+                        value: 0n
+                    }
+                ],
+                authorization
+            })
+
+            await new Promise((resolve) => setTimeout(resolve, 1500))
+
+            await smartAccountClient.waitForUserOperationReceipt({ hash })
+
+            expect(
+                await publicClient.getBalance({ address: TO_ADDRESS })
+            ).toBeGreaterThanOrEqual(VALUE)
         })
     }
 )

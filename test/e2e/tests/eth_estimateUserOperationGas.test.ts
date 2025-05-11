@@ -1,21 +1,45 @@
 import {
     EntryPointVersion,
+    SmartAccount,
     UserOperation,
     createBundlerClient,
     entryPoint06Address,
     entryPoint07Address,
-    entryPoint08Address
+    entryPoint08Address,
+    toSimple7702SmartAccount
 } from "viem/account-abstraction"
 import { beforeEach, describe, expect, inject, test } from "vitest"
-import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils/index.js"
+import {
+    beforeEachCleanUp,
+    getPimlicoClient,
+    getPublicClient,
+    getSmartAccountClient
+} from "../src/utils/index.js"
 import {
     getRevertCall,
     deployRevertingContract
 } from "../src/revertingContract.js"
-import { type Address, BaseError, Hex, http, zeroAddress } from "viem"
-import { deepHexlify } from "permissionless"
+import {
+    type Address,
+    BaseError,
+    Hex,
+    http,
+    zeroAddress,
+    Account,
+    Chain,
+    Transport
+} from "viem"
+import {
+    SmartAccountClient,
+    createSmartAccountClient,
+    deepHexlify
+} from "permissionless"
 import { foundry } from "viem/chains"
-import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
+import {
+    generatePrivateKey,
+    privateKeyToAccount,
+    privateKeyToAddress
+} from "viem/accounts"
 
 describe.each([
     {
@@ -286,5 +310,31 @@ describe.each([
                 "Invalid EIP-7702 authorization: Cannot delegate to the zero address."
             )
         })
+
+        test.skipIf(entryPointVersion !== "0.8")(
+            "Should estimate with dummy 7702Auth",
+            async () => {
+                const account = await toSimple7702SmartAccount({
+                    owner: privateKeyToAccount(generatePrivateKey()),
+                    client: getPublicClient(anvilRpc)
+                })
+
+                smartAccountClient = createSmartAccountClient({
+                    pollingInterval: 100,
+                    account,
+                    chain: foundry,
+                    bundlerTransport: http(altoRpc),
+                    userOperation: {
+                        estimateFeesPerGas: async () => {
+                            const gasPrice = await getPimlicoClient({
+                                entryPointVersion,
+                                altoRpc
+                            }).getUserOperationGasPrice()
+                            return gasPrice.fast
+                        }
+                    }
+                })
+            }
+        )
     }
 )

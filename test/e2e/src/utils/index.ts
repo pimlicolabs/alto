@@ -8,16 +8,22 @@ import {
     http,
     type Chain,
     type Transport,
+    type Hex,
     createPublicClient,
     createTestClient,
     createWalletClient,
     parseEther
 } from "viem"
-import { type SmartAccount, EntryPointVersion } from "viem/account-abstraction"
+import {
+    type SmartAccount,
+    EntryPointVersion,
+    toSimple7702SmartAccount
+} from "viem/account-abstraction"
 import { getEntryPointAddress } from "./entrypoint.ts"
 import {
     mnemonicToAccount,
     privateKeyToAccount,
+    privateKeyToAddress,
     generatePrivateKey
 } from "viem/accounts"
 import { foundry } from "viem/chains"
@@ -67,24 +73,57 @@ export const getPublicClient = (anvilRpc: string) => {
     })
 }
 
+export type AAParamType = {
+    entryPointVersion: EntryPointVersion
+    anvilRpc: string
+    altoRpc: string
+    use7702?: boolean
+    privateKey?: Hex
+}
+
 export const getSmartAccountClient = async ({
     entryPointVersion,
     anvilRpc,
     altoRpc,
+    use7702 = false,
     privateKey = generatePrivateKey()
 }: AAParamType): Promise<
     SmartAccountClient<Transport, Chain, SmartAccount>
 > => {
     const publicClient = getPublicClient(anvilRpc)
 
-    const account = await toSimpleSmartAccount({
-        client: publicClient,
-        entryPoint: {
-            address: getEntryPointAddress(entryPointVersion),
-            version: entryPointVersion
-        },
-        owner: privateKeyToAccount(privateKey)
-    })
+    let account: SmartAccount
+
+    if (use7702 && entryPointVersion === "0.8") {
+        account = await toSimple7702SmartAccount({
+            owner: privateKeyToAccount(privateKey),
+            client: publicClient
+        })
+    } else if (use7702) {
+        account = await toSimpleSmartAccount({
+            client: publicClient,
+            entryPoint: {
+                address: getEntryPointAddress(entryPointVersion),
+                version: entryPointVersion
+            },
+            owner: privateKeyToAccount(privateKey)
+        })
+
+        account.address = privateKeyToAddress(privateKey)
+        account.getFactoryArgs = async () => ({
+            factory: undefined,
+            factoryData: undefined
+        })
+    } else {
+        account = await toSimpleSmartAccount({
+            client: publicClient,
+            entryPoint: {
+                address: getEntryPointAddress(entryPointVersion),
+                version: entryPointVersion
+            },
+            owner: privateKeyToAccount(privateKey)
+        })
+    }
 
     const anvilClient = createTestClient({
         transport: http(anvilRpc),
@@ -183,4 +222,19 @@ export const beforeEachCleanUp = async ({
 
     await anvilClient.setAutomine(true)
     await anvilClient.mine({ blocks: 1 })
+}
+
+export const getSimple7702AccountImplementationAddress = (
+    entryPointVersion: EntryPointVersion
+) => {
+    switch (entryPointVersion) {
+        case "0.8":
+            return "0xe6Cae83BdE06E4c305530e199D7217f42808555B"
+        case "0.7":
+            return "0x8a8372CcD11cCe9BaA919E6dA9F3cfF2c3e64A1f"
+        case "0.6":
+            return "0x70f8B93B069D757716f2569FC19836135CD38DF4"
+        default:
+            throw new Error("Unknown EntryPointVersion")
+    }
 }
