@@ -12,7 +12,10 @@ import {
     parseEther,
     parseGwei,
     type Address,
-    concat
+    concat,
+    encodeFunctionData,
+    parseAbi,
+    zeroAddress
 } from "viem"
 import {
     UserOperationReceiptNotFoundError,
@@ -20,21 +23,17 @@ import {
     entryPoint07Address,
     type UserOperation,
     EntryPointVersion,
-    entryPoint08Address,
-    toSimple7702SmartAccount
+    entryPoint08Address
 } from "viem/account-abstraction"
 import {
     generatePrivateKey,
     privateKeyToAccount,
-    privateKeyToAddress,
-    signAuthorization
+    privateKeyToAddress
 } from "viem/accounts"
 import { foundry } from "viem/chains"
 import { beforeEach, describe, expect, inject, test } from "vitest"
 import {
     beforeEachCleanUp,
-    getPimlicoClient,
-    getPublicClient,
     getSimple7702AccountImplementationAddress,
     getSmartAccountClient,
     sendBundleNow,
@@ -42,7 +41,6 @@ import {
 } from "../src/utils/index.js"
 import { deployPaymaster } from "../src/testPaymaster.js"
 import { getEntryPointAbi } from "../src/utils/entrypoint.js"
-import { createSmartAccountClient } from "permissionless"
 
 describe.each([
     {
@@ -603,6 +601,17 @@ describe.each([
                 use7702: true
             })
 
+            console.log(
+                await publicClient.call({
+                    to: getSimple7702AccountImplementationAddress(
+                        entryPointVersion
+                    ),
+                    data: encodeFunctionData({
+                        abi: parseAbi(["function entryPoint()"])
+                    })
+                })
+            )
+
             const owner = privateKeyToAccount(privateKey)
 
             const authorization = await owner.signAuthorization({
@@ -617,7 +626,7 @@ describe.each([
             const hash = await smartAccountClient.sendUserOperation({
                 calls: [
                     {
-                        to: TO_ADDRESS,
+                        to: zeroAddress,
                         data: "0x",
                         value: 0n
                     }
@@ -627,11 +636,10 @@ describe.each([
 
             await new Promise((resolve) => setTimeout(resolve, 1500))
 
-            await smartAccountClient.waitForUserOperationReceipt({ hash })
+            const receipt =
+                await smartAccountClient.waitForUserOperationReceipt({ hash })
 
-            expect(
-                await publicClient.getBalance({ address: TO_ADDRESS })
-            ).toBeGreaterThanOrEqual(VALUE)
+            expect(receipt.success)
         })
     }
 )

@@ -19,7 +19,7 @@ import "account-abstraction-v7/samples/callback/TokenCallbackHandler.sol";
  *  has execute, eth handling methods
  *  has a single signer that can send requests through the entryPoint.
  */
-contract SimpleAccount is BaseAccount, TokenCallbackHandler, Initializable {
+contract Simple7702AccountV06 is BaseAccount, TokenCallbackHandler, Initializable {
     IEntryPoint private immutable _entryPoint;
 
     event SimpleAccountInitialized(IEntryPoint indexed entryPoint, address indexed owner);

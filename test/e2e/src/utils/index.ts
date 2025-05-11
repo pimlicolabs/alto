@@ -231,9 +231,9 @@ export const getSimple7702AccountImplementationAddress = (
         case "0.8":
             return "0xe6Cae83BdE06E4c305530e199D7217f42808555B"
         case "0.7":
-            return "0x8a8372CcD11cCe9BaA919E6dA9F3cfF2c3e64A1f"
+            return "0xf3F57446bEC27F6531EFF3Da2B917ebA8F9BA49c"
         case "0.6":
-            return "0x70f8B93B069D757716f2569FC19836135CD38DF4"
+            return "0x90c7Fc0Fe4F0188E61C131d5dB7aCa03a684a2fB"
         default:
             throw new Error("Unknown EntryPointVersion")
     }

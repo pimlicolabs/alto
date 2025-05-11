@@ -14,7 +14,7 @@ import "account-abstraction-v7/samples/callback/TokenCallbackHandler.sol";
  * This contract's owner is hardcoded to the account itself.
  * The implementation is based on the SimpleAccount contract from the account-abstraction-v7 repo.
  */
-contract SimpleAccount7702 is BaseAccount, TokenCallbackHandler, Initializable {
+contract Simple7702AccountV07 is BaseAccount, TokenCallbackHandler, Initializable {
     IEntryPoint private immutable _entryPoint;
 
     modifier onlyOwner() {

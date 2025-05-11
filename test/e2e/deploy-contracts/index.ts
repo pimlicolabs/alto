@@ -165,10 +165,10 @@ export async function setupContracts({ anvilRpc }: { anvilRpc: string }) {
             "0xe6Cae83BdE06E4c305530e199D7217f42808555B", // Simple7702Account Implementation 0.8
             "0x0000000071727De22E5E9d8BAf0edAc6f37da032", // EntryPoint 0.7
             "0x91E60e0613810449d098b0b5Ec8b51A0FE8c8985", // SimpleAccountFactory 0.7
-            "0x8a8372CcD11cCe9BaA919E6dA9F3cfF2c3e64A1f", // Simple7702Account Implementation 0.7
+            "0xf3F57446bEC27F6531EFF3Da2B917ebA8F9BA49c", // Simple7702Account Implementation 0.7
             "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789", // EntryPoint 0.6
             "0x9406Cc6185a346906296840746125a0E44976454", // SimpleAcountFactory 0.6
-            "0x70f8B93B069D757716f2569FC19836135CD38DF4" // Simple7702Account Implementation 0.6
+            "0x90c7Fc0Fe4F0188E61C131d5dB7aCa03a684a2fB" // Simple7702Account Implementation 0.6
         ]
     })
 }
