@@ -30,6 +30,7 @@ import * as sentry from "@sentry/node"
 import {
     BaseError,
     ContractFunctionExecutionError,
+    StateOverride,
     getContract,
     pad,
     slice,
@@ -40,6 +41,7 @@ import { fromZodError } from "zod-validation-error"
 import { GasEstimationHandler } from "../estimation/gasEstimationHandler"
 import type { SimulateHandleOpResult } from "../estimation/types"
 import type { AltoConfig } from "../../createConfig"
+import { getEip7702DelegationOverrides } from "../../utils/eip7702"
 
 export class UnsafeValidator implements InterfaceValidator {
     config: AltoConfig
@@ -246,8 +248,16 @@ export class UnsafeValidator implements InterfaceValidator {
             }
         })
 
+        let eip7702Override: StateOverride | undefined
+        if (userOperation.eip7702Auth) {
+            eip7702Override = getEip7702DelegationOverrides([userOperation])
+        }
+
         const simulateValidationPromise = entryPointContract.simulate
-            .simulateValidation([userOperation])
+            .simulateValidation(
+                [userOperation],
+                eip7702Override ? { stateOverride: eip7702Override } : {}
+            )
             .catch((e) => {
                 if (e instanceof Error) {
                     return e

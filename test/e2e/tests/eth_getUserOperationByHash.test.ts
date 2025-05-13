@@ -1,9 +1,11 @@
 import { http, createTestClient } from "viem"
 import {
+    EntryPointVersion,
     UserOperationNotFoundError,
     UserOperationReceiptNotFoundError,
     entryPoint06Address,
-    entryPoint07Address
+    entryPoint07Address,
+    entryPoint08Address
 } from "viem/account-abstraction"
 import { foundry } from "viem/chains"
 import { beforeEach, describe, expect, inject, test } from "vitest"
@@ -12,7 +14,6 @@ import {
     getPimlicoClient,
     getSmartAccountClient
 } from "../src/utils/index.js"
-import { EntryPointVersion, entryPoint08Address } from "../src/constants.js"
 
 describe.each([
     {

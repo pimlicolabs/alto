@@ -11,7 +11,9 @@ import {
     entryPoint07Abi,
     toPackedUserOperation,
     entryPoint06Address,
-    entryPoint07Address
+    entryPoint07Address,
+    EntryPointVersion,
+    entryPoint08Address
 } from "viem/account-abstraction"
 import { beforeAll, beforeEach, describe, expect, inject, test } from "vitest"
 import {
@@ -27,11 +29,6 @@ import {
 } from "../src/utils/index.js"
 import { deepHexlify } from "permissionless"
 import { foundry } from "viem/chains"
-import {
-    type EntryPointVersion,
-    entryPoint08Address,
-    getViemEntryPointVersion
-} from "../src/constants.js"
 
 describe.each([
     {
@@ -154,8 +151,7 @@ describe.each([
                     userOperation: op,
                     chainId: foundry.id,
                     entryPointAddress: entryPoint,
-                    entryPointVersion:
-                        getViemEntryPointVersion(entryPointVersion)
+                    entryPointVersion
                 })
             }
 

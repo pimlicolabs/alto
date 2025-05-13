@@ -12,11 +12,12 @@
         "@types/node": "^18.16.3",
         "dotenv": "^16.0.3",
         "e2e": "link:",
+        "eventemitter3": "^5.0.1",
         "execa": "^9.5.2",
-        "permissionless": "^0.2.1",
+        "permissionless": "^0.2.46",
         "prool": "^0.0.16",
         "ts-node": "^10.9.2",
-        "viem": "^2.9.5",
+        "viem": "^2.29.1",
         "vitest": "^1.6.0",
         "wait-port": "^1.1.0"
     }

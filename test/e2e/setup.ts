@@ -6,9 +6,6 @@ import { defineInstance } from "prool"
 import { execa } from "./src/utils/execa.js"
 import altoConfig from "./alto-config.json"
 
-export const ENTRY_POINT_SIMULATIONS_ADDRESS =
-    "0x74Cb5e4eE81b86e70f9045036a1C5477de69eE87"
-
 export const alto = defineInstance(
     (args: { anvilRpc: string; port: number }) => {
         const name = "alto"
@@ -114,6 +111,7 @@ export default async function setup({ provide }) {
     const anvilInstance = anvil({
         chainId: foundry.id,
         port: 8545,
+        hardfork: "Prague",
         codeSizeLimit: 1000_000,
         gasLimit: 30_000_000
     })

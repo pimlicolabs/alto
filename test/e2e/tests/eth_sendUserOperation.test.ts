@@ -1,4 +1,8 @@
-import { encodeNonce, getRequiredPrefund } from "permissionless/utils"
+import {
+    decodeNonce,
+    encodeNonce,
+    getRequiredPrefund
+} from "permissionless/utils"
 import {
     http,
     type Hex,
@@ -8,35 +12,35 @@ import {
     parseEther,
     parseGwei,
     type Address,
-    concat
+    concat,
+    encodeFunctionData,
+    parseAbi,
+    zeroAddress
 } from "viem"
 import {
     UserOperationReceiptNotFoundError,
     entryPoint06Address,
     entryPoint07Address,
-    type UserOperation
+    type UserOperation,
+    EntryPointVersion,
+    entryPoint08Address
 } from "viem/account-abstraction"
 import {
     generatePrivateKey,
-    privateKeyToAddress,
+    privateKeyToAccount,
     privateKeyToAddress
 } from "viem/accounts"
 import { foundry } from "viem/chains"
 import { beforeEach, describe, expect, inject, test } from "vitest"
 import {
     beforeEachCleanUp,
+    getSimple7702AccountImplementationAddress,
     getSmartAccountClient,
     sendBundleNow,
     setBundlingMode
 } from "../src/utils/index.js"
-import { ENTRYPOINT_V06_ABI, ENTRYPOINT_V07_ABI } from "../src/utils/abi.js"
-import { getNonceKeyAndValue } from "../src/utils/userop.js"
 import { deployPaymaster } from "../src/testPaymaster.js"
-import {
-    type EntryPointVersion,
-    entryPoint08Address,
-    getViemEntryPointVersion
-} from "../src/constants.js"
+import { getEntryPointAbi } from "../src/utils/entrypoint.js"
 
 describe.each([
     {
@@ -260,10 +264,7 @@ describe.each([
 
             const entryPointContract = getContract({
                 address: entryPoint,
-                abi:
-                    entryPointVersion === "0.6"
-                        ? ENTRYPOINT_V06_ABI
-                        : ENTRYPOINT_V07_ABI,
+                abi: getEntryPointAbi(entryPointVersion),
                 client: {
                     public: publicClient
                 }
@@ -334,8 +335,7 @@ describe.each([
 
             // @ts-ignore
             const bundleNonceKeys = logs.map(
-                // @ts-ignore
-                (log) => getNonceKeyAndValue(log.args.nonce)[0]
+                (log) => decodeNonce(log.args.nonce as bigint).key
             )
 
             const sortedNonceKeys = [...nonceKeys].sort(
@@ -358,11 +358,7 @@ describe.each([
 
             const entryPointContract = getContract({
                 address: entryPoint,
-                abi:
-                    // @ts-ignore
-                    entryPointVersion === "0.6"
-                        ? ENTRYPOINT_V06_ABI
-                        : ENTRYPOINT_V07_ABI,
+                abi: getEntryPointAbi(entryPointVersion),
                 client: {
                     public: publicClient
                 }
@@ -563,7 +559,7 @@ describe.each([
 
             const requiedPrefund = getRequiredPrefund({
                 userOperation: op,
-                entryPointVersion: getViemEntryPointVersion(entryPointVersion)
+                entryPointVersion: entryPointVersion
             })
 
             // Should throw when there is insufficient prefund
@@ -593,6 +589,46 @@ describe.each([
 
             const receipt = await client.waitForUserOperationReceipt({ hash })
             expect(receipt.success).toEqual(true)
+        })
+
+        test("Should send userOp with 7702Auth", async () => {
+            const privateKey = generatePrivateKey()
+            const smartAccountClient = await getSmartAccountClient({
+                entryPointVersion,
+                privateKey,
+                anvilRpc,
+                altoRpc,
+                use7702: true
+            })
+
+            const owner = privateKeyToAccount(privateKey)
+
+            const authorization = await owner.signAuthorization({
+                chainId: foundry.id,
+                nonce: await publicClient.getTransactionCount({
+                    address: owner.address
+                }),
+                contractAddress:
+                    getSimple7702AccountImplementationAddress(entryPointVersion)
+            })
+
+            const hash = await smartAccountClient.sendUserOperation({
+                calls: [
+                    {
+                        to: zeroAddress,
+                        data: "0x",
+                        value: 0n
+                    }
+                ],
+                authorization
+            })
+
+            await new Promise((resolve) => setTimeout(resolve, 1500))
+
+            const receipt =
+                await smartAccountClient.waitForUserOperationReceipt({ hash })
+
+            expect(receipt.success)
         })
     }
 )
