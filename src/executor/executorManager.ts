@@ -67,10 +67,29 @@ export class ExecutorManager {
     private eventManager: EventManager
     private opsCount: number[] = []
     private bundlingMode: BundlingMode
+    private cachedLatestBlock: { value: bigint; timestamp: number } | null =
+        null
+    private blockCacheTTL: number
 
-    private latestBlockNumber: bigint | undefined
-    private monitorForInclusion = false
     private currentlyHandlingBlock = false
+
+    private async getLatestBlockWithCache(): Promise<bigint> {
+        const now = Date.now()
+        if (
+            this.cachedLatestBlock &&
+            now - this.cachedLatestBlock.timestamp < this.blockCacheTTL
+        ) {
+            // Use cached block number if it's still valid
+            this.logger.debug("Using cached block number")
+            return this.cachedLatestBlock.value
+        }
+
+        // Otherwise fetch a new block number and cache it
+        const latestBlock = await this.config.publicClient.getBlockNumber()
+        this.cachedLatestBlock = { value: latestBlock, timestamp: now }
+        this.logger.debug("Fetched and cached new block number")
+        return latestBlock
+    }
 
     constructor({
         config,
@@ -109,21 +128,12 @@ export class ExecutorManager {
         this.eventManager = eventManager
         this.senderManager = senderManager
 
+        this.blockCacheTTL = config.blockNumberCacheTtl
         this.bundlingMode = this.config.bundleMode
 
         if (this.bundlingMode === "auto") {
             this.autoScalingBundling()
         }
-
-        // Listen for new blocks, needed to keep track of latestBlock and for logic to check for transactionInclusions
-        this.unWatch = this.config.publicClient.watchBlockNumber({
-            onBlockNumber: (blockNumber) => this.handleBlock(blockNumber),
-            onError: (error) => {
-                this.logger.error({ error }, "error while watching blocks")
-            },
-            emitMissed: false,
-            pollingInterval: this.config.pollingInterval
-        })
     }
 
     async setBundlingMode(bundleMode: BundlingMode): Promise<void> {
@@ -175,6 +185,22 @@ export class ExecutorManager {
         if (this.bundlingMode === "auto") {
             setTimeout(this.autoScalingBundling.bind(this), nextInterval)
         }
+    }
+
+    startWatchingBlocks(handleBlock: (blockNumber: bigint) => void): void {
+        if (this.unWatch) {
+            return
+        }
+        this.unWatch = this.config.publicClient.watchBlockNumber({
+            onBlockNumber: handleBlock,
+            onError: (error) => {
+                this.logger.error({ error }, "error while watching blocks")
+            },
+            emitMissed: false,
+            pollingInterval: this.config.pollingInterval
+        })
+
+        this.logger.debug("started watching blocks")
     }
 
     // Debug endpoint
@@ -535,9 +561,7 @@ export class ExecutorManager {
         let fromBlock: bigint | undefined = undefined
         let toBlock: "latest" | undefined = undefined
         if (this.config.maxBlockRange !== undefined) {
-            const latestBlock =
-                this.latestBlockNumber ??
-                (await this.config.publicClient.getBlockNumber())
+            const latestBlock = await this.getLatestBlockWithCache()
 
             fromBlock = latestBlock - BigInt(this.config.maxBlockRange)
             if (fromBlock < 0n) {
@@ -656,11 +680,8 @@ export class ExecutorManager {
     }
 
     async handleBlock(blockNumber: bigint) {
-        this.latestBlockNumber = blockNumber
-
-        if (!this.monitorForInclusion) {
-            return
-        }
+        // Update the cached block number whenever we receive a new block
+        this.cachedLatestBlock = { value: blockNumber, timestamp: Date.now() }
 
         if (this.currentlyHandlingBlock) {
             return
@@ -680,7 +701,7 @@ export class ExecutorManager {
 
         const submittedEntries = await dumpSubmittedEntries()
         if (submittedEntries.length === 0) {
-            this.monitorForInclusion = false
+            this.stopWatchingBlocks()
             this.currentlyHandlingBlock = false
             return
         }
@@ -964,7 +985,7 @@ export class ExecutorManager {
                     userOpHash,
                     transactionInfo
                 })
-                this.monitorForInclusion = true
+                this.startWatchingBlocks(this.handleBlock.bind(this))
                 this.metrics.userOperationsSubmitted
                     .labels({ status: "success" })
                     .inc()

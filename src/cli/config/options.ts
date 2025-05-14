@@ -555,6 +555,12 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         default: 2000,
         require: false
     },
+    "block-number-cache-ttl": {
+        description: "TTL for the block number cache in milliseconds",
+        type: "number",
+        default: 15000, // Default to 1 minute
+        require: false
+    },
     "block-tag-support": {
         description:
             "Disable sending block tag when sending eth_estimateGas call",
@@ -649,13 +655,15 @@ export const debugOptions: CliCommandOptions<IDebugArgsInput> = {
         choices: ["auto", "manual"]
     },
     "min-bundle-interval": {
-        description: "Minimum interval in milliseconds between bundling operations in auto mode",
+        description:
+            "Minimum interval in milliseconds between bundling operations in auto mode",
         type: "number",
         require: false,
         default: 100
     },
     "max-bundle-interval": {
-        description: "Maximum interval in milliseconds between bundling operations in auto mode",
+        description:
+            "Maximum interval in milliseconds between bundling operations in auto mode",
         type: "number",
         require: false,
         default: 1000
