@@ -68,8 +68,6 @@ export class ExecutorManager {
     private opsCount: number[] = []
     private bundlingMode: BundlingMode
 
-    private latestBlockNumber: bigint | undefined
-    private monitorForInclusion = false
     private currentlyHandlingBlock = false
 
     constructor({
@@ -114,16 +112,6 @@ export class ExecutorManager {
         if (this.bundlingMode === "auto") {
             this.autoScalingBundling()
         }
-
-        // Listen for new blocks, needed to keep track of latestBlock and for logic to check for transactionInclusions
-        this.unWatch = this.config.publicClient.watchBlockNumber({
-            onBlockNumber: (blockNumber) => this.handleBlock(blockNumber),
-            onError: (error) => {
-                this.logger.error({ error }, "error while watching blocks")
-            },
-            emitMissed: false,
-            pollingInterval: this.config.pollingInterval
-        })
     }
 
     async setBundlingMode(bundleMode: BundlingMode): Promise<void> {
@@ -175,6 +163,22 @@ export class ExecutorManager {
         if (this.bundlingMode === "auto") {
             setTimeout(this.autoScalingBundling.bind(this), nextInterval)
         }
+    }
+
+    startWatchingBlocks(handleBlock: (blockNumber: bigint) => void): void {
+        if (this.unWatch) {
+            return
+        }
+        this.unWatch = this.config.publicClient.watchBlockNumber({
+            onBlockNumber: handleBlock,
+            onError: (error) => {
+                this.logger.error({ error }, "error while watching blocks")
+            },
+            emitMissed: false,
+            pollingInterval: this.config.pollingInterval
+        })
+
+        this.logger.debug("started watching blocks")
     }
 
     // Debug endpoint
@@ -535,9 +539,7 @@ export class ExecutorManager {
         let fromBlock: bigint | undefined = undefined
         let toBlock: "latest" | undefined = undefined
         if (this.config.maxBlockRange !== undefined) {
-            const latestBlock =
-                this.latestBlockNumber ??
-                (await this.config.publicClient.getBlockNumber())
+            const latestBlock = await this.config.publicClient.getBlockNumber()
 
             fromBlock = latestBlock - BigInt(this.config.maxBlockRange)
             if (fromBlock < 0n) {
@@ -656,12 +658,6 @@ export class ExecutorManager {
     }
 
     async handleBlock(blockNumber: bigint) {
-        this.latestBlockNumber = blockNumber
-
-        if (!this.monitorForInclusion) {
-            return
-        }
-
         if (this.currentlyHandlingBlock) {
             return
         }
@@ -680,7 +676,7 @@ export class ExecutorManager {
 
         const submittedEntries = await dumpSubmittedEntries()
         if (submittedEntries.length === 0) {
-            this.monitorForInclusion = false
+            this.stopWatchingBlocks()
             this.currentlyHandlingBlock = false
             return
         }
@@ -964,7 +960,7 @@ export class ExecutorManager {
                     userOpHash,
                     transactionInfo
                 })
-                this.monitorForInclusion = true
+                this.startWatchingBlocks(this.handleBlock.bind(this))
                 this.metrics.userOperationsSubmitted
                     .labels({ status: "success" })
                     .inc()
