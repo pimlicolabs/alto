@@ -555,6 +555,12 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         default: 2000,
         require: false
     },
+    "block-number-cache-ttl": {
+        description: "TTL for the block number cache in milliseconds",
+        type: "number",
+        default: 60000, // Default to 1 minute
+        require: false
+    },
     "block-tag-support": {
         description:
             "Disable sending block tag when sending eth_estimateGas call",

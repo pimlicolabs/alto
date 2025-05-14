@@ -69,7 +69,7 @@ export class ExecutorManager {
     private bundlingMode: BundlingMode
     private cachedLatestBlock: { value: bigint; timestamp: number } | null =
         null
-    private blockCacheTTL = 30000 // 30 seconds in milliseconds
+    private blockCacheTTL: number
 
     private currentlyHandlingBlock = false
 
@@ -128,6 +128,7 @@ export class ExecutorManager {
         this.eventManager = eventManager
         this.senderManager = senderManager
 
+        this.blockCacheTTL = config.blockNumberCacheTtl
         this.bundlingMode = this.config.bundleMode
 
         if (this.bundlingMode === "auto") {
