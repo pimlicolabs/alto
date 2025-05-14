@@ -67,8 +67,29 @@ export class ExecutorManager {
     private eventManager: EventManager
     private opsCount: number[] = []
     private bundlingMode: BundlingMode
+    private cachedLatestBlock: { value: bigint; timestamp: number } | null =
+        null
+    private blockCacheTTL = 30000 // 30 seconds in milliseconds
 
     private currentlyHandlingBlock = false
+
+    private async getLatestBlockWithCache(): Promise<bigint> {
+        const now = Date.now()
+        if (
+            this.cachedLatestBlock &&
+            now - this.cachedLatestBlock.timestamp < this.blockCacheTTL
+        ) {
+            // Use cached block number if it's still valid
+            this.logger.debug("Using cached block number")
+            return this.cachedLatestBlock.value
+        }
+
+        // Otherwise fetch a new block number and cache it
+        const latestBlock = await this.config.publicClient.getBlockNumber()
+        this.cachedLatestBlock = { value: latestBlock, timestamp: now }
+        this.logger.debug("Fetched and cached new block number")
+        return latestBlock
+    }
 
     constructor({
         config,
@@ -539,7 +560,7 @@ export class ExecutorManager {
         let fromBlock: bigint | undefined = undefined
         let toBlock: "latest" | undefined = undefined
         if (this.config.maxBlockRange !== undefined) {
-            const latestBlock = await this.config.publicClient.getBlockNumber()
+            const latestBlock = await this.getLatestBlockWithCache()
 
             fromBlock = latestBlock - BigInt(this.config.maxBlockRange)
             if (fromBlock < 0n) {
@@ -663,6 +684,8 @@ export class ExecutorManager {
         }
 
         this.currentlyHandlingBlock = true
+        // Update the cached block number whenever we receive a new block
+        this.cachedLatestBlock = { value: blockNumber, timestamp: Date.now() }
         this.logger.debug({ blockNumber }, "handling block")
 
         const dumpSubmittedEntries = async () => {
