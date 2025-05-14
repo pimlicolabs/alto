@@ -680,13 +680,14 @@ export class ExecutorManager {
     }
 
     async handleBlock(blockNumber: bigint) {
+        // Update the cached block number whenever we receive a new block
+        this.cachedLatestBlock = { value: blockNumber, timestamp: Date.now() }
+
         if (this.currentlyHandlingBlock) {
             return
         }
 
         this.currentlyHandlingBlock = true
-        // Update the cached block number whenever we receive a new block
-        this.cachedLatestBlock = { value: blockNumber, timestamp: Date.now() }
         this.logger.debug({ blockNumber }, "handling block")
 
         const dumpSubmittedEntries = async () => {
