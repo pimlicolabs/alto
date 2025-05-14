@@ -558,7 +558,7 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
     "block-number-cache-ttl": {
         description: "TTL for the block number cache in milliseconds",
         type: "number",
-        default: 60000, // Default to 1 minute
+        default: 15000, // Default to 1 minute
         require: false
     },
     "block-tag-support": {
@@ -655,13 +655,15 @@ export const debugOptions: CliCommandOptions<IDebugArgsInput> = {
         choices: ["auto", "manual"]
     },
     "min-bundle-interval": {
-        description: "Minimum interval in milliseconds between bundling operations in auto mode",
+        description:
+            "Minimum interval in milliseconds between bundling operations in auto mode",
         type: "number",
         require: false,
         default: 100
     },
     "max-bundle-interval": {
-        description: "Maximum interval in milliseconds between bundling operations in auto mode",
+        description:
+            "Maximum interval in milliseconds between bundling operations in auto mode",
         type: "number",
         require: false,
         default: 1000
