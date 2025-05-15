@@ -238,7 +238,8 @@ export class EventManager {
         asyncCallWithTimeout(
             this.redisEventManagerQueue!.add(entry, {
                 removeOnComplete: true,
-                removeOnFail: true
+                removeOnFail: true,
+                timeout: 1800000 // entry should only stay in queue for 30 mins
             }),
             500 // 500ms timeout
         )

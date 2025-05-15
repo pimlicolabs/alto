@@ -138,6 +138,18 @@ export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
         require: false,
         default: "outstanding-mempool"
     },
+    "redis-op-status-url": {
+        description:
+            "Redis connection URL for user operation status tracking",
+        type: "string",
+        require: false
+    },
+    "redis-op-status-queue-name": {
+        description: "Queue name for user operation status",
+        type: "string",
+        require: false,
+        default: "userop-status"
+    },
     "redis-gas-price-queue-url": {
         description:
             "Redis connection URL (required if redis-gas-price-queue is enabled)",
