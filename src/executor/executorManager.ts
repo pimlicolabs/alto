@@ -151,7 +151,6 @@ export class ExecutorManager {
     }
 
     async autoScalingBundling() {
-        this.logger.info("Auto scaling bundling")
         const now = Date.now()
         this.opsCount = this.opsCount.filter(
             (timestamp) => now - timestamp < RPM_WINDOW
