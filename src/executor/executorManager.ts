@@ -71,6 +71,8 @@ export class ExecutorManager {
     private cachedLatestBlock: { value: bigint; timestamp: number } | null =
         null
     private blockCacheTTL: number
+    private bundlingIntervalId: NodeJS.Timeout | null = null
+    private nextBundlingInterval: number = 0
 
     private currentlyHandlingBlock = false
 
@@ -131,9 +133,55 @@ export class ExecutorManager {
 
         this.blockCacheTTL = config.blockNumberCacheTtl
         this.bundlingMode = this.config.bundleMode
+        this.nextBundlingInterval = this.config.minBundleInterval
 
         if (this.bundlingMode === "auto") {
-            this.autoScalingBundling()
+            this.startBundlingLoop()
+        }
+    }
+
+    private startBundlingLoop(): void {
+        if (this.bundlingIntervalId) {
+            this.stopBundlingLoop() // Clear existing interval
+        }
+
+        // Initial execution
+        this.executeBundlingWithErrorHandling()
+
+        // Start a consistent loop that executes the bundling
+        const updateInterval = () => {
+            // Clear any existing interval
+            if (this.bundlingIntervalId) {
+                clearInterval(this.bundlingIntervalId)
+            }
+
+            // Set new interval with current timing
+            this.bundlingIntervalId = setInterval(() => {
+                this.executeBundlingWithErrorHandling()
+
+                // Update the interval if it's changed
+                if (this.bundlingMode === "auto") {
+                    updateInterval()
+                }
+            }, this.nextBundlingInterval)
+        }
+
+        // Start the initial interval
+        updateInterval()
+    }
+
+    private executeBundlingWithErrorHandling(): void {
+        // Fire and forget
+        this.executeBundling().catch((err) => {
+            sentry.captureException(err)
+            this.logger.error({ err }, "Error in bundling execution")
+        })
+    }
+
+    private stopBundlingLoop(): void {
+        if (this.bundlingIntervalId) {
+            clearInterval(this.bundlingIntervalId)
+            this.bundlingIntervalId = null
         }
     }
 
@@ -141,70 +189,63 @@ export class ExecutorManager {
         this.bundlingMode = bundleMode
 
         if (bundleMode === "manual") {
+            this.stopBundlingLoop()
             await new Promise((resolve) =>
                 setTimeout(resolve, 2 * this.config.maxBundleInterval)
             )
         }
 
         if (bundleMode === "auto") {
-            this.autoScalingBundling()
+            this.startBundlingLoop()
         }
     }
 
+    // This method now only calculates the optimal interval and updates the state
     async autoScalingBundling() {
-        const scheduleNextBundle = () => {
-            const now = Date.now()
-            this.opsCount = this.opsCount.filter(
-                (timestamp) => now - timestamp < RPM_WINDOW
-            )
+        // Calculate new bundling interval
+        const now = Date.now()
+        this.opsCount = this.opsCount.filter(
+            (timestamp) => now - timestamp < RPM_WINDOW
+        )
 
-            const rpm: number = this.opsCount.length
-            const nextInterval: number = Math.min(
-                this.config.minBundleInterval + rpm * SCALE_FACTOR, // Linear scaling
-                this.config.maxBundleInterval // Cap at configured max interval
-            )
+        const rpm: number = this.opsCount.length
+        this.nextBundlingInterval = Math.min(
+            this.config.minBundleInterval + rpm * SCALE_FACTOR, // Linear scaling
+            this.config.maxBundleInterval // Cap at configured max interval
+        )
+    }
 
-            if (this.bundlingMode === "auto") {
-                setTimeout(() => this.autoScalingBundling(), nextInterval)
-            }
-        }
+    // The actual bundling logic, separated from interval management
+    private async executeBundling() {
+        // Update the bundling interval first
+        await this.autoScalingBundling()
 
+        // Fire and forget
         try {
-            scheduleNextBundle()
+            const bundles = await this.mempool.getBundles()
 
-            this.mempool
-                .getBundles()
-                .then((bundles) => {
-                    if (bundles.length > 0) {
-                        const opsCount: number = bundles
-                            .map(({ userOps }) => userOps.length)
-                            .reduce((a, b) => a + b)
+            if (bundles.length > 0) {
+                const opsCount: number = bundles
+                    .map(({ userOps }) => userOps.length)
+                    .reduce((a, b) => a + b)
 
-                        // Add timestamps for each task
-                        const timestamp = Date.now()
-                        this.opsCount.push(...Array(opsCount).fill(timestamp))
+                // Add timestamps for each task
+                const timestamp = Date.now()
+                this.opsCount.push(...Array(opsCount).fill(timestamp))
 
-                        // Process all bundles in parallel without awaiting completion
-                        bundles.forEach((bundle) => {
-                            this.sendBundleToExecutor(bundle).catch((error) => {
-                                this.logger.error(
-                                    { error, bundle },
-                                    "Error sending bundle to executor"
-                                )
-                            })
-                        })
-                    }
+                // Process all bundles in parallel without awaiting completion
+                bundles.forEach((bundle) => {
+                    this.sendBundleToExecutor(bundle).catch((error) => {
+                        this.logger.error(
+                            { error, bundle },
+                            "Error sending bundle to executor"
+                        )
+                    })
                 })
-                .catch((error) => {
-                    this.logger.error(
-                        { error },
-                        "Error getting bundles from mempool"
-                    )
-                })
+            }
         } catch (err) {
             sentry.captureException(err)
-            this.logger.error({ err }, "Error auto scaling bundling")
-            scheduleNextBundle()
+            this.logger.error({ err }, "Error executing bundling")
         }
     }
 
