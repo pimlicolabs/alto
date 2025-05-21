@@ -14,6 +14,7 @@ import {
     UserOperationBundle,
     UserOpInfo
 } from "@alto/types"
+import * as sentry from "@sentry/node"
 import type { BundlingStatus, Logger, Metrics } from "@alto/utils"
 import {
     getAAError,
@@ -151,50 +152,60 @@ export class ExecutorManager {
     }
 
     async autoScalingBundling() {
-        const now = Date.now()
-        this.opsCount = this.opsCount.filter(
-            (timestamp) => now - timestamp < RPM_WINDOW
-        )
+        const scheduleNextBundle = () => {
+            const now = Date.now()
+            this.opsCount = this.opsCount.filter(
+                (timestamp) => now - timestamp < RPM_WINDOW
+            )
 
-        const rpm: number = this.opsCount.length
-        const nextInterval: number = Math.min(
-            this.config.minBundleInterval + rpm * SCALE_FACTOR, // Linear scaling
-            this.config.maxBundleInterval // Cap at configured max interval
-        )
+            const rpm: number = this.opsCount.length
+            const nextInterval: number = Math.min(
+                this.config.minBundleInterval + rpm * SCALE_FACTOR, // Linear scaling
+                this.config.maxBundleInterval // Cap at configured max interval
+            )
 
-        if (this.bundlingMode === "auto") {
-            setTimeout(() => this.autoScalingBundling(), nextInterval)
+            if (this.bundlingMode === "auto") {
+                setTimeout(() => this.autoScalingBundling(), nextInterval)
+            }
         }
 
-        this.mempool
-            .getBundles()
-            .then((bundles) => {
-                if (bundles.length > 0) {
-                    const opsCount: number = bundles
-                        .map(({ userOps }) => userOps.length)
-                        .reduce((a, b) => a + b)
+        try {
+            scheduleNextBundle()
 
-                    // Add timestamps for each task
-                    const timestamp = Date.now()
-                    this.opsCount.push(...Array(opsCount).fill(timestamp))
+            this.mempool
+                .getBundles()
+                .then((bundles) => {
+                    if (bundles.length > 0) {
+                        const opsCount: number = bundles
+                            .map(({ userOps }) => userOps.length)
+                            .reduce((a, b) => a + b)
 
-                    // Process all bundles in parallel without awaiting completion
-                    bundles.forEach((bundle) => {
-                        this.sendBundleToExecutor(bundle).catch((error) => {
-                            this.logger.error(
-                                { error, bundle },
-                                "Error sending bundle to executor"
-                            )
+                        // Add timestamps for each task
+                        const timestamp = Date.now()
+                        this.opsCount.push(...Array(opsCount).fill(timestamp))
+
+                        // Process all bundles in parallel without awaiting completion
+                        bundles.forEach((bundle) => {
+                            this.sendBundleToExecutor(bundle).catch((error) => {
+                                this.logger.error(
+                                    { error, bundle },
+                                    "Error sending bundle to executor"
+                                )
+                            })
                         })
-                    })
-                }
-            })
-            .catch((error) => {
-                this.logger.error(
-                    { error },
-                    "Error getting bundles from mempool"
-                )
-            })
+                    }
+                })
+                .catch((error) => {
+                    this.logger.error(
+                        { error },
+                        "Error getting bundles from mempool"
+                    )
+                })
+        } catch (err) {
+            sentry.captureException(err)
+            this.logger.error({ err }, "Error auto scaling bundling")
+            scheduleNextBundle()
+        }
     }
 
     startWatchingBlocks(handleBlock: (blockNumber: bigint) => void): void {
