@@ -156,35 +156,45 @@ export class ExecutorManager {
             (timestamp) => now - timestamp < RPM_WINDOW
         )
 
-        const bundles = await this.mempool.getBundles()
-
-        if (bundles.length > 0) {
-            const opsCount: number = bundles
-                .map(({ userOps }) => userOps.length)
-                .reduce((a, b) => a + b)
-
-            // Add timestamps for each task
-            const timestamp = Date.now()
-            this.opsCount.push(...Array(opsCount).fill(timestamp))
-
-            // Send bundles to executor
-            await Promise.all(
-                bundles.map(async (bundle) => {
-                    await this.sendBundleToExecutor(bundle)
-                })
-            )
-        }
-
         const rpm: number = this.opsCount.length
-        // Calculate next interval with linear scaling
         const nextInterval: number = Math.min(
             this.config.minBundleInterval + rpm * SCALE_FACTOR, // Linear scaling
             this.config.maxBundleInterval // Cap at configured max interval
         )
 
         if (this.bundlingMode === "auto") {
-            setTimeout(this.autoScalingBundling.bind(this), nextInterval)
+            setTimeout(() => this.autoScalingBundling(), nextInterval)
         }
+
+        this.mempool
+            .getBundles()
+            .then((bundles) => {
+                if (bundles.length > 0) {
+                    const opsCount: number = bundles
+                        .map(({ userOps }) => userOps.length)
+                        .reduce((a, b) => a + b)
+
+                    // Add timestamps for each task
+                    const timestamp = Date.now()
+                    this.opsCount.push(...Array(opsCount).fill(timestamp))
+
+                    // Process all bundles in parallel without awaiting completion
+                    bundles.forEach((bundle) => {
+                        this.sendBundleToExecutor(bundle).catch((error) => {
+                            this.logger.error(
+                                { error, bundle },
+                                "Error sending bundle to executor"
+                            )
+                        })
+                    })
+                }
+            })
+            .catch((error) => {
+                this.logger.error(
+                    { error },
+                    "Error getting bundles from mempool"
+                )
+            })
     }
 
     startWatchingBlocks(handleBlock: (blockNumber: bigint) => void): void {
