@@ -136,40 +136,26 @@ export class ExecutorManager {
         this.nextBundlingInterval = this.config.minBundleInterval
 
         if (this.bundlingMode === "auto") {
-            this.startBundlingLoop()
+            this.runBundlingLoop()
         }
     }
 
-    private startBundlingLoop(): void {
+    private runBundlingLoop(): void {
         // Clear existing interval
         if (this.bundlingIntervalId) {
             this.stopBundlingLoop()
         }
 
-        // Start a consistent loop that executes the bundling
-        const updateInterval = () => {
-            // Clear any existing interval
-            if (this.bundlingIntervalId) {
-                clearInterval(this.bundlingIntervalId)
-            }
+        this.sendBundles().catch((err) => {
+            sentry.captureException(err)
+            this.logger.error({ err }, "Error in bundling execution")
+        })
 
-            // Set new interval with current timing
-            this.bundlingIntervalId = setInterval(() => {
-                // Fire and forget
-                this.executeBundling().catch((err) => {
-                    sentry.captureException(err)
-                    this.logger.error({ err }, "Error in bundling execution")
-                })
-
-                // Update the interval if it's changed
-                if (this.bundlingMode === "auto") {
-                    updateInterval()
-                }
-            }, this.nextBundlingInterval)
-        }
-
-        // Start the initial interval
-        updateInterval()
+        // Set new interval with current timing
+        this.bundlingIntervalId = setInterval(
+            () => this.runBundlingLoop(),
+            this.nextBundlingInterval
+        )
     }
 
     private stopBundlingLoop(): void {
@@ -190,11 +176,11 @@ export class ExecutorManager {
         }
 
         if (bundleMode === "auto") {
-            this.startBundlingLoop()
+            this.runBundlingLoop()
         }
     }
 
-    private async executeBundling() {
+    private async sendBundles() {
         // Set next bundling interval
         const now = Date.now()
         this.opsCount = this.opsCount.filter(
