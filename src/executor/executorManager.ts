@@ -14,7 +14,6 @@ import {
     UserOperationBundle,
     UserOpInfo
 } from "@alto/types"
-import * as sentry from "@sentry/node"
 import type { BundlingStatus, Logger, Metrics } from "@alto/utils"
 import {
     getAAError,
@@ -71,8 +70,6 @@ export class ExecutorManager {
     private cachedLatestBlock: { value: bigint; timestamp: number } | null =
         null
     private blockCacheTTL: number
-    private bundlingIntervalId: NodeJS.Timeout | null = null
-    private nextBundlingInterval: number = 0
 
     private currentlyHandlingBlock = false
 
@@ -133,48 +130,9 @@ export class ExecutorManager {
 
         this.blockCacheTTL = config.blockNumberCacheTtl
         this.bundlingMode = this.config.bundleMode
-        this.nextBundlingInterval = this.config.minBundleInterval
 
         if (this.bundlingMode === "auto") {
-            this.runBundlingLoop()
-        }
-    }
-
-    private runBundlingLoop(): void {
-        // Clear existing interval
-        if (this.bundlingIntervalId) {
-            this.stopBundlingLoop()
-        }
-
-        // handle sendBundles in non blocking way
-        this.sendBundles().catch((err) => {
-            sentry.captureException(err)
-            this.logger.error({ err }, "Error in bundling execution")
-        })
-
-        // Set next bundling interval
-        const now = Date.now()
-        this.opsCount = this.opsCount.filter(
-            (timestamp) => now - timestamp < RPM_WINDOW
-        )
-
-        const rpm: number = this.opsCount.length
-        // Calculate next interval with linear scaling
-        this.nextBundlingInterval = Math.min(
-            this.config.minBundleInterval + rpm * SCALE_FACTOR, // Linear scaling
-            this.config.maxBundleInterval // Cap at configured max interval
-        )
-
-        this.bundlingIntervalId = setInterval(
-            () => this.runBundlingLoop(),
-            this.nextBundlingInterval
-        )
-    }
-
-    private stopBundlingLoop(): void {
-        if (this.bundlingIntervalId) {
-            clearInterval(this.bundlingIntervalId)
-            this.bundlingIntervalId = null
+            this.autoScalingBundling()
         }
     }
 
@@ -182,38 +140,50 @@ export class ExecutorManager {
         this.bundlingMode = bundleMode
 
         if (bundleMode === "manual") {
-            this.stopBundlingLoop()
             await new Promise((resolve) =>
                 setTimeout(resolve, 2 * this.config.maxBundleInterval)
             )
         }
 
         if (bundleMode === "auto") {
-            this.runBundlingLoop()
+            this.autoScalingBundling()
         }
     }
 
-    private async sendBundles() {
-        try {
-            const bundles = await this.mempool.getBundles()
+    async autoScalingBundling() {
+        const now = Date.now()
+        this.opsCount = this.opsCount.filter(
+            (timestamp) => now - timestamp < RPM_WINDOW
+        )
 
-            if (bundles.length > 0) {
-                const opsCount: number = bundles
-                    .map(({ userOps }) => userOps.length)
-                    .reduce((a, b) => a + b)
+        const bundles = await this.mempool.getBundles()
 
-                const timestamp = Date.now()
-                this.opsCount.push(...Array(opsCount).fill(timestamp))
+        if (bundles.length > 0) {
+            const opsCount: number = bundles
+                .map(({ userOps }) => userOps.length)
+                .reduce((a, b) => a + b)
 
-                await Promise.all(
-                    bundles.map(async (bundle) => {
-                        await this.sendBundleToExecutor(bundle)
-                    })
-                )
-            }
-        } catch (err) {
-            sentry.captureException(err)
-            this.logger.error({ err }, "Error whilst bundling")
+            // Add timestamps for each task
+            const timestamp = Date.now()
+            this.opsCount.push(...Array(opsCount).fill(timestamp))
+
+            // Send bundles to executor
+            await Promise.all(
+                bundles.map(async (bundle) => {
+                    await this.sendBundleToExecutor(bundle)
+                })
+            )
+        }
+
+        const rpm: number = this.opsCount.length
+        // Calculate next interval with linear scaling
+        const nextInterval: number = Math.min(
+            this.config.minBundleInterval + rpm * SCALE_FACTOR, // Linear scaling
+            this.config.maxBundleInterval // Cap at configured max interval
+        )
+
+        if (this.bundlingMode === "auto") {
+            setTimeout(this.autoScalingBundling.bind(this), nextInterval)
         }
     }
 
