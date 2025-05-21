@@ -168,11 +168,7 @@ export class ExecutorManager {
             this.opsCount.push(...Array(opsCount).fill(timestamp))
 
             // Send bundles to executor
-            await Promise.all(
-                bundles.map(async (bundle) => {
-                    await this.sendBundleToExecutor(bundle)
-                })
-            )
+            bundles.map((bundle) => this.sendBundleToExecutor(bundle))
         }
 
         const rpm: number = this.opsCount.length
