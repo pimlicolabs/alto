@@ -4,7 +4,6 @@ import type {
     Mempool,
     Monitor
 } from "@alto/mempool"
-import * as sentry from "@sentry/node"
 import {
     type BundlingMode,
     EntryPointV06Abi,
@@ -169,14 +168,9 @@ export class ExecutorManager {
             this.opsCount.push(...Array(opsCount).fill(timestamp))
 
             // Send bundles to executor
-            try {
-                bundles.map(async (bundle) => {
-                    await this.sendBundleToExecutor(bundle)
-                })
-            } catch (err) {
-                sentry.captureException(err)
-                this.logger.error({ err }, "error while sending bundles")
-            }
+            bundles.map(async (bundle) => {
+                await this.sendBundleToExecutor(bundle)
+            })
         }
 
         const rpm: number = this.opsCount.length
