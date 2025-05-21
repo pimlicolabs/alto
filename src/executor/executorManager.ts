@@ -146,12 +146,25 @@ export class ExecutorManager {
             this.stopBundlingLoop()
         }
 
+        // handle sendBundles in non blocking way
         this.sendBundles().catch((err) => {
             sentry.captureException(err)
             this.logger.error({ err }, "Error in bundling execution")
         })
 
-        // Set new interval with current timing
+        // Set next bundling interval
+        const now = Date.now()
+        this.opsCount = this.opsCount.filter(
+            (timestamp) => now - timestamp < RPM_WINDOW
+        )
+
+        const rpm: number = this.opsCount.length
+        // Calculate next interval with linear scaling
+        this.nextBundlingInterval = Math.min(
+            this.config.minBundleInterval + rpm * SCALE_FACTOR, // Linear scaling
+            this.config.maxBundleInterval // Cap at configured max interval
+        )
+
         this.bundlingIntervalId = setInterval(
             () => this.runBundlingLoop(),
             this.nextBundlingInterval
@@ -181,19 +194,6 @@ export class ExecutorManager {
     }
 
     private async sendBundles() {
-        // Set next bundling interval
-        const now = Date.now()
-        this.opsCount = this.opsCount.filter(
-            (timestamp) => now - timestamp < RPM_WINDOW
-        )
-
-        const rpm: number = this.opsCount.length
-        this.nextBundlingInterval = Math.min(
-            this.config.minBundleInterval + rpm * SCALE_FACTOR,
-            this.config.maxBundleInterval
-        )
-
-        // Fire and forget
         try {
             const bundles = await this.mempool.getBundles()
 
@@ -205,15 +205,11 @@ export class ExecutorManager {
                 const timestamp = Date.now()
                 this.opsCount.push(...Array(opsCount).fill(timestamp))
 
-                // Process all bundles in parallel without awaiting completion
-                bundles.forEach((bundle) => {
-                    this.sendBundleToExecutor(bundle).catch((error) => {
-                        this.logger.error(
-                            { error, bundle },
-                            "Error sending bundle to executor"
-                        )
+                await Promise.all(
+                    bundles.map(async (bundle) => {
+                        await this.sendBundleToExecutor(bundle)
                     })
-                })
+                )
             }
         } catch (err) {
             sentry.captureException(err)
