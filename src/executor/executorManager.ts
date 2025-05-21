@@ -141,12 +141,10 @@ export class ExecutorManager {
     }
 
     private startBundlingLoop(): void {
+        // Clear existing interval
         if (this.bundlingIntervalId) {
-            this.stopBundlingLoop() // Clear existing interval
+            this.stopBundlingLoop()
         }
-
-        // Initial execution
-        this.executeBundlingWithErrorHandling()
 
         // Start a consistent loop that executes the bundling
         const updateInterval = () => {
@@ -157,7 +155,11 @@ export class ExecutorManager {
 
             // Set new interval with current timing
             this.bundlingIntervalId = setInterval(() => {
-                this.executeBundlingWithErrorHandling()
+                // Fire and forget
+                this.executeBundling().catch((err) => {
+                    sentry.captureException(err)
+                    this.logger.error({ err }, "Error in bundling execution")
+                })
 
                 // Update the interval if it's changed
                 if (this.bundlingMode === "auto") {
@@ -168,14 +170,6 @@ export class ExecutorManager {
 
         // Start the initial interval
         updateInterval()
-    }
-
-    private executeBundlingWithErrorHandling(): void {
-        // Fire and forget
-        this.executeBundling().catch((err) => {
-            sentry.captureException(err)
-            this.logger.error({ err }, "Error in bundling execution")
-        })
     }
 
     private stopBundlingLoop(): void {
@@ -200,9 +194,8 @@ export class ExecutorManager {
         }
     }
 
-    // This method now only calculates the optimal interval and updates the state
-    async autoScalingBundling() {
-        // Calculate new bundling interval
+    private async executeBundling() {
+        // Set next bundling interval
         const now = Date.now()
         this.opsCount = this.opsCount.filter(
             (timestamp) => now - timestamp < RPM_WINDOW
@@ -210,15 +203,9 @@ export class ExecutorManager {
 
         const rpm: number = this.opsCount.length
         this.nextBundlingInterval = Math.min(
-            this.config.minBundleInterval + rpm * SCALE_FACTOR, // Linear scaling
-            this.config.maxBundleInterval // Cap at configured max interval
+            this.config.minBundleInterval + rpm * SCALE_FACTOR,
+            this.config.maxBundleInterval
         )
-    }
-
-    // The actual bundling logic, separated from interval management
-    private async executeBundling() {
-        // Update the bundling interval first
-        await this.autoScalingBundling()
 
         // Fire and forget
         try {
@@ -229,7 +216,6 @@ export class ExecutorManager {
                     .map(({ userOps }) => userOps.length)
                     .reduce((a, b) => a + b)
 
-                // Add timestamps for each task
                 const timestamp = Date.now()
                 this.opsCount.push(...Array(opsCount).fill(timestamp))
 
@@ -245,7 +231,7 @@ export class ExecutorManager {
             }
         } catch (err) {
             sentry.captureException(err)
-            this.logger.error({ err }, "Error executing bundling")
+            this.logger.error({ err }, "Error whilst bundling")
         }
     }
 
