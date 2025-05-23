@@ -158,12 +158,12 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         MemoryUserOp memory mUserOp = opInfo.mUserOp;
 
         uint256 callGasLimit = mUserOp.callGasLimit;
-        unchecked {
-            // handleOps was called with gas limit too low. abort entire bundle.
-            if ((gasleft() * 63) / 64 < callGasLimit + mUserOp.paymasterPostOpGasLimit + INNER_GAS_OVERHEAD) {
-                revert FailedOp(0, "AA95 out of gas");
-            }
-        }
+        //unchecked {
+        //    // handleOps was called with gas limit too low. abort entire bundle.
+        //    if ((gasleft() * 63) / 64 < callGasLimit + mUserOp.paymasterPostOpGasLimit + INNER_GAS_OVERHEAD) {
+        //        revert FailedOp(0, "AA95 out of gas");
+        //    }
+        //}
 
         IPaymaster.PostOpMode mode = IPaymaster.PostOpMode.opSucceeded;
         if (callData.length > 0) {
