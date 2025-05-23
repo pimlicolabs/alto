@@ -87,7 +87,6 @@ export const executorArgsSchema = z.object({
     "enable-fastlane": z.boolean(),
     "resubmit-stuck-timeout": z.number().int().min(0).default(15_000),
     "refilling-wallets": z.boolean().default(true),
-    "aa95-gas-multiplier": z.string().transform((val) => BigInt(val)),
     "refill-helper-contract": addressSchema.optional(),
     "no-profit-bundling": z.boolean(),
     "utility-private-key": hexData32Schema

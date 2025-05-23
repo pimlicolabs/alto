@@ -333,13 +333,6 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         require: true,
         default: 10_000
     },
-    "aa95-gas-multiplier": {
-        description:
-            "Amount to multiply the current gas limit by if the bundling tx fails due to AA95",
-        type: "string",
-        require: false,
-        default: "125"
-    },
     "resubmit-multiplier-ceiling": {
         description:
             "Maximum multiplier for gasPrice when resubmitting transactions",
