@@ -232,8 +232,6 @@ export type BundlingStatus =
     | {
           // The tx reverted due to a op in the bundle failing EntryPoint validation
           status: "reverted"
-          // biome-ignore lint/style/useNamingConvention: use double upper case for AA errors
-          isAA95: boolean
       }
     | {
           // The tx could not be found (pending or invalid hash)
@@ -267,37 +265,8 @@ export const getBundleStatus = async ({
         if (receipt.status === "reverted") {
             const bundlingStatus: {
                 status: "reverted"
-                isAA95: boolean
             } = {
-                status: "reverted",
-                isAA95: false
-            }
-
-            if ("error" in receipt) {
-                try {
-                    const match = (receipt.error as any).match(
-                        /0x([a-fA-F0-9]+)?/
-                    )
-
-                    if (match) {
-                        const revertReason = match[0] as Hex
-                        const decoded = decodeErrorResult({
-                            data: revertReason,
-                            abi: parseAbi([
-                                "error FailedOp(uint256 opIndex, string reason)"
-                            ])
-                        })
-
-                        if (decoded.args[1] === "AA95 out of gas") {
-                            bundlingStatus.isAA95 = true
-                        }
-                    }
-                } catch (e) {
-                    logger.error(
-                        "Failed to decode userOperation revert reason due to ",
-                        e
-                    )
-                }
+                status: "reverted"
             }
 
             return { bundlingStatus, blockNumber }

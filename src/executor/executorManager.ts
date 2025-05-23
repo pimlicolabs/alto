@@ -402,18 +402,6 @@ export class ExecutorManager {
                 transactionHash: `0x${string}`
             }
 
-        // TODO: there has to be a better way of solving onchain AA95 errors.
-        if (bundlingStatus.status === "reverted" && bundlingStatus.isAA95) {
-            // resubmit with more gas when bundler encounters AA95
-            transactionInfo.transactionRequest.gas = scaleBigIntByPercent(
-                transactionInfo.transactionRequest.gas,
-                this.config.aa95GasMultiplier
-            )
-            transactionInfo.transactionRequest.nonce += 1
-
-            await this.replaceTransaction(transactionInfo, "AA95")
-            return
-        }
 
         // Free executor if tx landed onchain
         if (bundlingStatus.status !== "not_found") {
@@ -755,7 +743,7 @@ export class ExecutorManager {
 
     async replaceTransaction(
         txInfo: TransactionInfo,
-        reason: "AA95" | "gas_price" | "stuck"
+        reason: "gas_price" | "stuck"
     ): Promise<void> {
         // Setup vars
         const {
