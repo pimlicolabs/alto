@@ -18,7 +18,6 @@ import {
     type PublicClient,
     type TransactionReceipt,
     concat,
-    decodeErrorResult,
     decodeEventLog,
     encodeAbiParameters,
     encodeEventTopics,
