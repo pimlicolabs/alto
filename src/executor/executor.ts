@@ -274,14 +274,12 @@ export class Executor {
         userOpBundle,
         nonce,
         gasPriceParams,
-        gasLimitSuggestion,
         isReplacementTx
     }: {
         executor: Account
         userOpBundle: UserOperationBundle
         nonce: number
         gasPriceParams: GasPriceParameters
-        gasLimitSuggestion?: bigint
         isReplacementTx: boolean
     }): Promise<BundleResult> {
         const { entryPoint, userOps, version } = userOpBundle
@@ -350,9 +348,6 @@ export class Executor {
 
         // sometimes the estimation rounds down, adding a fixed constant accounts for this
         gasLimit += 10_000n
-        gasLimit = gasLimitSuggestion
-            ? maxBigInt(gasLimit, gasLimitSuggestion)
-            : gasLimit
 
         let transactionHash: HexData32
         try {

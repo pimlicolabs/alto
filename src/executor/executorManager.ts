@@ -402,7 +402,6 @@ export class ExecutorManager {
                 transactionHash: `0x${string}`
             }
 
-
         // Free executor if tx landed onchain
         if (bundlingStatus.status !== "not_found") {
             await this.senderManager.markWalletProcessed(
@@ -796,7 +795,6 @@ export class ExecutorManager {
             userOpBundle: bundle,
             nonce: transactionRequest.nonce,
             gasPriceParams,
-            gasLimitSuggestion: transactionRequest.gas,
             isReplacementTx: true
         })
 
