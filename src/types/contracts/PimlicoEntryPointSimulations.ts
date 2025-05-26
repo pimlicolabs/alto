@@ -1,34 +1,123 @@
 export const PimlicoEntryPointSimulationsAbi = [
     {
-        inputs: [],
-        stateMutability: "nonpayable",
-        type: "constructor"
-    },
-    {
+        type: "function",
+        name: "filterOps",
         inputs: [
             {
-                internalType: "address payable",
-                name: "ep",
-                type: "address"
+                name: "userOps",
+                type: "tuple[]",
+                internalType: "struct PackedUserOperation[]",
+                components: [
+                    {
+                        name: "sender",
+                        type: "address",
+                        internalType: "address"
+                    },
+                    {
+                        name: "nonce",
+                        type: "uint256",
+                        internalType: "uint256"
+                    },
+                    {
+                        name: "initCode",
+                        type: "bytes",
+                        internalType: "bytes"
+                    },
+                    {
+                        name: "callData",
+                        type: "bytes",
+                        internalType: "bytes"
+                    },
+                    {
+                        name: "accountGasLimits",
+                        type: "bytes32",
+                        internalType: "bytes32"
+                    },
+                    {
+                        name: "preVerificationGas",
+                        type: "uint256",
+                        internalType: "uint256"
+                    },
+                    {
+                        name: "gasFees",
+                        type: "bytes32",
+                        internalType: "bytes32"
+                    },
+                    {
+                        name: "paymasterAndData",
+                        type: "bytes",
+                        internalType: "bytes"
+                    },
+                    {
+                        name: "signature",
+                        type: "bytes",
+                        internalType: "bytes"
+                    }
+                ]
             },
             {
-                internalType: "bytes[]",
-                name: "data",
-                type: "bytes[]"
+                name: "beneficiary",
+                type: "address",
+                internalType: "address payable"
+            },
+            {
+                name: "entryPoint",
+                type: "address",
+                internalType: "contract IEntryPoint"
             }
         ],
-        name: "simulateEntryPoint",
         outputs: [
             {
-                internalType: "bytes[]",
                 name: "",
-                type: "bytes[]"
+                type: "tuple",
+                internalType:
+                    "struct PimlicoEntryPointSimulationsV7.FilterOpsResult",
+                components: [
+                    {
+                        name: "gasUsed",
+                        type: "uint256",
+                        internalType: "uint256"
+                    },
+                    {
+                        name: "balanceChange",
+                        type: "int256",
+                        internalType: "int256"
+                    },
+                    {
+                        name: "rejectedUserOpHashes",
+                        type: "bytes32[]",
+                        internalType: "bytes32[]"
+                    }
+                ]
             }
         ],
-        stateMutability: "nonpayable",
-        type: "function"
+        stateMutability: "nonpayable"
+    },
+    {
+        type: "function",
+        name: "simulateEntryPoint",
+        inputs: [
+            {
+                name: "ep",
+                type: "address",
+                internalType: "address payable"
+            },
+            {
+                name: "data",
+                type: "bytes[]",
+                internalType: "bytes[]"
+            }
+        ],
+        outputs: [
+            {
+                name: "",
+                type: "bytes[]",
+                internalType: "bytes[]"
+            }
+        ],
+        stateMutability: "nonpayable"
     }
-]
+] as const
 
 export const DETERMINISTIC_DEPLOYER_TRANSACTION =
     "0xf8a58085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf31ba02222222222222222222222222222222222222222222222222222222222222222a02222222222222222222222222222222222222222222222222222222222222222"
