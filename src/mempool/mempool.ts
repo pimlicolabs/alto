@@ -672,7 +672,8 @@ export class Mempool {
             const currentBundle: UserOperationBundle = {
                 entryPoint,
                 version: isV6 ? "0.6" : "0.7",
-                userOps: []
+                userOps: [],
+                submissionAttempts: 0
             }
             let gasUsed = 0n
             let paymasterDeposit: { [paymaster: string]: bigint } = {}

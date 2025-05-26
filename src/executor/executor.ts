@@ -11,10 +11,12 @@ import type {
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import {
+    getRequiredPrefund,
     roundUpBigInt,
     maxBigInt,
     parseViemError,
-    scaleBigIntByPercent
+    scaleBigIntByPercent,
+    minBigInt
 } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
@@ -24,7 +26,8 @@ import {
     type Account,
     type Hex,
     NonceTooHighError,
-    BaseError
+    BaseError,
+    FeeCapTooLowError
 } from "viem"
 import {
     calculateAA95GasFloor,
@@ -35,7 +38,6 @@ import {
 } from "./utils"
 import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
-import { sendPflConditional } from "./fastlane"
 import type { SignedAuthorizationList } from "viem"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEStimateGas"
 
@@ -45,7 +47,6 @@ type HandleOpsTxParams = {
     nonce: number
     userOps: UserOpInfo[]
     isUserOpV06: boolean
-    isReplacementTx: boolean
     entryPoint: Address
 }
 
@@ -112,6 +113,56 @@ export class Executor {
         throw new Error("Method not implemented.")
     }
 
+    async getBundleGasPrice(
+        bundle: UserOperationBundle,
+        networkGasPrice: GasPriceParameters,
+        gasLimit: bigint
+    ): Promise<GasPriceParameters> {
+        const totalBeneficiaryFees = bundle.userOps.reduce(
+            (acc, { userOp }) => acc + getRequiredPrefund(userOp),
+            0n
+        )
+
+        const breakEvenGasPrice = totalBeneficiaryFees / gasLimit
+        const bundlingGasPrice = scaleBigIntByPercent(breakEvenGasPrice, 90n)
+
+        // compare breakEvenGasPrice to network gasPrice
+        let [networkMaxFeePerGas, networkMaxPriorityFeePerGas] = [
+            networkGasPrice.maxFeePerGas,
+            networkGasPrice.maxPriorityFeePerGas
+        ]
+
+        if (bundle.submissionAttempts > 0) {
+            const multiplier = 100n + BigInt(bundle.submissionAttempts) * 20n
+            const multiplierCeiling = this.config.resubmitMultiplierCeiling
+
+            networkMaxFeePerGas = scaleBigIntByPercent(
+                networkMaxFeePerGas,
+                minBigInt(multiplier, multiplierCeiling)
+            )
+            networkMaxPriorityFeePerGas = scaleBigIntByPercent(
+                networkMaxPriorityFeePerGas,
+                minBigInt(multiplier, multiplierCeiling)
+            )
+        }
+
+        if (this.config.legacyTransactions) {
+            const gasPrice = maxBigInt(bundlingGasPrice, networkMaxFeePerGas)
+            return {
+                maxFeePerGas: gasPrice,
+                maxPriorityFeePerGas: gasPrice
+            }
+        }
+
+        return {
+            maxFeePerGas: maxBigInt(bundlingGasPrice, networkMaxFeePerGas),
+            maxPriorityFeePerGas: maxBigInt(
+                bundlingGasPrice,
+                networkMaxPriorityFeePerGas
+            )
+        }
+    }
+
     async sendHandleOpsTransaction({
         txParam,
         gasOpts
@@ -119,14 +170,12 @@ export class Executor {
         txParam: HandleOpsTxParams
         gasOpts: HandleOpsGasParams
     }) {
-        const { entryPoint, userOps, account, gas, nonce, isUserOpV06 } =
-            txParam
+        const { entryPoint, userOps, account, gas, nonce } = txParam
 
         const {
             executorGasMultiplier,
             sendHandleOpsRetryCount,
             transactionUnderpricedMultiplier,
-            enableFastlane,
             walletClient,
             publicClient
         } = this.config
@@ -156,25 +205,6 @@ export class Executor {
         // Try sending the transaction and updating relevant fields if there is an error.
         while (attempts < maxAttempts) {
             try {
-                if (
-                    enableFastlane &&
-                    isUserOpV06 &&
-                    !txParam.isReplacementTx &&
-                    attempts === 0
-                ) {
-                    const serializedTransaction =
-                        await walletClient.signTransaction(request)
-
-                    transactionHash = await sendPflConditional({
-                        serializedTransaction,
-                        publicClient,
-                        walletClient,
-                        logger: this.logger
-                    })
-
-                    break
-                }
-
                 // Round up gasLimit to nearest multiple
                 request.gas = roundUpBigInt({
                     value: request.gas,
@@ -214,6 +244,40 @@ export class Executor {
                                 transactionUnderpricedMultiplier
                             )
                         }
+                    }
+                }
+
+                if (e instanceof FeeCapTooLowError) {
+                    this.logger.warn("max fee < basefee, retrying")
+
+                    if (
+                        "gasPrice" in request &&
+                        typeof request.gasPrice === "bigint"
+                    ) {
+                        request.gasPrice = scaleBigIntByPercent(
+                            request.gasPrice,
+                            125n
+                        )
+                    }
+
+                    if (
+                        "maxFeePerGas" in request &&
+                        typeof request.maxFeePerGas === "bigint"
+                    ) {
+                        request.maxFeePerGas = scaleBigIntByPercent(
+                            request.maxFeePerGas,
+                            125n
+                        )
+                    }
+
+                    if (
+                        "maxPriorityFeePerGas" in request &&
+                        typeof request.maxPriorityFeePerGas === "bigint"
+                    ) {
+                        request.maxPriorityFeePerGas = scaleBigIntByPercent(
+                            request.maxPriorityFeePerGas,
+                            125n
+                        )
                     }
                 }
 
@@ -272,20 +336,18 @@ export class Executor {
     async bundle({
         executor,
         userOpBundle,
-        nonce,
-        gasPriceParams,
-        isReplacementTx
+        networkGasPrice,
+        nonce
     }: {
         executor: Account
         userOpBundle: UserOperationBundle
+        networkGasPrice: GasPriceParameters
         nonce: number
-        gasPriceParams: GasPriceParameters
-        isReplacementTx: boolean
     }): Promise<BundleResult> {
         const { entryPoint, userOps, version } = userOpBundle
-        const { maxFeePerGas, maxPriorityFeePerGas } = gasPriceParams
         const isUserOpV06 = version === "0.6"
 
+        const isReplacementTx = userOpBundle.submissionAttempts > 0
         let childLogger = this.logger.child({
             isReplacementTx,
             userOperations: getUserOpHashes(userOps),
@@ -295,9 +357,6 @@ export class Executor {
         let estimateResult = await filterOpsAndEstimateGas({
             userOpBundle,
             executor,
-            nonce,
-            maxFeePerGas,
-            maxPriorityFeePerGas,
             codeOverrideSupport: this.config.codeOverrideSupport,
             reputationManager: this.reputationManager,
             config: this.config,
@@ -349,11 +408,18 @@ export class Executor {
         // sometimes the estimation rounds down, adding a fixed constant accounts for this
         gasLimit += 10_000n
 
+        // Get gasPrice
+        const { maxFeePerGas, maxPriorityFeePerGas } =
+            await this.getBundleGasPrice(
+                userOpBundle,
+                networkGasPrice,
+                gasLimit
+            )
+
         let transactionHash: HexData32
         try {
             const isLegacyTransaction = this.config.legacyTransactions
             const authorizationList = getAuthorizationList(userOpsToBundle)
-            const { maxFeePerGas, maxPriorityFeePerGas } = gasPriceParams
 
             let gasOpts: HandleOpsGasParams
             if (isLegacyTransaction) {
@@ -382,7 +448,6 @@ export class Executor {
                     nonce,
                     gas: gasLimit,
                     userOps: userOpsToBundle,
-                    isReplacementTx,
                     isUserOpV06,
                     entryPoint
                 },
@@ -438,8 +503,8 @@ export class Executor {
             transactionHash,
             transactionRequest: {
                 gas: gasLimit,
-                maxFeePerGas: gasPriceParams.maxFeePerGas,
-                maxPriorityFeePerGas: gasPriceParams.maxPriorityFeePerGas,
+                maxFeePerGas,
+                maxPriorityFeePerGas,
                 nonce
             }
         }

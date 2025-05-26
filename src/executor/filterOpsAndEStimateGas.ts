@@ -13,7 +13,6 @@ import {
     Account,
     ContractFunctionRevertedError,
     EstimateGasExecutionError,
-    FeeCapTooLowError,
     Hex,
     StateOverride,
     decodeErrorResult,
@@ -66,9 +65,6 @@ export async function filterOpsAndEstimateGas({
     executor,
     userOpBundle,
     codeOverrideSupport,
-    nonce,
-    maxFeePerGas,
-    maxPriorityFeePerGas,
     reputationManager,
     config,
     logger
@@ -76,9 +72,6 @@ export async function filterOpsAndEstimateGas({
     executor: Account
     userOpBundle: UserOperationBundle
     codeOverrideSupport: boolean
-    nonce: number
-    maxFeePerGas: bigint
-    maxPriorityFeePerGas: bigint
     reputationManager: InterfaceReputationManager
     config: AltoConfig
     logger: Logger
@@ -86,7 +79,6 @@ export async function filterOpsAndEstimateGas({
     const { userOps, version, entryPoint } = userOpBundle
     let {
         fixedGasLimitForEstimation,
-        legacyTransactions,
         blockTagSupport,
         publicClient,
         walletClient
@@ -106,10 +98,6 @@ export async function filterOpsAndEstimateGas({
     const userOpsToBundle = [...userOps]
     const rejectedUserOps: RejectedUserOp[] = []
 
-    // Prepare bundling tx params
-    const gasOptions = legacyTransactions
-        ? { gasPrice: maxFeePerGas }
-        : { maxFeePerGas, maxPriorityFeePerGas }
     const blockTag = blockTagSupport ? "latest" : undefined
 
     let gasLimit: bigint
@@ -145,15 +133,13 @@ export async function filterOpsAndEstimateGas({
                 [packedUserOps, executor.address],
                 {
                     account: executor,
-                    nonce: nonce,
                     blockTag,
                     ...(fixedGasLimitForEstimation && {
                         gas: fixedGasLimitForEstimation
                     }),
                     ...(stateOverride && {
                         stateOverride
-                    }),
-                    ...gasOptions
+                    })
                 }
             )
 
@@ -233,36 +219,6 @@ export async function filterOpsAndEstimateGas({
                 e instanceof EstimateGasExecutionError ||
                 err instanceof EstimateGasExecutionError
             ) {
-                if (e?.cause instanceof FeeCapTooLowError) {
-                    logger.info(
-                        { error: e.shortMessage },
-                        "error estimating gas due to max fee < basefee"
-                    )
-
-                    if ("gasPrice" in gasOptions) {
-                        gasOptions.gasPrice = scaleBigIntByPercent(
-                            gasOptions.gasPrice || maxFeePerGas,
-                            125n
-                        )
-                    }
-                    if ("maxFeePerGas" in gasOptions) {
-                        gasOptions.maxFeePerGas = scaleBigIntByPercent(
-                            gasOptions.maxFeePerGas || maxFeePerGas,
-                            125n
-                        )
-                    }
-                    if ("maxPriorityFeePerGas" in gasOptions) {
-                        gasOptions.maxPriorityFeePerGas = scaleBigIntByPercent(
-                            gasOptions.maxPriorityFeePerGas ||
-                                maxPriorityFeePerGas,
-                            125n
-                        )
-                    }
-
-                    retriesLeft--
-                    continue
-                }
-
                 try {
                     let errorHexData: Hex = "0x"
 
