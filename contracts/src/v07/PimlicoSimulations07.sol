@@ -5,13 +5,13 @@ import "./EntryPointSimulations.sol";
 import {UserOperation} from "account-abstraction-v6/interfaces/UserOperation.sol";
 import {IEntryPoint as IEntryPoint06} from "account-abstraction-v6/interfaces/IEntryPoint.sol";
 import {IEntryPoint as IEntryPoint07} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
-import {Bytes} from "@openzeppelin/contracts-51/utils/Bytes.sol";
+import {LibBytes} from "solady/utils/LibBytes.sol";
 
 /// @title PimlicoSimulations07
 /// @author Pimlico (https://github.com/pimlicolabs/alto)
 /// @notice An ERC-4337 EntryPoint 0.7 simulation contract for gas estimation and userOperation filtering
 contract PimlicoSimulations07 {
-    using Bytes for bytes;
+    using LibBytes for bytes;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                          Types                             */
