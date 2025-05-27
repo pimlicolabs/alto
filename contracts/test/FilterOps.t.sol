@@ -327,28 +327,6 @@ contract FilterOpsTest is Test {
     // ================= HELPERS ==================
     // ============================================
 
-    function _signUserOp(PackedUserOperation07 memory op, uint256 _key) private view returns (bytes memory signature) {
-        bytes32 hash = entryPoint07.getUserOpHash(op);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(_key, MessageHashUtils.toEthSignedMessageHash(hash));
-        signature = abi.encodePacked(r, s, v);
-    }
-
-    function _signUserOp08(PackedUserOperation08 memory op, uint256 _key)
-        private
-        view
-        returns (bytes memory signature)
-    {
-        bytes32 hash = entryPoint08.getUserOpHash(op);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(_key, MessageHashUtils.toEthSignedMessageHash(hash));
-        signature = abi.encodePacked(r, s, v);
-    }
-
-    function _signUserOp(UserOperation06 memory op, uint256 _key) private view returns (bytes memory signature) {
-        bytes32 hash = entryPoint06.getUserOpHash(op);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(_key, ECDSA.toEthSignedMessageHash(hash));
-        signature = abi.encodePacked(r, s, v);
-    }
-
     // Helper function to create a valid UserOperation for v0.6
     function _createUserOp06(address sender, uint256 nonce) internal view returns (UserOperation06 memory) {
         bytes memory initCode = "";
