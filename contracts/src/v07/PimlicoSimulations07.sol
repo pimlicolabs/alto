@@ -5,6 +5,7 @@ import "./EntryPointSimulations.sol";
 import {UserOperation} from "account-abstraction-v6/interfaces/UserOperation.sol";
 import {IEntryPoint as IEntryPoint06} from "account-abstraction-v6/interfaces/IEntryPoint.sol";
 import {IEntryPoint as IEntryPoint07} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
+import {IEntryPoint as IEntryPoint08} from "account-abstraction-v8/interfaces/IEntryPoint.sol";
 import {LibBytes} from "solady/utils/LibBytes.sol";
 import {console2} from "forge-std/console2.sol";
 
@@ -37,7 +38,6 @@ contract PimlicoSimulations07 {
 
     // @notice Used for filterOps and filterOpsLegacy
     RejectedUserOp[] rejectedUserOps;
-
     EntryPointSimulations internal eps = new EntryPointSimulations();
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -49,7 +49,7 @@ contract PimlicoSimulations07 {
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-    /*                      External Methods                      */
+    /*                    Estimation Methods                      */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     function simulateEntryPoint(address payable ep, bytes[] memory data) public returns (bytes[] memory) {
@@ -70,8 +70,21 @@ contract PimlicoSimulations07 {
         return returnDataArray;
     }
 
-    // @notice Filter ops method for EntryPoint >= 0.7
-    // @dev This method should be called by bundler sending bundle to EntryPoint.
+    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /*                     Validation Methods                     */
+    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+
+    // @notice Filter ops method for EntryPoint 0.8
+    // @dev This method should be called by bundler before sending bundle to EntryPoint.
+    function filterOps08(PackedUserOperation[] calldata userOps, address payable beneficiary, IEntryPoint08 entryPoint)
+        external
+        returns (FilterOpsResult memory)
+    {
+        return this.filterOps07(userOps, beneficiary, IEntryPoint07(address(entryPoint)));
+    }
+
+    // @notice Filter ops method for EntryPoint 0.7
+    // @dev This method should be called by bundler before sending bundle to EntryPoint.
     function filterOps07(PackedUserOperation[] calldata userOps, address payable beneficiary, IEntryPoint07 entryPoint)
         external
         returns (FilterOpsResult memory)
@@ -133,7 +146,7 @@ contract PimlicoSimulations07 {
     }
 
     // @notice Filter ops method for legacy EntryPoint (0.6)
-    // @dev This method should be called by bundler sending bundle to EntryPoint.
+    // @dev This method should be called by bundler before sending bundle to EntryPoint.
     function filterOps06(UserOperation[] calldata userOps, address payable beneficiary, IEntryPoint06 entryPoint)
         external
         returns (FilterOpsResult memory)

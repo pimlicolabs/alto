@@ -39,7 +39,7 @@ import {
 import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { SignedAuthorizationList } from "viem"
-import { filterOpsAndEstimateGas } from "./filterOps"
+import { filterOps } from "./filterOps"
 
 type HandleOpsTxParams = {
     gas: bigint
@@ -354,7 +354,7 @@ export class Executor {
             entryPoint
         })
 
-        let estimateResult = await filterOpsAndEstimateGas({
+        let estimateResult = await filterOps({
             userOpBundle,
             config: this.config,
             logger: childLogger

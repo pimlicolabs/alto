@@ -21,7 +21,7 @@ export type FilterOpsAndEstimateGasResult =
       }
 
 // Attempt to create a handleOps bundle + estimate bundling tx gas.
-export async function filterOpsAndEstimateGas({
+export async function filterOps({
     userOpBundle,
     config,
     logger

@@ -5,21 +5,29 @@ import "forge-std/Test.sol";
 import "../src/v07/PimlicoSimulations07.sol";
 
 import {EntryPoint as EntryPoint07} from "./aa-utils/07/core/EntryPoint.sol";
-import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
+import {PackedUserOperation as PackedUserOperation07} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import {SimpleAccountFactory as SimpleAccountFactory07} from "./aa-utils/07/samples/SimpleAccountFactory.sol";
 import {MessageHashUtils} from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 
 import {EntryPoint as EntryPoint06} from "./aa-utils/06/core/EntryPoint.sol";
-import {UserOperation} from "account-abstraction-v6/interfaces/UserOperation.sol";
+import {UserOperation as UserOperation06} from "account-abstraction-v6/interfaces/UserOperation.sol";
 import {SimpleAccountFactory as SimpleAccountFactory06} from "./aa-utils/06/samples/SimpleAccountFactory.sol";
 import {ECDSA} from "@openzeppelin-v4.8.3/contracts/utils/cryptography/ECDSA.sol";
+
+import {EntryPoint as EntryPoint08} from "./aa-utils/08/core/EntryPoint.sol";
+import {PackedUserOperation as PackedUserOperation08} from "account-abstraction-v8/interfaces/PackedUserOperation.sol";
+import {SimpleAccountFactory as SimpleAccountFactory08} from "./aa-utils/08/accounts/SimpleAccountFactory.sol";
+import {IEntryPoint as IEntryPoint06} from "account-abstraction-v6/interfaces/IEntryPoint.sol";
+import {IEntryPoint as IEntryPoint07} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
 
 contract FilterOpsTest is Test {
     PimlicoSimulations07 pimlicoSim;
     EntryPoint07 entryPoint07;
     EntryPoint06 entryPoint06;
+    EntryPoint08 entryPoint08;
     SimpleAccountFactory06 accountFactory06;
     SimpleAccountFactory07 accountFactory07;
+    SimpleAccountFactory08 accountFactory08;
 
     address payable beneficiary = payable(address(0x1234));
     address owner;
@@ -30,192 +38,209 @@ contract FilterOpsTest is Test {
         pimlicoSim = new PimlicoSimulations07();
         entryPoint07 = new EntryPoint07();
         entryPoint06 = new EntryPoint06();
-        accountFactory06 = new SimpleAccountFactory06(IEntryPoint06(entryPoint06));
-        accountFactory07 = new SimpleAccountFactory07(IEntryPoint07(entryPoint07));
+        entryPoint08 = new EntryPoint08();
+        accountFactory06 = new SimpleAccountFactory06(entryPoint06);
+        accountFactory07 = new SimpleAccountFactory07(entryPoint07);
+        accountFactory08 = new SimpleAccountFactory08(entryPoint08);
     }
 
-    // Test filterOps07 with all valid operations
-    function testFilterOps07_AllValid() public {
-        PackedUserOperation[] memory ops = new PackedUserOperation[](3);
+    // ============================================
+    // ============ COMMON HELPERS ================
+    // ============================================
 
-        // Create accounts first
-        address account1 = accountFactory07.getAddress(owner, 0);
-        address account2 = accountFactory07.getAddress(owner, 1);
-        address account3 = accountFactory07.getAddress(owner, 2);
+    struct TestAccount {
+        address addr;
+        uint256 salt;
+        bool shouldFund;
+    }
 
-        // Deploy and fund accounts
-        accountFactory07.createAccount(owner, 0);
-        accountFactory07.createAccount(owner, 1);
-        accountFactory07.createAccount(owner, 2);
-
-        vm.deal(account1, 1 ether);
-        vm.deal(account2, 1 ether);
-        vm.deal(account3, 1 ether);
-
-        ops[0] = _createUserOp07(account1, 0);
-        ops[1] = _createUserOp07(account2, 0);
-        ops[2] = _createUserOp07(account3, 0);
-
-        // Sign operations
-        for (uint256 i = 0; i < ops.length; i++) {
-            ops[i].signature = _signUserOp(ops[i], ownerKey);
+    function _setupAccounts06(TestAccount[] memory accounts) private {
+        for (uint256 i = 0; i < accounts.length; i++) {
+            accountFactory06.createAccount(owner, accounts[i].salt);
+            if (accounts[i].shouldFund) {
+                vm.deal(accounts[i].addr, 1 ether);
+            }
         }
+    }
 
-        uint256 balanceBefore = beneficiary.balance;
+    function _setupAccounts07(TestAccount[] memory accounts) private {
+        for (uint256 i = 0; i < accounts.length; i++) {
+            accountFactory07.createAccount(owner, accounts[i].salt);
+            if (accounts[i].shouldFund) {
+                vm.deal(accounts[i].addr, 1 ether);
+            }
+        }
+    }
 
-        PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
+    function _setupAccounts08(TestAccount[] memory accounts) private {
+        for (uint256 i = 0; i < accounts.length; i++) {
+            accountFactory08.createAccount(owner, accounts[i].salt);
+            if (accounts[i].shouldFund) {
+                vm.deal(accounts[i].addr, 1 ether);
+            }
+        }
+    }
 
-        // All operations should pass
+    function _createAndSignOps06(TestAccount[] memory accounts) private view returns (UserOperation06[] memory) {
+        UserOperation06[] memory ops = new UserOperation06[](accounts.length);
+        for (uint256 i = 0; i < accounts.length; i++) {
+            ops[i] = _createUserOp06(accounts[i].addr, 0);
+            bytes32 hash = entryPoint06.getUserOpHash(ops[i]);
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, ECDSA.toEthSignedMessageHash(hash));
+            ops[i].signature = abi.encodePacked(r, s, v);
+        }
+        return ops;
+    }
+
+    function _createAndSignOps07(TestAccount[] memory accounts) private view returns (PackedUserOperation07[] memory) {
+        PackedUserOperation07[] memory ops = new PackedUserOperation07[](accounts.length);
+        for (uint256 i = 0; i < accounts.length; i++) {
+            ops[i] = _createUserOp07(accounts[i].addr, 0);
+            bytes32 hash = entryPoint07.getUserOpHash(ops[i]);
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, MessageHashUtils.toEthSignedMessageHash(hash));
+            ops[i].signature = abi.encodePacked(r, s, v);
+        }
+        return ops;
+    }
+
+    function _createAndSignOps08(TestAccount[] memory accounts) private view returns (PackedUserOperation08[] memory) {
+        PackedUserOperation08[] memory ops = new PackedUserOperation08[](accounts.length);
+        for (uint256 i = 0; i < accounts.length; i++) {
+            ops[i] = _createUserOp08(accounts[i].addr, 0);
+            bytes32 hash = entryPoint08.getUserOpHash(ops[i]);
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, MessageHashUtils.toEthSignedMessageHash(hash));
+            ops[i].signature = abi.encodePacked(r, s, v);
+        }
+        return ops;
+    }
+
+    function _assertValidOpsResult(PimlicoSimulations07.FilterOpsResult memory result, uint256 balanceBefore) private {
         assertEq(result.rejectedUserOps.length, 0, "No operations should be rejected");
         assertGt(result.gasUsed, 0, "Gas should be used");
         assertGt(result.balanceChange, 0, "Balance should increase");
         assertEq(beneficiary.balance - balanceBefore, result.balanceChange, "Balance change should match");
     }
 
-    // Test filterOps07 with one failing operation
-    function testFilterOps07_OneFailingOp() public {
-        PackedUserOperation[] memory ops = new PackedUserOperation[](3);
-
-        // Create accounts
-        address account1 = accountFactory07.getAddress(owner, 0);
-        address account2 = accountFactory07.getAddress(owner, 1);
-        address account3 = accountFactory07.getAddress(owner, 2);
-
-        // Deploy and fund accounts (but don't fund account2)
-        accountFactory07.createAccount(owner, 0);
-        accountFactory07.createAccount(owner, 1);
-        accountFactory07.createAccount(owner, 2);
-
-        vm.deal(account1, 1 ether);
-        // account2 has no funds - will fail
-        vm.deal(account3, 1 ether);
-
-        ops[0] = _createUserOp07(account1, 0);
-        ops[1] = _createUserOp07(account2, 0);
-        ops[2] = _createUserOp07(account3, 0);
-
-        // Sign operations
-        for (uint256 i = 0; i < ops.length; i++) {
-            ops[i].signature = _signUserOp(ops[i], ownerKey);
-        }
-
-        PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
-
-        // One operation should be rejected
-        assertEq(result.rejectedUserOps.length, 1, "One operation should be rejected");
-        assertEq(
-            result.rejectedUserOps[0].userOpHash, entryPoint07.getUserOpHash(ops[1]), "Second op should be rejected"
-        );
+    function _assertPartialFailureResult(PimlicoSimulations07.FilterOpsResult memory result, uint256 expectedRejected)
+        private
+    {
+        assertEq(result.rejectedUserOps.length, expectedRejected, "Expected number of operations should be rejected");
         assertGt(result.gasUsed, 0, "Gas should be used");
         assertGt(result.balanceChange, 0, "Balance should increase");
     }
 
-    // Test filterOps07 with all failing operations
-    function testFilterOps07_AllFailingOps() public {
-        PackedUserOperation[] memory ops = new PackedUserOperation[](2);
-
-        // Create accounts but don't fund them
-        address account1 = accountFactory07.getAddress(owner, 0);
-        address account2 = accountFactory07.getAddress(owner, 1);
-
-        accountFactory07.createAccount(owner, 0);
-        accountFactory07.createAccount(owner, 1);
-
-        ops[0] = _createUserOp07(account1, 0);
-        ops[1] = _createUserOp07(account2, 0);
-
-        // Sign operations (accounts have no funds, will fail)
-        for (uint256 i = 0; i < ops.length; i++) {
-            ops[i].signature = _signUserOp(ops[i], ownerKey);
-        }
-
-        PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
-
-        // All operations should be rejected
-        assertEq(result.rejectedUserOps.length, 2, "All operations should be rejected");
+    function _assertAllFailedResult(PimlicoSimulations07.FilterOpsResult memory result, uint256 totalOps) private {
+        assertEq(result.rejectedUserOps.length, totalOps, "All operations should be rejected");
         assertEq(result.gasUsed, 0, "No gas should be used");
         assertEq(result.balanceChange, 0, "Balance should not change");
     }
 
-    // Test filterOps06 with all valid operations
-    function testFilterOps06_AllValid() public {
-        UserOperation[] memory ops = new UserOperation[](3);
+    function _assertEmptyResult(PimlicoSimulations07.FilterOpsResult memory result) private {
+        assertEq(result.rejectedUserOps.length, 0, "No operations should be rejected");
+        assertEq(result.gasUsed, 0, "No gas should be used");
+        assertEq(result.balanceChange, 0, "Balance should not change");
+    }
 
-        // Create accounts first
-        address account1 = accountFactory06.getAddress(owner, 0);
-        address account2 = accountFactory06.getAddress(owner, 1);
-        address account3 = accountFactory06.getAddress(owner, 2);
+    // ============================================
+    // =========== ENTRYPOINT 07 TESTS ============
+    // ============================================
 
-        // Deploy and fund accounts
-        accountFactory06.createAccount(owner, 0);
-        accountFactory06.createAccount(owner, 1);
-        accountFactory06.createAccount(owner, 2);
+    // Test filterOps07 with all valid operations
+    function testFilterOps07_AllValid() public {
+        TestAccount[] memory accounts = new TestAccount[](3);
+        accounts[0] = TestAccount(accountFactory07.getAddress(owner, 0), 0, true);
+        accounts[1] = TestAccount(accountFactory07.getAddress(owner, 1), 1, true);
+        accounts[2] = TestAccount(accountFactory07.getAddress(owner, 2), 2, true);
 
-        vm.deal(account1, 1 ether);
-        vm.deal(account2, 1 ether);
-        vm.deal(account3, 1 ether);
-
-        ops[0] = _createUserOp06(account1, 0);
-        ops[1] = _createUserOp06(account2, 0);
-        ops[2] = _createUserOp06(account3, 0);
-
-        // Sign operations
-        for (uint256 i = 0; i < ops.length; i++) {
-            ops[i].signature = _signUserOp(ops[i], ownerKey);
-        }
+        _setupAccounts07(accounts);
+        PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
 
         uint256 balanceBefore = beneficiary.balance;
+        PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
 
+        _assertValidOpsResult(result, balanceBefore);
+    }
+
+    // Test filterOps07 with one failing operation
+    function testFilterOps07_OneFailingOp() public {
+        TestAccount[] memory accounts = new TestAccount[](3);
+        accounts[0] = TestAccount(accountFactory07.getAddress(owner, 0), 0, true);
+        accounts[1] = TestAccount(accountFactory07.getAddress(owner, 1), 1, false); // No funds
+        accounts[2] = TestAccount(accountFactory07.getAddress(owner, 2), 2, true);
+
+        _setupAccounts07(accounts);
+        PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
+
+        PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
+
+        _assertPartialFailureResult(result, 1);
+        assertEq(
+            result.rejectedUserOps[0].userOpHash, entryPoint07.getUserOpHash(ops[1]), "Second op should be rejected"
+        );
+    }
+
+    // Test filterOps07 with all failing operations
+    function testFilterOps07_AllFailingOps() public {
+        TestAccount[] memory accounts = new TestAccount[](2);
+        accounts[0] = TestAccount(accountFactory07.getAddress(owner, 0), 0, false);
+        accounts[1] = TestAccount(accountFactory07.getAddress(owner, 1), 1, false);
+
+        _setupAccounts07(accounts);
+        PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
+
+        PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
+
+        _assertAllFailedResult(result, 2);
+    }
+
+    // Test filterOps07 with empty array
+    function testFilterOps07_EmptyArray() public {
+        PackedUserOperation07[] memory ops = new PackedUserOperation07[](0);
+        PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
+        _assertEmptyResult(result);
+    }
+
+    // ============================================
+    // =========== ENTRYPOINT 06 TESTS ============
+    // ============================================
+
+    // Test filterOps06 with all valid operations
+    function testFilterOps06_AllValid() public {
+        TestAccount[] memory accounts = new TestAccount[](3);
+        accounts[0] = TestAccount(accountFactory06.getAddress(owner, 0), 0, true);
+        accounts[1] = TestAccount(accountFactory06.getAddress(owner, 1), 1, true);
+        accounts[2] = TestAccount(accountFactory06.getAddress(owner, 2), 2, true);
+
+        _setupAccounts06(accounts);
+        UserOperation06[] memory ops = _createAndSignOps06(accounts);
+
+        uint256 balanceBefore = beneficiary.balance;
         PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps06(ops, beneficiary, entryPoint06);
 
-        // All operations should pass
-        assertEq(result.rejectedUserOps.length, 0, "No operations should be rejected");
-        assertGt(result.gasUsed, 0, "Gas should be used");
-        assertGt(result.balanceChange, 0, "Balance should increase");
-        assertEq(beneficiary.balance - balanceBefore, result.balanceChange, "Balance change should match");
+        _assertValidOpsResult(result, balanceBefore);
     }
 
     // Test filterOps06 with one failing operation
     function testFilterOps06_OneFailingOp() public {
-        UserOperation[] memory ops = new UserOperation[](3);
+        TestAccount[] memory accounts = new TestAccount[](3);
+        accounts[0] = TestAccount(accountFactory06.getAddress(owner, 0), 0, true);
+        accounts[1] = TestAccount(accountFactory06.getAddress(owner, 1), 1, false); // No funds
+        accounts[2] = TestAccount(accountFactory06.getAddress(owner, 2), 2, true);
 
-        // Create accounts
-        address account1 = accountFactory06.getAddress(owner, 0);
-        address account2 = accountFactory06.getAddress(owner, 1);
-        address account3 = accountFactory06.getAddress(owner, 2);
-
-        // Deploy and fund accounts (but don't fund account2)
-        accountFactory06.createAccount(owner, 0);
-        accountFactory06.createAccount(owner, 1);
-        accountFactory06.createAccount(owner, 2);
-
-        vm.deal(account1, 1 ether);
-        // account2 has no funds - will fail
-        vm.deal(account3, 1 ether);
-
-        ops[0] = _createUserOp06(account1, 0);
-        ops[1] = _createUserOp06(account2, 0);
-        ops[2] = _createUserOp06(account3, 0);
-
-        // Sign operations
-        for (uint256 i = 0; i < ops.length; i++) {
-            ops[i].signature = _signUserOp(ops[i], ownerKey);
-        }
+        _setupAccounts06(accounts);
+        UserOperation06[] memory ops = _createAndSignOps06(accounts);
 
         PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps06(ops, beneficiary, entryPoint06);
 
-        // One operation should be rejected
-        assertEq(result.rejectedUserOps.length, 1, "One operation should be rejected");
+        _assertPartialFailureResult(result, 1);
         assertEq(
             result.rejectedUserOps[0].userOpHash, entryPoint06.getUserOpHash(ops[1]), "Second op should be rejected"
         );
-        assertGt(result.gasUsed, 0, "Gas should be used");
-        assertGt(result.balanceChange, 0, "Balance should increase");
     }
 
     // Test filterOps06 with invalid signature
     function testFilterOps06_InvalidSignature() public {
-        UserOperation[] memory ops = new UserOperation[](1);
+        UserOperation06[] memory ops = new UserOperation06[](1);
 
         address account = accountFactory06.getAddress(owner, 0);
         accountFactory06.createAccount(owner, 0);
@@ -232,53 +257,107 @@ contract FilterOpsTest is Test {
         assertEq(result.balanceChange, 0, "Balance should not change");
     }
 
-    // Test filterOps07 with empty array
-    function testFilterOps07_EmptyArray() public {
-        PackedUserOperation[] memory ops = new PackedUserOperation[](0);
-
-        PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
-
-        assertEq(result.rejectedUserOps.length, 0, "No operations should be rejected");
-        assertEq(result.gasUsed, 0, "No gas should be used");
-        assertEq(result.balanceChange, 0, "Balance should not change");
-    }
-
     // Test filterOps06 with empty array
     function testFilterOps06_EmptyArray() public {
-        UserOperation[] memory ops = new UserOperation[](0);
-
+        UserOperation06[] memory ops = new UserOperation06[](0);
         PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps06(ops, beneficiary, entryPoint06);
+        _assertEmptyResult(result);
+    }
 
-        assertEq(result.rejectedUserOps.length, 0, "No operations should be rejected");
-        assertEq(result.gasUsed, 0, "No gas should be used");
-        assertEq(result.balanceChange, 0, "Balance should not change");
+    // ============================================
+    // =========== ENTRYPOINT 08 TESTS ============
+    // ============================================
+
+    // Test filterOps08 with all valid operations
+    function testFilterOps08_AllValid() public {
+        TestAccount[] memory accounts = new TestAccount[](3);
+        accounts[0] = TestAccount(accountFactory08.getAddress(owner, 0), 0, true);
+        accounts[1] = TestAccount(accountFactory08.getAddress(owner, 1), 1, true);
+        accounts[2] = TestAccount(accountFactory08.getAddress(owner, 2), 2, true);
+
+        _setupAccounts08(accounts);
+        PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
+
+        uint256 balanceBefore = beneficiary.balance;
+        PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps08(ops, beneficiary, entryPoint08);
+
+        _assertValidOpsResult(result, balanceBefore);
+    }
+
+    // Test filterOps08 with one failing operation
+    function testFilterOps08_OneFailingOp() public {
+        TestAccount[] memory accounts = new TestAccount[](3);
+        accounts[0] = TestAccount(accountFactory08.getAddress(owner, 0), 0, true);
+        accounts[1] = TestAccount(accountFactory08.getAddress(owner, 1), 1, false); // No funds
+        accounts[2] = TestAccount(accountFactory08.getAddress(owner, 2), 2, true);
+
+        _setupAccounts08(accounts);
+        PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
+
+        PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps08(ops, beneficiary, entryPoint08);
+
+        _assertPartialFailureResult(result, 1);
+        assertEq(
+            result.rejectedUserOps[0].userOpHash, entryPoint08.getUserOpHash(ops[1]), "Second op should be rejected"
+        );
+    }
+
+    // Test filterOps08 with all failing operations
+    function testFilterOps08_AllFailingOps() public {
+        TestAccount[] memory accounts = new TestAccount[](2);
+        accounts[0] = TestAccount(accountFactory08.getAddress(owner, 0), 0, false);
+        accounts[1] = TestAccount(accountFactory08.getAddress(owner, 1), 1, false);
+
+        _setupAccounts08(accounts);
+        PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
+
+        PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps08(ops, beneficiary, entryPoint08);
+
+        _assertAllFailedResult(result, 2);
+    }
+
+    // Test filterOps08 with empty array
+    function testFilterOps08_EmptyArray() public {
+        PackedUserOperation08[] memory ops = new PackedUserOperation08[](0);
+        PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps08(ops, beneficiary, entryPoint08);
+        _assertEmptyResult(result);
     }
 
     // ============================================
     // ================= HELPERS ==================
     // ============================================
 
-    function _signUserOp(PackedUserOperation memory op, uint256 _key) private view returns (bytes memory signature) {
+    function _signUserOp(PackedUserOperation07 memory op, uint256 _key) private view returns (bytes memory signature) {
         bytes32 hash = entryPoint07.getUserOpHash(op);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(_key, MessageHashUtils.toEthSignedMessageHash(hash));
         signature = abi.encodePacked(r, s, v);
     }
 
-    function _signUserOp(UserOperation memory op, uint256 _key) private view returns (bytes memory signature) {
+    function _signUserOp08(PackedUserOperation08 memory op, uint256 _key)
+        private
+        view
+        returns (bytes memory signature)
+    {
+        bytes32 hash = entryPoint08.getUserOpHash(op);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(_key, MessageHashUtils.toEthSignedMessageHash(hash));
+        signature = abi.encodePacked(r, s, v);
+    }
+
+    function _signUserOp(UserOperation06 memory op, uint256 _key) private view returns (bytes memory signature) {
         bytes32 hash = entryPoint06.getUserOpHash(op);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(_key, ECDSA.toEthSignedMessageHash(hash));
         signature = abi.encodePacked(r, s, v);
     }
 
     // Helper function to create a valid UserOperation for v0.6
-    function _createUserOp06(address sender, uint256 nonce) internal view returns (UserOperation memory) {
+    function _createUserOp06(address sender, uint256 nonce) internal view returns (UserOperation06 memory) {
         bytes memory initCode = "";
         if (sender.code.length == 0) {
             initCode =
                 abi.encodePacked(address(accountFactory06), abi.encodeCall(accountFactory06.createAccount, (owner, 0)));
         }
 
-        return UserOperation({
+        return UserOperation06({
             sender: sender,
             nonce: nonce,
             initCode: initCode,
@@ -294,7 +373,7 @@ contract FilterOpsTest is Test {
     }
 
     // Helper function to create a valid PackedUserOperation for v0.7
-    function _createUserOp07(address sender, uint256 nonce) internal view returns (PackedUserOperation memory) {
+    function _createUserOp07(address sender, uint256 nonce) internal view returns (PackedUserOperation07 memory) {
         bytes memory initCode = "";
         if (sender.code.length == 0) {
             initCode =
@@ -304,7 +383,31 @@ contract FilterOpsTest is Test {
         // Pack gas limits: verificationGasLimit (16 bytes) | callGasLimit (16 bytes)
         uint256 accountGasLimits = (uint256(150000) << 128) | uint256(100000);
 
-        return PackedUserOperation({
+        return PackedUserOperation07({
+            sender: sender,
+            nonce: nonce,
+            initCode: initCode,
+            callData: "",
+            accountGasLimits: bytes32(accountGasLimits),
+            preVerificationGas: 21000,
+            gasFees: bytes32((uint256(1 gwei) << 128) | uint256(1 gwei)), // maxPriorityFeePerGas | maxFeePerGas
+            paymasterAndData: "",
+            signature: ""
+        });
+    }
+
+    // Helper function to create a valid PackedUserOperation for v0.8
+    function _createUserOp08(address sender, uint256 nonce) internal view returns (PackedUserOperation08 memory) {
+        bytes memory initCode = "";
+        if (sender.code.length == 0) {
+            initCode =
+                abi.encodePacked(address(accountFactory08), abi.encodeCall(accountFactory08.createAccount, (owner, 0)));
+        }
+
+        // Pack gas limits: verificationGasLimit (16 bytes) | callGasLimit (16 bytes)
+        uint256 accountGasLimits = (uint256(150000) << 128) | uint256(100000);
+
+        return PackedUserOperation08({
             sender: sender,
             nonce: nonce,
             initCode: initCode,
