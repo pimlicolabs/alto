@@ -24,6 +24,12 @@
 [submodule "contracts/lib/account-abstraction-v8"]
 	path = contracts/lib/account-abstraction-v8
 	url = https://github.com/eth-infinitism/account-abstraction
-[submodule "contracts/lib/openzeppelin-contracts-51"]
-	path = contracts/lib/openzeppelin-contracts-51
+[submodule "contracts/lib/openzeppelin-contracts-v5.0.2"]
+	path = contracts/lib/openzeppelin-contracts-v5.0.2
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "contracts/lib/openzeppelin-contracts-v4.8.3"]
+	path = contracts/lib/openzeppelin-contracts-v4.8.3
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "contracts/lib/openzeppelin-contracts-v5.1.0"]
+	path = contracts/lib/openzeppelin-contracts-v5.1.0
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
