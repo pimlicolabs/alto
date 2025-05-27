@@ -7,13 +7,13 @@ import "../src/v07/PimlicoSimulations07.sol";
 import {MessageHashUtils} from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 import {ECDSA} from "@openzeppelin-v4.8.3/contracts/utils/cryptography/ECDSA.sol";
 
-import {PackedUserOperation as PackedUserOperation07} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
-import {EntryPoint as EntryPoint07} from "@test-utils/v07/core/EntryPoint.sol";
-import {SimpleAccountFactory as SimpleAccountFactory07} from "@test-utils/v07/samples/SimpleAccountFactory.sol";
-
 import {UserOperation as UserOperation06} from "account-abstraction-v6/interfaces/UserOperation.sol";
 import {EntryPoint as EntryPoint06} from "@test-utils/v06/core/EntryPoint.sol";
 import {SimpleAccountFactory as SimpleAccountFactory06} from "@test-utils/v06/samples/SimpleAccountFactory.sol";
+
+import {PackedUserOperation as PackedUserOperation07} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
+import {EntryPoint as EntryPoint07} from "@test-utils/v07/core/EntryPoint.sol";
+import {SimpleAccountFactory as SimpleAccountFactory07} from "@test-utils/v07/samples/SimpleAccountFactory.sol";
 
 import {PackedUserOperation as PackedUserOperation08} from "account-abstraction-v8/interfaces/PackedUserOperation.sol";
 import {EntryPoint as EntryPoint08} from "@test-utils/v08/core/EntryPoint.sol";
@@ -21,8 +21,8 @@ import {SimpleAccountFactory as SimpleAccountFactory08} from "@test-utils/v08/ac
 
 contract FilterOpsTest is Test {
     PimlicoSimulations07 pimlicoSim;
-    EntryPoint07 entryPoint07;
     EntryPoint06 entryPoint06;
+    EntryPoint07 entryPoint07;
     EntryPoint08 entryPoint08;
     SimpleAccountFactory06 accountFactory06;
     SimpleAccountFactory07 accountFactory07;
@@ -35,8 +35,8 @@ contract FilterOpsTest is Test {
     function setUp() public {
         (owner, ownerKey) = makeAddrAndKey("alice");
         pimlicoSim = new PimlicoSimulations07();
-        entryPoint07 = new EntryPoint07();
         entryPoint06 = new EntryPoint06();
+        entryPoint07 = new EntryPoint07();
         entryPoint08 = new EntryPoint08();
         accountFactory06 = new SimpleAccountFactory06(entryPoint06);
         accountFactory07 = new SimpleAccountFactory07(entryPoint07);
@@ -258,12 +258,14 @@ contract FilterOpsTest is Test {
     }
 
     function _setupAccounts08(TestAccount[] memory accounts) private {
+        vm.startPrank(address(entryPoint08.senderCreator()));
         for (uint256 i = 0; i < accounts.length; i++) {
             accountFactory08.createAccount(owner, accounts[i].salt);
             if (accounts[i].shouldFund) {
                 vm.deal(accounts[i].addr, 1 ether);
             }
         }
+        vm.stopPrank();
     }
 
     function _createAndSignOps06(TestAccount[] memory accounts) private view returns (UserOperation06[] memory) {
@@ -361,7 +363,7 @@ contract FilterOpsTest is Test {
 
             // Sign the PackedUserOperation
             bytes32 hash = entryPoint08.getUserOpHash(ops[i]);
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, MessageHashUtils.toEthSignedMessageHash(hash));
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, hash);
             ops[i].signature = abi.encodePacked(r, s, v);
         }
         return ops;
@@ -393,6 +395,10 @@ contract FilterOpsTest is Test {
         return convertedOps;
     }
 
+    // ============================================
+    // ============== TEST HELPERS ================
+    // ============================================
+
     function _assertValidOpsResult(PimlicoSimulations07.FilterOpsResult memory result, uint256 balanceBefore) private {
         assertEq(result.rejectedUserOps.length, 0, "No operations should be rejected");
         assertGt(result.gasUsed, 0, "Gas should be used");
@@ -419,8 +425,5 @@ contract FilterOpsTest is Test {
         assertEq(result.gasUsed, 0, "No gas should be used");
         assertEq(result.balanceChange, 0, "Balance should not change");
     }
-
-    // ============================================
-    // ============== TEST HELPERS ================
-    // ============================================
 }
+
