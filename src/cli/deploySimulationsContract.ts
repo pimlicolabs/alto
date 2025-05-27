@@ -13,9 +13,8 @@ import {
 import type { CamelCasedProperties } from "./parseArgs"
 import type { IOptions } from "@alto/cli"
 import type { Logger } from "pino"
-
-const pimlicoEntrypointSimulationsV8DeployBytecode = require("../contracts/PimlicoEntryPointSimulationsV8.sol/PimlicoEntryPointSimulationsV8.json")
-const pimlicoEntrypointSimulationsV7DeployBytecode = require("../contracts/PimlicoEntryPointSimulationsV7.sol/PimlicoEntryPointSimulationsV7.json")
+import pimlicoEntrypointSimulationsV8DeployBytecode from "../contracts/PimlicoEntryPointSimulationsV8.sol/PimlicoEntryPointSimulationsV8.json"
+import pimlicoEntrypointSimulationsV7DeployBytecode from "../contracts/PimlicoEntryPointSimulationsV7.sol/PimlicoEntryPointSimulationsV7.json"
 
 const isContractDeployed = async ({
     publicClient,
