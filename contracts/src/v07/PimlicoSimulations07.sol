@@ -6,6 +6,7 @@ import {UserOperation} from "account-abstraction-v6/interfaces/UserOperation.sol
 import {IEntryPoint as IEntryPoint06} from "account-abstraction-v6/interfaces/IEntryPoint.sol";
 import {IEntryPoint as IEntryPoint07} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {LibBytes} from "solady/utils/LibBytes.sol";
+import {console2} from "forge-std/console2.sol";
 
 /// @title PimlicoSimulations07
 /// @author Pimlico (https://github.com/pimlicolabs/alto)
@@ -87,7 +88,9 @@ contract PimlicoSimulations07 {
         // Continue to call handleOps until bundle passes.
         while (remainingUserOps.length > 0) {
             gasBefore = gasleft();
+            gasAfter = gasBefore;
             balanceBefore = beneficiary.balance;
+            balanceAfter = balanceBefore;
 
             try entryPoint.handleOps(remainingUserOps, beneficiary) {
                 // HandleOps succeeded, record gas and balance changes.
@@ -147,7 +150,9 @@ contract PimlicoSimulations07 {
         // Continue to call handleOps until bundle passes.
         while (remainingUserOps.length > 0) {
             gasBefore = gasleft();
+            gasAfter = gasBefore;
             balanceBefore = beneficiary.balance;
+            balanceAfter = balanceBefore;
 
             try entryPoint.handleOps(remainingUserOps, beneficiary) {
                 // HandleOps succeeded, record gas and balance changes.

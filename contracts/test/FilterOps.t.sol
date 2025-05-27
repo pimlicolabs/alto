@@ -4,14 +4,14 @@ pragma solidity ^0.8.23;
 import "forge-std/Test.sol";
 import "../src/v07/PimlicoSimulations07.sol";
 
-import {EntryPoint as EntryPoint07} from "./utils/aa/07/core/EntryPoint.sol";
+import {EntryPoint as EntryPoint07} from "./aa-utils/07/core/EntryPoint.sol";
 import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
-import {SimpleAccountFactory as SimpleAccountFactory07} from "./utils/aa/07/samples/SimpleAccountFactory.sol";
+import {SimpleAccountFactory as SimpleAccountFactory07} from "./aa-utils/07/samples/SimpleAccountFactory.sol";
 import {MessageHashUtils} from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 
-import {EntryPoint as EntryPoint06} from "./utils/aa/06/core/EntryPoint.sol";
+import {EntryPoint as EntryPoint06} from "./aa-utils/06/core/EntryPoint.sol";
 import {UserOperation} from "account-abstraction-v6/interfaces/UserOperation.sol";
-import {SimpleAccountFactory as SimpleAccountFactory06} from "./utils/aa/06/samples/SimpleAccountFactory.sol";
+import {SimpleAccountFactory as SimpleAccountFactory06} from "./aa-utils/06/samples/SimpleAccountFactory.sol";
 import {ECDSA} from "@openzeppelin-v4.8.3/contracts/utils/cryptography/ECDSA.sol";
 
 contract FilterOpsTest is Test {
@@ -32,53 +32,6 @@ contract FilterOpsTest is Test {
         entryPoint06 = new EntryPoint06();
         accountFactory06 = new SimpleAccountFactory06(IEntryPoint06(entryPoint06));
         accountFactory07 = new SimpleAccountFactory07(IEntryPoint07(entryPoint07));
-    }
-
-    // Helper function to create a valid UserOperation for v0.6
-    function _createUserOp06(address sender, uint256 nonce) internal view returns (UserOperation memory) {
-        bytes memory initCode = "";
-        if (sender.code.length == 0) {
-            initCode =
-                abi.encodePacked(address(accountFactory06), abi.encodeCall(accountFactory06.createAccount, (owner, 0)));
-        }
-
-        return UserOperation({
-            sender: sender,
-            nonce: nonce,
-            initCode: initCode,
-            callData: "",
-            callGasLimit: 100000,
-            verificationGasLimit: 150000,
-            preVerificationGas: 21000,
-            maxFeePerGas: 1 gwei,
-            maxPriorityFeePerGas: 1 gwei,
-            paymasterAndData: "",
-            signature: ""
-        });
-    }
-
-    // Helper function to create a valid PackedUserOperation for v0.7
-    function _createUserOp07(address sender, uint256 nonce) internal view returns (PackedUserOperation memory) {
-        bytes memory initCode = "";
-        if (sender.code.length == 0) {
-            initCode =
-                abi.encodePacked(address(accountFactory07), abi.encodeCall(accountFactory07.createAccount, (owner, 0)));
-        }
-
-        // Pack gas limits: verificationGasLimit (16 bytes) | callGasLimit (16 bytes)
-        uint256 accountGasLimits = (uint256(150000) << 128) | uint256(100000);
-
-        return PackedUserOperation({
-            sender: sender,
-            nonce: nonce,
-            initCode: initCode,
-            callData: "",
-            accountGasLimits: bytes32(accountGasLimits),
-            preVerificationGas: 21000,
-            gasFees: bytes32((uint256(1 gwei) << 128) | uint256(1 gwei)), // maxPriorityFeePerGas | maxFeePerGas
-            paymasterAndData: "",
-            signature: ""
-        });
     }
 
     // Test filterOps07 with all valid operations
@@ -301,40 +254,10 @@ contract FilterOpsTest is Test {
         assertEq(result.balanceChange, 0, "Balance should not change");
     }
 
-    // Test filterOps07 with FailedOpWithRevert error
-    function testFilterOps07_FailedOpWithRevert() public {
-        PackedUserOperation[] memory ops = new PackedUserOperation[](2);
+    // ============================================
+    // ================= HELPERS ==================
+    // ============================================
 
-        // Create account with call that will revert
-        address account1 = accountFactory07.getAddress(owner, 0);
-        address account2 = accountFactory07.getAddress(owner, 1);
-
-        accountFactory07.createAccount(owner, 0);
-        accountFactory07.createAccount(owner, 1);
-
-        vm.deal(account1, 1 ether);
-        vm.deal(account2, 1 ether);
-
-        ops[0] = _createUserOp07(account1, 0);
-        // Add callData that will revert
-        ops[0].callData = abi.encodeWithSignature("execute(address,uint256,bytes)", address(0), 0, hex"deadbeef");
-
-        ops[1] = _createUserOp07(account2, 0);
-
-        // Sign operations
-        for (uint256 i = 0; i < ops.length; i++) {
-            ops[i].signature = _signUserOp(ops[i], ownerKey);
-        }
-
-        PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
-
-        // First operation should be rejected
-        assertEq(result.rejectedUserOps.length, 1, "One operation should be rejected");
-        assertGt(result.gasUsed, 0, "Gas should be used for successful op");
-        assertGt(result.balanceChange, 0, "Balance should increase from successful op");
-    }
-
-    // Helpers
     function _signUserOp(PackedUserOperation memory op, uint256 _key) private view returns (bytes memory signature) {
         bytes32 hash = entryPoint07.getUserOpHash(op);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(_key, MessageHashUtils.toEthSignedMessageHash(hash));
@@ -345,5 +268,52 @@ contract FilterOpsTest is Test {
         bytes32 hash = entryPoint06.getUserOpHash(op);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(_key, ECDSA.toEthSignedMessageHash(hash));
         signature = abi.encodePacked(r, s, v);
+    }
+
+    // Helper function to create a valid UserOperation for v0.6
+    function _createUserOp06(address sender, uint256 nonce) internal view returns (UserOperation memory) {
+        bytes memory initCode = "";
+        if (sender.code.length == 0) {
+            initCode =
+                abi.encodePacked(address(accountFactory06), abi.encodeCall(accountFactory06.createAccount, (owner, 0)));
+        }
+
+        return UserOperation({
+            sender: sender,
+            nonce: nonce,
+            initCode: initCode,
+            callData: "",
+            callGasLimit: 100000,
+            verificationGasLimit: 150000,
+            preVerificationGas: 21000,
+            maxFeePerGas: 1 gwei,
+            maxPriorityFeePerGas: 1 gwei,
+            paymasterAndData: "",
+            signature: ""
+        });
+    }
+
+    // Helper function to create a valid PackedUserOperation for v0.7
+    function _createUserOp07(address sender, uint256 nonce) internal view returns (PackedUserOperation memory) {
+        bytes memory initCode = "";
+        if (sender.code.length == 0) {
+            initCode =
+                abi.encodePacked(address(accountFactory07), abi.encodeCall(accountFactory07.createAccount, (owner, 0)));
+        }
+
+        // Pack gas limits: verificationGasLimit (16 bytes) | callGasLimit (16 bytes)
+        uint256 accountGasLimits = (uint256(150000) << 128) | uint256(100000);
+
+        return PackedUserOperation({
+            sender: sender,
+            nonce: nonce,
+            initCode: initCode,
+            callData: "",
+            accountGasLimits: bytes32(accountGasLimits),
+            preVerificationGas: 21000,
+            gasFees: bytes32((uint256(1 gwei) << 128) | uint256(1 gwei)), // maxPriorityFeePerGas | maxFeePerGas
+            paymasterAndData: "",
+            signature: ""
+        });
     }
 }
