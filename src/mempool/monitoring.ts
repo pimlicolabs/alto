@@ -1,6 +1,6 @@
 import type { HexData32, UserOperationStatus } from "@alto/types"
-import { AltoConfig } from "../createConfig"
 import { Redis } from "ioredis"
+import type { AltoConfig } from "../createConfig"
 import { userOperationStatusSchema } from "../types/schemas"
 
 interface UserOperationStatusStore {

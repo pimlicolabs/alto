@@ -1,15 +1,15 @@
 import type { Logger } from "@alto/utils"
 import {
+    type Hex,
     type HttpTransport,
     type HttpTransportConfig,
     RpcRequestError,
     UrlRequiredError,
     createTransport,
-    toFunctionSelector,
     getAbiItem,
     isHex,
     slice,
-    Hex
+    toFunctionSelector
 } from "viem"
 import { formatAbiItem, rpc } from "viem/utils"
 import {

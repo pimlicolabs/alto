@@ -1,5 +1,5 @@
-import { MinMaxQueue } from "."
-import { AltoConfig } from "../../createConfig"
+import type { MinMaxQueue } from "."
+import type { AltoConfig } from "../../createConfig"
 
 type QueueEntry = { timestamp: number; value: bigint }
 

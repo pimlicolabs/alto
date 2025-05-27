@@ -1,5 +1,5 @@
 import {
-    EntryPointVersion,
+    type EntryPointVersion,
     entryPoint06Abi,
     entryPoint06Address,
     entryPoint07Abi,

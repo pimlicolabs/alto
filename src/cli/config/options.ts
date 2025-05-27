@@ -7,10 +7,10 @@ import type {
     IExecutorArgsInput,
     IGasEstimationArgsInput,
     ILogArgsInput,
+    IMempoolArgsInput,
     IOptionsInput,
     IRpcArgsInput,
-    IServerArgsInput,
-    IMempoolArgsInput
+    IServerArgsInput
 } from "./bundler"
 
 export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {

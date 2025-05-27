@@ -9,6 +9,7 @@ import {
     ValidationErrors,
     type ValidationResultV07
 } from "@alto/types"
+import { areAddressesEqual, isVersion08 } from "@alto/utils"
 import type { Abi, AbiFunction } from "abitype"
 // This file contains references to validation rules, in the format [xxx-###]
 // where xxx is OP/STO/COD/EP/SREP/EREP/UREP/ALT, and ### is a number
@@ -24,7 +25,6 @@ import {
     toFunctionSelector
 } from "viem"
 import type { BundlerTracerResult } from "./BundlerCollectorTracerV07"
-import { areAddressesEqual, isVersion08 } from "@alto/utils"
 
 interface CallEntry {
     to: string

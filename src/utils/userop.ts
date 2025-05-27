@@ -3,12 +3,12 @@ import {
     EntryPointV07Abi,
     type PackedUserOperation,
     type UserOperation,
+    type UserOperationBundle,
+    type UserOperationReceipt,
     type UserOperationV06,
     type UserOperationV07,
     logSchema,
-    receiptSchema,
-    type UserOperationBundle,
-    type UserOperationReceipt
+    receiptSchema
 } from "@alto/types"
 import * as sentry from "@sentry/node"
 import type { Logger } from "pino"

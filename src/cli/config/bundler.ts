@@ -5,7 +5,7 @@ import {
     commaSeperatedAddressPattern,
     hexData32Schema
 } from "@alto/types"
-import { parseGwei, type Hex } from "viem"
+import { type Hex, parseGwei } from "viem"
 import { type Account, privateKeyToAccount } from "viem/accounts"
 import { z } from "zod"
 

@@ -1,20 +1,20 @@
+import type { IOptions } from "@alto/cli"
 import { DETERMINISTIC_DEPLOYER_TRANSACTION } from "@alto/types"
+import type { Logger } from "pino"
 import {
-    type Chain,
-    createWalletClient,
-    getContractAddress,
-    type Hex,
     http,
+    type Chain,
+    type Hex,
     type PublicClient,
     type Transport,
     concat,
+    createWalletClient,
+    getContractAddress,
     keccak256
 } from "viem"
-import type { CamelCasedProperties } from "./parseArgs"
-import type { IOptions } from "@alto/cli"
-import type { Logger } from "pino"
-import pimlicoEntrypointSimulationsV8DeployBytecode from "../contracts/PimlicoEntryPointSimulationsV8.sol/PimlicoEntryPointSimulationsV8.json"
 import pimlicoEntrypointSimulationsV7DeployBytecode from "../contracts/PimlicoEntryPointSimulationsV7.sol/PimlicoEntryPointSimulationsV7.json"
+import pimlicoEntrypointSimulationsV8DeployBytecode from "../contracts/PimlicoEntryPointSimulationsV8.sol/PimlicoEntryPointSimulationsV8.json"
+import type { CamelCasedProperties } from "./parseArgs"
 
 const isContractDeployed = async ({
     publicClient,

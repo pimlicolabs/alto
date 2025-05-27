@@ -12,8 +12,8 @@ import type { InterfaceValidator } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import type { Registry } from "prom-client"
 import type { AltoConfig } from "../createConfig"
-import { validateAndRefillWallets } from "../executor/senderManager/validateAndRefill"
 import { flushOnStartUp } from "../executor/senderManager/flushOnStartUp"
+import { validateAndRefillWallets } from "../executor/senderManager/validateAndRefill"
 import { createMempoolStore } from "../store/createMempoolStore"
 
 const getReputationManager = (

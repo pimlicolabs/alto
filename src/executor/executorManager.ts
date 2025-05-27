@@ -8,11 +8,11 @@ import {
     type BundlingMode,
     EntryPointV06Abi,
     type HexData32,
+    type RejectedUserOp,
     type SubmittedUserOp,
     type TransactionInfo,
-    RejectedUserOp,
-    UserOperationBundle,
-    UserOpInfo
+    type UserOpInfo,
+    type UserOperationBundle
 } from "@alto/types"
 import type { BundlingStatus, Logger, Metrics } from "@alto/utils"
 import {
@@ -22,21 +22,21 @@ import {
     parseUserOperationReceipt,
     scaleBigIntByPercent
 } from "@alto/utils"
+import { BaseError } from "abitype"
 import {
     type Address,
     type Hash,
+    type Hex,
+    InsufficientFundsError,
+    NonceTooLowError,
     type TransactionReceipt,
     TransactionReceiptNotFoundError,
     type WatchBlocksReturnType,
-    getAbiItem,
-    Hex,
-    InsufficientFundsError,
-    NonceTooLowError
+    getAbiItem
 } from "viem"
-import type { Executor } from "./executor"
 import type { AltoConfig } from "../createConfig"
-import { SenderManager } from "./senderManager"
-import { BaseError } from "abitype"
+import type { Executor } from "./executor"
+import type { SenderManager } from "./senderManager"
 import { getUserOpHashes } from "./utils"
 
 function getTransactionsFromUserOperationEntries(
@@ -436,7 +436,7 @@ export class ExecutorManager {
         }
     }
 
-    async checkFrontrun({
+    checkFrontrun({
         userOpHash,
         entryPoint,
         transactionHash,
@@ -662,6 +662,15 @@ export class ExecutorManager {
         return userOperationReceipt
     }
 
+    private async dumpSubmittedEntries(): Promise<SubmittedUserOp[]> {
+        const submittedEntries = []
+        for (const entryPoint of this.config.entrypoints) {
+            const entries = await this.mempool.dumpSubmittedOps(entryPoint)
+            submittedEntries.push(...entries)
+        }
+        return submittedEntries
+    }
+
     async handleBlock(blockNumber: bigint) {
         // Update the cached block number whenever we receive a new block
         this.cachedLatestBlock = { value: blockNumber, timestamp: Date.now() }
@@ -673,16 +682,7 @@ export class ExecutorManager {
         this.currentlyHandlingBlock = true
         this.logger.debug({ blockNumber }, "handling block")
 
-        const dumpSubmittedEntries = async () => {
-            const submittedEntries = []
-            for (const entryPoint of this.config.entrypoints) {
-                const entries = await this.mempool.dumpSubmittedOps(entryPoint)
-                submittedEntries.push(...entries)
-            }
-            return submittedEntries
-        }
-
-        const submittedEntries = await dumpSubmittedEntries()
+        const submittedEntries = await this.dumpSubmittedEntries()
         if (submittedEntries.length === 0) {
             this.stopWatchingBlocks()
             this.currentlyHandlingBlock = false
@@ -690,7 +690,7 @@ export class ExecutorManager {
         }
 
         // refresh op statuses
-        const ops = await dumpSubmittedEntries()
+        const ops = await this.dumpSubmittedEntries()
         const txs = getTransactionsFromUserOperationEntries(ops)
         await Promise.all(
             txs.map((txInfo) => this.refreshTransactionStatus(txInfo))
@@ -705,7 +705,7 @@ export class ExecutorManager {
             }))
 
         const transactionInfos = getTransactionsFromUserOperationEntries(
-            await dumpSubmittedEntries()
+            await this.dumpSubmittedEntries()
         )
 
         await Promise.all(

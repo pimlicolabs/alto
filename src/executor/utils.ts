@@ -3,35 +3,27 @@ import {
     EntryPointV07Abi,
     type PackedUserOperation,
     type UserOpInfo,
-    type UserOperationV07,
-    UserOperation
+    type UserOperation,
+    type UserOperationV07
 } from "@alto/types"
 import {
-    isVersion06,
-    toPackedUserOperation,
     type Logger,
-    isVersion07
+    isVersion06,
+    isVersion07,
+    toPackedUserOperation,
+    isTransactionUnderpricedError
 } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
     type Account,
-    type BaseError,
-    encodeFunctionData,
     type Address,
+    type BaseError,
     type Hex,
+    encodeFunctionData,
     toBytes
 } from "viem"
-import type { AltoConfig } from "../createConfig"
 import type { SignedAuthorizationList } from "viem"
-
-export const isTransactionUnderpricedError = (e: BaseError) => {
-    const transactionUnderPriceError = e.walk((e: any) =>
-        e?.message
-            ?.toLowerCase()
-            .includes("replacement transaction underpriced")
-    )
-    return transactionUnderPriceError !== null
-}
+import type { AltoConfig } from "../createConfig"
 
 // V7 source: https://github.com/eth-infinitism/account-abstraction/blob/releases/v0.7/contracts/core/EntryPoint.sol
 // V6 source: https://github.com/eth-infinitism/account-abstraction/blob/fa61290d37d079e928d92d53a122efcc63822214/contracts/core/EntryPoint.sol#L236
@@ -217,3 +209,5 @@ export async function flushStuckTransaction({
         }
     }
 }
+
+export { isTransactionUnderpricedError }

@@ -1,4 +1,4 @@
-import { type IOptions, optionArgsSchema, type IOptionsInput } from "@alto/cli"
+import { type IOptions, type IOptionsInput, optionArgsSchema } from "@alto/cli"
 import { fromZodError } from "zod-validation-error"
 
 type CamelCase<S extends string> =

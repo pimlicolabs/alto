@@ -1,6 +1,6 @@
 import { http, createTestClient } from "viem"
 import {
-    EntryPointVersion,
+    type EntryPointVersion,
     UserOperationNotFoundError,
     UserOperationReceiptNotFoundError,
     entryPoint06Address,

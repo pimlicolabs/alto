@@ -6,22 +6,22 @@ import {
 } from "@alto/utils"
 import { Registry } from "prom-client"
 import {
+    type CallParameters,
     type Chain,
     createPublicClient,
     createWalletClient,
-    formatEther,
     fallback,
-    type CallParameters,
+    formatEther,
     publicActions
 } from "viem"
-import type { IOptionsInput } from "./config"
-import { customTransport } from "./customTransport"
-import { setupServer } from "./setupServer"
 import { type AltoConfig, createConfig } from "../createConfig"
-import { parseArgs } from "./parseArgs"
-import { deploySimulationsContract } from "./deploySimulationsContract"
 import { getSenderManager } from "../executor/senderManager/index"
 import { UtilityWalletMonitor } from "../executor/utilityWalletMonitor"
+import type { IOptionsInput } from "./config"
+import { customTransport } from "./customTransport"
+import { deploySimulationsContract } from "./deploySimulationsContract"
+import { parseArgs } from "./parseArgs"
+import { setupServer } from "./setupServer"
 
 const preFlightChecks = async (config: AltoConfig): Promise<void> => {
     for (const entrypoint of config.entrypoints) {

@@ -1,20 +1,22 @@
+import { deepHexlify } from "permissionless"
 import {
-    parseGwei,
     type Address,
     type Hex,
     concat,
-    encodeFunctionData
+    encodeFunctionData,
+    parseGwei
 } from "viem"
 import {
+    type EntryPointVersion,
     type UserOperation,
-    getUserOperationHash,
-    entryPoint07Abi,
-    toPackedUserOperation,
     entryPoint06Address,
+    entryPoint07Abi,
     entryPoint07Address,
-    EntryPointVersion,
-    entryPoint08Address
+    entryPoint08Address,
+    getUserOperationHash,
+    toPackedUserOperation
 } from "viem/account-abstraction"
+import { foundry } from "viem/chains"
 import { beforeAll, beforeEach, describe, expect, inject, test } from "vitest"
 import {
     decodeRevert,
@@ -27,8 +29,6 @@ import {
     getPublicClient,
     getSmartAccountClient
 } from "../src/utils/index.js"
-import { deepHexlify } from "permissionless"
-import { foundry } from "viem/chains"
 
 describe.each([
     {

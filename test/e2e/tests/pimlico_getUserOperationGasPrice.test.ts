@@ -3,7 +3,7 @@ import { http, createPublicClient } from "viem"
 import { foundry } from "viem/chains"
 import { beforeAll, beforeEach, describe, expect, inject, test } from "vitest"
 import { beforeEachCleanUp, getPimlicoClient } from "../src/utils/index.js"
-import { EntryPointVersion } from "viem/account-abstraction"
+import type { EntryPointVersion } from "viem/account-abstraction"
 
 describe.each([
     { entryPointVersion: "0.6" as EntryPointVersion },

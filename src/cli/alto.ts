@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import * as sentry from "@sentry/node"
 import dotenv from "dotenv"
+import { HttpRequestError, InternalRpcError, TimeoutError } from "viem"
 import yargs from "yargs"
 import { hideBin } from "yargs/helpers"
 import {
@@ -16,7 +17,6 @@ import {
     serverOptions
 } from "./config"
 import { registerCommandToYargs } from "./util"
-import { TimeoutError, HttpRequestError, InternalRpcError } from "viem"
 
 // Load environment variables from .env file
 if (process.env.DOTENV_CONFIG_PATH) {

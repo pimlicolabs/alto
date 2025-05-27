@@ -1,5 +1,5 @@
 import type { Address } from "viem"
-import type { SimulateHandleOpResult } from "../rpc/estimation/types"
+import type { SimulateHandleOpResult } from "../rpc/estimation"
 import type {
     ReferencedCodeHashes,
     StateOverrides,

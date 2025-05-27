@@ -7,26 +7,26 @@ import { createPimlicoClient } from "permissionless/clients/pimlico"
 import {
     http,
     type Chain,
-    type Transport,
     type Hex,
+    type Transport,
     createPublicClient,
     createTestClient,
     createWalletClient,
     parseEther
 } from "viem"
 import {
+    type EntryPointVersion,
     type SmartAccount,
-    EntryPointVersion,
     toSimple7702SmartAccount
 } from "viem/account-abstraction"
-import { getEntryPointAddress } from "./entrypoint.ts"
 import {
+    generatePrivateKey,
     mnemonicToAccount,
     privateKeyToAccount,
-    privateKeyToAddress,
-    generatePrivateKey
+    privateKeyToAddress
 } from "viem/accounts"
 import { foundry } from "viem/chains"
+import { getEntryPointAddress } from "./entrypoint.ts"
 
 export const getAnvilWalletClient = ({
     addressIndex,
