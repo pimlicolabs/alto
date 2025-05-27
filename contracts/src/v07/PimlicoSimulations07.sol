@@ -35,8 +35,11 @@ contract PimlicoSimulations07 {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     EntryPointSimulations internal eps = new EntryPointSimulations();
-
     uint256 private constant REVERT_REASON_MAX_LEN = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+
+    // @notice Used for filterOps
+    PackedUserOperation[] remainingUserOps;
+    RejectedUserOp[] rejectedUserOps;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                        Constructor                         */
@@ -84,20 +87,19 @@ contract PimlicoSimulations07 {
 
     // @notice Filter ops method for EntryPoint >= 0.7
     // @dev This method should be called by bundler sending bundle to EntryPoint.
-    PackedUserOperation[] remainingUserOps;
-    RejectedUserOp[] rejectedUserOps;
-
     function filterOps(PackedUserOperation[] calldata userOps, address payable beneficiary, IEntryPoint07 entryPoint)
         external
         returns (FilterOpsResult memory)
     {
-        // Set up variables.
+        // Set up memory variables.
         uint256 gasBefore;
         uint256 gasAfter;
         uint256 balanceBefore;
         uint256 balanceAfter;
 
+        // Set storage variables.
         remainingUserOps = userOps;
+        rejectedUserOps = new RejectedUserOp[](0);
 
         // Continue to call handleOps until bundle passes.
         while (remainingUserOps.length > 0) {
@@ -121,13 +123,14 @@ contract PimlicoSimulations07 {
                 } else if (errorSelector == IEntryPoint07.FailedOpWithRevert.selector) {
                     (opIndex,,) = abi.decode(args, (uint256, string, bytes));
                 } else {
-                    revert("Unknown error selector");
+                    revert("Unknown handleOps Error Selector");
                 }
 
-                // record userOpHash and revert reason, and remove userOp from bundle.
+                // record userOpHash and revert reason.
                 bytes32 userOpHash = entryPoint.getUserOpHash(remainingUserOps[opIndex]);
                 rejectedUserOps.push(RejectedUserOp({userOpHash: userOpHash, revertReason: revertReason}));
 
+                // remove userOp from bundle and try again.
                 removeAtIndex(remainingUserOps, opIndex);
             }
         }
