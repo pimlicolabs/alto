@@ -35,7 +35,6 @@ contract PimlicoSimulations07 {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     EntryPointSimulations internal eps = new EntryPointSimulations();
-    uint256 private constant REVERT_REASON_MAX_LEN = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
     // @notice Used for filterOps and filterOpsLegacy
     RejectedUserOp[] rejectedUserOps;
@@ -80,6 +79,7 @@ contract PimlicoSimulations07 {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     function simulateEntryPoint(address payable ep, bytes[] memory data) public returns (bytes[] memory) {
+        uint256 REVERT_REASON_MAX_LEN = type(uint256).max;
         bytes4 delegateAndRevertSelector = bytes4(keccak256("delegateAndRevert(address,bytes)"));
         bytes[] memory returnDataArray = new bytes[](data.length);
 
