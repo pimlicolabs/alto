@@ -27,3 +27,6 @@
 [submodule "contracts/lib/openzeppelin-contracts-v5.1.0"]
 	path = contracts/lib/openzeppelin-contracts-v5.1.0
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "contracts/lib/singleton-paymaster"]
+	path = contracts/lib/singleton-paymaster
+	url = https://github.com/pimlicolabs/singleton-paymaster
