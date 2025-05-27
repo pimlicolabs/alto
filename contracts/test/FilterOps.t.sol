@@ -7,10 +7,12 @@ import "../src/v07/PimlicoSimulations07.sol";
 import {EntryPoint as EntryPoint07} from "./utils/aa/07/core/EntryPoint.sol";
 import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import {SimpleAccountFactory as SimpleAccountFactory07} from "./utils/aa/07/samples/SimpleAccountFactory.sol";
+import {MessageHashUtils} from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 
 import {EntryPoint as EntryPoint06} from "./utils/aa/06/core/EntryPoint.sol";
 import {UserOperation} from "account-abstraction-v6/interfaces/UserOperation.sol";
 import {SimpleAccountFactory as SimpleAccountFactory06} from "./utils/aa/06/samples/SimpleAccountFactory.sol";
+import {ECDSA} from "@openzeppelin-v4.8.3/contracts/utils/cryptography/ECDSA.sol";
 
 contract FilterOpsTest is Test {
     PimlicoSimulations07 pimlicoSim;
@@ -20,15 +22,16 @@ contract FilterOpsTest is Test {
     SimpleAccountFactory07 accountFactory07;
 
     address payable beneficiary = payable(address(0x1234));
-    address owner = address(0x5678);
-    uint256 ownerKey = 0x1234;
+    address owner;
+    uint256 ownerKey;
 
     function setUp() public {
+        (owner, ownerKey) = makeAddrAndKey("alice");
         pimlicoSim = new PimlicoSimulations07();
         entryPoint07 = new EntryPoint07();
         entryPoint06 = new EntryPoint06();
-        accountFactory06 = new SimpleAccountFactory06(IEntryPoint06(address(entryPoint06)));
-        accountFactory07 = new SimpleAccountFactory07(IEntryPoint07(address(entryPoint07)));
+        accountFactory06 = new SimpleAccountFactory06(IEntryPoint06(entryPoint06));
+        accountFactory07 = new SimpleAccountFactory07(IEntryPoint07(entryPoint07));
     }
 
     // Helper function to create a valid UserOperation for v0.6
@@ -102,10 +105,7 @@ contract FilterOpsTest is Test {
 
         // Sign operations
         for (uint256 i = 0; i < ops.length; i++) {
-            bytes32 opHash = entryPoint07.getUserOpHash(ops[i]);
-            bytes32 msgHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", opHash));
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, msgHash);
-            ops[i].signature = abi.encodePacked(r, s, v);
+            ops[i].signature = _signUserOp(ops[i], ownerKey);
         }
 
         uint256 balanceBefore = beneficiary.balance;
@@ -143,10 +143,7 @@ contract FilterOpsTest is Test {
 
         // Sign operations
         for (uint256 i = 0; i < ops.length; i++) {
-            bytes32 opHash = entryPoint07.getUserOpHash(ops[i]);
-            bytes32 msgHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", opHash));
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, msgHash);
-            ops[i].signature = abi.encodePacked(r, s, v);
+            ops[i].signature = _signUserOp(ops[i], ownerKey);
         }
 
         PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
@@ -174,12 +171,9 @@ contract FilterOpsTest is Test {
         ops[0] = _createUserOp07(account1, 0);
         ops[1] = _createUserOp07(account2, 0);
 
-        // Sign with wrong key to cause validation failure
+        // Sign operations (accounts have no funds, will fail)
         for (uint256 i = 0; i < ops.length; i++) {
-            bytes32 opHash = entryPoint07.getUserOpHash(ops[i]);
-            bytes32 msgHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", opHash));
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(0xdeadbeef, msgHash); // Wrong key
-            ops[i].signature = abi.encodePacked(r, s, v);
+            ops[i].signature = _signUserOp(ops[i], ownerKey);
         }
 
         PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
@@ -214,10 +208,7 @@ contract FilterOpsTest is Test {
 
         // Sign operations
         for (uint256 i = 0; i < ops.length; i++) {
-            bytes32 opHash = entryPoint06.getUserOpHash(ops[i]);
-            bytes32 msgHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", opHash));
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, msgHash);
-            ops[i].signature = abi.encodePacked(r, s, v);
+            ops[i].signature = _signUserOp(ops[i], ownerKey);
         }
 
         uint256 balanceBefore = beneficiary.balance;
@@ -255,10 +246,7 @@ contract FilterOpsTest is Test {
 
         // Sign operations
         for (uint256 i = 0; i < ops.length; i++) {
-            bytes32 opHash = entryPoint06.getUserOpHash(ops[i]);
-            bytes32 msgHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", opHash));
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, msgHash);
-            ops[i].signature = abi.encodePacked(r, s, v);
+            ops[i].signature = _signUserOp(ops[i], ownerKey);
         }
 
         PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps06(ops, beneficiary, entryPoint06);
@@ -335,10 +323,7 @@ contract FilterOpsTest is Test {
 
         // Sign operations
         for (uint256 i = 0; i < ops.length; i++) {
-            bytes32 opHash = entryPoint07.getUserOpHash(ops[i]);
-            bytes32 msgHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", opHash));
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, msgHash);
-            ops[i].signature = abi.encodePacked(r, s, v);
+            ops[i].signature = _signUserOp(ops[i], ownerKey);
         }
 
         PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
@@ -349,9 +334,16 @@ contract FilterOpsTest is Test {
         assertGt(result.balanceChange, 0, "Balance should increase from successful op");
     }
 
-    // Test edge case with unknown error selector
-    function testFilterOps07_UnknownErrorSelector() public {
-        // This test would require mocking the entryPoint to return an unknown error
-        // For now, we'll skip this as it requires significant mocking setup
+    // Helpers
+    function _signUserOp(PackedUserOperation memory op, uint256 _key) private view returns (bytes memory signature) {
+        bytes32 hash = entryPoint07.getUserOpHash(op);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(_key, MessageHashUtils.toEthSignedMessageHash(hash));
+        signature = abi.encodePacked(r, s, v);
+    }
+
+    function _signUserOp(UserOperation memory op, uint256 _key) private view returns (bytes memory signature) {
+        bytes32 hash = entryPoint06.getUserOpHash(op);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(_key, ECDSA.toEthSignedMessageHash(hash));
+        signature = abi.encodePacked(r, s, v);
     }
 }

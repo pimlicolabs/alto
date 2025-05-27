@@ -9,7 +9,7 @@ import {LibBytes} from "solady/utils/LibBytes.sol";
 
 /// @title PimlicoSimulations07
 /// @author Pimlico (https://github.com/pimlicolabs/alto)
-/// @notice An ERC-4337 EntryPoint 0.7 simulation contract for gas estimation and userOperation filtering
+/// @notice An ERC-4337 EntryPoint 0.7 simulation contract
 contract PimlicoSimulations07 {
     using LibBytes for bytes;
 
