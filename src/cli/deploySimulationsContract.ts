@@ -13,13 +13,20 @@ import {
 import type { CamelCasedProperties } from "./parseArgs"
 import type { IOptions } from "@alto/cli"
 import type { Logger } from "pino"
-import pimlicoEntrypointSimulationsV8DeployBytecode from "../contracts/PimlicoEntryPointSimulationsV8.sol/PimlicoEntryPointSimulationsV8.json"
-import pimlicoEntrypointSimulationsV7DeployBytecode from "../contracts/PimlicoEntryPointSimulationsV7.sol/PimlicoEntryPointSimulationsV7.json"
+import pimlicoEntrypointSimulationsV8DeployBytecode from "../contracts/PimlicoEntryPointSimulationsV8.sol/PimlicoEntryPointSimulationsV8.json" with {
+    type: "json"
+}
+import pimlicoEntrypointSimulationsV7DeployBytecode from "../contracts/PimlicoEntryPointSimulationsV7.sol/PimlicoEntryPointSimulationsV7.json" with {
+    type: "json"
+}
 
 const isContractDeployed = async ({
     publicClient,
     address
-}: { publicClient: PublicClient<Transport, Chain>; address: Hex }) => {
+}: {
+    publicClient: PublicClient<Transport, Chain>
+    address: Hex
+}) => {
     const code = await publicClient.getCode({
         address
     })
