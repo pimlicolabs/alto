@@ -11,11 +11,11 @@ import {Bytes} from "@openzeppelin/contracts-51/utils/Bytes.sol";
 /// @author Pimlico (https://github.com/pimlicolabs/alto)
 /// @notice An ERC-4337 EntryPoint 0.7 simulation contract for gas estimation and userOperation filtering
 contract PimlicoSimulations07 {
+    using Bytes for bytes;
+
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                          Types                             */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
-
-    using Bytes for bytes;
 
     struct RejectedUserOp {
         bytes32 userOpHash;
@@ -37,7 +37,6 @@ contract PimlicoSimulations07 {
     EntryPointSimulations internal eps = new EntryPointSimulations();
 
     uint256 private constant REVERT_REASON_MAX_LEN = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
-    bytes4 private constant selector = bytes4(keccak256("delegateAndRevert(address,bytes)"));
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                        Constructor                         */
@@ -48,15 +47,31 @@ contract PimlicoSimulations07 {
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-    /*                          Methods                           */
+    /*                      Internal Helpers                      */
+    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+    function removeAtIndex(PackedUserOperation[] storage array, uint256 index) internal {
+        require(index < array.length, "Index out of bounds");
+
+        // Shift all elements to the left.
+        for (uint256 i = index; i < array.length - 1; i++) {
+            array[i] = array[i + 1];
+        }
+
+        // remove the last duplicate.
+        array.pop();
+    }
+
+    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /*                      External Methods                      */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     function simulateEntryPoint(address payable ep, bytes[] memory data) public returns (bytes[] memory) {
+        bytes4 delegateAndRevertSelector = bytes4(keccak256("delegateAndRevert(address,bytes)"));
         bytes[] memory returnDataArray = new bytes[](data.length);
 
         for (uint256 i = 0; i < data.length; i++) {
             bytes memory returnData;
-            bytes memory callData = abi.encodeWithSelector(selector, address(eps), data[i]);
+            bytes memory callData = abi.encodeWithSelector(delegateAndRevertSelector, address(eps), data[i]);
             bool success = Exec.call(ep, 0, callData, gasleft());
             if (!success) {
                 returnData = Exec.getReturnData(REVERT_REASON_MAX_LEN);
@@ -69,43 +84,51 @@ contract PimlicoSimulations07 {
 
     // @notice Filter ops method for EntryPoint >= 0.7
     // @dev This method should be called by bundler sending bundle to EntryPoint.
+    PackedUserOperation[] remainingUserOps;
+    RejectedUserOp[] rejectedUserOps;
+
     function filterOps(PackedUserOperation[] calldata userOps, address payable beneficiary, IEntryPoint07 entryPoint)
         external
         returns (FilterOpsResult memory)
     {
-        // Set up variables for tracking gas and balance changes
+        // Set up variables.
         uint256 gasBefore;
         uint256 gasAfter;
         uint256 balanceBefore;
         uint256 balanceAfter;
 
-        // Track remaining userOps to be handled
-        PackedUserOperation[] memory remainingUserOps = new PackedUserOperation[](0);
-        RejectedUserOp[] memory rejectedUserOps = new RejectedUserOp[](0);
+        remainingUserOps = userOps;
 
-        // Continue to call handleOps until all userOps are
+        // Continue to call handleOps until bundle passes.
         while (remainingUserOps.length > 0) {
             gasBefore = gasleft();
             balanceBefore = beneficiary.balance;
 
             try entryPoint.handleOps(remainingUserOps, beneficiary) {
-                // HandleOps succeeded, update gas and balance
+                // HandleOps succeeded, record gas and balance changes.
                 gasAfter = gasleft();
                 balanceAfter = beneficiary.balance;
                 break;
             } catch (bytes memory revertReason) {
-                bytes4 errorSelector = bytes4(revertReason);
-                bytes memory args;
+                // Remove userOp that failed and try again.
+                (bytes4 errorSelector, bytes memory args) =
+                    (bytes4(revertReason), revertReason.slice(4, revertReason.length));
 
+                // Find opIndex of failing userOp.
+                uint256 opIndex;
                 if (errorSelector == IEntryPoint07.FailedOp.selector) {
-                    bytes memory encodedArgs = revertReason.slice(4, revertReason.length - 4);
-                    (uint256 opIndex, string memory reason) = abi.decode(args, (uint256, string));
-                    revert("todo");
+                    (opIndex,) = abi.decode(args, (uint256, string));
                 } else if (errorSelector == IEntryPoint07.FailedOpWithRevert.selector) {
-                    revert("todo");
+                    (opIndex,,) = abi.decode(args, (uint256, string, bytes));
                 } else {
-                    revert("todo");
+                    revert("Unknown error selector");
                 }
+
+                // record userOpHash and revert reason, and remove userOp from bundle.
+                bytes32 userOpHash = entryPoint.getUserOpHash(remainingUserOps[opIndex]);
+                rejectedUserOps.push(RejectedUserOp({userOpHash: userOpHash, revertReason: revertReason}));
+
+                removeAtIndex(remainingUserOps, opIndex);
             }
         }
 
