@@ -37,8 +37,7 @@ contract PimlicoSimulations07 {
     EntryPointSimulations internal eps = new EntryPointSimulations();
     uint256 private constant REVERT_REASON_MAX_LEN = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
-    // @notice Used for filterOps
-    PackedUserOperation[] remainingUserOps;
+    // @notice Used for filterOps and filterOpsLegacy
     RejectedUserOp[] rejectedUserOps;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -52,16 +51,28 @@ contract PimlicoSimulations07 {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                      Internal Helpers                      */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
-    function removeAtIndex(PackedUserOperation[] storage array, uint256 index) internal {
+    function removeAtIndex(PackedUserOperation[] memory array, uint256 index)
+        internal
+        pure
+        returns (PackedUserOperation[] memory newArray)
+    {
         require(index < array.length, "Index out of bounds");
 
-        // Shift all elements to the left.
-        for (uint256 i = index; i < array.length - 1; i++) {
-            array[i] = array[i + 1];
+        for (uint256 i = 0; i < array.length - 1; i++) {
+            newArray[i] = i < index ? array[i] : array[i + 1];
         }
+    }
 
-        // remove the last duplicate.
-        array.pop();
+    function removeAtIndex(UserOperation[] memory array, uint256 index)
+        internal
+        pure
+        returns (UserOperation[] memory newArray)
+    {
+        require(index < array.length, "Index out of bounds");
+
+        for (uint256 i = 0; i < array.length - 1; i++) {
+            newArray[i] = i < index ? array[i] : array[i + 1];
+        }
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -97,9 +108,8 @@ contract PimlicoSimulations07 {
         uint256 balanceBefore;
         uint256 balanceAfter;
 
-        // Set storage variables.
-        remainingUserOps = userOps;
-        rejectedUserOps = new RejectedUserOp[](0);
+        PackedUserOperation[] memory remainingUserOps = userOps;
+        rejectedUserOps = new RejectedUserOp[](0); // Clear storage variable.
 
         // Continue to call handleOps until bundle passes.
         while (remainingUserOps.length > 0) {
@@ -142,24 +152,59 @@ contract PimlicoSimulations07 {
         });
     }
 
-    // Filter ops method for legacy EntryPoint (0.6)
-    //function filterOpsLegacy(UserOperation[] calldata userOps, address payable beneficiary, IEntryPoint06 entryPoint)
-    //    external
-    //    returns (FilterOpsResult memory)
-    //{
-    //    revert("todo");
-    //    //uint256 gasBefore = gasleft();
-    //    //uint256 balanceBefore = beneficiary.balance;
+    // @notice Filter ops method for legacy EntryPoint (0.6)
+    // @dev This method should be called by bundler sending bundle to EntryPoint.
+    function filterOpsLegacy(UserOperation[] calldata userOps, address payable beneficiary, IEntryPoint06 entryPoint)
+        external
+        returns (FilterOpsResult memory)
+    {
+        // Set up memory variables.
+        uint256 gasBefore;
+        uint256 gasAfter;
+        uint256 balanceBefore;
+        uint256 balanceAfter;
 
-    //    //entryPoint.handleOps(userOps, beneficiary);
+        UserOperation[] memory remainingUserOps = userOps;
+        rejectedUserOps = new RejectedUserOp[](0); // Clear storage variable.
 
-    //    //uint256 gasAfter = gasleft();
-    //    //uint256 balanceAfter = beneficiary.balance;
+        // Continue to call handleOps until bundle passes.
+        while (remainingUserOps.length > 0) {
+            gasBefore = gasleft();
+            balanceBefore = beneficiary.balance;
 
-    //    //return FilterOpsResult({
-    //    //    gasUsed: gasBefore - gasAfter,
-    //    //    balanceChange: int256(balanceAfter) - int256(balanceBefore),
-    //    //    rejectedUserOpHashes: new bytes32[](0)
-    //    //});
-    //}
+            try entryPoint.handleOps(remainingUserOps, beneficiary) {
+                // HandleOps succeeded, record gas and balance changes.
+                gasAfter = gasleft();
+                balanceAfter = beneficiary.balance;
+                break;
+            } catch (bytes memory revertReason) {
+                // Remove userOp that failed and try again.
+                (bytes4 errorSelector, bytes memory args) =
+                    (bytes4(revertReason), revertReason.slice(4, revertReason.length));
+
+                // Find opIndex of failing userOp.
+                uint256 opIndex;
+                if (errorSelector == IEntryPoint07.FailedOp.selector) {
+                    (opIndex,) = abi.decode(args, (uint256, string));
+                } else if (errorSelector == IEntryPoint07.FailedOpWithRevert.selector) {
+                    (opIndex,,) = abi.decode(args, (uint256, string, bytes));
+                } else {
+                    revert("Unknown handleOps Error Selector");
+                }
+
+                // record userOpHash and revert reason.
+                bytes32 userOpHash = entryPoint.getUserOpHash(remainingUserOps[opIndex]);
+                rejectedUserOps.push(RejectedUserOp({userOpHash: userOpHash, revertReason: revertReason}));
+
+                // remove userOp from bundle and try again.
+                removeAtIndex(remainingUserOps, opIndex);
+            }
+        }
+
+        return FilterOpsResult({
+            gasUsed: gasBefore - gasAfter,
+            balanceChange: balanceAfter - balanceBefore,
+            rejectedUserOps: rejectedUserOps
+        });
+    }
 }
