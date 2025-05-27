@@ -5,6 +5,7 @@ import "./EntryPointSimulations.sol";
 import {UserOperation} from "account-abstraction-v6/interfaces/UserOperation.sol";
 import {IEntryPoint as IEntryPoint06} from "account-abstraction-v6/interfaces/IEntryPoint.sol";
 import {IEntryPoint as IEntryPoint07} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
+import {Bytes} from "@openzeppelin/contracts-51/utils/Bytes.sol";
 
 /// @title PimlicoSimulations07
 /// @author Pimlico (https://github.com/pimlicolabs/alto)
@@ -14,7 +15,9 @@ contract PimlicoSimulations07 {
     /*                          Types                             */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    struct FailedOpWithRevert {
+    using Bytes for bytes;
+
+    struct RejectedUserOp {
         bytes32 userOpHash;
         bytes revertReason;
     }
@@ -22,7 +25,7 @@ contract PimlicoSimulations07 {
     struct FilterOpsResult {
         uint256 gasUsed;
         uint256 balanceChange;
-        FailedOpWithRevert[] rejectedUserOpHashes;
+        RejectedUserOp[] rejectedUserOps;
     }
 
     event PimlicoSimulations07Deployed();
@@ -64,7 +67,8 @@ contract PimlicoSimulations07 {
         return returnDataArray;
     }
 
-    // Filter ops method for EntryPoint >= 0.7
+    // @notice Filter ops method for EntryPoint >= 0.7
+    // @dev This method should be called by bundler sending bundle to EntryPoint.
     function filterOps(PackedUserOperation[] calldata userOps, address payable beneficiary, IEntryPoint07 entryPoint)
         external
         returns (FilterOpsResult memory)
@@ -77,7 +81,7 @@ contract PimlicoSimulations07 {
 
         // Track remaining userOps to be handled
         PackedUserOperation[] memory remainingUserOps = new PackedUserOperation[](0);
-        bytes32[] memory failedUserOpHashes = new bytes32[](0);
+        RejectedUserOp[] memory rejectedUserOps = new RejectedUserOp[](0);
 
         // Continue to call handleOps until all userOps are
         while (remainingUserOps.length > 0) {
@@ -89,10 +93,13 @@ contract PimlicoSimulations07 {
                 gasAfter = gasleft();
                 balanceAfter = beneficiary.balance;
                 break;
-            } catch (bytes memory reason) {
-                bytes4 errorSelector = abi.decode(reason, (bytes4));
+            } catch (bytes memory revertReason) {
+                bytes4 errorSelector = bytes4(revertReason);
+                bytes memory args;
 
                 if (errorSelector == IEntryPoint07.FailedOp.selector) {
+                    bytes memory encodedArgs = revertReason.slice(4, revertReason.length - 4);
+                    (uint256 opIndex, string memory reason) = abi.decode(args, (uint256, string));
                     revert("todo");
                 } else if (errorSelector == IEntryPoint07.FailedOpWithRevert.selector) {
                     revert("todo");
@@ -105,7 +112,7 @@ contract PimlicoSimulations07 {
         return FilterOpsResult({
             gasUsed: gasBefore - gasAfter,
             balanceChange: balanceAfter - balanceBefore,
-            rejectedUserOpHashes: new FailedOpWithRevert[](0)
+            rejectedUserOps: rejectedUserOps
         });
     }
 
