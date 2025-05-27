@@ -14,9 +14,11 @@
         "esm/**/*.d.ts",
         "esm/**/*.js",
         "esm/**/*.js.map",
+        "esm/**/*.json",
         "lib/**/*.d.ts",
         "lib/**/*.js",
         "lib/**/*.js.map",
+        "lib/**/*.json",
         "contracts/**/*",
         "*.d.ts",
         "*.js"
