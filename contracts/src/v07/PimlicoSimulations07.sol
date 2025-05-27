@@ -98,7 +98,7 @@ contract PimlicoSimulations07 {
 
     // @notice Filter ops method for EntryPoint >= 0.7
     // @dev This method should be called by bundler sending bundle to EntryPoint.
-    function filterOps(PackedUserOperation[] calldata userOps, address payable beneficiary, IEntryPoint07 entryPoint)
+    function filterOps07(PackedUserOperation[] calldata userOps, address payable beneficiary, IEntryPoint07 entryPoint)
         external
         returns (FilterOpsResult memory)
     {
@@ -154,7 +154,7 @@ contract PimlicoSimulations07 {
 
     // @notice Filter ops method for legacy EntryPoint (0.6)
     // @dev This method should be called by bundler sending bundle to EntryPoint.
-    function filterOpsLegacy(UserOperation[] calldata userOps, address payable beneficiary, IEntryPoint06 entryPoint)
+    function filterOps06(UserOperation[] calldata userOps, address payable beneficiary, IEntryPoint06 entryPoint)
         external
         returns (FilterOpsResult memory)
     {
