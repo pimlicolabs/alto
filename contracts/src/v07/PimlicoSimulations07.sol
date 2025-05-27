@@ -34,10 +34,10 @@ contract PimlicoSimulations07 {
     /*                        Variables                           */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    EntryPointSimulations internal eps = new EntryPointSimulations();
-
     // @notice Used for filterOps and filterOpsLegacy
     RejectedUserOp[] rejectedUserOps;
+
+    EntryPointSimulations internal eps = new EntryPointSimulations();
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                        Constructor                         */
@@ -45,33 +45,6 @@ contract PimlicoSimulations07 {
 
     constructor() {
         emit PimlicoSimulations07Deployed();
-    }
-
-    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-    /*                      Internal Helpers                      */
-    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
-    function removeAtIndex(PackedUserOperation[] memory array, uint256 index)
-        internal
-        pure
-        returns (PackedUserOperation[] memory newArray)
-    {
-        require(index < array.length, "Index out of bounds");
-
-        for (uint256 i = 0; i < array.length - 1; i++) {
-            newArray[i] = i < index ? array[i] : array[i + 1];
-        }
-    }
-
-    function removeAtIndex(UserOperation[] memory array, uint256 index)
-        internal
-        pure
-        returns (UserOperation[] memory newArray)
-    {
-        require(index < array.length, "Index out of bounds");
-
-        for (uint256 i = 0; i < array.length - 1; i++) {
-            newArray[i] = i < index ? array[i] : array[i + 1];
-        }
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -141,7 +114,11 @@ contract PimlicoSimulations07 {
                 rejectedUserOps.push(RejectedUserOp({userOpHash: userOpHash, revertReason: revertReason}));
 
                 // remove userOp from bundle and try again.
-                removeAtIndex(remainingUserOps, opIndex);
+                PackedUserOperation[] memory newArray = new PackedUserOperation[](remainingUserOps.length - 1);
+                for (uint256 i = 0; i < remainingUserOps.length - 1; i++) {
+                    newArray[i] = i < opIndex ? remainingUserOps[i] : remainingUserOps[i + 1];
+                }
+                remainingUserOps = newArray;
             }
         }
 
@@ -197,7 +174,11 @@ contract PimlicoSimulations07 {
                 rejectedUserOps.push(RejectedUserOp({userOpHash: userOpHash, revertReason: revertReason}));
 
                 // remove userOp from bundle and try again.
-                removeAtIndex(remainingUserOps, opIndex);
+                UserOperation[] memory newArray = new UserOperation[](remainingUserOps.length - 1);
+                for (uint256 i = 0; i < remainingUserOps.length - 1; i++) {
+                    newArray[i] = i < opIndex ? remainingUserOps[i] : remainingUserOps[i + 1];
+                }
+                remainingUserOps = newArray;
             }
         }
 
