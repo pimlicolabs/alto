@@ -4,15 +4,13 @@ pragma solidity ^0.8.23;
 import "forge-std/Test.sol";
 import "../src/v07/PimlicoSimulations07.sol";
 
-import {IEntryPoint as IEntryPoint06} from "account-abstraction-v6/interfaces/IEntryPoint.sol";
-import {EntryPoint as EntryPoint07} from "account-abstraction-v7/core/EntryPoint.sol";
+import {EntryPoint as EntryPoint07} from "./utils/aa/07/core/EntryPoint.sol";
 import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
-import {SimpleAccountFactory as SimpleAccountFactory07} from "account-abstraction-v7/samples/SimpleAccountFactory.sol";
+import {SimpleAccountFactory as SimpleAccountFactory07} from "./utils/aa/07/samples/SimpleAccountFactory.sol";
 
-import {IEntryPoint as IEntryPoint07} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
-import {EntryPoint as EntryPoint06} from "account-abstraction-v6/core/EntryPoint.sol";
-import {SimpleAccountFactory as SimpleAccountFactory06} from "account-abstraction-v6/samples/SimpleAccountFactory.sol";
+import {EntryPoint as EntryPoint06} from "./utils/aa/06/core/EntryPoint.sol";
 import {UserOperation} from "account-abstraction-v6/interfaces/UserOperation.sol";
+import {SimpleAccountFactory as SimpleAccountFactory06} from "./utils/aa/06/samples/SimpleAccountFactory.sol";
 
 contract FilterOpsTest is Test {
     PimlicoSimulations07 pimlicoSim;
