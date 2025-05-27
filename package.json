@@ -8,13 +8,13 @@
     "bin": {
         "alto": "./src/esm/cli/alto.js"
     },
-    "type": "module",
     "scripts": {
-        "clean": "rm -rf ./src/esm ./src/*.tsbuildinfo",
+        "clean": "rm -rf ./src/lib ./src/*.tsbuildinfo",
         "clean-modules": "rm -rf ./src/node_modules node_modules",
-        "build": "pnpm run -r build",
+        "build": "pnpm -r run build",
         "build:contracts": "cd contracts/ && forge build --evm-version london --out ../src/contracts/ src/v06/EntryPointCodeOverride.sol && forge build --evm-version london --out ../src/contracts/ src/v07/PimlicoEntryPointSimulationsV7.sol && forge build --evm-version cancun --out ../src/contracts/ src/v08/PimlicoEntryPointSimulationsV8.sol",
-        "start": "node src/esm/cli/alto.js run",
+        "build:esm": "pnpm -r run build:esm",
+        "start": "node src/lib/cli/alto.js run",
         "dev": "pnpm run build:contracts && nodemon --ext ts,js,json --watch src --exec DOTENV_CONFIG_PATH=$(pwd)/.env ts-node --project src/tsconfig.json -r tsconfig-paths/register src/cli/alto.ts run",
         "test": "pnpm --filter e2e run test",
         "test:ci": "pnpm run build:contracts && pnpm --filter e2e run test:ci",
@@ -29,9 +29,6 @@
     },
     "devDependencies": {
         "@biomejs/biome": "^1.5.1",
-        "@changesets/changelog-git": "^0.1.14",
-        "@changesets/changelog-github": "^0.4.8",
-        "@changesets/cli": "^2.26.2",
         "@swc/core": "^1.3.102",
         "@types/mocha": "^10.0.6",
         "earl": "^1.1.0",
@@ -40,8 +37,10 @@
         "nyc": "^15.1.0",
         "rome": "^12.1.3",
         "ts-node": "^10.9.2",
-        "tsx": "^4.19.4",
-        "typescript": "^5.3.3"
+        "typescript": "^5.3.3",
+        "@changesets/changelog-git": "^0.1.14",
+        "@changesets/changelog-github": "^0.4.8",
+        "@changesets/cli": "^2.26.2"
     },
     "private": true,
     "engines": {

@@ -4,7 +4,7 @@ import { foundry } from "viem/chains"
 import { setupContracts } from "./deploy-contracts/index.js"
 import { defineInstance } from "prool"
 import { execa } from "./src/utils/execa.js"
-import altoConfig from "./alto-config.json" with { type: "json" }
+import altoConfig from "./alto-config.json"
 
 export const alto = defineInstance(
     (args: { anvilRpc: string; port: number }) => {
@@ -40,9 +40,11 @@ export const alto = defineInstance(
                 // ]
 
                 const binary = [
-                    "tsx",
-                    "--tsconfig",
+                    "ts-node",
+                    "--project",
                     `${process.cwd()}/../../src/tsconfig.json`,
+                    "-r",
+                    "tsconfig-paths/register",
                     resolve(__dirname, "../../src/cli/alto.ts"),
                     "run"
                 ]
@@ -60,8 +62,7 @@ export const alto = defineInstance(
                             env: {
                                 ...envConfig,
                                 ALTO_RPC_URL: args.anvilRpc,
-                                ALTO_PORT: port.toString(),
-                                TSX_TSCONFIG_PATH: `${process.cwd()}/../../src/tsconfig.json`
+                                ALTO_PORT: port.toString()
                             }
                         })`${binary}`,
                     {

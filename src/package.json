@@ -5,7 +5,6 @@
     "repository": "https://github.com/pimlicolabs/alto.git",
     "author": "Pimlico",
     "license": "GPL-3.0-or-later",
-    "type": "module",
     "main": "lib/index.js",
     "types": "lib/index.d.ts",
     "bin": {
@@ -32,6 +31,7 @@
     },
     "scripts": {
         "build": "tsc -p ./tsconfig.json && tsc-alias -p tsconfig.json",
+        "build:esm": "tsc -p ./tsconfig.esm.json && tsc-alias -p tsconfig.esm.json",
         "dev": "nodemon --exec DOTENV_CONFIG_PATH=$(pwd)/../.env ts-node -r tsconfig-paths/register cli/alto.ts run",
         "lint": "eslint src/**/*.ts",
         "lint:fix": "eslint src/**/*.ts --fix"
