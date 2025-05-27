@@ -3,10 +3,10 @@ import type { StateOverrides, UserOperationV07 } from "@alto/types"
 import { isVersion06 } from "@alto/utils"
 import type { Hex } from "viem"
 import type { Address } from "viem"
+import type { AltoConfig } from "../../createConfig"
 import { GasEstimatorV06 } from "./gasEstimationsV06"
 import { GasEstimatorV07 } from "./gasEstimationsV07"
 import type { SimulateHandleOpResult } from "./types"
-import type { AltoConfig } from "../../createConfig"
 
 export class GasEstimationHandler {
     gasEstimatorV06: GasEstimatorV06

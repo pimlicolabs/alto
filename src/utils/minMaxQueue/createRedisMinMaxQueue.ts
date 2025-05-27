@@ -1,7 +1,7 @@
 import Redis from "ioredis"
 
-import { MinMaxQueue } from "."
-import { AltoConfig } from "../../createConfig"
+import type { MinMaxQueue } from "."
+import type { AltoConfig } from "../../createConfig"
 
 // Sorted TTL queue, one queue to keep track of values and other queue to keep track of TTL.
 class SortedTtlSet {

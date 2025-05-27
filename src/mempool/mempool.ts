@@ -1,5 +1,7 @@
 import type { EventManager } from "@alto/handlers"
+import type { MempoolStore } from "@alto/store"
 import {
+    type Address,
     EntryPointV06Abi,
     EntryPointV07Abi,
     type InterfaceValidator,
@@ -8,12 +10,11 @@ import {
     type StorageMap,
     type SubmittedUserOp,
     type TransactionInfo,
+    type UserOpInfo,
     type UserOperation,
     type UserOperationBundle,
-    type UserOpInfo,
     ValidationErrors,
-    type ValidationResult,
-    type Address
+    type ValidationResult
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
@@ -24,15 +25,14 @@ import {
     scaleBigIntByPercent
 } from "@alto/utils"
 import { getAddress, getContract } from "viem"
+import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
+import type { AltoConfig } from "../createConfig"
+import { calculateAA95GasFloor } from "../executor/utils"
 import type { Monitor } from "./monitoring"
 import {
     type InterfaceReputationManager,
     ReputationStatuses
 } from "./reputationManager"
-import type { AltoConfig } from "../createConfig"
-import type { MempoolStore } from "@alto/store"
-import { calculateAA95GasFloor } from "../executor/utils"
-import { privateKeyToAddress, generatePrivateKey } from "viem/accounts"
 
 export class Mempool {
     private config: AltoConfig

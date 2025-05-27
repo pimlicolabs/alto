@@ -1,19 +1,19 @@
 import {
+    type Address,
+    type HexData32,
+    type UserOpInfo,
+    type UserOperation,
+    userOpInfoSchema
+} from "@alto/types"
+import { type ChainableCommander, Redis } from "ioredis"
+import { toHex } from "viem/utils"
+import type { OutstandingStore } from "."
+import type { AltoConfig } from "../createConfig"
+import {
     getNonceKeyAndSequence,
     isVersion06,
     isVersion07
 } from "../utils/userop"
-import { AltoConfig } from "../createConfig"
-import {
-    Address,
-    HexData32,
-    UserOperation,
-    UserOpInfo,
-    userOpInfoSchema
-} from "@alto/types"
-import { OutstandingStore } from "."
-import { ChainableCommander, Redis } from "ioredis"
-import { toHex } from "viem/utils"
 
 const serializeUserOpInfo = (userOpInfo: UserOpInfo): string => {
     return JSON.stringify(userOpInfo, (_, value) =>

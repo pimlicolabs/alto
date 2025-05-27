@@ -1,14 +1,15 @@
+import crypto from "crypto"
 import type { GasPriceManager } from "@alto/handlers"
 import {
     type Address,
     EntryPointV06Abi,
     EntryPointV07Abi,
+    MantleBvmGasPriceOracleAbi,
+    OpL1FeeAbi,
     type PackedUserOperation,
     type UserOperation,
     type UserOperationV06,
-    type UserOperationV07,
-    MantleBvmGasPriceOracleAbi,
-    OpL1FeeAbi
+    type UserOperationV07
 } from "@alto/types"
 import {
     type Chain,
@@ -17,32 +18,32 @@ import {
     EstimateGasExecutionError,
     FeeCapTooLowError,
     InsufficientFundsError,
+    InternalRpcError,
     IntrinsicGasTooLowError,
     NonceTooLowError,
     type PublicClient,
     TransactionExecutionError,
     type Transport,
     bytesToHex,
-    encodeAbiParameters,
-    getContract,
-    serializeTransaction,
-    toBytes,
-    InternalRpcError,
-    maxUint64,
-    encodeFunctionData,
-    parseGwei,
-    parseEther,
-    maxUint256,
-    toHex,
-    size,
     concat,
-    slice
+    encodeAbiParameters,
+    encodeFunctionData,
+    getContract,
+    maxUint64,
+    maxUint256,
+    parseEther,
+    parseGwei,
+    serializeTransaction,
+    size,
+    slice,
+    toBytes,
+    toHex
 } from "viem"
-import { minBigInt, randomBigInt } from "./bigInt"
-import { isVersion06, isVersion07, toPackedUserOperation } from "./userop"
 import type { AltoConfig } from "../createConfig"
 import { ArbitrumL1FeeAbi } from "../types/contracts/ArbitrumL1FeeAbi"
-import crypto from "crypto"
+import { minBigInt, randomBigInt } from "./bigInt"
+import { isVersion06, isVersion07, toPackedUserOperation } from "./userop"
+import { parseViemError } from "./errorHandling"
 
 export interface GasOverheads {
     /**
@@ -309,7 +310,7 @@ export async function calcPreVerificationGas({
     validate: boolean // when calculating preVerificationGas for validation
     overheads?: GasOverheads
 }): Promise<bigint> {
-    let simulationUserOp = {
+    const simulationUserOp = {
         ...userOperation
     }
 
@@ -333,7 +334,7 @@ export async function calcPreVerificationGas({
         }
     }
 
-    let preVerificationGas = calcDefaultPreVerificationGas(
+    const preVerificationGas = calcDefaultPreVerificationGas(
         simulationUserOp,
         overheads
     )
@@ -726,36 +727,4 @@ async function calcArbitrumPreVerificationGas(
     }
 
     return staticFee + gasForL1
-}
-
-export function parseViemError(err: unknown) {
-    if (
-        err instanceof ContractFunctionExecutionError ||
-        err instanceof TransactionExecutionError
-    ) {
-        const e = err.cause
-        if (e instanceof NonceTooLowError) {
-            return e
-        }
-        if (e instanceof FeeCapTooLowError) {
-            return e
-        }
-        if (e instanceof InsufficientFundsError) {
-            return e
-        }
-        if (e instanceof IntrinsicGasTooLowError) {
-            return e
-        }
-        if (e instanceof ContractFunctionRevertedError) {
-            return e
-        }
-        if (e instanceof EstimateGasExecutionError) {
-            return e
-        }
-        if (e instanceof InternalRpcError) {
-            return e
-        }
-        return
-    }
-    return
 }

@@ -1,0 +1,21 @@
+# Alto Project Rules
+
+<coding_guidelines>
+
+- This project is written in TypeScript
+- Use consistent error handling patterns
+- Follow existing code style and patterns
+- Use strong typing and avoid "any" type when possible
+- Write e2e tests for new functionality </coding_guidelines>
+
+<git_workflow>
+
+- Keep commits focused on single changes
+- Write descriptive commit messages
+- Create feature branches for new features </git_workflow>
+
+<project_structure>
+
+- Place CLI-related code in src/cli
+- Place RPC-related code in src/rpc
+- Keep type definitions in src/types </project_structure>

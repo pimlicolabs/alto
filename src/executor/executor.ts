@@ -3,29 +3,34 @@ import type { InterfaceReputationManager, Mempool } from "@alto/mempool"
 import type {
     Address,
     BundleResult,
-    HexData32,
-    UserOperation,
     GasPriceParameters,
-    UserOperationBundle,
-    UserOpInfo
+    HexData32,
+    UserOpInfo,
+    UserOperation,
+    UserOperationBundle
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import {
-    roundUpBigInt,
     maxBigInt,
     parseViemError,
+    roundUpBigInt,
     scaleBigIntByPercent
 } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
-    IntrinsicGasTooLowError,
-    NonceTooLowError,
-    TransactionExecutionError,
     type Account,
+    BaseError,
     type Hex,
+    IntrinsicGasTooLowError,
     NonceTooHighError,
-    BaseError
+    NonceTooLowError,
+    TransactionExecutionError
 } from "viem"
+import type { SendTransactionErrorType } from "viem"
+import type { SignedAuthorizationList } from "viem"
+import type { AltoConfig } from "../createConfig"
+import { sendPflConditional } from "./fastlane"
+import { filterOpsAndEstimateGas } from "./filterOpsAndEStimateGas"
 import {
     calculateAA95GasFloor,
     encodeHandleOpsCalldata,
@@ -33,11 +38,6 @@ import {
     getUserOpHashes,
     isTransactionUnderpricedError
 } from "./utils"
-import type { SendTransactionErrorType } from "viem"
-import type { AltoConfig } from "../createConfig"
-import { sendPflConditional } from "./fastlane"
-import type { SignedAuthorizationList } from "viem"
-import { filterOpsAndEstimateGas } from "./filterOpsAndEStimateGas"
 
 type HandleOpsTxParams = {
     gas: bigint
@@ -292,7 +292,7 @@ export class Executor {
             entryPoint
         })
 
-        let estimateResult = await filterOpsAndEstimateGas({
+        const estimateResult = await filterOpsAndEstimateGas({
             userOpBundle,
             executor,
             nonce,

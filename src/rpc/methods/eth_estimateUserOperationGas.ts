@@ -1,17 +1,17 @@
-import { scaleBigIntByPercent, maxBigInt } from "../../utils/bigInt"
-import { isVersion06, isVersion07, deepHexlify } from "../../utils/userop"
-import { calcPreVerificationGas } from "../../utils/validation"
-import { createMethodHandler } from "../createMethodHandler"
 import {
-    Address,
+    type Address,
     RpcError,
-    StateOverrides,
-    UserOperation,
+    type StateOverrides,
+    type UserOperation,
     ValidationErrors,
     estimateUserOperationGasSchema
 } from "@alto/types"
-import { RpcHandler } from "../rpcHandler"
-import { SimulateHandleOpResult } from "../estimation/types"
+import { maxBigInt, scaleBigIntByPercent } from "../../utils/bigInt"
+import { deepHexlify, isVersion06, isVersion07 } from "../../utils/userop"
+import { calcPreVerificationGas } from "../../utils/validation"
+import { createMethodHandler } from "../createMethodHandler"
+import type { SimulateHandleOpResult } from "../estimation/types"
+import type { RpcHandler } from "../rpcHandler"
 
 type GasEstimateResult =
     | {

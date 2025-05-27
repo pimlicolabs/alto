@@ -1,4 +1,4 @@
-import { AltoConfig } from "../../createConfig"
+import type { AltoConfig } from "../../createConfig"
 import { createMemoryMinMaxQueue } from "./createMemoryMinMaxQueue"
 import { createRedisMinMaxQueue } from "./createRedisMinMaxQueue"
 

@@ -1,35 +1,35 @@
-import { InterfaceReputationManager } from "@alto/mempool"
+import type { InterfaceReputationManager } from "@alto/mempool"
 import {
     EntryPointV06Abi,
     EntryPointV07Abi,
-    FailedOpWithRevert,
-    RejectedUserOp,
-    UserOpInfo,
-    UserOperationBundle,
+    type FailedOpWithRevert,
+    type RejectedUserOp,
+    type UserOpInfo,
+    type UserOperationBundle,
     failedOpErrorSchema,
     failedOpWithRevertErrorSchema
 } from "@alto/types"
 import {
-    Account,
-    ContractFunctionRevertedError,
-    EstimateGasExecutionError,
-    FeeCapTooLowError,
-    Hex,
-    StateOverride,
-    decodeErrorResult,
-    getContract
-} from "viem"
-import { AltoConfig } from "../createConfig"
-import {
-    Logger,
+    type Logger,
     getRevertErrorData,
     parseViemError,
     scaleBigIntByPercent
 } from "@alto/utils"
-import { z } from "zod"
-import { packUserOps } from "./utils"
 import * as sentry from "@sentry/node"
+import {
+    type Account,
+    ContractFunctionRevertedError,
+    EstimateGasExecutionError,
+    FeeCapTooLowError,
+    type Hex,
+    type StateOverride,
+    decodeErrorResult,
+    getContract
+} from "viem"
+import { z } from "zod"
+import type { AltoConfig } from "../createConfig"
 import { getEip7702DelegationOverrides } from "../utils/eip7702"
+import { packUserOps } from "./utils"
 
 export type FilterOpsAndEstimateGasResult =
     | {
@@ -174,7 +174,7 @@ export async function filterOpsAndEstimateGas({
             const e = parseViemError(err)
 
             if (e instanceof ContractFunctionRevertedError) {
-                let parseResult = z
+                const parseResult = z
                     .union([failedOpErrorSchema, failedOpWithRevertErrorSchema])
                     .safeParse(e.data)
 

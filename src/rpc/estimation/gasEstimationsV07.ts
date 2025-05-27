@@ -1,4 +1,5 @@
 import {
+    type BinarySearchCallResult,
     EntryPointV07Abi,
     EntryPointV07SimulationsAbi,
     ExecutionErrors,
@@ -6,7 +7,6 @@ import {
     PimlicoEntryPointSimulationsAbi,
     RpcError,
     type StateOverrides,
-    type BinarySearchCallResult,
     type UserOperationV07,
     ValidationErrors,
     type ValidationResultV07,
@@ -31,13 +31,13 @@ import {
     toHex,
     zeroAddress
 } from "viem"
+import type { AltoConfig } from "../../createConfig"
 import { AccountExecuteAbi } from "../../types/contracts/IAccountExecute"
 import {
     type SimulateBinarySearchRetryResult,
     type SimulateHandleOpResult,
     simulationValidationResultStruct
 } from "./types"
-import type { AltoConfig } from "../../createConfig"
 
 export class GasEstimatorV07 {
     private config: AltoConfig

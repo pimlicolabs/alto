@@ -1,11 +1,11 @@
 import type { Logger, Metrics } from "@alto/utils"
 import * as sentry from "@sentry/node"
+import Queue, { type Queue as QueueType } from "bull"
 import Redis from "ioredis"
 import type { Hex } from "viem"
-import type { OpEventType } from "../types/schemas"
 import type { AltoConfig } from "../createConfig"
-import Queue, { type Queue as QueueType } from "bull"
-import { asyncCallWithTimeout, AsyncTimeoutError } from "../utils/asyncTimeout"
+import type { OpEventType } from "../types/schemas"
+import { AsyncTimeoutError, asyncCallWithTimeout } from "../utils/asyncTimeout"
 
 type QueueMessage = OpEventType & {
     userOperationHash: Hex
@@ -184,11 +184,7 @@ export class EventManager {
     }
 
     // emits when the userOperation was dropped from the internal mempool
-    emitDropped(
-        userOperationHash: Hex,
-        reason?: string,
-        aaError?: string
-    ) {
+    emitDropped(userOperationHash: Hex, reason?: string, aaError?: string) {
         this.emitEvent({
             userOperationHash,
             event: {

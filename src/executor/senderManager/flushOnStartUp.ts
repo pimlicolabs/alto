@@ -1,6 +1,6 @@
-import { SenderManager } from "."
-import { AltoConfig } from "../../createConfig"
-import { GasPriceManager } from "../../handlers/gasPriceManager"
+import type { SenderManager } from "."
+import type { AltoConfig } from "../../createConfig"
+import type { GasPriceManager } from "../../handlers/gasPriceManager"
 import { flushStuckTransaction } from "../utils"
 
 export const flushOnStartUp = async ({

@@ -1,15 +1,4 @@
 import {
-    getAbiItem,
-    type Transaction,
-    TransactionNotFoundError,
-    decodeFunctionData,
-    toFunctionSelector,
-    slice,
-    getAddress
-} from "viem"
-import { toUnpackedUserOperation } from "../../utils/userop"
-import { createMethodHandler } from "../createMethodHandler"
-import {
     EntryPointV06Abi,
     EntryPointV07Abi,
     type HexData32,
@@ -19,6 +8,17 @@ import {
     type UserOperationV07,
     getUserOperationByHashSchema
 } from "@alto/types"
+import {
+    type Transaction,
+    TransactionNotFoundError,
+    decodeFunctionData,
+    getAbiItem,
+    getAddress,
+    slice,
+    toFunctionSelector
+} from "viem"
+import { toUnpackedUserOperation } from "../../utils/userop"
+import { createMethodHandler } from "../createMethodHandler"
 
 const userOperationEventAbiItem = getAbiItem({
     abi: EntryPointV06Abi,

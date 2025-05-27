@@ -30,7 +30,7 @@ import * as sentry from "@sentry/node"
 import {
     BaseError,
     ContractFunctionExecutionError,
-    StateOverride,
+    type StateOverride,
     getContract,
     pad,
     slice,
@@ -38,10 +38,10 @@ import {
     zeroAddress
 } from "viem"
 import { fromZodError } from "zod-validation-error"
-import { GasEstimationHandler } from "../estimation/gasEstimationHandler"
-import type { SimulateHandleOpResult } from "../estimation/types"
 import type { AltoConfig } from "../../createConfig"
 import { getEip7702DelegationOverrides } from "../../utils/eip7702"
+import { GasEstimationHandler } from "../estimation/gasEstimationHandler"
+import type { SimulateHandleOpResult } from "../estimation/types"
 
 export class UnsafeValidator implements InterfaceValidator {
     config: AltoConfig
