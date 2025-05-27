@@ -279,7 +279,8 @@ contract FilterOpsTest is Test {
         PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
 
         uint256 balanceBefore = beneficiary.balance;
-        PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps08(ops, beneficiary, entryPoint08);
+        PimlicoSimulations07.FilterOpsResult memory result =
+            pimlicoSim.filterOps08(castToVersion07(ops), beneficiary, entryPoint08);
 
         _assertValidOpsResult(result, balanceBefore);
     }
@@ -294,7 +295,8 @@ contract FilterOpsTest is Test {
         _setupAccounts08(accounts);
         PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
 
-        PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps08(ops, beneficiary, entryPoint08);
+        PimlicoSimulations07.FilterOpsResult memory result =
+            pimlicoSim.filterOps08(castToVersion07(ops), beneficiary, entryPoint08);
 
         _assertPartialFailureResult(result, 1);
         assertEq(
@@ -311,7 +313,8 @@ contract FilterOpsTest is Test {
         _setupAccounts08(accounts);
         PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
 
-        PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps08(ops, beneficiary, entryPoint08);
+        PimlicoSimulations07.FilterOpsResult memory result =
+            pimlicoSim.filterOps08(castToVersion07(ops), beneficiary, entryPoint08);
 
         _assertAllFailedResult(result, 2);
     }
@@ -319,7 +322,8 @@ contract FilterOpsTest is Test {
     // Test filterOps08 with empty array
     function testFilterOps08_EmptyArray() public {
         PackedUserOperation08[] memory ops = new PackedUserOperation08[](0);
-        PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps08(ops, beneficiary, entryPoint08);
+        PimlicoSimulations07.FilterOpsResult memory result =
+            pimlicoSim.filterOps08(castToVersion07(ops), beneficiary, entryPoint08);
         _assertEmptyResult(result);
     }
 
@@ -396,5 +400,31 @@ contract FilterOpsTest is Test {
             paymasterAndData: "",
             signature: ""
         });
+    }
+
+    function castToVersion07(PackedUserOperation08 memory op) internal pure returns (PackedUserOperation07 memory) {
+        return PackedUserOperation07({
+            sender: op.sender,
+            nonce: op.nonce,
+            initCode: op.initCode,
+            callData: op.callData,
+            accountGasLimits: op.accountGasLimits,
+            preVerificationGas: op.preVerificationGas,
+            gasFees: op.gasFees,
+            paymasterAndData: op.paymasterAndData,
+            signature: op.signature
+        });
+    }
+
+    function castToVersion07(PackedUserOperation08[] memory ops)
+        internal
+        pure
+        returns (PackedUserOperation07[] memory)
+    {
+        PackedUserOperation07[] memory convertedOps = new PackedUserOperation07[](ops.length);
+        for (uint256 i = 0; i < ops.length; i++) {
+            convertedOps[i] = castToVersion07(ops[i]);
+        }
+        return convertedOps;
     }
 }
