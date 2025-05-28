@@ -18,9 +18,7 @@ import type { BundlingStatus, Logger, Metrics } from "@alto/utils"
 import {
     getAAError,
     getBundleStatus,
-    minBigInt,
-    parseUserOperationReceipt,
-    scaleBigIntByPercent
+    parseUserOperationReceipt
 } from "@alto/utils"
 import {
     type Address,
@@ -251,9 +249,8 @@ export class ExecutorManager {
         const bundleResult = await this.executor.bundle({
             executor: wallet,
             userOpBundle,
-            nonce,
-            gasPriceParams,
-            isReplacementTx: false
+            networkGasPrice: gasPriceParams,
+            nonce
         })
 
         // Free wallet if no bundle was sent.
@@ -329,11 +326,11 @@ export class ExecutorManager {
                 bundle: {
                     entryPoint,
                     version,
-                    userOps: userOpsBundled
+                    userOps: userOpsBundled,
+                    submissionAttempts: 1
                 },
                 previousTransactionHashes: [],
                 lastReplaced: Date.now(),
-                submissionAttempts: 1,
                 timesPotentiallyIncluded: 0
             }
 
@@ -775,27 +772,11 @@ export class ExecutorManager {
             return
         }
 
-        // If the transaction is stuck increase gasPrice based on number of submission attempts.
-        if (reason === "stuck" || reason === "gas_price") {
-            const multiplier = 100n + BigInt(txInfo.submissionAttempts) * 20n
-            const multiplierCeiling = this.config.resubmitMultiplierCeiling
-
-            gasPriceParams.maxFeePerGas = scaleBigIntByPercent(
-                gasPriceParams.maxFeePerGas,
-                minBigInt(multiplier, multiplierCeiling)
-            )
-            gasPriceParams.maxPriorityFeePerGas = scaleBigIntByPercent(
-                gasPriceParams.maxPriorityFeePerGas,
-                minBigInt(multiplier, multiplierCeiling)
-            )
-        }
-
         const bundleResult = await this.executor.bundle({
             executor: executor,
+            networkGasPrice: gasPriceParams,
             userOpBundle: bundle,
-            nonce: transactionRequest.nonce,
-            gasPriceParams,
-            isReplacementTx: true
+            nonce: transactionRequest.nonce
         })
 
         // Free wallet and return if potentially included too many times.
@@ -917,10 +898,10 @@ export class ExecutorManager {
                 ...txInfo.previousTransactionHashes
             ],
             lastReplaced: Date.now(),
-            submissionAttempts: txInfo.submissionAttempts + 1,
             bundle: {
-                ...txInfo.bundle,
-                userOps: userOpsReplaced
+                ...bundle,
+                userOps: userOpsReplaced,
+                submissionAttempts: bundle.submissionAttempts + 1
             }
         }
 

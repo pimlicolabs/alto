@@ -16,8 +16,8 @@ import "./SenderCreator.sol";
 import "./Eip7702Support.sol";
 import "account-abstraction-v8/utils/Exec.sol";
 
-import "@openzeppelin/contracts-51/utils/ReentrancyGuardTransient.sol";
-import "@openzeppelin/contracts-51/utils/cryptography/EIP712.sol";
+import "@openzeppelin-v5.1.0/contracts/utils/ReentrancyGuardTransient.sol";
+import "@openzeppelin-v5.1.0/contracts/utils/cryptography/EIP712.sol";
 
 /**
  * Account-Abstraction (EIP-4337) singleton EntryPoint v0.8 implementation.

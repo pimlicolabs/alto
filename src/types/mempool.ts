@@ -15,13 +15,13 @@ export type TransactionInfo = {
     executor: Account
     lastReplaced: number
     timesPotentiallyIncluded: number
-    submissionAttempts: number
 }
 
 export type UserOperationBundle = {
     entryPoint: Address
     version: "0.6" | "0.7"
     userOps: UserOpInfo[]
+    submissionAttempts: number
 }
 
 export enum SubmissionStatus {
