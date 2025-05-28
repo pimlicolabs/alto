@@ -8,25 +8,28 @@ import {MessageHashUtils} from "openzeppelin-contracts-v5.0.2/contracts/utils/cr
 import {ECDSA} from "@openzeppelin-v4.8.3/contracts/utils/cryptography/ECDSA.sol";
 
 import {UserOperation as UserOperation06} from "account-abstraction-v6/interfaces/UserOperation.sol";
+import {IEntryPoint as IEntryPoint06} from "account-abstraction-v6/interfaces/IEntryPoint.sol";
 import {EntryPoint as EntryPoint06} from "@test-utils/v06/core/EntryPoint.sol";
 import {SimpleAccountFactory as SimpleAccountFactory06} from "@test-utils/v06/samples/SimpleAccountFactory.sol";
 
 import {PackedUserOperation as PackedUserOperation07} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
+import {IEntryPoint as IEntryPoint07} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {EntryPoint as EntryPoint07} from "@test-utils/v07/core/EntryPoint.sol";
 import {SimpleAccountFactory as SimpleAccountFactory07} from "@test-utils/v07/samples/SimpleAccountFactory.sol";
 
 import {PackedUserOperation as PackedUserOperation08} from "account-abstraction-v8/interfaces/PackedUserOperation.sol";
+import {IEntryPoint as IEntryPoint08} from "account-abstraction-v8/interfaces/IEntryPoint.sol";
 import {EntryPoint as EntryPoint08} from "@test-utils/v08/core/EntryPoint.sol";
 import {SimpleAccountFactory as SimpleAccountFactory08} from "@test-utils/v08/accounts/SimpleAccountFactory.sol";
 
 contract FilterOpsTest is Test {
     PimlicoSimulations07 pimlicoSim;
-    EntryPoint06 entryPoint06;
-    EntryPoint07 entryPoint07;
-    EntryPoint08 entryPoint08;
     SimpleAccountFactory06 accountFactory06;
     SimpleAccountFactory07 accountFactory07;
     SimpleAccountFactory08 accountFactory08;
+    EntryPoint06 entryPoint06;
+    EntryPoint07 entryPoint07;
+    EntryPoint08 entryPoint08;
 
     address payable beneficiary = payable(address(0x1234));
     address owner;
@@ -79,6 +82,10 @@ contract FilterOpsTest is Test {
         assertEq(
             result.rejectedUserOps[0].userOpHash, entryPoint06.getUserOpHash(ops[1]), "Second op should be rejected"
         );
+        assertEq(
+            result.rejectedUserOps[0].revertReason,
+            abi.encodeWithSelector(IEntryPoint06.FailedOp.selector, 1, "AA21 didn't pay prefund")
+        );
     }
 
     // Test filterOps06 with invalid signature
@@ -95,9 +102,25 @@ contract FilterOpsTest is Test {
         PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps06(ops, beneficiary, entryPoint06);
 
         // Operation should be rejected
-        assertEq(result.rejectedUserOps.length, 1, "Operation should be rejected");
-        assertEq(result.gasUsed, 0, "No gas should be used");
-        assertEq(result.balanceChange, 0, "Balance should not change");
+        _assertAllFailedResult(result, 1);
+        assertEq(
+            result.rejectedUserOps[0].revertReason,
+            abi.encodeWithSelector(IEntryPoint06.FailedOp.selector, 0, "AA23 reverted: ECDSA: invalid signature length")
+        );
+    }
+
+    // Test filterOps06 with all failing operations
+    function testFilterOps06_AllFailingOps() public {
+        TestAccount[] memory accounts = new TestAccount[](2);
+        accounts[0] = TestAccount(accountFactory06.getAddress(owner, 0), 0, false);
+        accounts[1] = TestAccount(accountFactory06.getAddress(owner, 1), 1, false);
+
+        _setupAccounts06(accounts);
+        UserOperation06[] memory ops = _createAndSignOps06(accounts);
+
+        PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps06(ops, beneficiary, entryPoint06);
+
+        _assertAllFailedResult(result, 2);
     }
 
     // Test filterOps06 with empty array
@@ -142,6 +165,38 @@ contract FilterOpsTest is Test {
         _assertPartialFailureResult(result, 1);
         assertEq(
             result.rejectedUserOps[0].userOpHash, entryPoint07.getUserOpHash(ops[1]), "Second op should be rejected"
+        );
+        assertEq(
+            result.rejectedUserOps[0].revertReason,
+            abi.encodeWithSelector(IEntryPoint07.FailedOp.selector, 1, "AA21 didn't pay prefund")
+        );
+    }
+
+    // Test filterOps07 with invalid signature
+    function testFilterOps07_InvalidSignature() public {
+        TestAccount[] memory accounts = new TestAccount[](1);
+        accounts[0] = TestAccount(accountFactory07.getAddress(owner, 0), 0, true);
+
+        _setupAccounts07(accounts);
+        PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
+
+        // Replace with invalid signature
+        ops[0].signature = hex"deadbeef";
+
+        PimlicoSimulations07.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
+
+        // Operation should be rejected
+        _assertAllFailedResult(result, 1);
+        assertEq(
+            result.rejectedUserOps[0].revertReason,
+            abi.encodeWithSelector(
+                IEntryPoint07.FailedOpWithRevert.selector,
+                0,
+                "AA23 reverted",
+                abi.encodeWithSelector(
+                    bytes4(keccak256("ECDSAInvalidSignatureLength(uint256)")), uint256(ops[0].signature.length)
+                )
+            )
         );
     }
 
@@ -203,6 +258,35 @@ contract FilterOpsTest is Test {
         _assertPartialFailureResult(result, 1);
         assertEq(
             result.rejectedUserOps[0].userOpHash, entryPoint08.getUserOpHash(ops[1]), "Second op should be rejected"
+        );
+    }
+
+    // Test filterOps08 with invalid signature
+    function testFilterOps08_InvalidSignature() public {
+        TestAccount[] memory accounts = new TestAccount[](1);
+        accounts[0] = TestAccount(accountFactory08.getAddress(owner, 0), 0, true);
+
+        _setupAccounts08(accounts);
+        PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
+
+        // Replace with invalid signature
+        ops[0].signature = hex"deadbeef";
+
+        PimlicoSimulations07.FilterOpsResult memory result =
+            pimlicoSim.filterOps08(castToVersion07(ops), beneficiary, entryPoint08);
+
+        // Operation should be rejected
+        _assertAllFailedResult(result, 1);
+        assertEq(
+            result.rejectedUserOps[0].revertReason,
+            abi.encodeWithSelector(
+                IEntryPoint08.FailedOpWithRevert.selector,
+                0,
+                "AA23 reverted",
+                abi.encodeWithSelector(
+                    bytes4(keccak256("ECDSAInvalidSignatureLength(uint256)")), uint256(ops[0].signature.length)
+                )
+            )
         );
     }
 
@@ -426,4 +510,3 @@ contract FilterOpsTest is Test {
         assertEq(result.balanceChange, 0, "Balance should not change");
     }
 }
-
