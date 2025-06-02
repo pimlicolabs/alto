@@ -653,8 +653,14 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                         ) {
                             // solhint-disable-next-line no-empty-blocks
                         } catch {
-                            bytes memory reason = Exec.getReturnData(REVERT_REASON_MAX_LEN);
-                            revert PostOpReverted(reason);
+                            // NOTE: comment out EntryPoint 0.8 revert flow and replace with EntryPoint 0.7 message
+                            // so that postOp estimation reverts are handled the same between 0.7 and 0.8
+                            //
+                            // bytes memory reason = Exec.getReturnData(REVERT_REASON_MAX_LEN);
+                            // revert PostOpReverted(reason);
+                            revert FailedOpWithRevert(
+                                0, "AA50 postOp reverted", Exec.getReturnData(REVERT_REASON_MAX_LEN)
+                            );
                         }
                         paymasterPostOpGasLimit = remainingGas - gasleft();
                     }
