@@ -26,7 +26,8 @@ import {
     type Hex,
     NonceTooHighError,
     BaseError,
-    FeeCapTooLowError
+    FeeCapTooLowError,
+    InsufficientFundsError
 } from "viem"
 import {
     calculateAA95GasFloor,
@@ -389,7 +390,7 @@ export class Executor {
         if (filterOpsResult.status === "filter_ops_simulation_error") {
             childLogger.error("encountered unexpected failure during filterOps")
             return {
-                status: "filter_ops_simulation_error",
+                status: "filterops_unexpected_error",
                 rejectedUserOps: filterOpsResult.rejectedUserOps
             }
         }
@@ -397,7 +398,7 @@ export class Executor {
         if (filterOpsResult.status === "all_ops_failed_simulation") {
             childLogger.warn("all ops failed simulation")
             return {
-                status: "all_ops_failed_simulation",
+                status: "filterops_all_rejected",
                 rejectedUserOps: filterOpsResult.rejectedUserOps
             }
         }
@@ -486,8 +487,26 @@ export class Executor {
                 return {
                     rejectedUserOps,
                     userOpsToBundle,
-                    status: "bundle_submission_failure",
+                    status: "submission_generic_error",
                     reason: "INTERNAL FAILURE"
+                }
+            }
+
+            // Check if executor has insufficient funds
+            if (e instanceof InsufficientFundsError) {
+                childLogger.warn(
+                    {
+                        executor: executor.address,
+                        err: JSON.stringify(err, (_key, value) =>
+                            typeof value === "bigint" ? value.toString() : value
+                        )
+                    },
+                    "executor has insufficient funds"
+                )
+                return {
+                    rejectedUserOps,
+                    userOpsToBundle,
+                    status: "submission_executor_underpriced"
                 }
             }
 
@@ -503,7 +522,7 @@ export class Executor {
             return {
                 rejectedUserOps,
                 userOpsToBundle,
-                status: "bundle_submission_failure",
+                status: "submission_generic_error",
                 reason: e
             }
         }
@@ -511,7 +530,7 @@ export class Executor {
         const userOpsBundled = userOpsToBundle
 
         const bundleResult: BundleResult = {
-            status: "bundle_success",
+            status: "submission_success",
             userOpsBundled,
             rejectedUserOps,
             transactionHash,
