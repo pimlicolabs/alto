@@ -20,11 +20,11 @@ export type FilterOpsResult =
           totalBeneficiaryFees: bigint
       }
     | {
-          status: "filter_ops_simulation_error"
+          status: "unhandled_simulation_error"
           rejectedUserOps: RejectedUserOp[]
       }
     | {
-          status: "all_ops_failed_simulation"
+          status: "all_ops_rejected"
           rejectedUserOps: RejectedUserOp[]
       }
 
@@ -104,7 +104,7 @@ export async function filterOps({
             reason: "filterOps simulation error"
         }))
         return {
-            status: "filter_ops_simulation_error",
+            status: "unhandled_simulation_error",
             rejectedUserOps
         }
     }
@@ -141,7 +141,7 @@ export async function filterOps({
 
     if (rejectedUserOps.length === userOpsToBundle.length) {
         return {
-            status: "all_ops_failed_simulation",
+            status: "all_ops_rejected",
             rejectedUserOps
         }
     }

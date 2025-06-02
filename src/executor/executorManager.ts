@@ -277,7 +277,7 @@ export class ExecutorManager {
         }
 
         // Resubmit if executor has insufficient funds.
-        if (bundleResult.status === "submission_executor_underpriced") {
+        if (bundleResult.status === "submission_insufficient_funds_error") {
             const { userOpsToBundle, rejectedUserOps } = bundleResult
             await this.dropUserOps(entryPoint, rejectedUserOps)
             await this.resubmitUserOperations(
@@ -873,6 +873,18 @@ export class ExecutorManager {
                 reason: submissionFailureReason,
                 entryPoint
             })
+            return
+        }
+
+        if (bundleResult.status === "submission_insufficient_funds_error") {
+            const { userOpsToBundle, rejectedUserOps } = bundleResult
+            await this.dropUserOps(entryPoint, rejectedUserOps)
+            await this.resubmitUserOperations(
+                userOpsToBundle,
+                entryPoint,
+                "Executor has insufficient funds"
+            )
+            this.metrics.bundlesSubmitted.labels({ status: "resubmit" }).inc()
             return
         }
 

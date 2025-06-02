@@ -75,7 +75,7 @@ export type BundleResult =
       }
     | {
           // Executor has insufficient funds for gas.
-          status: "submission_executor_underpriced"
+          status: "submission_insufficient_funds_error"
           userOpsToBundle: UserOpInfo[]
           rejectedUserOps: RejectedUserOp[]
       }

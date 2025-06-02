@@ -387,7 +387,7 @@ export class Executor {
             logger: childLogger
         })
 
-        if (filterOpsResult.status === "filter_ops_simulation_error") {
+        if (filterOpsResult.status === "unhandled_simulation_error") {
             childLogger.error("encountered unexpected failure during filterOps")
             return {
                 status: "filterops_unexpected_error",
@@ -395,7 +395,7 @@ export class Executor {
             }
         }
 
-        if (filterOpsResult.status === "all_ops_failed_simulation") {
+        if (filterOpsResult.status === "all_ops_rejected") {
             childLogger.warn("all ops failed simulation")
             return {
                 status: "filterops_all_rejected",
@@ -506,7 +506,7 @@ export class Executor {
                 return {
                     rejectedUserOps,
                     userOpsToBundle,
-                    status: "submission_executor_underpriced"
+                    status: "submission_insufficient_funds_error"
                 }
             }
 
