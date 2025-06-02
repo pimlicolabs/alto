@@ -653,8 +653,8 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                         ) {
                             // solhint-disable-next-line no-empty-blocks
                         } catch {
-                            // NOTE: comment out EntryPoint 0.8 revert flow and replace with EntryPoint 0.7 message
-                            // so that postOp estimation reverts are handled the same between 0.7 and 0.8
+                            // NOTE: comment out EntryPoint 0.8 postOpRevert error and replace with FailedOpWithRevert
+                            // so that postOp estimation reverts are handled the same for both 0.7 and 0.8
                             //
                             // bytes memory reason = Exec.getReturnData(REVERT_REASON_MAX_LEN);
                             // revert PostOpReverted(reason);
