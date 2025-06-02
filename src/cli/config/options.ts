@@ -111,9 +111,9 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "boolean",
         default: false
     },
-    "local-gas-calculation": {
+    "estimate-handle-ops-gas": {
         description:
-            "Should bundler use local gas calculations instead eth_estimateGas result when calling handleOps",
+            "Should the bundler make a eth_estimateGas call to estimate the handleOps gasLimit",
         type: "boolean",
         default: false
     }

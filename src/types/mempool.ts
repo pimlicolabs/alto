@@ -57,10 +57,9 @@ export type BundleResult =
           }
       }
     | {
-          // Encountered unhandled error during bundle simulation.
-          status: "unhandled_simulation_failure"
+          // Encountered error during call to filterOps.
+          status: "filter_ops_simulation_error"
           rejectedUserOps: RejectedUserOp[]
-          reason: string
       }
     | {
           // All user operations failed during simulation.

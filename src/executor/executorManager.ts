@@ -266,8 +266,11 @@ export class ExecutorManager {
         }
 
         // Unhandled error during simulation, drop all ops.
-        if (bundleResult.status === "unhandled_simulation_failure") {
-            const { rejectedUserOps } = bundleResult
+        if (bundleResult.status === "filter_ops_simulation_error") {
+            const rejectedUserOps = userOps.map((userOp) => ({
+                ...userOp,
+                reason: "filterOps simulation error"
+            }))
             await this.dropUserOps(entryPoint, rejectedUserOps)
             this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
             return undefined
@@ -841,12 +844,12 @@ export class ExecutorManager {
             return
         }
 
-        if (bundleResult.status === "unhandled_simulation_failure") {
-            const { rejectedUserOps, reason } = bundleResult
+        if (bundleResult.status === "filter_ops_simulation_error") {
+            const { rejectedUserOps } = bundleResult
             await this.failedToReplaceTransaction({
                 entryPoint,
                 oldTxHash,
-                reason,
+                reason: "filterOps simulation error",
                 rejectedUserOps
             })
             return

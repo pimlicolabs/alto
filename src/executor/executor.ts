@@ -11,7 +11,6 @@ import type {
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import {
-    getRequiredPrefund,
     roundUpBigInt,
     maxBigInt,
     parseViemError,
@@ -112,17 +111,18 @@ export class Executor {
         throw new Error("Method not implemented.")
     }
 
-    async getBundleGasPrice(
-        bundle: UserOperationBundle,
-        networkGasPrice: GasPriceParameters,
-        gasLimit: bigint
-    ): Promise<GasPriceParameters> {
-        const totalBeneficiaryFees = bundle.userOps.reduce(
-            (acc, { userOp }) => acc + getRequiredPrefund(userOp),
-            0n
-        )
-
-        const breakEvenGasPrice = totalBeneficiaryFees / gasLimit
+    async getBundleGasPrice({
+        bundle,
+        networkGasPrice,
+        totalBeneficiaryFees,
+        bundleGasUsed
+    }: {
+        bundle: UserOperationBundle
+        networkGasPrice: GasPriceParameters
+        totalBeneficiaryFees: bigint
+        bundleGasUsed: bigint
+    }): Promise<GasPriceParameters> {
+        const breakEvenGasPrice = totalBeneficiaryFees / bundleGasUsed
         const bundlingGasPrice = scaleBigIntByPercent(breakEvenGasPrice, 90n)
 
         // compare breakEvenGasPrice to network gasPrice
@@ -131,17 +131,17 @@ export class Executor {
             networkGasPrice.maxPriorityFeePerGas
         ]
 
+        // for resubmissions, we want to increase the network gasPrice
         if (bundle.submissionAttempts > 0) {
             const multiplier = 100n + BigInt(bundle.submissionAttempts) * 20n
-            const multiplierCeiling = this.config.resubmitMultiplierCeiling
 
             networkMaxFeePerGas = scaleBigIntByPercent(
                 networkMaxFeePerGas,
-                minBigInt(multiplier, multiplierCeiling)
+                minBigInt(multiplier, this.config.resubmitMultiplierCeiling)
             )
             networkMaxPriorityFeePerGas = scaleBigIntByPercent(
                 networkMaxPriorityFeePerGas,
-                minBigInt(multiplier, multiplierCeiling)
+                minBigInt(multiplier, this.config.resubmitMultiplierCeiling)
             )
         }
 
@@ -160,6 +160,49 @@ export class Executor {
                 networkMaxPriorityFeePerGas
             )
         }
+    }
+
+    async getBundleGasLimit({
+        userOpBundle,
+        entryPoint,
+        executorAddress
+    }: {
+        userOpBundle: UserOpInfo[]
+        entryPoint: Address
+        executorAddress: Address
+    }): Promise<bigint> {
+        const { estimateHandleOpsGas, publicClient, gasLimitRoundingMultiple } =
+            this.config
+
+        // On some chains we can't rely on local calculations and have to estimate the gasLimit from RPC
+        if (estimateHandleOpsGas) {
+            return await publicClient.estimateGas({
+                to: entryPoint,
+                account: executorAddress,
+                data: encodeHandleOpsCalldata({
+                    userOps: userOpBundle.map(({ userOp }) => userOp),
+                    beneficiary: executorAddress
+                })
+            })
+        }
+
+        const aa95GasFloor = calculateAA95GasFloor({
+            userOps: userOpBundle.map(({ userOp }) => userOp),
+            beneficiary: executorAddress
+        })
+
+        const eip7702UserOpCount = userOpBundle.filter(
+            ({ userOp }) => userOp.eip7702Auth
+        ).length
+        const eip7702Overhead = BigInt(eip7702UserOpCount) * 40000n
+
+        const gasLimit = aa95GasFloor + eip7702Overhead
+
+        // Round up gasLimit to nearest multiple
+        return roundUpBigInt({
+            value: gasLimit,
+            multiple: gasLimitRoundingMultiple
+        })
     }
 
     async sendHandleOpsTransaction({
@@ -204,12 +247,6 @@ export class Executor {
         // Try sending the transaction and updating relevant fields if there is an error.
         while (attempts < maxAttempts) {
             try {
-                // Round up gasLimit to nearest multiple
-                request.gas = roundUpBigInt({
-                    value: request.gas,
-                    multiple: this.config.gasLimitRoundingMultiple
-                })
-
                 transactionHash = await walletClient.sendTransaction(request)
 
                 break
@@ -305,15 +342,6 @@ export class Executor {
                         this.logger.warn("Intrinsic gas too low, retrying")
                         request.gas = scaleBigIntByPercent(request.gas, 150n)
                     }
-
-                    // This is thrown by OP-Stack chains that use proxyd.
-                    // ref: https://github.com/ethereum-optimism/optimism/issues/2618#issuecomment-1630272888
-                    if (cause.details?.includes("no backends available")) {
-                        this.logger.warn(
-                            "no backends avaiable error, retrying after 500ms"
-                        )
-                        await new Promise((resolve) => setTimeout(resolve, 500))
-                    }
                 }
 
                 attempts++
@@ -352,32 +380,34 @@ export class Executor {
             entryPoint
         })
 
-        let estimateResult = await filterOps({
+        let filterOpsResult = await filterOps({
             userOpBundle,
             config: this.config,
             logger: childLogger
         })
 
-        if (estimateResult.status === "unhandled_failure") {
-            childLogger.error(
-                "gas limit simulation encountered unexpected failure"
-            )
+        if (filterOpsResult.status === "filter_ops_simulation_error") {
+            childLogger.error("encountered unexpected failure during filterOps")
             return {
-                status: "unhandled_simulation_failure",
-                rejectedUserOps: estimateResult.rejectedUserOps,
-                reason: "INTERNAL FAILURE"
+                status: "filter_ops_simulation_error",
+                rejectedUserOps: filterOpsResult.rejectedUserOps
             }
         }
 
-        if (estimateResult.status === "all_ops_failed_simulation") {
+        if (filterOpsResult.status === "all_ops_failed_simulation") {
             childLogger.warn("all ops failed simulation")
             return {
                 status: "all_ops_failed_simulation",
-                rejectedUserOps: estimateResult.rejectedUserOps
+                rejectedUserOps: filterOpsResult.rejectedUserOps
             }
         }
 
-        let { gasLimit, userOpsToBundle, rejectedUserOps } = estimateResult
+        let {
+            userOpsToBundle,
+            rejectedUserOps,
+            bundleGasUsed,
+            totalBeneficiaryFees
+        } = filterOpsResult
 
         // Update child logger with userOperations being sent for bundling.
         childLogger = this.logger.child({
@@ -386,30 +416,20 @@ export class Executor {
             entryPoint
         })
 
-        // Ensure that we don't submit with gas too low leading to AA95.
-        const aa95GasFloor = calculateAA95GasFloor({
-            userOps: userOpsToBundle.map(({ userOp }) => userOp),
-            beneficiary: executor.address
+        // Get params for handleOps call.
+        const gasLimit = await this.getBundleGasLimit({
+            userOpBundle: userOpsToBundle,
+            entryPoint,
+            executorAddress: executor.address
         })
-        gasLimit = maxBigInt(gasLimit, aa95GasFloor)
 
-        if (this.config.localGasCalculation) {
-            const eip7702Overhead =
-                userOpBundle.userOps.filter(({ userOp }) => userOp.eip7702Auth)
-                    .length * 40000
-            gasLimit = aa95GasFloor + BigInt(eip7702Overhead)
-        }
-
-        // sometimes the estimation rounds down, adding a fixed constant accounts for this
-        gasLimit += 10_000n
-
-        // Get gasPrice
         const { maxFeePerGas, maxPriorityFeePerGas } =
-            await this.getBundleGasPrice(
-                userOpBundle,
+            await this.getBundleGasPrice({
+                bundle: userOpBundle,
                 networkGasPrice,
-                gasLimit
-            )
+                totalBeneficiaryFees,
+                bundleGasUsed
+            })
 
         let transactionHash: HexData32
         try {
@@ -454,7 +474,7 @@ export class Executor {
             })
         } catch (err: unknown) {
             const e = parseViemError(err)
-            const { rejectedUserOps, userOpsToBundle } = estimateResult
+            const { rejectedUserOps, userOpsToBundle } = filterOpsResult
 
             // if unknown error, return INTERNAL FAILURE
             if (!e) {

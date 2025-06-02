@@ -80,7 +80,7 @@ export const bundlerArgsSchema = z.object({
             )}`
         ),
     "enable-instant-bundling-endpoint": z.boolean(),
-    "local-gas-calculation": z.boolean()
+    "estimate-handle-ops-gas": z.boolean()
 })
 
 export const executorArgsSchema = z.object({

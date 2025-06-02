@@ -11,16 +11,21 @@ import { Logger, toPackedUserOperation } from "@alto/utils"
 import { PimlicoEntryPointSimulationsAbi } from "../types/contracts/PimlicoEntryPointSimulations"
 import * as sentry from "@sentry/node"
 
-export type FilterOpsAndEstimateGasResult =
+export type FilterOpsResult =
     | {
           status: "success"
           userOpsToBundle: UserOpInfo[]
           rejectedUserOps: RejectedUserOp[]
-          gasUsed: bigint
-          balanceChange: bigint
+          bundleGasUsed: bigint
+          totalBeneficiaryFees: bigint
       }
     | {
-          status: "unhandled_failure"
+          status: "filter_ops_simulation_error"
+          rejectedUserOps: RejectedUserOp[]
+      }
+    | {
+          status: "all_ops_failed_simulation"
+          rejectedUserOps: RejectedUserOp[]
       }
 
 // Attempt to create a handleOps bundle + estimate bundling tx gas.
@@ -32,7 +37,7 @@ export async function filterOps({
     userOpBundle: UserOperationBundle
     config: AltoConfig
     logger: Logger
-}): Promise<FilterOpsAndEstimateGasResult> {
+}): Promise<FilterOpsResult> {
     const { userOps, version, entryPoint } = userOpBundle
     let { publicClient, entrypointSimulationContractV7, utilityWalletAddress } =
         config
@@ -92,10 +97,15 @@ export async function filterOps({
             }
         }
     } catch (err) {
-        logger.error("Encount")
+        logger.error({ err }, "Encountered unhandled error during filterOps")
         sentry.captureException(err)
+        const rejectedUserOps = userOps.map((userOp) => ({
+            ...userOp,
+            reason: "filterOps simulation error"
+        }))
         return {
-            status: "unhandled_failure"
+            status: "filter_ops_simulation_error",
+            rejectedUserOps
         }
     }
 
@@ -129,11 +139,18 @@ export async function filterOps({
         }
     )
 
+    if (rejectedUserOps.length === userOpsToBundle.length) {
+        return {
+            status: "all_ops_failed_simulation",
+            rejectedUserOps
+        }
+    }
+
     return {
         status: "success",
         userOpsToBundle,
         rejectedUserOps,
-        gasUsed: filterOpsResult.gasUsed,
-        balanceChange: filterOpsResult.balanceChange
+        bundleGasUsed: filterOpsResult.gasUsed,
+        totalBeneficiaryFees: filterOpsResult.balanceChange
     }
 }
