@@ -46,7 +46,6 @@ type HandleOpsTxParams = {
     account: Account
     nonce: number
     userOps: UserOpInfo[]
-    isUserOpV06: boolean
     entryPoint: Address
 }
 
@@ -344,8 +343,7 @@ export class Executor {
         networkGasPrice: GasPriceParameters
         nonce: number
     }): Promise<BundleResult> {
-        const { entryPoint, userOps, version } = userOpBundle
-        const isUserOpV06 = version === "0.6"
+        const { entryPoint, userOps } = userOpBundle
 
         const isReplacementTx = userOpBundle.submissionAttempts > 0
         let childLogger = this.logger.child({
@@ -445,7 +443,6 @@ export class Executor {
                     nonce,
                     gas: gasLimit,
                     userOps: userOpsToBundle,
-                    isUserOpV06,
                     entryPoint
                 },
                 gasOpts

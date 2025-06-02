@@ -34,7 +34,7 @@ export async function filterOps({
         throw new Error("entrypointSimulationContractV7 not set")
     }
 
-    const { userOps } = userOpBundle
+    const { userOps, version } = userOpBundle
     let { publicClient } = config
 
     const simulationContract = getContract({
@@ -42,6 +42,8 @@ export async function filterOps({
         abi: PimlicoEntryPointSimulationsAbi,
         client: publicClient
     })
+
+    switch ()
 
     const beneficiary = config.utilityWalletAddress
     const simulationResult = await simulationContract.simulate.filterOps([

@@ -1,5 +1,6 @@
 import type { HexData32, UserOpInfo } from "@alto/types"
 import type { Address, BaseError, Prettify } from "viem"
+import { EntryPointVersion } from "viem/account-abstraction"
 import type { Account } from "viem/accounts"
 
 export type TransactionInfo = {
@@ -19,7 +20,7 @@ export type TransactionInfo = {
 
 export type UserOperationBundle = {
     entryPoint: Address
-    version: "0.6" | "0.7"
+    version: EntryPointVersion
     userOps: UserOpInfo[]
     submissionAttempts: number
 }
