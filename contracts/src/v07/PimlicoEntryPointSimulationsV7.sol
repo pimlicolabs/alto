@@ -9,10 +9,10 @@ import {IEntryPoint as IEntryPoint08} from "account-abstraction-v8/interfaces/IE
 import {LibBytes} from "solady/utils/LibBytes.sol";
 import {console2} from "forge-std/console2.sol";
 
-/// @title PimlicoSimulations07
+/// @title PimlicoEntryPointSimulationsV7
 /// @author Pimlico (https://github.com/pimlicolabs/alto)
 /// @notice An ERC-4337 EntryPoint 0.7 simulation contract
-contract PimlicoSimulations07 {
+contract PimlicoEntryPointSimulationsV7 {
     using LibBytes for bytes;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -30,7 +30,7 @@ contract PimlicoSimulations07 {
         RejectedUserOp[] rejectedUserOps;
     }
 
-    event PimlicoSimulations07Deployed();
+    event PimlicoSimulationV7Deployed();
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                        Variables                           */
@@ -45,7 +45,7 @@ contract PimlicoSimulations07 {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     constructor() {
-        emit PimlicoSimulations07Deployed();
+        emit PimlicoSimulationV7Deployed();
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -145,7 +145,7 @@ contract PimlicoSimulations07 {
         });
     }
 
-    // @notice Filter ops method for legacy EntryPoint (0.6)
+    // @notice Filter ops method for EntryPoint 0.6
     // @dev This method should be called by bundler before sending bundle to EntryPoint.
     function filterOps06(UserOperation[] calldata userOps, address payable beneficiary, IEntryPoint06 entryPoint)
         external
