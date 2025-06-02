@@ -1,6 +1,6 @@
 import type { HexData32, UserOpInfo } from "@alto/types"
 import type { Address, BaseError, Prettify } from "viem"
-import { EntryPointVersion } from "viem/account-abstraction"
+import { EntryPointVersion } from "viem/_types/account-abstraction/types/entryPointVersion"
 import type { Account } from "viem/accounts"
 
 export type TransactionInfo = {
