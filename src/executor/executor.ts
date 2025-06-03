@@ -126,12 +126,17 @@ export class Executor {
     }): Promise<GasPriceParameters> {
         const breakEvenGasPrice = totalBeneficiaryFees / bundleGasUsed
 
-        // Start at configured profit margin and reduce it with each resubmission (up to 99%)
+        // Start at configured profit margin and approach 100% by reducing gap by 50% each resubmission
         const initialProfitMargin = this.config.bundlingProfitMargin
-        const margin = minBigInt(
-            initialProfitMargin + BigInt(bundle.submissionAttempts),
-            99n
-        )
+
+        // Calculate margin: start at initialProfitMargin%, then
+        // reduce the gap to 100% by 50% each resubmission
+        let gapFrom100 = 100n - initialProfitMargin
+        for (let i = 0; i < bundle.submissionAttempts; i++) {
+            gapFrom100 = gapFrom100 / 2n
+        }
+        const margin = 100n - gapFrom100
+
         const bundlingGasPrice = scaleBigIntByPercent(breakEvenGasPrice, margin)
 
         // compare breakEvenGasPrice to network gasPrice
