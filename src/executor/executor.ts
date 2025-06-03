@@ -198,7 +198,11 @@ export class Executor {
         ).length
         const eip7702Overhead = BigInt(eip7702UserOpCount) * 40000n
 
-        const gasLimit = aa95GasFloor + eip7702Overhead
+        // Add 5% safety margin to local estimates.
+        const gasLimit = scaleBigIntByPercent(
+            aa95GasFloor + eip7702Overhead,
+            105n
+        )
 
         // Round up gasLimit to nearest multiple
         return roundUpBigInt({
@@ -262,14 +266,14 @@ export class Executor {
                             blockTag: "latest"
                         })
 
-                        if (
-                            request.maxFeePerGas &&
-                            request.maxPriorityFeePerGas
-                        ) {
+                        if (request.maxFeePerGas) {
                             request.maxFeePerGas = scaleBigIntByPercent(
                                 request.maxFeePerGas,
                                 transactionUnderpricedMultiplier
                             )
+                        }
+
+                        if (request.maxPriorityFeePerGas) {
                             request.maxPriorityFeePerGas = scaleBigIntByPercent(
                                 request.maxPriorityFeePerGas,
                                 transactionUnderpricedMultiplier
@@ -288,30 +292,21 @@ export class Executor {
                 if (e instanceof FeeCapTooLowError) {
                     this.logger.warn("max fee < basefee, retrying")
 
-                    if (
-                        "gasPrice" in request &&
-                        typeof request.gasPrice === "bigint"
-                    ) {
+                    if (request.gasPrice) {
                         request.gasPrice = scaleBigIntByPercent(
                             request.gasPrice,
                             125n
                         )
                     }
 
-                    if (
-                        "maxFeePerGas" in request &&
-                        typeof request.maxFeePerGas === "bigint"
-                    ) {
+                    if (request.maxFeePerGas) {
                         request.maxFeePerGas = scaleBigIntByPercent(
                             request.maxFeePerGas,
                             125n
                         )
                     }
 
-                    if (
-                        "maxPriorityFeePerGas" in request &&
-                        typeof request.maxPriorityFeePerGas === "bigint"
-                    ) {
+                    if (request.maxPriorityFeePerGas) {
                         request.maxPriorityFeePerGas = scaleBigIntByPercent(
                             request.maxPriorityFeePerGas,
                             125n
