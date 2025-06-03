@@ -21,10 +21,12 @@ const validatePvg = async (
     apiVersion: ApiVersion,
     rpcHandler: RpcHandler,
     userOperation: UserOperation,
-    entryPoint: Address
+    entryPoint: Address,
+    boost = false
 ): Promise<[boolean, string]> => {
+
     // PVG validation is skipped for v1
-    if (apiVersion == "v1") {
+    if (apiVersion == "v1" || boost) {
         return [true, ""]
     }
 
@@ -103,7 +105,7 @@ export async function addToMempoolIfValid(
         }),
         getUserOpValidationResult(rpcHandler, userOperation, entryPoint),
         rpcHandler.getNonceSeq(userOperation, entryPoint),
-        boost ? [true, ""] : validatePvg(apiVersion, rpcHandler, userOperation, entryPoint),
+        validatePvg(apiVersion, rpcHandler, userOperation, entryPoint, boost),
         rpcHandler.preMempoolChecks(userOperation, apiVersion, boost),
         rpcHandler.validateEip7702Auth({
             userOperation,
@@ -237,7 +239,7 @@ export const ethSendUserOperationHandler = createMethodHandler({
             rpcHandler.metrics.userOperationsReceived
                 .labels({
                     status,
-                    type: "regular"
+                    type: "boost"
                 })
                 .inc()
         }
