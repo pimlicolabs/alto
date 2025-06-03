@@ -35,7 +35,6 @@ import {
 } from "./utils"
 import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
-import { sendPflConditional } from "./fastlane"
 import type { SignedAuthorizationList } from "viem"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEStimateGas"
 
@@ -44,7 +43,6 @@ type HandleOpsTxParams = {
     account: Account
     nonce: number
     userOps: UserOpInfo[]
-    isUserOpV06: boolean
     isReplacementTx: boolean
     entryPoint: Address
 }
@@ -119,14 +117,12 @@ export class Executor {
         txParam: HandleOpsTxParams
         gasOpts: HandleOpsGasParams
     }) {
-        const { entryPoint, userOps, account, gas, nonce, isUserOpV06 } =
-            txParam
+        const { entryPoint, userOps, account, gas, nonce } = txParam
 
         const {
             executorGasMultiplier,
             sendHandleOpsRetryCount,
             transactionUnderpricedMultiplier,
-            enableFastlane,
             walletClient,
             publicClient
         } = this.config
@@ -156,25 +152,6 @@ export class Executor {
         // Try sending the transaction and updating relevant fields if there is an error.
         while (attempts < maxAttempts) {
             try {
-                if (
-                    enableFastlane &&
-                    isUserOpV06 &&
-                    !txParam.isReplacementTx &&
-                    attempts === 0
-                ) {
-                    const serializedTransaction =
-                        await walletClient.signTransaction(request)
-
-                    transactionHash = await sendPflConditional({
-                        serializedTransaction,
-                        publicClient,
-                        walletClient,
-                        logger: this.logger
-                    })
-
-                    break
-                }
-
                 // Round up gasLimit to nearest multiple
                 request.gas = roundUpBigInt({
                     value: request.gas,
@@ -282,9 +259,8 @@ export class Executor {
         gasPriceParams: GasPriceParameters
         isReplacementTx: boolean
     }): Promise<BundleResult> {
-        const { entryPoint, userOps, version } = userOpBundle
+        const { entryPoint, userOps } = userOpBundle
         const { maxFeePerGas, maxPriorityFeePerGas } = gasPriceParams
-        const isUserOpV06 = version === "0.6"
 
         let childLogger = this.logger.child({
             isReplacementTx,
@@ -383,7 +359,6 @@ export class Executor {
                     gas: gasLimit,
                     userOps: userOpsToBundle,
                     isReplacementTx,
-                    isUserOpV06,
                     entryPoint
                 },
                 gasOpts
