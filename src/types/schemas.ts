@@ -1,5 +1,5 @@
 import { type Hash, type Hex, getAddress, maxUint256, pad } from "viem"
-import { z, ZodTypeAny } from "zod"
+import { z } from "zod"
 
 const hexDataPattern = /^0x[0-9A-Fa-f]*$/
 const addressPattern = /^0x[0-9,a-f,A-F]{40}$/
@@ -111,7 +111,7 @@ const signedAuthorizationSchema = z.union([
     })
 ])
 
-const userOperationV06Schema = <T extends ZodTypeAny>(gasFees: T) => z
+const userOperationV06Schema =  z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
@@ -120,8 +120,8 @@ const userOperationV06Schema = <T extends ZodTypeAny>(gasFees: T) => z
         callGasLimit: hexNumberSchema,
         verificationGasLimit: hexNumberSchema,
         preVerificationGas: hexNumberSchema,
-        maxPriorityFeePerGas: gasFees,
-        maxFeePerGas: gasFees,
+        maxPriorityFeePerGas: hexNumberSchema,
+        maxFeePerGas: hexNumberSchema,
         paymasterAndData: hexDataSchema,
         signature: hexDataSchema,
         eip7702Auth: signedAuthorizationSchema.optional().nullable()
@@ -131,7 +131,7 @@ const userOperationV06Schema = <T extends ZodTypeAny>(gasFees: T) => z
         return val
     })
 
-const userOperationV07Schema =  <T extends ZodTypeAny>(gasFees: T) => z
+const userOperationV07Schema =   z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
@@ -147,8 +147,8 @@ const userOperationV07Schema =  <T extends ZodTypeAny>(gasFees: T) => z
         callGasLimit: hexNumberSchema,
         verificationGasLimit: hexNumberSchema,
         preVerificationGas: hexNumberSchema,
-        maxFeePerGas: gasFees,
-        maxPriorityFeePerGas: gasFees,
+        maxFeePerGas: hexNumberSchema,
+        maxPriorityFeePerGas: hexNumberSchema,
         paymaster: addressSchema
             .nullable()
             .optional()
@@ -171,7 +171,7 @@ const userOperationV07Schema =  <T extends ZodTypeAny>(gasFees: T) => z
     .strict()
     .transform((val) => val)
 
-const userOperationV08Schema =  <T extends ZodTypeAny>(gasFees: T) => z
+const userOperationV08Schema =   z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
@@ -188,8 +188,8 @@ const userOperationV08Schema =  <T extends ZodTypeAny>(gasFees: T) => z
         callGasLimit: hexNumberSchema,
         verificationGasLimit: hexNumberSchema,
         preVerificationGas: hexNumberSchema,
-        maxFeePerGas: gasFees,
-        maxPriorityFeePerGas: gasFees,
+        maxFeePerGas: hexNumberSchema,
+        maxPriorityFeePerGas: hexNumberSchema,
         paymaster: addressSchema
             .nullable()
             .optional()
@@ -335,32 +335,25 @@ const partialUserOperationSchema = z.union([
 ])
 
 export const userOperationSchema = z.union([
-    userOperationV06Schema(hexNumberSchema),
-    userOperationV07Schema(hexNumberSchema),
-    userOperationV08Schema(hexNumberSchema)
+    userOperationV06Schema,
+    userOperationV07Schema,
+    userOperationV08Schema
 ])
 
-const boostGasFeesSchema = hexNumberSchema.optional().nullable().refine(
-    (val) => val === undefined || val === null || val === 0n,
-    { message: "maxFeePerGas and maxPriorityFeePerGas must be 0" }
-).transform((val) => val ?? 0n)
-
 export const boostUserOperationSchema = z.union([
-    userOperationV06Schema(
-        boostGasFeesSchema
-    ),
-    userOperationV07Schema(boostGasFeesSchema),
-    userOperationV08Schema(boostGasFeesSchema)
+    userOperationV06Schema.refine((val) => val.maxFeePerGas === 0n && val.maxPriorityFeePerGas === 0n),
+    userOperationV07Schema.refine((val) => val.maxFeePerGas === 0n && val.maxPriorityFeePerGas === 0n),
+    userOperationV08Schema.refine((val) => val.maxFeePerGas === 0n && val.maxPriorityFeePerGas === 0n)
 ])
 
 export type UserOperationV06 = z.infer<
-    ReturnType<typeof userOperationV06Schema<typeof hexNumberSchema>>
+    typeof userOperationV06Schema
 >
 export type UserOperationV07 = z.infer<
-    ReturnType<typeof userOperationV07Schema<typeof hexNumberSchema>>
+    typeof userOperationV07Schema
 >
 export type UserOperationV08 = z.infer<
-    ReturnType<typeof userOperationV08Schema<typeof hexNumberSchema>>
+    typeof userOperationV08Schema
 >
 export type PackedUserOperation = z.infer<typeof packerUserOperationSchema>
 export type UserOperation = z.infer<typeof userOperationSchema>
