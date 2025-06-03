@@ -267,16 +267,6 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             )
         }
 
-        // Validate userOp.maxFeePerGas
-        if (
-            userOperation.maxFeePerGas === 0n &&
-            !rpcHandler.config.isGasFreeChain
-        ) {
-            throw new RpcError(
-                "user operation max fee per gas must be larger than 0 during gas estimation"
-            )
-        }
-
         // Validate gas estimation result
         if (gasEstimateResult.status === "failed") {
             throw new RpcError(gasEstimateResult.error, gasEstimateResult.code)

@@ -15,7 +15,7 @@
         "build": "pnpm run -r build",
         "build:contracts": "cd contracts/ && forge build --evm-version london --out ../src/contracts/ src/v06/EntryPointCodeOverride.sol && forge build --evm-version london --out ../src/contracts/ src/v07/PimlicoEntryPointSimulationsV7.sol && forge build --evm-version cancun --out ../src/contracts/ src/v08/PimlicoEntryPointSimulationsV8.sol",
         "start": "node src/esm/cli/alto.js run",
-        "dev": "pnpm run build:contracts && nodemon --ext ts,js,json --watch src --exec DOTENV_CONFIG_PATH=$(pwd)/.env ts-node --project src/tsconfig.json -r tsconfig-paths/register src/cli/alto.ts run",
+        "dev": "pnpm run build:contracts && bun --watch src/cli/alto.ts run",
         "test": "pnpm --filter e2e run test",
         "test:ci": "pnpm run build:contracts && pnpm --filter e2e run test:ci",
         "test:spec": "./test/spec-tests/run-spec-tests.sh",

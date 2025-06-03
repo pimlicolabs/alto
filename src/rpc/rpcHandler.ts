@@ -132,7 +132,8 @@ export class RpcHandler {
 
     async preMempoolChecks(
         userOperation: UserOperation,
-        apiVersion: ApiVersion
+        apiVersion: ApiVersion,
+        boost: boolean = false
     ): Promise<[boolean, string]> {
         if (
             this.config.legacyTransactions &&
@@ -144,7 +145,7 @@ export class RpcHandler {
             ]
         }
 
-        if (apiVersion !== "v1" && !this.config.safeMode) {
+        if (apiVersion !== "v1" && !this.config.safeMode && !boost) {
             const { lowestMaxFeePerGas, lowestMaxPriorityFeePerGas } =
                 await this.gasPriceManager.getLowestValidGasPrices()
 

@@ -81,7 +81,8 @@ export async function addToMempoolIfValid(
     rpcHandler: RpcHandler,
     userOperation: UserOperation,
     entryPoint: Address,
-    apiVersion: ApiVersion
+    apiVersion: ApiVersion,
+    boost: boolean = false
 ): Promise<{ userOpHash: Hex; result: "added" | "queued" }> {
     rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
@@ -102,8 +103,8 @@ export async function addToMempoolIfValid(
         }),
         getUserOpValidationResult(rpcHandler, userOperation, entryPoint),
         rpcHandler.getNonceSeq(userOperation, entryPoint),
-        validatePvg(apiVersion, rpcHandler, userOperation, entryPoint),
-        rpcHandler.preMempoolChecks(userOperation, apiVersion),
+        boost ? [true, ""] : validatePvg(apiVersion, rpcHandler, userOperation, entryPoint),
+        rpcHandler.preMempoolChecks(userOperation, apiVersion, boost),
         rpcHandler.validateEip7702Auth({
             userOperation,
             validateSender: true
