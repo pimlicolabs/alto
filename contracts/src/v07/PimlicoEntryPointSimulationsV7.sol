@@ -7,7 +7,6 @@ import {IEntryPoint as IEntryPoint06} from "account-abstraction-v6/interfaces/IE
 import {IEntryPoint as IEntryPoint07} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {IEntryPoint as IEntryPoint08} from "account-abstraction-v8/interfaces/IEntryPoint.sol";
 import {LibBytes} from "solady/utils/LibBytes.sol";
-import {console2} from "forge-std/console2.sol";
 
 /// @title PimlicoEntryPointSimulationsV7
 /// @author Pimlico (https://github.com/pimlicolabs/alto)
