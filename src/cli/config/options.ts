@@ -320,6 +320,12 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
     }
 
 export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
+    "enable-fastlane": {
+        description:
+            "Enable bundling v0.6 userOperations using the pfl_sendRawTransactionConditional endpoint",
+        type: "boolean",
+        default: false
+    },
     "resubmit-stuck-timeout": {
         description:
             "Amount of time before retrying a failed userOperation (in ms)",

@@ -39,6 +39,7 @@ import {
 } from "./utils"
 import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
+import { sendPflConditional } from "./fastlane"
 import type { SignedAuthorizationList } from "viem"
 import { filterOps } from "./filterOps"
 
@@ -48,6 +49,8 @@ type HandleOpsTxParams = {
     nonce: number
     userOps: UserOpInfo[]
     entryPoint: Address
+    isUserOpV06: boolean
+    isReplacementTx?: boolean
 }
 
 type HandleOpsGasParams =
@@ -229,11 +232,12 @@ export class Executor {
             executorGasMultiplier,
             sendHandleOpsRetryCount,
             transactionUnderpricedMultiplier,
+            enableFastlane,
             walletClient,
             publicClient
         } = this.config
 
-        const { entryPoint, userOps, account, gas, nonce } = txParam
+        const { entryPoint, userOps, account, gas, nonce, isUserOpV06 } = txParam
 
         const handleOpsCalldata = encodeHandleOpsCalldata({
             userOps: userOps.map(({ userOp }) => userOp),
@@ -260,6 +264,25 @@ export class Executor {
         // Try sending the transaction and updating relevant fields if there is an error.
         while (attempts < maxAttempts) {
             try {
+                if (
+                    enableFastlane &&
+                    isUserOpV06 &&
+                    !txParam.isReplacementTx &&
+                    attempts === 0
+                ) {
+                    const serializedTransaction =
+                        await walletClient.signTransaction(request)
+
+                    transactionHash = await sendPflConditional({
+                        serializedTransaction,
+                        publicClient,
+                        walletClient,
+                        logger: this.logger
+                    })
+
+                    break
+                }
+
                 // Round up gasLimit to nearest multiple
                 request.gas = roundUpBigInt({
                     value: request.gas,
@@ -473,7 +496,9 @@ export class Executor {
                     nonce,
                     gas: gasLimit,
                     userOps: userOpsToBundle,
-                    entryPoint
+                    entryPoint,
+                    isUserOpV06: userOpBundle.version === "v0.6",
+                    isReplacementTx
                 },
                 gasOpts
             })
