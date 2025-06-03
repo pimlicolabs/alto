@@ -18,7 +18,8 @@ import type { BundlingStatus, Logger, Metrics } from "@alto/utils"
 import {
     getAAError,
     getBundleStatus,
-    parseUserOperationReceipt
+    parseUserOperationReceipt,
+    jsonStringifyWithBigint
 } from "@alto/utils"
 import {
     type Address,
@@ -1095,9 +1096,7 @@ export class ExecutorManager {
                 })
                 this.logger.warn(
                     {
-                        userOperation: JSON.stringify(userOp, (_k, v) =>
-                            typeof v === "bigint" ? v.toString() : v
-                        ),
+                        userOperation: jsonStringifyWithBigint(userOp),
                         userOpHash,
                         reason
                     },

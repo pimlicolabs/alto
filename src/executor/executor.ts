@@ -15,7 +15,8 @@ import {
     maxBigInt,
     parseViemError,
     scaleBigIntByPercent,
-    minBigInt
+    minBigInt,
+    jsonStringifyWithBigint
 } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
@@ -497,9 +498,7 @@ export class Executor {
                 childLogger.warn(
                     {
                         executor: executor.address,
-                        err: JSON.stringify(err, (_key, value) =>
-                            typeof value === "bigint" ? value.toString() : value
-                        )
+                        err: jsonStringifyWithBigint(err)
                     },
                     "executor has insufficient funds"
                 )
@@ -512,9 +511,7 @@ export class Executor {
 
             childLogger.error(
                 {
-                    err: JSON.stringify(err, (_key, value) =>
-                        typeof value === "bigint" ? value.toString() : value
-                    )
+                    err: jsonStringifyWithBigint(err)
                 },
                 "error submitting bundle transaction"
             )

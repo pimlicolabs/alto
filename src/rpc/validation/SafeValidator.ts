@@ -28,7 +28,7 @@ import {
 import type { Metrics } from "@alto/utils"
 import {
     getAuthorizationStateOverrides, getAddressFromInitCodeOrPaymasterAndData, toPackedUserOperation,
-    isVersion08
+    isVersion08, jsonStringifyWithBigint
 } from "@alto/utils"
 import {
     type ExecutionRevertedError,
@@ -487,9 +487,7 @@ export class SafeValidator
         )
 
         this.logger.info(
-            `tracerResult: ${JSON.stringify(tracerResult, (_k, v) =>
-                typeof v === "bigint" ? v.toString() : v
-            )}`
+            `tracerResult: ${jsonStringifyWithBigint(tracerResult)}`
         )
 
         const lastResult = tracerResult.calls.slice(-1)[0]
