@@ -125,7 +125,7 @@ export class Executor {
         bundleGasUsed: bigint
     }): Promise<GasPriceParameters> {
         const breakEvenGasPrice = totalBeneficiaryFees / bundleGasUsed
-        const bundlingGasPrice = scaleBigIntByPercent(breakEvenGasPrice, 90n)
+        const bundlingGasPrice = scaleBigIntByPercent(breakEvenGasPrice, 95n)
 
         // compare breakEvenGasPrice to network gasPrice
         let [networkMaxFeePerGas, networkMaxPriorityFeePerGas] = [
