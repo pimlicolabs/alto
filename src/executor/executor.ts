@@ -43,7 +43,6 @@ type HandleOpsTxParams = {
     account: Account
     nonce: number
     userOps: UserOpInfo[]
-    isUserOpV06: boolean
     isReplacementTx: boolean
     entryPoint: Address
 }
@@ -118,8 +117,7 @@ export class Executor {
         txParam: HandleOpsTxParams
         gasOpts: HandleOpsGasParams
     }) {
-        const { entryPoint, userOps, account, gas, nonce, isUserOpV06 } =
-            txParam
+        const { entryPoint, userOps, account, gas, nonce } = txParam
 
         const {
             executorGasMultiplier,
@@ -261,9 +259,8 @@ export class Executor {
         gasPriceParams: GasPriceParameters
         isReplacementTx: boolean
     }): Promise<BundleResult> {
-        const { entryPoint, userOps, version } = userOpBundle
+        const { entryPoint, userOps } = userOpBundle
         const { maxFeePerGas, maxPriorityFeePerGas } = gasPriceParams
-        const isUserOpV06 = version === "0.6"
 
         let childLogger = this.logger.child({
             isReplacementTx,
@@ -362,7 +359,6 @@ export class Executor {
                     gas: gasLimit,
                     userOps: userOpsToBundle,
                     isReplacementTx,
-                    isUserOpV06,
                     entryPoint
                 },
                 gasOpts
