@@ -29,7 +29,6 @@ import {
     type WatchBlocksReturnType,
     getAbiItem,
     Hex,
-    InsufficientFundsError,
     NonceTooLowError
 } from "viem"
 import type { Executor } from "./executor"
