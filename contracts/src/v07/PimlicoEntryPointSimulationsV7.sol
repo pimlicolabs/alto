@@ -53,12 +53,11 @@ contract PimlicoEntryPointSimulationsV7 {
 
     function simulateEntryPoint(address payable ep, bytes[] memory data) public returns (bytes[] memory) {
         uint256 REVERT_REASON_MAX_LEN = type(uint256).max;
-        bytes4 delegateAndRevertSelector = bytes4(keccak256("delegateAndRevert(address,bytes)"));
         bytes[] memory returnDataArray = new bytes[](data.length);
 
         for (uint256 i = 0; i < data.length; i++) {
             bytes memory returnData;
-            bytes memory callData = abi.encodeWithSelector(delegateAndRevertSelector, address(eps), data[i]);
+            bytes memory callData = abi.encodeWithSelector("delegateAndRevert(address,bytes)", address(eps), data[i]);
             bool success = Exec.call(ep, 0, callData, gasleft());
             if (!success) {
                 returnData = Exec.getReturnData(REVERT_REASON_MAX_LEN);
