@@ -5,13 +5,12 @@ import {
     UserOperationV06,
     UserOperationV07
 } from "@alto/types"
-import { StateOverride, getContract, toBytes } from "viem"
+import { StateOverride, getContract } from "viem"
 import { AltoConfig } from "../createConfig"
 import { Logger, toPackedUserOperation } from "@alto/utils"
 import { PimlicoEntryPointSimulationsAbi } from "../types/contracts/PimlicoEntryPointSimulations"
 import * as sentry from "@sentry/node"
 import { getEip7702DelegationOverrides } from "../utils/eip7702"
-import { encodeHandleOpsCalldata } from "./utils"
 
 export type FilterOpsResult =
     | {
@@ -156,17 +155,7 @@ export async function filterOps({
     }
 
     // find overhead that can't be calculated onchain
-    const calldata = encodeHandleOpsCalldata({
-        userOps: userOps.map(({ userOp }) => userOp),
-        beneficiary
-    })
-
-    const handleOpsCalldataCost = toBytes(calldata)
-        .map((x) => (x === 0 ? 4 : 16))
-        .reduce((sum, x) => sum + x)
-
-    const bundleGasUsed =
-        filterOpsResult.gasUsed + 21_000n + BigInt(handleOpsCalldataCost)
+    const bundleGasUsed = filterOpsResult.gasUsed + 21_000n
 
     return {
         status: "success",

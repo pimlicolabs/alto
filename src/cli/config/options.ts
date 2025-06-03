@@ -415,6 +415,13 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "number",
         require: false,
         default: 3
+    },
+    "bundling-profit-margin": {
+        description:
+            "Initial profit margin percentage for bundling (increases with each resubmission)",
+        type: "string",
+        require: false,
+        default: "90"
     }
 }
 

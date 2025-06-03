@@ -131,7 +131,11 @@ export const executorArgsSchema = z.object({
     "send-handle-ops-retry-count": z.number().int().default(3),
     "transaction-underpriced-multiplier": z
         .string()
+        .transform((val) => BigInt(val)),
+    "bundling-profit-margin": z
+        .string()
         .transform((val) => BigInt(val))
+        .default("90")
 })
 
 export const compatibilityArgsSchema = z.object({
