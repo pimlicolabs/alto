@@ -266,7 +266,7 @@ export class ExecutorManager {
         }
 
         // Unhandled error during simulation, drop all ops.
-        if (bundleResult.status === "filterops_unexpected_error") {
+        if (bundleResult.status === "filterops_unhandled_error") {
             const rejectedUserOps = userOps.map((userOp) => ({
                 ...userOp,
                 reason: "filterOps simulation error"
@@ -841,7 +841,7 @@ export class ExecutorManager {
             return
         }
 
-        if (bundleResult.status === "filterops_unexpected_error") {
+        if (bundleResult.status === "filterops_unhandled_error") {
             const { rejectedUserOps } = bundleResult
             await this.failedToReplaceTransaction({
                 entryPoint,

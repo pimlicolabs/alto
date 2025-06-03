@@ -387,10 +387,10 @@ export class Executor {
             logger: childLogger
         })
 
-        if (filterOpsResult.status === "unhandled_simulation_error") {
+        if (filterOpsResult.status === "unhandled_error") {
             childLogger.error("encountered unexpected failure during filterOps")
             return {
-                status: "filterops_unexpected_error",
+                status: "filterops_unhandled_error",
                 rejectedUserOps: filterOpsResult.rejectedUserOps
             }
         }

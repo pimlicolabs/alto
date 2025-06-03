@@ -57,8 +57,8 @@ export type BundleResult =
           }
       }
     | {
-          // Encountered unexpected error during filterOps simulation.
-          status: "filterops_unexpected_error"
+          // Encountered unhandled error during filterOps simulation.
+          status: "filterops_unhandled_error"
           rejectedUserOps: RejectedUserOp[]
       }
     | {

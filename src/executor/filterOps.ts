@@ -20,7 +20,7 @@ export type FilterOpsResult =
           totalBeneficiaryFees: bigint
       }
     | {
-          status: "unhandled_simulation_error"
+          status: "unhandled_error"
           rejectedUserOps: RejectedUserOp[]
       }
     | {
@@ -104,7 +104,7 @@ export async function filterOps({
             reason: "filterOps simulation error"
         }))
         return {
-            status: "unhandled_simulation_error",
+            status: "unhandled_error",
             rejectedUserOps
         }
     }
