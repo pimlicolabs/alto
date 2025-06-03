@@ -57,7 +57,8 @@ contract PimlicoEntryPointSimulationsV7 {
 
         for (uint256 i = 0; i < data.length; i++) {
             bytes memory returnData;
-            bytes memory callData = abi.encodeWithSelector("delegateAndRevert(address,bytes)", address(eps), data[i]);
+            bytes memory callData =
+                abi.encodeWithSelector(IEntryPoint07.delegateAndRevert.selector, address(eps), data[i]);
             bool success = Exec.call(ep, 0, callData, gasleft());
             if (!success) {
                 returnData = Exec.getReturnData(REVERT_REASON_MAX_LEN);
