@@ -125,7 +125,16 @@ export class Executor {
         bundleGasUsed: bigint
     }): Promise<GasPriceParameters> {
         const breakEvenGasPrice = totalBeneficiaryFees / bundleGasUsed
-        const bundlingGasPrice = scaleBigIntByPercent(breakEvenGasPrice, 95n)
+
+        // Start at 95% profit margin and reduce it with each resubmission (up to 99%)
+        const profitMargin = minBigInt(
+            95n + BigInt(bundle.submissionAttempts),
+            99n
+        )
+        const bundlingGasPrice = scaleBigIntByPercent(
+            breakEvenGasPrice,
+            profitMargin
+        )
 
         // compare breakEvenGasPrice to network gasPrice
         let [networkMaxFeePerGas, networkMaxPriorityFeePerGas] = [
@@ -133,7 +142,7 @@ export class Executor {
             networkGasPrice.maxPriorityFeePerGas
         ]
 
-        // for resubmissions, we want to increase the network gasPrice
+        // Increase gas price for resubmissions to improve inclusion probability
         if (bundle.submissionAttempts > 0) {
             const multiplier = 100n + BigInt(bundle.submissionAttempts) * 20n
 
@@ -173,12 +182,13 @@ export class Executor {
         entryPoint: Address
         executorAddress: Address
     }): Promise<bigint> {
-        const { estimateHandleOpsGas, publicClient, gasLimitRoundingMultiple } =
-            this.config
+        const { estimateHandleOpsGas, publicClient } = this.config
+
+        let gasLimit: bigint
 
         // On some chains we can't rely on local calculations and have to estimate the gasLimit from RPC
         if (estimateHandleOpsGas) {
-            return await publicClient.estimateGas({
+            gasLimit = await publicClient.estimateGas({
                 to: entryPoint,
                 account: executorAddress,
                 data: encodeHandleOpsCalldata({
@@ -186,29 +196,26 @@ export class Executor {
                     beneficiary: executorAddress
                 })
             })
+        } else {
+            const aa95GasFloor = calculateAA95GasFloor({
+                userOps: userOpBundle.map(({ userOp }) => userOp),
+                beneficiary: executorAddress
+            })
+
+            const eip7702UserOpCount = userOpBundle.filter(
+                ({ userOp }) => userOp.eip7702Auth
+            ).length
+            const eip7702Overhead = BigInt(eip7702UserOpCount) * 40_000n
+
+            // Add 5% safety margin to local estimates.
+            gasLimit = scaleBigIntByPercent(
+                aa95GasFloor + eip7702Overhead,
+                105n
+            )
         }
 
-        const aa95GasFloor = calculateAA95GasFloor({
-            userOps: userOpBundle.map(({ userOp }) => userOp),
-            beneficiary: executorAddress
-        })
-
-        const eip7702UserOpCount = userOpBundle.filter(
-            ({ userOp }) => userOp.eip7702Auth
-        ).length
-        const eip7702Overhead = BigInt(eip7702UserOpCount) * 40000n
-
-        // Add 5% safety margin to local estimates.
-        const gasLimit = scaleBigIntByPercent(
-            aa95GasFloor + eip7702Overhead,
-            105n
-        )
-
         // Round up gasLimit to nearest multiple
-        return roundUpBigInt({
-            value: gasLimit,
-            multiple: gasLimitRoundingMultiple
-        })
+        return gasLimit
     }
 
     async sendHandleOpsTransaction({
@@ -218,8 +225,6 @@ export class Executor {
         txParam: HandleOpsTxParams
         gasOpts: HandleOpsGasParams
     }) {
-        const { entryPoint, userOps, account, gas, nonce } = txParam
-
         const {
             executorGasMultiplier,
             sendHandleOpsRetryCount,
@@ -227,6 +232,8 @@ export class Executor {
             walletClient,
             publicClient
         } = this.config
+
+        const { entryPoint, userOps, account, gas, nonce } = txParam
 
         const handleOpsCalldata = encodeHandleOpsCalldata({
             userOps: userOps.map(({ userOp }) => userOp),
@@ -253,6 +260,12 @@ export class Executor {
         // Try sending the transaction and updating relevant fields if there is an error.
         while (attempts < maxAttempts) {
             try {
+                // Round up gasLimit to nearest multiple
+                request.gas = roundUpBigInt({
+                    value: request.gas,
+                    multiple: this.config.gasLimitRoundingMultiple
+                })
+
                 transactionHash = await walletClient.sendTransaction(request)
 
                 break
