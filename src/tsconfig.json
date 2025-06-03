@@ -1,12 +1,11 @@
 {
     "compilerOptions": {
-        "outDir": "lib",
+        "outDir": "esm",
         "target": "esnext",
-        "module": "commonjs",
+        "module": "ESNext",
         "esModuleInterop": true,
         "forceConsistentCasingInFileNames": true,
         "strict": true,
-        "alwaysStrict": true,
         "noImplicitReturns": true,
         "noUnusedLocals": true,
         "preserveConstEnums": true,
@@ -20,9 +19,6 @@
         "paths": {
             "@alto/cli": [
                 "./cli"
-            ],
-            "@alto/store": [
-                "./store"
             ],
             "@alto/executor": [
                 "./executor"
@@ -41,11 +37,16 @@
             ],
             "@alto/handlers": [
                 "./handlers"
+            ],
+            "@alto/store": [
+                "./store"
             ]
         }
     },
     "ts-node": {
-        "swc": true
+        "swc": true,
+        "esm": true,
+        "experimentalSpecifierResolution": "node"
     },
     "include": [
         "./**/*",

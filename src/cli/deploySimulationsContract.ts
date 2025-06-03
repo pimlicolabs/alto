@@ -12,8 +12,12 @@ import {
 import type { CamelCasedProperties } from "./parseArgs"
 import type { IOptions } from "@alto/cli"
 import type { Logger } from "pino"
-import pimlicoEntrypointSimulationsV8DeployBytecode from "../contracts/PimlicoEntryPointSimulationsV8.sol/PimlicoEntryPointSimulationsV8.json"
-import pimlicoEntrypointSimulationsV7DeployBytecode from "../contracts/PimlicoEntryPointSimulationsV7.sol/PimlicoEntryPointSimulationsV7.json"
+import pimlicoEntrypointSimulationsV8DeployBytecode from "../contracts/PimlicoEntryPointSimulationsV8.sol/PimlicoEntryPointSimulationsV8.json" with {
+    type: "json"
+}
+import pimlicoEntrypointSimulationsV7DeployBytecode from "../contracts/PimlicoEntryPointSimulationsV7.sol/PimlicoEntryPointSimulationsV7.json" with {
+    type: "json"
+}
 
 export const DETERMINISTIC_DEPLOYER_TRANSACTION =
     "0xf8a58085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf31ba02222222222222222222222222222222222222222222222222222222222222222a02222222222222222222222222222222222222222222222222222222222222222"
@@ -21,7 +25,10 @@ export const DETERMINISTIC_DEPLOYER_TRANSACTION =
 const isContractDeployed = async ({
     publicClient,
     address
-}: { publicClient: PublicClient<Transport, Chain>; address: Hex }) => {
+}: {
+    publicClient: PublicClient<Transport, Chain>
+    address: Hex
+}) => {
     const code = await publicClient.getCode({
         address
     })
