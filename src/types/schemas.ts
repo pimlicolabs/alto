@@ -341,9 +341,15 @@ export const userOperationSchema = z.union([
 ])
 
 export const boostUserOperationSchema = z.union([
-    userOperationV06Schema.refine((val) => val.maxFeePerGas === 0n && val.maxPriorityFeePerGas === 0n),
-    userOperationV07Schema.refine((val) => val.maxFeePerGas === 0n && val.maxPriorityFeePerGas === 0n),
-    userOperationV08Schema.refine((val) => val.maxFeePerGas === 0n && val.maxPriorityFeePerGas === 0n)
+    userOperationV06Schema.refine((val) => val.maxFeePerGas === 0n && val.maxPriorityFeePerGas === 0n, {
+        message: "maxFeePerGas and maxPriorityFeePerGas must be 0 for a boosted user operation"
+    }),
+    userOperationV07Schema.refine((val) => val.maxFeePerGas === 0n && val.maxPriorityFeePerGas === 0n, {
+        message: "maxFeePerGas and maxPriorityFeePerGas must be 0 for a boosted user operation"
+    }),
+    userOperationV08Schema.refine((val) => val.maxFeePerGas === 0n && val.maxPriorityFeePerGas === 0n, {
+        message: "maxFeePerGas and maxPriorityFeePerGas must be 0 for a boosted user operation"
+    })
 ])
 
 export type UserOperationV06 = z.infer<
