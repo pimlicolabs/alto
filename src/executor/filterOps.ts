@@ -5,11 +5,12 @@ import {
     UserOperationV06,
     UserOperationV07
 } from "@alto/types"
-import { getContract } from "viem"
+import { StateOverride, getContract } from "viem"
 import { AltoConfig } from "../createConfig"
 import { Logger, toPackedUserOperation } from "@alto/utils"
 import { PimlicoEntryPointSimulationsAbi } from "../types/contracts/PimlicoEntryPointSimulations"
 import * as sentry from "@sentry/node"
+import { getEip7702DelegationOverrides } from "../utils/eip7702"
 
 export type FilterOpsResult =
     | {
@@ -53,6 +54,10 @@ export async function filterOps({
         client: { public: publicClient }
     })
 
+    // Get EIP-7702 stateOverrides.
+    let eip7702Override: StateOverride | undefined =
+        getEip7702DelegationOverrides(userOps.map(({ userOp }) => userOp))
+
     let filterOpsResult
     try {
         switch (version) {
@@ -64,7 +69,8 @@ export async function filterOps({
                         ),
                         beneficiary,
                         entryPoint
-                    ]
+                    ],
+                    eip7702Override ? { stateOverride: eip7702Override } : {}
                 )
                 filterOpsResult = simResult.result
                 break
@@ -77,7 +83,8 @@ export async function filterOps({
                         ),
                         beneficiary,
                         entryPoint
-                    ]
+                    ],
+                    eip7702Override ? { stateOverride: eip7702Override } : {}
                 )
                 filterOpsResult = simResult.result
                 break
@@ -90,7 +97,8 @@ export async function filterOps({
                         ) as UserOperationV06[],
                         beneficiary,
                         entryPoint
-                    ]
+                    ],
+                    eip7702Override ? { stateOverride: eip7702Override } : {}
                 )
                 filterOpsResult = simResult.result
                 break
