@@ -147,7 +147,7 @@ export async function filterOps({
         }
     )
 
-    if (rejectedUserOps.length === userOpsToBundle.length) {
+    if (userOpsToBundle.length === 0) {
         return {
             status: "all_ops_rejected",
             rejectedUserOps
