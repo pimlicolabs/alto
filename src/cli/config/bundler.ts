@@ -287,6 +287,10 @@ export const mempoolArgsSchema = z.object({
     "enforce-unique-senders-per-bundle": z.boolean().default(true)
 })
 
+export const boostArgsSchema = z.object({
+    "boost-user-operation-paymaster-address": addressSchema
+})
+
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>
 export type IBundlerArgsInput = z.input<typeof bundlerArgsSchema>
 
@@ -314,6 +318,10 @@ export type IGasEstimationArgsInput = z.input<typeof gasEstimationArgsSchema>
 export type IMempoolArgs = z.infer<typeof mempoolArgsSchema>
 export type IMempoolArgsInput = z.input<typeof mempoolArgsSchema>
 
+export type IBoostArgs = z.infer<typeof boostArgsSchema>
+export type IBoostArgsInput = z.input<typeof boostArgsSchema>
+
+
 export const optionArgsSchema = z.object({
     ...bundlerArgsSchema.shape,
     ...compatibilityArgsSchema.shape,
@@ -323,8 +331,11 @@ export const optionArgsSchema = z.object({
     ...debugArgsSchema.shape,
     ...gasEstimationArgsSchema.shape,
     ...executorArgsSchema.shape,
-    ...mempoolArgsSchema.shape
+    ...mempoolArgsSchema.shape,
+    ...boostArgsSchema.shape
 })
 
 export type IOptions = z.infer<typeof optionArgsSchema>
 export type IOptionsInput = z.input<typeof optionArgsSchema>
+
+

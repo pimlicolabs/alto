@@ -340,18 +340,6 @@ export const userOperationSchema = z.union([
     userOperationV08Schema
 ])
 
-export const boostUserOperationSchema = z.union([
-    userOperationV06Schema.refine((val) => val.maxFeePerGas === 0n && val.maxPriorityFeePerGas === 0n, {
-        message: "maxFeePerGas and maxPriorityFeePerGas must be 0 for a boosted user operation"
-    }),
-    userOperationV07Schema.refine((val) => val.maxFeePerGas === 0n && val.maxPriorityFeePerGas === 0n, {
-        message: "maxFeePerGas and maxPriorityFeePerGas must be 0 for a boosted user operation"
-    }),
-    userOperationV08Schema.refine((val) => val.maxFeePerGas === 0n && val.maxPriorityFeePerGas === 0n, {
-        message: "maxFeePerGas and maxPriorityFeePerGas must be 0 for a boosted user operation"
-    })
-])
-
 export type UserOperationV06 = z.infer<
     typeof userOperationV06Schema
 >
@@ -510,7 +498,7 @@ export const sendUserOperationSchema = z.object({
 
 export const boostSendUserOperationSchema = z.object({
     method: z.literal("boost_sendUserOperation"),
-    params: z.tuple([boostUserOperationSchema, addressSchema]),
+    params: z.tuple([userOperationSchema, addressSchema]),
     result: hexData32Schema
 })
 
