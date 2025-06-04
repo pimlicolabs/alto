@@ -5,12 +5,17 @@ import {
     UserOperationV06,
     UserOperationV07
 } from "@alto/types"
-import { StateOverride, getContract } from "viem"
+import { Address, StateOverride, getContract } from "viem"
 import { AltoConfig } from "../createConfig"
-import { Logger, toPackedUserOperation } from "@alto/utils"
+import {
+    Logger,
+    scaleBigIntByPercent,
+    toPackedUserOperation
+} from "@alto/utils"
 import { PimlicoEntryPointSimulationsAbi } from "../types/contracts/PimlicoEntryPointSimulations"
 import * as sentry from "@sentry/node"
 import { getEip7702DelegationOverrides } from "../utils/eip7702"
+import { encodeHandleOpsCalldata, calculateAA95GasFloor } from "./utils"
 
 export type FilterOpsResult =
     | {
@@ -18,6 +23,7 @@ export type FilterOpsResult =
           userOpsToBundle: UserOpInfo[]
           rejectedUserOps: RejectedUserOp[]
           bundleGasUsed: bigint
+          bundleGasLimit: bigint
           totalBeneficiaryFees: bigint
       }
     | {
@@ -29,8 +35,51 @@ export type FilterOpsResult =
           rejectedUserOps: RejectedUserOp[]
       }
 
+const getBundleGasLimit = async ({
+    config,
+    userOpBundle,
+    entryPoint,
+    executorAddress
+}: {
+    config: AltoConfig
+    userOpBundle: UserOpInfo[]
+    entryPoint: Address
+    executorAddress: Address
+}): Promise<bigint> => {
+    const { estimateHandleOpsGas, publicClient } = config
+
+    let gasLimit: bigint
+
+    // On some chains we can't rely on local calculations and have to estimate the gasLimit from RPC
+    if (estimateHandleOpsGas) {
+        gasLimit = await publicClient.estimateGas({
+            to: entryPoint,
+            account: executorAddress,
+            data: encodeHandleOpsCalldata({
+                userOps: userOpBundle.map(({ userOp }) => userOp),
+                beneficiary: executorAddress
+            })
+        })
+    } else {
+        const aa95GasFloor = calculateAA95GasFloor({
+            userOps: userOpBundle.map(({ userOp }) => userOp),
+            beneficiary: executorAddress
+        })
+
+        const eip7702UserOpCount = userOpBundle.filter(
+            ({ userOp }) => userOp.eip7702Auth
+        ).length
+        const eip7702Overhead = BigInt(eip7702UserOpCount) * 40_000n
+
+        // Add 5% safety margin to local estimates.
+        gasLimit = scaleBigIntByPercent(aa95GasFloor + eip7702Overhead, 105n)
+    }
+
+    return gasLimit
+}
+
 // Attempt to create a handleOps bundle + estimate bundling tx gas.
-export async function filterOps({
+export async function filterOpsAndEstimateGas({
     userOpBundle,
     config,
     logger
@@ -157,11 +206,20 @@ export async function filterOps({
     // find overhead that can't be calculated onchain
     const bundleGasUsed = filterOpsResult.gasUsed + 21_000n
 
+    // Find gasLimit needed for this bundle
+    const bundleGasLimit = await getBundleGasLimit({
+        config,
+        userOpBundle: userOpsToBundle,
+        entryPoint,
+        executorAddress: beneficiary
+    })
+
     return {
         status: "success",
         userOpsToBundle,
         rejectedUserOps,
         bundleGasUsed,
+        bundleGasLimit,
         totalBeneficiaryFees: filterOpsResult.balanceChange
     }
 }

@@ -31,7 +31,6 @@ import {
     InsufficientFundsError
 } from "viem"
 import {
-    calculateAA95GasFloor,
     encodeHandleOpsCalldata,
     getAuthorizationList,
     getUserOpHashes,
@@ -40,7 +39,7 @@ import {
 import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { SignedAuthorizationList } from "viem"
-import { filterOps } from "./filterOps"
+import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
 
 type HandleOpsTxParams = {
     gas: bigint
@@ -174,50 +173,6 @@ export class Executor {
                 networkMaxPriorityFeePerGas
             )
         }
-    }
-
-    async getBundleGasLimit({
-        userOpBundle,
-        entryPoint,
-        executorAddress
-    }: {
-        userOpBundle: UserOpInfo[]
-        entryPoint: Address
-        executorAddress: Address
-    }): Promise<bigint> {
-        const { estimateHandleOpsGas, publicClient } = this.config
-
-        let gasLimit: bigint
-
-        // On some chains we can't rely on local calculations and have to estimate the gasLimit from RPC
-        if (estimateHandleOpsGas) {
-            gasLimit = await publicClient.estimateGas({
-                to: entryPoint,
-                account: executorAddress,
-                data: encodeHandleOpsCalldata({
-                    userOps: userOpBundle.map(({ userOp }) => userOp),
-                    beneficiary: executorAddress
-                })
-            })
-        } else {
-            const aa95GasFloor = calculateAA95GasFloor({
-                userOps: userOpBundle.map(({ userOp }) => userOp),
-                beneficiary: executorAddress
-            })
-
-            const eip7702UserOpCount = userOpBundle.filter(
-                ({ userOp }) => userOp.eip7702Auth
-            ).length
-            const eip7702Overhead = BigInt(eip7702UserOpCount) * 40_000n
-
-            // Add 5% safety margin to local estimates.
-            gasLimit = scaleBigIntByPercent(
-                aa95GasFloor + eip7702Overhead,
-                105n
-            )
-        }
-
-        return gasLimit
     }
 
     async sendHandleOpsTransaction({
@@ -392,7 +347,7 @@ export class Executor {
             entryPoint
         })
 
-        let filterOpsResult = await filterOps({
+        let filterOpsResult = await filterOpsAndEstimateGas({
             userOpBundle,
             config: this.config,
             logger: childLogger
@@ -418,6 +373,7 @@ export class Executor {
             userOpsToBundle,
             rejectedUserOps,
             bundleGasUsed,
+            bundleGasLimit,
             totalBeneficiaryFees
         } = filterOpsResult
 
@@ -426,13 +382,6 @@ export class Executor {
             isReplacementTx,
             userOperations: getUserOpHashes(userOpsToBundle),
             entryPoint
-        })
-
-        // Get params for handleOps call.
-        const gasLimit = await this.getBundleGasLimit({
-            userOpBundle: userOpsToBundle,
-            entryPoint,
-            executorAddress: executor.address
         })
 
         const { maxFeePerGas, maxPriorityFeePerGas } =
@@ -473,7 +422,7 @@ export class Executor {
                 txParam: {
                     account: executor,
                     nonce,
-                    gas: gasLimit,
+                    gas: bundleGasLimit,
                     userOps: userOpsToBundle,
                     entryPoint
                 },
@@ -542,7 +491,7 @@ export class Executor {
             rejectedUserOps,
             transactionHash,
             transactionRequest: {
-                gas: gasLimit,
+                gas: bundleGasLimit,
                 maxFeePerGas,
                 maxPriorityFeePerGas,
                 nonce

@@ -67,7 +67,6 @@ export function calculateAA95GasFloor({
                 .map((x) => (x === 0 ? 4 : 16))
                 .reduce((sum, x) => sum + x)
 
-            gasFloor += 40_000n // Other EntryPoint overhead
             gasFloor += BigInt(handleOpsCalldataCost)
         } else {
             gasFloor +=
@@ -88,7 +87,6 @@ export function calculateAA95GasFloor({
                 .map((x) => (x === 0 ? 4 : 16))
                 .reduce((sum, x) => sum + x)
 
-            gasFloor += 40_000n // Other EntryPoint overhead
             gasFloor += BigInt(handleOpsCalldataCost)
         }
     }
