@@ -492,7 +492,7 @@ export class Executor {
             if (!e) {
                 sentry.captureException(err)
                 childLogger.error(
-                    { error: JSON.stringify(err) },
+                    { err: JSON.stringify(err) },
                     "unknown error submitting bundle transaction"
                 )
                 return {
