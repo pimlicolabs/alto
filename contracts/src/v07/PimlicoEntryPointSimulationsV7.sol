@@ -99,9 +99,9 @@ contract PimlicoEntryPointSimulationsV7 {
 
         // Continue to call handleOps until bundle passes.
         while (remainingUserOps.length > 0) {
-            gasBefore = gasleft();
-            gasAfter = gasBefore;
             balanceBefore = beneficiary.balance;
+            gasAfter = gasBefore;
+            gasBefore = gasleft();
             balanceAfter = balanceBefore;
 
             try entryPoint.handleOps(remainingUserOps, beneficiary) {
@@ -161,10 +161,10 @@ contract PimlicoEntryPointSimulationsV7 {
 
         // Continue to call handleOps until bundle passes.
         while (remainingUserOps.length > 0) {
-            balanceAfter = balanceBefore;
             balanceBefore = beneficiary.balance;
-            gasAfter = gasBefore;
+            balanceAfter = balanceBefore;
             gasBefore = gasleft();
+            gasAfter = gasBefore;
 
             try entryPoint.handleOps(remainingUserOps, beneficiary) {
                 // HandleOps succeeded, record gas and balance changes.
@@ -178,10 +178,8 @@ contract PimlicoEntryPointSimulationsV7 {
 
                 // Find opIndex of failing userOp.
                 uint256 opIndex;
-                if (errorSelector == IEntryPoint07.FailedOp.selector) {
+                if (errorSelector == IEntryPoint06.FailedOp.selector) {
                     (opIndex,) = abi.decode(args, (uint256, string));
-                } else if (errorSelector == IEntryPoint07.FailedOpWithRevert.selector) {
-                    (opIndex,,) = abi.decode(args, (uint256, string, bytes));
                 } else {
                     revert("Unknown handleOps Error Selector");
                 }
