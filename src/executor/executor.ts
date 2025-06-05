@@ -348,6 +348,7 @@ export class Executor {
         })
 
         let filterOpsResult = await filterOpsAndEstimateGas({
+            gasPriceManager: this.gasPriceManager,
             userOpBundle,
             config: this.config,
             logger: childLogger
