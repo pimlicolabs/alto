@@ -9,11 +9,13 @@ import {
 } from "@alto/types"
 import {
     Address,
-    BlockOverrides,
     StateOverride,
     getContract,
     maxUint64,
-    serializeTransaction
+    serializeTransaction,
+    encodeFunctionData,
+    Hex,
+    decodeAbiParameters
 } from "viem"
 import { AltoConfig } from "../createConfig"
 import {
@@ -148,6 +150,152 @@ const getBundleGasLimit = async ({
     return gasLimit
 }
 
+const getFilterOpsResult = async ({
+    config,
+    userOpBundle,
+    gasPriceManager,
+    beneficiary
+}: {
+    userOpBundle: UserOperationBundle
+    config: AltoConfig
+    gasPriceManager: GasPriceManager
+    beneficiary: Address
+}): Promise<{
+    gasUsed: bigint
+    balanceChange: bigint
+    rejectedUserOps: readonly {
+        userOpHash: `0x${string}`
+        revertReason: `0x${string}`
+    }[]
+}> => {
+    let {
+        publicClient,
+        entrypointSimulationContractV7,
+        ethSimulateV1Support,
+        legacyTransactions
+    } = config
+
+    if (!entrypointSimulationContractV7) {
+        throw new Error("entrypointSimulationContractV7 not set")
+    }
+
+    const { userOps, version, entryPoint } = userOpBundle
+
+    // Get EIP-7702 stateOverrides.
+    let eip7702Override: StateOverride | undefined =
+        getEip7702DelegationOverrides(userOps.map(({ userOp }) => userOp))
+
+    // Create promises for parallel execution
+    let data: Hex
+    switch (version) {
+        case "0.8": {
+            data = encodeFunctionData({
+                abi: PimlicoEntryPointSimulationsAbi,
+                functionName: "filterOps08",
+                args: [
+                    userOps.map(({ userOp }) =>
+                        toPackedUserOperation(userOp as UserOperationV07)
+                    ),
+                    beneficiary,
+                    entryPoint
+                ]
+            })
+            break
+        }
+        case "0.7": {
+            data = encodeFunctionData({
+                abi: PimlicoEntryPointSimulationsAbi,
+                functionName: "filterOps07",
+                args: [
+                    userOps.map(({ userOp }) =>
+                        toPackedUserOperation(userOp as UserOperationV07)
+                    ),
+                    beneficiary,
+                    entryPoint
+                ]
+            })
+            break
+        }
+        default: {
+            data = encodeFunctionData({
+                abi: PimlicoEntryPointSimulationsAbi,
+                functionName: "filterOps06",
+                args: [
+                    userOps.map(({ userOp }) => userOp) as UserOperationV06[],
+                    beneficiary,
+                    entryPoint
+                ]
+            })
+        }
+    }
+
+    let result: Hex
+    if (ethSimulateV1Support && !legacyTransactions) {
+        const ethSimulateV1Result = await publicClient.simulateBlocks({
+            blocks: [
+                {
+                    calls: [
+                        {
+                            to: entrypointSimulationContractV7,
+                            data
+                        }
+                    ],
+                    stateOverrides: eip7702Override,
+                    blockOverrides: {
+                        baseFeePerGas: await gasPriceManager.getBaseFee()
+                    }
+                }
+            ]
+        })
+
+        const simulationResult = ethSimulateV1Result[0]?.calls[0]
+        if (!simulationResult || simulationResult.status === "failure") {
+            throw new Error(
+                "No data returned from filterOps simulation during eth_simulateV1"
+            )
+        }
+
+        result = simulationResult.data
+    } else {
+        const callResult = await publicClient.call({
+            to: entrypointSimulationContractV7,
+            data,
+            stateOverride: eip7702Override
+        })
+
+        if (!callResult.data) {
+            throw new Error(
+                "No data returned from filterOps simulation during eth_call"
+            )
+        }
+        result = callResult.data
+    }
+
+    const filterOpsResult = decodeAbiParameters(
+        [
+            {
+                name: "result",
+                type: "tuple",
+                components: [
+                    { name: "gasUsed", type: "uint256" },
+                    { name: "balanceChange", type: "uint256" },
+                    {
+                        name: "rejectedUserOps",
+                        type: "tuple[]",
+                        components: [
+                            { name: "userOpHash", type: "bytes32" },
+                            { name: "revertReason", type: "bytes" }
+                        ]
+                    }
+                ]
+            }
+        ],
+        result
+    )
+
+    return filterOpsResult[0]
+}
+
 // Attempt to create a handleOps bundle + estimate bundling tx gas.
 export async function filterOpsAndEstimateGas({
     userOpBundle,
@@ -160,82 +308,16 @@ export async function filterOpsAndEstimateGas({
     logger: Logger
     gasPriceManager: GasPriceManager
 }): Promise<FilterOpsResult> {
-    let {
-        publicClient,
-        entrypointSimulationContractV7,
-        utilityWalletAddress,
-        supportsBlockOverride,
-        legacyTransactions
-    } = config
-
-    const { userOps, version, entryPoint } = userOpBundle
-
-    if (!entrypointSimulationContractV7) {
-        throw new Error("entrypointSimulationContractV7 not set")
-    }
-
-    const beneficiary = utilityWalletAddress
-    const simulationContract = getContract({
-        address: entrypointSimulationContractV7,
-        abi: PimlicoEntryPointSimulationsAbi,
-        client: { public: publicClient }
-    })
-
-    // Get EIP-7702 stateOverrides.
-    let eip7702Override: StateOverride | undefined =
-        getEip7702DelegationOverrides(userOps.map(({ userOp }) => userOp))
-
-    let blockOverrides: BlockOverrides | undefined
-    if (supportsBlockOverride && !legacyTransactions) {
-        blockOverrides = {
-            baseFeePerGas: await gasPriceManager.getBaseFee()
-        }
-    }
+    let { utilityWalletAddress: beneficiary } = config
+    const { userOps, entryPoint } = userOpBundle
 
     // Create promises for parallel execution
-    const filterOpsPromise = (async () => {
-        switch (version) {
-            case "0.8": {
-                const simResult = await simulationContract.simulate.filterOps08(
-                    [
-                        userOps.map(({ userOp }) =>
-                            toPackedUserOperation(userOp as UserOperationV07)
-                        ),
-                        beneficiary,
-                        entryPoint
-                    ],
-                    { stateOverride: eip7702Override, blockOverrides }
-                )
-                return simResult.result
-            }
-            case "0.7": {
-                const simResult = await simulationContract.simulate.filterOps07(
-                    [
-                        userOps.map(({ userOp }) =>
-                            toPackedUserOperation(userOp as UserOperationV07)
-                        ),
-                        beneficiary,
-                        entryPoint
-                    ],
-                    { stateOverride: eip7702Override, blockOverrides }
-                )
-                return simResult.result
-            }
-            default: {
-                const simResult = await simulationContract.simulate.filterOps06(
-                    [
-                        userOps.map(
-                            ({ userOp }) => userOp
-                        ) as UserOperationV06[],
-                        beneficiary,
-                        entryPoint
-                    ],
-                    { stateOverride: eip7702Override, blockOverrides }
-                )
-                return simResult.result
-            }
-        }
-    })()
+    const filterOpsPromise = getFilterOpsResult({
+        userOpBundle,
+        config,
+        gasPriceManager,
+        beneficiary
+    })
 
     // Start chain-specific overhead calculation in parallel
     const chainSpecificOverheadPromise = getChainSpecificOverhead({

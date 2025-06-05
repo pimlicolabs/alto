@@ -194,7 +194,7 @@ export const rpcArgsSchema = z.object({
     "block-number-cache-ttl": z.number().int().min(0).optional().default(15000), // Default to 15s
     "block-tag-support": z.boolean().optional().default(true),
     "code-override-support": z.boolean().optional().default(true),
-    "supports-block-override": z.boolean().optional().default(true)
+    "eth-simulate-v1-support": z.boolean().optional().default(false)
 })
 
 export const logArgsSchema = z.object({
