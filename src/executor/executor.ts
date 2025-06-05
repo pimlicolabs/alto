@@ -126,7 +126,7 @@ export class Executor {
         const breakEvenGasPrice = totalBeneficiaryFees / bundleGasUsed
 
         // Start at configured profit margin and approach 100% by reducing gap by 50% each resubmission
-        const initialProfitMargin = this.config.bundlingProfitMargin
+        const initialProfitMargin = this.config.bundlerMargin
 
         // Calculate margin: start at initialProfitMargin%, then
         // reduce the gap to 100% by 50% each resubmission

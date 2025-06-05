@@ -132,7 +132,7 @@ export const executorArgsSchema = z.object({
     "transaction-underpriced-multiplier": z
         .string()
         .transform((val) => BigInt(val)),
-    "bundling-profit-margin": z
+    "bundler-margin": z
         .string()
         .transform((val) => BigInt(val))
         .default("90")
