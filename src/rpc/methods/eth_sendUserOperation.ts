@@ -24,7 +24,6 @@ const validatePvg = async (
     entryPoint: Address,
     boost = false
 ): Promise<[boolean, string]> => {
-
     // PVG validation is skipped for v1
     if (apiVersion == "v1" || boost) {
         return [true, ""]
@@ -239,7 +238,7 @@ export const ethSendUserOperationHandler = createMethodHandler({
             rpcHandler.metrics.userOperationsReceived
                 .labels({
                     status,
-                    type: "boost"
+                    type: "regular"
                 })
                 .inc()
         }

@@ -49,7 +49,7 @@ export const boostSendUserOperationHandler = createMethodHandler({
             rpcHandler.metrics.userOperationsReceived
                 .labels({
                     status,
-                    type: "regular"
+                    type: "boost"
                 })
                 .inc()
         }
