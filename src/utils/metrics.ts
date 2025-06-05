@@ -11,17 +11,10 @@ export type Metrics = ReturnType<typeof createMetrics>
 export function createMetrics(registry: Registry, register = true) {
     // Skip default metrics collection in development mode or when running in Bun
     // to avoid compatibility issues
-    const isDevelopment = process.env.NODE_ENV === "development"
     const isBun = typeof (globalThis as any).Bun !== "undefined"
-    
-    if (!isDevelopment && !isBun) {
-        try {
-            collectDefaultMetrics({ register: registry })
-        } catch (error) {
-            console.warn("Failed to collect default metrics:", error instanceof Error ? error.message : String(error))
-        }
-    } else {
-        console.log("Skipping default metrics collection in development/Bun environment")
+
+    if (!isBun) {
+        collectDefaultMetrics({ register: registry })
     }
 
     const registers = register ? [registry] : []
