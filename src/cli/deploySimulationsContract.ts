@@ -1,4 +1,3 @@
-import { DETERMINISTIC_DEPLOYER_TRANSACTION } from "@alto/types"
 import {
     type Chain,
     createWalletClient,
@@ -19,6 +18,9 @@ import pimlicoEntrypointSimulationsV8DeployBytecode from "../contracts/PimlicoEn
 import pimlicoEntrypointSimulationsV7DeployBytecode from "../contracts/PimlicoEntryPointSimulationsV7.sol/PimlicoEntryPointSimulationsV7.json" with {
     type: "json"
 }
+
+export const DETERMINISTIC_DEPLOYER_TRANSACTION =
+    "0xf8a58085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf31ba02222222222222222222222222222222222222222222222222222222222222222a02222222222222222222222222222222222222222222222222222222222222222"
 
 const isContractDeployed = async ({
     publicClient,

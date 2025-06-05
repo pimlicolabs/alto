@@ -46,7 +46,7 @@ export function calculateAA95GasFloor({
             const totalGas =
                 userOp.callGasLimit +
                 (userOp.paymasterPostOpGasLimit || 0n) +
-                10_000n
+                10_000n // INNER_GAS_OVERHEAD
 
             gasFloor += (totalGas * 64n) / 63n
 

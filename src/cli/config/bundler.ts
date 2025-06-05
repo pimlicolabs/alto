@@ -86,7 +86,7 @@ export const bundlerArgsSchema = z.object({
             )}`
         ),
     "enable-instant-bundling-endpoint": z.boolean(),
-    "local-gas-calculation": z.boolean()
+    "estimate-handle-ops-gas": z.boolean()
 })
 
 export const executorArgsSchema = z.object({
@@ -137,7 +137,11 @@ export const executorArgsSchema = z.object({
     "send-handle-ops-retry-count": z.number().int().default(3),
     "transaction-underpriced-multiplier": z
         .string()
+        .transform((val) => BigInt(val)),
+    "bundler-margin": z
+        .string()
         .transform((val) => BigInt(val))
+        .default("90")
 })
 
 export const compatibilityArgsSchema = z.object({
@@ -195,7 +199,8 @@ export const rpcArgsSchema = z.object({
     "max-block-range": z.number().int().min(0).optional(),
     "block-number-cache-ttl": z.number().int().min(0).optional().default(15000), // Default to 15s
     "block-tag-support": z.boolean().optional().default(true),
-    "code-override-support": z.boolean().optional().default(false)
+    "code-override-support": z.boolean().optional().default(true),
+    "eth-simulate-v1-support": z.boolean().optional().default(false)
 })
 
 export const logArgsSchema = z.object({

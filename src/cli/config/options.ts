@@ -111,9 +111,9 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "boolean",
         default: false
     },
-    "local-gas-calculation": {
+    "estimate-handle-ops-gas": {
         description:
-            "Should bundler use local gas calculations instead eth_estimateGas result when calling handleOps",
+            "Should the bundler make a eth_estimateGas call to estimate the handleOps gasLimit",
         type: "boolean",
         default: false
     }
@@ -415,6 +415,13 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "number",
         require: false,
         default: 3
+    },
+    "bundler-margin": {
+        description:
+            "Initial profit margin percentage for bundling where 100 = 100%",
+        type: "string",
+        require: false,
+        default: "90"
     }
 }
 
@@ -557,6 +564,12 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
     },
     "code-override-support": {
         description: "Does the RPC support code overrides",
+        type: "boolean",
+        require: false,
+        default: true
+    },
+    "eth-simulate-v1-support": {
+        description: "Does the RPC support eth_simulate v1",
         type: "boolean",
         require: false,
         default: true

@@ -1,7 +1,9 @@
 import { StateOverride, concat } from "viem"
 import { UserOperation } from "../types/schemas"
 
-export const getEip7702DelegationOverrides = (userOps: UserOperation[]) => {
+export const getEip7702DelegationOverrides = (
+    userOps: UserOperation[]
+): StateOverride | undefined => {
     let stateOverride: StateOverride = []
 
     for (const userOp of userOps) {
@@ -16,6 +18,10 @@ export const getEip7702DelegationOverrides = (userOps: UserOperation[]) => {
                 code: concat(["0xef0100", delegate])
             })
         }
+    }
+
+    if (stateOverride.length === 0) {
+        return undefined
     }
 
     return stateOverride

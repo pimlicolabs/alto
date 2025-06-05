@@ -790,14 +790,14 @@ export class GasEstimatorV07 {
         stateOverrides?: StateOverrides
         entryPointSimulationsAddress: Address
     }) {
-        const publicClient = this.config.publicClient
-        const blockTagSupport = this.config.blockTagSupport
-
-        const utilityWalletAddress =
-            this.config.utilityPrivateKey?.address ??
-            "0x4337000c2828F5260d8921fD25829F606b9E8680"
-        const fixedGasLimitForEstimation =
-            this.config.fixedGasLimitForEstimation
+        const {
+            publicClient,
+            blockTagSupport,
+            utilityWalletAddress,
+            fixedGasLimitForEstimation,
+            balanceOverride: balanceOverrideSupport,
+            codeOverrideSupport
+        } = this.config
 
         if (!entryPointSimulationsAddress) {
             throw new RpcError(
@@ -813,7 +813,7 @@ export class GasEstimatorV07 {
         })
 
         // Remove state override if not supported by network.
-        if (!this.config.balanceOverride && !this.config.codeOverrideSupport) {
+        if (!balanceOverrideSupport && !codeOverrideSupport) {
             stateOverrides = undefined
         }
 
