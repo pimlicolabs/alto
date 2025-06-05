@@ -694,12 +694,3 @@ export const bundlerCommand: CliCommand<IOptionsInput> = {
     describe: "Starts the bundler",
     handler: bundlerHandler
 }
-
-export const boostOptions: CliCommandOptions<IBoostArgsInput> = {
-    "boost-user-operation-paymaster-address": {
-        description: "The paymaster address a user operation must use when sending a boosted user operation",
-        type: "string",
-        require: false,
-        default: "0x0000000000000000000000000000000000000000"
-    }
-}

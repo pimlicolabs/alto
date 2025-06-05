@@ -58,18 +58,24 @@ export const bundlerArgsSchema = z.object({
         .string()
         .nullable()
         .transform((val: string | null) => {
-            if (val === null) return null
+            if (val === null) {
+                return null
+            }
 
             return val.split(",")
         })
         .refine((values) => {
-            if (values === null) return true
+            if (values === null) {
+                return true
+            }
 
             return values.length > 0
         }, "Must contain at least one method if specified")
         .refine(
             (values) => {
-                if (values === null) return true
+                if (values === null) {
+                    return true
+                }
 
                 return values.every((value: string) =>
                     rpcMethodNames.includes(value)
@@ -287,10 +293,6 @@ export const mempoolArgsSchema = z.object({
     "enforce-unique-senders-per-bundle": z.boolean().default(true)
 })
 
-export const boostArgsSchema = z.object({
-    "boost-user-operation-paymaster-address": addressSchema
-})
-
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>
 export type IBundlerArgsInput = z.input<typeof bundlerArgsSchema>
 
@@ -318,10 +320,6 @@ export type IGasEstimationArgsInput = z.input<typeof gasEstimationArgsSchema>
 export type IMempoolArgs = z.infer<typeof mempoolArgsSchema>
 export type IMempoolArgsInput = z.input<typeof mempoolArgsSchema>
 
-export type IBoostArgs = z.infer<typeof boostArgsSchema>
-export type IBoostArgsInput = z.input<typeof boostArgsSchema>
-
-
 export const optionArgsSchema = z.object({
     ...bundlerArgsSchema.shape,
     ...compatibilityArgsSchema.shape,
@@ -331,11 +329,8 @@ export const optionArgsSchema = z.object({
     ...debugArgsSchema.shape,
     ...gasEstimationArgsSchema.shape,
     ...executorArgsSchema.shape,
-    ...mempoolArgsSchema.shape,
-    ...boostArgsSchema.shape
+    ...mempoolArgsSchema.shape
 })
 
 export type IOptions = z.infer<typeof optionArgsSchema>
 export type IOptionsInput = z.input<typeof optionArgsSchema>
-
-
