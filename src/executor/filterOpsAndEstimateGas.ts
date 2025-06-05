@@ -53,7 +53,11 @@ const getChainSpecificOverhead = async ({
 
     switch (chainType) {
         case "arbitrum": {
-            const data = getHandleOpsCallData(userOps, entryPoint)
+            const data = getHandleOpsCallData({
+                userOps,
+                entryPoint,
+                removeZeros: false
+            })
 
             const precompileAddress =
                 "0x00000000000000000000000000000000000000C8"
@@ -283,8 +287,7 @@ export async function filterOpsAndEstimateGas({
     }
 
     // find overhead that can't be calculated onchain
-    const bundleGasUsed =
-        filterOpsResult.gasUsed + 21_000n + chainSpecificOverhead
+    const bundleGasUsed = filterOpsResult.gasUsed + 21_000n
 
     // Find gasLimit needed for this bundle
     const bundleGasLimit = await getBundleGasLimit({
@@ -299,7 +302,7 @@ export async function filterOpsAndEstimateGas({
         userOpsToBundle,
         rejectedUserOps,
         bundleGasUsed,
-        bundleGasLimit,
+        bundleGasLimit: bundleGasLimit + chainSpecificOverhead,
         totalBeneficiaryFees: filterOpsResult.balanceChange
     }
 }

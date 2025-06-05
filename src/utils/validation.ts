@@ -423,38 +423,45 @@ function calcDefaultPreVerificationGas(
 }
 
 // Returns back the bytes for the handleOps call
-export function getHandleOpsCallData(
-    ops: UserOperation[],
+export function getHandleOpsCallData({
+    userOps,
+    entryPoint,
+    removeZeros = true
+}: {
+    userOps: UserOperation[]
     entryPoint: Address
-) {
-    if (ops.length === 0) {
+    removeZeros?: boolean
+}) {
+    if (userOps.length === 0) {
         throw new Error("No user operations provided")
     }
 
-    const isV07 = isVersion07(ops[0])
+    const isV07 = isVersion07(userOps[0])
 
     if (isV07) {
+        const processed = removeZeros
+            ? (userOps.map((op) =>
+                  removeZeroBytesFromUserOp(op)
+              ) as PackedUserOperation[])
+            : userOps.map((op) => toPackedUserOperation(op as UserOperationV07))
+
         return encodeFunctionData({
             abi: EntryPointV07Abi,
             functionName: "handleOps",
-            args: [
-                ops.map((op) =>
-                    removeZeroBytesFromUserOp(op)
-                ) as PackedUserOperation[],
-                entryPoint
-            ]
+            args: [processed, entryPoint]
         })
     }
+
+    const processed = removeZeros
+        ? (userOps.map((op) =>
+              removeZeroBytesFromUserOp(op)
+          ) as UserOperationV06[])
+        : (userOps as UserOperationV06[])
 
     return encodeFunctionData({
         abi: EntryPointV06Abi,
         functionName: "handleOps",
-        args: [
-            ops.map((op) =>
-                removeZeroBytesFromUserOp(op)
-            ) as UserOperationV06[],
-            entryPoint
-        ]
+        args: [processed, entryPoint]
     })
 }
 
@@ -465,7 +472,7 @@ async function calcEtherlinkPreVerificationGas(
     gasPriceManager: GasPriceManager,
     verify?: boolean
 ) {
-    const data = getHandleOpsCallData([op], entryPoint)
+    const data = getHandleOpsCallData({ userOps: [op], entryPoint })
 
     // Etherlink calculates the inclusion fee (data availability fee) with:
     // 0.000004 XTZ * (150 + tx.data.size() + tx.access_list.size())
@@ -497,7 +504,7 @@ async function calcMantlePreVerificationGas(
     gasPriceManager: GasPriceManager,
     verify?: boolean
 ) {
-    const data = getHandleOpsCallData([op], entryPoint)
+    const data = getHandleOpsCallData({ userOps: [op], entryPoint })
 
     const serializedTx = serializeTransaction(
         {
@@ -694,7 +701,7 @@ async function calcArbitrumPreVerificationGas(
     gasPriceManager: GasPriceManager,
     validate: boolean
 ) {
-    const data = getHandleOpsCallData([op], entryPoint)
+    const data = getHandleOpsCallData({ userOps: [op], entryPoint })
 
     const precompileAddress = "0x00000000000000000000000000000000000000C8"
 
