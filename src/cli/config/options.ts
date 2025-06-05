@@ -567,6 +567,12 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         type: "boolean",
         require: false,
         default: true
+    },
+    "supports-block-override": {
+        description: "Does the RPC support block overrides",
+        type: "boolean",
+        require: false,
+        default: true
     }
 }
 

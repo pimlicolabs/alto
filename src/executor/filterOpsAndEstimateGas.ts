@@ -9,6 +9,7 @@ import {
 } from "@alto/types"
 import {
     Address,
+    BlockOverrides,
     StateOverride,
     getContract,
     maxUint64,
@@ -25,6 +26,7 @@ import { PimlicoEntryPointSimulationsAbi } from "../types/contracts/PimlicoEntry
 import * as sentry from "@sentry/node"
 import { getEip7702DelegationOverrides } from "../utils/eip7702"
 import { encodeHandleOpsCalldata, calculateAA95GasFloor } from "./utils"
+import { GasPriceManager } from "../handlers/gasPriceManager"
 
 export type FilterOpsResult =
     | {
@@ -150,15 +152,23 @@ const getBundleGasLimit = async ({
 export async function filterOpsAndEstimateGas({
     userOpBundle,
     config,
-    logger
+    logger,
+    gasPriceManager
 }: {
     userOpBundle: UserOperationBundle
     config: AltoConfig
     logger: Logger
+    gasPriceManager: GasPriceManager
 }): Promise<FilterOpsResult> {
+    let {
+        publicClient,
+        entrypointSimulationContractV7,
+        utilityWalletAddress,
+        supportsBlockOverride,
+        legacyTransactions
+    } = config
+
     const { userOps, version, entryPoint } = userOpBundle
-    let { publicClient, entrypointSimulationContractV7, utilityWalletAddress } =
-        config
 
     if (!entrypointSimulationContractV7) {
         throw new Error("entrypointSimulationContractV7 not set")
@@ -175,6 +185,13 @@ export async function filterOpsAndEstimateGas({
     let eip7702Override: StateOverride | undefined =
         getEip7702DelegationOverrides(userOps.map(({ userOp }) => userOp))
 
+    let blockOverrides: BlockOverrides | undefined
+    if (supportsBlockOverride && !legacyTransactions) {
+        blockOverrides = {
+            baseFeePerGas: await gasPriceManager.getBaseFee()
+        }
+    }
+
     // Create promises for parallel execution
     const filterOpsPromise = (async () => {
         switch (version) {
@@ -187,7 +204,7 @@ export async function filterOpsAndEstimateGas({
                         beneficiary,
                         entryPoint
                     ],
-                    eip7702Override ? { stateOverride: eip7702Override } : {}
+                    { stateOverride: eip7702Override, blockOverrides }
                 )
                 return simResult.result
             }
@@ -200,7 +217,7 @@ export async function filterOpsAndEstimateGas({
                         beneficiary,
                         entryPoint
                     ],
-                    eip7702Override ? { stateOverride: eip7702Override } : {}
+                    { stateOverride: eip7702Override, blockOverrides }
                 )
                 return simResult.result
             }
@@ -213,7 +230,7 @@ export async function filterOpsAndEstimateGas({
                         beneficiary,
                         entryPoint
                     ],
-                    eip7702Override ? { stateOverride: eip7702Override } : {}
+                    { stateOverride: eip7702Override, blockOverrides }
                 )
                 return simResult.result
             }
