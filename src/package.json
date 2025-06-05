@@ -32,7 +32,7 @@
     },
     "scripts": {
         "build": "tsc -p ./tsconfig.json && tsc-alias -p tsconfig.json",
-        "dev": "nodemon --exec DOTENV_CONFIG_PATH=$(pwd)/../.env ts-node -r tsconfig-paths/register cli/alto.ts run",
+        "dev": "bun --watch cli/alto.ts run",
         "lint": "eslint src/**/*.ts",
         "lint:fix": "eslint src/**/*.ts --fix"
     },

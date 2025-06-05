@@ -58,18 +58,24 @@ export const bundlerArgsSchema = z.object({
         .string()
         .nullable()
         .transform((val: string | null) => {
-            if (val === null) return null
+            if (val === null) {
+                return null
+            }
 
             return val.split(",")
         })
         .refine((values) => {
-            if (values === null) return true
+            if (values === null) {
+                return true
+            }
 
             return values.length > 0
         }, "Must contain at least one method if specified")
         .refine(
             (values) => {
-                if (values === null) return true
+                if (values === null) {
+                    return true
+                }
 
                 return values.every((value: string) =>
                     rpcMethodNames.includes(value)

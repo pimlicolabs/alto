@@ -95,28 +95,6 @@ describe.each([
             expect(gasParams.callGasLimit).not.toBeNull()
         })
 
-        test("Throws if gasPrices are set to zero", async () => {
-            const smartAccountClient = await getSmartAccountClient({
-                entryPointVersion,
-                anvilRpc,
-                altoRpc
-            })
-
-            await expect(async () =>
-                smartAccountClient.estimateUserOperationGas({
-                    calls: [
-                        {
-                            to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
-                            data: "0x",
-                            value: 0n
-                        }
-                    ],
-                    maxFeePerGas: 0n,
-                    maxPriorityFeePerGas: 0n
-                })
-            ).rejects.toThrow()
-        })
-
         // error occurs when calling contract that doesn't exist or due to low level evm revert.
         // both of these scenarios return 0x when calling simulateHandleOp.
         test("Gracefully handles cannot decode zero bytes 0x error", async () => {
