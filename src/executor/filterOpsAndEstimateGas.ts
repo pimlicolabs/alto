@@ -1,14 +1,23 @@
 import {
+    ArbitrumL1FeeAbi,
     RejectedUserOp,
     UserOpInfo,
+    UserOperation,
     UserOperationBundle,
     UserOperationV06,
     UserOperationV07
 } from "@alto/types"
-import { Address, StateOverride, getContract } from "viem"
+import {
+    Address,
+    StateOverride,
+    getContract,
+    maxUint64,
+    serializeTransaction
+} from "viem"
 import { AltoConfig } from "../createConfig"
 import {
     Logger,
+    getHandleOpsCallData,
     scaleBigIntByPercent,
     toPackedUserOperation
 } from "@alto/utils"
@@ -34,6 +43,61 @@ export type FilterOpsResult =
           status: "all_ops_rejected"
           rejectedUserOps: RejectedUserOp[]
       }
+
+const getChainSpecificOverhead = async ({
+    config,
+    entryPoint,
+    userOps
+}: { config: AltoConfig; entryPoint: Address; userOps: UserOperation[] }) => {
+    const { publicClient, chainType } = config
+
+    switch (chainType) {
+        case "arbitrum": {
+            const data = getHandleOpsCallData(userOps, entryPoint)
+
+            const precompileAddress =
+                "0x00000000000000000000000000000000000000C8"
+
+            const serializedTx = serializeTransaction(
+                {
+                    to: entryPoint,
+                    chainId: publicClient.chain?.id ?? 10,
+                    nonce: 999999,
+                    gasLimit: maxUint64,
+                    gasPrice: maxUint64,
+                    data
+                },
+                {
+                    r: "0x123451234512345123451234512345123451234512345123451234512345",
+                    s: "0x123451234512345123451234512345123451234512345123451234512345",
+                    v: 28n
+                }
+            )
+
+            const arbGasPriceOracle = getContract({
+                abi: ArbitrumL1FeeAbi,
+                address: precompileAddress,
+                client: {
+                    public: publicClient
+                }
+            })
+
+            const { result } =
+                await arbGasPriceOracle.simulate.gasEstimateL1Component([
+                    entryPoint,
+                    false,
+                    serializedTx
+                ])
+
+            let [gasEstimateForL1, ,] = result
+
+            // scaling by 10% as reccomended by docs https://github.com/OffchainLabs/nitro-contracts/blob/bdb8f8c68b2229fe9309fe9c03b37017abd1a2cd/src/node-interface/NodeInterface.sol#L105
+            return scaleBigIntByPercent(gasEstimateForL1, 110n)
+        }
+        default:
+            return 0n
+    }
+}
 
 const getBundleGasLimit = async ({
     config,
@@ -107,8 +171,8 @@ export async function filterOpsAndEstimateGas({
     let eip7702Override: StateOverride | undefined =
         getEip7702DelegationOverrides(userOps.map(({ userOp }) => userOp))
 
-    let filterOpsResult
-    try {
+    // Create promises for parallel execution
+    const filterOpsPromise = (async () => {
         switch (version) {
             case "0.8": {
                 const simResult = await simulationContract.simulate.filterOps08(
@@ -121,8 +185,7 @@ export async function filterOpsAndEstimateGas({
                     ],
                     eip7702Override ? { stateOverride: eip7702Override } : {}
                 )
-                filterOpsResult = simResult.result
-                break
+                return simResult.result
             }
             case "0.7": {
                 const simResult = await simulationContract.simulate.filterOps07(
@@ -135,8 +198,7 @@ export async function filterOpsAndEstimateGas({
                     ],
                     eip7702Override ? { stateOverride: eip7702Override } : {}
                 )
-                filterOpsResult = simResult.result
-                break
+                return simResult.result
             }
             default: {
                 const simResult = await simulationContract.simulate.filterOps06(
@@ -149,10 +211,27 @@ export async function filterOpsAndEstimateGas({
                     ],
                     eip7702Override ? { stateOverride: eip7702Override } : {}
                 )
-                filterOpsResult = simResult.result
-                break
+                return simResult.result
             }
         }
+    })()
+
+    // Start chain-specific overhead calculation in parallel
+    const chainSpecificOverheadPromise = getChainSpecificOverhead({
+        config,
+        entryPoint,
+        userOps: userOps.map(({ userOp }) => userOp)
+    })
+
+    let filterOpsResult
+    let chainSpecificOverhead
+    try {
+        const results = await Promise.all([
+            filterOpsPromise,
+            chainSpecificOverheadPromise
+        ])
+        filterOpsResult = results[0]
+        chainSpecificOverhead = results[1]
     } catch (err) {
         logger.error({ err }, "Encountered unhandled error during filterOps")
         sentry.captureException(err)
@@ -204,7 +283,8 @@ export async function filterOpsAndEstimateGas({
     }
 
     // find overhead that can't be calculated onchain
-    const bundleGasUsed = filterOpsResult.gasUsed + 21_000n
+    const bundleGasUsed =
+        filterOpsResult.gasUsed + 21_000n + chainSpecificOverhead
 
     // Find gasLimit needed for this bundle
     const bundleGasLimit = await getBundleGasLimit({
