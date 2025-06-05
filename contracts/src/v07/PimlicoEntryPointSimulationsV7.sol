@@ -100,9 +100,9 @@ contract PimlicoEntryPointSimulationsV7 {
         // Continue to call handleOps until bundle passes.
         while (remainingUserOps.length > 0) {
             balanceBefore = beneficiary.balance;
-            gasAfter = gasBefore;
-            gasBefore = gasleft();
             balanceAfter = balanceBefore;
+            gasBefore = gasleft();
+            gasAfter = gasBefore;
 
             try entryPoint.handleOps(remainingUserOps, beneficiary) {
                 // HandleOps succeeded, record gas and balance changes.
