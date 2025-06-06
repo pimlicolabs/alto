@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import "./EntryPointSimulations.sol";
+import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import {UserOperation} from "account-abstraction-v6/interfaces/UserOperation.sol";
+
 import {IEntryPoint as IEntryPoint06} from "account-abstraction-v6/interfaces/IEntryPoint.sol";
 import {IEntryPoint as IEntryPoint07} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {IEntryPoint as IEntryPoint08} from "account-abstraction-v8/interfaces/IEntryPoint.sol";
+
+import {Exec} from "account-abstraction-v7/utils/Exec.sol";
 import {LibBytes} from "solady/utils/LibBytes.sol";
 
 /// @title PimlicoEntryPointSimulationsV7
 /// @author Pimlico (https://github.com/pimlicolabs/alto)
 /// @notice An ERC-4337 EntryPoint 0.7 simulation contract
-contract PimlicoEntryPointSimulationsV7 {
+contract PimlicoSimulations {
     using LibBytes for bytes;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -37,7 +40,6 @@ contract PimlicoEntryPointSimulationsV7 {
 
     // @notice Used for filterOps and filterOpsLegacy
     RejectedUserOp[] rejectedUserOps;
-    EntryPointSimulations internal eps = new EntryPointSimulations();
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                        Constructor                         */
@@ -51,15 +53,18 @@ contract PimlicoEntryPointSimulationsV7 {
     /*                    Estimation Methods                      */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    function simulateEntryPoint(address payable ep, bytes[] memory data) public returns (bytes[] memory) {
+    function simulateEntryPoint(address entryPointSimulation, address payable entryPoint, bytes[] memory data)
+        public
+        returns (bytes[] memory)
+    {
         uint256 REVERT_REASON_MAX_LEN = type(uint256).max;
         bytes[] memory returnDataArray = new bytes[](data.length);
 
         for (uint256 i = 0; i < data.length; i++) {
             bytes memory returnData;
             bytes memory callData =
-                abi.encodeWithSelector(IEntryPoint07.delegateAndRevert.selector, address(eps), data[i]);
-            bool success = Exec.call(ep, 0, callData, gasleft());
+                abi.encodeWithSelector(IEntryPoint07.delegateAndRevert.selector, entryPointSimulation, data[i]);
+            bool success = Exec.call(entryPoint, 0, callData, gasleft());
             if (!success) {
                 returnData = Exec.getReturnData(REVERT_REASON_MAX_LEN);
             }
