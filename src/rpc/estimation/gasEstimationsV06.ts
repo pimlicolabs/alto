@@ -1,5 +1,4 @@
 import {
-    ENTRYPOINT_V06_SIMULATION_OVERRIDE,
     EntryPointV06Abi,
     EntryPointV06SimulationsAbi,
     ValidationErrors,
@@ -20,6 +19,9 @@ import type { SimulateHandleOpResult } from "./types"
 import type { AltoConfig } from "../../createConfig"
 import { parseFailedOpWithRevert } from "./gasEstimationsV07"
 import { deepHexlify, getAuthorizationStateOverrides } from "@alto/utils"
+import entryPointOverride from "../../contracts/EntryPointCodeOverride.sol/EntryPointCodeOverride.json" with {
+    type: "json"
+}
 
 export class GasEstimatorV06 {
     private config: AltoConfig
@@ -136,7 +138,7 @@ export class GasEstimatorV06 {
 
             stateOverrides[entryPoint] = {
                 ...deepHexlify(stateOverrides?.[entryPoint] || {}),
-                code: ENTRYPOINT_V06_SIMULATION_OVERRIDE
+                code: entryPointOverride.deployedBytecode.object as Hex
             }
         }
 

@@ -225,6 +225,10 @@ export const debugArgsSchema = z.object({
 })
 
 export const gasEstimationArgsSchema = z.object({
+    "pimlico-simulation-contract": z.preprocess(
+        (v) => (v === "" ? undefined : v),
+        addressSchema.optional()
+    ),
     "entrypoint-simulation-contract-v7": z.preprocess(
         (v) => (v === "" ? undefined : v),
         addressSchema.optional()

@@ -27,8 +27,8 @@ enum BinarySearchMode {
  * the bundler in order to check UserOperation validity and estimate its gas consumption.
  * This contract should never be deployed on-chain and is only used as a parameter for the "eth_call" request.
  */
-contract EntryPointSimulations is EntryPoint, IEntryPointSimulations {
-    EntryPointSimulations immutable thisContract = this;
+contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
+    EntryPointSimulations07 immutable thisContract = this;
     AggregatorStakeInfo private NOT_AGGREGATED = AggregatorStakeInfo(address(0), StakeInfo(0, 0));
 
     using UserOperationLib for PackedUserOperation;

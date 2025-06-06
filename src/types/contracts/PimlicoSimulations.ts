@@ -1,4 +1,5 @@
-export const PimlicoEntryPointSimulationsAbi = [
+export const PimlicoEntryPointSimulationsAbi =
+    [
   {
     "type": "constructor",
     "inputs": [],
@@ -85,7 +86,7 @@ export const PimlicoEntryPointSimulationsAbi = [
       {
         "name": "",
         "type": "tuple",
-        "internalType": "struct PimlicoSimulations07.FilterOpsResult",
+        "internalType": "struct PimlicoSimulations.FilterOpsResult",
         "components": [
           {
             "name": "gasUsed",
@@ -100,7 +101,7 @@ export const PimlicoEntryPointSimulationsAbi = [
           {
             "name": "rejectedUserOps",
             "type": "tuple[]",
-            "internalType": "struct PimlicoSimulations07.RejectedUserOp[]",
+            "internalType": "struct PimlicoSimulations.RejectedUserOp[]",
             "components": [
               {
                 "name": "userOpHash",
@@ -190,7 +191,7 @@ export const PimlicoEntryPointSimulationsAbi = [
       {
         "name": "",
         "type": "tuple",
-        "internalType": "struct PimlicoSimulations07.FilterOpsResult",
+        "internalType": "struct PimlicoSimulations.FilterOpsResult",
         "components": [
           {
             "name": "gasUsed",
@@ -205,7 +206,7 @@ export const PimlicoEntryPointSimulationsAbi = [
           {
             "name": "rejectedUserOps",
             "type": "tuple[]",
-            "internalType": "struct PimlicoSimulations07.RejectedUserOp[]",
+            "internalType": "struct PimlicoSimulations.RejectedUserOp[]",
             "components": [
               {
                 "name": "userOpHash",
@@ -295,7 +296,7 @@ export const PimlicoEntryPointSimulationsAbi = [
       {
         "name": "",
         "type": "tuple",
-        "internalType": "struct PimlicoSimulations07.FilterOpsResult",
+        "internalType": "struct PimlicoSimulations.FilterOpsResult",
         "components": [
           {
             "name": "gasUsed",
@@ -310,7 +311,7 @@ export const PimlicoEntryPointSimulationsAbi = [
           {
             "name": "rejectedUserOps",
             "type": "tuple[]",
-            "internalType": "struct PimlicoSimulations07.RejectedUserOp[]",
+            "internalType": "struct PimlicoSimulations.RejectedUserOp[]",
             "components": [
               {
                 "name": "userOpHash",
@@ -334,7 +335,12 @@ export const PimlicoEntryPointSimulationsAbi = [
     "name": "simulateEntryPoint",
     "inputs": [
       {
-        "name": "ep",
+        "name": "entryPointSimulation",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "entryPoint",
         "type": "address",
         "internalType": "address payable"
       },
@@ -355,7 +361,7 @@ export const PimlicoEntryPointSimulationsAbi = [
   },
   {
     "type": "event",
-    "name": "PimlicoSimulations07Deployed",
+    "name": "PimlicoSimulationV7Deployed",
     "inputs": [],
     "anonymous": false
   }

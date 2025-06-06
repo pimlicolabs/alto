@@ -11,9 +11,9 @@ import {IEntryPoint as IEntryPoint08} from "account-abstraction-v8/interfaces/IE
 import {Exec} from "account-abstraction-v7/utils/Exec.sol";
 import {LibBytes} from "solady/utils/LibBytes.sol";
 
-/// @title PimlicoEntryPointSimulationsV7
+/// @title PimlicoSimulations
 /// @author Pimlico (https://github.com/pimlicolabs/alto)
-/// @notice An ERC-4337 EntryPoint 0.7 simulation contract
+/// @notice An ERC-4337 EntryPoint simulation contract
 contract PimlicoSimulations {
     using LibBytes for bytes;
 

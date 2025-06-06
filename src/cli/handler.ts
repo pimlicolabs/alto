@@ -33,14 +33,26 @@ const preFlightChecks = async (config: AltoConfig): Promise<void> => {
         }
     }
 
-    if (config.entrypointSimulationContractV7) {
-        const simulations = config.entrypointSimulationContractV7
-        const simulationsCode = await config.publicClient.getCode({
-            address: simulations
+    if (config.pimlicoSimulationContract) {
+        const address = config.pimlicoSimulationContract
+        const code = await config.publicClient.getCode({
+            address: address
         })
-        if (simulationsCode === undefined || simulationsCode === "0x") {
+        if (code === undefined || code === "0x") {
             throw new Error(
-                `EntryPointSimulationsV7 contract ${simulations} does not exist`
+                `PimlicoSimulations contract ${address} does not exist`
+            )
+        }
+    }
+
+    if (config.entrypointSimulationContractV7) {
+        const address = config.entrypointSimulationContractV7
+        const code = await config.publicClient.getCode({
+            address
+        })
+        if (code === undefined || code === "0x") {
+            throw new Error(
+                `EntryPointSimulationsV7 contract ${address} does not exist`
             )
         }
     }
@@ -164,12 +176,16 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
             deployedContracts.entrypointSimulationContractV7
         args.entrypointSimulationContractV8 =
             deployedContracts.entrypointSimulationContractV8
+        args.pimlicoSimulationContract =
+            deployedContracts.pimlicoSimulationContract
         logger.info(
             {
                 entrypointSimulationContractV7:
                     deployedContracts.entrypointSimulationContractV7,
                 entrypointSimulationContractV8:
-                    deployedContracts.entrypointSimulationContractV8
+                    deployedContracts.entrypointSimulationContractV8,
+                pimlicoSimulationContract:
+                    deployedContracts.pimlicoSimulationContract
             },
             "Contracts used for simulation"
         )

@@ -187,16 +187,21 @@ export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
 
 export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
     {
+        "pimlico-simulation-contract": {
+            description: "Address of the Pimlico simulation contract",
+            type: "string",
+            require: false
+        },
         "entrypoint-simulation-contract-v7": {
             description:
-                "Address of the EntryPoint simulations contract for v7",
+                "Address of the EntryPoint simulations contract for v0.7",
             type: "string",
             alias: "c",
             require: false
         },
         "entrypoint-simulation-contract-v8": {
             description:
-                "Address of the EntryPoint simulations contract for v8",
+                "Address of the EntryPoint simulations contract for v0.8",
             type: "string",
             alias: "c",
             require: false
