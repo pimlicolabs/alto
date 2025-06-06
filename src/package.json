@@ -1,6 +1,6 @@
 {
     "name": "@pimlico/alto",
-    "version": "0.0.18",
+    "version": "0.0.19",
     "description": "A performant and modular ERC-4337 Bundler written in Typescript",
     "repository": "https://github.com/pimlicolabs/alto.git",
     "author": "Pimlico",

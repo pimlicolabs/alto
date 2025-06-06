@@ -1,5 +1,11 @@
 # @pimlico/alto
 
+## 0.0.19
+
+### Patch Changes
+
+- 28812cc5fbe7a6d48fa91d00c30442efff7a57d1: Made estimations contract accept partial authorisation
+
 ## 0.0.18
 
 ### Patch Changes
