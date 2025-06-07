@@ -217,7 +217,7 @@ export function getAddressFromInitCodeOrPaymasterAndData(
 
 type UserOperationDetailsType = {
     accountDeployed: boolean
-    status: "succesful" | "calldata_phase_reverted"
+    status: "successful" | "calldata_phase_reverted"
     revertReason?: Hex
 }
 
@@ -292,7 +292,7 @@ export const getBundleStatus = async ({
                         // create result entry if doesn't exist
                         result[opHash] ??= {
                             accountDeployed: false,
-                            status: "succesful"
+                            status: "successful"
                         }
 
                         switch (eventName) {

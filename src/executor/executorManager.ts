@@ -1054,7 +1054,7 @@ export class ExecutorManager {
                     opDetails.accountDeployed
                 )
 
-                if (opDetails.status === "succesful") {
+                if (opDetails.status === "successful") {
                     this.eventManager.emitIncludedOnChain(
                         userOpHash,
                         transactionHash,
