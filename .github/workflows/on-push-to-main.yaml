@@ -46,11 +46,46 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  release:
-    name: Release
+  check-changesets:
+    name: Check for Changesets
     needs: [build, test]
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    outputs:
+      hasChangesets: ${{ steps.check.outputs.hasChangesets }}
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Install core dependencies
+        uses: ./.github/actions/install-dependencies
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Check for changesets
+        id: check
+        run: |
+          if [ -n "$(find .changeset -name '*.md' -not -name 'README.md' -not -name 'config.json' | head -1)" ]; then
+            echo "hasChangesets=true" >> $GITHUB_OUTPUT
+            echo "Changesets found - will proceed with release"
+          else
+            echo "hasChangesets=false" >> $GITHUB_OUTPUT
+            echo "No changesets found - skipping release"
+          fi
+
+  release:
+    name: Release
+    needs: [check-changesets]
+    if: needs.check-changesets.outputs.hasChangesets == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      published: ${{ steps.changesets.outputs.published }}
+      publishedPackages: ${{ steps.changesets.outputs.publishedPackages }}
 
     steps:
       - name: Clone repository
@@ -67,9 +102,66 @@ jobs:
           pnpm run build:contracts && pnpm run build && jq '. + {type: "module"}' ./src/package.json > ./src/package.tmp.json && mv ./src/package.tmp.json ./src/package.json
 
       - name: Publish to NPM
+        id: changesets
         uses: changesets/action@v1
         with:
           publish: pnpm run changeset:release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_ORG_PIMLICO_TOKEN }}
+
+  docker-release:
+    name: Release Docker Image
+    needs: [check-changesets, release]
+    if: needs.check-changesets.outputs.hasChangesets == 'true' && needs.release.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Extract version from published packages
+        id: version
+        run: |
+          PUBLISHED_PACKAGES='${{ needs.release.outputs.publishedPackages }}'
+          if [ "$PUBLISHED_PACKAGES" != "[]" ] && [ "$PUBLISHED_PACKAGES" != "" ]; then
+            VERSION=$(echo "$PUBLISHED_PACKAGES" | jq -r '.[0].version')
+            echo "version=v$VERSION" >> $GITHUB_OUTPUT
+            echo "Released version: v$VERSION"
+          else
+            echo "No packages were published"
+            exit 1
+          fi
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=latest
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          push: true
