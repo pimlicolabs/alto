@@ -330,7 +330,7 @@ describe.each([
                 )
             ).toEqual(true)
 
-            // user ops whould be ordered by the nonce key
+            // user ops would be ordered by the nonce key
             const logs = await entryPointContract.getEvents.UserOperationEvent()
 
             // @ts-ignore

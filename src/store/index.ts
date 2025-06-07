@@ -74,7 +74,7 @@ export type MempoolStore = {
 
     // Methods for userOp validation before adding to mempool.
     isInMempool: (args: EntryPointUserOpHashParam) => Promise<boolean>
-    popConflictingOustanding: (args: {
+    popConflictingOutstanding: (args: {
         entryPoint: Address
         userOp: UserOperation
     }) => Promise<ConflictingOutstandingType>

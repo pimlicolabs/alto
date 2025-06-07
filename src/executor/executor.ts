@@ -224,7 +224,7 @@ export class Executor {
                     // ref: https://github.com/ethereum-optimism/optimism/issues/2618#issuecomment-1630272888
                     if (cause.details?.includes("no backends available")) {
                         this.logger.warn(
-                            "no backends avaiable error, retrying after 500ms"
+                            "no backends available error, retrying after 500ms"
                         )
                         await new Promise((resolve) => setTimeout(resolve, 500))
                     }
