@@ -348,8 +348,7 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
         (uint256 validationData, uint256 paymasterValidationData, uint256 paymasterVerificationGasLimit) =
             _validatePrepayment(0, op, opInfo, true);
 
-        SimulationConfigs memory simCfg = SimulationConfigs(true, true, 0);
-        (uint256 paid, uint256 paymasterPostOpGasLimit) = _executeUserOp(simCfg, 0, op, opInfo);
+        (uint256 paid, uint256 paymasterPostOpGasLimit) = _executeUserOpAndBubbleReverts(0, op, opInfo);
 
         bool targetSuccess;
         bytes memory targetResult;
