@@ -53,7 +53,7 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
             uint256 paymasterValidationData, // uint256 paymasterVerificationGasLimit
         ) = _validatePrepayment(0, userOp, outOpInfo, true);
 
-        _validateAccountAndPaymasterValidationData(0, validationData, paymasterValidationData, address(0));
+        _validateAccountAndPaymasterValidationData(0, validationData, paymasterValidationData, address(0), false);
 
         StakeInfo memory paymasterInfo = _getStakeInfo(outOpInfo.mUserOp.paymaster);
         StakeInfo memory senderInfo = _getStakeInfo(outOpInfo.mUserOp.sender);
@@ -348,7 +348,8 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
         (uint256 validationData, uint256 paymasterValidationData, uint256 paymasterVerificationGasLimit) =
             _validatePrepayment(0, op, opInfo, true);
 
-        (uint256 paid, uint256 paymasterPostOpGasLimit) = _executeUserOp(0, op, opInfo);
+        SimulationConfigs memory simCfg = SimulationConfigs(true, true, 0);
+        (uint256 paid, uint256 paymasterPostOpGasLimit) = _executeUserOp(simCfg, 0, op, opInfo);
 
         bool targetSuccess;
         bytes memory targetResult;

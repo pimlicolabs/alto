@@ -29,6 +29,13 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard 
     // Custom event for bubbling up callphase reverts.
     error CallPhaseReverted(bytes reason);
 
+    // Custom struct for handling simulation configs.
+    struct SimulationConfigs {
+        bool throwCallphaseRevert;
+        bool throwAA50Revert;
+        uint256 baseFeePerGas;
+    }
+
     using UserOperationLib for PackedUserOperation;
 
     SenderCreator internal immutable _senderCreator = new SenderCreator();
@@ -61,14 +68,18 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard 
 
     /**
      * Execute a user operation.
+     * @param simCfg  - The simulation params.
+     * @param opIndex    - Index into the opInfo array.
      * @param userOp     - The userOp to execute.
      * @param opInfo     - The opInfo filled by validatePrepayment for this userOp.
      * @return collected - The total amount this userOp paid.
      */
-    function _executeUserOp(uint256 opIndex, PackedUserOperation calldata userOp, UserOpInfo memory opInfo)
-        internal
-        returns (uint256 collected, uint256 paymasterPostOpGasLimit)
-    {
+    function _executeUserOp(
+        SimulationConfigs memory simCfg,
+        uint256 opIndex,
+        PackedUserOperation calldata userOp,
+        UserOpInfo memory opInfo
+    ) internal returns (uint256 collected, uint256 paymasterPostOpGasLimit) {
         (opIndex);
         uint256 preGas = gasleft();
         bytes memory context = getMemoryBytesFromOffset(opInfo.contextOffset);
@@ -81,9 +92,9 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard 
             }
             if (methodSig == IAccountExecute.executeUserOp.selector) {
                 bytes memory executeUserOp = abi.encodeCall(IAccountExecute.executeUserOp, (userOp, opInfo.userOpHash));
-                (collected, paymasterPostOpGasLimit) = innerHandleOp(executeUserOp, opInfo, context, preGas);
+                (collected, paymasterPostOpGasLimit) = innerHandleOp(simCfg, executeUserOp, opInfo, context, preGas);
             } else {
-                (collected, paymasterPostOpGasLimit) = innerHandleOp(callData, opInfo, context, preGas);
+                (collected, paymasterPostOpGasLimit) = innerHandleOp(simCfg, callData, opInfo, context, preGas);
             }
         }
     }
@@ -105,6 +116,33 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard 
 
     function emitPrefundTooLow(UserOpInfo memory opInfo) internal virtual {
         emit UserOperationPrefundTooLow(opInfo.userOpHash, opInfo.mUserOp.sender, opInfo.mUserOp.nonce);
+    }
+
+    // /// @inheritdoc IEntryPoint
+    function handleOps(PackedUserOperation[] calldata ops, address payable beneficiary) public nonReentrant {
+        //uint256 opslen = ops.length;
+
+        //UserOpInfo[] memory opInfos = new UserOpInfo[](opslen);
+
+        //unchecked {
+        //    for (uint256 i = 0; i < opslen; i++) {
+        //        UserOpInfo memory opInfo = opInfos[i];
+
+        //        (uint256 validationData, uint256 pmValidationData) = _validatePrepayment(i, ops[i], opInfo);
+
+        //        _validateAccountAndPaymasterValidationData(i, validationData, pmValidationData, address(0));
+        //    }
+
+        //    uint256 collected = 0;
+
+        //    emit BeforeExecution();
+
+        //    for (uint256 i = 0; i < opslen; i++) {
+        //        collected += _executeUserOp(i, ops[i], opInfos[i]);
+        //    }
+
+        //    _compensate(beneficiary, collected);
+        //}
     }
 
     /**
@@ -135,18 +173,23 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard 
     /**
      * Inner function to handle a UserOperation.
      * Must be declared "external" to open a call context, but it can only be called by handleOps.
+     * @param simCfg   - The simulation params.
      * @param callData - The callData to execute.
      * @param opInfo   - The UserOpInfo struct.
      * @param context  - The context bytes.
      * @return actualGasCost - the actual cost in eth this UserOperation paid for gas
      */
-    function innerHandleOp(bytes memory callData, UserOpInfo memory opInfo, bytes memory context, uint256 preGas)
-        public
-        returns (uint256 actualGasCost, uint256 paymasterPostOpGasLimit)
-    {
+    function innerHandleOp(
+        SimulationConfigs memory simCfg,
+        bytes memory callData,
+        UserOpInfo memory opInfo,
+        bytes memory context,
+        uint256 preGas
+    ) public returns (uint256 actualGasCost, uint256 paymasterPostOpGasLimit) {
         MemoryUserOp memory mUserOp = opInfo.mUserOp;
 
         uint256 callGasLimit = mUserOp.callGasLimit;
+        // Ignore AA95 check as it is irrelevant during simulations.
         //unchecked {
         //    // handleOps was called with gas limit too low. abort entire bundle.
         //    if (gasleft() * 63 / 64 < callGasLimit + mUserOp.paymasterPostOpGasLimit + INNER_GAS_OVERHEAD) {
@@ -159,13 +202,23 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard 
             bool success = Exec.call(mUserOp.sender, 0, callData, callGasLimit);
             if (!success) {
                 bytes memory result = Exec.getReturnData(REVERT_REASON_MAX_LEN);
-                revert CallPhaseReverted(result);
+
+                // CUSTOM FLOW: Throw userOperation revert reason if specified in simulation params.
+                if (simCfg.throwCallphaseRevert) {
+                    revert CallPhaseReverted(result);
+                }
+
+                // Normal flow from EntryPoint
+                if (result.length > 0) {
+                    emit UserOperationRevertReason(opInfo.userOpHash, mUserOp.sender, mUserOp.nonce, result);
+                }
+                mode = IPaymaster.PostOpMode.opReverted;
             }
         }
 
         unchecked {
             uint256 actualGas = preGas - gasleft() + opInfo.preOpGas;
-            return _postExecution(mode, opInfo, context, actualGas);
+            return _postExecution(simCfg, mode, opInfo, context, actualGas);
         }
     }
 
@@ -328,12 +381,17 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard 
      * @param validationData          - The account validationData.
      * @param paymasterValidationData - The paymaster validationData.
      * @param expectedAggregator      - The expected aggregator.
+     * @param throwAA32Revert         - Whether to throw if AA32 reverts.
+     *                                  Should be set to false when binary searching / mempool validation
+     *                                  as this check is made on bundler side.
+     *                                  Should be set to true during filterOps so userOp is properly rejected.
      */
     function _validateAccountAndPaymasterValidationData(
         uint256 opIndex,
         uint256 validationData,
         uint256 paymasterValidationData,
-        address expectedAggregator
+        address expectedAggregator,
+        bool throwAA32Revert
     ) internal view {
         (address aggregator, bool outOfTimeRange) = _getValidationData(validationData);
         if (expectedAggregator != aggregator) {
@@ -350,10 +408,9 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard 
             revert FailedOp(opIndex, "AA34 signature error");
         }
 
-        // * NOTE: We ignore the expiry check as this is done on bundler side.
-        //if (outOfTimeRange) {
-        //    revert FailedOp(opIndex, "AA32 paymaster expired or not due");
-        //}
+        if (outOfTimeRange && throwAA32Revert) {
+            revert FailedOp(opIndex, "AA32 paymaster expired or not due");
+        }
     }
 
     /**
@@ -376,6 +433,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard 
         aggregator = data.aggregator;
     }
 
+    // @dev Custom non standard EntryPoint function used for paymasterVerificationGas binary search.
     function _paymasterValidation(uint256 opIndex, PackedUserOperation calldata userOp, UserOpInfo memory outOpInfo)
         public
         returns (uint256 validationData, uint256 paymasterValidationData, uint256 paymasterVerificationGasLimit)
@@ -399,6 +457,11 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard 
      * This method is called off-chain (simulateValidation()) and on-chain (from handleOps)
      * @param opIndex - The index of this userOp into the "opInfos" array.
      * @param userOp  - The userOp to validate.
+     * @param outOpInfo - The UserOpInfo struct.
+     * @param validatePaymasterPrepayment - Whether to validate the paymaster pre-payment.
+     *                                      Set to true for normal validation/simulation.
+     *                                      Set to false when binary searching for verificationGasLimit only,
+     *                                      to skip paymaster validation and focus on account validation gas.
      */
     function _validatePrepayment(
         uint256 opIndex,
@@ -456,6 +519,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard 
      * @param actualGas - The gas used so far by this user operation.
      */
     function _postExecution(
+        SimulationConfigs memory simCfg,
         IPaymaster.PostOpMode mode,
         UserOpInfo memory opInfo,
         bytes memory context,
@@ -465,7 +529,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard 
         unchecked {
             address refundAddress;
             MemoryUserOp memory mUserOp = opInfo.mUserOp;
-            uint256 gasPrice = getUserOpGasPrice(mUserOp);
+            uint256 gasPrice = getUserOpGasPrice(simCfg, mUserOp);
 
             address paymaster = mUserOp.paymaster;
             if (paymaster == address(0)) {
@@ -481,9 +545,24 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard 
                         ) {
                             // solhint-disable-next-line no-empty-blocks
                         } catch {
-                            revert FailedOpWithRevert(
-                                0, "AA50 postOp reverted", Exec.getReturnData(REVERT_REASON_MAX_LEN)
-                            );
+                            // CUSTOM FLOW: Throw postOp revert reason if specified in simulation params.
+                            if (simCfg.throwAA50Revert) {
+                                revert FailedOpWithRevert(
+                                    0, "AA50 postOp reverted", Exec.getReturnData(REVERT_REASON_MAX_LEN)
+                                );
+                            }
+
+                            // Normal flow from EntryPoint
+                            //bytes memory reason = Exec.getReturnData(REVERT_REASON_MAX_LEN);
+                            //revert PostOpReverted(reason);
+
+                            // Ref https://github.com/eth-infinitism/account-abstraction/blob/7af70c/contracts/core/EntryPoint.sol#L135-L148
+                            // On EntryPoint innerHandleOp catches PostOpReverted and calls _postExecution again with PostOpMode.postOpReverted.
+                            // But because we are just calling innerHandleOp directly instead of using a lowLevel call, we can directly call _postExecution
+                            // with PostOpMode.postOpReverted.
+                            actualGas = preGas - gasleft() + opInfo.preOpGas;
+                            (actualGasCost,) =
+                                _postExecution(simCfg, IPaymaster.PostOpMode.postOpReverted, opInfo, context, actualGas);
                         }
                         paymasterPostOpGasLimit = remainingGas - gasleft();
                     }
@@ -528,9 +607,18 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard 
     /**
      * The gas price this UserOp agrees to pay.
      * Relayer/block builder might submit the TX with higher priorityFee, but the user should not.
+     * @param simCfg - The simulation args.
      * @param mUserOp - The userOp to get the gas price from.
+     *
+     * Custom flow: We use baseFeePerGas from simulation args rather than block.basefee.
+     * We do this because block.basefee is always set to 0 during eth_call (even with block.baseFeePerGas overrides).
+     * To accurately calculate the bundle total compensation during filterOps, we need to use the actual baseFeePerGas.
      */
-    function getUserOpGasPrice(MemoryUserOp memory mUserOp) internal view returns (uint256) {
+    function getUserOpGasPrice(SimulationConfigs memory simCfg, MemoryUserOp memory mUserOp)
+        internal
+        pure
+        returns (uint256)
+    {
         unchecked {
             uint256 maxFeePerGas = mUserOp.maxFeePerGas;
             uint256 maxPriorityFeePerGas = mUserOp.maxPriorityFeePerGas;
@@ -538,7 +626,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard 
                 //legacy mode (for networks that don't support basefee opcode)
                 return maxFeePerGas;
             }
-            return min(maxFeePerGas, maxPriorityFeePerGas + block.basefee);
+            return min(maxFeePerGas, maxPriorityFeePerGas + simCfg.baseFeePerGas);
         }
     }
 
