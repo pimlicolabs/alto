@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
-import "../src/v07/PimlicoEntryPointSimulationsV7.sol";
+import "../src/PimlicoSimulations.sol";
 
 import {MessageHashUtils} from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 import {ECDSA} from "@openzeppelin-v4.8.3/contracts/utils/cryptography/ECDSA.sol";
@@ -23,7 +23,7 @@ import {EntryPoint as EntryPoint08} from "@test-utils/v08/core/EntryPoint.sol";
 import {SimpleAccountFactory as SimpleAccountFactory08} from "@test-utils/v08/accounts/SimpleAccountFactory.sol";
 
 contract FilterOpsTest is Test {
-    PimlicoEntryPointSimulationsV7 pimlicoSim;
+    PimlicoSimulations pimlicoSim;
     SimpleAccountFactory06 accountFactory06;
     SimpleAccountFactory07 accountFactory07;
     SimpleAccountFactory08 accountFactory08;
@@ -37,7 +37,7 @@ contract FilterOpsTest is Test {
 
     function setUp() public {
         (owner, ownerKey) = makeAddrAndKey("alice");
-        pimlicoSim = new PimlicoEntryPointSimulationsV7();
+        pimlicoSim = new PimlicoSimulations();
         entryPoint06 = new EntryPoint06();
         entryPoint07 = new EntryPoint07();
         entryPoint08 = new EntryPoint08();
@@ -61,8 +61,7 @@ contract FilterOpsTest is Test {
         UserOperation06[] memory ops = _createAndSignOps06(accounts);
 
         uint256 balanceBefore = beneficiary.balance;
-        PimlicoEntryPointSimulationsV7.FilterOpsResult memory result =
-            pimlicoSim.filterOps06(ops, beneficiary, entryPoint06);
+        PimlicoSimulations.FilterOpsResult memory result = pimlicoSim.filterOps06(ops, beneficiary, entryPoint06);
 
         _assertValidOpsResult(result, balanceBefore);
     }
@@ -77,8 +76,7 @@ contract FilterOpsTest is Test {
         _setupAccounts06(accounts);
         UserOperation06[] memory ops = _createAndSignOps06(accounts);
 
-        PimlicoEntryPointSimulationsV7.FilterOpsResult memory result =
-            pimlicoSim.filterOps06(ops, beneficiary, entryPoint06);
+        PimlicoSimulations.FilterOpsResult memory result = pimlicoSim.filterOps06(ops, beneficiary, entryPoint06);
 
         _assertPartialFailureResult(result, 1);
         assertEq(
@@ -101,8 +99,7 @@ contract FilterOpsTest is Test {
         // Replace with invalid signature
         ops[0].signature = hex"deadbeef";
 
-        PimlicoEntryPointSimulationsV7.FilterOpsResult memory result =
-            pimlicoSim.filterOps06(ops, beneficiary, entryPoint06);
+        PimlicoSimulations.FilterOpsResult memory result = pimlicoSim.filterOps06(ops, beneficiary, entryPoint06);
 
         // Operation should be rejected
         _assertAllFailedResult(result, 1);
@@ -121,8 +118,7 @@ contract FilterOpsTest is Test {
         _setupAccounts06(accounts);
         UserOperation06[] memory ops = _createAndSignOps06(accounts);
 
-        PimlicoEntryPointSimulationsV7.FilterOpsResult memory result =
-            pimlicoSim.filterOps06(ops, beneficiary, entryPoint06);
+        PimlicoSimulations.FilterOpsResult memory result = pimlicoSim.filterOps06(ops, beneficiary, entryPoint06);
 
         _assertAllFailedResult(result, 2);
     }
@@ -130,8 +126,7 @@ contract FilterOpsTest is Test {
     // Test filterOps06 with empty array
     function testFilterOps06_EmptyArray() public {
         UserOperation06[] memory ops = new UserOperation06[](0);
-        PimlicoEntryPointSimulationsV7.FilterOpsResult memory result =
-            pimlicoSim.filterOps06(ops, beneficiary, entryPoint06);
+        PimlicoSimulations.FilterOpsResult memory result = pimlicoSim.filterOps06(ops, beneficiary, entryPoint06);
         _assertEmptyResult(result);
     }
 
@@ -150,8 +145,7 @@ contract FilterOpsTest is Test {
         PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
 
         uint256 balanceBefore = beneficiary.balance;
-        PimlicoEntryPointSimulationsV7.FilterOpsResult memory result =
-            pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
+        PimlicoSimulations.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
 
         _assertValidOpsResult(result, balanceBefore);
     }
@@ -166,8 +160,7 @@ contract FilterOpsTest is Test {
         _setupAccounts07(accounts);
         PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
 
-        PimlicoEntryPointSimulationsV7.FilterOpsResult memory result =
-            pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
+        PimlicoSimulations.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
 
         _assertPartialFailureResult(result, 1);
         assertEq(
@@ -190,8 +183,7 @@ contract FilterOpsTest is Test {
         // Replace with invalid signature
         ops[0].signature = hex"deadbeef";
 
-        PimlicoEntryPointSimulationsV7.FilterOpsResult memory result =
-            pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
+        PimlicoSimulations.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
 
         // Operation should be rejected
         _assertAllFailedResult(result, 1);
@@ -217,8 +209,7 @@ contract FilterOpsTest is Test {
         _setupAccounts07(accounts);
         PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
 
-        PimlicoEntryPointSimulationsV7.FilterOpsResult memory result =
-            pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
+        PimlicoSimulations.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
 
         _assertAllFailedResult(result, 2);
     }
@@ -226,8 +217,7 @@ contract FilterOpsTest is Test {
     // Test filterOps07 with empty array
     function testFilterOps07_EmptyArray() public {
         PackedUserOperation07[] memory ops = new PackedUserOperation07[](0);
-        PimlicoEntryPointSimulationsV7.FilterOpsResult memory result =
-            pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
+        PimlicoSimulations.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
         _assertEmptyResult(result);
     }
 
@@ -246,7 +236,7 @@ contract FilterOpsTest is Test {
         PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
 
         uint256 balanceBefore = beneficiary.balance;
-        PimlicoEntryPointSimulationsV7.FilterOpsResult memory result =
+        PimlicoSimulations.FilterOpsResult memory result =
             pimlicoSim.filterOps08(castToVersion07(ops), beneficiary, entryPoint08);
 
         _assertValidOpsResult(result, balanceBefore);
@@ -262,7 +252,7 @@ contract FilterOpsTest is Test {
         _setupAccounts08(accounts);
         PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
 
-        PimlicoEntryPointSimulationsV7.FilterOpsResult memory result =
+        PimlicoSimulations.FilterOpsResult memory result =
             pimlicoSim.filterOps08(castToVersion07(ops), beneficiary, entryPoint08);
 
         _assertPartialFailureResult(result, 1);
@@ -282,7 +272,7 @@ contract FilterOpsTest is Test {
         // Replace with invalid signature
         ops[0].signature = hex"deadbeef";
 
-        PimlicoEntryPointSimulationsV7.FilterOpsResult memory result =
+        PimlicoSimulations.FilterOpsResult memory result =
             pimlicoSim.filterOps08(castToVersion07(ops), beneficiary, entryPoint08);
 
         // Operation should be rejected
@@ -309,7 +299,7 @@ contract FilterOpsTest is Test {
         _setupAccounts08(accounts);
         PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
 
-        PimlicoEntryPointSimulationsV7.FilterOpsResult memory result =
+        PimlicoSimulations.FilterOpsResult memory result =
             pimlicoSim.filterOps08(castToVersion07(ops), beneficiary, entryPoint08);
 
         _assertAllFailedResult(result, 2);
@@ -318,7 +308,7 @@ contract FilterOpsTest is Test {
     // Test filterOps08 with empty array
     function testFilterOps08_EmptyArray() public {
         PackedUserOperation08[] memory ops = new PackedUserOperation08[](0);
-        PimlicoEntryPointSimulationsV7.FilterOpsResult memory result =
+        PimlicoSimulations.FilterOpsResult memory result =
             pimlicoSim.filterOps08(castToVersion07(ops), beneficiary, entryPoint08);
         _assertEmptyResult(result);
     }
@@ -493,33 +483,28 @@ contract FilterOpsTest is Test {
     // ============== TEST HELPERS ================
     // ============================================
 
-    function _assertValidOpsResult(PimlicoEntryPointSimulationsV7.FilterOpsResult memory result, uint256 balanceBefore)
-        private
-    {
+    function _assertValidOpsResult(PimlicoSimulations.FilterOpsResult memory result, uint256 balanceBefore) private {
         assertEq(result.rejectedUserOps.length, 0, "No operations should be rejected");
         assertGt(result.gasUsed, 0, "Gas should be used");
         assertGt(result.balanceChange, 0, "Balance should increase");
         assertEq(beneficiary.balance - balanceBefore, result.balanceChange, "Balance change should match");
     }
 
-    function _assertPartialFailureResult(
-        PimlicoEntryPointSimulationsV7.FilterOpsResult memory result,
-        uint256 expectedRejected
-    ) private {
+    function _assertPartialFailureResult(PimlicoSimulations.FilterOpsResult memory result, uint256 expectedRejected)
+        private
+    {
         assertEq(result.rejectedUserOps.length, expectedRejected, "Expected number of operations should be rejected");
         assertGt(result.gasUsed, 0, "Gas should be used");
         assertGt(result.balanceChange, 0, "Balance should increase");
     }
 
-    function _assertAllFailedResult(PimlicoEntryPointSimulationsV7.FilterOpsResult memory result, uint256 totalOps)
-        private
-    {
+    function _assertAllFailedResult(PimlicoSimulations.FilterOpsResult memory result, uint256 totalOps) private {
         assertEq(result.rejectedUserOps.length, totalOps, "All operations should be rejected");
         assertEq(result.gasUsed, 0, "No gas should be used");
         assertEq(result.balanceChange, 0, "Balance should not change");
     }
 
-    function _assertEmptyResult(PimlicoEntryPointSimulationsV7.FilterOpsResult memory result) private {
+    function _assertEmptyResult(PimlicoSimulations.FilterOpsResult memory result) private {
         assertEq(result.rejectedUserOps.length, 0, "No operations should be rejected");
         assertEq(result.gasUsed, 0, "No gas should be used");
         assertEq(result.balanceChange, 0, "Balance should not change");
