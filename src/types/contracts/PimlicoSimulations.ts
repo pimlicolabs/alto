@@ -1,4 +1,4 @@
-export const PimlicoEntryPointSimulationsAbi =
+export const PimlicoSimulationsAbi =
     [
   {
     "type": "constructor",

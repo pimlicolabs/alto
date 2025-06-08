@@ -3,7 +3,7 @@ import {
     EntryPointV07SimulationsAbi,
     ExecutionErrors,
     type ExecutionResult,
-    PimlicoEntryPointSimulationsAbi,
+    PimlicoSimulationsAbi,
     RpcError,
     type StateOverrides,
     type BinarySearchCallResult,
@@ -93,7 +93,7 @@ export class GasEstimatorV07 {
             )
         }
 
-        const errorResult = await this.callPimlicoEntryPointSimulations({
+        const errorResult = await this.callPimlicoSimulations({
             entryPoint,
             entryPointSimulationsCallData: [simulateValidationLast],
             stateOverrides,
@@ -290,7 +290,7 @@ export class GasEstimatorV07 {
                 )
             }
 
-            let cause = await this.callPimlicoEntryPointSimulations({
+            let cause = await this.callPimlicoSimulations({
                 entryPoint,
                 entryPointSimulationsCallData: [binarySearchCallGasLimit],
                 stateOverrides,
@@ -378,7 +378,7 @@ export class GasEstimatorV07 {
 
         let cause = [
             (
-                await this.callPimlicoEntryPointSimulations({
+                await this.callPimlicoSimulations({
                     entryPoint,
                     entryPointSimulationsCallData: [simulateHandleOpLast],
                     stateOverrides,
@@ -515,13 +515,13 @@ export class GasEstimatorV07 {
                 binarySearchPaymasterVerificationGasLimitCause,
                 binarySearchCallGasLimitCause
             ] = await Promise.all([
-                this.callPimlicoEntryPointSimulations({
+                this.callPimlicoSimulations({
                     entryPoint,
                     entryPointSimulationsCallData: [simulateHandleOpLast],
                     stateOverrides,
                     entryPointSimulationsAddress
                 }),
-                this.callPimlicoEntryPointSimulations({
+                this.callPimlicoSimulations({
                     entryPoint,
                     entryPointSimulationsCallData: [
                         binarySearchVerificationGasLimit
@@ -530,7 +530,7 @@ export class GasEstimatorV07 {
                     entryPointSimulationsAddress
                 }),
                 binarySearchPaymasterVerificationGasLimit
-                    ? this.callPimlicoEntryPointSimulations({
+                    ? this.callPimlicoSimulations({
                           entryPoint,
                           entryPointSimulationsCallData: [
                               binarySearchPaymasterVerificationGasLimit
@@ -539,7 +539,7 @@ export class GasEstimatorV07 {
                           entryPointSimulationsAddress
                       })
                     : null,
-                this.callPimlicoEntryPointSimulations({
+                this.callPimlicoSimulations({
                     entryPoint,
                     entryPointSimulationsCallData: [binarySearchCallGasLimit],
                     stateOverrides,
@@ -559,7 +559,7 @@ export class GasEstimatorV07 {
                 binarySearchCallDataGasLimits
             ] = await Promise.all([
                 binarySearchPaymasterVerificationGasLimit
-                    ? await this.callPimlicoEntryPointSimulations({
+                    ? await this.callPimlicoSimulations({
                           entryPoint,
                           entryPointSimulationsCallData: [
                               simulateHandleOpLast,
@@ -569,7 +569,7 @@ export class GasEstimatorV07 {
                           stateOverrides,
                           entryPointSimulationsAddress
                       })
-                    : await this.callPimlicoEntryPointSimulations({
+                    : await this.callPimlicoSimulations({
                           entryPoint,
                           entryPointSimulationsCallData: [
                               simulateHandleOpLast,
@@ -578,7 +578,7 @@ export class GasEstimatorV07 {
                           stateOverrides,
                           entryPointSimulationsAddress
                       }),
-                await this.callPimlicoEntryPointSimulations({
+                await this.callPimlicoSimulations({
                     entryPoint,
                     entryPointSimulationsCallData: [binarySearchCallGasLimit],
                     stateOverrides,
@@ -779,7 +779,7 @@ export class GasEstimatorV07 {
         }
     }
 
-    async callPimlicoEntryPointSimulations({
+    async callPimlicoSimulations({
         entryPoint,
         entryPointSimulationsCallData,
         stateOverrides,
@@ -796,20 +796,32 @@ export class GasEstimatorV07 {
             utilityWalletAddress,
             fixedGasLimitForEstimation,
             balanceOverride: balanceOverrideSupport,
-            codeOverrideSupport
+            codeOverrideSupport,
+            pimlicoSimulationContract
         } = this.config
 
         if (!entryPointSimulationsAddress) {
             throw new RpcError(
-                "entryPointSimulationsAddress must be provided for V07 UserOperation",
+                "entryPointSimulationsAddress must be provided",
+                ValidationErrors.InvalidFields
+            )
+        }
+
+        if (!pimlicoSimulationContract) {
+            throw new RpcError(
+                "pimlicoSimulationContract must be provided",
                 ValidationErrors.InvalidFields
             )
         }
 
         const callData = encodeFunctionData({
-            abi: PimlicoEntryPointSimulationsAbi,
+            abi: PimlicoSimulationsAbi,
             functionName: "simulateEntryPoint",
-            args: [entryPoint, entryPointSimulationsCallData]
+            args: [
+                entryPointSimulationsAddress,
+                entryPoint,
+                entryPointSimulationsCallData
+            ]
         })
 
         // Remove state override if not supported by network.
@@ -821,7 +833,7 @@ export class GasEstimatorV07 {
             method: "eth_call",
             params: [
                 {
-                    to: entryPointSimulationsAddress,
+                    to: pimlicoSimulationContract,
                     from: utilityWalletAddress,
                     data: callData,
                     ...(fixedGasLimitForEstimation !== undefined && {
