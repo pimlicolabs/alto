@@ -250,7 +250,7 @@ export class GasEstimatorV07 {
             | "binarySearchCallGasLimit"
         stateOverrides?: StateOverrides | undefined
     }): Promise<SimulateBinarySearchRetryResult> {
-        const maxRetries = 3
+        const maxRetries = this.config.binarySearchMaxRetries
         let retryCount = 0
         let currentOptimalGas = optimalGas
         let currentMinGas = minGas

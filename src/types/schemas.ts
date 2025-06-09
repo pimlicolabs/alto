@@ -111,7 +111,7 @@ const signedAuthorizationSchema = z.union([
     })
 ])
 
-const userOperationV06Schema = z
+const userOperationV06Schema =  z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
@@ -131,7 +131,7 @@ const userOperationV06Schema = z
         return val
     })
 
-const userOperationV07Schema = z
+const userOperationV07Schema =   z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
@@ -171,7 +171,7 @@ const userOperationV07Schema = z
     .strict()
     .transform((val) => val)
 
-const userOperationV08Schema = z
+const userOperationV08Schema =   z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
@@ -340,9 +340,15 @@ export const userOperationSchema = z.union([
     userOperationV08Schema
 ])
 
-export type UserOperationV06 = z.infer<typeof userOperationV06Schema>
-export type UserOperationV07 = z.infer<typeof userOperationV07Schema>
-export type UserOperationV08 = z.infer<typeof userOperationV08Schema>
+export type UserOperationV06 = z.infer<
+    typeof userOperationV06Schema
+>
+export type UserOperationV07 = z.infer<
+    typeof userOperationV07Schema
+>
+export type UserOperationV08 = z.infer<
+    typeof userOperationV08Schema
+>
 export type PackedUserOperation = z.infer<typeof packerUserOperationSchema>
 export type UserOperation = z.infer<typeof userOperationSchema>
 
@@ -490,6 +496,12 @@ export const sendUserOperationSchema = z.object({
     result: hexData32Schema
 })
 
+export const boostSendUserOperationSchema = z.object({
+    method: z.literal("boost_sendUserOperation"),
+    params: z.tuple([userOperationSchema, addressSchema]),
+    result: hexData32Schema
+})
+
 export const getUserOperationByHashSchema = z.object({
     method: z.literal("eth_getUserOperationByHash"),
     params: z.tuple([
@@ -632,6 +644,7 @@ export const bundlerRequestSchema = z.discriminatedUnion("method", [
     supportedEntryPointsSchema.omit({ result: true }),
     estimateUserOperationGasSchema.omit({ result: true }),
     sendUserOperationSchema.omit({ result: true }),
+    boostSendUserOperationSchema.omit({ result: true }),
     getUserOperationByHashSchema.omit({ result: true }),
     getUserOperationReceiptSchema.omit({ result: true }),
     debugClearStateSchema.omit({ result: true }),
@@ -654,6 +667,7 @@ export const bundlerRpcSchema = z.union([
     supportedEntryPointsSchema,
     estimateUserOperationGasSchema,
     sendUserOperationSchema,
+    boostSendUserOperationSchema,
     getUserOperationByHashSchema,
     getUserOperationReceiptSchema,
     debugClearStateSchema,

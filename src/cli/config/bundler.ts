@@ -58,18 +58,24 @@ export const bundlerArgsSchema = z.object({
         .string()
         .nullable()
         .transform((val: string | null) => {
-            if (val === null) return null
+            if (val === null) {
+                return null
+            }
 
             return val.split(",")
         })
         .refine((values) => {
-            if (values === null) return true
+            if (values === null) {
+                return true
+            }
 
             return values.length > 0
         }, "Must contain at least one method if specified")
         .refine(
             (values) => {
-                if (values === null) return true
+                if (values === null) {
+                    return true
+                }
 
                 return values.every((value: string) =>
                     rpcMethodNames.includes(value)
@@ -135,7 +141,8 @@ export const executorArgsSchema = z.object({
     "bundler-margin": z
         .string()
         .transform((val) => BigInt(val))
-        .default("90")
+        .default("90"),
+    "binary-search-max-retries": z.number().int().min(1).default(3)
 })
 
 export const compatibilityArgsSchema = z.object({

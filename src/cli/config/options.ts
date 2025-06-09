@@ -427,6 +427,13 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "string",
         require: false,
         default: "90"
+    },
+    "binary-search-max-retries": {
+        description:
+            "Maximum number of retries for binary search operations during gas estimation",
+        type: "number",
+        require: false,
+        default: 3
     }
 }
 
