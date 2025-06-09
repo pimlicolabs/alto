@@ -26,6 +26,8 @@ import {EntryPoint as EntryPoint08} from "@test-aa-utils/v08/core/EntryPoint.sol
 import {SimpleAccountFactory as SimpleAccountFactory08} from "@test-aa-utils/v08/accounts/SimpleAccountFactory.sol";
 import {BaseAccount as SimpleAccount08} from "@test-aa-utils/v08/core/BaseAccount.sol";
 
+import {ExpiredPaymasterV06, ExpiredPaymasterV07, ExpiredPaymasterV08} from "./utils/ExpiredPaymasters.sol";
+
 contract FilterOpsTest is Test {
     PimlicoSimulations pimlicoSim;
     SimpleAccountFactory06 accountFactory06;
@@ -40,6 +42,9 @@ contract FilterOpsTest is Test {
     uint256 ownerKey;
 
     address forceReverter;
+    ExpiredPaymasterV06 expiredPaymaster06;
+    ExpiredPaymasterV07 expiredPaymaster07;
+    ExpiredPaymasterV08 expiredPaymaster08;
 
     function setUp() public {
         (owner, ownerKey) = makeAddrAndKey("alice");
@@ -52,6 +57,15 @@ contract FilterOpsTest is Test {
         accountFactory08 = new SimpleAccountFactory08(entryPoint08);
 
         forceReverter = address(new ForceReverter());
+
+        // Deploy and fund expired paymasters
+        expiredPaymaster06 = new ExpiredPaymasterV06(entryPoint06);
+        expiredPaymaster07 = new ExpiredPaymasterV07(entryPoint07);
+        expiredPaymaster08 = new ExpiredPaymasterV08(entryPoint08);
+
+        expiredPaymaster06.deposit{value: 10 ether}();
+        expiredPaymaster07.deposit{value: 10 ether}();
+        expiredPaymaster08.deposit{value: 10 ether}();
     }
 
     // ============================================
@@ -61,9 +75,9 @@ contract FilterOpsTest is Test {
     // Test filterOps06 with all valid operations
     function testFilterOps06_AllValid() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount(accountFactory06.getAddress(owner, 0), 0, false, true);
-        accounts[1] = TestAccount(accountFactory06.getAddress(owner, 1), 1, false, true);
-        accounts[2] = TestAccount(accountFactory06.getAddress(owner, 2), 2, false, true);
+        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[1] = TestAccount({salt: 1, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
 
         UserOperation06[] memory ops = _createAndSignOps06(accounts);
 
@@ -76,9 +90,9 @@ contract FilterOpsTest is Test {
     // Test filterOps06 with one failing operation
     function testFilterOps06_OneFailingOp() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount(accountFactory06.getAddress(owner, 0), 0, false, true);
-        accounts[1] = TestAccount(accountFactory06.getAddress(owner, 1), 1, false, false); // No funds
-        accounts[2] = TestAccount(accountFactory06.getAddress(owner, 2), 2, false, true);
+        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[1] = TestAccount({salt: 1, shouldRevert: false, shouldFund: false, useExpiredPaymaster: false}); // No funds
+        accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
 
         UserOperation06[] memory ops = _createAndSignOps06(accounts);
 
@@ -97,7 +111,7 @@ contract FilterOpsTest is Test {
     // Test filterOps06 with invalid signature
     function testFilterOps06_InvalidSignature() public {
         TestAccount[] memory accounts = new TestAccount[](1);
-        accounts[0] = TestAccount(accountFactory06.getAddress(owner, 0), 0, false, true);
+        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
 
         UserOperation06[] memory ops = _createAndSignOps06(accounts);
 
@@ -117,8 +131,8 @@ contract FilterOpsTest is Test {
     // Test filterOps06 with all failing operations
     function testFilterOps06_AllFailingOps() public {
         TestAccount[] memory accounts = new TestAccount[](2);
-        accounts[0] = TestAccount(accountFactory06.getAddress(owner, 0), 0, false, false);
-        accounts[1] = TestAccount(accountFactory06.getAddress(owner, 1), 1, false, false);
+        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: false, useExpiredPaymaster: false});
+        accounts[1] = TestAccount({salt: 1, shouldRevert: false, shouldFund: false, useExpiredPaymaster: false});
 
         UserOperation06[] memory ops = _createAndSignOps06(accounts);
 
@@ -137,15 +151,37 @@ contract FilterOpsTest is Test {
     // Test filterOps06 with reverting userOp.callData (all ops should be valid)
     function testFilterOps06_OneCallPhaseRevert() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount(accountFactory06.getAddress(owner, 0), 0, false, true);
-        accounts[1] = TestAccount(accountFactory06.getAddress(owner, 1), 1, true, true); // callphase reverting
-        accounts[2] = TestAccount(accountFactory06.getAddress(owner, 2), 2, false, true);
+        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[1] = TestAccount({salt: 1, shouldRevert: true, shouldFund: true, useExpiredPaymaster: false}); // callphase reverting
+        accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
 
         UserOperation06[] memory ops = _createAndSignOps06(accounts);
 
         uint256 balanceBefore = beneficiary.balance;
         PimlicoSimulations.FilterOpsResult memory result = pimlicoSim.filterOps06(ops, beneficiary, entryPoint06);
         _assertValidOpsResult(result, balanceBefore);
+    }
+
+    // Test filterOps06 with expired paymaster (AA32 error)
+    function testFilterOps06_ExpiredPaymaster() public {
+        TestAccount[] memory accounts = new TestAccount[](3);
+        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[1] = TestAccount({salt: 1, shouldRevert: false, shouldFund: true, useExpiredPaymaster: true}); // use expired paymaster
+        accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+
+        UserOperation06[] memory ops = _createAndSignOps06(accounts);
+
+        PimlicoSimulations.FilterOpsResult memory result = pimlicoSim.filterOps06(ops, beneficiary, entryPoint06);
+
+        // Second operation should be rejected with AA32 error
+        _assertPartialFailureResult(result, 1);
+        assertEq(
+            result.rejectedUserOps[0].userOpHash, entryPoint06.getUserOpHash(ops[1]), "Second op should be rejected"
+        );
+        assertEq(
+            result.rejectedUserOps[0].revertReason,
+            abi.encodeWithSelector(IEntryPoint06.FailedOp.selector, 1, "AA32 paymaster expired or not due")
+        );
     }
 
     // ============================================
@@ -155,9 +191,9 @@ contract FilterOpsTest is Test {
     // Test filterOps07 with all valid operations
     function testFilterOps07_AllValid() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount(accountFactory07.getAddress(owner, 0), 0, false, true);
-        accounts[1] = TestAccount(accountFactory07.getAddress(owner, 1), 1, false, true);
-        accounts[2] = TestAccount(accountFactory07.getAddress(owner, 2), 2, false, true);
+        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[1] = TestAccount({salt: 1, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
 
         PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
 
@@ -170,9 +206,9 @@ contract FilterOpsTest is Test {
     // Test filterOps07 with one failing operation
     function testFilterOps07_OneFailingOp() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount(accountFactory07.getAddress(owner, 0), 0, false, true);
-        accounts[1] = TestAccount(accountFactory07.getAddress(owner, 1), 1, false, false); // No funds
-        accounts[2] = TestAccount(accountFactory07.getAddress(owner, 2), 2, false, true);
+        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[1] = TestAccount({salt: 1, shouldRevert: false, shouldFund: false, useExpiredPaymaster: false}); // No funds
+        accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
 
         PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
 
@@ -191,7 +227,7 @@ contract FilterOpsTest is Test {
     // Test filterOps07 with invalid signature
     function testFilterOps07_InvalidSignature() public {
         TestAccount[] memory accounts = new TestAccount[](1);
-        accounts[0] = TestAccount(accountFactory07.getAddress(owner, 0), 0, false, true);
+        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
 
         PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
 
@@ -218,8 +254,8 @@ contract FilterOpsTest is Test {
     // Test filterOps07 with all failing operations
     function testFilterOps07_AllFailingOps() public {
         TestAccount[] memory accounts = new TestAccount[](2);
-        accounts[0] = TestAccount(accountFactory07.getAddress(owner, 0), 0, false, false);
-        accounts[1] = TestAccount(accountFactory07.getAddress(owner, 1), 1, false, false);
+        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: false, useExpiredPaymaster: false});
+        accounts[1] = TestAccount({salt: 1, shouldRevert: false, shouldFund: false, useExpiredPaymaster: false});
 
         PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
 
@@ -238,15 +274,37 @@ contract FilterOpsTest is Test {
     // Test filterOps07 with reverting userOp.callData (all ops should be valid)
     function testFilterOps07_OneCallPhaseRevert() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount(accountFactory07.getAddress(owner, 0), 0, false, true);
-        accounts[1] = TestAccount(accountFactory07.getAddress(owner, 1), 1, true, true); // callphase reverting
-        accounts[2] = TestAccount(accountFactory07.getAddress(owner, 2), 2, false, true);
+        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[1] = TestAccount({salt: 1, shouldRevert: true, shouldFund: true, useExpiredPaymaster: false}); // callphase reverting
+        accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
 
         PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
 
         uint256 balanceBefore = beneficiary.balance;
         PimlicoSimulations.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
         _assertValidOpsResult(result, balanceBefore);
+    }
+
+    // Test filterOps07 with expired paymaster (AA32 error)
+    function testFilterOps07_ExpiredPaymaster() public {
+        TestAccount[] memory accounts = new TestAccount[](3);
+        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[1] = TestAccount({salt: 1, shouldRevert: false, shouldFund: true, useExpiredPaymaster: true}); // use expired paymaster
+        accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+
+        PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
+
+        PimlicoSimulations.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
+
+        // Second operation should be rejected with AA32 error
+        _assertPartialFailureResult(result, 1);
+        assertEq(
+            result.rejectedUserOps[0].userOpHash, entryPoint07.getUserOpHash(ops[1]), "Second op should be rejected"
+        );
+        assertEq(
+            result.rejectedUserOps[0].revertReason,
+            abi.encodeWithSelector(IEntryPoint07.FailedOp.selector, 1, "AA32 paymaster expired or not due")
+        );
     }
 
     // ============================================
@@ -256,9 +314,9 @@ contract FilterOpsTest is Test {
     // Test filterOps08 with all valid operations
     function testFilterOps08_AllValid() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount(accountFactory08.getAddress(owner, 0), 0, false, true);
-        accounts[1] = TestAccount(accountFactory08.getAddress(owner, 1), 1, false, true);
-        accounts[2] = TestAccount(accountFactory08.getAddress(owner, 2), 2, false, true);
+        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[1] = TestAccount({salt: 1, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
 
         PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
 
@@ -272,9 +330,9 @@ contract FilterOpsTest is Test {
     // Test filterOps08 with one failing operation
     function testFilterOps08_OneFailingOp() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount(accountFactory08.getAddress(owner, 0), 0, false, true);
-        accounts[1] = TestAccount(accountFactory08.getAddress(owner, 1), 1, false, false); // No funds
-        accounts[2] = TestAccount(accountFactory08.getAddress(owner, 2), 2, false, true);
+        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[1] = TestAccount({salt: 1, shouldRevert: false, shouldFund: false, useExpiredPaymaster: false}); // No funds
+        accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
 
         PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
 
@@ -290,7 +348,7 @@ contract FilterOpsTest is Test {
     // Test filterOps08 with invalid signature
     function testFilterOps08_InvalidSignature() public {
         TestAccount[] memory accounts = new TestAccount[](1);
-        accounts[0] = TestAccount(accountFactory08.getAddress(owner, 0), 0, false, true);
+        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
 
         PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
 
@@ -318,8 +376,8 @@ contract FilterOpsTest is Test {
     // Test filterOps08 with all failing operations
     function testFilterOps08_AllFailingOps() public {
         TestAccount[] memory accounts = new TestAccount[](2);
-        accounts[0] = TestAccount(accountFactory08.getAddress(owner, 0), 0, false, false);
-        accounts[1] = TestAccount(accountFactory08.getAddress(owner, 1), 1, false, false);
+        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: false, useExpiredPaymaster: false});
+        accounts[1] = TestAccount({salt: 1, shouldRevert: false, shouldFund: false, useExpiredPaymaster: false});
 
         PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
 
@@ -340,9 +398,9 @@ contract FilterOpsTest is Test {
     // Test filterOps08 with reverting userOp.callData (all ops should be valid)
     function testFilterOps08_OneCallPhaseRevert() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount(accountFactory08.getAddress(owner, 0), 0, false, true);
-        accounts[1] = TestAccount(accountFactory08.getAddress(owner, 1), 1, true, true); // callphase reverting
-        accounts[2] = TestAccount(accountFactory08.getAddress(owner, 2), 2, false, true);
+        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[1] = TestAccount({salt: 1, shouldRevert: true, shouldFund: true, useExpiredPaymaster: false}); // callphase reverting
+        accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
 
         PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
 
@@ -352,22 +410,46 @@ contract FilterOpsTest is Test {
         _assertValidOpsResult(result, balanceBefore);
     }
 
+    // Test filterOps08 with expired paymaster (AA32 error)
+    function testFilterOps08_ExpiredPaymaster() public {
+        TestAccount[] memory accounts = new TestAccount[](3);
+        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[1] = TestAccount({salt: 1, shouldRevert: false, shouldFund: true, useExpiredPaymaster: true}); // use expired paymaster
+        accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+
+        PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
+
+        PimlicoSimulations.FilterOpsResult memory result =
+            pimlicoSim.filterOps08(castToVersion07(ops), beneficiary, entryPoint08);
+
+        // Second operation should be rejected with AA32 error
+        _assertPartialFailureResult(result, 1);
+        assertEq(
+            result.rejectedUserOps[0].userOpHash, entryPoint08.getUserOpHash(ops[1]), "Second op should be rejected"
+        );
+        assertEq(
+            result.rejectedUserOps[0].revertReason,
+            abi.encodeWithSelector(IEntryPoint08.FailedOp.selector, 1, "AA32 paymaster expired or not due")
+        );
+    }
+
     // ============================================
     // ================= HELPERS ==================
     // ============================================
 
     struct TestAccount {
-        address addr;
         uint256 salt;
         bool shouldRevert;
         bool shouldFund;
+        bool useExpiredPaymaster;
     }
 
     function _setupAccounts06(TestAccount[] memory accounts) private {
         for (uint256 i = 0; i < accounts.length; i++) {
             accountFactory06.createAccount(owner, accounts[i].salt);
             if (accounts[i].shouldFund) {
-                vm.deal(accounts[i].addr, 1 ether);
+                address addr = accountFactory06.getAddress(owner, accounts[i].salt);
+                vm.deal(addr, 1 ether);
             }
         }
     }
@@ -376,7 +458,8 @@ contract FilterOpsTest is Test {
         for (uint256 i = 0; i < accounts.length; i++) {
             accountFactory07.createAccount(owner, accounts[i].salt);
             if (accounts[i].shouldFund) {
-                vm.deal(accounts[i].addr, 1 ether);
+                address addr = accountFactory07.getAddress(owner, accounts[i].salt);
+                vm.deal(addr, 1 ether);
             }
         }
     }
@@ -386,7 +469,8 @@ contract FilterOpsTest is Test {
         for (uint256 i = 0; i < accounts.length; i++) {
             accountFactory08.createAccount(owner, accounts[i].salt);
             if (accounts[i].shouldFund) {
-                vm.deal(accounts[i].addr, 1 ether);
+                address addr = accountFactory08.getAddress(owner, accounts[i].salt);
+                vm.deal(addr, 1 ether);
             }
         }
         vm.stopPrank();
@@ -396,11 +480,13 @@ contract FilterOpsTest is Test {
         _setupAccounts06(accounts);
         UserOperation06[] memory ops = new UserOperation06[](accounts.length);
         for (uint256 i = 0; i < accounts.length; i++) {
+            address addr = accountFactory06.getAddress(owner, accounts[i].salt);
+
             // Build v0.6 UserOperation
             bytes memory initCode = "";
-            if (accounts[i].addr.code.length == 0) {
+            if (addr.code.length == 0) {
                 initCode = abi.encodePacked(
-                    address(accountFactory06), abi.encodeCall(accountFactory06.createAccount, (owner, 0))
+                    address(accountFactory06), abi.encodeCall(accountFactory06.createAccount, (owner, accounts[i].salt))
                 );
             }
 
@@ -413,8 +499,13 @@ contract FilterOpsTest is Test {
                 callData = abi.encodeWithSelector(SimpleAccount06.execute.selector, address(0), 0, "");
             }
 
+            bytes memory paymasterAndData = "";
+            if (accounts[i].useExpiredPaymaster) {
+                paymasterAndData = abi.encodePacked(address(expiredPaymaster06));
+            }
+
             ops[i] = UserOperation06({
-                sender: accounts[i].addr,
+                sender: addr,
                 nonce: 0,
                 initCode: initCode,
                 callData: callData,
@@ -423,7 +514,7 @@ contract FilterOpsTest is Test {
                 preVerificationGas: 21000,
                 maxFeePerGas: 1 gwei,
                 maxPriorityFeePerGas: 1 gwei,
-                paymasterAndData: "",
+                paymasterAndData: paymasterAndData,
                 signature: ""
             });
 
@@ -439,11 +530,13 @@ contract FilterOpsTest is Test {
         _setupAccounts07(accounts);
         PackedUserOperation07[] memory ops = new PackedUserOperation07[](accounts.length);
         for (uint256 i = 0; i < accounts.length; i++) {
+            address addr = accountFactory07.getAddress(owner, accounts[i].salt);
+
             // Build v0.7 PackedUserOperation
             bytes memory initCode = "";
-            if (accounts[i].addr.code.length == 0) {
+            if (addr.code.length == 0) {
                 initCode = abi.encodePacked(
-                    address(accountFactory07), abi.encodeCall(accountFactory07.createAccount, (owner, 0))
+                    address(accountFactory07), abi.encodeCall(accountFactory07.createAccount, (owner, accounts[i].salt))
                 );
             }
 
@@ -456,18 +549,27 @@ contract FilterOpsTest is Test {
                 callData = abi.encodeWithSelector(SimpleAccount07.execute.selector, address(0), 0, "");
             }
 
+            bytes memory paymasterAndData = "";
+            if (accounts[i].useExpiredPaymaster) {
+                paymasterAndData = abi.encodePacked(
+                    address(expiredPaymaster07),
+                    uint128(100000), // verificationGasLimit
+                    uint128(50000) // postOpGasLimit
+                );
+            }
+
             // Pack gas limits: verificationGasLimit (16 bytes) | callGasLimit (16 bytes)
             uint256 accountGasLimits = (uint256(150000) << 128) | uint256(100000);
 
             ops[i] = PackedUserOperation07({
-                sender: accounts[i].addr,
+                sender: addr,
                 nonce: 0,
                 initCode: initCode,
                 callData: callData,
                 accountGasLimits: bytes32(accountGasLimits),
                 preVerificationGas: 21000,
                 gasFees: bytes32((uint256(1 gwei) << 128) | uint256(1 gwei)), // maxPriorityFeePerGas | maxFeePerGas
-                paymasterAndData: "",
+                paymasterAndData: paymasterAndData,
                 signature: ""
             });
 
@@ -483,11 +585,13 @@ contract FilterOpsTest is Test {
         _setupAccounts08(accounts);
         PackedUserOperation08[] memory ops = new PackedUserOperation08[](accounts.length);
         for (uint256 i = 0; i < accounts.length; i++) {
+            address addr = accountFactory08.getAddress(owner, accounts[i].salt);
+
             // Build v0.8 PackedUserOperation
             bytes memory initCode = "";
-            if (accounts[i].addr.code.length == 0) {
+            if (addr.code.length == 0) {
                 initCode = abi.encodePacked(
-                    address(accountFactory08), abi.encodeCall(accountFactory08.createAccount, (owner, 0))
+                    address(accountFactory08), abi.encodeCall(accountFactory08.createAccount, (owner, accounts[i].salt))
                 );
             }
 
@@ -500,18 +604,27 @@ contract FilterOpsTest is Test {
                 callData = abi.encodeWithSelector(SimpleAccount08.execute.selector, address(0), 0, "");
             }
 
+            bytes memory paymasterAndData = "";
+            if (accounts[i].useExpiredPaymaster) {
+                paymasterAndData = abi.encodePacked(
+                    address(expiredPaymaster08),
+                    uint128(100000), // verificationGasLimit
+                    uint128(50000) // postOpGasLimit
+                );
+            }
+
             // Pack gas limits: verificationGasLimit (16 bytes) | callGasLimit (16 bytes)
             uint256 accountGasLimits = (uint256(150000) << 128) | uint256(100000);
 
             ops[i] = PackedUserOperation08({
-                sender: accounts[i].addr,
+                sender: addr,
                 nonce: 0,
                 initCode: initCode,
                 callData: callData,
                 accountGasLimits: bytes32(accountGasLimits),
                 preVerificationGas: 21000,
                 gasFees: bytes32((uint256(1 gwei) << 128) | uint256(1 gwei)), // maxPriorityFeePerGas | maxFeePerGas
-                paymasterAndData: "",
+                paymasterAndData: paymasterAndData,
                 signature: ""
             });
 
