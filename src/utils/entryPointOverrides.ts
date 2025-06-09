@@ -9,13 +9,13 @@ import {
     toHex
 } from "viem"
 
-import entryPointOverride06 from "../contracts/EntryPointCodeOverride.sol/EntryPointCodeOverride.json" with {
+import entryPointOverride06 from "../contracts/EntryPointCodeOverride06.sol/EntryPointCodeOverride06.json" with {
     type: "json"
 }
-import entryPointOverride07 from "../contracts/EntryPointCodeOverride.sol/EntryPointCodeOverride.json" with {
+import entryPointOverride07 from "../contracts/EntryPointCodeOverride07.sol/EntryPointCodeOverride07.json" with {
     type: "json"
 }
-import entryPointOverride08 from "../contracts/EntryPointCodeOverride.sol/EntryPointCodeOverride.json" with {
+import entryPointOverride08 from "../contracts/EntryPointCodeOverride08.sol/EntryPointCodeOverride08.json" with {
     type: "json"
 }
 

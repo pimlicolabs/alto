@@ -29,7 +29,7 @@ import "@openzeppelin-v4.8.3/contracts/utils/StorageSlot.sol";
 // - Uses OpenZeppelin's StorageSlot helper to get the senderCreator address.
 // - Renamed to EntryPointCodeOverride
 // - Throw custom error CallPhaseReverted if callphase reverts
-contract EntryPointCodeOverride is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard {
+contract EntryPointCodeOverride06 is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard {
     using UserOperationLib for UserOperation;
 
     // internal value used during simulation: need to query aggregator.
