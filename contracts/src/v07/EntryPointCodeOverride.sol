@@ -34,7 +34,9 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard,
     using UserOperationLib for PackedUserOperation;
 
     function senderCreator() internal view virtual returns (SenderCreator) {
-        return SenderCreator(StorageSlot.getAddressSlot("SENDER_CREATOR").value);
+        address creator = StorageSlot.getAddressSlot("SENDER_CREATOR").value;
+        if (creator == address(0)) creator = 0xEFC2c1444eBCC4Db75e7613d20C6a62fF67A167C;
+        return SenderCreator(creator);
     }
 
     //compensate for innerHandleOps' emit message and deposit refund.

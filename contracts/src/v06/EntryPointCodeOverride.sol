@@ -413,7 +413,11 @@ contract EntryPointCodeOverride is IEntryPoint, StakeManager, NonceManager, Reen
         if (initCode.length != 0) {
             address sender = opInfo.mUserOp.sender;
             if (sender.code.length != 0) revert FailedOp(opIndex, "AA10 sender already constructed");
+
+            // Try get senderCreator from override, if override is not set, use default senderCreator
             address senderCreator = StorageSlot.getAddressSlot("SENDER_CREATOR").value;
+            if (senderCreator == address(0)) senderCreator = 0x7fc98430eAEdbb6070B35B39D798725049088348;
+
             address sender1 =
                 SenderCreator(senderCreator).createSender{gas: opInfo.mUserOp.verificationGasLimit}(initCode);
             if (sender1 == address(0)) revert FailedOp(opIndex, "AA13 initCode failed or OOG");
@@ -431,7 +435,10 @@ contract EntryPointCodeOverride is IEntryPoint, StakeManager, NonceManager, Reen
      * @param initCode the constructor code to be passed into the UserOperation.
      */
     function getSenderAddress(bytes calldata initCode) public {
+        // Try get senderCreator from override, if override is not set, use default senderCreator
         address senderCreator = StorageSlot.getAddressSlot("SENDER_CREATOR").value;
+        if (senderCreator == address(0)) senderCreator = 0x7fc98430eAEdbb6070B35B39D798725049088348;
+
         address sender = SenderCreator(senderCreator).createSender(initCode);
         revert SenderAddressResult(sender);
     }

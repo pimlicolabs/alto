@@ -141,7 +141,9 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
 
     /// @inheritdoc IEntryPoint
     function senderCreator() public view virtual returns (ISenderCreator) {
-        return ISenderCreator(StorageSlot.getAddressSlot("SENDER_CREATOR").value);
+        address creator = StorageSlot.getAddressSlot("SENDER_CREATOR").value;
+        if (creator == address(0)) creator = 0x449ED7C3e6Fee6a97311d4b55475DF59C44AdD33;
+        return ISenderCreator(creator);
     }
 
     /// @inheritdoc IEntryPoint
