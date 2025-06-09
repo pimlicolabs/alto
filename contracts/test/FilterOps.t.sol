@@ -171,6 +171,9 @@ contract FilterOpsTest is Test {
 
         UserOperation06[] memory ops = _createAndSignOps06(accounts);
 
+        // Advance block timestamp to ensure the paymaster validation fails
+        vm.warp(block.timestamp + 2);
+
         PimlicoSimulations.FilterOpsResult memory result = pimlicoSim.filterOps06(ops, beneficiary, entryPoint06);
 
         // Second operation should be rejected with AA32 error
@@ -293,6 +296,9 @@ contract FilterOpsTest is Test {
         accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
 
         PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
+
+        // Advance block timestamp to ensure the paymaster validation fails
+        vm.warp(block.timestamp + 2);
 
         PimlicoSimulations.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
 
@@ -418,6 +424,9 @@ contract FilterOpsTest is Test {
         accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
 
         PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
+
+        // Advance block timestamp to ensure the paymaster validation fails
+        vm.warp(block.timestamp + 2);
 
         PimlicoSimulations.FilterOpsResult memory result =
             pimlicoSim.filterOps08(castToVersion07(ops), beneficiary, entryPoint08);
