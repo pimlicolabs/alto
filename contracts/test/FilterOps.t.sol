@@ -4,23 +4,27 @@ pragma solidity ^0.8.23;
 import "forge-std/Test.sol";
 import "../src/PimlicoSimulations.sol";
 
+import {ForceReverter} from "@test-utils/ForceReverter.sol";
 import {MessageHashUtils} from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 import {ECDSA} from "@openzeppelin-v4.8.3/contracts/utils/cryptography/ECDSA.sol";
 
 import {UserOperation as UserOperation06} from "account-abstraction-v6/interfaces/UserOperation.sol";
 import {IEntryPoint as IEntryPoint06} from "account-abstraction-v6/interfaces/IEntryPoint.sol";
-import {EntryPoint as EntryPoint06} from "@test-utils/v06/core/EntryPoint.sol";
-import {SimpleAccountFactory as SimpleAccountFactory06} from "@test-utils/v06/samples/SimpleAccountFactory.sol";
+import {EntryPoint as EntryPoint06} from "@test-aa-utils/v06/core/EntryPoint.sol";
+import {SimpleAccountFactory as SimpleAccountFactory06} from "@test-aa-utils/v06/samples/SimpleAccountFactory.sol";
+import {SimpleAccount as SimpleAccount06} from "@test-aa-utils/v06/samples/SimpleAccount.sol";
 
 import {PackedUserOperation as PackedUserOperation07} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import {IEntryPoint as IEntryPoint07} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
-import {EntryPoint as EntryPoint07} from "@test-utils/v07/core/EntryPoint.sol";
-import {SimpleAccountFactory as SimpleAccountFactory07} from "@test-utils/v07/samples/SimpleAccountFactory.sol";
+import {EntryPoint as EntryPoint07} from "@test-aa-utils/v07/core/EntryPoint.sol";
+import {SimpleAccountFactory as SimpleAccountFactory07} from "@test-aa-utils/v07/samples/SimpleAccountFactory.sol";
+import {SimpleAccount as SimpleAccount07} from "@test-aa-utils/v07/samples/SimpleAccount.sol";
 
 import {PackedUserOperation as PackedUserOperation08} from "account-abstraction-v8/interfaces/PackedUserOperation.sol";
 import {IEntryPoint as IEntryPoint08} from "account-abstraction-v8/interfaces/IEntryPoint.sol";
-import {EntryPoint as EntryPoint08} from "@test-utils/v08/core/EntryPoint.sol";
-import {SimpleAccountFactory as SimpleAccountFactory08} from "@test-utils/v08/accounts/SimpleAccountFactory.sol";
+import {EntryPoint as EntryPoint08} from "@test-aa-utils/v08/core/EntryPoint.sol";
+import {SimpleAccountFactory as SimpleAccountFactory08} from "@test-aa-utils/v08/accounts/SimpleAccountFactory.sol";
+import {BaseAccount as SimpleAccount08} from "@test-aa-utils/v08/core/BaseAccount.sol";
 
 contract FilterOpsTest is Test {
     PimlicoSimulations pimlicoSim;
@@ -35,6 +39,8 @@ contract FilterOpsTest is Test {
     address owner;
     uint256 ownerKey;
 
+    address forceReverter;
+
     function setUp() public {
         (owner, ownerKey) = makeAddrAndKey("alice");
         pimlicoSim = new PimlicoSimulations();
@@ -44,6 +50,8 @@ contract FilterOpsTest is Test {
         accountFactory06 = new SimpleAccountFactory06(entryPoint06);
         accountFactory07 = new SimpleAccountFactory07(entryPoint07);
         accountFactory08 = new SimpleAccountFactory08(entryPoint08);
+
+        forceReverter = address(new ForceReverter());
     }
 
     // ============================================
@@ -53,11 +61,10 @@ contract FilterOpsTest is Test {
     // Test filterOps06 with all valid operations
     function testFilterOps06_AllValid() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount(accountFactory06.getAddress(owner, 0), 0, true);
-        accounts[1] = TestAccount(accountFactory06.getAddress(owner, 1), 1, true);
-        accounts[2] = TestAccount(accountFactory06.getAddress(owner, 2), 2, true);
+        accounts[0] = TestAccount(accountFactory06.getAddress(owner, 0), 0, false, true);
+        accounts[1] = TestAccount(accountFactory06.getAddress(owner, 1), 1, false, true);
+        accounts[2] = TestAccount(accountFactory06.getAddress(owner, 2), 2, false, true);
 
-        _setupAccounts06(accounts);
         UserOperation06[] memory ops = _createAndSignOps06(accounts);
 
         uint256 balanceBefore = beneficiary.balance;
@@ -69,11 +76,10 @@ contract FilterOpsTest is Test {
     // Test filterOps06 with one failing operation
     function testFilterOps06_OneFailingOp() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount(accountFactory06.getAddress(owner, 0), 0, true);
-        accounts[1] = TestAccount(accountFactory06.getAddress(owner, 1), 1, false); // No funds
-        accounts[2] = TestAccount(accountFactory06.getAddress(owner, 2), 2, true);
+        accounts[0] = TestAccount(accountFactory06.getAddress(owner, 0), 0, false, true);
+        accounts[1] = TestAccount(accountFactory06.getAddress(owner, 1), 1, false, false); // No funds
+        accounts[2] = TestAccount(accountFactory06.getAddress(owner, 2), 2, false, true);
 
-        _setupAccounts06(accounts);
         UserOperation06[] memory ops = _createAndSignOps06(accounts);
 
         PimlicoSimulations.FilterOpsResult memory result = pimlicoSim.filterOps06(ops, beneficiary, entryPoint06);
@@ -91,9 +97,8 @@ contract FilterOpsTest is Test {
     // Test filterOps06 with invalid signature
     function testFilterOps06_InvalidSignature() public {
         TestAccount[] memory accounts = new TestAccount[](1);
-        accounts[0] = TestAccount(accountFactory06.getAddress(owner, 0), 0, true);
+        accounts[0] = TestAccount(accountFactory06.getAddress(owner, 0), 0, false, true);
 
-        _setupAccounts06(accounts);
         UserOperation06[] memory ops = _createAndSignOps06(accounts);
 
         // Replace with invalid signature
@@ -112,10 +117,9 @@ contract FilterOpsTest is Test {
     // Test filterOps06 with all failing operations
     function testFilterOps06_AllFailingOps() public {
         TestAccount[] memory accounts = new TestAccount[](2);
-        accounts[0] = TestAccount(accountFactory06.getAddress(owner, 0), 0, false);
-        accounts[1] = TestAccount(accountFactory06.getAddress(owner, 1), 1, false);
+        accounts[0] = TestAccount(accountFactory06.getAddress(owner, 0), 0, false, false);
+        accounts[1] = TestAccount(accountFactory06.getAddress(owner, 1), 1, false, false);
 
-        _setupAccounts06(accounts);
         UserOperation06[] memory ops = _createAndSignOps06(accounts);
 
         PimlicoSimulations.FilterOpsResult memory result = pimlicoSim.filterOps06(ops, beneficiary, entryPoint06);
@@ -130,6 +134,20 @@ contract FilterOpsTest is Test {
         _assertEmptyResult(result);
     }
 
+    // Test filterOps06 with reverting userOp.callData (all ops should be valid)
+    function testFilterOps06_OneCallPhaseRevert() public {
+        TestAccount[] memory accounts = new TestAccount[](3);
+        accounts[0] = TestAccount(accountFactory06.getAddress(owner, 0), 0, false, true);
+        accounts[1] = TestAccount(accountFactory06.getAddress(owner, 1), 1, true, true); // callphase reverting
+        accounts[2] = TestAccount(accountFactory06.getAddress(owner, 2), 2, false, true);
+
+        UserOperation06[] memory ops = _createAndSignOps06(accounts);
+
+        uint256 balanceBefore = beneficiary.balance;
+        PimlicoSimulations.FilterOpsResult memory result = pimlicoSim.filterOps06(ops, beneficiary, entryPoint06);
+        _assertValidOpsResult(result, balanceBefore);
+    }
+
     // ============================================
     // =========== ENTRYPOINT 07 TESTS ============
     // ============================================
@@ -137,11 +155,10 @@ contract FilterOpsTest is Test {
     // Test filterOps07 with all valid operations
     function testFilterOps07_AllValid() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount(accountFactory07.getAddress(owner, 0), 0, true);
-        accounts[1] = TestAccount(accountFactory07.getAddress(owner, 1), 1, true);
-        accounts[2] = TestAccount(accountFactory07.getAddress(owner, 2), 2, true);
+        accounts[0] = TestAccount(accountFactory07.getAddress(owner, 0), 0, false, true);
+        accounts[1] = TestAccount(accountFactory07.getAddress(owner, 1), 1, false, true);
+        accounts[2] = TestAccount(accountFactory07.getAddress(owner, 2), 2, false, true);
 
-        _setupAccounts07(accounts);
         PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
 
         uint256 balanceBefore = beneficiary.balance;
@@ -153,11 +170,10 @@ contract FilterOpsTest is Test {
     // Test filterOps07 with one failing operation
     function testFilterOps07_OneFailingOp() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount(accountFactory07.getAddress(owner, 0), 0, true);
-        accounts[1] = TestAccount(accountFactory07.getAddress(owner, 1), 1, false); // No funds
-        accounts[2] = TestAccount(accountFactory07.getAddress(owner, 2), 2, true);
+        accounts[0] = TestAccount(accountFactory07.getAddress(owner, 0), 0, false, true);
+        accounts[1] = TestAccount(accountFactory07.getAddress(owner, 1), 1, false, false); // No funds
+        accounts[2] = TestAccount(accountFactory07.getAddress(owner, 2), 2, false, true);
 
-        _setupAccounts07(accounts);
         PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
 
         PimlicoSimulations.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
@@ -175,9 +191,8 @@ contract FilterOpsTest is Test {
     // Test filterOps07 with invalid signature
     function testFilterOps07_InvalidSignature() public {
         TestAccount[] memory accounts = new TestAccount[](1);
-        accounts[0] = TestAccount(accountFactory07.getAddress(owner, 0), 0, true);
+        accounts[0] = TestAccount(accountFactory07.getAddress(owner, 0), 0, false, true);
 
-        _setupAccounts07(accounts);
         PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
 
         // Replace with invalid signature
@@ -203,10 +218,9 @@ contract FilterOpsTest is Test {
     // Test filterOps07 with all failing operations
     function testFilterOps07_AllFailingOps() public {
         TestAccount[] memory accounts = new TestAccount[](2);
-        accounts[0] = TestAccount(accountFactory07.getAddress(owner, 0), 0, false);
-        accounts[1] = TestAccount(accountFactory07.getAddress(owner, 1), 1, false);
+        accounts[0] = TestAccount(accountFactory07.getAddress(owner, 0), 0, false, false);
+        accounts[1] = TestAccount(accountFactory07.getAddress(owner, 1), 1, false, false);
 
-        _setupAccounts07(accounts);
         PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
 
         PimlicoSimulations.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
@@ -221,6 +235,20 @@ contract FilterOpsTest is Test {
         _assertEmptyResult(result);
     }
 
+    // Test filterOps07 with reverting userOp.callData (all ops should be valid)
+    function testFilterOps07_OneCallPhaseRevert() public {
+        TestAccount[] memory accounts = new TestAccount[](3);
+        accounts[0] = TestAccount(accountFactory07.getAddress(owner, 0), 0, false, true);
+        accounts[1] = TestAccount(accountFactory07.getAddress(owner, 1), 1, true, true); // callphase reverting
+        accounts[2] = TestAccount(accountFactory07.getAddress(owner, 2), 2, false, true);
+
+        PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
+
+        uint256 balanceBefore = beneficiary.balance;
+        PimlicoSimulations.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
+        _assertValidOpsResult(result, balanceBefore);
+    }
+
     // ============================================
     // =========== ENTRYPOINT 08 TESTS ============
     // ============================================
@@ -228,11 +256,10 @@ contract FilterOpsTest is Test {
     // Test filterOps08 with all valid operations
     function testFilterOps08_AllValid() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount(accountFactory08.getAddress(owner, 0), 0, true);
-        accounts[1] = TestAccount(accountFactory08.getAddress(owner, 1), 1, true);
-        accounts[2] = TestAccount(accountFactory08.getAddress(owner, 2), 2, true);
+        accounts[0] = TestAccount(accountFactory08.getAddress(owner, 0), 0, false, true);
+        accounts[1] = TestAccount(accountFactory08.getAddress(owner, 1), 1, false, true);
+        accounts[2] = TestAccount(accountFactory08.getAddress(owner, 2), 2, false, true);
 
-        _setupAccounts08(accounts);
         PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
 
         uint256 balanceBefore = beneficiary.balance;
@@ -245,11 +272,10 @@ contract FilterOpsTest is Test {
     // Test filterOps08 with one failing operation
     function testFilterOps08_OneFailingOp() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount(accountFactory08.getAddress(owner, 0), 0, true);
-        accounts[1] = TestAccount(accountFactory08.getAddress(owner, 1), 1, false); // No funds
-        accounts[2] = TestAccount(accountFactory08.getAddress(owner, 2), 2, true);
+        accounts[0] = TestAccount(accountFactory08.getAddress(owner, 0), 0, false, true);
+        accounts[1] = TestAccount(accountFactory08.getAddress(owner, 1), 1, false, false); // No funds
+        accounts[2] = TestAccount(accountFactory08.getAddress(owner, 2), 2, false, true);
 
-        _setupAccounts08(accounts);
         PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
 
         PimlicoSimulations.FilterOpsResult memory result =
@@ -264,9 +290,8 @@ contract FilterOpsTest is Test {
     // Test filterOps08 with invalid signature
     function testFilterOps08_InvalidSignature() public {
         TestAccount[] memory accounts = new TestAccount[](1);
-        accounts[0] = TestAccount(accountFactory08.getAddress(owner, 0), 0, true);
+        accounts[0] = TestAccount(accountFactory08.getAddress(owner, 0), 0, false, true);
 
-        _setupAccounts08(accounts);
         PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
 
         // Replace with invalid signature
@@ -293,10 +318,9 @@ contract FilterOpsTest is Test {
     // Test filterOps08 with all failing operations
     function testFilterOps08_AllFailingOps() public {
         TestAccount[] memory accounts = new TestAccount[](2);
-        accounts[0] = TestAccount(accountFactory08.getAddress(owner, 0), 0, false);
-        accounts[1] = TestAccount(accountFactory08.getAddress(owner, 1), 1, false);
+        accounts[0] = TestAccount(accountFactory08.getAddress(owner, 0), 0, false, false);
+        accounts[1] = TestAccount(accountFactory08.getAddress(owner, 1), 1, false, false);
 
-        _setupAccounts08(accounts);
         PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
 
         PimlicoSimulations.FilterOpsResult memory result =
@@ -313,6 +337,21 @@ contract FilterOpsTest is Test {
         _assertEmptyResult(result);
     }
 
+    // Test filterOps08 with reverting userOp.callData (all ops should be valid)
+    function testFilterOps08_OneCallPhaseRevert() public {
+        TestAccount[] memory accounts = new TestAccount[](3);
+        accounts[0] = TestAccount(accountFactory08.getAddress(owner, 0), 0, false, true);
+        accounts[1] = TestAccount(accountFactory08.getAddress(owner, 1), 1, true, true); // callphase reverting
+        accounts[2] = TestAccount(accountFactory08.getAddress(owner, 2), 2, false, true);
+
+        PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
+
+        uint256 balanceBefore = beneficiary.balance;
+        PimlicoSimulations.FilterOpsResult memory result =
+            pimlicoSim.filterOps08(castToVersion07(ops), beneficiary, entryPoint08);
+        _assertValidOpsResult(result, balanceBefore);
+    }
+
     // ============================================
     // ================= HELPERS ==================
     // ============================================
@@ -320,6 +359,7 @@ contract FilterOpsTest is Test {
     struct TestAccount {
         address addr;
         uint256 salt;
+        bool shouldRevert;
         bool shouldFund;
     }
 
@@ -352,7 +392,8 @@ contract FilterOpsTest is Test {
         vm.stopPrank();
     }
 
-    function _createAndSignOps06(TestAccount[] memory accounts) private view returns (UserOperation06[] memory) {
+    function _createAndSignOps06(TestAccount[] memory accounts) private returns (UserOperation06[] memory) {
+        _setupAccounts06(accounts);
         UserOperation06[] memory ops = new UserOperation06[](accounts.length);
         for (uint256 i = 0; i < accounts.length; i++) {
             // Build v0.6 UserOperation
@@ -363,11 +404,20 @@ contract FilterOpsTest is Test {
                 );
             }
 
+            bytes memory callData = "";
+            if (accounts[i].shouldRevert) {
+                bytes memory revertData =
+                    abi.encodeWithSelector(ForceReverter.forceRevertWithMessage.selector, "foobar");
+                callData = abi.encodeWithSelector(SimpleAccount06.execute.selector, forceReverter, 0, revertData);
+            } else {
+                callData = abi.encodeWithSelector(SimpleAccount06.execute.selector, address(0), 0, "");
+            }
+
             ops[i] = UserOperation06({
                 sender: accounts[i].addr,
                 nonce: 0,
                 initCode: initCode,
-                callData: "",
+                callData: callData,
                 callGasLimit: 100000,
                 verificationGasLimit: 150000,
                 preVerificationGas: 21000,
@@ -385,7 +435,8 @@ contract FilterOpsTest is Test {
         return ops;
     }
 
-    function _createAndSignOps07(TestAccount[] memory accounts) private view returns (PackedUserOperation07[] memory) {
+    function _createAndSignOps07(TestAccount[] memory accounts) private returns (PackedUserOperation07[] memory) {
+        _setupAccounts07(accounts);
         PackedUserOperation07[] memory ops = new PackedUserOperation07[](accounts.length);
         for (uint256 i = 0; i < accounts.length; i++) {
             // Build v0.7 PackedUserOperation
@@ -396,6 +447,15 @@ contract FilterOpsTest is Test {
                 );
             }
 
+            bytes memory callData = "";
+            if (accounts[i].shouldRevert) {
+                bytes memory revertData =
+                    abi.encodeWithSelector(ForceReverter.forceRevertWithMessage.selector, "foobar");
+                callData = abi.encodeWithSelector(SimpleAccount07.execute.selector, forceReverter, 0, revertData);
+            } else {
+                callData = abi.encodeWithSelector(SimpleAccount07.execute.selector, address(0), 0, "");
+            }
+
             // Pack gas limits: verificationGasLimit (16 bytes) | callGasLimit (16 bytes)
             uint256 accountGasLimits = (uint256(150000) << 128) | uint256(100000);
 
@@ -403,7 +463,7 @@ contract FilterOpsTest is Test {
                 sender: accounts[i].addr,
                 nonce: 0,
                 initCode: initCode,
-                callData: "",
+                callData: callData,
                 accountGasLimits: bytes32(accountGasLimits),
                 preVerificationGas: 21000,
                 gasFees: bytes32((uint256(1 gwei) << 128) | uint256(1 gwei)), // maxPriorityFeePerGas | maxFeePerGas
@@ -419,7 +479,8 @@ contract FilterOpsTest is Test {
         return ops;
     }
 
-    function _createAndSignOps08(TestAccount[] memory accounts) private view returns (PackedUserOperation08[] memory) {
+    function _createAndSignOps08(TestAccount[] memory accounts) private returns (PackedUserOperation08[] memory) {
+        _setupAccounts08(accounts);
         PackedUserOperation08[] memory ops = new PackedUserOperation08[](accounts.length);
         for (uint256 i = 0; i < accounts.length; i++) {
             // Build v0.8 PackedUserOperation
@@ -430,6 +491,15 @@ contract FilterOpsTest is Test {
                 );
             }
 
+            bytes memory callData = "";
+            if (accounts[i].shouldRevert) {
+                bytes memory revertData =
+                    abi.encodeWithSelector(ForceReverter.forceRevertWithMessage.selector, "foobar");
+                callData = abi.encodeWithSelector(SimpleAccount08.execute.selector, forceReverter, 0, revertData);
+            } else {
+                callData = abi.encodeWithSelector(SimpleAccount08.execute.selector, address(0), 0, "");
+            }
+
             // Pack gas limits: verificationGasLimit (16 bytes) | callGasLimit (16 bytes)
             uint256 accountGasLimits = (uint256(150000) << 128) | uint256(100000);
 
@@ -437,7 +507,7 @@ contract FilterOpsTest is Test {
                 sender: accounts[i].addr,
                 nonce: 0,
                 initCode: initCode,
-                callData: "",
+                callData: callData,
                 accountGasLimits: bytes32(accountGasLimits),
                 preVerificationGas: 21000,
                 gasFees: bytes32((uint256(1 gwei) << 128) | uint256(1 gwei)), // maxPriorityFeePerGas | maxFeePerGas
