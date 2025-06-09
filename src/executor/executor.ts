@@ -137,14 +137,13 @@ export class Executor {
         // GasBid = min(maxFee, base + priority)
         if (chainType === "arbitrum") {
             return {
-                // networkGasPrice.maxFeePerGas calls baseFee under the hood, we multiply by 2 to account for any network fluctuations.
+                // networkGasPrice.maxFeePerGas calls baseFee under the hood, we multiply by 2 to account for any network baseFee fluctuations.
                 maxFeePerGas: networkGasPrice.maxFeePerGas * 2n,
                 maxPriorityFeePerGas: networkGasPrice.maxFeePerGas * 2n
             }
         }
 
-        // For other chains, the bundler should place a gasPrice that is competetive with the network.
-
+        // The bundler should place a gasBid that is competetive with the network's gasPrice.
         const breakEvenGasPrice = totalBeneficiaryFees / bundleGasUsed
 
         // Calculate margin: start at initialProfitMargin%, then
