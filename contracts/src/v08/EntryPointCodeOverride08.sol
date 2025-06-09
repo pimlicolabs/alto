@@ -58,6 +58,30 @@ contract EntryPointCodeOverride08 is
 
     constructor() EIP712(DOMAIN_NAME, DOMAIN_VERSION) {}
 
+    // START: Copied from EntryPoint simulations contract //
+    // We can't rely on "immutable" (constructor-initialized) variables in simulation
+    // Source: https://github.com/eth-infinitism/account-abstraction/blob/4cbc06/contracts/core/EntryPointSimulations.sol#L193-L214
+    bytes32 private __domainSeparatorV4;
+
+    bytes32 private constant TYPE_HASH =
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+
+    function __buildDomainSeparator() private view returns (bytes32) {
+        bytes32 _hashedName = keccak256(bytes(DOMAIN_NAME));
+        bytes32 _hashedVersion = keccak256(bytes(DOMAIN_VERSION));
+        return keccak256(abi.encode(TYPE_HASH, _hashedName, _hashedVersion, block.chainid, address(this)));
+    }
+
+    // Can't rely on "immutable" (constructor-initialized) variables" in simulation
+    function _initDomainSeparator() internal {
+        __domainSeparatorV4 = __buildDomainSeparator();
+    }
+
+    function getDomainSeparatorV4() public view returns (bytes32) {
+        return __domainSeparatorV4;
+    }
+    // END: Copied from EntryPoint simulations contract //
+
     /// @inheritdoc IEntryPoint
     function handleOps(PackedUserOperation[] calldata ops, address payable beneficiary) external nonReentrant {
         uint256 opslen = ops.length;
@@ -161,10 +185,6 @@ contract EntryPointCodeOverride08 is
 
     function getPackedUserOpTypeHash() external pure returns (bytes32) {
         return UserOperationLib.PACKED_USEROP_TYPEHASH;
-    }
-
-    function getDomainSeparatorV4() public view virtual returns (bytes32) {
-        return _domainSeparatorV4();
     }
 
     /// @inheritdoc IERC165
