@@ -289,30 +289,87 @@ export async function filterOpsAndEstimateGas({
     let { utilityWalletAddress: beneficiary } = config
     const { userOps, entryPoint } = userOpBundle
 
-    // Create promises for parallel execution
-    const filterOpsPromise = getFilterOpsResult({
-        userOpBundle,
-        config,
-        gasPriceManager,
-        beneficiary
-    })
-
-    // Start chain-specific overhead calculation in parallel
-    const chainSpecificOverheadPromise = getChainSpecificOverhead({
-        config,
-        entryPoint,
-        userOps: userOps.map(({ userOp }) => userOp)
-    })
-
     let filterOpsResult
     let chainSpecificOverhead
     try {
+        // Create promises for parallel execution
+        const filterOpsPromise = getFilterOpsResult({
+            userOpBundle,
+            config,
+            gasPriceManager,
+            beneficiary
+        })
+
+        // Start chain-specific overhead calculation in parallel
+        const chainSpecificOverheadPromise = getChainSpecificOverhead({
+            config,
+            entryPoint,
+            userOps: userOps.map(({ userOp }) => userOp)
+        })
+
         const results = await Promise.all([
             filterOpsPromise,
             chainSpecificOverheadPromise
         ])
         filterOpsResult = results[0]
         chainSpecificOverhead = results[1]
+
+        // Keep track of invalid and valid ops
+        const rejectedUserOpHashes = filterOpsResult.rejectedUserOps.map(
+            ({ userOpHash }) => userOpHash
+        )
+        const userOpsToBundle = userOps.filter(
+            ({ userOpHash }) => !rejectedUserOpHashes.includes(userOpHash)
+        )
+        const rejectedUserOps = filterOpsResult.rejectedUserOps.map(
+            ({ userOpHash, revertReason }) => {
+                const userOpInfo = userOps.find(
+                    (op) => op.userOpHash === userOpHash
+                )
+
+                if (!userOpInfo) {
+                    logger.error(
+                        `UserOp with hash ${userOpHash} not found in bundle`
+                    )
+                    sentry.captureException(
+                        `UserOp with hash ${userOpHash} not found in bundle`
+                    )
+                    throw new Error(`UserOp with hash ${userOpHash} not found`)
+                }
+
+                return {
+                    ...userOpInfo,
+                    reason: revertReason
+                }
+            }
+        )
+
+        if (userOpsToBundle.length === 0) {
+            return {
+                status: "all_ops_rejected",
+                rejectedUserOps
+            }
+        }
+
+        // find overhead that can't be calculated onchain
+        const bundleGasUsed = filterOpsResult.gasUsed + 21_000n
+
+        // Find gasLimit needed for this bundle
+        const bundleGasLimit = await getBundleGasLimit({
+            config,
+            userOpBundle: userOpsToBundle,
+            entryPoint,
+            executorAddress: beneficiary
+        })
+
+        return {
+            status: "success",
+            userOpsToBundle,
+            rejectedUserOps,
+            bundleGasUsed,
+            bundleGasLimit: bundleGasLimit + chainSpecificOverhead,
+            totalBeneficiaryFees: filterOpsResult.balanceChange
+        }
     } catch (err) {
         logger.error({ err }, "Encountered unhandled error during filterOps")
         sentry.captureException(err)
@@ -324,62 +381,5 @@ export async function filterOpsAndEstimateGas({
             status: "unhandled_error",
             rejectedUserOps
         }
-    }
-
-    // Keep track of invalid and valid ops
-    const rejectedUserOpHashes = filterOpsResult.rejectedUserOps.map(
-        ({ userOpHash }) => userOpHash
-    )
-    const userOpsToBundle = userOps.filter(
-        ({ userOpHash }) => !rejectedUserOpHashes.includes(userOpHash)
-    )
-    const rejectedUserOps = filterOpsResult.rejectedUserOps.map(
-        ({ userOpHash, revertReason }) => {
-            const userOpInfo = userOps.find(
-                (op) => op.userOpHash === userOpHash
-            )
-
-            if (!userOpInfo) {
-                logger.error(
-                    `UserOp with hash ${userOpHash} not found in bundle`
-                )
-                sentry.captureException(
-                    `UserOp with hash ${userOpHash} not found in bundle`
-                )
-                throw new Error(`UserOp with hash ${userOpHash} not found`)
-            }
-
-            return {
-                ...userOpInfo,
-                reason: revertReason
-            }
-        }
-    )
-
-    if (userOpsToBundle.length === 0) {
-        return {
-            status: "all_ops_rejected",
-            rejectedUserOps
-        }
-    }
-
-    // find overhead that can't be calculated onchain
-    const bundleGasUsed = filterOpsResult.gasUsed + 21_000n
-
-    // Find gasLimit needed for this bundle
-    const bundleGasLimit = await getBundleGasLimit({
-        config,
-        userOpBundle: userOpsToBundle,
-        entryPoint,
-        executorAddress: beneficiary
-    })
-
-    return {
-        status: "success",
-        userOpsToBundle,
-        rejectedUserOps,
-        bundleGasUsed,
-        bundleGasLimit: bundleGasLimit + chainSpecificOverhead,
-        totalBeneficiaryFees: filterOpsResult.balanceChange
     }
 }

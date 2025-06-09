@@ -21,6 +21,7 @@ import {
     getUserOperationHash,
     isVersion06,
     isVersion07,
+    isVersion08,
     scaleBigIntByPercent
 } from "@alto/utils"
 import { getAddress, getContract } from "viem"
@@ -33,6 +34,7 @@ import type { AltoConfig } from "../createConfig"
 import type { MempoolStore } from "@alto/store"
 import { calculateAA95GasFloor } from "../executor/utils"
 import { privateKeyToAddress, generatePrivateKey } from "viem/accounts"
+import { EntryPointVersion } from "viem/_types/account-abstraction"
 
 export class Mempool {
     private config: AltoConfig
@@ -656,7 +658,6 @@ export class Mempool {
         }
 
         // Get EntryPoint version
-        const isV6 = isVersion06(firstOp.userOp)
         const bundles: UserOperationBundle[] = []
         const seenOps = new Set()
         let breakLoop = false
@@ -668,10 +669,20 @@ export class Mempool {
                 break
             }
 
+            // Derive version
+            let version: EntryPointVersion
+            if (isVersion08(firstOp.userOp, entryPoint)) {
+                version = "0.8"
+            } else if (isVersion07(firstOp.userOp)) {
+                version = "0.7"
+            } else {
+                version = "0.6"
+            }
+
             // Setup for next bundle
             const currentBundle: UserOperationBundle = {
                 entryPoint,
-                version: isV6 ? "0.6" : "0.7",
+                version,
                 userOps: [],
                 submissionAttempts: 0
             }
