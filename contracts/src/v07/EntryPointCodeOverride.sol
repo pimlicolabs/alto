@@ -34,7 +34,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard,
     using UserOperationLib for PackedUserOperation;
 
     function senderCreator() internal view virtual returns (SenderCreator) {
-        address creator = StorageSlot.getAddressSlot("SENDER_CREATOR").value;
+        address creator = StorageSlot.getAddressSlot(keccak256("SENDER_CREATOR")).value;
         if (creator == address(0)) creator = 0xEFC2c1444eBCC4Db75e7613d20C6a62fF67A167C;
         return SenderCreator(creator);
     }
@@ -668,7 +668,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard,
                 //legacy mode (for networks that don't support basefee opcode)
                 return maxFeePerGas;
             }
-            uint256 blockBaseFeePerGas = StorageSlot.getUint256Slot("BLOCK_BASE_FEE_PER_GAS").value;
+            uint256 blockBaseFeePerGas = StorageSlot.getUint256Slot(keccak256("BLOCK_BASE_FEE_PER_GAS")).value;
             return min(maxFeePerGas, maxPriorityFeePerGas + blockBaseFeePerGas);
         }
     }

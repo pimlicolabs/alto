@@ -415,7 +415,7 @@ contract EntryPointCodeOverride is IEntryPoint, StakeManager, NonceManager, Reen
             if (sender.code.length != 0) revert FailedOp(opIndex, "AA10 sender already constructed");
 
             // Try get senderCreator from override, if override is not set, use default senderCreator
-            address senderCreator = StorageSlot.getAddressSlot("SENDER_CREATOR").value;
+            address senderCreator = StorageSlot.getAddressSlot(keccak256("SENDER_CREATOR")).value;
             if (senderCreator == address(0)) senderCreator = 0x7fc98430eAEdbb6070B35B39D798725049088348;
 
             address sender1 =
@@ -436,7 +436,7 @@ contract EntryPointCodeOverride is IEntryPoint, StakeManager, NonceManager, Reen
      */
     function getSenderAddress(bytes calldata initCode) public {
         // Try get senderCreator from override, if override is not set, use default senderCreator
-        address senderCreator = StorageSlot.getAddressSlot("SENDER_CREATOR").value;
+        address senderCreator = StorageSlot.getAddressSlot(keccak256("SENDER_CREATOR")).value;
         if (senderCreator == address(0)) senderCreator = 0x7fc98430eAEdbb6070B35B39D798725049088348;
 
         address sender = SenderCreator(senderCreator).createSender(initCode);
@@ -739,7 +739,7 @@ contract EntryPointCodeOverride is IEntryPoint, StakeManager, NonceManager, Reen
                 //legacy mode (for networks that don't support basefee opcode)
                 return maxFeePerGas;
             }
-            uint256 blockBaseFeePerGas = StorageSlot.getUint256Slot("BLOCK_BASE_FEE_PER_GAS").value;
+            uint256 blockBaseFeePerGas = StorageSlot.getUint256Slot(keccak256("BLOCK_BASE_FEE_PER_GAS")).value;
             return min(maxFeePerGas, maxPriorityFeePerGas + blockBaseFeePerGas);
         }
     }

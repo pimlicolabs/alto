@@ -141,7 +141,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
 
     /// @inheritdoc IEntryPoint
     function senderCreator() public view virtual returns (ISenderCreator) {
-        address creator = StorageSlot.getAddressSlot("SENDER_CREATOR").value;
+        address creator = StorageSlot.getAddressSlot(keccak256("SENDER_CREATOR")).value;
         if (creator == address(0)) creator = 0x449ED7C3e6Fee6a97311d4b55475DF59C44AdD33;
         return ISenderCreator(creator);
     }
@@ -820,7 +820,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         unchecked {
             uint256 maxFeePerGas = mUserOp.maxFeePerGas;
             uint256 maxPriorityFeePerGas = mUserOp.maxPriorityFeePerGas;
-            uint256 blockBaseFeePerGas = StorageSlot.getUint256Slot("BLOCK_BASE_FEE_PER_GAS").value;
+            uint256 blockBaseFeePerGas = StorageSlot.getUint256Slot(keccak256("BLOCK_BASE_FEE_PER_GAS")).value;
             return min(maxFeePerGas, maxPriorityFeePerGas + blockBaseFeePerGas);
         }
     }
