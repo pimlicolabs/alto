@@ -27,6 +27,11 @@ import {SimpleAccountFactory as SimpleAccountFactory08} from "@test-aa-utils/v08
 import {BaseAccount as SimpleAccount08} from "@test-aa-utils/v08/core/BaseAccount.sol";
 
 import {ExpiredPaymasterV06, ExpiredPaymasterV07, ExpiredPaymasterV08} from "./utils/ExpiredPaymasters.sol";
+import {
+    PostOpRevertPaymasterV06,
+    PostOpRevertPaymasterV07,
+    PostOpRevertPaymasterV08
+} from "./utils/PostOpRevertPaymasters.sol";
 
 contract FilterOpsTest is Test {
     PimlicoSimulations pimlicoSim;
@@ -45,6 +50,9 @@ contract FilterOpsTest is Test {
     ExpiredPaymasterV06 expiredPaymaster06;
     ExpiredPaymasterV07 expiredPaymaster07;
     ExpiredPaymasterV08 expiredPaymaster08;
+    PostOpRevertPaymasterV06 postOpRevertPaymaster06;
+    PostOpRevertPaymasterV07 postOpRevertPaymaster07;
+    PostOpRevertPaymasterV08 postOpRevertPaymaster08;
 
     function setUp() public {
         (owner, ownerKey) = makeAddrAndKey("alice");
@@ -66,6 +74,15 @@ contract FilterOpsTest is Test {
         expiredPaymaster06.deposit{value: 10 ether}();
         expiredPaymaster07.deposit{value: 10 ether}();
         expiredPaymaster08.deposit{value: 10 ether}();
+
+        // Deploy and fund postOp revert paymasters
+        postOpRevertPaymaster06 = new PostOpRevertPaymasterV06(entryPoint06);
+        postOpRevertPaymaster07 = new PostOpRevertPaymasterV07(entryPoint07);
+        postOpRevertPaymaster08 = new PostOpRevertPaymasterV08(entryPoint08);
+
+        postOpRevertPaymaster06.deposit{value: 10 ether}();
+        postOpRevertPaymaster07.deposit{value: 10 ether}();
+        postOpRevertPaymaster08.deposit{value: 10 ether}();
     }
 
     // ============================================
@@ -75,9 +92,27 @@ contract FilterOpsTest is Test {
     // Test filterOps06 with all valid operations
     function testFilterOps06_AllValid() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
-        accounts[1] = TestAccount({salt: 1, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
-        accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[0] = TestAccount({
+            salt: 0,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
+        accounts[1] = TestAccount({
+            salt: 1,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
+        accounts[2] = TestAccount({
+            salt: 2,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
 
         UserOperation06[] memory ops = _createAndSignOps06(accounts);
 
@@ -90,9 +125,27 @@ contract FilterOpsTest is Test {
     // Test filterOps06 with one failing operation
     function testFilterOps06_OneFailingOp() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
-        accounts[1] = TestAccount({salt: 1, shouldRevert: false, shouldFund: false, useExpiredPaymaster: false}); // No funds
-        accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[0] = TestAccount({
+            salt: 0,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
+        accounts[1] = TestAccount({
+            salt: 1,
+            shouldRevert: false,
+            shouldFund: false,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        }); // No funds
+        accounts[2] = TestAccount({
+            salt: 2,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
 
         UserOperation06[] memory ops = _createAndSignOps06(accounts);
 
@@ -111,7 +164,13 @@ contract FilterOpsTest is Test {
     // Test filterOps06 with invalid signature
     function testFilterOps06_InvalidSignature() public {
         TestAccount[] memory accounts = new TestAccount[](1);
-        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[0] = TestAccount({
+            salt: 0,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
 
         UserOperation06[] memory ops = _createAndSignOps06(accounts);
 
@@ -131,8 +190,20 @@ contract FilterOpsTest is Test {
     // Test filterOps06 with all failing operations
     function testFilterOps06_AllFailingOps() public {
         TestAccount[] memory accounts = new TestAccount[](2);
-        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: false, useExpiredPaymaster: false});
-        accounts[1] = TestAccount({salt: 1, shouldRevert: false, shouldFund: false, useExpiredPaymaster: false});
+        accounts[0] = TestAccount({
+            salt: 0,
+            shouldRevert: false,
+            shouldFund: false,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
+        accounts[1] = TestAccount({
+            salt: 1,
+            shouldRevert: false,
+            shouldFund: false,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
 
         UserOperation06[] memory ops = _createAndSignOps06(accounts);
 
@@ -151,9 +222,27 @@ contract FilterOpsTest is Test {
     // Test filterOps06 with reverting userOp.callData (all ops should be valid)
     function testFilterOps06_OneCallPhaseRevert() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
-        accounts[1] = TestAccount({salt: 1, shouldRevert: true, shouldFund: true, useExpiredPaymaster: false}); // callphase reverting
-        accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[0] = TestAccount({
+            salt: 0,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
+        accounts[1] = TestAccount({
+            salt: 1,
+            shouldRevert: true,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        }); // callphase reverting
+        accounts[2] = TestAccount({
+            salt: 2,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
 
         UserOperation06[] memory ops = _createAndSignOps06(accounts);
 
@@ -165,9 +254,27 @@ contract FilterOpsTest is Test {
     // Test filterOps06 with expired paymaster (AA32 error)
     function testFilterOps06_ExpiredPaymaster() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
-        accounts[1] = TestAccount({salt: 1, shouldRevert: false, shouldFund: true, useExpiredPaymaster: true}); // use expired paymaster
-        accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[0] = TestAccount({
+            salt: 0,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
+        accounts[1] = TestAccount({
+            salt: 1,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: true,
+            usePostOpRevertPaymaster: false
+        }); // use expired paymaster
+        accounts[2] = TestAccount({
+            salt: 2,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
 
         UserOperation06[] memory ops = _createAndSignOps06(accounts);
 
@@ -187,6 +294,46 @@ contract FilterOpsTest is Test {
         );
     }
 
+    // Test filterOps06 with postOp reverting paymaster (AA50 error)
+    function testFilterOps06_PostOpRevertPaymaster() public {
+        TestAccount[] memory accounts = new TestAccount[](3);
+        accounts[0] = TestAccount({
+            salt: 0,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
+        accounts[1] = TestAccount({
+            salt: 1,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: true
+        }); // use postOp revert paymaster
+        accounts[2] = TestAccount({
+            salt: 2,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
+
+        UserOperation06[] memory ops = _createAndSignOps06(accounts);
+
+        PimlicoSimulations.FilterOpsResult memory result = pimlicoSim.filterOps06(ops, beneficiary, entryPoint06);
+
+        // Second operation should be rejected with AA50 error
+        _assertPartialFailureResult(result, 1);
+        assertEq(
+            result.rejectedUserOps[0].userOpHash, entryPoint06.getUserOpHash(ops[1]), "Second op should be rejected"
+        );
+        assertEq(
+            result.rejectedUserOps[0].revertReason,
+            abi.encodeWithSelector(IEntryPoint06.FailedOp.selector, 1, "AA50 postOp reverted: AA50 postOp reverted")
+        );
+    }
+
     // ============================================
     // =========== ENTRYPOINT 07 TESTS ============
     // ============================================
@@ -194,9 +341,27 @@ contract FilterOpsTest is Test {
     // Test filterOps07 with all valid operations
     function testFilterOps07_AllValid() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
-        accounts[1] = TestAccount({salt: 1, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
-        accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[0] = TestAccount({
+            salt: 0,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
+        accounts[1] = TestAccount({
+            salt: 1,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
+        accounts[2] = TestAccount({
+            salt: 2,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
 
         PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
 
@@ -209,9 +374,27 @@ contract FilterOpsTest is Test {
     // Test filterOps07 with one failing operation
     function testFilterOps07_OneFailingOp() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
-        accounts[1] = TestAccount({salt: 1, shouldRevert: false, shouldFund: false, useExpiredPaymaster: false}); // No funds
-        accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[0] = TestAccount({
+            salt: 0,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
+        accounts[1] = TestAccount({
+            salt: 1,
+            shouldRevert: false,
+            shouldFund: false,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        }); // No funds
+        accounts[2] = TestAccount({
+            salt: 2,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
 
         PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
 
@@ -230,7 +413,13 @@ contract FilterOpsTest is Test {
     // Test filterOps07 with invalid signature
     function testFilterOps07_InvalidSignature() public {
         TestAccount[] memory accounts = new TestAccount[](1);
-        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[0] = TestAccount({
+            salt: 0,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
 
         PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
 
@@ -257,8 +446,20 @@ contract FilterOpsTest is Test {
     // Test filterOps07 with all failing operations
     function testFilterOps07_AllFailingOps() public {
         TestAccount[] memory accounts = new TestAccount[](2);
-        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: false, useExpiredPaymaster: false});
-        accounts[1] = TestAccount({salt: 1, shouldRevert: false, shouldFund: false, useExpiredPaymaster: false});
+        accounts[0] = TestAccount({
+            salt: 0,
+            shouldRevert: false,
+            shouldFund: false,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
+        accounts[1] = TestAccount({
+            salt: 1,
+            shouldRevert: false,
+            shouldFund: false,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
 
         PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
 
@@ -277,9 +478,27 @@ contract FilterOpsTest is Test {
     // Test filterOps07 with reverting userOp.callData (all ops should be valid)
     function testFilterOps07_OneCallPhaseRevert() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
-        accounts[1] = TestAccount({salt: 1, shouldRevert: true, shouldFund: true, useExpiredPaymaster: false}); // callphase reverting
-        accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[0] = TestAccount({
+            salt: 0,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
+        accounts[1] = TestAccount({
+            salt: 1,
+            shouldRevert: true,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        }); // callphase reverting
+        accounts[2] = TestAccount({
+            salt: 2,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
 
         PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
 
@@ -291,9 +510,27 @@ contract FilterOpsTest is Test {
     // Test filterOps07 with expired paymaster (AA32 error)
     function testFilterOps07_ExpiredPaymaster() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
-        accounts[1] = TestAccount({salt: 1, shouldRevert: false, shouldFund: true, useExpiredPaymaster: true}); // use expired paymaster
-        accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[0] = TestAccount({
+            salt: 0,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
+        accounts[1] = TestAccount({
+            salt: 1,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: true,
+            usePostOpRevertPaymaster: false
+        }); // use expired paymaster
+        accounts[2] = TestAccount({
+            salt: 2,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
 
         PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
 
@@ -313,6 +550,40 @@ contract FilterOpsTest is Test {
         );
     }
 
+    // Test filterOps07 with postOp reverting paymaster (should still succeed in v0.7+)
+    function testFilterOps07_PostOpRevertPaymaster() public {
+        TestAccount[] memory accounts = new TestAccount[](3);
+        accounts[0] = TestAccount({
+            salt: 0,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
+        accounts[1] = TestAccount({
+            salt: 1,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: true
+        }); // use postOp revert paymaster
+        accounts[2] = TestAccount({
+            salt: 2,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
+
+        PackedUserOperation07[] memory ops = _createAndSignOps07(accounts);
+
+        uint256 balanceBefore = beneficiary.balance;
+        PimlicoSimulations.FilterOpsResult memory result = pimlicoSim.filterOps07(ops, beneficiary, entryPoint07);
+
+        // In v0.7+, postOp reverts don't cause operation failure - all ops should succeed
+        _assertValidOpsResult(result, balanceBefore);
+    }
+
     // ============================================
     // =========== ENTRYPOINT 08 TESTS ============
     // ============================================
@@ -320,9 +591,27 @@ contract FilterOpsTest is Test {
     // Test filterOps08 with all valid operations
     function testFilterOps08_AllValid() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
-        accounts[1] = TestAccount({salt: 1, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
-        accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[0] = TestAccount({
+            salt: 0,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
+        accounts[1] = TestAccount({
+            salt: 1,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
+        accounts[2] = TestAccount({
+            salt: 2,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
 
         PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
 
@@ -336,9 +625,27 @@ contract FilterOpsTest is Test {
     // Test filterOps08 with one failing operation
     function testFilterOps08_OneFailingOp() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
-        accounts[1] = TestAccount({salt: 1, shouldRevert: false, shouldFund: false, useExpiredPaymaster: false}); // No funds
-        accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[0] = TestAccount({
+            salt: 0,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
+        accounts[1] = TestAccount({
+            salt: 1,
+            shouldRevert: false,
+            shouldFund: false,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        }); // No funds
+        accounts[2] = TestAccount({
+            salt: 2,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
 
         PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
 
@@ -354,7 +661,13 @@ contract FilterOpsTest is Test {
     // Test filterOps08 with invalid signature
     function testFilterOps08_InvalidSignature() public {
         TestAccount[] memory accounts = new TestAccount[](1);
-        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[0] = TestAccount({
+            salt: 0,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
 
         PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
 
@@ -382,8 +695,20 @@ contract FilterOpsTest is Test {
     // Test filterOps08 with all failing operations
     function testFilterOps08_AllFailingOps() public {
         TestAccount[] memory accounts = new TestAccount[](2);
-        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: false, useExpiredPaymaster: false});
-        accounts[1] = TestAccount({salt: 1, shouldRevert: false, shouldFund: false, useExpiredPaymaster: false});
+        accounts[0] = TestAccount({
+            salt: 0,
+            shouldRevert: false,
+            shouldFund: false,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
+        accounts[1] = TestAccount({
+            salt: 1,
+            shouldRevert: false,
+            shouldFund: false,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
 
         PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
 
@@ -404,9 +729,27 @@ contract FilterOpsTest is Test {
     // Test filterOps08 with reverting userOp.callData (all ops should be valid)
     function testFilterOps08_OneCallPhaseRevert() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
-        accounts[1] = TestAccount({salt: 1, shouldRevert: true, shouldFund: true, useExpiredPaymaster: false}); // callphase reverting
-        accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[0] = TestAccount({
+            salt: 0,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
+        accounts[1] = TestAccount({
+            salt: 1,
+            shouldRevert: true,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        }); // callphase reverting
+        accounts[2] = TestAccount({
+            salt: 2,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
 
         PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
 
@@ -419,9 +762,27 @@ contract FilterOpsTest is Test {
     // Test filterOps08 with expired paymaster (AA32 error)
     function testFilterOps08_ExpiredPaymaster() public {
         TestAccount[] memory accounts = new TestAccount[](3);
-        accounts[0] = TestAccount({salt: 0, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
-        accounts[1] = TestAccount({salt: 1, shouldRevert: false, shouldFund: true, useExpiredPaymaster: true}); // use expired paymaster
-        accounts[2] = TestAccount({salt: 2, shouldRevert: false, shouldFund: true, useExpiredPaymaster: false});
+        accounts[0] = TestAccount({
+            salt: 0,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
+        accounts[1] = TestAccount({
+            salt: 1,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: true,
+            usePostOpRevertPaymaster: false
+        }); // use expired paymaster
+        accounts[2] = TestAccount({
+            salt: 2,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
 
         PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
 
@@ -442,6 +803,41 @@ contract FilterOpsTest is Test {
         );
     }
 
+    // Test filterOps08 with postOp reverting paymaster (should still succeed in v0.8)
+    function testFilterOps08_PostOpRevertPaymaster() public {
+        TestAccount[] memory accounts = new TestAccount[](3);
+        accounts[0] = TestAccount({
+            salt: 0,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
+        accounts[1] = TestAccount({
+            salt: 1,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: true
+        }); // use postOp revert paymaster
+        accounts[2] = TestAccount({
+            salt: 2,
+            shouldRevert: false,
+            shouldFund: true,
+            useExpiredPaymaster: false,
+            usePostOpRevertPaymaster: false
+        });
+
+        PackedUserOperation08[] memory ops = _createAndSignOps08(accounts);
+
+        uint256 balanceBefore = beneficiary.balance;
+        PimlicoSimulations.FilterOpsResult memory result =
+            pimlicoSim.filterOps08(castToVersion07(ops), beneficiary, entryPoint08);
+
+        // In v0.8, postOp reverts don't cause operation failure - all ops should succeed
+        _assertValidOpsResult(result, balanceBefore);
+    }
+
     // ============================================
     // ================= HELPERS ==================
     // ============================================
@@ -451,6 +847,7 @@ contract FilterOpsTest is Test {
         bool shouldRevert;
         bool shouldFund;
         bool useExpiredPaymaster;
+        bool usePostOpRevertPaymaster;
     }
 
     function _setupAccounts06(TestAccount[] memory accounts) private {
@@ -511,6 +908,8 @@ contract FilterOpsTest is Test {
             bytes memory paymasterAndData = "";
             if (accounts[i].useExpiredPaymaster) {
                 paymasterAndData = abi.encodePacked(address(expiredPaymaster06));
+            } else if (accounts[i].usePostOpRevertPaymaster) {
+                paymasterAndData = abi.encodePacked(address(postOpRevertPaymaster06));
             }
 
             ops[i] = UserOperation06({
@@ -562,6 +961,12 @@ contract FilterOpsTest is Test {
             if (accounts[i].useExpiredPaymaster) {
                 paymasterAndData = abi.encodePacked(
                     address(expiredPaymaster07),
+                    uint128(100000), // verificationGasLimit
+                    uint128(50000) // postOpGasLimit
+                );
+            } else if (accounts[i].usePostOpRevertPaymaster) {
+                paymasterAndData = abi.encodePacked(
+                    address(postOpRevertPaymaster07),
                     uint128(100000), // verificationGasLimit
                     uint128(50000) // postOpGasLimit
                 );
@@ -617,6 +1022,12 @@ contract FilterOpsTest is Test {
             if (accounts[i].useExpiredPaymaster) {
                 paymasterAndData = abi.encodePacked(
                     address(expiredPaymaster08),
+                    uint128(100000), // verificationGasLimit
+                    uint128(50000) // postOpGasLimit
+                );
+            } else if (accounts[i].usePostOpRevertPaymaster) {
+                paymasterAndData = abi.encodePacked(
+                    address(postOpRevertPaymaster08),
                     uint128(100000), // verificationGasLimit
                     uint128(50000) // postOpGasLimit
                 );
