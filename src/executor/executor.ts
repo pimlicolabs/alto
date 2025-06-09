@@ -123,10 +123,28 @@ export class Executor {
         totalBeneficiaryFees: bigint
         bundleGasUsed: bigint
     }): Promise<GasPriceParameters> {
-        const breakEvenGasPrice = totalBeneficiaryFees / bundleGasUsed
+        const {
+            // Start at configured profit margin and approach 100% by reducing gap by 50% each resubmission
+            bundlerMargin: initialProfitMargin,
+            resubmitMultiplierCeiling,
+            legacyTransactions,
+            chainType
+        } = this.config
 
-        // Start at configured profit margin and approach 100% by reducing gap by 50% each resubmission
-        const initialProfitMargin = this.config.bundlerMargin
+        // Arbtirum's sequencer orders based on first come first serve.
+        // Because of this, maxFee/maxPriorityFee is irrelevant.
+        // However, we need to set a large enough maxFee to account for network baseFee fluctuations.
+        if (chainType === "arbitrum") {
+            return {
+                // networkGasPrice.maxFeePerGas calls baseFee under the hood, we multiply by 2 to account for any network baseFee fluctuations.
+                maxFeePerGas: networkGasPrice.maxFeePerGas * 2n,
+                maxPriorityFeePerGas: 0n // Arbitrum doesn't
+            }
+        }
+
+        // For other chains, the bundler should place a gasPrice that is competetive with the network.
+
+        const breakEvenGasPrice = totalBeneficiaryFees / bundleGasUsed
 
         // Calculate margin: start at initialProfitMargin%, then
         // reduce the gap to 100% by 50% each resubmission
@@ -150,15 +168,15 @@ export class Executor {
 
             networkMaxFeePerGas = scaleBigIntByPercent(
                 networkMaxFeePerGas,
-                minBigInt(multiplier, this.config.resubmitMultiplierCeiling)
+                minBigInt(multiplier, resubmitMultiplierCeiling)
             )
             networkMaxPriorityFeePerGas = scaleBigIntByPercent(
                 networkMaxPriorityFeePerGas,
-                minBigInt(multiplier, this.config.resubmitMultiplierCeiling)
+                minBigInt(multiplier, resubmitMultiplierCeiling)
             )
         }
 
-        if (this.config.legacyTransactions) {
+        if (legacyTransactions) {
             const gasPrice = maxBigInt(bundlingGasPrice, networkMaxFeePerGas)
             return {
                 maxFeePerGas: gasPrice,

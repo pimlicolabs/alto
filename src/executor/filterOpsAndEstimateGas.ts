@@ -49,6 +49,7 @@ export type FilterOpsResult =
           rejectedUserOps: RejectedUserOp[]
       }
 
+// Returns the chain specfic overhead that can't be calculated onchain.
 const getChainSpecificOverhead = async ({
     config,
     entryPoint,
@@ -100,11 +101,15 @@ const getChainSpecificOverhead = async ({
 
             let [gasEstimateForL1, ,] = result
 
-            // scaling by 10% as reccomended by docs https://github.com/OffchainLabs/nitro-contracts/blob/bdb8f8c68b2229fe9309fe9c03b37017abd1a2cd/src/node-interface/NodeInterface.sol#L105
-            return scaleBigIntByPercent(gasEstimateForL1, 110n)
+            return {
+                gasUsed: gasEstimateForL1,
+                // scaling by 10% as recommended by docs.
+                // https://github.com/OffchainLabs/nitro-contracts/blob/bdb8f8c68b2229fe9309fe9c03b37017abd1a2cd/src/node-interface/NodeInterface.sol#L105
+                gasLimit: scaleBigIntByPercent(gasEstimateForL1, 110n)
+            }
         }
         default:
-            return 0n
+            return { gasUsed: 0n, gasLimit: 0n }
     }
 }
 
@@ -290,7 +295,7 @@ export async function filterOpsAndEstimateGas({
     const { userOps, entryPoint } = userOpBundle
 
     let filterOpsResult
-    let chainSpecificOverhead
+    let offchainOverhead
     try {
         // Create promises for parallel execution
         const filterOpsPromise = getFilterOpsResult({
@@ -312,7 +317,7 @@ export async function filterOpsAndEstimateGas({
             chainSpecificOverheadPromise
         ])
         filterOpsResult = results[0]
-        chainSpecificOverhead = results[1]
+        offchainOverhead = results[1]
 
         // Keep track of invalid and valid ops
         const rejectedUserOpHashes = filterOpsResult.rejectedUserOps.map(
@@ -352,7 +357,8 @@ export async function filterOpsAndEstimateGas({
         }
 
         // find overhead that can't be calculated onchain
-        const bundleGasUsed = filterOpsResult.gasUsed + 21_000n
+        const bundleGasUsed =
+            filterOpsResult.gasUsed + 21_000n + offchainOverhead.gasUsed
 
         // Find gasLimit needed for this bundle
         const bundleGasLimit = await getBundleGasLimit({
@@ -367,7 +373,7 @@ export async function filterOpsAndEstimateGas({
             userOpsToBundle,
             rejectedUserOps,
             bundleGasUsed,
-            bundleGasLimit: bundleGasLimit + chainSpecificOverhead,
+            bundleGasLimit: bundleGasLimit + offchainOverhead.gasLimit,
             totalBeneficiaryFees: filterOpsResult.balanceChange
         }
     } catch (err) {
