@@ -132,13 +132,14 @@ export class Executor {
         } = this.config
 
         // Arbtirum's sequencer orders based on first come first serve.
-        // Because of this, maxFee/maxPriorityFee is irrelevant.
-        // However, we need to set a large enough maxFee to account for network baseFee fluctuations.
+        // Because of this, maxFee/maxPriorityFee is irrelevant and the bundler always pay the network's baseFee.
+        // The bundler need to set a large enough gasBid to account for network baseFee fluctuations.
+        // GasBid = min(maxFee, base + priority)
         if (chainType === "arbitrum") {
             return {
-                // networkGasPrice.maxFeePerGas calls baseFee under the hood, we multiply by 2 to account for any network baseFee fluctuations.
+                // networkGasPrice.maxFeePerGas calls baseFee under the hood, we multiply by 2 to account for any network fluctuations.
                 maxFeePerGas: networkGasPrice.maxFeePerGas * 2n,
-                maxPriorityFeePerGas: 0n // Arbitrum doesn't
+                maxPriorityFeePerGas: networkGasPrice.maxFeePerGas * 2n
             }
         }
 
