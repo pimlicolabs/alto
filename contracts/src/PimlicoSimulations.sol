@@ -32,7 +32,7 @@ contract PimlicoSimulations {
         RejectedUserOp[] rejectedUserOps;
     }
 
-    event PimlicoSimulationV7Deployed();
+    event PimlicoSimulationDeployed();
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                        Variables                           */
@@ -46,7 +46,7 @@ contract PimlicoSimulations {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     constructor() {
-        emit PimlicoSimulationV7Deployed();
+        emit PimlicoSimulationDeployed();
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
