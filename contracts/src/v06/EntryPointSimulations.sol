@@ -24,12 +24,12 @@ import "@openzeppelin-v4.8.3/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin-v4.8.3/contracts/utils/StorageSlot.sol";
 
 // THIS IS A MODIFIED VERSION OF account-abstraction-v6/core/EntryPoint.sol.
-// THIS CONTRACT IS MEANT TO BE USED AS A CODE OVERRIDE DURING eth_estimateUserOperationGas / filterOps SIMULATIONS.
+// THIS CONTRACT IS MEANT TO BE USED AS A CODE OVERRIDE DURING eth_estimateUserOperationGas SIMULATIONS.
 // Changes:
-// - Uses OpenZeppelin's StorageSlot helper to get the senderCreator address.
+// - Hardcode senderCreator
 // - Renamed to EntryPointCodeOverride
 // - Throw custom error CallPhaseReverted if callphase reverts
-contract EntryPointCodeOverride06 is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard {
+contract EntryPointSimulations06 is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard {
     using UserOperationLib for UserOperation;
 
     // internal value used during simulation: need to query aggregator.
@@ -414,12 +414,11 @@ contract EntryPointCodeOverride06 is IEntryPoint, StakeManager, NonceManager, Re
             address sender = opInfo.mUserOp.sender;
             if (sender.code.length != 0) revert FailedOp(opIndex, "AA10 sender already constructed");
 
-            // Try get senderCreator from override, if override is not set, use default senderCreator
-            address senderCreator = StorageSlot.getAddressSlot(keccak256("SENDER_CREATOR")).value;
-            if (senderCreator == address(0)) senderCreator = 0x7fc98430eAEdbb6070B35B39D798725049088348;
+            // Get the sender creator address from the storage slot, or fallback to the default value.
+            address creator = StorageSlot.getAddressSlot(keccak256("SENDER_CREATOR")).value;
+            if (creator == address(0)) creator = 0x7fc98430eAEdbb6070B35B39D798725049088348;
+            address sender1 = SenderCreator(creator).createSender{gas: opInfo.mUserOp.verificationGasLimit}(initCode);
 
-            address sender1 =
-                SenderCreator(senderCreator).createSender{gas: opInfo.mUserOp.verificationGasLimit}(initCode);
             if (sender1 == address(0)) revert FailedOp(opIndex, "AA13 initCode failed or OOG");
             if (sender1 != sender) revert FailedOp(opIndex, "AA14 initCode must return sender");
             if (sender1.code.length == 0) revert FailedOp(opIndex, "AA15 initCode must create sender");
@@ -435,11 +434,11 @@ contract EntryPointCodeOverride06 is IEntryPoint, StakeManager, NonceManager, Re
      * @param initCode the constructor code to be passed into the UserOperation.
      */
     function getSenderAddress(bytes calldata initCode) public {
-        // Try get senderCreator from override, if override is not set, use default senderCreator
-        address senderCreator = StorageSlot.getAddressSlot(keccak256("SENDER_CREATOR")).value;
-        if (senderCreator == address(0)) senderCreator = 0x7fc98430eAEdbb6070B35B39D798725049088348;
+        // Get the sender creator address from the storage slot, or fallback to the default value.
+        address creator = StorageSlot.getAddressSlot(keccak256("SENDER_CREATOR")).value;
+        if (creator == address(0)) creator = 0x7fc98430eAEdbb6070B35B39D798725049088348;
+        address sender = SenderCreator(creator).createSender(initCode);
 
-        address sender = SenderCreator(senderCreator).createSender(initCode);
         revert SenderAddressResult(sender);
     }
 
@@ -739,8 +738,7 @@ contract EntryPointCodeOverride06 is IEntryPoint, StakeManager, NonceManager, Re
                 //legacy mode (for networks that don't support basefee opcode)
                 return maxFeePerGas;
             }
-            uint256 blockBaseFeePerGas = StorageSlot.getUint256Slot(keccak256("BLOCK_BASE_FEE_PER_GAS")).value;
-            return min(maxFeePerGas, maxPriorityFeePerGas + blockBaseFeePerGas);
+            return min(maxFeePerGas, maxPriorityFeePerGas + block.basefee);
         }
     }
 

@@ -19,7 +19,7 @@ import type { SimulateHandleOpResult } from "./types"
 import type { AltoConfig } from "../../createConfig"
 import { parseFailedOpWithRevert } from "./gasEstimationsV07"
 import { deepHexlify, getAuthorizationStateOverrides } from "@alto/utils"
-import entryPointOverride from "../../contracts/EntryPointCodeOverride06.sol/EntryPointCodeOverride06.json" with {
+import entryPointOverride from "../../contracts/EntryPointSimulations.sol/EntryPointSimulations06.json" with {
     type: "json"
 }
 import { getSenderCreatorOverride } from "../../utils/entryPointOverrides"
