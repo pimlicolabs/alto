@@ -38,7 +38,7 @@ contract PimlicoSimulations {
     /*                        Variables                           */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    // @notice Used for filterOps and filterOpsLegacy
+    // @notice Used for filterOps, we use a in storage array so that we can use push().
     RejectedUserOp[] rejectedUserOps;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
