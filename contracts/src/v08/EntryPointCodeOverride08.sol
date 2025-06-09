@@ -26,14 +26,7 @@ import "@openzeppelin-v5.1.0/contracts/utils/StorageSlot.sol";
  * Only one instance required on each chain.
  * @custom:security-contact https://bounty.ethereum.org
  */
-contract EntryPointCodeOverride08 is
-    IEntryPoint,
-    StakeManager,
-    NonceManager,
-    ReentrancyGuardTransient,
-    ERC165,
-    EIP712
-{
+contract EntryPointCodeOverride08 is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardTransient, ERC165 {
     using UserOperationLib for PackedUserOperation;
 
     /**
@@ -56,10 +49,11 @@ contract EntryPointCodeOverride08 is
     string internal constant DOMAIN_NAME = "ERC4337";
     string internal constant DOMAIN_VERSION = "1";
 
-    constructor() EIP712(DOMAIN_NAME, DOMAIN_VERSION) {}
+    constructor() {}
 
     // START: Copied from EntryPoint simulations contract //
     // We can't rely on "immutable" (constructor-initialized) variables in simulation
+    // There is a custom call at the start of handleOps that initializes the domain separator
     // Source: https://github.com/eth-infinitism/account-abstraction/blob/4cbc06/contracts/core/EntryPointSimulations.sol#L193-L214
     bytes32 private __domainSeparatorV4;
 
@@ -84,6 +78,7 @@ contract EntryPointCodeOverride08 is
 
     /// @inheritdoc IEntryPoint
     function handleOps(PackedUserOperation[] calldata ops, address payable beneficiary) external nonReentrant {
+        _initDomainSeparator();
         uint256 opslen = ops.length;
         UserOpInfo[] memory opInfos = new UserOpInfo[](opslen);
         unchecked {
