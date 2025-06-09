@@ -172,7 +172,6 @@ describe.each([
             } catch (e: any) {
                 expect(e).toBeInstanceOf(BaseError)
                 const err = e.walk()
-                console.log(err)
                 expect(err.message).toEqual(
                     "UserOperation reverted during simulation with reason: 0x08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000006666f6f6261720000000000000000000000000000000000000000000000000000"
                 )
