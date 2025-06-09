@@ -22,6 +22,7 @@ import { deepHexlify, getAuthorizationStateOverrides } from "@alto/utils"
 import entryPointOverride from "../../contracts/EntryPointCodeOverride.sol/EntryPointCodeOverride.json" with {
     type: "json"
 }
+import { getSenderCreatorOverride } from "../../utils/entryPointOverrides"
 
 export class GasEstimatorV06 {
     private config: AltoConfig
@@ -136,8 +137,14 @@ export class GasEstimatorV06 {
                 stateOverrides = {}
             }
 
+            const senderCreatorOverride = getSenderCreatorOverride(entryPoint)
+
             stateOverrides[entryPoint] = {
                 ...deepHexlify(stateOverrides?.[entryPoint] || {}),
+                stateDiff: {
+                    ...(stateOverrides[entryPoint]?.stateDiff || {}),
+                    [senderCreatorOverride.slot]: senderCreatorOverride.value
+                },
                 code: entryPointOverride.deployedBytecode.object as Hex
             }
         }

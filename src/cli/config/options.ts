@@ -572,12 +572,6 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         type: "boolean",
         require: false,
         default: true
-    },
-    "eth-simulate-v1-support": {
-        description: "Does the RPC support eth_simulate v1",
-        type: "boolean",
-        require: false,
-        default: true
     }
 }
 

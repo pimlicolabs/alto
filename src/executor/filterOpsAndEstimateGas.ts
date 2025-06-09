@@ -24,11 +24,12 @@ import {
     scaleBigIntByPercent,
     toPackedUserOperation
 } from "@alto/utils"
-import { PimlicoEntryPointSimulationsAbi } from "../types/contracts/PimlicoEntryPointSimulations"
+import { PimlicoSimulationsAbi } from "../types/contracts/PimlicoSimulations"
 import * as sentry from "@sentry/node"
 import { getEip7702DelegationOverrides } from "../utils/eip7702"
 import { encodeHandleOpsCalldata, calculateAA95GasFloor } from "./utils"
 import { GasPriceManager } from "../handlers/gasPriceManager"
+import { getFilterOpsStateOverride } from "../utils/entryPointOverrides"
 
 export type FilterOpsResult =
     | {
@@ -168,29 +169,31 @@ const getFilterOpsResult = async ({
         revertReason: `0x${string}`
     }[]
 }> => {
-    let {
-        publicClient,
-        entrypointSimulationContractV7,
-        ethSimulateV1Support,
-        legacyTransactions
-    } = config
+    let { publicClient, pimlicoSimulationContract, legacyTransactions } = config
 
-    if (!entrypointSimulationContractV7) {
-        throw new Error("entrypointSimulationContractV7 not set")
+    if (!pimlicoSimulationContract) {
+        throw new Error("pimlicoSimulationContract not set")
     }
 
     const { userOps, version, entryPoint } = userOpBundle
 
     // Get EIP-7702 stateOverrides.
-    let eip7702Override: StateOverride | undefined =
+    const eip7702Override: StateOverride | undefined =
         getEip7702DelegationOverrides(userOps.map(({ userOp }) => userOp))
+    const simulationOverrides = getFilterOpsStateOverride({
+        version,
+        entryPoint,
+        baseFeePerGas: legacyTransactions
+            ? 0n
+            : await gasPriceManager.getBaseFee()
+    })
 
     // Create promises for parallel execution
     let data: Hex
     switch (version) {
         case "0.8": {
             data = encodeFunctionData({
-                abi: PimlicoEntryPointSimulationsAbi,
+                abi: PimlicoSimulationsAbi,
                 functionName: "filterOps08",
                 args: [
                     userOps.map(({ userOp }) =>
@@ -204,7 +207,7 @@ const getFilterOpsResult = async ({
         }
         case "0.7": {
             data = encodeFunctionData({
-                abi: PimlicoEntryPointSimulationsAbi,
+                abi: PimlicoSimulationsAbi,
                 functionName: "filterOps07",
                 args: [
                     userOps.map(({ userOp }) =>
@@ -218,7 +221,7 @@ const getFilterOpsResult = async ({
         }
         default: {
             data = encodeFunctionData({
-                abi: PimlicoEntryPointSimulationsAbi,
+                abi: PimlicoSimulationsAbi,
                 functionName: "filterOps06",
                 args: [
                     userOps.map(({ userOp }) => userOp) as UserOperationV06[],
@@ -230,46 +233,21 @@ const getFilterOpsResult = async ({
     }
 
     let result: Hex
-    if (ethSimulateV1Support && !legacyTransactions) {
-        const ethSimulateV1Result = await publicClient.simulateBlocks({
-            blocks: [
-                {
-                    calls: [
-                        {
-                            to: entrypointSimulationContractV7,
-                            data
-                        }
-                    ],
-                    stateOverrides: eip7702Override,
-                    blockOverrides: {
-                        baseFeePerGas: await gasPriceManager.getBaseFee()
-                    }
-                }
-            ]
-        })
+    const callResult = await publicClient.call({
+        to: pimlicoSimulationContract,
+        data,
+        stateOverride: [
+            ...(eip7702Override ? eip7702Override : []),
+            ...simulationOverrides
+        ]
+    })
 
-        const simulationResult = ethSimulateV1Result[0]?.calls[0]
-        if (!simulationResult || simulationResult.status === "failure") {
-            throw new Error(
-                "No data returned from filterOps simulation during eth_simulateV1"
-            )
-        }
-
-        result = simulationResult.data
-    } else {
-        const callResult = await publicClient.call({
-            to: entrypointSimulationContractV7,
-            data,
-            stateOverride: eip7702Override
-        })
-
-        if (!callResult.data) {
-            throw new Error(
-                "No data returned from filterOps simulation during eth_call"
-            )
-        }
-        result = callResult.data
+    if (!callResult.data) {
+        throw new Error(
+            "No data returned from filterOps simulation during eth_call"
+        )
     }
+    result = callResult.data
 
     const filterOpsResult = decodeAbiParameters(
         [
