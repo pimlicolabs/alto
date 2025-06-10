@@ -126,8 +126,7 @@ export class Executor {
         bundleGasUsed: bigint
     }): Promise<GasPriceParameters> {
         const {
-            // Start at configured profit margin and approach 100% by reducing gap by 50% each resubmission
-            bundlerMargin: initialProfitMargin,
+            bundlerProfitPercentage,
             resubmitMultiplierCeiling,
             legacyTransactions,
             chainType
@@ -173,12 +172,14 @@ export class Executor {
 
         // Calculate margin: start at initialProfitMargin%, then
         // reduce the gap to 100% by 50% each resubmission
-        const gapFrom100 =
-            (100n - initialProfitMargin) /
-            2n ** BigInt(bundle.submissionAttempts)
-        const margin = 100n - gapFrom100
+        const gap =
+            bundlerProfitPercentage / 2n ** BigInt(bundle.submissionAttempts)
+        const bundlerMargin = 100n - gap
 
-        const bundlingGasPrice = scaleBigIntByPercent(breakEvenGasPrice, margin)
+        const bundlingGasPrice = scaleBigIntByPercent(
+            breakEvenGasPrice,
+            bundlerMargin
+        )
 
         if (legacyTransactions) {
             const gasPrice = maxBigInt(bundlingGasPrice, networkMaxFeePerGas)
