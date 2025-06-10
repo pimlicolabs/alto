@@ -93,58 +93,39 @@ contract PimlicoSimulations {
         external
         returns (FilterOpsResult memory)
     {
+        // Clear storage variable.
+        rejectedUserOps = new RejectedUserOp[](0);
+
         // Set up memory variables.
-        uint256 gasBefore;
-        uint256 gasAfter;
-        uint256 balanceBefore;
-        uint256 balanceAfter;
+        uint256 totalGasUsed = 0;
+        uint256 totalBalanceChange = 0;
 
-        PackedUserOperation[] memory remainingUserOps = userOps;
-        rejectedUserOps = new RejectedUserOp[](0); // Clear storage variable.
+        // Process each UserOperation individually for O(n) complexity
+        for (uint256 i = 0; i < userOps.length; i++) {
+            // Create a single-element array for the current UserOperation
+            PackedUserOperation[] memory singleOpArray = new PackedUserOperation[](1);
+            singleOpArray[0] = userOps[i];
 
-        // Continue to call handleOps until bundle passes.
-        while (remainingUserOps.length > 0) {
-            balanceBefore = beneficiary.balance;
-            balanceAfter = balanceBefore;
-            gasBefore = gasleft();
-            gasAfter = gasBefore;
+            uint256 balanceBefore = beneficiary.balance;
+            uint256 gasBefore = gasleft();
 
-            try entryPoint.handleOps(remainingUserOps, beneficiary) {
-                // HandleOps succeeded, record gas and balance changes.
-                gasAfter = gasleft();
-                balanceAfter = beneficiary.balance;
-                break;
+            try entryPoint.handleOps(singleOpArray, beneficiary) {
+                uint256 gasAfter = gasleft();
+                uint256 balanceAfter = beneficiary.balance;
+
+                // Accumulate gas used and balance changes
+                totalGasUsed += gasBefore - gasAfter;
+                totalBalanceChange += balanceAfter - balanceBefore;
             } catch (bytes memory revertReason) {
-                // Remove userOp that failed and try again.
-                (bytes4 errorSelector, bytes memory args) =
-                    (bytes4(revertReason), revertReason.slice(4, revertReason.length));
-
-                // Find opIndex of failing userOp.
-                uint256 opIndex;
-                if (errorSelector == IEntryPoint07.FailedOp.selector) {
-                    (opIndex,) = abi.decode(args, (uint256, string));
-                } else if (errorSelector == IEntryPoint07.FailedOpWithRevert.selector) {
-                    (opIndex,,) = abi.decode(args, (uint256, string, bytes));
-                } else {
-                    revert("Unknown handleOps Error Selector");
-                }
-
-                // record userOpHash and revert reason.
-                bytes32 userOpHash = entryPoint.getUserOpHash(remainingUserOps[opIndex]);
+                // This UserOperation failed, add it to rejected list
+                bytes32 userOpHash = entryPoint.getUserOpHash(userOps[i]);
                 rejectedUserOps.push(RejectedUserOp({userOpHash: userOpHash, revertReason: revertReason}));
-
-                // remove userOp from bundle and try again.
-                PackedUserOperation[] memory newArray = new PackedUserOperation[](remainingUserOps.length - 1);
-                for (uint256 i = 0; i < remainingUserOps.length - 1; i++) {
-                    newArray[i] = i < opIndex ? remainingUserOps[i] : remainingUserOps[i + 1];
-                }
-                remainingUserOps = newArray;
             }
         }
 
         return FilterOpsResult({
-            gasUsed: gasBefore - gasAfter,
-            balanceChange: balanceAfter - balanceBefore,
+            gasUsed: totalGasUsed,
+            balanceChange: totalBalanceChange,
             rejectedUserOps: rejectedUserOps
         });
     }
@@ -155,56 +136,39 @@ contract PimlicoSimulations {
         external
         returns (FilterOpsResult memory)
     {
+        // Clear storage variable.
+        rejectedUserOps = new RejectedUserOp[](0);
+
         // Set up memory variables.
-        uint256 gasBefore;
-        uint256 gasAfter;
-        uint256 balanceBefore;
-        uint256 balanceAfter;
+        uint256 totalGasUsed = 0;
+        uint256 totalBalanceChange = 0;
 
-        UserOperation[] memory remainingUserOps = userOps;
-        rejectedUserOps = new RejectedUserOp[](0); // Clear storage variable.
+        // Process each UserOperation individually for O(n) complexity
+        for (uint256 i = 0; i < userOps.length; i++) {
+            // Create a single-element array for the current UserOperation
+            UserOperation[] memory singleOpArray = new UserOperation[](1);
+            singleOpArray[0] = userOps[i];
 
-        // Continue to call handleOps until bundle passes.
-        while (remainingUserOps.length > 0) {
-            balanceBefore = beneficiary.balance;
-            balanceAfter = balanceBefore;
-            gasBefore = gasleft();
-            gasAfter = gasBefore;
+            uint256 balanceBefore = beneficiary.balance;
+            uint256 gasBefore = gasleft();
 
-            try entryPoint.handleOps(remainingUserOps, beneficiary) {
-                // HandleOps succeeded, record gas and balance changes.
-                gasAfter = gasleft();
-                balanceAfter = beneficiary.balance;
-                break;
+            try entryPoint.handleOps(singleOpArray, beneficiary) {
+                uint256 gasAfter = gasleft();
+                uint256 balanceAfter = beneficiary.balance;
+
+                // Accumulate gas used and balance changes
+                totalGasUsed += gasBefore - gasAfter;
+                totalBalanceChange += balanceAfter - balanceBefore;
             } catch (bytes memory revertReason) {
-                // Remove userOp that failed and try again.
-                (bytes4 errorSelector, bytes memory args) =
-                    (bytes4(revertReason), revertReason.slice(4, revertReason.length));
-
-                // Find opIndex of failing userOp.
-                uint256 opIndex;
-                if (errorSelector == IEntryPoint06.FailedOp.selector) {
-                    (opIndex,) = abi.decode(args, (uint256, string));
-                } else {
-                    revert("Unknown handleOps Error Selector");
-                }
-
-                // record userOpHash and revert reason.
-                bytes32 userOpHash = entryPoint.getUserOpHash(remainingUserOps[opIndex]);
+                // This UserOperation failed, add it to rejected list
+                bytes32 userOpHash = entryPoint.getUserOpHash(userOps[i]);
                 rejectedUserOps.push(RejectedUserOp({userOpHash: userOpHash, revertReason: revertReason}));
-
-                // remove userOp from bundle and try again.
-                UserOperation[] memory newArray = new UserOperation[](remainingUserOps.length - 1);
-                for (uint256 i = 0; i < remainingUserOps.length - 1; i++) {
-                    newArray[i] = i < opIndex ? remainingUserOps[i] : remainingUserOps[i + 1];
-                }
-                remainingUserOps = newArray;
             }
         }
 
         return FilterOpsResult({
-            gasUsed: gasBefore - gasAfter,
-            balanceChange: balanceAfter - balanceBefore,
+            gasUsed: totalGasUsed,
+            balanceChange: totalBalanceChange,
             rejectedUserOps: rejectedUserOps
         });
     }

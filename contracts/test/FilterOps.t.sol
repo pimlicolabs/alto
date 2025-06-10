@@ -157,7 +157,7 @@ contract FilterOpsTest is Test {
         );
         assertEq(
             result.rejectedUserOps[0].revertReason,
-            abi.encodeWithSelector(IEntryPoint06.FailedOp.selector, 1, "AA21 didn't pay prefund")
+            abi.encodeWithSelector(IEntryPoint06.FailedOp.selector, 0, "AA21 didn't pay prefund")
         );
     }
 
@@ -290,7 +290,7 @@ contract FilterOpsTest is Test {
         );
         assertEq(
             result.rejectedUserOps[0].revertReason,
-            abi.encodeWithSelector(IEntryPoint06.FailedOp.selector, 1, "AA32 paymaster expired or not due")
+            abi.encodeWithSelector(IEntryPoint06.FailedOp.selector, 0, "AA32 paymaster expired or not due")
         );
     }
 
@@ -330,7 +330,7 @@ contract FilterOpsTest is Test {
         );
         assertEq(
             result.rejectedUserOps[0].revertReason,
-            abi.encodeWithSelector(IEntryPoint06.FailedOp.selector, 1, "AA50 postOp reverted: AA50 postOp reverted")
+            abi.encodeWithSelector(IEntryPoint06.FailedOp.selector, 0, "AA50 postOp reverted: AA50 postOp reverted")
         );
     }
 
@@ -406,7 +406,7 @@ contract FilterOpsTest is Test {
         );
         assertEq(
             result.rejectedUserOps[0].revertReason,
-            abi.encodeWithSelector(IEntryPoint07.FailedOp.selector, 1, "AA21 didn't pay prefund")
+            abi.encodeWithSelector(IEntryPoint07.FailedOp.selector, 0, "AA21 didn't pay prefund")
         );
     }
 
@@ -546,7 +546,7 @@ contract FilterOpsTest is Test {
         );
         assertEq(
             result.rejectedUserOps[0].revertReason,
-            abi.encodeWithSelector(IEntryPoint07.FailedOp.selector, 1, "AA32 paymaster expired or not due")
+            abi.encodeWithSelector(IEntryPoint07.FailedOp.selector, 0, "AA32 paymaster expired or not due")
         );
     }
 
@@ -799,7 +799,7 @@ contract FilterOpsTest is Test {
         );
         assertEq(
             result.rejectedUserOps[0].revertReason,
-            abi.encodeWithSelector(IEntryPoint08.FailedOp.selector, 1, "AA32 paymaster expired or not due")
+            abi.encodeWithSelector(IEntryPoint08.FailedOp.selector, 0, "AA32 paymaster expired or not due")
         );
     }
 
