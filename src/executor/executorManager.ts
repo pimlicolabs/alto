@@ -216,6 +216,13 @@ export class ExecutorManager {
         return txHash
     }
 
+    async getBaseFee(): Promise<bigint> {
+        if (this.config.legacyTransactions) {
+            return 0n
+        }
+        return await this.gasPriceManager.getBaseFee()
+    }
+
     async sendBundleToExecutor(
         userOpBundle: UserOperationBundle
     ): Promise<Hex | undefined> {
@@ -226,8 +233,9 @@ export class ExecutorManager {
 
         const wallet = await this.senderManager.getWallet()
 
-        const [gasPriceParams, nonce] = await Promise.all([
+        const [gasPriceParams, baseFee, nonce] = await Promise.all([
             this.gasPriceManager.tryGetNetworkGasPrice(),
+            this.getBaseFee(),
             this.config.publicClient.getTransactionCount({
                 address: wallet.address,
                 blockTag: "latest"
@@ -251,6 +259,7 @@ export class ExecutorManager {
             executor: wallet,
             userOpBundle,
             networkGasPrice: gasPriceParams,
+            networkBaseFee: baseFee,
             nonce
         })
 
@@ -695,12 +704,13 @@ export class ExecutorManager {
         )
 
         // for all still not included check if needs to be replaced (based on gas price)
-        const gasPriceParams = await this.gasPriceManager
-            .tryGetNetworkGasPrice()
-            .catch(() => ({
+        const [gasPriceParams, networkBaseFee] = await Promise.all([
+            this.gasPriceManager.tryGetNetworkGasPrice().catch(() => ({
                 maxFeePerGas: 0n,
                 maxPriorityFeePerGas: 0n
-            }))
+            })),
+            this.getBaseFee().catch(() => 0n)
+        ])
 
         const transactionInfos = getTransactionsFromUserOperationEntries(
             await dumpSubmittedEntries()
@@ -723,20 +733,22 @@ export class ExecutorManager {
                     this.config.resubmitStuckTimeout
 
                 if (isMaxFeeTooLow || isPriorityFeeTooLow) {
-                    await this.replaceTransaction(
+                    await this.replaceTransaction({
                         txInfo,
                         gasPriceParams,
-                        "gas_price"
-                    )
+                        networkBaseFee,
+                        reason: "gas_price"
+                    })
                     return
                 }
 
                 if (isStuck) {
-                    await this.replaceTransaction(
+                    await this.replaceTransaction({
                         txInfo,
                         gasPriceParams,
-                        "stuck"
-                    )
+                        networkBaseFee,
+                        reason: "stuck"
+                    })
                     return
                 }
             })
@@ -745,11 +757,17 @@ export class ExecutorManager {
         this.currentlyHandlingBlock = false
     }
 
-    async replaceTransaction(
-        txInfo: TransactionInfo,
-        gasPriceParams: GasPriceParameters,
+    async replaceTransaction({
+        txInfo,
+        gasPriceParams,
+        networkBaseFee,
+        reason
+    }: {
+        txInfo: TransactionInfo
+        gasPriceParams: GasPriceParameters
+        networkBaseFee: bigint
         reason: "gas_price" | "stuck"
-    ): Promise<void> {
+    }): Promise<void> {
         // Setup vars
         const {
             bundle,
@@ -762,6 +780,7 @@ export class ExecutorManager {
         const bundleResult = await this.executor.bundle({
             executor: executor,
             networkGasPrice: gasPriceParams,
+            networkBaseFee,
             userOpBundle: bundle,
             nonce: transactionRequest.nonce
         })

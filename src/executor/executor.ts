@@ -115,11 +115,13 @@ export class Executor {
     async getBundleGasPrice({
         bundle,
         networkGasPrice,
+        networkBaseFee,
         totalBeneficiaryFees,
         bundleGasUsed
     }: {
         bundle: UserOperationBundle
         networkGasPrice: GasPriceParameters
+        networkBaseFee: bigint
         totalBeneficiaryFees: bigint
         bundleGasUsed: bigint
     }): Promise<GasPriceParameters> {
@@ -131,12 +133,28 @@ export class Executor {
             chainType
         } = this.config
 
+        // Arbtirum's sequencer orders based on first come first serve.
+        // Because of this, maxFee/maxPriorityFee is ignored and the bundler *always* pays the network's baseFee.
+        // The bundler need to set a large enough gasBid to account for network baseFee fluctuations.
+        // GasBid = min(maxFee, base + priority)
+        if (chainType === "arbitrum") {
+            const scaledBaseFee = scaleBigIntByPercent(
+                networkBaseFee,
+                100n + 20n * BigInt(bundle.submissionAttempts)
+            )
+
+            return {
+                maxFeePerGas: scaledBaseFee * 2n,
+                maxPriorityFeePerGas: scaledBaseFee * 2n
+            }
+        }
+
+        // Increase network gas price for resubmissions to improve tx inclusion
         let [networkMaxFeePerGas, networkMaxPriorityFeePerGas] = [
             networkGasPrice.maxFeePerGas,
             networkGasPrice.maxPriorityFeePerGas
         ]
 
-        // Increase gas price for resubmissions to improve inclusion probability
         if (bundle.submissionAttempts > 0) {
             const multiplier = 100n + BigInt(bundle.submissionAttempts) * 20n
 
@@ -148,18 +166,6 @@ export class Executor {
                 networkMaxPriorityFeePerGas,
                 minBigInt(multiplier, resubmitMultiplierCeiling)
             )
-        }
-
-        // Arbtirum's sequencer orders based on first come first serve.
-        // Because of this, maxFee/maxPriorityFee is irrelevant and the bundler always pay the network's baseFee.
-        // The bundler need to set a large enough gasBid to account for network baseFee fluctuations.
-        // GasBid = min(maxFee, base + priority)
-        if (chainType === "arbitrum") {
-            return {
-                // networkGasPrice.maxFeePerGas calls baseFee under the hood, we multiply by 2 to account for any network baseFee fluctuations.
-                maxFeePerGas: networkMaxFeePerGas * 2n,
-                maxPriorityFeePerGas: networkMaxFeePerGas * 2n
-            }
         }
 
         // The bundler should place a gasBid that is competetive with the network's gasPrice.
@@ -182,12 +188,21 @@ export class Executor {
             }
         }
 
+        const effectiveGasPrice = minBigInt(
+            networkMaxFeePerGas,
+            networkBaseFee + networkMaxPriorityFeePerGas
+        )
+
+        if (bundlingGasPrice > effectiveGasPrice) {
+            return {
+                maxFeePerGas: bundlingGasPrice,
+                maxPriorityFeePerGas: bundlingGasPrice
+            }
+        }
+
         return {
-            maxFeePerGas: maxBigInt(bundlingGasPrice, networkMaxFeePerGas),
-            maxPriorityFeePerGas: maxBigInt(
-                bundlingGasPrice,
-                networkMaxPriorityFeePerGas
-            )
+            maxFeePerGas: networkMaxFeePerGas,
+            maxPriorityFeePerGas: networkMaxPriorityFeePerGas
         }
     }
 
@@ -347,11 +362,13 @@ export class Executor {
         executor,
         userOpBundle,
         networkGasPrice,
+        networkBaseFee,
         nonce
     }: {
         executor: Account
         userOpBundle: UserOperationBundle
         networkGasPrice: GasPriceParameters
+        networkBaseFee: bigint
         nonce: number
     }): Promise<BundleResult> {
         const { entryPoint, userOps } = userOpBundle
@@ -405,6 +422,7 @@ export class Executor {
             await this.getBundleGasPrice({
                 bundle: userOpBundle,
                 networkGasPrice,
+                networkBaseFee,
                 totalBeneficiaryFees,
                 bundleGasUsed
             })
