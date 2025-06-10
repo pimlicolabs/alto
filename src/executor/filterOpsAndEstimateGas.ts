@@ -246,14 +246,16 @@ const getFilterOpsResult = async ({
         }
     }
 
+    const stateOverride = [
+        ...(eip7702Override ? eip7702Override : []),
+        ...(simulationOverrides ? simulationOverrides : [])
+    ]
+
     let result: Hex
     const callResult = await publicClient.call({
         to: pimlicoSimulationContract,
         data,
-        stateOverride: [
-            ...(eip7702Override ? eip7702Override : []),
-            ...(simulationOverrides ? simulationOverrides : [])
-        ]
+        ...(stateOverride.length > 0 ? { stateOverride } : {})
     })
 
     if (!callResult.data) {
