@@ -129,7 +129,8 @@ export class Executor {
             bundlerInitialCommission,
             resubmitMultiplierCeiling,
             legacyTransactions,
-            chainType
+            chainType,
+            arbitrumGasBidMultiplier
         } = this.config
 
         // Arbtirum's sequencer orders based on first come first serve.
@@ -143,8 +144,8 @@ export class Executor {
             )
 
             return {
-                maxFeePerGas: scaledBaseFee * 2n,
-                maxPriorityFeePerGas: scaledBaseFee * 2n
+                maxFeePerGas: scaledBaseFee * arbitrumGasBidMultiplier,
+                maxPriorityFeePerGas: scaledBaseFee * arbitrumGasBidMultiplier
             }
         }
 

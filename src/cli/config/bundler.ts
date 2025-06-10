@@ -142,6 +142,10 @@ export const executorArgsSchema = z.object({
         .string()
         .transform((val) => BigInt(val))
         .default("10"),
+    "arbitrum-gas-bid-multiplier": z
+        .string()
+        .transform((val) => BigInt(val))
+        .default("5"),
     "binary-search-max-retries": z.number().int().min(1).default(3)
 })
 

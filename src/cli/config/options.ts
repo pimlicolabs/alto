@@ -428,6 +428,13 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         require: false,
         default: "10"
     },
+    "arbitrum-gas-bid-multiplier": {
+        description:
+            "Multiplier for gas bid on Arbitrum networks to account for baseFee fluctuations",
+        type: "string",
+        require: false,
+        default: "5"
+    },
     "binary-search-max-retries": {
         description:
             "Maximum number of retries for binary search operations during gas estimation",
