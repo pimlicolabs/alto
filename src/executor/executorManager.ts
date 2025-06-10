@@ -36,6 +36,7 @@ import type { AltoConfig } from "../createConfig"
 import { SenderManager } from "./senderManager"
 import { BaseError } from "abitype"
 import { getUserOpHashes } from "./utils"
+import { GasPriceParameters } from "../esm/types"
 
 function getTransactionsFromUserOperationEntries(
     submittedOps: SubmittedUserOp[]
@@ -694,7 +695,7 @@ export class ExecutorManager {
         )
 
         // for all still not included check if needs to be replaced (based on gas price)
-        const gasPriceParameters = await this.gasPriceManager
+        const gasPriceParams = await this.gasPriceManager
             .tryGetNetworkGasPrice()
             .catch(() => ({
                 maxFeePerGas: 0n,
@@ -712,23 +713,30 @@ export class ExecutorManager {
                     transactionRequest
 
                 const isMaxFeeTooLow =
-                    maxFeePerGas < gasPriceParameters.maxFeePerGas
+                    maxFeePerGas < gasPriceParams.maxFeePerGas
 
                 const isPriorityFeeTooLow =
-                    maxPriorityFeePerGas <
-                    gasPriceParameters.maxPriorityFeePerGas
+                    maxPriorityFeePerGas < gasPriceParams.maxPriorityFeePerGas
 
                 const isStuck =
                     Date.now() - txInfo.lastReplaced >
                     this.config.resubmitStuckTimeout
 
                 if (isMaxFeeTooLow || isPriorityFeeTooLow) {
-                    await this.replaceTransaction(txInfo, "gas_price")
+                    await this.replaceTransaction(
+                        txInfo,
+                        gasPriceParams,
+                        "gas_price"
+                    )
                     return
                 }
 
                 if (isStuck) {
-                    await this.replaceTransaction(txInfo, "stuck")
+                    await this.replaceTransaction(
+                        txInfo,
+                        gasPriceParams,
+                        "stuck"
+                    )
                     return
                 }
             })
@@ -739,6 +747,7 @@ export class ExecutorManager {
 
     async replaceTransaction(
         txInfo: TransactionInfo,
+        gasPriceParams: GasPriceParameters,
         reason: "gas_price" | "stuck"
     ): Promise<void> {
         // Setup vars
@@ -748,29 +757,7 @@ export class ExecutorManager {
             transactionRequest,
             transactionHash: oldTxHash
         } = txInfo
-        const { userOps, entryPoint } = bundle
-
-        const gasPriceParams = await this.gasPriceManager
-            .tryGetNetworkGasPrice()
-            .catch((_) => {
-                return undefined
-            })
-
-        if (!gasPriceParams) {
-            const rejectedUserOps = userOps.map((userOpInfo) => ({
-                ...userOpInfo,
-                reason: "Failed to get network gas price during replacement"
-            }))
-            await this.failedToReplaceTransaction({
-                entryPoint,
-                rejectedUserOps,
-                oldTxHash,
-                reason: "Failed to get network gas price during replacement"
-            })
-            // Free executor if failed to get initial params.
-            await this.senderManager.markWalletProcessed(txInfo.executor)
-            return
-        }
+        const { entryPoint } = bundle
 
         const bundleResult = await this.executor.bundle({
             executor: executor,
