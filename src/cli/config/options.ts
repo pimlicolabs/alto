@@ -111,7 +111,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "boolean",
         default: false
     },
-    "estimate-handle-ops-gas": {
+    "rpc-gas-estimate": {
         description:
             "Should the bundler make a eth_estimateGas call to estimate the handleOps gasLimit",
         type: "boolean",

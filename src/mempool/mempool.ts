@@ -34,7 +34,7 @@ import type { AltoConfig } from "../createConfig"
 import type { MempoolStore } from "@alto/store"
 import { calculateAA95GasFloor } from "../executor/utils"
 import { privateKeyToAddress, generatePrivateKey } from "viem/accounts"
-import { EntryPointVersion } from "viem/_types/account-abstraction"
+import { EntryPointVersion } from "viem/account-abstraction"
 
 export class Mempool {
     private config: AltoConfig

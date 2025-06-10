@@ -86,7 +86,7 @@ export const bundlerArgsSchema = z.object({
             )}`
         ),
     "enable-instant-bundling-endpoint": z.boolean(),
-    "estimate-handle-ops-gas": z.boolean()
+    "rpc-gas-estimate": z.boolean()
 })
 
 export const executorArgsSchema = z.object({
