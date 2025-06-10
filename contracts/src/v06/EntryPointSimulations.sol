@@ -68,12 +68,11 @@ contract EntryPointSimulations06 is IEntryPoint, StakeManager, NonceManager, Ree
 
     /**
      * execute a user op
-     * @param opIndex index into the opInfo array
      * @param userOp the userOp to execute
      * @param opInfo the opInfo filled by validatePrepayment for this userOp.
      * @return collected the total amount this userOp paid.
      */
-    function _executeUserOp(uint256 opIndex, UserOperation calldata userOp, UserOpInfo memory opInfo)
+    function _executeUserOp(uint256, UserOperation calldata userOp, UserOpInfo memory opInfo)
         private
         returns (uint256 collected)
     {
@@ -90,11 +89,11 @@ contract EntryPointSimulations06 is IEntryPoint, StakeManager, NonceManager, Ree
             }
 
             // handleOps was called with gas limit too low. abort entire bundle.
-            if (innerRevertCode == INNER_OUT_OF_GAS) {
-                //report paymaster, since if it is not deliberately caused by the bundler,
-                // it must be a revert caused by paymaster.
-                revert FailedOp(opIndex, "AA95 out of gas");
-            }
+            // if (innerRevertCode == INNER_OUT_OF_GAS) {
+            //     //report paymaster, since if it is not deliberately caused by the bundler,
+            //     // it must be a revert caused by paymaster.
+            //     revert FailedOp(opIndex, "AA95 out of gas");
+            // }
 
             // ================================================================= //
             // ======= START: THIS IS CUSTOM TO THIS SIMULATION CONTRACT ======= //
