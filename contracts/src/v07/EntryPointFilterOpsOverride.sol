@@ -28,9 +28,9 @@ import "@openzeppelin-v5.0.2/contracts/utils/StorageSlot.sol";
 // THIS CONTRACT IS MEANT TO BE USED AS A CODE OVERRIDE DURING filterOps SIMULATIONS.
 // Changes:
 // - Uses OpenZeppelin's StorageSlot helper to get the senderCreator address.
-// - Renamed to EntryPointCodeOverride
+// - Renamed to EntryPointFilterOpsOverride
 /// @custom:security-contact https://bounty.ethereum.org
-contract EntryPointCodeOverride07 is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard, ERC165 {
+contract EntryPointFilterOpsOverride07 is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard, ERC165 {
     using UserOperationLib for PackedUserOperation;
 
     function senderCreator() internal view virtual returns (SenderCreator) {

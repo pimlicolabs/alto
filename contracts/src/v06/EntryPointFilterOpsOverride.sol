@@ -22,7 +22,7 @@ import "account-abstraction-v6/core/NonceManager.sol";
 import "@openzeppelin-v4.8.3/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin-v4.8.3/contracts/utils/StorageSlot.sol";
 
-contract EntryPointCodeOverride06 is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard {
+contract EntryPointFilterOpsOverride06 is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard {
     using UserOperationLib for UserOperation;
 
     // internal value used during simulation: need to query aggregator.

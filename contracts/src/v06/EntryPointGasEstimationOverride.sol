@@ -27,9 +27,9 @@ import "@openzeppelin-v4.8.3/contracts/utils/StorageSlot.sol";
 // THIS CONTRACT IS MEANT TO BE USED AS A CODE OVERRIDE DURING eth_estimateUserOperationGas SIMULATIONS.
 // Changes:
 // - Hardcode senderCreator
-// - Renamed to EntryPointCodeOverride
+// - Renamed to EntryPointGasEstimationOverride
 // - Throw custom error CallPhaseReverted if callphase reverts
-contract EntryPointSimulations06 is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard {
+contract EntryPointGasEstimationOverride06 is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard {
     using UserOperationLib for UserOperation;
 
     // internal value used during simulation: need to query aggregator.

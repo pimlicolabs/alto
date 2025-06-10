@@ -26,7 +26,7 @@ import "@openzeppelin-v5.1.0/contracts/utils/StorageSlot.sol";
  * Only one instance required on each chain.
  * @custom:security-contact https://bounty.ethereum.org
  */
-contract EntryPointCodeOverride08 is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardTransient, ERC165 {
+contract EntryPointFilterOpsOverride08 is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardTransient, ERC165 {
     using UserOperationLib for PackedUserOperation;
 
     /**
