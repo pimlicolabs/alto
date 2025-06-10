@@ -421,9 +421,9 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         require: false,
         default: 3
     },
-    "bundler-profit-percentage": {
+    "bundler-initial-commission": {
         description:
-            "Initial profit margin percentage for bundling where 100 = 100%",
+            "Initial commission percentage the bundler retains (10 = retain 10% of margin)",
         type: "string",
         require: false,
         default: "10"

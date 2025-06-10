@@ -126,7 +126,7 @@ export class Executor {
         bundleGasUsed: bigint
     }): Promise<GasPriceParameters> {
         const {
-            bundlerProfitPercentage,
+            bundlerInitialCommission,
             resubmitMultiplierCeiling,
             legacyTransactions,
             chainType
@@ -170,15 +170,15 @@ export class Executor {
         // The bundler should place a gasBid that is competetive with the network's gasPrice.
         const breakEvenGasPrice = totalBeneficiaryFees / bundleGasUsed
 
-        // Calculate margin: start at initialProfitMargin%, then
-        // reduce the gap to 100% by 50% each resubmission
-        const gap =
-            bundlerProfitPercentage / 2n ** BigInt(bundle.submissionAttempts)
-        const bundlerMargin = 100n - gap
+        // Calculate commission: start at bundlerInitialCommission%, then
+        // halve the commission with each resubmission attempt
+        const currentCommission =
+            bundlerInitialCommission / 2n ** BigInt(bundle.submissionAttempts)
+        const pricingPercent = 100n - currentCommission
 
         const bundlingGasPrice = scaleBigIntByPercent(
             breakEvenGasPrice,
-            bundlerMargin
+            pricingPercent
         )
 
         if (legacyTransactions) {
