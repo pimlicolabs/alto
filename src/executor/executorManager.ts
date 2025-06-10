@@ -36,7 +36,7 @@ import type { AltoConfig } from "../createConfig"
 import { SenderManager } from "./senderManager"
 import { BaseError } from "abitype"
 import { getUserOpHashes } from "./utils"
-import { GasPriceParameters } from "../esm/types"
+import { GasPriceParameters } from "@alto/types"
 
 function getTransactionsFromUserOperationEntries(
     submittedOps: SubmittedUserOp[]
