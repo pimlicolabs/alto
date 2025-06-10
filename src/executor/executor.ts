@@ -131,32 +131,6 @@ export class Executor {
             chainType
         } = this.config
 
-        // Arbtirum's sequencer orders based on first come first serve.
-        // Because of this, maxFee/maxPriorityFee is irrelevant and the bundler always pay the network's baseFee.
-        // The bundler need to set a large enough gasBid to account for network baseFee fluctuations.
-        // GasBid = min(maxFee, base + priority)
-        if (chainType === "arbitrum") {
-            return {
-                // networkGasPrice.maxFeePerGas calls baseFee under the hood, we multiply by 2 to account for any network baseFee fluctuations.
-                maxFeePerGas: networkGasPrice.maxFeePerGas * 2n,
-                maxPriorityFeePerGas: networkGasPrice.maxFeePerGas * 2n
-            }
-        }
-
-        // The bundler should place a gasBid that is competetive with the network's gasPrice.
-        const breakEvenGasPrice = totalBeneficiaryFees / bundleGasUsed
-
-        // Calculate margin: start at initialProfitMargin%, then
-        // reduce the gap to 100% by 50% each resubmission
-        let gapFrom100 = 100n - initialProfitMargin
-        for (let i = 0; i < bundle.submissionAttempts; i++) {
-            gapFrom100 = gapFrom100 / 2n
-        }
-        const margin = 100n - gapFrom100
-
-        const bundlingGasPrice = scaleBigIntByPercent(breakEvenGasPrice, margin)
-
-        // compare breakEvenGasPrice to network gasPrice
         let [networkMaxFeePerGas, networkMaxPriorityFeePerGas] = [
             networkGasPrice.maxFeePerGas,
             networkGasPrice.maxPriorityFeePerGas
@@ -175,6 +149,30 @@ export class Executor {
                 minBigInt(multiplier, resubmitMultiplierCeiling)
             )
         }
+
+        // Arbtirum's sequencer orders based on first come first serve.
+        // Because of this, maxFee/maxPriorityFee is irrelevant and the bundler always pay the network's baseFee.
+        // The bundler need to set a large enough gasBid to account for network baseFee fluctuations.
+        // GasBid = min(maxFee, base + priority)
+        if (chainType === "arbitrum") {
+            return {
+                // networkGasPrice.maxFeePerGas calls baseFee under the hood, we multiply by 2 to account for any network baseFee fluctuations.
+                maxFeePerGas: networkMaxFeePerGas * 2n,
+                maxPriorityFeePerGas: networkMaxFeePerGas * 2n
+            }
+        }
+
+        // The bundler should place a gasBid that is competetive with the network's gasPrice.
+        const breakEvenGasPrice = totalBeneficiaryFees / bundleGasUsed
+
+        // Calculate margin: start at initialProfitMargin%, then
+        // reduce the gap to 100% by 50% each resubmission
+        const gapFrom100 =
+            (100n - initialProfitMargin) /
+            2n ** BigInt(bundle.submissionAttempts)
+        const margin = 100n - gapFrom100
+
+        const bundlingGasPrice = scaleBigIntByPercent(breakEvenGasPrice, margin)
 
         if (legacyTransactions) {
             const gasPrice = maxBigInt(bundlingGasPrice, networkMaxFeePerGas)
