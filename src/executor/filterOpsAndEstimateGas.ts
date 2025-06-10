@@ -174,7 +174,12 @@ const getFilterOpsResult = async ({
         revertReason: `0x${string}`
     }[]
 }> => {
-    let { publicClient, pimlicoSimulationContract, legacyTransactions } = config
+    let {
+        publicClient,
+        pimlicoSimulationContract,
+        legacyTransactions,
+        codeOverrideSupport
+    } = config
 
     if (!pimlicoSimulationContract) {
         throw new Error("pimlicoSimulationContract not set")
@@ -185,13 +190,17 @@ const getFilterOpsResult = async ({
     // Get EIP-7702 stateOverrides.
     const eip7702Override: StateOverride | undefined =
         getEip7702DelegationOverrides(userOps.map(({ userOp }) => userOp))
-    const simulationOverrides = getFilterOpsStateOverride({
-        version,
-        entryPoint,
-        baseFeePerGas: legacyTransactions
-            ? 0n
-            : await gasPriceManager.getBaseFee()
-    })
+
+    let simulationOverrides: StateOverride | undefined
+    if (codeOverrideSupport) {
+        simulationOverrides = getFilterOpsStateOverride({
+            version,
+            entryPoint,
+            baseFeePerGas: legacyTransactions
+                ? 0n
+                : await gasPriceManager.getBaseFee()
+        })
+    }
 
     // Create promises for parallel execution
     let data: Hex
@@ -243,7 +252,7 @@ const getFilterOpsResult = async ({
         data,
         stateOverride: [
             ...(eip7702Override ? eip7702Override : []),
-            ...simulationOverrides
+            ...(simulationOverrides ? simulationOverrides : [])
         ]
     })
 
