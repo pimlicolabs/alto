@@ -171,11 +171,18 @@ export class RpcHandler {
             return [false, "verificationGasLimit must be at least 10000"]
         }
 
-        if (
-            userOperation.preVerificationGas === 0n ||
-            userOperation.verificationGasLimit === 0n
-        ) {
-            return [false, "user operation gas limits must be larger than 0"]
+        if (!boost && userOperation.preVerificationGas === 0n) {
+            return [
+                false,
+                "userOperation preVerification gas must be larger than 0"
+            ]
+        }
+
+        if (userOperation.verificationGasLimit === 0n) {
+            return [
+                false,
+                "userOperation verification gas limit must be larger than 0"
+            ]
         }
 
         const gasLimits = calculateAA95GasFloor({
