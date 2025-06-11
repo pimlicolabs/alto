@@ -13,7 +13,8 @@ import {
     logOptions,
     mempoolOptions,
     rpcOptions,
-    serverOptions
+    serverOptions,
+    authOptions
 } from "./config"
 import { registerCommandToYargs } from "./util"
 import { TimeoutError, HttpRequestError, InternalRpcError } from "viem"
@@ -94,6 +95,8 @@ export function getAltoCli(): yargs.Argv {
         .group(Object.keys(gasEstimationOptions), "Gas Estimation Options:")
         .options(mempoolOptions)
         .group(Object.keys(mempoolOptions), "Mempool Options:")
+        .options(authOptions)
+        .group(Object.keys(authOptions), "Authentication Options:")
         // blank scriptName so that help text doesn't display the cli name before each command
         .scriptName("")
         .demandCommand(1)

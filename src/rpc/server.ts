@@ -24,6 +24,7 @@ import type { AltoConfig } from "../createConfig"
 import rpcDecorators, { RpcStatus } from "../utils/fastify-rpc-decorators"
 import RpcReply from "../utils/rpc-reply"
 import type { RpcHandler } from "./rpcHandler"
+import { createApiKeyAuthMiddleware } from "./middleware/apiKeyAuth"
 
 // jsonBigIntOverride.ts
 const originalJsonStringify = JSON.stringify
@@ -98,6 +99,17 @@ export class Server {
                 maxPayload: config.websocketMaxPayloadSize
             }
         })
+
+        // Add API key authentication if configured
+        if (config.apiKey && config.protectedMethods && config.protectedMethods.length > 0) {
+            this.fastify.addHook(
+                "preHandler",
+                createApiKeyAuthMiddleware({
+                    apiKey: config.apiKey,
+                    protectedMethods: config.protectedMethods
+                })
+            )
+        }
 
         this.fastify.addHook("onResponse", (request, reply) => {
             const ignoredRoutes = ["/health", "/metrics"]

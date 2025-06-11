@@ -10,7 +10,8 @@ import type {
     IOptionsInput,
     IRpcArgsInput,
     IServerArgsInput,
-    IMempoolArgsInput
+    IMempoolArgsInput,
+    IAuthArgsInput
 } from "./bundler"
 
 export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
@@ -686,6 +687,19 @@ export const debugOptions: CliCommandOptions<IDebugArgsInput> = {
         type: "boolean",
         require: true,
         default: true
+    }
+}
+
+export const authOptions: CliCommandOptions<IAuthArgsInput> = {
+    "api-key": {
+        description: "API key for authenticating protected RPC methods",
+        type: "string",
+        require: false
+    },
+    "protected-methods": {
+        description: "Comma-separated list of RPC methods to protect with API key authentication",
+        type: "string",
+        require: false
     }
 }
 

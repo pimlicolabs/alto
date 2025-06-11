@@ -293,6 +293,13 @@ export const mempoolArgsSchema = z.object({
     "enforce-unique-senders-per-bundle": z.boolean().default(true)
 })
 
+export const authArgsSchema = z.object({
+    "api-key": z.string().optional(),
+    "protected-methods": z.string()
+        .optional()
+        .transform((val) => val?.split(",").map(method => method.trim()))
+})
+
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>
 export type IBundlerArgsInput = z.input<typeof bundlerArgsSchema>
 
@@ -320,6 +327,9 @@ export type IGasEstimationArgsInput = z.input<typeof gasEstimationArgsSchema>
 export type IMempoolArgs = z.infer<typeof mempoolArgsSchema>
 export type IMempoolArgsInput = z.input<typeof mempoolArgsSchema>
 
+export type IAuthArgs = z.infer<typeof authArgsSchema>
+export type IAuthArgsInput = z.input<typeof authArgsSchema>
+
 export const optionArgsSchema = z.object({
     ...bundlerArgsSchema.shape,
     ...compatibilityArgsSchema.shape,
@@ -329,7 +339,8 @@ export const optionArgsSchema = z.object({
     ...debugArgsSchema.shape,
     ...gasEstimationArgsSchema.shape,
     ...executorArgsSchema.shape,
-    ...mempoolArgsSchema.shape
+    ...mempoolArgsSchema.shape,
+    ...authArgsSchema.shape
 })
 
 export type IOptions = z.infer<typeof optionArgsSchema>
