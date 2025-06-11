@@ -12,6 +12,7 @@ import {
 } from "@alto/types"
 import { RpcHandler } from "../rpcHandler"
 import { SimulateHandleOpResult } from "../estimation/types"
+import { toHex } from "viem"
 
 type GasEstimateResult =
     | {
@@ -79,14 +80,23 @@ const getGasEstimates = async ({
     entryPoint: Address
     stateOverrides?: StateOverrides
 }): Promise<GasEstimateResult> => {
-    // get queued userOps
+    // Create a deep mutable copy of stateOverrides to avoid modifying frozen objects
+    let mutableStateOverrides: StateOverrides | undefined
+    if (stateOverrides) {
+        mutableStateOverrides = {}
+        for (const [address, override] of Object.entries(stateOverrides)) {
+            mutableStateOverrides[address as Address] = { ...override }
+        }
+    }
+
+    // Get queued userOps.
     const queuedUserOperations =
         await rpcHandler.mempool.getQueuedOustandingUserOps({
             userOp: userOperation,
             entryPoint
         })
 
-    // Prepare userOperation for simulation
+    // Prepare userOperation for simulation.
     const {
         simulationVerificationGasLimit,
         simulationCallGasLimit,
@@ -103,6 +113,31 @@ const getGasEstimates = async ({
         callGasLimit: simulationCallGasLimit
     }
 
+    // Boosted userOperation must be simulated with maxFeePerGas/maxPriorityFeePerGas = 0.
+    const isBoosted =
+        userOperation.maxFeePerGas === 0n &&
+        userOperation.maxPriorityFeePerGas === 0n
+
+    if (isBoosted) {
+        const sender = userOperation.sender
+        if (mutableStateOverrides === undefined) {
+            mutableStateOverrides = {}
+        }
+
+        // gas estimation simulation is done with maxFeePerGas/maxPriorityFeePerGas = 1.
+        // Because of this, sender must have atleast maxGas of wei.
+        const maxGas =
+            simulationCallGasLimit +
+            simulationVerificationGasLimit +
+            simulationPaymasterVerificationGasLimit +
+            simulationPaymasterPostOpGasLimit
+
+        mutableStateOverrides[sender] = {
+            ...deepHexlify(mutableStateOverrides[sender] || {}),
+            balance: toHex(maxGas)
+        }
+    }
+
     if (isVersion07(simulationUserOp)) {
         simulationUserOp.paymasterVerificationGasLimit =
             simulationPaymasterVerificationGasLimit
@@ -110,17 +145,11 @@ const getGasEstimates = async ({
             simulationPaymasterPostOpGasLimit
     }
 
-    // This is necessary because entryPoint pays
-    // min(maxFeePerGas, baseFee + maxPriorityFeePerGas) for the verification
-    // Since we don't want our estimations to depend upon baseFee, we set
-    // maxFeePerGas to maxPriorityFeePerGas
-    simulationUserOp.maxPriorityFeePerGas = simulationUserOp.maxFeePerGas
-
     const executionResult = await rpcHandler.validator.getExecutionResult({
         userOperation: simulationUserOp,
         entryPoint,
         queuedUserOperations,
-        stateOverrides: deepHexlify(stateOverrides)
+        stateOverrides: deepHexlify(mutableStateOverrides)
     })
 
     if (executionResult.result === "failed") {

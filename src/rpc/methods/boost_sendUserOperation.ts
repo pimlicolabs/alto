@@ -29,13 +29,13 @@ export const boostSendUserOperationHandler = createMethodHandler({
 
         let status: "added" | "queued" | "rejected" = "rejected"
         try {
-            const { result, userOpHash } = await addToMempoolIfValid(
+            const { result, userOpHash } = await addToMempoolIfValid({
                 rpcHandler,
                 userOperation,
                 entryPoint,
                 apiVersion,
-                true
-            )
+                boost: true
+            })
 
             status = result
 
