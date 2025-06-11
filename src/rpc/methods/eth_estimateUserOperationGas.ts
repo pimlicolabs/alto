@@ -113,7 +113,7 @@ const getGasEstimates = async ({
         callGasLimit: simulationCallGasLimit
     }
 
-    // Boosted userOperation must be simulated with maxFeePerGas/maxPriorityFeePerGas set to 0.
+    // Boosted userOperation must be simulated with maxFeePerGas/maxPriorityFeePerGas = 0.
     const isBoosted =
         userOperation.maxFeePerGas === 0n &&
         userOperation.maxPriorityFeePerGas === 0n
@@ -124,6 +124,8 @@ const getGasEstimates = async ({
             mutableStateOverrides = {}
         }
 
+        // gas estimation simulation is done with maxFeePerGas/maxPriorityFeePerGas = 1.
+        // Because of this, sender must have atleast maxGas of wei.
         const maxGas =
             simulationCallGasLimit +
             simulationVerificationGasLimit +
