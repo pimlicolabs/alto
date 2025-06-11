@@ -111,9 +111,9 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "boolean",
         default: false
     },
-    "local-gas-calculation": {
+    "rpc-gas-estimate": {
         description:
-            "Should bundler use local gas calculations instead eth_estimateGas result when calling handleOps",
+            "Should the bundler make a eth_estimateGas call to estimate the handleOps gasLimit",
         type: "boolean",
         default: false
     }
@@ -187,16 +187,21 @@ export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
 
 export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
     {
+        "pimlico-simulation-contract": {
+            description: "Address of the Pimlico simulation contract",
+            type: "string",
+            require: false
+        },
         "entrypoint-simulation-contract-v7": {
             description:
-                "Address of the EntryPoint simulations contract for v7",
+                "Address of the EntryPoint simulations contract for v0.7",
             type: "string",
             alias: "c",
             require: false
         },
         "entrypoint-simulation-contract-v8": {
             description:
-                "Address of the EntryPoint simulations contract for v8",
+                "Address of the EntryPoint simulations contract for v0.8",
             type: "string",
             alias: "c",
             require: false
@@ -415,6 +420,20 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "number",
         require: false,
         default: 3
+    },
+    "bundler-initial-commission": {
+        description:
+            "Initial commission percentage the bundler retains (10 = retain 10% of margin)",
+        type: "string",
+        require: false,
+        default: "10"
+    },
+    "arbitrum-gas-bid-multiplier": {
+        description:
+            "Multiplier for gas bid on Arbitrum networks to account for baseFee fluctuations",
+        type: "string",
+        require: false,
+        default: "5"
     },
     "binary-search-max-retries": {
         description:

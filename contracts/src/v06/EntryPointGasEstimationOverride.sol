@@ -19,16 +19,17 @@ import "account-abstraction-v6/core/SenderCreator.sol";
 import "account-abstraction-v6/core/Helpers.sol";
 import "account-abstraction-v6/core/NonceManager.sol";
 
-import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin-v4.8.3/contracts/utils/introspection/ERC165.sol";
+import "@openzeppelin-v4.8.3/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin-v4.8.3/contracts/utils/StorageSlot.sol";
 
 // THIS IS A MODIFIED VERSION OF account-abstraction-v6/core/EntryPoint.sol.
 // THIS CONTRACT IS MEANT TO BE USED AS A CODE OVERRIDE DURING eth_estimateUserOperationGas SIMULATIONS.
 // Changes:
 // - Hardcode senderCreator
-// - Renamed to EntryPointCodeOverride
+// - Renamed to EntryPointGasEstimationOverride
 // - Throw custom error CallPhaseReverted if callphase reverts
-contract EntryPointCodeOverride is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard {
+contract EntryPointGasEstimationOverride06 is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard {
     using UserOperationLib for UserOperation;
 
     // internal value used during simulation: need to query aggregator.
@@ -67,12 +68,11 @@ contract EntryPointCodeOverride is IEntryPoint, StakeManager, NonceManager, Reen
 
     /**
      * execute a user op
-     * @param opIndex index into the opInfo array
      * @param userOp the userOp to execute
      * @param opInfo the opInfo filled by validatePrepayment for this userOp.
      * @return collected the total amount this userOp paid.
      */
-    function _executeUserOp(uint256 opIndex, UserOperation calldata userOp, UserOpInfo memory opInfo)
+    function _executeUserOp(uint256, UserOperation calldata userOp, UserOpInfo memory opInfo)
         private
         returns (uint256 collected)
     {
@@ -89,11 +89,11 @@ contract EntryPointCodeOverride is IEntryPoint, StakeManager, NonceManager, Reen
             }
 
             // handleOps was called with gas limit too low. abort entire bundle.
-            if (innerRevertCode == INNER_OUT_OF_GAS) {
-                //report paymaster, since if it is not deliberately caused by the bundler,
-                // it must be a revert caused by paymaster.
-                revert FailedOp(opIndex, "AA95 out of gas");
-            }
+            // if (innerRevertCode == INNER_OUT_OF_GAS) {
+            //     //report paymaster, since if it is not deliberately caused by the bundler,
+            //     // it must be a revert caused by paymaster.
+            //     revert FailedOp(opIndex, "AA95 out of gas");
+            // }
 
             // ================================================================= //
             // ======= START: THIS IS CUSTOM TO THIS SIMULATION CONTRACT ======= //
@@ -412,9 +412,12 @@ contract EntryPointCodeOverride is IEntryPoint, StakeManager, NonceManager, Reen
         if (initCode.length != 0) {
             address sender = opInfo.mUserOp.sender;
             if (sender.code.length != 0) revert FailedOp(opIndex, "AA10 sender already constructed");
-            address sender1 = SenderCreator(0x7fc98430eAEdbb6070B35B39D798725049088348).createSender{
-                gas: opInfo.mUserOp.verificationGasLimit
-            }(initCode);
+
+            // Get the sender creator address from the storage slot, or fallback to the default value.
+            address creator = StorageSlot.getAddressSlot(keccak256("SENDER_CREATOR")).value;
+            if (creator == address(0)) creator = 0x7fc98430eAEdbb6070B35B39D798725049088348;
+            address sender1 = SenderCreator(creator).createSender{gas: opInfo.mUserOp.verificationGasLimit}(initCode);
+
             if (sender1 == address(0)) revert FailedOp(opIndex, "AA13 initCode failed or OOG");
             if (sender1 != sender) revert FailedOp(opIndex, "AA14 initCode must return sender");
             if (sender1.code.length == 0) revert FailedOp(opIndex, "AA15 initCode must create sender");
@@ -430,7 +433,11 @@ contract EntryPointCodeOverride is IEntryPoint, StakeManager, NonceManager, Reen
      * @param initCode the constructor code to be passed into the UserOperation.
      */
     function getSenderAddress(bytes calldata initCode) public {
-        address sender = SenderCreator(0x7fc98430eAEdbb6070B35B39D798725049088348).createSender(initCode);
+        // Get the sender creator address from the storage slot, or fallback to the default value.
+        address creator = StorageSlot.getAddressSlot(keccak256("SENDER_CREATOR")).value;
+        if (creator == address(0)) creator = 0x7fc98430eAEdbb6070B35B39D798725049088348;
+        address sender = SenderCreator(creator).createSender(initCode);
+
         revert SenderAddressResult(sender);
     }
 

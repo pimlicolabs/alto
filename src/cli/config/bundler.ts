@@ -86,7 +86,7 @@ export const bundlerArgsSchema = z.object({
             )}`
         ),
     "enable-instant-bundling-endpoint": z.boolean(),
-    "local-gas-calculation": z.boolean()
+    "rpc-gas-estimate": z.boolean()
 })
 
 export const executorArgsSchema = z.object({
@@ -138,6 +138,14 @@ export const executorArgsSchema = z.object({
     "transaction-underpriced-multiplier": z
         .string()
         .transform((val) => BigInt(val)),
+    "bundler-initial-commission": z
+        .string()
+        .transform((val) => BigInt(val))
+        .default("10"),
+    "arbitrum-gas-bid-multiplier": z
+        .string()
+        .transform((val) => BigInt(val))
+        .default("5"),
     "binary-search-max-retries": z.number().int().min(1).default(3)
 })
 
@@ -196,7 +204,7 @@ export const rpcArgsSchema = z.object({
     "max-block-range": z.number().int().min(0).optional(),
     "block-number-cache-ttl": z.number().int().min(0).optional().default(15000), // Default to 15s
     "block-tag-support": z.boolean().optional().default(true),
-    "code-override-support": z.boolean().optional().default(false)
+    "code-override-support": z.boolean().optional().default(true)
 })
 
 export const logArgsSchema = z.object({
@@ -227,6 +235,10 @@ export const debugArgsSchema = z.object({
 })
 
 export const gasEstimationArgsSchema = z.object({
+    "pimlico-simulation-contract": z.preprocess(
+        (v) => (v === "" ? undefined : v),
+        addressSchema.optional()
+    ),
     "entrypoint-simulation-contract-v7": z.preprocess(
         (v) => (v === "" ? undefined : v),
         addressSchema.optional()
