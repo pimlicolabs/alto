@@ -78,13 +78,19 @@ const getUserOpValidationResult = async (
     }
 }
 
-export async function addToMempoolIfValid(
-    rpcHandler: RpcHandler,
-    userOperation: UserOperation,
-    entryPoint: Address,
-    apiVersion: ApiVersion,
-    boost: boolean = false
-): Promise<{ userOpHash: Hex; result: "added" | "queued" }> {
+export async function addToMempoolIfValid({
+    rpcHandler,
+    userOperation,
+    entryPoint,
+    apiVersion,
+    boost = false
+}: {
+    rpcHandler: RpcHandler
+    userOperation: UserOperation
+    entryPoint: Address
+    apiVersion: ApiVersion
+    boost?: boolean
+}): Promise<{ userOpHash: Hex; result: "added" | "queued" }> {
     rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
     // Execute multiple async operations in parallel
@@ -219,12 +225,12 @@ export const ethSendUserOperationHandler = createMethodHandler({
 
         let status: "added" | "queued" | "rejected" = "rejected"
         try {
-            const { result, userOpHash } = await addToMempoolIfValid(
+            const { result, userOpHash } = await addToMempoolIfValid({
                 rpcHandler,
                 userOperation,
                 entryPoint,
                 apiVersion
-            )
+            })
 
             status = result
 

@@ -12,6 +12,7 @@ import {
 } from "@alto/types"
 import { RpcHandler } from "../rpcHandler"
 import { SimulateHandleOpResult } from "../estimation/types"
+import { toHex } from "viem"
 
 type GasEstimateResult =
     | {
@@ -79,6 +80,15 @@ const getGasEstimates = async ({
     entryPoint: Address
     stateOverrides?: StateOverrides
 }): Promise<GasEstimateResult> => {
+    // Create a deep mutable copy of stateOverrides to avoid modifying frozen objects
+    let mutableStateOverrides: StateOverrides | undefined
+    if (stateOverrides) {
+        mutableStateOverrides = {}
+        for (const [address, override] of Object.entries(stateOverrides)) {
+            mutableStateOverrides[address as Address] = { ...override }
+        }
+    }
+
     // Get queued userOps.
     const queuedUserOperations =
         await rpcHandler.mempool.getQueuedOustandingUserOps({
@@ -104,12 +114,26 @@ const getGasEstimates = async ({
     }
 
     // Boosted userOperation must be simulated with maxFeePerGas/maxPriorityFeePerGas set to 0.
-    if (
+    const isBoosted =
         userOperation.maxFeePerGas === 0n &&
         userOperation.maxPriorityFeePerGas === 0n
-    ) {
-        simulationUserOp.maxFeePerGas = 0n
-        simulationUserOp.maxPriorityFeePerGas = 0n
+
+    if (isBoosted) {
+        const sender = userOperation.sender
+        if (mutableStateOverrides === undefined) {
+            mutableStateOverrides = {}
+        }
+
+        const maxGas =
+            simulationCallGasLimit +
+            simulationVerificationGasLimit +
+            simulationPaymasterVerificationGasLimit +
+            simulationPaymasterPostOpGasLimit
+
+        mutableStateOverrides[sender] = {
+            ...deepHexlify(mutableStateOverrides[sender] || {}),
+            balance: toHex(maxGas)
+        }
     }
 
     if (isVersion07(simulationUserOp)) {
@@ -123,7 +147,7 @@ const getGasEstimates = async ({
         userOperation: simulationUserOp,
         entryPoint,
         queuedUserOperations,
-        stateOverrides: deepHexlify(stateOverrides)
+        stateOverrides: deepHexlify(mutableStateOverrides)
     })
 
     if (executionResult.result === "failed") {
