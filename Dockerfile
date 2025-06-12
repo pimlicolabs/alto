@@ -45,8 +45,8 @@ RUN pnpm install -r --offline --frozen-lockfile
 
 RUN pnpm build
 
-# This is needed to ensure compatibility doesn't break as alto.js was previously
-# in /src/lib/cli but is not in /src/esm/cli after build changed to esm
-RUN mkdir -p src/lib/cli && ln -sf /app/src/esm/cli/alto.js /app/src/lib/cli/alto.js
+# This is needed for backwards compatibility
+# alto.js was previously in /src/lib/cli but is now in /src/esm/cli after changing to ESM
+RUN mkdir -p /app/src/lib/cli && ln -sf /app/src/esm/cli/alto.js /app/src/lib/cli/alto.js
 
 ENTRYPOINT ["pnpm", "start"]
