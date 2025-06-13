@@ -11,7 +11,7 @@ import {
     slice,
     Hex
 } from "viem"
-import { formatAbiItem, rpc } from "viem/utils"
+import { formatAbiItem, getHttpRpcClient } from "viem/utils"
 import {
     EntryPointV06Abi,
     EntryPointV06SimulationsAbi
@@ -64,14 +64,15 @@ const CALLPHASE_REVERTED_SELECTOR = toFunctionSelector(
 export function customTransport(
     /** URL of the JSON-RPC API. Defaults to the chain's public RPC URL. */
     url_: string,
-    config: HttpTransportConfig & { logger: Logger }
+    config: HttpTransportConfig & { logger: Logger; flashblocks?: boolean }
 ): HttpTransport {
     const {
         fetchOptions,
         key = "http",
         name = "HTTP JSON-RPC",
         retryDelay,
-        logger
+        logger,
+        flashblocks = false
     } = config
 
     return ({ chain, retryCount: retryCount_, timeout: timeout_ }) => {
@@ -87,18 +88,41 @@ export function customTransport(
                 key,
                 name,
                 async request({ method, params }) {
-                    const body = { method, params }
-                    const fn = async (body: RpcRequest) => {
-                        return [
-                            await rpc.http(url, {
-                                body,
-                                fetchOptions,
-                                timeout
-                            })
-                        ]
+                    // When Flashblocks support is enabled, automatically override the block tag
+                    // with "pending" for the supported RPC methods as per
+                    // https://docs.base.org/chain/flashblocks/apps
+                    let effectiveParams: unknown = params
+
+                    if (flashblocks && Array.isArray(params)) {
+                        switch (method) {
+                            case "eth_getBlockByNumber": {
+                                // Replace the first param (block tag/number) with "pending".
+                                const [, ...rest] = params as any[]
+                                effectiveParams = ["pending", ...rest]
+                                break
+                            }
+                            case "eth_getBalance":
+                            case "eth_getTransactionCount": {
+                                // Ensure second param is the block tag and set it to "pending".
+                                const [address, , ...rest] = params as any[]
+                                effectiveParams = [address, "pending", ...rest]
+                                break
+                            }
+                            default:
+                                // leave params untouched for all other methods
+                                break
+                        }
                     }
 
-                    const [{ error, result }] = await fn(body)
+                    const body: RpcRequest = { method, params: effectiveParams as any }
+                    const httpClient = getHttpRpcClient(url)
+
+                    const { error, result } = await httpClient.request({
+                        body,
+                        fetchOptions,
+                        timeout
+                    })
+
                     if (error) {
                         let loggerFn = logger.error.bind(logger)
 
