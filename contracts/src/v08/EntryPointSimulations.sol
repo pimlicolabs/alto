@@ -5,7 +5,8 @@ pragma solidity ^0.8.28;
 /* solhint-disable no-inline-assembly */
 
 import "./EntryPoint.sol";
-import "./IEntryPointSimulations.sol";
+import {IEntryPointSimulations, AggregatorStakeInfo} from "../IEntryPointSimulations.sol";
+
 import {UserOperationLib} from "account-abstraction-v8/core/UserOperationLib.sol";
 import {IEntryPoint as EP} from "account-abstraction-v8/interfaces/IEntryPoint.sol";
 
