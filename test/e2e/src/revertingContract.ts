@@ -35,7 +35,7 @@ export const deployRevertingContract = async ({
         bytecode: ALWAYS_REVERTING_BYTECODE
     })
 
-    const bytecode = await publicClient.getBytecode({
+    const bytecode = await publicClient.getCode({
         address: counterFactual
     })
 

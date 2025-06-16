@@ -16,7 +16,7 @@ import {
     CodeHashGetterBytecode,
     EntryPointV06Abi,
     EntryPointV07SimulationsAbi,
-    PimlicoEntryPointSimulationsAbi,
+    PimlicoSimulationsAbi,
     type ReferencedCodeHashes,
     RpcError,
     type StakeInfo,
@@ -27,8 +27,11 @@ import {
 } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import {
-    getAuthorizationStateOverrides, getAddressFromInitCodeOrPaymasterAndData, toPackedUserOperation,
-    isVersion08
+    getAuthorizationStateOverrides,
+    getAddressFromInitCodeOrPaymasterAndData,
+    toPackedUserOperation,
+    isVersion08,
+    jsonStringifyWithBigint
 } from "@alto/utils"
 import {
     type ExecutionRevertedError,
@@ -457,17 +460,29 @@ export class SafeValidator
             args: [[...packedQueuedUserOperations, packedUserOperation]]
         })
 
-        const callData = encodeFunctionData({
-            abi: PimlicoEntryPointSimulationsAbi,
-            functionName: "simulateEntryPoint",
-            args: [entryPoint, [entryPointSimulationsCallData]]
-        })
-
         const isV8 = isVersion08(userOperation, entryPoint)
 
         const entryPointSimulationsAddress = isV8
             ? this.config.entrypointSimulationContractV8
             : this.config.entrypointSimulationContractV7
+
+        const pimlicoSimulationsAddress = this.config.pimlicoSimulationContract
+
+        if (!entryPointSimulationsAddress || !pimlicoSimulationsAddress) {
+            throw new Error(
+                "Entrypoint simulations contract not found for this version"
+            )
+        }
+
+        const callData = encodeFunctionData({
+            abi: PimlicoSimulationsAbi,
+            functionName: "simulateEntryPoint",
+            args: [
+                entryPointSimulationsAddress,
+                entryPoint,
+                [entryPointSimulationsCallData]
+            ]
+        })
 
         const stateOverrides = getAuthorizationStateOverrides({
             userOperations: [userOperation]
@@ -477,7 +492,7 @@ export class SafeValidator
             this.config.publicClient,
             {
                 from: zeroAddress,
-                to: entryPointSimulationsAddress,
+                to: pimlicoSimulationsAddress,
                 data: callData
             },
             {
@@ -487,9 +502,7 @@ export class SafeValidator
         )
 
         this.logger.info(
-            `tracerResult: ${JSON.stringify(tracerResult, (_k, v) =>
-                typeof v === "bigint" ? v.toString() : v
-            )}`
+            `tracerResult: ${jsonStringifyWithBigint(tracerResult)}`
         )
 
         const lastResult = tracerResult.calls.slice(-1)[0]

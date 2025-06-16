@@ -21,10 +21,11 @@ const validatePvg = async (
     apiVersion: ApiVersion,
     rpcHandler: RpcHandler,
     userOperation: UserOperation,
-    entryPoint: Address
+    entryPoint: Address,
+    boost = false
 ): Promise<[boolean, string]> => {
     // PVG validation is skipped for v1
-    if (apiVersion == "v1") {
+    if (apiVersion == "v1" || boost) {
         return [true, ""]
     }
 
@@ -77,12 +78,19 @@ const getUserOpValidationResult = async (
     }
 }
 
-export async function addToMempoolIfValid(
-    rpcHandler: RpcHandler,
-    userOperation: UserOperation,
-    entryPoint: Address,
+export async function addToMempoolIfValid({
+    rpcHandler,
+    userOperation,
+    entryPoint,
+    apiVersion,
+    boost = false
+}: {
+    rpcHandler: RpcHandler
+    userOperation: UserOperation
+    entryPoint: Address
     apiVersion: ApiVersion
-): Promise<{ userOpHash: Hex; result: "added" | "queued" }> {
+    boost?: boolean
+}): Promise<{ userOpHash: Hex; result: "added" | "queued" }> {
     rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
     // Execute multiple async operations in parallel
@@ -102,8 +110,8 @@ export async function addToMempoolIfValid(
         }),
         getUserOpValidationResult(rpcHandler, userOperation, entryPoint),
         rpcHandler.getNonceSeq(userOperation, entryPoint),
-        validatePvg(apiVersion, rpcHandler, userOperation, entryPoint),
-        rpcHandler.preMempoolChecks(userOperation, apiVersion),
+        validatePvg(apiVersion, rpcHandler, userOperation, entryPoint, boost),
+        rpcHandler.preMempoolChecks(userOperation, apiVersion, boost),
         rpcHandler.validateEip7702Auth({
             userOperation,
             validateSender: true
@@ -217,12 +225,12 @@ export const ethSendUserOperationHandler = createMethodHandler({
 
         let status: "added" | "queued" | "rejected" = "rejected"
         try {
-            const { result, userOpHash } = await addToMempoolIfValid(
+            const { result, userOpHash } = await addToMempoolIfValid({
                 rpcHandler,
                 userOperation,
                 entryPoint,
                 apiVersion
-            )
+            })
 
             status = result
 

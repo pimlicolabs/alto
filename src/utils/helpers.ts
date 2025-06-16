@@ -2,6 +2,13 @@ import type { StateOverrides, UserOperation } from "@alto/types"
 import { BaseError, type RawContractError, getAddress, concat } from "viem"
 import type { SignedAuthorization } from "viem"
 
+/// Convert an object to JSON string, handling bigint values
+export const jsonStringifyWithBigint = (obj: unknown): string => {
+    return JSON.stringify(obj, (_key, value) =>
+        typeof value === "bigint" ? value.toString() : value
+    )
+}
+
 /// Ensure proper equality by converting both addresses into their checksum type
 export const areAddressesEqual = (a: string, b: string) => {
     try {

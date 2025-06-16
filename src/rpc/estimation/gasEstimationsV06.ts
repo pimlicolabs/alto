@@ -1,5 +1,4 @@
 import {
-    ENTRYPOINT_V06_SIMULATION_OVERRIDE,
     EntryPointV06Abi,
     EntryPointV06SimulationsAbi,
     ValidationErrors,
@@ -20,6 +19,10 @@ import type { SimulateHandleOpResult } from "./types"
 import type { AltoConfig } from "../../createConfig"
 import { parseFailedOpWithRevert } from "./gasEstimationsV07"
 import { deepHexlify, getAuthorizationStateOverrides } from "@alto/utils"
+import entryPointOverride from "../../contracts/EntryPointGasEstimationOverride.sol/EntryPointGasEstimationOverride06.json" with {
+    type: "json"
+}
+import { getSenderCreatorOverride } from "../../utils/entryPointOverrides"
 
 export class GasEstimatorV06 {
     private config: AltoConfig
@@ -125,9 +128,7 @@ export class GasEstimatorV06 {
     }): Promise<SimulateHandleOpResult> {
         const publicClient = this.config.publicClient
         const blockTagSupport = this.config.blockTagSupport
-        const utilityWalletAddress =
-            this.config.utilityPrivateKey?.address ??
-            "0x4337000c2828F5260d8921fD25829F606b9E8680"
+        const utilityWalletAddress = this.config.utilityWalletAddress
         const fixedGasLimitForEstimation =
             this.config.fixedGasLimitForEstimation
 
@@ -136,9 +137,15 @@ export class GasEstimatorV06 {
                 stateOverrides = {}
             }
 
+            const senderCreatorOverride = getSenderCreatorOverride(entryPoint)
+
             stateOverrides[entryPoint] = {
                 ...deepHexlify(stateOverrides?.[entryPoint] || {}),
-                code: ENTRYPOINT_V06_SIMULATION_OVERRIDE
+                stateDiff: {
+                    ...(stateOverrides[entryPoint]?.stateDiff || {}),
+                    [senderCreatorOverride.slot]: senderCreatorOverride.value
+                },
+                code: entryPointOverride.deployedBytecode.object as Hex
             }
         }
 

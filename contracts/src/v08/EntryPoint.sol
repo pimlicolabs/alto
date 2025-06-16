@@ -16,8 +16,8 @@ import "./SenderCreator.sol";
 import "./Eip7702Support.sol";
 import "account-abstraction-v8/utils/Exec.sol";
 
-import "@openzeppelin/contracts-51/utils/ReentrancyGuardTransient.sol";
-import "@openzeppelin/contracts-51/utils/cryptography/EIP712.sol";
+import "@openzeppelin-v5.1.0/contracts/utils/ReentrancyGuardTransient.sol";
+import "@openzeppelin-v5.1.0/contracts/utils/cryptography/EIP712.sol";
 
 /**
  * Account-Abstraction (EIP-4337) singleton EntryPoint v0.8 implementation.
@@ -158,12 +158,12 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         MemoryUserOp memory mUserOp = opInfo.mUserOp;
 
         uint256 callGasLimit = mUserOp.callGasLimit;
-        unchecked {
-            // handleOps was called with gas limit too low. abort entire bundle.
-            if ((gasleft() * 63) / 64 < callGasLimit + mUserOp.paymasterPostOpGasLimit + INNER_GAS_OVERHEAD) {
-                revert FailedOp(0, "AA95 out of gas");
-            }
-        }
+        //unchecked {
+        //    // handleOps was called with gas limit too low. abort entire bundle.
+        //    if ((gasleft() * 63) / 64 < callGasLimit + mUserOp.paymasterPostOpGasLimit + INNER_GAS_OVERHEAD) {
+        //        revert FailedOp(0, "AA95 out of gas");
+        //    }
+        //}
 
         IPaymaster.PostOpMode mode = IPaymaster.PostOpMode.opSucceeded;
         if (callData.length > 0) {
@@ -653,8 +653,14 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                         ) {
                             // solhint-disable-next-line no-empty-blocks
                         } catch {
-                            bytes memory reason = Exec.getReturnData(REVERT_REASON_MAX_LEN);
-                            revert PostOpReverted(reason);
+                            // NOTE: comment out EntryPoint 0.8 postOpRevert error and replace with FailedOpWithRevert
+                            // so that postOp estimation reverts are handled the same for both 0.7 and 0.8
+                            //
+                            // bytes memory reason = Exec.getReturnData(REVERT_REASON_MAX_LEN);
+                            // revert PostOpReverted(reason);
+                            revert FailedOpWithRevert(
+                                0, "AA50 postOp reverted", Exec.getReturnData(REVERT_REASON_MAX_LEN)
+                            );
                         }
                         paymasterPostOpGasLimit = remainingGas - gasleft();
                     }

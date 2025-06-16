@@ -14,7 +14,9 @@ import {
     roundUpBigInt,
     maxBigInt,
     parseViemError,
-    scaleBigIntByPercent
+    scaleBigIntByPercent,
+    minBigInt,
+    jsonStringifyWithBigint
 } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
@@ -24,10 +26,11 @@ import {
     type Account,
     type Hex,
     NonceTooHighError,
-    BaseError
+    BaseError,
+    FeeCapTooLowError,
+    InsufficientFundsError
 } from "viem"
 import {
-    calculateAA95GasFloor,
     encodeHandleOpsCalldata,
     getAuthorizationList,
     getUserOpHashes,
@@ -35,17 +38,14 @@ import {
 } from "./utils"
 import type { SendTransactionErrorType } from "viem"
 import type { AltoConfig } from "../createConfig"
-import { sendPflConditional } from "./fastlane"
 import type { SignedAuthorizationList } from "viem"
-import { filterOpsAndEstimateGas } from "./filterOpsAndEStimateGas"
+import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
 
 type HandleOpsTxParams = {
     gas: bigint
     account: Account
     nonce: number
     userOps: UserOpInfo[]
-    isUserOpV06: boolean
-    isReplacementTx: boolean
     entryPoint: Address
 }
 
@@ -112,6 +112,102 @@ export class Executor {
         throw new Error("Method not implemented.")
     }
 
+    async getBundleGasPrice({
+        bundle,
+        networkGasPrice,
+        networkBaseFee,
+        totalBeneficiaryFees,
+        bundleGasUsed
+    }: {
+        bundle: UserOperationBundle
+        networkGasPrice: GasPriceParameters
+        networkBaseFee: bigint
+        totalBeneficiaryFees: bigint
+        bundleGasUsed: bigint
+    }): Promise<GasPriceParameters> {
+        const {
+            bundlerInitialCommission,
+            resubmitMultiplierCeiling,
+            legacyTransactions,
+            chainType,
+            arbitrumGasBidMultiplier
+        } = this.config
+
+        // Arbtirum's sequencer orders based on first come first serve.
+        // Because of this, maxFee/maxPriorityFee is ignored and the bundler *always* pays the network's baseFee.
+        // The bundler need to set a large enough gasBid to account for network baseFee fluctuations.
+        // GasBid = min(maxFee, base + priority)
+        if (chainType === "arbitrum") {
+            const scaledBaseFee = scaleBigIntByPercent(
+                networkBaseFee,
+                100n + 20n * BigInt(bundle.submissionAttempts)
+            )
+
+            return {
+                maxFeePerGas: scaledBaseFee * arbitrumGasBidMultiplier,
+                maxPriorityFeePerGas: scaledBaseFee * arbitrumGasBidMultiplier
+            }
+        }
+
+        // Increase network gas price for resubmissions to improve tx inclusion
+        let [networkMaxFeePerGas, networkMaxPriorityFeePerGas] = [
+            networkGasPrice.maxFeePerGas,
+            networkGasPrice.maxPriorityFeePerGas
+        ]
+
+        if (bundle.submissionAttempts > 0) {
+            const multiplier = 100n + BigInt(bundle.submissionAttempts) * 20n
+
+            networkMaxFeePerGas = scaleBigIntByPercent(
+                networkMaxFeePerGas,
+                minBigInt(multiplier, resubmitMultiplierCeiling)
+            )
+            networkMaxPriorityFeePerGas = scaleBigIntByPercent(
+                networkMaxPriorityFeePerGas,
+                minBigInt(multiplier, resubmitMultiplierCeiling)
+            )
+        }
+
+        // The bundler should place a gasBid that is competetive with the network's gasPrice.
+        const breakEvenGasPrice = totalBeneficiaryFees / bundleGasUsed
+
+        // Calculate commission: start at bundlerInitialCommission%, then
+        // halve the commission with each resubmission attempt
+        const currentCommission =
+            bundlerInitialCommission / 2n ** BigInt(bundle.submissionAttempts)
+        const pricingPercent = 100n - currentCommission
+
+        const bundlingGasPrice = scaleBigIntByPercent(
+            breakEvenGasPrice,
+            pricingPercent
+        )
+
+        if (legacyTransactions) {
+            const gasPrice = maxBigInt(bundlingGasPrice, networkMaxFeePerGas)
+            return {
+                maxFeePerGas: gasPrice,
+                maxPriorityFeePerGas: gasPrice
+            }
+        }
+
+        const effectiveGasPrice = minBigInt(
+            networkMaxFeePerGas,
+            networkBaseFee + networkMaxPriorityFeePerGas
+        )
+
+        if (bundlingGasPrice > effectiveGasPrice) {
+            return {
+                maxFeePerGas: bundlingGasPrice,
+                maxPriorityFeePerGas: bundlingGasPrice
+            }
+        }
+
+        return {
+            maxFeePerGas: networkMaxFeePerGas,
+            maxPriorityFeePerGas: networkMaxPriorityFeePerGas
+        }
+    }
+
     async sendHandleOpsTransaction({
         txParam,
         gasOpts
@@ -119,17 +215,15 @@ export class Executor {
         txParam: HandleOpsTxParams
         gasOpts: HandleOpsGasParams
     }) {
-        const { entryPoint, userOps, account, gas, nonce, isUserOpV06 } =
-            txParam
-
         const {
             executorGasMultiplier,
             sendHandleOpsRetryCount,
             transactionUnderpricedMultiplier,
-            enableFastlane,
             walletClient,
             publicClient
         } = this.config
+
+        const { entryPoint, userOps, account, gas, nonce } = txParam
 
         const handleOpsCalldata = encodeHandleOpsCalldata({
             userOps: userOps.map(({ userOp }) => userOp),
@@ -156,25 +250,6 @@ export class Executor {
         // Try sending the transaction and updating relevant fields if there is an error.
         while (attempts < maxAttempts) {
             try {
-                if (
-                    enableFastlane &&
-                    isUserOpV06 &&
-                    !txParam.isReplacementTx &&
-                    attempts === 0
-                ) {
-                    const serializedTransaction =
-                        await walletClient.signTransaction(request)
-
-                    transactionHash = await sendPflConditional({
-                        serializedTransaction,
-                        publicClient,
-                        walletClient,
-                        logger: this.logger
-                    })
-
-                    break
-                }
-
                 // Round up gasLimit to nearest multiple
                 request.gas = roundUpBigInt({
                     value: request.gas,
@@ -194,14 +269,14 @@ export class Executor {
                             blockTag: "latest"
                         })
 
-                        if (
-                            request.maxFeePerGas &&
-                            request.maxPriorityFeePerGas
-                        ) {
+                        if (request.maxFeePerGas) {
                             request.maxFeePerGas = scaleBigIntByPercent(
                                 request.maxFeePerGas,
                                 transactionUnderpricedMultiplier
                             )
+                        }
+
+                        if (request.maxPriorityFeePerGas) {
                             request.maxPriorityFeePerGas = scaleBigIntByPercent(
                                 request.maxPriorityFeePerGas,
                                 transactionUnderpricedMultiplier
@@ -214,6 +289,31 @@ export class Executor {
                                 transactionUnderpricedMultiplier
                             )
                         }
+                    }
+                }
+
+                if (e instanceof FeeCapTooLowError) {
+                    this.logger.warn("max fee < basefee, retrying")
+
+                    if (request.gasPrice) {
+                        request.gasPrice = scaleBigIntByPercent(
+                            request.gasPrice,
+                            125n
+                        )
+                    }
+
+                    if (request.maxFeePerGas) {
+                        request.maxFeePerGas = scaleBigIntByPercent(
+                            request.maxFeePerGas,
+                            125n
+                        )
+                    }
+
+                    if (request.maxPriorityFeePerGas) {
+                        request.maxPriorityFeePerGas = scaleBigIntByPercent(
+                            request.maxPriorityFeePerGas,
+                            125n
+                        )
                     }
                 }
 
@@ -242,15 +342,6 @@ export class Executor {
                         this.logger.warn("Intrinsic gas too low, retrying")
                         request.gas = scaleBigIntByPercent(request.gas, 150n)
                     }
-
-                    // This is thrown by OP-Stack chains that use proxyd.
-                    // ref: https://github.com/ethereum-optimism/optimism/issues/2618#issuecomment-1630272888
-                    if (cause.details?.includes("no backends available")) {
-                        this.logger.warn(
-                            "no backends avaiable error, retrying after 500ms"
-                        )
-                        await new Promise((resolve) => setTimeout(resolve, 500))
-                    }
                 }
 
                 attempts++
@@ -272,60 +363,55 @@ export class Executor {
     async bundle({
         executor,
         userOpBundle,
-        nonce,
-        gasPriceParams,
-        gasLimitSuggestion,
-        isReplacementTx
+        networkGasPrice,
+        networkBaseFee,
+        nonce
     }: {
         executor: Account
         userOpBundle: UserOperationBundle
+        networkGasPrice: GasPriceParameters
+        networkBaseFee: bigint
         nonce: number
-        gasPriceParams: GasPriceParameters
-        gasLimitSuggestion?: bigint
-        isReplacementTx: boolean
     }): Promise<BundleResult> {
-        const { entryPoint, userOps, version } = userOpBundle
-        const { maxFeePerGas, maxPriorityFeePerGas } = gasPriceParams
-        const isUserOpV06 = version === "0.6"
+        const { entryPoint, userOps } = userOpBundle
 
+        const isReplacementTx = userOpBundle.submissionAttempts > 0
         let childLogger = this.logger.child({
             isReplacementTx,
             userOperations: getUserOpHashes(userOps),
             entryPoint
         })
 
-        let estimateResult = await filterOpsAndEstimateGas({
+        let filterOpsResult = await filterOpsAndEstimateGas({
+            gasPriceManager: this.gasPriceManager,
             userOpBundle,
-            executor,
-            nonce,
-            maxFeePerGas,
-            maxPriorityFeePerGas,
-            codeOverrideSupport: this.config.codeOverrideSupport,
-            reputationManager: this.reputationManager,
             config: this.config,
             logger: childLogger
         })
 
-        if (estimateResult.status === "unhandled_failure") {
-            childLogger.error(
-                "gas limit simulation encountered unexpected failure"
-            )
+        if (filterOpsResult.status === "unhandled_error") {
+            childLogger.error("encountered unexpected failure during filterOps")
             return {
-                status: "unhandled_simulation_failure",
-                rejectedUserOps: estimateResult.rejectedUserOps,
-                reason: "INTERNAL FAILURE"
+                status: "filterops_unhandled_error",
+                rejectedUserOps: filterOpsResult.rejectedUserOps
             }
         }
 
-        if (estimateResult.status === "all_ops_failed_simulation") {
+        if (filterOpsResult.status === "all_ops_rejected") {
             childLogger.warn("all ops failed simulation")
             return {
-                status: "all_ops_failed_simulation",
-                rejectedUserOps: estimateResult.rejectedUserOps
+                status: "filterops_all_rejected",
+                rejectedUserOps: filterOpsResult.rejectedUserOps
             }
         }
 
-        let { gasLimit, userOpsToBundle, rejectedUserOps } = estimateResult
+        let {
+            userOpsToBundle,
+            rejectedUserOps,
+            bundleGasUsed,
+            bundleGasLimit,
+            totalBeneficiaryFees
+        } = filterOpsResult
 
         // Update child logger with userOperations being sent for bundling.
         childLogger = this.logger.child({
@@ -334,31 +420,19 @@ export class Executor {
             entryPoint
         })
 
-        // Ensure that we don't submit with gas too low leading to AA95.
-        const aa95GasFloor = calculateAA95GasFloor({
-            userOps: userOpsToBundle.map(({ userOp }) => userOp),
-            beneficiary: executor.address
-        })
-        gasLimit = maxBigInt(gasLimit, aa95GasFloor)
-
-        if (this.config.localGasCalculation) {
-            const eip7702Overhead =
-                userOpBundle.userOps.filter(({ userOp }) => userOp.eip7702Auth)
-                    .length * 40000
-            gasLimit = aa95GasFloor + BigInt(eip7702Overhead)
-        }
-
-        // sometimes the estimation rounds down, adding a fixed constant accounts for this
-        gasLimit += 10_000n
-        gasLimit = gasLimitSuggestion
-            ? maxBigInt(gasLimit, gasLimitSuggestion)
-            : gasLimit
+        const { maxFeePerGas, maxPriorityFeePerGas } =
+            await this.getBundleGasPrice({
+                bundle: userOpBundle,
+                networkGasPrice,
+                networkBaseFee,
+                totalBeneficiaryFees,
+                bundleGasUsed
+            })
 
         let transactionHash: HexData32
         try {
             const isLegacyTransaction = this.config.legacyTransactions
             const authorizationList = getAuthorizationList(userOpsToBundle)
-            const { maxFeePerGas, maxPriorityFeePerGas } = gasPriceParams
 
             let gasOpts: HandleOpsGasParams
             if (isLegacyTransaction) {
@@ -385,10 +459,8 @@ export class Executor {
                 txParam: {
                     account: executor,
                     nonce,
-                    gas: gasLimit,
+                    gas: bundleGasLimit,
                     userOps: userOpsToBundle,
-                    isReplacementTx,
-                    isUserOpV06,
                     entryPoint
                 },
                 gasOpts
@@ -400,28 +472,42 @@ export class Executor {
             })
         } catch (err: unknown) {
             const e = parseViemError(err)
-            const { rejectedUserOps, userOpsToBundle } = estimateResult
+            const { rejectedUserOps, userOpsToBundle } = filterOpsResult
 
             // if unknown error, return INTERNAL FAILURE
             if (!e) {
                 sentry.captureException(err)
                 childLogger.error(
-                    { error: JSON.stringify(err) },
+                    { err: JSON.stringify(err) },
                     "unknown error submitting bundle transaction"
                 )
                 return {
                     rejectedUserOps,
                     userOpsToBundle,
-                    status: "bundle_submission_failure",
+                    status: "submission_generic_error",
                     reason: "INTERNAL FAILURE"
+                }
+            }
+
+            // Check if executor has insufficient funds
+            if (e instanceof InsufficientFundsError) {
+                childLogger.warn(
+                    {
+                        executor: executor.address,
+                        err: jsonStringifyWithBigint(err)
+                    },
+                    "executor has insufficient funds"
+                )
+                return {
+                    rejectedUserOps,
+                    userOpsToBundle,
+                    status: "submission_insufficient_funds_error"
                 }
             }
 
             childLogger.error(
                 {
-                    err: JSON.stringify(err, (_key, value) =>
-                        typeof value === "bigint" ? value.toString() : value
-                    )
+                    err: jsonStringifyWithBigint(err)
                 },
                 "error submitting bundle transaction"
             )
@@ -429,7 +515,7 @@ export class Executor {
             return {
                 rejectedUserOps,
                 userOpsToBundle,
-                status: "bundle_submission_failure",
+                status: "submission_generic_error",
                 reason: e
             }
         }
@@ -437,14 +523,14 @@ export class Executor {
         const userOpsBundled = userOpsToBundle
 
         const bundleResult: BundleResult = {
-            status: "bundle_success",
+            status: "submission_success",
             userOpsBundled,
             rejectedUserOps,
             transactionHash,
             transactionRequest: {
-                gas: gasLimit,
-                maxFeePerGas: gasPriceParams.maxFeePerGas,
-                maxPriorityFeePerGas: gasPriceParams.maxPriorityFeePerGas,
+                gas: bundleGasLimit,
+                maxFeePerGas,
+                maxPriorityFeePerGas,
                 nonce
             }
         }

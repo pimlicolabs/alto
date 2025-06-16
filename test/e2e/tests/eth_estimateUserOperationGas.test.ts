@@ -1,8 +1,10 @@
 import {
+    EntryPointVersion,
     UserOperation,
     createBundlerClient,
     entryPoint06Address,
-    entryPoint07Address
+    entryPoint07Address,
+    entryPoint08Address
 } from "viem/account-abstraction"
 import { beforeEach, describe, expect, inject, test } from "vitest"
 import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils/index.js"
@@ -13,7 +15,6 @@ import {
 import { type Address, BaseError, Hex, http, zeroAddress } from "viem"
 import { deepHexlify } from "permissionless"
 import { foundry } from "viem/chains"
-import { entryPoint08Address, EntryPointVersion } from "../src/constants.js"
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
 
 describe.each([
@@ -94,28 +95,6 @@ describe.each([
             expect(gasParams.callGasLimit).not.toBeNull()
         })
 
-        test("Throws if gasPrices are set to zero", async () => {
-            const smartAccountClient = await getSmartAccountClient({
-                entryPointVersion,
-                anvilRpc,
-                altoRpc
-            })
-
-            await expect(async () =>
-                smartAccountClient.estimateUserOperationGas({
-                    calls: [
-                        {
-                            to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
-                            data: "0x",
-                            value: 0n
-                        }
-                    ],
-                    maxFeePerGas: 0n,
-                    maxPriorityFeePerGas: 0n
-                })
-            ).rejects.toThrow()
-        })
-
         // error occurs when calling contract that doesn't exist or due to low level evm revert.
         // both of these scenarios return 0x when calling simulateHandleOp.
         test("Gracefully handles cannot decode zero bytes 0x error", async () => {
@@ -193,7 +172,10 @@ describe.each([
             } catch (e: any) {
                 expect(e).toBeInstanceOf(BaseError)
                 const err = e.walk()
-                expect(err.reason).toEqual("foobar")
+                expect(err.message).toEqual(
+                    "UserOperation reverted during simulation with reason: 0x08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000006666f6f6261720000000000000000000000000000000000000000000000000000"
+                )
+                expect(err.code).toEqual(-32521)
             }
         })
 

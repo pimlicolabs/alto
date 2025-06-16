@@ -4,10 +4,7 @@ import { foundry } from "viem/chains"
 import { setupContracts } from "./deploy-contracts/index.js"
 import { defineInstance } from "prool"
 import { execa } from "./src/utils/execa.js"
-import altoConfig from "./alto-config.json"
-
-export const ENTRY_POINT_SIMULATIONS_ADDRESS =
-    "0x74Cb5e4eE81b86e70f9045036a1C5477de69eE87"
+import altoConfig from "./alto-config.json" with { type: "json" }
 
 export const alto = defineInstance(
     (args: { anvilRpc: string; port: number }) => {
@@ -43,11 +40,9 @@ export const alto = defineInstance(
                 // ]
 
                 const binary = [
-                    "ts-node",
-                    "--project",
+                    "tsx",
+                    "--tsconfig",
                     `${process.cwd()}/../../src/tsconfig.json`,
-                    "-r",
-                    "tsconfig-paths/register",
                     resolve(__dirname, "../../src/cli/alto.ts"),
                     "run"
                 ]
@@ -65,7 +60,8 @@ export const alto = defineInstance(
                             env: {
                                 ...envConfig,
                                 ALTO_RPC_URL: args.anvilRpc,
-                                ALTO_PORT: port.toString()
+                                ALTO_PORT: port.toString(),
+                                TSX_TSCONFIG_PATH: `${process.cwd()}/../../src/tsconfig.json`
                             }
                         })`${binary}`,
                     {
@@ -114,6 +110,7 @@ export default async function setup({ provide }) {
     const anvilInstance = anvil({
         chainId: foundry.id,
         port: 8545,
+        hardfork: "Prague",
         codeSizeLimit: 1000_000,
         gasLimit: 30_000_000
     })

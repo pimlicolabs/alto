@@ -111,9 +111,9 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "boolean",
         default: false
     },
-    "local-gas-calculation": {
+    "rpc-gas-estimate": {
         description:
-            "Should bundler use local gas calculations instead eth_estimateGas result when calling handleOps",
+            "Should the bundler make a eth_estimateGas call to estimate the handleOps gasLimit",
         type: "boolean",
         default: false
     }
@@ -187,16 +187,21 @@ export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
 
 export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
     {
+        "pimlico-simulation-contract": {
+            description: "Address of the Pimlico simulation contract",
+            type: "string",
+            require: false
+        },
         "entrypoint-simulation-contract-v7": {
             description:
-                "Address of the EntryPoint simulations contract for v7",
+                "Address of the EntryPoint simulations contract for v0.7",
             type: "string",
             alias: "c",
             require: false
         },
         "entrypoint-simulation-contract-v8": {
             description:
-                "Address of the EntryPoint simulations contract for v8",
+                "Address of the EntryPoint simulations contract for v0.8",
             type: "string",
             alias: "c",
             require: false
@@ -320,25 +325,12 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
     }
 
 export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
-    "enable-fastlane": {
-        description:
-            "Enable bundling v0.6 userOperations using the pfl_sendRawTransactionConditional endpoint",
-        type: "boolean",
-        default: false
-    },
     "resubmit-stuck-timeout": {
         description:
             "Amount of time before retrying a failed userOperation (in ms)",
         type: "number",
         require: true,
         default: 10_000
-    },
-    "aa95-gas-multiplier": {
-        description:
-            "Amount to multiply the current gas limit by if the bundling tx fails due to AA95",
-        type: "string",
-        require: false,
-        default: "125"
     },
     "resubmit-multiplier-ceiling": {
         description:
@@ -425,6 +417,27 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
     "send-handle-ops-retry-count": {
         description:
             "Number of times to retry calling sendHandleOps transaction",
+        type: "number",
+        require: false,
+        default: 3
+    },
+    "bundler-initial-commission": {
+        description:
+            "Initial commission percentage the bundler retains (10 = retain 10% of margin)",
+        type: "string",
+        require: false,
+        default: "10"
+    },
+    "arbitrum-gas-bid-multiplier": {
+        description:
+            "Multiplier for gas bid on Arbitrum networks to account for baseFee fluctuations",
+        type: "string",
+        require: false,
+        default: "5"
+    },
+    "binary-search-max-retries": {
+        description:
+            "Maximum number of retries for binary search operations during gas estimation",
         type: "number",
         require: false,
         default: 3
@@ -555,6 +568,12 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         default: 2000,
         require: false
     },
+    "block-number-cache-ttl": {
+        description: "TTL for the block number cache in milliseconds",
+        type: "number",
+        default: 15000, // Default to 1 minute
+        require: false
+    },
     "block-tag-support": {
         description:
             "Disable sending block tag when sending eth_estimateGas call",
@@ -649,13 +668,15 @@ export const debugOptions: CliCommandOptions<IDebugArgsInput> = {
         choices: ["auto", "manual"]
     },
     "min-bundle-interval": {
-        description: "Minimum interval in milliseconds between bundling operations in auto mode",
+        description:
+            "Minimum interval in milliseconds between bundling operations in auto mode",
         type: "number",
         require: false,
         default: 100
     },
     "max-bundle-interval": {
-        description: "Maximum interval in milliseconds between bundling operations in auto mode",
+        description:
+            "Maximum interval in milliseconds between bundling operations in auto mode",
         type: "number",
         require: false,
         default: 1000
