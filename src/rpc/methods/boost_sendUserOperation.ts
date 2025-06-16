@@ -1,3 +1,4 @@
+import { isVersion06, isVersion07 } from "../../esm/utils"
 import {
     boostSendUserOperationSchema,
     type UserOperation
@@ -16,6 +17,22 @@ const validateUserOperation = ({
         throw new RpcError(
             "maxFeePerGas and maxPriorityFeePerGas must be 0 for a boosted user operation"
         )
+    }
+
+    if (isVersion06(userOperation)) {
+        if (userOperation.paymasterAndData !== "0x") {
+            throw new RpcError(
+                "paymasterAndData must be empty for a boosted user operation"
+            )
+        }
+    }
+
+    if (isVersion07(userOperation)) {
+        if (userOperation.paymaster || userOperation.paymasterData) {
+            throw new RpcError(
+                "paymaster and paymasterData must be empty for a boosted user operation"
+            )
+        }
     }
 }
 
