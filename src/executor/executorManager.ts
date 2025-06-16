@@ -66,8 +66,7 @@ export class ExecutorManager {
     private eventManager: EventManager
     private opsCount: number[] = []
     private bundlingMode: BundlingMode
-    private cachedLatestBlock: { value: bigint; timestamp: number } | null =
-        null
+    private cachedLatestBlock: { value: bigint; timestamp: number } | null
     private blockCacheTTL: number
 
     private currentlyHandlingBlock = false
@@ -111,6 +110,7 @@ export class ExecutorManager {
         eventManager: EventManager
         senderManager: SenderManager
     }) {
+        this.cachedLatestBlock = null
         this.config = config
         this.reputationManager = reputationManager
         this.executor = executor
@@ -182,12 +182,12 @@ export class ExecutorManager {
         }
     }
 
-    startWatchingBlocks(handleBlock: (blockNumber: bigint) => void): void {
+    startWatchingBlocks(): void {
         if (this.unWatch) {
             return
         }
         this.unWatch = this.config.publicClient.watchBlockNumber({
-            onBlockNumber: handleBlock,
+            onBlockNumber: (blockNumber) => this.handleBlock(blockNumber),
             onError: (error) => {
                 this.logger.error({ error }, "error while watching blocks")
             },
@@ -966,7 +966,7 @@ export class ExecutorManager {
                     userOpHash,
                     transactionInfo
                 })
-                this.startWatchingBlocks((blockNumber) => this.handleBlock(blockNumber))
+                this.startWatchingBlocks()
                 this.metrics.userOperationsSubmitted
                     .labels({ status: "success" })
                     .inc()
