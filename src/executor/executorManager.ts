@@ -183,6 +183,7 @@ export class ExecutorManager {
     }
 
     startWatchingBlocks(handleBlock: (blockNumber: bigint) => void): void {
+        this.logger.info("[DEBUG] startWatchingBlocks")
         if (this.unWatch) {
             return
         }
@@ -358,6 +359,7 @@ export class ExecutorManager {
     }
 
     stopWatchingBlocks(): void {
+        this.logger.info("[DEBUG] stopWatchingBlocks")
         if (this.unWatch) {
             this.logger.debug("stopped watching blocks")
             this.unWatch()
