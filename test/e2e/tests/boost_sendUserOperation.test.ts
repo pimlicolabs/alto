@@ -1,5 +1,12 @@
 import { deepHexlify } from "permissionless"
-import { http, type Hex, createPublicClient, parseEther, parseGwei } from "viem"
+import {
+    http,
+    type Hex,
+    createPublicClient,
+    parseEther,
+    parseGwei,
+    Address
+} from "viem"
 import {
     entryPoint06Address,
     entryPoint07Address,
@@ -15,6 +22,7 @@ import {
     sendBundleNow,
     setBundlingMode
 } from "../src/utils/index.js"
+import { deployPaymaster } from "../src/testPaymaster.js"
 
 describe.each([
     {
@@ -34,6 +42,7 @@ describe.each([
     ({ entryPoint, entryPointVersion }) => {
         const TO_ADDRESS = "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5"
         const VALUE = parseEther("0.15")
+        let paymaster: Address
 
         const anvilRpc = inject("anvilRpc")
         const altoRpc = inject("altoRpc")
@@ -45,6 +54,10 @@ describe.each([
 
         beforeEach(async () => {
             await beforeEachCleanUp({ anvilRpc, altoRpc })
+            paymaster = await deployPaymaster({
+                entryPoint,
+                anvilRpc
+            })
         })
 
         test("Send boosted UserOperation", async () => {
@@ -305,6 +318,51 @@ describe.each([
                 })
             ).rejects.toThrow(
                 /(AA24|Invalid UserOperation signature or paymaster signature)/i
+            )
+        })
+
+        test("Should reject boosted userOperation with paymaster", async () => {
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+
+            // Set gas fees to zero for boosted operation
+            op.maxFeePerGas = 0n
+            op.maxPriorityFeePerGas = 0n
+
+            // Add paymaster (this should fail for boosted operations)
+            if (entryPointVersion === "0.6") {
+                op.paymasterAndData = paymaster
+            } else {
+                op.paymaster = paymaster
+                op.paymasterData = "0x"
+                op.paymasterVerificationGasLimit = 100_000n
+                op.paymasterPostOpGasLimit = 0n
+            }
+
+            op.signature = await client.account.signUserOperation(op)
+
+            await expect(
+                client.request({
+                    // @ts-ignore
+                    method: "boost_sendUserOperation",
+                    // @ts-ignore
+                    params: [deepHexlify(op), entryPoint]
+                })
+            ).rejects.toThrow(
+                "Paymaster is not supported for boosted user operations"
             )
         })
 

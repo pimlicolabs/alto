@@ -22,15 +22,20 @@ const validateUserOperation = ({
     if (isVersion06(userOperation)) {
         if (userOperation.paymasterAndData !== "0x") {
             throw new RpcError(
-                "paymasterAndData must be empty for a boosted user operation"
+                "Paymaster is not supported for boosted user operations. paymasterAndData must be '0x'"
             )
         }
     }
 
     if (isVersion07(userOperation)) {
-        if (userOperation.paymaster || userOperation.paymasterData) {
+        if (
+            userOperation.paymaster ||
+            userOperation.paymasterData ||
+            userOperation.paymasterPostOpGasLimit ||
+            userOperation.paymasterVerificationGasLimit
+        ) {
             throw new RpcError(
-                "paymaster and paymasterData must be empty for a boosted user operation"
+                "Paymaster is not supported for boosted user operations. All paymaster fields must be empty"
             )
         }
     }
