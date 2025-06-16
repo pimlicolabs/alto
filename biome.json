@@ -14,7 +14,6 @@
             "pnpm-lock.yaml",
             "src/lib",
             ".nyc_output",
-            "test/spec-tests",
             "contracts"
         ]
     },
