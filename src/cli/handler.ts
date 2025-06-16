@@ -96,7 +96,8 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
                     {
                         level: args.publicClientLogLevel || args.logLevel
                     }
-                )
+                ),
+                flashblocks: args.flashblocksEnabled
             })
         })
         return await client.getChainId()
@@ -125,7 +126,8 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
                 {
                     level: args.publicClientLogLevel || args.logLevel
                 }
-            )
+            ),
+            flashblocks: args.flashblocksEnabled
         }),
         chain
     })
@@ -149,7 +151,8 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
             logger: logger.child(
                 { module: "wallet_client" },
                 { level: args.walletClientLogLevel || args.logLevel }
-            )
+            ),
+            flashblocks: args.flashblocksEnabled
         })
 
     const walletClient = createWalletClient({

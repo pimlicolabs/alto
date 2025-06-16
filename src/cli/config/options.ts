@@ -116,7 +116,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
             "Should the bundler make a eth_estimateGas call to estimate the handleOps gasLimit",
         type: "boolean",
         default: false
-    }
+    },
+    "flashblocks-enabled": {
+        description: "Enable flashblocks. Overrides some RPC calls parameters.",
+        type: "boolean",
+        default: false
+    },
 }
 
 export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
