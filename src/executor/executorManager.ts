@@ -149,7 +149,7 @@ export class ExecutorManager {
         }
     }
 
-    async autoScalingBundling() {
+    autoScalingBundling = async () => {
         const now = Date.now()
         this.opsCount = this.opsCount.filter(
             (timestamp) => now - timestamp < RPM_WINDOW
@@ -178,7 +178,7 @@ export class ExecutorManager {
         )
 
         if (this.bundlingMode === "auto") {
-            setTimeout(this.autoScalingBundling.bind(this), nextInterval)
+            setTimeout(this.autoScalingBundling, nextInterval)
         }
     }
 
@@ -966,7 +966,7 @@ export class ExecutorManager {
                     userOpHash,
                     transactionInfo
                 })
-                this.startWatchingBlocks(this.handleBlock.bind(this))
+                this.startWatchingBlocks((blockNumber) => this.handleBlock(blockNumber))
                 this.metrics.userOperationsSubmitted
                     .labels({ status: "success" })
                     .inc()
