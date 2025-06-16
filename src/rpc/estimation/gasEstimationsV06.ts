@@ -1,8 +1,6 @@
 import {
-    ENTRYPOINT_V06_SIMULATION_OVERRIDE,
     EntryPointV06Abi,
     EntryPointV06SimulationsAbi,
-    RpcError,
     ValidationErrors,
     executionResultSchema,
     hexDataSchema
@@ -21,6 +19,10 @@ import type { SimulateHandleOpResult } from "./types"
 import type { AltoConfig } from "../../createConfig"
 import { parseFailedOpWithRevert } from "./gasEstimationsV07"
 import { deepHexlify, getAuthorizationStateOverrides } from "@alto/utils"
+import entryPointOverride from "../../contracts/EntryPointGasEstimationOverride.sol/EntryPointGasEstimationOverride06.json" with {
+    type: "json"
+}
+import { getSenderCreatorOverride } from "../../utils/entryPointOverrides"
 
 export class GasEstimatorV06 {
     private config: AltoConfig
@@ -31,10 +33,11 @@ export class GasEstimatorV06 {
 
     decodeSimulateHandleOpResult(data: Hex): SimulateHandleOpResult {
         if (data === "0x") {
-            throw new RpcError(
-                "AA23 reverted: UserOperation called non-existant contract, or reverted with 0x",
-                ValidationErrors.SimulateValidation
-            )
+            return {
+                result: "failed",
+                data: "AA23 reverted: UserOperation called non-existant contract, or reverted with 0x",
+                code: ValidationErrors.SimulateValidation
+            }
         }
 
         const decodedError = decodeErrorResult({
@@ -125,9 +128,7 @@ export class GasEstimatorV06 {
     }): Promise<SimulateHandleOpResult> {
         const publicClient = this.config.publicClient
         const blockTagSupport = this.config.blockTagSupport
-        const utilityWalletAddress =
-            this.config.utilityPrivateKey?.address ??
-            "0x4337000c2828F5260d8921fD25829F606b9E8680"
+        const utilityWalletAddress = this.config.utilityWalletAddress
         const fixedGasLimitForEstimation =
             this.config.fixedGasLimitForEstimation
 
@@ -136,22 +137,27 @@ export class GasEstimatorV06 {
                 stateOverrides = {}
             }
 
+            const senderCreatorOverride = getSenderCreatorOverride(entryPoint)
+
             stateOverrides[entryPoint] = {
                 ...deepHexlify(stateOverrides?.[entryPoint] || {}),
-                code: ENTRYPOINT_V06_SIMULATION_OVERRIDE
+                stateDiff: {
+                    ...(stateOverrides[entryPoint]?.stateDiff || {}),
+                    [senderCreatorOverride.slot]: senderCreatorOverride.value
+                },
+                code: entryPointOverride.deployedBytecode.object as Hex
             }
         }
 
-        // Remove state override if not supported by network.
-        if (!this.config.balanceOverride) {
-            stateOverrides = undefined
-        }
-
-        stateOverrides = await getAuthorizationStateOverrides({
+        stateOverrides = getAuthorizationStateOverrides({
             userOperations: [userOperation],
-            publicClient,
             stateOverrides
         })
+
+        // Remove state override if not supported by network.
+        if (!this.config.balanceOverride && !this.config.codeOverrideSupport) {
+            stateOverrides = undefined
+        }
 
         try {
             await publicClient.request({
@@ -194,37 +200,18 @@ export class GasEstimatorV06 {
             const cause = err.walk((err) => err instanceof RpcRequestError)
 
             const causeParseResult = z
-                .union([
-                    z.object({
-                        code: z.literal(3),
-                        message: z.string(),
-                        data: hexDataSchema
-                    }),
-                    /* Fuse RPCs return in this format. */
-                    z.object({
-                        code: z.number(),
-                        message: z.string().regex(/VM execution error.*/),
-                        data: z
-                            .string()
-                            .transform((data) => data.replace("Reverted ", ""))
-                            .pipe(hexDataSchema)
-                    }),
-                    z.object({
-                        code: z.number(),
-                        message: z
-                            .string()
-                            .regex(
-                                /VM Exception while processing transaction:.*/
-                            ),
-                        data: hexDataSchema
-                    }),
-                    /* Monad devnet RPC return in this format */
-                    z.object({
-                        code: z.literal(-32603),
-                        message: z.string().regex(/execution reverted.*/),
-                        data: hexDataSchema
-                    })
-                ])
+                .object({
+                    code: z.union([
+                        z.literal(3),
+                        z.literal(-32603),
+                        z.literal(-32015)
+                    ]),
+                    message: z.string(),
+                    data: z
+                        .string()
+                        .transform((data) => data.replace("Reverted ", ""))
+                        .pipe(hexDataSchema)
+                })
                 .safeParse(cause?.cause)
 
             if (!causeParseResult.success) {

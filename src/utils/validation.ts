@@ -31,14 +31,14 @@ import {
     maxUint64,
     encodeFunctionData,
     parseGwei,
+    parseEther,
     maxUint256,
     toHex,
     size,
     concat,
     slice
 } from "viem"
-import { base, baseGoerli, baseSepolia, lineaSepolia } from "viem/chains"
-import { maxBigInt, minBigInt, scaleBigIntByPercent } from "./bigInt"
+import { minBigInt, randomBigInt } from "./bigInt"
 import { isVersion06, isVersion07, toPackedUserOperation } from "./userop"
 import type { AltoConfig } from "../createConfig"
 import { ArbitrumL1FeeAbi } from "../types/contracts/ArbitrumL1FeeAbi"
@@ -309,20 +309,40 @@ export async function calcPreVerificationGas({
     validate: boolean // when calculating preVerificationGas for validation
     overheads?: GasOverheads
 }): Promise<bigint> {
+    let simulationUserOp = {
+        ...userOperation
+    }
+
+    // Add random gasFields during estimations
+    if (!validate) {
+        simulationUserOp.callGasLimit = randomBigInt({ upper: 10_000_000n })
+        simulationUserOp.verificationGasLimit = randomBigInt({
+            upper: 10_000_000n
+        })
+        simulationUserOp.preVerificationGas = randomBigInt({
+            upper: 10_000_000n
+        })
+
+        if (isVersion07(simulationUserOp)) {
+            simulationUserOp.paymasterVerificationGasLimit = randomBigInt({
+                upper: 10_000_000n
+            })
+            simulationUserOp.paymasterPostOpGasLimit = randomBigInt({
+                upper: 10_000_000n
+            })
+        }
+    }
+
     let preVerificationGas = calcDefaultPreVerificationGas(
-        userOperation,
+        simulationUserOp,
         overheads
     )
-
-    if (config.chainId == lineaSepolia.id) {
-        return preVerificationGas * 2n
-    }
 
     switch (config.chainType) {
         case "op-stack":
             return await calcOptimismPreVerificationGas(
                 config.publicClient,
-                userOperation,
+                simulationUserOp,
                 entryPoint,
                 preVerificationGas,
                 gasPriceManager,
@@ -331,7 +351,7 @@ export async function calcPreVerificationGas({
         case "arbitrum":
             return await calcArbitrumPreVerificationGas(
                 config.publicClient,
-                userOperation,
+                simulationUserOp,
                 entryPoint,
                 preVerificationGas,
                 gasPriceManager,
@@ -340,7 +360,15 @@ export async function calcPreVerificationGas({
         case "mantle":
             return await calcMantlePreVerificationGas(
                 config.publicClient,
-                userOperation,
+                simulationUserOp,
+                entryPoint,
+                preVerificationGas,
+                gasPriceManager,
+                validate
+            )
+        case "etherlink":
+            return await calcEtherlinkPreVerificationGas(
+                simulationUserOp,
                 entryPoint,
                 preVerificationGas,
                 gasPriceManager,
@@ -351,53 +379,6 @@ export async function calcPreVerificationGas({
     }
 }
 
-export function calcVerificationGasAndCallGasLimit(
-    userOperation: UserOperation,
-    executionResult: {
-        preOpGas: bigint
-        paid: bigint
-    },
-    chainId: number,
-    gasLimits?: {
-        callGasLimit?: bigint
-        verificationGasLimit?: bigint
-        paymasterVerificationGasLimit?: bigint
-    }
-) {
-    const verificationGasLimit =
-        gasLimits?.verificationGasLimit ??
-        scaleBigIntByPercent(
-            executionResult.preOpGas - userOperation.preVerificationGas,
-            150n
-        )
-
-    const calculatedCallGasLimit =
-        gasLimits?.callGasLimit ??
-        executionResult.paid / userOperation.maxFeePerGas -
-            executionResult.preOpGas
-
-    let callGasLimit = maxBigInt(calculatedCallGasLimit, 9000n)
-
-    if (isVersion06(userOperation)) {
-        callGasLimit += 21_000n + 50_000n
-    }
-
-    if (
-        chainId === baseGoerli.id ||
-        chainId === baseSepolia.id ||
-        chainId === base.id
-    ) {
-        callGasLimit = scaleBigIntByPercent(callGasLimit, 110n)
-    }
-
-    return {
-        verificationGasLimit,
-        callGasLimit,
-        paymasterVerificationGasLimit:
-            gasLimits?.paymasterVerificationGasLimit ?? 0n
-    }
-}
-
 /**
  * calculate the preVerificationGas of the given UserOperation
  * preVerificationGas (by definition) is the cost overhead that can't be calculated on-chain.
@@ -405,7 +386,7 @@ export function calcVerificationGasAndCallGasLimit(
  * @param userOp filled userOp to calculate. The only possible missing fields can be the signature and preVerificationGas itself
  * @param overheads gas overheads to use, to override the default values
  */
-export function calcDefaultPreVerificationGas(
+function calcDefaultPreVerificationGas(
     userOperation: UserOperation,
     overheads?: Partial<GasOverheads>
 ): bigint {
@@ -442,22 +423,80 @@ export function calcDefaultPreVerificationGas(
 }
 
 // Returns back the bytes for the handleOps call
-function getHandleOpsCallData(op: UserOperation, entryPoint: Address) {
-    if (isVersion07(op)) {
+export function getHandleOpsCallData({
+    userOps,
+    entryPoint,
+    removeZeros = true
+}: {
+    userOps: UserOperation[]
+    entryPoint: Address
+    removeZeros?: boolean
+}) {
+    if (userOps.length === 0) {
+        throw new Error("No user operations provided")
+    }
+
+    const isV07 = isVersion07(userOps[0])
+
+    if (isV07) {
+        const processed = removeZeros
+            ? (userOps.map((op) =>
+                  removeZeroBytesFromUserOp(op)
+              ) as PackedUserOperation[])
+            : userOps.map((op) => toPackedUserOperation(op as UserOperationV07))
+
         return encodeFunctionData({
             abi: EntryPointV07Abi,
             functionName: "handleOps",
-            args: [[removeZeroBytesFromUserOp(op)], entryPoint]
+            args: [processed, entryPoint]
         })
     }
+
+    const processed = removeZeros
+        ? (userOps.map((op) =>
+              removeZeroBytesFromUserOp(op)
+          ) as UserOperationV06[])
+        : (userOps as UserOperationV06[])
+
     return encodeFunctionData({
         abi: EntryPointV06Abi,
         functionName: "handleOps",
-        args: [[removeZeroBytesFromUserOp(op)], entryPoint]
+        args: [processed, entryPoint]
     })
 }
 
-export async function calcMantlePreVerificationGas(
+async function calcEtherlinkPreVerificationGas(
+    op: UserOperation,
+    entryPoint: Address,
+    staticFee: bigint,
+    gasPriceManager: GasPriceManager,
+    verify?: boolean
+) {
+    const data = getHandleOpsCallData({ userOps: [op], entryPoint })
+
+    // Etherlink calculates the inclusion fee (data availability fee) with:
+    // 0.000004 XTZ * (150 + tx.data.size() + tx.access_list.size())
+
+    // Get the size of data in bytes
+    const dataSize = BigInt(size(data))
+
+    const baseConstant = 150n
+    const xtzRate = parseEther("0.000004")
+
+    const inclusionFee = (baseConstant + dataSize) * xtzRate
+
+    // Get the current gas price to convert the inclusion fee to gas units
+    const maxFeePerGas = await (verify
+        ? gasPriceManager.getHighestMaxFeePerGas()
+        : gasPriceManager.getGasPrice().then((res) => res.maxFeePerGas))
+
+    // Convert the inclusion fee to gas units and add to the static fee
+    const inclusionFeeInGas = inclusionFee / maxFeePerGas
+
+    return staticFee + inclusionFeeInGas
+}
+
+async function calcMantlePreVerificationGas(
     publicClient: PublicClient<Transport, Chain>,
     op: UserOperation,
     entryPoint: Address,
@@ -465,7 +504,7 @@ export async function calcMantlePreVerificationGas(
     gasPriceManager: GasPriceManager,
     verify?: boolean
 ) {
-    const data = getHandleOpsCallData(op, entryPoint)
+    const data = getHandleOpsCallData({ userOps: [op], entryPoint })
 
     const serializedTx = serializeTransaction(
         {
@@ -592,7 +631,7 @@ function getOpStackHandleOpsCallData(
     })
 }
 
-export async function calcOptimismPreVerificationGas(
+async function calcOptimismPreVerificationGas(
     publicClient: PublicClient<Transport, Chain>,
     op: UserOperation,
     entryPoint: Address,
@@ -654,7 +693,7 @@ export async function calcOptimismPreVerificationGas(
     return staticFee + l1Fee / l2price
 }
 
-export async function calcArbitrumPreVerificationGas(
+async function calcArbitrumPreVerificationGas(
     publicClient: PublicClient<Transport, Chain | undefined>,
     op: UserOperation,
     entryPoint: Address,
@@ -662,7 +701,7 @@ export async function calcArbitrumPreVerificationGas(
     gasPriceManager: GasPriceManager,
     validate: boolean
 ) {
-    const data = getHandleOpsCallData(op, entryPoint)
+    const data = getHandleOpsCallData({ userOps: [op], entryPoint })
 
     const precompileAddress = "0x00000000000000000000000000000000000000C8"
 

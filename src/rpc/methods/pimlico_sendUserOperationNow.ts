@@ -1,6 +1,7 @@
 import {
     getUserOperationHash,
-    isVersion06,
+    isVersion07,
+    isVersion08,
     parseUserOperationReceipt
 } from "@alto/utils"
 import { createMethodHandler } from "../createMethodHandler"
@@ -11,6 +12,7 @@ import {
     ValidationErrors,
     pimlicoSendUserOperationNowSchema
 } from "@alto/types"
+import { EntryPointVersion } from "viem/_types/account-abstraction"
 
 export const pimlicoSendUserOperationNowHandler = createMethodHandler({
     method: "pimlico_sendUserOperationNow",
@@ -24,38 +26,52 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         }
 
         const [userOperation, entryPoint] = params
-
         rpcHandler.ensureEntryPointIsSupported(entryPoint)
-        const opHash = getUserOperationHash(
-            userOperation,
-            entryPoint,
-            rpcHandler.config.chainId
-        )
 
-        await rpcHandler.preMempoolChecks(
-            opHash,
-            userOperation,
-            apiVersion,
-            entryPoint
-        )
+        const opHash = await getUserOperationHash({
+            userOperation: userOperation,
+            entryPointAddress: entryPoint,
+            chainId: rpcHandler.config.chainId,
+            publicClient: rpcHandler.config.publicClient
+        })
+
+        const [preMempoolValid, preMempoolError] =
+            await rpcHandler.preMempoolChecks(userOperation, apiVersion)
+
+        if (!preMempoolValid) {
+            throw new RpcError(preMempoolError)
+        }
 
         // Prepare bundle
-        const userOperationInfo: UserOpInfo = {
+        const userOpInfo: UserOpInfo = {
             userOp: userOperation,
-            userOpHash: getUserOperationHash(
-                userOperation,
-                entryPoint,
-                rpcHandler.config.chainId
-            ),
-            addedToMempool: Date.now()
+            userOpHash: await getUserOperationHash({
+                userOperation: userOperation,
+                entryPointAddress: entryPoint,
+                chainId: rpcHandler.config.chainId,
+                publicClient: rpcHandler.config.publicClient
+            }),
+            addedToMempool: Date.now(),
+            submissionAttempts: 0
         }
+
+        // Derive version
+        let version: EntryPointVersion
+        if (isVersion08(userOperation, entryPoint)) {
+            version = "0.8"
+        } else if (isVersion07(userOperation)) {
+            version = "0.7"
+        } else {
+            version = "0.6"
+        }
+
         const bundle: UserOperationBundle = {
             entryPoint,
-            userOps: [userOperationInfo],
-            version: isVersion06(userOperation)
-                ? ("0.6" as const)
-                : ("0.7" as const)
+            userOps: [userOpInfo],
+            version,
+            submissionAttempts: 0
         }
+        rpcHandler.mempool.store.addProcessing({ entryPoint, userOpInfo })
         const result =
             await rpcHandler.executorManager.sendBundleToExecutor(bundle)
 

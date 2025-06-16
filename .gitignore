@@ -14,3 +14,5 @@ Alto-Bruno/
 .nx/cache
 .vscode/
 .sentryclirc
+CLAUDE.md
+src/contracts

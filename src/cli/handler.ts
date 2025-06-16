@@ -11,18 +11,17 @@ import {
     createWalletClient,
     formatEther,
     fallback,
-    CallParameters,
+    type CallParameters,
     publicActions
 } from "viem"
-import { UtilityWalletMonitor } from "../executor/utilityWalletMonitor"
 import type { IOptionsInput } from "./config"
 import { customTransport } from "./customTransport"
 import { setupServer } from "./setupServer"
 import { type AltoConfig, createConfig } from "../createConfig"
 import { parseArgs } from "./parseArgs"
 import { deploySimulationsContract } from "./deploySimulationsContract"
-import { eip7702Actions } from "viem/experimental"
-import { getSenderManager } from "../executor/senderManager"
+import { getSenderManager } from "../executor/senderManager/index"
+import { UtilityWalletMonitor } from "../executor/utilityWalletMonitor"
 
 const preFlightChecks = async (config: AltoConfig): Promise<void> => {
     for (const entrypoint of config.entrypoints) {
@@ -34,17 +33,41 @@ const preFlightChecks = async (config: AltoConfig): Promise<void> => {
         }
     }
 
-    if (config.entrypointSimulationContract) {
-        const simulations = config.entrypointSimulationContract
-        const simulationsCode = await config.publicClient.getCode({
-            address: simulations
+    if (config.pimlicoSimulationContract) {
+        const address = config.pimlicoSimulationContract
+        const code = await config.publicClient.getCode({
+            address: address
         })
-        if (simulationsCode === undefined || simulationsCode === "0x") {
+        if (code === undefined || code === "0x") {
             throw new Error(
-                `EntryPointSimulations contract ${simulations} does not exist`
+                `PimlicoSimulations contract ${address} does not exist`
             )
         }
     }
+
+    if (config.entrypointSimulationContractV7) {
+        const address = config.entrypointSimulationContractV7
+        const code = await config.publicClient.getCode({
+            address
+        })
+        if (code === undefined || code === "0x") {
+            throw new Error(
+                `EntryPointSimulationsV7 contract ${address} does not exist`
+            )
+        }
+    }
+
+    // if (config.entrypointSimulationContractV8) {
+    //     const simulations = config.entrypointSimulationContractV8
+    //     const simulationsCode = await config.publicClient.getCode({
+    //         address: simulations
+    //     })
+    //     if (simulationsCode === undefined || simulationsCode === "0x") {
+    //         throw new Error(
+    //             `EntryPointSimulationsV8 contract ${simulations} does not exist`
+    //         )
+    //     }
+    // }
 
     if (config.refillHelperContract) {
         const refillHelper = config.refillHelperContract
@@ -140,14 +163,32 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
               )
             : createWalletTransport(args.rpcUrl),
         chain
-    }).extend(eip7702Actions())
+    })
 
     // if flag is set, use utility wallet to deploy the simulations contract
     if (args.deploySimulationsContract) {
-        args.entrypointSimulationContract = await deploySimulationsContract({
+        const deployedContracts = await deploySimulationsContract({
+            logger,
             args,
             publicClient
         })
+        args.entrypointSimulationContractV7 =
+            deployedContracts.entrypointSimulationContractV7
+        args.entrypointSimulationContractV8 =
+            deployedContracts.entrypointSimulationContractV8
+        args.pimlicoSimulationContract =
+            deployedContracts.pimlicoSimulationContract
+        logger.info(
+            {
+                entrypointSimulationContractV7:
+                    deployedContracts.entrypointSimulationContractV7,
+                entrypointSimulationContractV8:
+                    deployedContracts.entrypointSimulationContractV8,
+                pimlicoSimulationContract:
+                    deployedContracts.pimlicoSimulationContract
+            },
+            "Contracts used for simulation"
+        )
     }
 
     const config = createConfig({ ...args, logger, publicClient, walletClient })

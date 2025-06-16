@@ -1,0 +1,14 @@
+erc4626-tests/=lib/openzeppelin-contracts-v5.0.0/lib/erc4626-tests/
+forge-std/=lib/forge-std/src/
+solady/=lib/solady/src/
+
+@openzeppelin-v4.8.3/=lib/openzeppelin-contracts-v4.8.3/
+@openzeppelin-v5.0.2/=lib/openzeppelin-contracts-v5.0.2/
+@openzeppelin-v5.1.0/=lib/openzeppelin-contracts-v5.1.0/
+
+@account-abstraction-v6/=lib/account-abstraction-v6/contracts/
+@account-abstraction-v7/=lib/account-abstraction-v7/contracts/
+@account-abstraction-v8/=lib/account-abstraction-v8/contracts/
+
+@test-utils=lib/singleton-paymaster/test/utils
+@test-aa-utils=lib/singleton-paymaster/test/utils/account-abstraction

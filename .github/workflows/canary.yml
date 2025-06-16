@@ -2,7 +2,7 @@ name: Release (Canary)
 on:
   push:
     branches:
-    - main
+      - main
   workflow_dispatch:
 
 jobs:
@@ -18,14 +18,13 @@ jobs:
       - name: Install dependencies
         uses: ./.github/actions/install-dependencies
 
-
       - name: Install test dependencies
         run: pnpm install
 
       - name: Setup .npmrc file
         uses: actions/setup-node@v3
         with:
-          registry-url: 'https://registry.npmjs.org'
+          registry-url: "https://registry.npmjs.org"
 
       - name: Set alto version
         run: |
@@ -35,7 +34,7 @@ jobs:
           npm --no-git-tag-version version $(npm pkg get version | sed 's/"//g')-$(git branch --show-current | tr -cs '[:alnum:]-' '-' | tr '[:upper:]' '[:lower:]' | sed 's/-$//').$(date +'%Y%m%dT%H%M%S')
       - name: Build
         run: |
-          pnpm run build:esm && jq '. + {type: "module"}' ./src/package.json > ./src/package.tmp.json && mv ./src/package.tmp.json ./src/package.json
+          pnpm run build:contracts && pnpm run build && jq '. + {type: "module"}' ./src/package.json > ./src/package.tmp.json && mv ./src/package.tmp.json ./src/package.json
 
       - name: Publish alto to npm
         run: cd src && npm publish --access public --tag $(git branch --show-current | tr -cs '[:alnum:]-' '-' | tr '[:upper:]' '[:lower:]' | sed 's/-$//')

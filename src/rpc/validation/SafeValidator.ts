@@ -16,7 +16,7 @@ import {
     CodeHashGetterBytecode,
     EntryPointV06Abi,
     EntryPointV07SimulationsAbi,
-    PimlicoEntryPointSimulationsAbi,
+    PimlicoSimulationsAbi,
     type ReferencedCodeHashes,
     RpcError,
     type StakeInfo,
@@ -28,11 +28,10 @@ import {
 import type { Metrics } from "@alto/utils"
 import {
     getAuthorizationStateOverrides,
-    calcVerificationGasAndCallGasLimit,
     getAddressFromInitCodeOrPaymasterAndData,
-    isVersion06,
-    isVersion07,
-    toPackedUserOperation
+    toPackedUserOperation,
+    isVersion08,
+    jsonStringifyWithBigint
 } from "@alto/utils"
 import {
     type ExecutionRevertedError,
@@ -80,13 +79,11 @@ export class SafeValidator
     }
 
     async validateUserOperation({
-        shouldCheckPrefund,
         userOperation,
         queuedUserOperations,
         entryPoint,
         referencedContracts
     }: {
-        shouldCheckPrefund: boolean
         userOperation: UserOperation
         queuedUserOperations: UserOperation[]
         entryPoint: Address
@@ -104,50 +101,6 @@ export class SafeValidator
                 entryPoint,
                 codeHashes: referencedContracts
             })
-
-            if (shouldCheckPrefund) {
-                const prefund = validationResult.returnInfo.prefund
-
-                const { verificationGasLimit, callGasLimit } =
-                    calcVerificationGasAndCallGasLimit(
-                        userOperation,
-                        {
-                            preOpGas: validationResult.returnInfo.preOpGas,
-                            paid: validationResult.returnInfo.prefund
-                        },
-                        this.config.chainId
-                    )
-
-                let mul = 1n
-
-                if (
-                    isVersion06(userOperation) &&
-                    userOperation.paymasterAndData
-                ) {
-                    mul = 3n
-                }
-
-                if (
-                    isVersion07(userOperation) &&
-                    userOperation.paymaster === "0x"
-                ) {
-                    mul = 3n
-                }
-
-                const requiredPreFund =
-                    callGasLimit +
-                    verificationGasLimit * mul +
-                    userOperation.preVerificationGas
-
-                if (requiredPreFund > prefund) {
-                    throw new RpcError(
-                        `prefund is not enough, required: ${requiredPreFund}, got: ${prefund}`,
-                        ValidationErrors.SimulateValidation
-                    )
-                }
-
-                // TODO prefund should be greater than it costs us to add it to mempool
-            }
 
             this.metrics.userOperationsValidationSuccess.inc()
 
@@ -345,9 +298,8 @@ export class SafeValidator
         userOperation: UserOperationV06,
         entryPoint: Address
     ): Promise<[ValidationResultV06, BundlerTracerResult]> {
-        const stateOverrides = await getAuthorizationStateOverrides({
-            userOperations: [userOperation],
-            publicClient: this.config.publicClient
+        const stateOverrides = getAuthorizationStateOverrides({
+            userOperations: [userOperation]
         })
 
         const tracerResult = await debug_traceCall(
@@ -508,25 +460,39 @@ export class SafeValidator
             args: [[...packedQueuedUserOperations, packedUserOperation]]
         })
 
+        const isV8 = isVersion08(userOperation, entryPoint)
+
+        const entryPointSimulationsAddress = isV8
+            ? this.config.entrypointSimulationContractV8
+            : this.config.entrypointSimulationContractV7
+
+        const pimlicoSimulationsAddress = this.config.pimlicoSimulationContract
+
+        if (!entryPointSimulationsAddress || !pimlicoSimulationsAddress) {
+            throw new Error(
+                "Entrypoint simulations contract not found for this version"
+            )
+        }
+
         const callData = encodeFunctionData({
-            abi: PimlicoEntryPointSimulationsAbi,
+            abi: PimlicoSimulationsAbi,
             functionName: "simulateEntryPoint",
-            args: [entryPoint, [entryPointSimulationsCallData]]
+            args: [
+                entryPointSimulationsAddress,
+                entryPoint,
+                [entryPointSimulationsCallData]
+            ]
         })
 
-        const entryPointSimulationsAddress =
-            this.config.entrypointSimulationContract
-
-        const stateOverrides = await getAuthorizationStateOverrides({
-            userOperations: [userOperation],
-            publicClient: this.config.publicClient
+        const stateOverrides = getAuthorizationStateOverrides({
+            userOperations: [userOperation]
         })
 
         const tracerResult = await debug_traceCall(
             this.config.publicClient,
             {
                 from: zeroAddress,
-                to: entryPointSimulationsAddress,
+                to: pimlicoSimulationsAddress,
                 data: callData
             },
             {
@@ -536,9 +502,7 @@ export class SafeValidator
         )
 
         this.logger.info(
-            `tracerResult: ${JSON.stringify(tracerResult, (_k, v) =>
-                typeof v === "bigint" ? v.toString() : v
-            )}`
+            `tracerResult: ${jsonStringifyWithBigint(tracerResult)}`
         )
 
         const lastResult = tracerResult.calls.slice(-1)[0]

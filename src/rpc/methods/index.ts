@@ -16,8 +16,7 @@ import { debugSetReputationHandler } from "./debug_bundler_setReputation"
 import { pimlicoGetUserOperationGasPriceHandler } from "./pimlico_getUserOperationGasPrice"
 import { pimlicoGetUserOperationStatusHandler } from "./pimlico_getUserOperationStatus"
 import { pimlicoSendUserOperationNowHandler } from "./pimlico_sendUserOperationNow"
-import { experimentalEstimateUserOperationGas7702Handler } from "./pimlico_experimental_estimateUserOperationGas7702"
-import { experimentalSendUserOperation7702Handler } from "./pimlico_experimental_sendUserOperation7702"
+import { boostSendUserOperationHandler } from "./boost_sendUserOperation"
 
 export function registerHandlers(rpcHandler: RpcHandler) {
     // eth_* namespace
@@ -43,7 +42,6 @@ export function registerHandlers(rpcHandler: RpcHandler) {
     rpcHandler.registerHandler(pimlicoGetUserOperationStatusHandler)
     rpcHandler.registerHandler(pimlicoSendUserOperationNowHandler)
 
-    // pilico_experimental_* namespace
-    rpcHandler.registerHandler(experimentalEstimateUserOperationGas7702Handler)
-    rpcHandler.registerHandler(experimentalSendUserOperation7702Handler)
+    // boost_* namespace
+    rpcHandler.registerHandler(boostSendUserOperationHandler)
 }

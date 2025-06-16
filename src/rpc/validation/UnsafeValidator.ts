@@ -25,16 +25,12 @@ import {
     entryPointExecutionErrorSchemaV07
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
-import {
-    calcPreVerificationGas,
-    calcVerificationGasAndCallGasLimit,
-    isVersion06,
-    isVersion07
-} from "@alto/utils"
+import { isVersion06 } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
     BaseError,
     ContractFunctionExecutionError,
+    StateOverride,
     getContract,
     pad,
     slice,
@@ -45,6 +41,7 @@ import { fromZodError } from "zod-validation-error"
 import { GasEstimationHandler } from "../estimation/gasEstimationHandler"
 import type { SimulateHandleOpResult } from "../estimation/types"
 import type { AltoConfig } from "../../createConfig"
+import { getEip7702DelegationOverrides } from "../../utils/eip7702"
 
 export class UnsafeValidator implements InterfaceValidator {
     config: AltoConfig
@@ -151,24 +148,20 @@ export class UnsafeValidator implements InterfaceValidator {
         return simulationResult
     }
 
-    async getExecutionResult({
+    async validateHandleOp({
         userOperation,
         entryPoint,
         queuedUserOperations,
-        addSenderBalanceOverride,
         stateOverrides
     }: {
         userOperation: UserOperation
         entryPoint: Address
         queuedUserOperations: UserOperation[]
-        addSenderBalanceOverride: boolean
         stateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult<"execution">> {
-        const error = await this.gasEstimationHandler.simulateHandleOp({
+        const error = await this.gasEstimationHandler.validateHandleOp({
             userOperation,
             queuedUserOperations,
-            addSenderBalanceOverride,
-            balanceOverrideEnabled: this.config.balanceOverride,
             entryPoint,
             targetAddress: zeroAddress,
             targetCallData: "0x",
@@ -186,6 +179,49 @@ export class UnsafeValidator implements InterfaceValidator {
                 `UserOperation reverted during simulation with reason: ${error.data}`,
                 errorCode
             )
+        }
+
+        return error as SimulateHandleOpResult<"execution">
+    }
+
+    async getExecutionResult({
+        userOperation,
+        entryPoint,
+        queuedUserOperations,
+        stateOverrides
+    }: {
+        userOperation: UserOperation
+        entryPoint: Address
+        queuedUserOperations: UserOperation[]
+        stateOverrides?: StateOverrides
+    }): Promise<SimulateHandleOpResult<"execution" | "failed">> {
+        const error = await this.gasEstimationHandler.simulateHandleOp({
+            userOperation,
+            queuedUserOperations,
+            entryPoint,
+            targetAddress: zeroAddress,
+            targetCallData: "0x",
+            stateOverrides
+        })
+
+        if (error.result === "failed") {
+            let errorCode: number = ExecutionErrors.UserOperationReverted
+
+            if (error.data.toString().includes("AA23")) {
+                errorCode = ValidationErrors.SimulateValidation
+
+                return {
+                    result: "failed",
+                    data: error.data,
+                    code: errorCode
+                }
+            }
+
+            return {
+                result: "failed",
+                data: `UserOperation reverted during simulation with reason: ${error.data}`,
+                code: errorCode
+            }
         }
 
         return error as SimulateHandleOpResult<"execution">
@@ -212,8 +248,16 @@ export class UnsafeValidator implements InterfaceValidator {
             }
         })
 
+        let eip7702Override: StateOverride | undefined
+        if (userOperation.eip7702Auth) {
+            eip7702Override = getEip7702DelegationOverrides([userOperation])
+        }
+
         const simulateValidationPromise = entryPointContract.simulate
-            .simulateValidation([userOperation])
+            .simulateValidation(
+                [userOperation],
+                eip7702Override ? { stateOverride: eip7702Override } : {}
+            )
             .catch((e) => {
                 if (e instanceof Error) {
                     return e
@@ -270,8 +314,8 @@ export class UnsafeValidator implements InterfaceValidator {
         }
 
         if (
-            validationResult.returnInfo.validUntil < now + 5 &&
-            this.config.expirationCheck
+            this.config.expirationCheck &&
+            validationResult.returnInfo.validUntil < now + 5
         ) {
             throw new RpcError(
                 "expires too soon",
@@ -455,8 +499,9 @@ export class UnsafeValidator implements InterfaceValidator {
         }
 
         if (
-            res.returnInfo.validUntil == null ||
-            res.returnInfo.validUntil < now + 5
+            this.config.expirationCheck &&
+            (res.returnInfo.validUntil == null ||
+                res.returnInfo.validUntil < now + 5)
         ) {
             throw new RpcError(
                 `UserOperation expires too soon, validUntil=${res.returnInfo.validUntil}, now=${now}`,
@@ -497,36 +542,11 @@ export class UnsafeValidator implements InterfaceValidator {
         })
     }
 
-    async validatePreVerificationGas({
-        userOperation,
-        entryPoint
-    }: {
-        userOperation: UserOperation
-        entryPoint: Address
-    }) {
-        const preVerificationGas = await calcPreVerificationGas({
-            config: this.config,
-            userOperation,
-            entryPoint,
-            gasPriceManager: this.gasPriceManager,
-            validate: true
-        })
-
-        if (preVerificationGas > userOperation.preVerificationGas) {
-            throw new RpcError(
-                `preVerificationGas is not enough, required: ${preVerificationGas}, got: ${userOperation.preVerificationGas}`,
-                ValidationErrors.SimulateValidation
-            )
-        }
-    }
-
     async validateUserOperation({
-        shouldCheckPrefund,
         userOperation,
         queuedUserOperations,
         entryPoint
     }: {
-        shouldCheckPrefund: boolean
         userOperation: UserOperation
         queuedUserOperations: UserOperation[]
         entryPoint: Address
@@ -543,50 +563,6 @@ export class UnsafeValidator implements InterfaceValidator {
                 queuedUserOperations,
                 entryPoint
             })
-
-            if (shouldCheckPrefund) {
-                const prefund = validationResult.returnInfo.prefund
-
-                const { verificationGasLimit, callGasLimit } =
-                    calcVerificationGasAndCallGasLimit(
-                        userOperation,
-                        {
-                            preOpGas: validationResult.returnInfo.preOpGas,
-                            paid: validationResult.returnInfo.prefund
-                        },
-                        this.config.chainId
-                    )
-
-                let mul = 1n
-
-                if (
-                    isVersion06(userOperation) &&
-                    userOperation.paymasterAndData
-                ) {
-                    mul = 3n
-                }
-
-                if (
-                    isVersion07(userOperation) &&
-                    userOperation.paymaster === "0x"
-                ) {
-                    mul = 3n
-                }
-
-                const requiredPreFund =
-                    callGasLimit +
-                    verificationGasLimit * mul +
-                    userOperation.preVerificationGas
-
-                if (requiredPreFund > prefund) {
-                    throw new RpcError(
-                        `prefund is not enough, required: ${requiredPreFund}, got: ${prefund}`,
-                        ValidationErrors.SimulateValidation
-                    )
-                }
-
-                // TODO prefund should be greater than it costs us to add it to mempool
-            }
 
             this.metrics.userOperationsValidationSuccess.inc()
 

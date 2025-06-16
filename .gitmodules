@@ -4,12 +4,6 @@
 [submodule "contracts/lib/forge-std"]
 	path = contracts/lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
-[submodule "contracts/lib/openzeppelin-contracts"]
-	path = contracts/lib/openzeppelin-contracts
-	url = https://github.com/openzeppelin/openzeppelin-contracts
-[submodule "contracts/lib/bulk"]
-	path = contracts/lib/bulk
-	url = https://github.com/daimo-eth/bulk
 [submodule "contracts/lib/account-abstraction-v6"]
 	path = contracts/lib/account-abstraction-v6
 	url = https://github.com/eth-infinitism/account-abstraction
@@ -21,3 +15,18 @@
 [submodule "contracts/lib/solady"]
 	path = contracts/lib/solady
 	url = https://github.com/vectorized/solady
+[submodule "contracts/lib/account-abstraction-v8"]
+	path = contracts/lib/account-abstraction-v8
+	url = https://github.com/eth-infinitism/account-abstraction
+[submodule "contracts/lib/openzeppelin-contracts-v5.0.2"]
+	path = contracts/lib/openzeppelin-contracts-v5.0.2
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "contracts/lib/openzeppelin-contracts-v4.8.3"]
+	path = contracts/lib/openzeppelin-contracts-v4.8.3
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "contracts/lib/openzeppelin-contracts-v5.1.0"]
+	path = contracts/lib/openzeppelin-contracts-v5.1.0
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "contracts/lib/singleton-paymaster"]
+	path = contracts/lib/singleton-paymaster
+	url = https://github.com/pimlicolabs/singleton-paymaster

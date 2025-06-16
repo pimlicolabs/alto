@@ -1,5 +1,36 @@
 # @pimlico/alto
 
+## 0.0.18
+
+### Patch Changes
+
+- dc1cf649989b0a24cd74634a0327bf5bcb575df9: utilityPrivateKey optional if all contracts are deployed
+
+## 0.0.17
+
+### Patch Changes
+
+- d81e0b5ad3d1dc80de8c21c4baee230a16727632: Fixed eth_getUserOperationByHash when factory data is null
+- 628af0e65c2d4888b2f9989b1987a68156d4707c: Updated entrypoint 0.8 estimations contract
+
+## 0.0.16
+
+### Patch Changes
+
+- dbf0c42b47c25b859b42bf142bc369fdc992333c: Improved code overrides for 7702
+
+## 0.0.15
+
+### Patch Changes
+
+- f2dca181e83376fb09e841a10d1a1078058911b8: Upgraded viem version
+
+## 0.0.14
+
+### Patch Changes
+
+- f99bb69df843d751939523e1c5f1878f20b7c281: Added support for entrypoint 0.8 & 7702
+
 ## 0.0.13
 
 ### Patch Changes

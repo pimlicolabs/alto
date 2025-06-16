@@ -6,39 +6,12 @@ import {
 import { type Logger, maxBigInt, minBigInt } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import { type PublicClient, parseGwei } from "viem"
-import {
-    avalanche,
-    celo,
-    celoAlfajores,
-    dfk,
-    polygon,
-    polygonMumbai
-} from "viem/chains"
+import { polygon } from "viem/chains"
 import type { AltoConfig } from "../createConfig"
 import { MinMaxQueue, createMinMaxQueue } from "../utils/minMaxQueue"
 import { ArbitrumManager } from "./arbitrumGasPriceManager"
 import { MantleManager } from "./mantleGasPriceManager"
 import { OptimismManager } from "./optimismManager"
-
-enum ChainId {
-    Goerli = 5,
-    Polygon = 137,
-    Mumbai = 80001,
-    LineaTestnet = 59140,
-    Linea = 59144
-}
-
-const MIN_POLYGON_GAS_PRICE = parseGwei("31")
-const MIN_MUMBAI_GAS_PRICE = parseGwei("1")
-
-function getGasStationUrl(chainId: ChainId.Polygon | ChainId.Mumbai): string {
-    switch (chainId) {
-        case ChainId.Polygon:
-            return "https://gasstation.polygon.technology/v2"
-        case ChainId.Mumbai:
-            return "https://gasstation-testnet.polygon.technology/v2"
-    }
-}
 
 export class GasPriceManager {
     private readonly config: AltoConfig
@@ -75,13 +48,13 @@ export class GasPriceManager {
 
         // Periodically update gas prices if specified
         if (this.config.gasPriceRefreshInterval > 0) {
-            setInterval(() => {
+            setInterval(async () => {
                 try {
                     if (this.config.legacyTransactions === false) {
-                        this.updateBaseFee()
+                        await this.updateBaseFee()
                     }
 
-                    this.tryUpdateGasPrice()
+                    await this.tryUpdateGasPrice()
                 } catch (error) {
                     this.logger.error(
                         { error },
@@ -110,21 +83,17 @@ export class GasPriceManager {
         }
     }
 
-    private getDefaultGasFee(
-        chainId: ChainId.Polygon | ChainId.Mumbai
-    ): bigint {
+    private getDefaultGasFee(chainId: number): bigint {
         switch (chainId) {
-            case ChainId.Polygon:
-                return MIN_POLYGON_GAS_PRICE
-            case ChainId.Mumbai:
-                return MIN_MUMBAI_GAS_PRICE
+            case polygon.id:
+                return parseGwei("31")
             default:
                 return 0n
         }
     }
 
     private async getPolygonGasPriceParameters(): Promise<GasPriceParameters | null> {
-        const gasStationUrl = getGasStationUrl(this.config.chainId)
+        const gasStationUrl = "https://gasstation.polygon.technology/v2"
         try {
             const data = await (await fetch(gasStationUrl)).json()
             // take the standard speed here, SDK options will define the extra tip
@@ -160,45 +129,23 @@ export class GasPriceManager {
         }
 
         if (
-            this.config.chainId === celo.id ||
-            this.config.chainId === celoAlfajores.id
+            this.config.floorMaxFeePerGas ||
+            this.config.floorMaxPriorityFeePerGas
         ) {
-            const maxFee = maxBigInt(
-                result.maxFeePerGas,
-                result.maxPriorityFeePerGas
-            )
-            return {
-                maxFeePerGas: maxFee,
-                maxPriorityFeePerGas: maxFee
-            }
-        }
+            const maxFeePerGas = this.config.floorMaxFeePerGas
+                ? maxBigInt(this.config.floorMaxFeePerGas, result.maxFeePerGas)
+                : result.maxFeePerGas
 
-        if (this.config.chainId == dfk.id) {
-            const maxFeePerGas = maxBigInt(5_000_000_000n, result.maxFeePerGas)
-            const maxPriorityFeePerGas = maxBigInt(
-                5_000_000_000n,
-                result.maxPriorityFeePerGas
-            )
+            const maxPriorityFeePerGas = this.config.floorMaxPriorityFeePerGas
+                ? maxBigInt(
+                      this.config.floorMaxPriorityFeePerGas,
+                      result.maxPriorityFeePerGas
+                  )
+                : result.maxPriorityFeePerGas
 
             return {
-                maxFeePerGas,
-                maxPriorityFeePerGas
-            }
-        }
-
-        // set a minimum maxPriorityFee & maxFee to 1.5gwei on avalanche (because eth_maxPriorityFeePerGas returns 0)
-        if (this.config.chainId == avalanche.id) {
-            const maxFeePerGas = maxBigInt(
-                parseGwei("1.5"),
-                result.maxFeePerGas
-            )
-            const maxPriorityFeePerGas = maxBigInt(
-                parseGwei("1.5"),
-                result.maxPriorityFeePerGas
-            )
-
-            return {
-                maxFeePerGas,
+                // Ensure that maxFeePerGas is always greater or equal than maxPriorityFeePerGas
+                maxFeePerGas: maxBigInt(maxFeePerGas, maxPriorityFeePerGas),
                 maxPriorityFeePerGas
             }
         }
@@ -321,10 +268,7 @@ export class GasPriceManager {
         let maxFeePerGas = 0n
         let maxPriorityFeePerGas = 0n
 
-        if (
-            this.config.chainId === polygon.id ||
-            this.config.chainId === polygonMumbai.id
-        ) {
+        if (this.config.chainId === polygon.id) {
             const polygonEstimate = await this.getPolygonGasPriceParameters()
             if (polygonEstimate) {
                 const gasPrice = this.bumpTheGasPrice({
@@ -516,7 +460,7 @@ export class GasPriceManager {
         return minMaxPriorityFeePerGas
     }
 
-    public async validateGasPrice(gasPrice: GasPriceParameters) {
+    public async getLowestValidGasPrices() {
         let lowestMaxFeePerGas = await this.getMinMaxFeePerGas()
         let lowestMaxPriorityFeePerGas = await this.getMinMaxPriorityFeePerGas()
 
@@ -525,16 +469,9 @@ export class GasPriceManager {
             lowestMaxPriorityFeePerGas /= 10n ** 9n
         }
 
-        if (gasPrice.maxFeePerGas < lowestMaxFeePerGas) {
-            throw new RpcError(
-                `maxFeePerGas must be at least ${lowestMaxFeePerGas} (current maxFeePerGas: ${gasPrice.maxFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
-            )
-        }
-
-        if (gasPrice.maxPriorityFeePerGas < lowestMaxPriorityFeePerGas) {
-            throw new RpcError(
-                `maxPriorityFeePerGas must be at least ${lowestMaxPriorityFeePerGas} (current maxPriorityFeePerGas: ${gasPrice.maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
-            )
+        return {
+            lowestMaxFeePerGas,
+            lowestMaxPriorityFeePerGas
         }
     }
 }

@@ -21,6 +21,7 @@ import {
     getUserOperationHash,
     isVersion06,
     isVersion07,
+    isVersion08,
     scaleBigIntByPercent
 } from "@alto/utils"
 import { getAddress, getContract } from "viem"
@@ -30,13 +31,16 @@ import {
     ReputationStatuses
 } from "./reputationManager"
 import type { AltoConfig } from "../createConfig"
-import { MempoolStore } from "@alto/store"
+import type { MempoolStore } from "@alto/store"
+import { calculateAA95GasFloor } from "../executor/utils"
+import { privateKeyToAddress, generatePrivateKey } from "viem/accounts"
+import { EntryPointVersion } from "viem/account-abstraction"
 
 export class Mempool {
     private config: AltoConfig
     private monitor: Monitor
     private reputationManager: InterfaceReputationManager
-    private store: MempoolStore
+    public store: MempoolStore
     private throttledEntityBundleCount: number
     private logger: Logger
     private validator: InterfaceValidator
@@ -83,7 +87,8 @@ export class Mempool {
         const { userOpHash } = userOpInfo
         const sumbittedUserOps = await this.store.dumpSubmitted(entryPoint)
         const existingUserOpToReplace = sumbittedUserOps.find(
-            (userOpInfo) => userOpInfo.userOpHash === userOpHash
+            (userOpInfo: SubmittedUserOp) =>
+                userOpInfo.userOpHash === userOpHash
         )
 
         if (existingUserOpToReplace) {
@@ -112,7 +117,7 @@ export class Mempool {
         const entryPoint = transactionInfo.bundle.entryPoint
         const processingUserOps = await this.store.dumpProcessing(entryPoint)
         const processingUserOp = processingUserOps.find(
-            (userOpInfo) => userOpInfo.userOpHash === userOpHash
+            (userOpInfo: UserOpInfo) => userOpInfo.userOpHash === userOpHash
         )
 
         if (processingUserOp) {
@@ -259,11 +264,12 @@ export class Mempool {
         entryPoint: Address,
         referencedContracts?: ReferencedCodeHashes
     ): Promise<[boolean, string]> {
-        const userOpHash = getUserOperationHash(
-            userOp,
-            entryPoint,
-            this.config.chainId
-        )
+        const userOpHash = await getUserOperationHash({
+            userOperation: userOp,
+            entryPointAddress: entryPoint,
+            chainId: this.config.chainId,
+            publicClient: this.config.publicClient
+        })
 
         // Check if the exact same userOperation is already in the mempool.
         if (await this.store.isInMempool({ userOpHash, entryPoint })) {
@@ -335,7 +341,8 @@ export class Mempool {
                 userOp,
                 userOpHash,
                 referencedContracts,
-                addedToMempool: Date.now()
+                addedToMempool: Date.now(),
+                submissionAttempts: 0
             }
         })
 
@@ -344,7 +351,7 @@ export class Mempool {
             transactionHash: null
         })
 
-        await this.eventManager.emitAddedToMempool(userOpHash)
+        this.eventManager.emitAddedToMempool(userOpHash)
         return [true, ""]
     }
 
@@ -371,6 +378,7 @@ export class Mempool {
         entryPoint: Address
     }): Promise<{
         skip: boolean
+        removeOutstanding?: boolean
         paymasterDeposit: { [paymaster: string]: bigint }
         stakedEntityCount: { [addr: string]: number }
         knownEntities: {
@@ -415,9 +423,9 @@ export class Mempool {
             paymasterStatus === ReputationStatuses.banned ||
             factoryStatus === ReputationStatuses.banned
         ) {
-            await this.store.removeOutstanding({ entryPoint, userOpHash })
             return {
                 skip: true,
+                removeOutstanding: true,
                 paymasterDeposit,
                 stakedEntityCount,
                 knownEntities,
@@ -504,7 +512,6 @@ export class Mempool {
             }
 
             validationResult = await this.validator.validateUserOperation({
-                shouldCheckPrefund: false,
                 userOperation: userOp,
                 queuedUserOperations,
                 entryPoint,
@@ -651,8 +658,9 @@ export class Mempool {
         }
 
         // Get EntryPoint version
-        const isV6 = isVersion06(firstOp.userOp)
         const bundles: UserOperationBundle[] = []
+        const seenOps = new Set()
+        let breakLoop = false
 
         // Process operations until no more are available or we hit maxBundleCount
         while (await this.store.peekOutstanding(entryPoint)) {
@@ -661,11 +669,22 @@ export class Mempool {
                 break
             }
 
+            // Derive version
+            let version: EntryPointVersion
+            if (isVersion08(firstOp.userOp, entryPoint)) {
+                version = "0.8"
+            } else if (isVersion07(firstOp.userOp)) {
+                version = "0.7"
+            } else {
+                version = "0.6"
+            }
+
             // Setup for next bundle
             const currentBundle: UserOperationBundle = {
                 entryPoint,
-                version: isV6 ? "0.6" : "0.7",
-                userOps: []
+                version,
+                userOps: [],
+                submissionAttempts: 0
             }
             let gasUsed = 0n
             let paymasterDeposit: { [paymaster: string]: bigint } = {}
@@ -674,10 +693,27 @@ export class Mempool {
             let knownEntities = await this.getKnownEntities(entryPoint)
             let storageMap: StorageMap = {}
 
+            if (breakLoop) {
+                break
+            }
+
             // Keep adding ops to current bundle
             while (await this.store.peekOutstanding(entryPoint)) {
                 const userOpInfo = await this.store.popOutstanding(entryPoint)
-                if (!userOpInfo) break
+                if (!userOpInfo) {
+                    break
+                }
+
+                if (seenOps.has(userOpInfo.userOpHash)) {
+                    breakLoop = true
+                    await this.store.addOutstanding({
+                        entryPoint,
+                        userOpInfo
+                    })
+                    break
+                }
+
+                seenOps.add(userOpInfo.userOpHash)
 
                 const { userOp } = userOpInfo
 
@@ -694,17 +730,23 @@ export class Mempool {
 
                 if (skipResult.skip) {
                     // Re-add to outstanding
-                    await this.store.addOutstanding({ entryPoint, userOpInfo })
+                    if (!skipResult.removeOutstanding) {
+                        await this.store.addOutstanding({
+                            entryPoint,
+                            userOpInfo
+                        })
+                    }
                     continue
                 }
 
-                gasUsed +=
-                    userOp.callGasLimit +
-                    userOp.verificationGasLimit +
-                    (isVersion07(userOp)
-                        ? (userOp.paymasterPostOpGasLimit || 0n) +
-                          (userOp.paymasterVerificationGasLimit || 0n)
-                        : 0n)
+                const beneficiary =
+                    this.config.utilityPrivateKey?.address ||
+                    privateKeyToAddress(generatePrivateKey())
+
+                gasUsed += calculateAA95GasFloor({
+                    userOps: [userOp],
+                    beneficiary
+                })
 
                 // Only break on gas limit if we've hit minOpsPerBundle
                 if (

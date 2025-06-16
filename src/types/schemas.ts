@@ -1,4 +1,4 @@
-import { type Hash, type Hex, getAddress, maxUint256 } from "viem"
+import { type Hash, type Hex, getAddress, maxUint256, pad } from "viem"
 import { z } from "zod"
 
 const hexDataPattern = /^0x[0-9A-Fa-f]*$/
@@ -39,7 +39,7 @@ export const stateOverridesSchema = z.record(
         nonce: hexNumberSchema.optional(),
         code: hexDataSchema.optional(),
         state: z.record(hexData32Schema, hexData32Schema).optional(),
-        stateDiff: z.record(hexData32Schema, hexData32Schema).optional()
+        stateDiff: z.record(hexData32Schema, hexDataSchema).optional()
     })
 )
 
@@ -49,17 +49,69 @@ export type HexData = z.infer<typeof hexDataSchema>
 export type HexData32 = z.infer<typeof hexData32Schema>
 export type StateOverrides = z.infer<typeof stateOverridesSchema>
 
-const signedAuthorizationSchema = z.object({
-    contractAddress: addressSchema,
-    chainId: hexNumberSchema.transform((val) => Number(val)),
-    nonce: hexNumberSchema.transform((val) => Number(val)),
-    r: hexData32Schema.transform((val) => val as Hex),
-    s: hexData32Schema.transform((val) => val as Hex),
-    v: hexNumberSchema,
-    yParity: hexNumberSchema.transform((val) => Number(val))
-})
+const partialAuthorizationSchema = z.union([
+    z.object({
+        contractAddress: addressSchema,
+        chainId: hexNumberSchema
+            .optional()
+            .transform((val) => (val ? Number(val) : 1)),
+        nonce: hexNumberSchema
+            .optional()
+            .transform((val) => (val ? Number(val) : 0)),
+        r: hexDataSchema
+            .optional()
+            .transform((val) => (val as Hex) ?? pad("0x", { size: 32 })),
+        s: hexDataSchema
+            .optional()
+            .transform((val) => (val as Hex) ?? pad("0x", { size: 32 })),
+        v: hexNumberSchema.optional(),
+        yParity: hexNumberSchema
+            .optional()
+            .transform((val) => (val ? Number(val) : 0))
+    }),
+    z.object({
+        address: addressSchema,
+        chainId: hexNumberSchema
+            .optional()
+            .transform((val) => (val ? Number(val) : 1)),
+        nonce: hexNumberSchema
+            .optional()
+            .transform((val) => (val ? Number(val) : 0)),
+        r: hexDataSchema
+            .optional()
+            .transform((val) => (val as Hex) ?? pad("0x", { size: 32 })),
+        s: hexDataSchema
+            .optional()
+            .transform((val) => (val as Hex) ?? pad("0x", { size: 32 })),
+        v: hexNumberSchema.optional(),
+        yParity: hexNumberSchema
+            .optional()
+            .transform((val) => (val ? Number(val) : 0))
+    })
+])
 
-const userOperationV06Schema = z
+const signedAuthorizationSchema = z.union([
+    z.object({
+        contractAddress: addressSchema,
+        chainId: hexNumberSchema.transform((val) => Number(val)),
+        nonce: hexNumberSchema.transform((val) => Number(val)),
+        r: hexDataSchema.transform((val) => val as Hex),
+        s: hexDataSchema.transform((val) => val as Hex),
+        v: hexNumberSchema.optional(),
+        yParity: hexNumberSchema.transform((val) => Number(val))
+    }),
+    z.object({
+        address: addressSchema,
+        chainId: hexNumberSchema.transform((val) => Number(val)),
+        nonce: hexNumberSchema.transform((val) => Number(val)),
+        r: hexDataSchema.transform((val) => val as Hex),
+        s: hexDataSchema.transform((val) => val as Hex),
+        v: hexNumberSchema.optional(),
+        yParity: hexNumberSchema.transform((val) => Number(val))
+    })
+])
+
+const userOperationV06Schema =  z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
@@ -79,11 +131,52 @@ const userOperationV06Schema = z
         return val
     })
 
-const userOperationV07Schema = z
+const userOperationV07Schema =   z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
         factory: addressSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        factoryData: hexDataSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        callData: hexDataSchema,
+        callGasLimit: hexNumberSchema,
+        verificationGasLimit: hexNumberSchema,
+        preVerificationGas: hexNumberSchema,
+        maxFeePerGas: hexNumberSchema,
+        maxPriorityFeePerGas: hexNumberSchema,
+        paymaster: addressSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        paymasterVerificationGasLimit: hexNumberSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        paymasterPostOpGasLimit: hexNumberSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        paymasterData: hexDataSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        signature: hexDataSchema,
+        eip7702Auth: signedAuthorizationSchema.optional().nullable()
+    })
+    .strict()
+    .transform((val) => val)
+
+const userOperationV08Schema =   z
+    .object({
+        sender: addressSchema,
+        nonce: hexNumberSchema,
+        factory: z
+            .union([addressSchema, z.literal("0x7702")])
             .nullable()
             .optional()
             .transform((val) => val ?? null),
@@ -132,7 +225,7 @@ const partialUserOperationV06Schema = z
         maxFeePerGas: hexNumberSchema.default(1n),
         paymasterAndData: hexDataSchema,
         signature: hexDataSchema,
-        eip7702Auth: signedAuthorizationSchema.optional().nullable()
+        eip7702Auth: partialAuthorizationSchema.optional().nullable()
     })
     .strict()
     .transform((val) => {
@@ -174,7 +267,48 @@ const partialUserOperationV07Schema = z
             .optional()
             .transform((val) => val ?? null),
         signature: hexDataSchema,
-        eip7702Auth: signedAuthorizationSchema.optional().nullable()
+        eip7702Auth: partialAuthorizationSchema.optional().nullable()
+    })
+    .strict()
+    .transform((val) => val)
+
+const partialUserOperationV08Schema = z
+    .object({
+        sender: addressSchema,
+        nonce: hexNumberSchema,
+        factory: z
+            .union([addressSchema, z.literal("0x7702")])
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        factoryData: hexDataSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        callData: hexDataSchema,
+        callGasLimit: hexNumberSchema.default(1n),
+        verificationGasLimit: hexNumberSchema.default(1n),
+        preVerificationGas: hexNumberSchema.default(1n),
+        maxFeePerGas: hexNumberSchema.default(1n),
+        maxPriorityFeePerGas: hexNumberSchema.default(1n),
+        paymaster: addressSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        paymasterVerificationGasLimit: hexNumberSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        paymasterPostOpGasLimit: hexNumberSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        paymasterData: hexDataSchema
+            .nullable()
+            .optional()
+            .transform((val) => val ?? null),
+        signature: hexDataSchema,
+        eip7702Auth: partialAuthorizationSchema.optional().nullable()
     })
     .strict()
     .transform((val) => val)
@@ -196,16 +330,25 @@ const packerUserOperationSchema = z
 
 const partialUserOperationSchema = z.union([
     partialUserOperationV06Schema,
-    partialUserOperationV07Schema
+    partialUserOperationV07Schema,
+    partialUserOperationV08Schema
 ])
 
 export const userOperationSchema = z.union([
     userOperationV06Schema,
-    userOperationV07Schema
+    userOperationV07Schema,
+    userOperationV08Schema
 ])
 
-export type UserOperationV06 = z.infer<typeof userOperationV06Schema>
-export type UserOperationV07 = z.infer<typeof userOperationV07Schema>
+export type UserOperationV06 = z.infer<
+    typeof userOperationV06Schema
+>
+export type UserOperationV07 = z.infer<
+    typeof userOperationV07Schema
+>
+export type UserOperationV08 = z.infer<
+    typeof userOperationV08Schema
+>
 export type PackedUserOperation = z.infer<typeof packerUserOperationSchema>
 export type UserOperation = z.infer<typeof userOperationSchema>
 
@@ -353,6 +496,12 @@ export const sendUserOperationSchema = z.object({
     result: hexData32Schema
 })
 
+export const boostSendUserOperationSchema = z.object({
+    method: z.literal("boost_sendUserOperation"),
+    params: z.tuple([userOperationSchema, addressSchema]),
+    result: hexData32Schema
+})
+
 export const getUserOperationByHashSchema = z.object({
     method: z.literal("eth_getUserOperationByHash"),
     params: z.tuple([
@@ -486,39 +635,6 @@ export const pimlicoSendUserOperationNowSchema = z.object({
     result: userOperationReceiptSchema
 })
 
-export const pimlicoExperimentalEstimateUserOperationGas7702Schema = z.object({
-    method: z.literal("pimlico_experimental_estimateUserOperationGas7702"),
-    params: z.union([
-        z.tuple([partialUserOperationSchema, addressSchema]),
-        z.tuple([
-            partialUserOperationSchema,
-            addressSchema,
-            stateOverridesSchema
-        ])
-    ]),
-    result: z.union([
-        z.object({
-            callGasLimit: hexNumberSchema,
-            preVerificationGas: hexNumberSchema,
-            verificationGasLimit: hexNumberSchema,
-            verificationGas: hexNumberSchema.optional()
-        }),
-        z.object({
-            callGasLimit: hexNumberSchema,
-            preVerificationGas: hexNumberSchema,
-            verificationGasLimit: hexNumberSchema,
-            paymasterVerificationGasLimit: hexNumberSchema.optional(),
-            paymasterPostOpGasLimit: hexNumberSchema.optional()
-        })
-    ])
-})
-
-export const pimlicoExperimentalSendUserOperation7702Schema = z.object({
-    method: z.literal("pimlico_experimental_sendUserOperation7702"),
-    params: z.tuple([userOperationSchema, addressSchema]),
-    result: hexData32Schema
-})
-
 export const altoVersions = z.enum(["v1", "v2"])
 export type AltoVersions = z.infer<typeof altoVersions>
 
@@ -528,6 +644,7 @@ export const bundlerRequestSchema = z.discriminatedUnion("method", [
     supportedEntryPointsSchema.omit({ result: true }),
     estimateUserOperationGasSchema.omit({ result: true }),
     sendUserOperationSchema.omit({ result: true }),
+    boostSendUserOperationSchema.omit({ result: true }),
     getUserOperationByHashSchema.omit({ result: true }),
     getUserOperationReceiptSchema.omit({ result: true }),
     debugClearStateSchema.omit({ result: true }),
@@ -541,11 +658,7 @@ export const bundlerRequestSchema = z.discriminatedUnion("method", [
     debugGetStakeStatusSchema.omit({ result: true }),
     pimlicoGetUserOperationStatusSchema.omit({ result: true }),
     pimlicoGetUserOperationGasPriceSchema.omit({ result: true }),
-    pimlicoSendUserOperationNowSchema.omit({ result: true }),
-    pimlicoExperimentalSendUserOperation7702Schema.omit({ result: true }),
-    pimlicoExperimentalEstimateUserOperationGas7702Schema.omit({
-        result: true
-    })
+    pimlicoSendUserOperationNowSchema.omit({ result: true })
 ])
 export type BundlerRequest = z.infer<typeof bundlerRequestSchema>
 
@@ -554,6 +667,7 @@ export const bundlerRpcSchema = z.union([
     supportedEntryPointsSchema,
     estimateUserOperationGasSchema,
     sendUserOperationSchema,
+    boostSendUserOperationSchema,
     getUserOperationByHashSchema,
     getUserOperationReceiptSchema,
     debugClearStateSchema,
@@ -567,9 +681,7 @@ export const bundlerRpcSchema = z.union([
     debugGetStakeStatusSchema,
     pimlicoGetUserOperationStatusSchema,
     pimlicoGetUserOperationGasPriceSchema,
-    pimlicoSendUserOperationNowSchema,
-    pimlicoExperimentalSendUserOperation7702Schema,
-    pimlicoExperimentalEstimateUserOperationGas7702Schema
+    pimlicoSendUserOperationNowSchema
 ])
 
 export type BundlingMode = z.infer<
@@ -654,7 +766,8 @@ export const userOpDetailsSchema = z.object({
     userOpHash: hexData32Schema,
     // timestamp when the bundling process begins (when it leaves outstanding mempool)
     addedToMempool: z.number(),
-    referencedContracts: referencedCodeHashesSchema.optional()
+    referencedContracts: referencedCodeHashesSchema.optional(),
+    submissionAttempts: z.number()
 })
 
 export const userOpInfoSchema = userOpDetailsSchema.extend({

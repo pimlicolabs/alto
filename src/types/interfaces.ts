@@ -10,13 +10,19 @@ import type {
 import type * as validation from "./validation"
 
 export interface InterfaceValidator {
+    validateHandleOp(args: {
+        userOperation: UserOperation
+        entryPoint: Address
+        queuedUserOperations: UserOperation[]
+        stateOverrides?: StateOverrides
+    }): Promise<SimulateHandleOpResult<"execution">>
+
     getExecutionResult(args: {
         userOperation: UserOperation
         entryPoint: Address
         queuedUserOperations: UserOperation[]
-        addSenderBalanceOverride: boolean
         stateOverrides?: StateOverrides
-    }): Promise<SimulateHandleOpResult<"execution">>
+    }): Promise<SimulateHandleOpResult<"execution" | "failed">>
 
     getValidationResultV06(args: {
         userOperation: UserOperationV06
@@ -62,13 +68,7 @@ export interface InterfaceValidator {
         }
     >
 
-    validatePreVerificationGas(args: {
-        userOperation: UserOperation
-        entryPoint: Address
-    }): Promise<void>
-
     validateUserOperation(args: {
-        shouldCheckPrefund: boolean
         userOperation: UserOperation
         queuedUserOperations: UserOperation[]
         entryPoint: Address

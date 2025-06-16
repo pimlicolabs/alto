@@ -1,10 +1,11 @@
 import { http, createTestClient } from "viem"
 import {
-    type EntryPointVersion,
+    EntryPointVersion,
     UserOperationNotFoundError,
     UserOperationReceiptNotFoundError,
     entryPoint06Address,
-    entryPoint07Address
+    entryPoint07Address,
+    entryPoint08Address
 } from "viem/account-abstraction"
 import { foundry } from "viem/chains"
 import { beforeEach, describe, expect, inject, test } from "vitest"
@@ -22,6 +23,10 @@ describe.each([
     {
         entryPoint: entryPoint07Address,
         entryPointVersion: "0.7" as EntryPointVersion
+    },
+    {
+        entryPoint: entryPoint08Address,
+        entryPointVersion: "0.8" as EntryPointVersion
     }
 ])(
     "$entryPointVersion supports eth_getUserOperationByHash",

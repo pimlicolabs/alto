@@ -7,8 +7,8 @@ import {
     type UserOperationV07,
     logSchema,
     receiptSchema,
-    UserOperationBundle,
-    UserOperationReceipt
+    type UserOperationBundle,
+    type UserOperationReceipt
 } from "@alto/types"
 import * as sentry from "@sentry/node"
 import type { Logger } from "pino"
@@ -18,7 +18,6 @@ import {
     type PublicClient,
     type TransactionReceipt,
     concat,
-    decodeErrorResult,
     decodeEventLog,
     encodeAbiParameters,
     encodeEventTopics,
@@ -34,7 +33,7 @@ import {
 } from "viem"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
-import { areAddressesEqual } from "./helpers"
+import { areAddressesEqual, getAuthorizationStateOverrides } from "./helpers"
 
 // Type predicate check if the UserOperation is V06.
 export function isVersion06(
@@ -50,10 +49,23 @@ export function isVersion07(
     return "factory" in operation && "paymaster" in operation
 }
 
+// Type predicate to check if the UserOperation is V07.
+export function isVersion08(
+    operation: UserOperation,
+    entryPointAddress: Address
+): operation is UserOperationV07 {
+    return entryPointAddress.startsWith("0x4337")
+}
+
 export function getInitCode(unpackedUserOperation: UserOperationV07) {
     return unpackedUserOperation.factory
         ? concat([
-              unpackedUserOperation.factory,
+              unpackedUserOperation.factory === "0x7702"
+                  ? pad(unpackedUserOperation.factory, {
+                          dir: "right",
+                          size: 20
+                      })
+                  : unpackedUserOperation.factory,
               unpackedUserOperation.factoryData || ("0x" as Hex)
           ])
         : "0x"
@@ -66,9 +78,10 @@ export function unPackInitCode(initCode: Hex) {
             factoryData: null
         }
     }
+
     return {
         factory: getAddress(slice(initCode, 0, 20)),
-        factoryData: slice(initCode, 20)
+        factoryData: size(initCode) > 20 ? slice(initCode, 20) : null
     }
 }
 
@@ -218,8 +231,6 @@ export type BundlingStatus =
     | {
           // The tx reverted due to a op in the bundle failing EntryPoint validation
           status: "reverted"
-          // biome-ignore lint/style/useNamingConvention: use double upper case for AA errors
-          isAA95: boolean
       }
     | {
           // The tx could not be found (pending or invalid hash)
@@ -253,37 +264,8 @@ export const getBundleStatus = async ({
         if (receipt.status === "reverted") {
             const bundlingStatus: {
                 status: "reverted"
-                isAA95: boolean
             } = {
-                status: "reverted",
-                isAA95: false
-            }
-
-            if ("error" in receipt) {
-                try {
-                    const match = (receipt.error as any).match(
-                        /0x([a-fA-F0-9]+)?/
-                    )
-
-                    if (match) {
-                        const revertReason = match[0] as Hex
-                        const decoded = decodeErrorResult({
-                            data: revertReason,
-                            abi: parseAbi([
-                                "error FailedOp(uint256 opIndex, string reason)"
-                            ])
-                        })
-
-                        if (decoded.args[1] === "AA95 out of gas") {
-                            bundlingStatus.isAA95 = true
-                        }
-                    }
-                } catch (e) {
-                    logger.error(
-                        "Failed to decode userOperation revert reason due to ",
-                        e
-                    )
-                }
+                status: "reverted"
             }
 
             return { bundlingStatus, blockNumber }
@@ -355,11 +337,15 @@ export const getBundleStatus = async ({
     }
 }
 
-export const getUserOperationHashV06 = (
-    userOperation: UserOperationV06,
-    entryPointAddress: Address,
+export const getUserOperationHashV06 = ({
+    userOperation,
+    entryPointAddress,
+    chainId
+}: {
+    userOperation: UserOperationV06
+    entryPointAddress: Address
     chainId: number
-) => {
+}) => {
     const hash = keccak256(
         encodeAbiParameters(
             [
@@ -440,11 +426,15 @@ export const getUserOperationHashV06 = (
     )
 }
 
-export const getUserOperationHashV07 = (
-    userOperation: PackedUserOperation,
-    entryPointAddress: Address,
+export const getUserOperationHashV07 = ({
+    userOperation,
+    entryPointAddress,
+    chainId
+}: {
+    userOperation: PackedUserOperation
+    entryPointAddress: Address
     chainId: number
-) => {
+}) => {
     const hash = keccak256(
         encodeAbiParameters(
             [
@@ -515,24 +505,96 @@ export const getUserOperationHashV07 = (
     )
 }
 
-export const getUserOperationHash = (
-    userOperation: UserOperation,
-    entryPointAddress: Address,
+export const getUserOperationHashV08 = async ({
+    userOperation,
+    entryPointAddress,
+    publicClient
+}: {
+    userOperation: UserOperationV07
+    entryPointAddress: Address
     chainId: number
-) => {
+    publicClient: PublicClient
+}) => {
+    const packedUserOp = toPackedUserOperation(userOperation)
+
+    // : concat(["0xef0100", code ?? "0x"])
+    const stateOverrides = getAuthorizationStateOverrides({
+        userOperations: [userOperation]
+    })
+
+    const hash = await publicClient.readContract({
+        address: entryPointAddress,
+        abi: [
+            {
+                inputs: [
+                    {
+                        components: [
+                            { name: "sender", type: "address" },
+                            { name: "nonce", type: "uint256" },
+                            { name: "initCode", type: "bytes" },
+                            { name: "callData", type: "bytes" },
+                            { name: "accountGasLimits", type: "bytes32" },
+                            { name: "preVerificationGas", type: "uint256" },
+                            { name: "gasFees", type: "bytes32" },
+                            { name: "paymasterAndData", type: "bytes" },
+                            { name: "signature", type: "bytes" }
+                        ],
+                        name: "userOp",
+                        type: "tuple"
+                    }
+                ],
+                name: "getUserOpHash",
+                outputs: [{ name: "", type: "bytes32" }],
+                stateMutability: "view",
+                type: "function"
+            }
+        ],
+        functionName: "getUserOpHash",
+        args: [packedUserOp],
+        stateOverride: [
+            ...Object.keys(stateOverrides).map((address) => ({
+                address: address as Address,
+                code: stateOverrides[address as Address]?.code ?? "0x"
+            }))
+        ]
+    })
+
+    return hash
+}
+
+export const getUserOperationHash = ({
+    userOperation,
+    entryPointAddress,
+    chainId,
+    publicClient
+}: {
+    userOperation: UserOperation
+    entryPointAddress: Address
+    chainId: number
+    publicClient: PublicClient
+}) => {
     if (isVersion06(userOperation)) {
-        return getUserOperationHashV06(
+        return getUserOperationHashV06({
             userOperation,
             entryPointAddress,
             chainId
-        )
+        })
     }
 
-    return getUserOperationHashV07(
-        toPackedUserOperation(userOperation),
+    if (isVersion08(userOperation, entryPointAddress)) {
+        return getUserOperationHashV08({
+            userOperation,
+            entryPointAddress,
+            chainId,
+            publicClient
+        })
+    }
+
+    return getUserOperationHashV07({
+        userOperation: toPackedUserOperation(userOperation),
         entryPointAddress,
         chainId
-    )
+    })
 }
 
 export const getNonceKeyAndSequence = (nonce: bigint) => {

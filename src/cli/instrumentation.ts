@@ -4,6 +4,7 @@ import { FastifyInstrumentation } from "@opentelemetry/instrumentation-fastify"
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http"
 import { PinoInstrumentation } from "@opentelemetry/instrumentation-pino"
 import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici"
+import { ViemInstrumentation } from "@pimlico/opentelemetry-instrumentation-viem"
 import { NodeSDK } from "@opentelemetry/sdk-node"
 import {
     ParentBasedSampler,
@@ -49,7 +50,10 @@ const sdk = new NodeSDK({
             requireParentforSpans: true
         }),
         new FastifyInstrumentation(),
-        new PinoInstrumentation()
+        new PinoInstrumentation(),
+        new ViemInstrumentation({
+            captureOperationResult: true
+        })
     ],
     sampler: new ParentBasedSampler({ root: new CustomSampler() })
 })

@@ -1,34 +1,52 @@
-# production ready dockerfile that runs pnpm start
-FROM node:20.12.2-alpine3.19
+# Stage 1: Build Contracts using Foundry and Node/pnpm
+FROM ghcr.io/foundry-rs/foundry:v1.1.0 AS builder
 
-# set working directory
+WORKDIR /build
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml* .gitmodules ./
+
+COPY contracts ./contracts
+
+# --- FIX: Switch to root user to install packages ---
+USER root
+# ----------------------------------------------------
+
+RUN apt-get update && \
+    apt-get install -y curl gnupg ca-certificates && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/* && \
+    corepack enable
+
+RUN pnpm install --frozen-lockfile
+
+RUN pnpm run build:contracts
+
+# ---
+
+# Stage 2: Production Runtime Environment
+FROM node:20.12.2-alpine3.19 AS production
+
 WORKDIR /app
 
-# install typescript
-RUN npm add -g typescript
+RUN npm install -g typescript
 
-# copy package.json and pnpm-lock.yaml
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml* ./
 
-# install pnpm and create global pnpm symlink
-RUN corepack install && corepack enable
+RUN corepack enable
 
-# copy source code
 COPY . .
+
+COPY --from=builder /build/src/contracts ./src/contracts
 
 RUN pnpm fetch
 
-# install dependencies
-RUN pnpm install -r
+RUN pnpm install -r --offline --frozen-lockfile
 
-# copy source code
 RUN pnpm build
 
-# remove dev dependencies
-# RUN pnpm clean-modules
+# This is needed for backwards compatibility
+# alto.js was previously in /src/lib/cli but is now in /src/esm/cli after changing to ESM
+RUN mkdir -p /app/src/lib/cli && ln -sf /app/src/esm/cli/alto.js /app/src/lib/cli/alto.js
 
-# install dependencies
-# RUN pnpm install -r
-
-# start app
 ENTRYPOINT ["pnpm", "start"]

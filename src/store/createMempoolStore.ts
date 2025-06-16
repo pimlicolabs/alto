@@ -155,21 +155,23 @@ export const createMempoolStore = ({
             logAddOperation(userOpInfo.userOpHash, "outstanding")
             await outstanding.add(userOpInfo)
         },
-        addProcessing: async ({
+        addProcessing: ({
             entryPoint,
             userOpInfo
         }: EntryPointUserOpInfoParam) => {
             const { processing } = getStoreHandlers(entryPoint)
             logAddOperation(userOpInfo.userOpHash, "processing")
             processing.add(userOpInfo)
+            return Promise.resolve()
         },
-        addSubmitted: async ({
+        addSubmitted: ({
             entryPoint,
             submittedUserOp
         }: EntryPointSubmittedUserOpParam) => {
             const { submitted } = getStoreHandlers(entryPoint)
             logAddOperation(submittedUserOp.userOpHash, "submitted")
             submitted.add(submittedUserOp)
+            return Promise.resolve()
         },
         removeOutstanding: async ({
             entryPoint,
@@ -267,27 +269,27 @@ export const createMempoolStore = ({
             return await outstanding.popConflicting(userOp)
         },
 
-        validateSenderLimits: async ({
+        validateSenderLimits: ({
             entryPoint,
             userOp
         }: { entryPoint: Address; userOp: UserOperation }) => {
             const { outstanding } = getStoreHandlers(entryPoint)
 
             if (!outstanding.validateParallelLimit(userOp)) {
-                return {
+                return Promise.resolve({
                     valid: false,
                     reason: "AA25 invalid account nonce: Maximum number of parallel user operations for that is allowed for this sender reached"
-                }
+                })
             }
 
             if (!outstanding.validateQueuedLimit(userOp)) {
-                return {
+                return Promise.resolve({
                     valid: false,
                     reason: "AA25 invalid account nonce: Maximum number of queued user operations reached for this sender and nonce key"
-                }
+                })
             }
 
-            return { valid: true }
+            return Promise.resolve({ valid: true })
         },
 
         // misc

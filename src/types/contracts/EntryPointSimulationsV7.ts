@@ -10,171 +10,6 @@ export const EntryPointV07SimulationsAbi = [
   },
   {
     "type": "function",
-    "name": "_accountValidation",
-    "inputs": [
-      {
-        "name": "opIndex",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "userOp",
-        "type": "tuple",
-        "internalType": "struct PackedUserOperation",
-        "components": [
-          {
-            "name": "sender",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "nonce",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "initCode",
-            "type": "bytes",
-            "internalType": "bytes"
-          },
-          {
-            "name": "callData",
-            "type": "bytes",
-            "internalType": "bytes"
-          },
-          {
-            "name": "accountGasLimits",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "preVerificationGas",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "gasFees",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "paymasterAndData",
-            "type": "bytes",
-            "internalType": "bytes"
-          },
-          {
-            "name": "signature",
-            "type": "bytes",
-            "internalType": "bytes"
-          }
-        ]
-      },
-      {
-        "name": "outOpInfo",
-        "type": "tuple",
-        "internalType": "struct EntryPoint.UserOpInfo",
-        "components": [
-          {
-            "name": "mUserOp",
-            "type": "tuple",
-            "internalType": "struct EntryPoint.MemoryUserOp",
-            "components": [
-              {
-                "name": "sender",
-                "type": "address",
-                "internalType": "address"
-              },
-              {
-                "name": "nonce",
-                "type": "uint256",
-                "internalType": "uint256"
-              },
-              {
-                "name": "verificationGasLimit",
-                "type": "uint256",
-                "internalType": "uint256"
-              },
-              {
-                "name": "callGasLimit",
-                "type": "uint256",
-                "internalType": "uint256"
-              },
-              {
-                "name": "paymasterVerificationGasLimit",
-                "type": "uint256",
-                "internalType": "uint256"
-              },
-              {
-                "name": "paymasterPostOpGasLimit",
-                "type": "uint256",
-                "internalType": "uint256"
-              },
-              {
-                "name": "preVerificationGas",
-                "type": "uint256",
-                "internalType": "uint256"
-              },
-              {
-                "name": "paymaster",
-                "type": "address",
-                "internalType": "address"
-              },
-              {
-                "name": "maxFeePerGas",
-                "type": "uint256",
-                "internalType": "uint256"
-              },
-              {
-                "name": "maxPriorityFeePerGas",
-                "type": "uint256",
-                "internalType": "uint256"
-              }
-            ]
-          },
-          {
-            "name": "userOpHash",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "prefund",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "contextOffset",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "preOpGas",
-            "type": "uint256",
-            "internalType": "uint256"
-          }
-        ]
-      }
-    ],
-    "outputs": [
-      {
-        "name": "validationData",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "paymasterValidationData",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "paymasterVerificationGasLimit",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "_paymasterValidation",
     "inputs": [
       {
@@ -482,6 +317,11 @@ export const EntryPointV07SimulationsAbi = [
             "internalType": "uint256"
           }
         ]
+      },
+      {
+        "name": "validatePaymasterPrepayment",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "outputs": [
@@ -1557,6 +1397,16 @@ export const EntryPointV07SimulationsAbi = [
             "internalType": "bytes"
           }
         ]
+      },
+      {
+        "name": "target",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "targetCallData",
+        "type": "bytes",
+        "internalType": "bytes"
       }
     ],
     "outputs": [
@@ -2702,6 +2552,17 @@ export const EntryPointV07SimulationsAbi = [
       }
     ],
     "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "CallPhaseReverted",
+    "inputs": [
+      {
+        "name": "reason",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ]
   },
   {
     "type": "error",

@@ -19,18 +19,16 @@ import {
     getAAError,
     getBundleStatus,
     parseUserOperationReceipt,
-    scaleBigIntByPercent
+    jsonStringifyWithBigint
 } from "@alto/utils"
 import {
     type Address,
-    type Block,
     type Hash,
     type TransactionReceipt,
     TransactionReceiptNotFoundError,
     type WatchBlocksReturnType,
     getAbiItem,
     Hex,
-    InsufficientFundsError,
     NonceTooLowError
 } from "viem"
 import type { Executor } from "./executor"
@@ -38,6 +36,7 @@ import type { AltoConfig } from "../createConfig"
 import { SenderManager } from "./senderManager"
 import { BaseError } from "abitype"
 import { getUserOpHashes } from "./utils"
+import { GasPriceParameters } from "@alto/types"
 
 function getTransactionsFromUserOperationEntries(
     submittedOps: SubmittedUserOp[]
@@ -50,9 +49,7 @@ function getTransactionsFromUserOperationEntries(
     return Array.from(new Set(transactionInfos))
 }
 
-const MIN_INTERVAL = 100 // 0.1 seconds (100ms)
-const MAX_INTERVAL = 1000 // Capped at 1 second (1000ms)
-const SCALE_FACTOR = 10 // Interval increases by 5ms per task per minute
+const SCALE_FACTOR = 10 // Interval increases by 10ms per task per minute
 const RPM_WINDOW = 60000 // 1 minute window in ms
 
 export class ExecutorManager {
@@ -65,11 +62,33 @@ export class ExecutorManager {
     private metrics: Metrics
     private reputationManager: InterfaceReputationManager
     private unWatch: WatchBlocksReturnType | undefined
-    private currentlyHandlingBlock = false
     private gasPriceManager: GasPriceManager
     private eventManager: EventManager
     private opsCount: number[] = []
     private bundlingMode: BundlingMode
+    private cachedLatestBlock: { value: bigint; timestamp: number } | null =
+        null
+    private blockCacheTTL: number
+
+    private currentlyHandlingBlock = false
+
+    private async getLatestBlockWithCache(): Promise<bigint> {
+        const now = Date.now()
+        if (
+            this.cachedLatestBlock &&
+            now - this.cachedLatestBlock.timestamp < this.blockCacheTTL
+        ) {
+            // Use cached block number if it's still valid
+            this.logger.debug("Using cached block number")
+            return this.cachedLatestBlock.value
+        }
+
+        // Otherwise fetch a new block number and cache it
+        const latestBlock = await this.config.publicClient.getBlockNumber()
+        this.cachedLatestBlock = { value: latestBlock, timestamp: now }
+        this.logger.debug("Fetched and cached new block number")
+        return latestBlock
+    }
 
     constructor({
         config,
@@ -108,6 +127,7 @@ export class ExecutorManager {
         this.eventManager = eventManager
         this.senderManager = senderManager
 
+        this.blockCacheTTL = config.blockNumberCacheTtl
         this.bundlingMode = this.config.bundleMode
 
         if (this.bundlingMode === "auto") {
@@ -120,7 +140,7 @@ export class ExecutorManager {
 
         if (bundleMode === "manual") {
             await new Promise((resolve) =>
-                setTimeout(resolve, 2 * MAX_INTERVAL)
+                setTimeout(resolve, 2 * this.config.maxBundleInterval)
             )
         }
 
@@ -147,23 +167,35 @@ export class ExecutorManager {
             this.opsCount.push(...Array(opsCount).fill(timestamp))
 
             // Send bundles to executor
-            await Promise.all(
-                bundles.map(async (bundle) => {
-                    await this.sendBundleToExecutor(bundle)
-                })
-            )
+            bundles.map((bundle) => this.sendBundleToExecutor(bundle))
         }
 
         const rpm: number = this.opsCount.length
         // Calculate next interval with linear scaling
         const nextInterval: number = Math.min(
-            MIN_INTERVAL + rpm * SCALE_FACTOR, // Linear scaling
-            MAX_INTERVAL // Cap at 1000ms
+            this.config.minBundleInterval + rpm * SCALE_FACTOR, // Linear scaling
+            this.config.maxBundleInterval // Cap at configured max interval
         )
 
         if (this.bundlingMode === "auto") {
             setTimeout(this.autoScalingBundling.bind(this), nextInterval)
         }
+    }
+
+    startWatchingBlocks(handleBlock: (blockNumber: bigint) => void): void {
+        if (this.unWatch) {
+            return
+        }
+        this.unWatch = this.config.publicClient.watchBlockNumber({
+            onBlockNumber: handleBlock,
+            onError: (error) => {
+                this.logger.error({ error }, "error while watching blocks")
+            },
+            emitMissed: false,
+            pollingInterval: this.config.pollingInterval
+        })
+
+        this.logger.debug("started watching blocks")
     }
 
     // Debug endpoint
@@ -184,6 +216,13 @@ export class ExecutorManager {
         return txHash
     }
 
+    async getBaseFee(): Promise<bigint> {
+        if (this.config.legacyTransactions) {
+            return 0n
+        }
+        return await this.gasPriceManager.getBaseFee()
+    }
+
     async sendBundleToExecutor(
         userOpBundle: UserOperationBundle
     ): Promise<Hex | undefined> {
@@ -194,8 +233,9 @@ export class ExecutorManager {
 
         const wallet = await this.senderManager.getWallet()
 
-        const [gasPriceParams, nonce] = await Promise.all([
+        const [gasPriceParams, baseFee, nonce] = await Promise.all([
             this.gasPriceManager.tryGetNetworkGasPrice(),
+            this.getBaseFee(),
             this.config.publicClient.getTransactionCount({
                 address: wallet.address,
                 blockTag: "latest"
@@ -218,49 +258,49 @@ export class ExecutorManager {
         const bundleResult = await this.executor.bundle({
             executor: wallet,
             userOpBundle,
-            nonce,
-            gasPriceParams,
-            isReplacementTx: false
+            networkGasPrice: gasPriceParams,
+            networkBaseFee: baseFee,
+            nonce
         })
 
         // Free wallet if no bundle was sent.
-        if (bundleResult.status !== "bundle_success") {
+        if (bundleResult.status !== "submission_success") {
             await this.senderManager.markWalletProcessed(wallet)
         }
 
         // All ops failed simulation, drop them and return.
-        if (bundleResult.status === "all_ops_failed_simulation") {
+        if (bundleResult.status === "filterops_all_rejected") {
             const { rejectedUserOps } = bundleResult
             await this.dropUserOps(entryPoint, rejectedUserOps)
             return undefined
         }
 
         // Unhandled error during simulation, drop all ops.
-        if (bundleResult.status === "unhandled_simulation_failure") {
-            const { rejectedUserOps } = bundleResult
+        if (bundleResult.status === "filterops_unhandled_error") {
+            const rejectedUserOps = userOps.map((userOp) => ({
+                ...userOp,
+                reason: "filterOps simulation error"
+            }))
             await this.dropUserOps(entryPoint, rejectedUserOps)
             this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
             return undefined
         }
 
         // Resubmit if executor has insufficient funds.
-        if (
-            bundleResult.status === "bundle_submission_failure" &&
-            bundleResult.reason instanceof InsufficientFundsError
-        ) {
-            const { reason, userOpsToBundle, rejectedUserOps } = bundleResult
+        if (bundleResult.status === "submission_insufficient_funds_error") {
+            const { userOpsToBundle, rejectedUserOps } = bundleResult
             await this.dropUserOps(entryPoint, rejectedUserOps)
             await this.resubmitUserOperations(
                 userOpsToBundle,
                 entryPoint,
-                reason.name
+                "Executor has insufficient funds"
             )
             this.metrics.bundlesSubmitted.labels({ status: "resubmit" }).inc()
             return undefined
         }
 
-        // Encountered unhandled error during bundle simulation.
-        if (bundleResult.status === "bundle_submission_failure") {
+        // Encountered unhandled error during bundle submission.
+        if (bundleResult.status === "submission_generic_error") {
             const { rejectedUserOps, userOpsToBundle, reason } = bundleResult
             await this.dropUserOps(entryPoint, rejectedUserOps)
             // NOTE: these ops passed validation, so we can try resubmitting them
@@ -269,19 +309,25 @@ export class ExecutorManager {
                 entryPoint,
                 reason instanceof BaseError
                     ? reason.name
-                    : "Encountered unhandled error during bundle simulation"
+                    : "Encountered unhandled error during bundle submission"
             )
             this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
             return undefined
         }
 
-        if (bundleResult.status === "bundle_success") {
-            const {
+        if (bundleResult.status === "submission_success") {
+            let {
                 userOpsBundled,
                 rejectedUserOps,
                 transactionRequest,
                 transactionHash
             } = bundleResult
+
+            // Increment submission attempts for all userOps submitted.
+            userOpsBundled = userOpsBundled.map((userOpInfo) => ({
+                ...userOpInfo,
+                submissionAttempts: userOpInfo.submissionAttempts + 1
+            }))
 
             const transactionInfo: TransactionInfo = {
                 executor: wallet,
@@ -290,11 +336,11 @@ export class ExecutorManager {
                 bundle: {
                     entryPoint,
                     version,
-                    userOps: userOpsBundled
+                    userOps: userOpsBundled,
+                    submissionAttempts: 1
                 },
                 previousTransactionHashes: [],
                 lastReplaced: Date.now(),
-                firstSubmitted: Date.now(),
                 timesPotentiallyIncluded: 0
             }
 
@@ -309,23 +355,6 @@ export class ExecutorManager {
         }
 
         return undefined
-    }
-
-    startWatchingBlocks(handleBlock: (block: Block) => void): void {
-        if (this.unWatch) {
-            return
-        }
-        this.unWatch = this.config.publicClient.watchBlocks({
-            onBlock: handleBlock,
-            onError: (error) => {
-                this.logger.error({ error }, "error while watching blocks")
-            },
-            emitMissed: false,
-            includeTransactions: false,
-            pollingInterval: this.config.pollingInterval
-        })
-
-        this.logger.debug("started watching blocks")
     }
 
     stopWatchingBlocks(): void {
@@ -366,6 +395,7 @@ export class ExecutorManager {
         const reverted = transactionDetails.find(
             ({ bundlingStatus }) => bundlingStatus.status === "reverted"
         )
+
         const finalizedTransaction = mined ?? reverted
 
         if (!finalizedTransaction) {
@@ -378,19 +408,6 @@ export class ExecutorManager {
                 blockNumber: bigint // block number is undefined only if transaction is not found
                 transactionHash: `0x${string}`
             }
-
-        // TODO: there has to be a better way of solving onchain AA95 errors.
-        if (bundlingStatus.status === "reverted" && bundlingStatus.isAA95) {
-            // resubmit with more gas when bundler encounters AA95
-            transactionInfo.transactionRequest.gas = scaleBigIntByPercent(
-                transactionInfo.transactionRequest.gas,
-                this.config.aa95GasMultiplier
-            )
-            transactionInfo.transactionRequest.nonce += 1
-
-            await this.replaceTransaction(transactionInfo, "AA95")
-            return
-        }
 
         // Free executor if tx landed onchain
         if (bundlingStatus.status !== "not_found") {
@@ -462,7 +479,7 @@ export class ExecutorManager {
                                 }
                             )
 
-                            await this.eventManager.emitFrontranOnChain(
+                            this.eventManager.emitFrontranOnChain(
                                 userOpHash,
                                 transactionHash,
                                 blockNumber
@@ -487,7 +504,7 @@ export class ExecutorManager {
                                     transactionHash
                                 }
                             )
-                            await this.eventManager.emitFailedOnChain(
+                            this.eventManager.emitFailedOnChain(
                                 userOpHash,
                                 transactionHash,
                                 blockNumber
@@ -534,7 +551,8 @@ export class ExecutorManager {
         let fromBlock: bigint | undefined = undefined
         let toBlock: "latest" | undefined = undefined
         if (this.config.maxBlockRange !== undefined) {
-            const latestBlock = await this.config.publicClient.getBlockNumber()
+            const latestBlock = await this.getLatestBlockWithCache()
+
             fromBlock = latestBlock - BigInt(this.config.maxBlockRange)
             if (fromBlock < 0n) {
                 fromBlock = 0n
@@ -651,13 +669,16 @@ export class ExecutorManager {
         return userOperationReceipt
     }
 
-    async handleBlock(block: Block) {
+    async handleBlock(blockNumber: bigint) {
+        // Update the cached block number whenever we receive a new block
+        this.cachedLatestBlock = { value: blockNumber, timestamp: Date.now() }
+
         if (this.currentlyHandlingBlock) {
             return
         }
 
         this.currentlyHandlingBlock = true
-        this.logger.debug({ blockNumber: block.number }, "handling block")
+        this.logger.debug({ blockNumber }, "handling block")
 
         const dumpSubmittedEntries = async () => {
             const submittedEntries = []
@@ -683,12 +704,13 @@ export class ExecutorManager {
         )
 
         // for all still not included check if needs to be replaced (based on gas price)
-        const gasPriceParameters = await this.gasPriceManager
-            .tryGetNetworkGasPrice()
-            .catch(() => ({
+        const [gasPriceParams, networkBaseFee] = await Promise.all([
+            this.gasPriceManager.tryGetNetworkGasPrice().catch(() => ({
                 maxFeePerGas: 0n,
                 maxPriorityFeePerGas: 0n
-            }))
+            })),
+            this.getBaseFee().catch(() => 0n)
+        ])
 
         const transactionInfos = getTransactionsFromUserOperationEntries(
             await dumpSubmittedEntries()
@@ -701,23 +723,32 @@ export class ExecutorManager {
                     transactionRequest
 
                 const isMaxFeeTooLow =
-                    maxFeePerGas < gasPriceParameters.maxFeePerGas
+                    maxFeePerGas < gasPriceParams.maxFeePerGas
 
                 const isPriorityFeeTooLow =
-                    maxPriorityFeePerGas <
-                    gasPriceParameters.maxPriorityFeePerGas
+                    maxPriorityFeePerGas < gasPriceParams.maxPriorityFeePerGas
 
                 const isStuck =
                     Date.now() - txInfo.lastReplaced >
                     this.config.resubmitStuckTimeout
 
                 if (isMaxFeeTooLow || isPriorityFeeTooLow) {
-                    await this.replaceTransaction(txInfo, "gas_price")
+                    await this.replaceTransaction({
+                        txInfo,
+                        gasPriceParams,
+                        networkBaseFee,
+                        reason: "gas_price"
+                    })
                     return
                 }
 
                 if (isStuck) {
-                    await this.replaceTransaction(txInfo, "stuck")
+                    await this.replaceTransaction({
+                        txInfo,
+                        gasPriceParams,
+                        networkBaseFee,
+                        reason: "stuck"
+                    })
                     return
                 }
             })
@@ -726,10 +757,17 @@ export class ExecutorManager {
         this.currentlyHandlingBlock = false
     }
 
-    async replaceTransaction(
-        txInfo: TransactionInfo,
-        reason: string
-    ): Promise<void> {
+    async replaceTransaction({
+        txInfo,
+        gasPriceParams,
+        networkBaseFee,
+        reason
+    }: {
+        txInfo: TransactionInfo
+        gasPriceParams: GasPriceParameters
+        networkBaseFee: bigint
+        reason: "gas_price" | "stuck"
+    }): Promise<void> {
         // Setup vars
         const {
             bundle,
@@ -737,46 +775,14 @@ export class ExecutorManager {
             transactionRequest,
             transactionHash: oldTxHash
         } = txInfo
-        const { userOps, entryPoint } = bundle
-
-        const gasPriceParameters = await this.gasPriceManager
-            .tryGetNetworkGasPrice()
-            .catch((_) => {
-                return undefined
-            })
-
-        if (!gasPriceParameters) {
-            const rejectedUserOps = userOps.map((userOpInfo) => ({
-                ...userOpInfo,
-                reason: "Failed to get network gas price during replacement"
-            }))
-            await this.failedToReplaceTransaction({
-                entryPoint,
-                rejectedUserOps,
-                oldTxHash,
-                reason: "Failed to get network gas price during replacement"
-            })
-            // Free executor if failed to get initial params.
-            await this.senderManager.markWalletProcessed(txInfo.executor)
-            return
-        }
+        const { entryPoint } = bundle
 
         const bundleResult = await this.executor.bundle({
             executor: executor,
+            networkGasPrice: gasPriceParams,
+            networkBaseFee,
             userOpBundle: bundle,
-            nonce: transactionRequest.nonce,
-            gasPriceParams: {
-                maxFeePerGas: scaleBigIntByPercent(
-                    gasPriceParameters.maxFeePerGas,
-                    115n
-                ),
-                maxPriorityFeePerGas: scaleBigIntByPercent(
-                    gasPriceParameters.maxPriorityFeePerGas,
-                    115n
-                )
-            },
-            gasLimitSuggestion: transactionRequest.gas,
-            isReplacementTx: true
+            nonce: transactionRequest.nonce
         })
 
         // Free wallet and return if potentially included too many times.
@@ -795,17 +801,17 @@ export class ExecutorManager {
         }
 
         // Free wallet if no bundle was sent or potentially included.
-        if (bundleResult.status !== "bundle_success") {
+        if (bundleResult.status !== "submission_success") {
             await this.senderManager.markWalletProcessed(txInfo.executor)
         }
 
         // Check if the transaction is potentially included.
         const nonceTooLow =
-            bundleResult.status === "bundle_submission_failure" &&
+            bundleResult.status === "submission_generic_error" &&
             bundleResult.reason instanceof NonceTooLowError
 
         const allOpsFailedSimulation =
-            bundleResult.status === "all_ops_failed_simulation" &&
+            bundleResult.status === "filterops_all_rejected" &&
             bundleResult.rejectedUserOps.every(
                 (op) =>
                     op.reason === "AA25 invalid account nonce" ||
@@ -819,7 +825,7 @@ export class ExecutorManager {
             switch (true) {
                 case potentiallyIncluded:
                     return "potentially_already_included"
-                case bundleResult?.status === "bundle_success":
+                case bundleResult?.status === "submission_success":
                     return "replaced"
                 default:
                     return "failed"
@@ -841,18 +847,18 @@ export class ExecutorManager {
             return
         }
 
-        if (bundleResult.status === "unhandled_simulation_failure") {
-            const { rejectedUserOps, reason } = bundleResult
+        if (bundleResult.status === "filterops_unhandled_error") {
+            const { rejectedUserOps } = bundleResult
             await this.failedToReplaceTransaction({
                 entryPoint,
                 oldTxHash,
-                reason,
+                reason: "filterOps simulation error",
                 rejectedUserOps
             })
             return
         }
 
-        if (bundleResult.status === "all_ops_failed_simulation") {
+        if (bundleResult.status === "filterops_all_rejected") {
             await this.failedToReplaceTransaction({
                 entryPoint,
                 oldTxHash,
@@ -862,7 +868,7 @@ export class ExecutorManager {
             return
         }
 
-        if (bundleResult.status === "bundle_submission_failure") {
+        if (bundleResult.status === "submission_generic_error") {
             const { reason, rejectedUserOps } = bundleResult
             const submissionFailureReason =
                 reason instanceof BaseError ? reason.name : "INTERNAL FAILURE"
@@ -876,6 +882,18 @@ export class ExecutorManager {
             return
         }
 
+        if (bundleResult.status === "submission_insufficient_funds_error") {
+            const { userOpsToBundle, rejectedUserOps } = bundleResult
+            await this.dropUserOps(entryPoint, rejectedUserOps)
+            await this.resubmitUserOperations(
+                userOpsToBundle,
+                entryPoint,
+                "Executor has insufficient funds"
+            )
+            this.metrics.bundlesSubmitted.labels({ status: "resubmit" }).inc()
+            return
+        }
+
         const {
             rejectedUserOps,
             userOpsBundled,
@@ -883,7 +901,11 @@ export class ExecutorManager {
             transactionHash: newTxHash
         } = bundleResult
 
-        const userOpsReplaced = userOpsBundled
+        // Increment submission attempts for all replaced userOps
+        const userOpsReplaced = userOpsBundled.map((userOpInfo) => ({
+            ...userOpInfo,
+            submissionAttempts: userOpInfo.submissionAttempts + 1
+        }))
 
         const newTxInfo: TransactionInfo = {
             ...txInfo,
@@ -895,19 +917,13 @@ export class ExecutorManager {
             ],
             lastReplaced: Date.now(),
             bundle: {
-                ...txInfo.bundle,
-                userOps: userOpsReplaced
+                ...bundle,
+                userOps: userOpsReplaced,
+                submissionAttempts: bundle.submissionAttempts + 1
             }
         }
 
-        await Promise.all(
-            userOpsReplaced.map(async (userOpInfo) => {
-                await this.mempool.replaceSubmitted({
-                    userOpInfo,
-                    transactionInfo: newTxInfo
-                })
-            })
-        )
+        await this.markUserOperationsAsReplaced(userOpsReplaced, newTxInfo)
 
         // Drop all userOperations that were rejected during simulation.
         await this.dropUserOps(entryPoint, rejectedUserOps)
@@ -922,6 +938,21 @@ export class ExecutorManager {
         )
 
         return
+    }
+
+    async markUserOperationsAsReplaced(
+        userOpsReplaced: UserOpInfo[],
+        newTxInfo: TransactionInfo
+    ) {
+        // Mark as replaced in mempool
+        await Promise.all(
+            userOpsReplaced.map(async (userOpInfo) => {
+                await this.mempool.replaceSubmitted({
+                    userOpInfo,
+                    transactionInfo: newTxInfo
+                })
+            })
+        )
     }
 
     async markUserOperationsAsSubmitted(
@@ -1002,12 +1033,17 @@ export class ExecutorManager {
                     .labels({ status: "included" })
                     .inc()
 
-                const { userOpHash, userOp } = userOpInfo
+                const { userOpHash, userOp, submissionAttempts } = userOpInfo
                 const opDetails = userOperationDetails[userOpHash]
 
                 const firstSubmitted = userOpInfo.addedToMempool
                 this.metrics.userOperationInclusionDuration.observe(
                     (Date.now() - firstSubmitted) / 1000
+                )
+
+                // Track the number of submission attempts for included ops
+                this.metrics.userOperationsSubmissionAttempts.observe(
+                    submissionAttempts
                 )
 
                 await this.mempool.removeSubmitted({ entryPoint, userOpHash })
@@ -1018,13 +1054,13 @@ export class ExecutorManager {
                 )
 
                 if (opDetails.status === "succesful") {
-                    await this.eventManager.emitIncludedOnChain(
+                    this.eventManager.emitIncludedOnChain(
                         userOpHash,
                         transactionHash,
                         blockNumber as bigint
                     )
                 } else {
-                    await this.eventManager.emitExecutionRevertedOnChain(
+                    this.eventManager.emitExecutionRevertedOnChain(
                         userOpHash,
                         transactionHash,
                         opDetails.revertReason || "0x",
@@ -1054,7 +1090,7 @@ export class ExecutorManager {
                 const { userOp, reason, userOpHash } = rejectedUserOp
                 await this.mempool.removeProcessing({ entryPoint, userOpHash })
                 await this.mempool.removeSubmitted({ entryPoint, userOpHash })
-                await this.eventManager.emitDropped(
+                this.eventManager.emitDropped(
                     userOpHash,
                     reason,
                     getAAError(reason)
@@ -1065,9 +1101,7 @@ export class ExecutorManager {
                 })
                 this.logger.warn(
                     {
-                        userOperation: JSON.stringify(userOp, (_k, v) =>
-                            typeof v === "bigint" ? v.toString() : v
-                        ),
+                        userOperation: jsonStringifyWithBigint(userOp),
                         userOpHash,
                         reason
                     },

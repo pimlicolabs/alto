@@ -9,7 +9,13 @@ import {
 export type Metrics = ReturnType<typeof createMetrics>
 
 export function createMetrics(registry: Registry, register = true) {
-    collectDefaultMetrics({ register: registry })
+    // Skip default metrics collection in development mode or when running in Bun
+    // to avoid compatibility issues
+    const isBun = typeof (globalThis as any).Bun !== "undefined"
+
+    if (!isBun) {
+        collectDefaultMetrics({ register: registry })
+    }
 
     const registers = register ? [registry] : []
 
@@ -151,6 +157,13 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
+    const userOperationsSubmissionAttempts = new Histogram({
+        name: "alto_user_operations_attempts_before_inclusion",
+        help: "Number of submission attempts needed before a user operation was included on-chain",
+        labelNames: [] as const,
+        registers
+    })
+
     const utilityWalletBalance = new Gauge({
         name: "alto_utility_wallet_balance",
         help: "Balance of the utility wallet",
@@ -216,6 +229,7 @@ export function createMetrics(registry: Registry, register = true) {
         executorWalletsBalances,
         executorWalletsMinBalance,
         emittedOpEvents,
-        walletsProcessingTime
+        walletsProcessingTime,
+        userOperationsSubmissionAttempts
     }
 }

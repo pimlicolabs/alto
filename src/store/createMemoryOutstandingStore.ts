@@ -228,12 +228,26 @@ export class MemoryOutstanding implements OutstandingStore {
             const [mempoolNonceKey, mempoolNonceSequence] =
                 getNonceKeyAndSequence(mempoolUserOp.nonce)
 
+            let isPaymasterSame = false
+
+            if (isVersion07(userOp) && isVersion07(mempoolUserOp)) {
+                isPaymasterSame =
+                    mempoolUserOp.paymaster === userOp.paymaster &&
+                    !(
+                        mempoolUserOp.sender === userOp.sender &&
+                        mempoolNonceKey === nonceKey &&
+                        mempoolNonceSequence === nonceSequence
+                    ) &&
+                    userOp.paymaster !== null
+            }
+
             // Filter operations with the same sender and nonce key
             // but with a lower nonce sequence
             return (
-                mempoolUserOp.sender === userOp.sender &&
-                mempoolNonceKey === nonceKey &&
-                mempoolNonceSequence < nonceSequence
+                (mempoolUserOp.sender === userOp.sender &&
+                    mempoolNonceKey === nonceKey &&
+                    mempoolNonceSequence < nonceSequence) ||
+                isPaymasterSame
             )
         })
 

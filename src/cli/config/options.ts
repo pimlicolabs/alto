@@ -111,17 +111,11 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "boolean",
         default: false
     },
-    "enable-experimental-7702-endpoints": {
+    "rpc-gas-estimate": {
         description:
-            "Should the bundler enable the pimlico_experimental_sendUserOperation7702 and pimlico_experimental_estimateUserOperationGas7702 endpoint",
+            "Should the bundler make a eth_estimateGas call to estimate the handleOps gasLimit",
         type: "boolean",
         default: false
-    },
-    "should-check-prefund": {
-        description:
-            "Should the bundler check userOp's prefund before accepting it",
-        type: "boolean",
-        default: true
     }
 }
 
@@ -193,8 +187,21 @@ export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
 
 export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
     {
-        "entrypoint-simulation-contract": {
-            description: "Address of the EntryPoint simulations contract",
+        "pimlico-simulation-contract": {
+            description: "Address of the Pimlico simulation contract",
+            type: "string",
+            require: false
+        },
+        "entrypoint-simulation-contract-v7": {
+            description:
+                "Address of the EntryPoint simulations contract for v0.7",
+            type: "string",
+            alias: "c",
+            require: false
+        },
+        "entrypoint-simulation-contract-v8": {
+            description:
+                "Address of the EntryPoint simulations contract for v0.8",
             type: "string",
             alias: "c",
             require: false
@@ -227,6 +234,13 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
             require: true,
             default: "100"
         },
+        "v6-pre-verification-gas-limit-multiplier": {
+            description:
+                "Amount to multiply the preVerificationGas limits fetched from simulations for v6 userOperations",
+            type: "string",
+            require: true,
+            default: "110"
+        },
         "v7-call-gas-limit-multiplier": {
             description:
                 "Amount to multiply the callGasLimit fetched from simulations for v7 userOperations",
@@ -254,6 +268,13 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
             type: "string",
             require: true,
             default: "120"
+        },
+        "v7-pre-verification-gas-limit-multiplier": {
+            description:
+                "Amount to multiply the preVerificationGas limits fetched from simulations for v7 userOperations",
+            type: "string",
+            require: true,
+            default: "110"
         },
         "paymaster-gas-limit-multiplier": {
             description:
@@ -304,12 +325,6 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
     }
 
 export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
-    "enable-fastlane": {
-        description:
-            "Enable bundling v0.6 userOperations using the pfl_sendRawTransactionConditional endpoint",
-        type: "boolean",
-        default: false
-    },
     "resubmit-stuck-timeout": {
         description:
             "Amount of time before retrying a failed userOperation (in ms)",
@@ -317,12 +332,19 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         require: true,
         default: 10_000
     },
-    "aa95-gas-multiplier": {
+    "resubmit-multiplier-ceiling": {
         description:
-            "Amount to multiply the current gas limit by if the bundling tx fails due to AA95",
+            "Maximum multiplier for gasPrice when resubmitting transactions",
         type: "string",
         require: false,
-        default: "125"
+        default: "300"
+    },
+    "gas-limit-rounding-multiple": {
+        description:
+            "Value to round transaction gas limit to the nearest multiple of",
+        type: "string",
+        require: false,
+        default: "4337"
     },
     "refilling-wallets": {
         description: "Enable refilling wallets",
@@ -384,6 +406,41 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "number",
         require: true,
         default: 60 * 20
+    },
+    "transaction-underpriced-multiplier": {
+        description:
+            "GasPrice Multiplier to use when retrying in event of Transaction Underpriced error",
+        type: "string",
+        require: false,
+        default: "150"
+    },
+    "send-handle-ops-retry-count": {
+        description:
+            "Number of times to retry calling sendHandleOps transaction",
+        type: "number",
+        require: false,
+        default: 3
+    },
+    "bundler-initial-commission": {
+        description:
+            "Initial commission percentage the bundler retains (10 = retain 10% of margin)",
+        type: "string",
+        require: false,
+        default: "10"
+    },
+    "arbitrum-gas-bid-multiplier": {
+        description:
+            "Multiplier for gas bid on Arbitrum networks to account for baseFee fluctuations",
+        type: "string",
+        require: false,
+        default: "5"
+    },
+    "binary-search-max-retries": {
+        description:
+            "Maximum number of retries for binary search operations during gas estimation",
+        type: "number",
+        require: false,
+        default: 3
     }
 }
 
@@ -393,7 +450,14 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             description:
                 "Indicates what type of chain the bundler is running on",
             type: "string",
-            choices: ["default", "op-stack", "arbitrum", "hedera", "mantle"],
+            choices: [
+                "default",
+                "op-stack",
+                "arbitrum",
+                "hedera",
+                "mantle",
+                "etherlink"
+            ],
             default: "default"
         },
         "legacy-transactions": {
@@ -441,6 +505,17 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             type: "string",
             require: false,
             default: "v1"
+        },
+        "floor-max-fee-per-gas": {
+            description: "Minimum value for maxFeePerGas to enforce (in gwei)",
+            type: "string",
+            require: false
+        },
+        "floor-max-priority-fee-per-gas": {
+            description:
+                "Minimum value for maxPriorityFeePerGas to enforce (in gwei)",
+            type: "string",
+            require: false
         }
     }
 
@@ -493,6 +568,12 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         default: 2000,
         require: false
     },
+    "block-number-cache-ttl": {
+        description: "TTL for the block number cache in milliseconds",
+        type: "number",
+        default: 15000, // Default to 1 minute
+        require: false
+    },
     "block-tag-support": {
         description:
             "Disable sending block tag when sending eth_estimateGas call",
@@ -504,7 +585,7 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         description: "Does the RPC support code overrides",
         type: "boolean",
         require: false,
-        default: false
+        default: true
     }
 }
 
@@ -585,6 +666,20 @@ export const debugOptions: CliCommandOptions<IDebugArgsInput> = {
         require: true,
         default: "auto",
         choices: ["auto", "manual"]
+    },
+    "min-bundle-interval": {
+        description:
+            "Minimum interval in milliseconds between bundling operations in auto mode",
+        type: "number",
+        require: false,
+        default: 100
+    },
+    "max-bundle-interval": {
+        description:
+            "Maximum interval in milliseconds between bundling operations in auto mode",
+        type: "number",
+        require: false,
+        default: 1000
     },
     "enable-debug-endpoints": {
         description: "Enable debug endpoints",
