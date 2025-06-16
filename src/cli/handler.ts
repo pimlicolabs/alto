@@ -141,36 +141,40 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     if (args.flashblocksEnabled) {
         publicClient = publicClient
             .extend((client) => ({
-                async getBlock<
-                    includeTransactions extends boolean = false,
-                    blockTag extends BlockTag = "latest"
-                >(
-                    args?: GetBlockParameters<includeTransactions, blockTag>
-                ) {
+                // @ts-ignore
+                async getBlock(args?: GetBlockParameters) {
+                    if (args?.blockHash !== undefined || args?.blockNumber !== undefined) {
+                        return await client.getBlock(args)
+                    }
+
                     return await client.getBlock({
-                        ...(args as any),
                         blockTag: "pending"
                     })
                 },
                 async getBalance(args: GetBalanceParameters) {
-                    return await client.getBalance({
-                        ...args,
-                        blockTag: "pending"
-                    } as any)
+                    if (args.blockNumber !== undefined) {
+                        return await client.getBalance(args)
+                    } else {
+                        return await client.getBalance({
+                            address: args.address,
+                            blockNumber: undefined,
+                            blockTag: "pending"
+                        })
+                    }
                 },
                 async getTransactionCount(args: GetTransactionCountParameters) {
-                    return await client.getTransactionCount({
-                        ...args,
-                        blockTag: "pending"
-                    } as any)
+                    if (args.blockNumber !== undefined) {
+                        return await client.getTransactionCount(args)
+                    } else {
+                        return await client.getTransactionCount({
+                            address: args.address,
+                            blockNumber: undefined,
+                            blockTag: "pending"
+                        })
+                    }
                 },
-                async getTransactionReceipt(args: GetTransactionReceiptParameters) {
-                    return await client.getTransactionReceipt({
-                        ...args,
-                        blockTag: "pending"
-                    } as any)
-                }
             }))
+            // @ts-ignore
             .extend(publicActions)
     }
 
