@@ -1,4 +1,4 @@
-import { isVersion06, isVersion07 } from "../../esm/utils"
+import { isVersion06, isVersion07 } from "@alto/utils"
 import {
     boostSendUserOperationSchema,
     type UserOperation
