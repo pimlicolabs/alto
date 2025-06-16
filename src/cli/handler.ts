@@ -12,7 +12,12 @@ import {
     formatEther,
     fallback,
     type CallParameters,
-    publicActions
+    publicActions,
+    GetBlockParameters,
+    GetBalanceParameters,
+    GetTransactionCountParameters,
+    BlockTag,
+    GetTransactionReceiptParameters
 } from "viem"
 import type { IOptionsInput } from "./config"
 import { customTransport } from "./customTransport"
@@ -96,8 +101,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
                     {
                         level: args.publicClientLogLevel || args.logLevel
                     }
-                ),
-                flashblocks: args.flashblocksEnabled
+                )
             })
         })
         return await client.getChainId()
@@ -126,11 +130,49 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
                 {
                     level: args.publicClientLogLevel || args.logLevel
                 }
-            ),
-            flashblocks: args.flashblocksEnabled
+            )
         }),
         chain
     })
+
+    // When Flashblocks support is enabled, override the relevant public actions
+    // to always query against the "pending" block tag as per
+    // https://docs.base.org/chain/flashblocks/apps
+    if (args.flashblocksEnabled) {
+        publicClient = publicClient
+            .extend((client) => ({
+                async getBlock<
+                    includeTransactions extends boolean = false,
+                    blockTag extends BlockTag = "latest"
+                >(
+                    args?: GetBlockParameters<includeTransactions, blockTag>
+                ) {
+                    return await client.getBlock({
+                        ...(args as any),
+                        blockTag: "pending"
+                    })
+                },
+                async getBalance(args: GetBalanceParameters) {
+                    return await client.getBalance({
+                        ...args,
+                        blockTag: "pending"
+                    } as any)
+                },
+                async getTransactionCount(args: GetTransactionCountParameters) {
+                    return await client.getTransactionCount({
+                        ...args,
+                        blockTag: "pending"
+                    } as any)
+                },
+                async getTransactionReceipt(args: GetTransactionReceiptParameters) {
+                    return await client.getTransactionReceipt({
+                        ...args,
+                        blockTag: "pending"
+                    } as any)
+                }
+            }))
+            .extend(publicActions)
+    }
 
     // Some permissioned chains require a whitelisted address to make deployments.
     // In order for simulations to work, we need to make our eth_call's from a whitelisted address.
@@ -151,8 +193,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
             logger: logger.child(
                 { module: "wallet_client" },
                 { level: args.walletClientLogLevel || args.logLevel }
-            ),
-            flashblocks: args.flashblocksEnabled
+            )
         })
 
     const walletClient = createWalletClient({
