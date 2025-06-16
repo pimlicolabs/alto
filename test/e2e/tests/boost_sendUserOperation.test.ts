@@ -1,12 +1,5 @@
 import { deepHexlify } from "permissionless"
-import {
-    http,
-    type Hex,
-    createPublicClient,
-    parseEther,
-    parseGwei,
-    type Address
-} from "viem"
+import { http, type Hex, createPublicClient, parseEther, parseGwei } from "viem"
 import {
     entryPoint06Address,
     entryPoint07Address,
@@ -22,7 +15,6 @@ import {
     sendBundleNow,
     setBundlingMode
 } from "../src/utils/index.js"
-import { deployPaymaster } from "../src/testPaymaster.js"
 
 describe.each([
     {
@@ -42,7 +34,6 @@ describe.each([
     ({ entryPoint, entryPointVersion }) => {
         const TO_ADDRESS = "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5"
         const VALUE = parseEther("0.15")
-        let paymaster: Address
 
         const anvilRpc = inject("anvilRpc")
         const altoRpc = inject("altoRpc")
@@ -54,10 +45,6 @@ describe.each([
 
         beforeEach(async () => {
             await beforeEachCleanUp({ anvilRpc, altoRpc })
-            paymaster = await deployPaymaster({
-                entryPoint,
-                anvilRpc
-            })
         })
 
         test("Send boosted UserOperation", async () => {
