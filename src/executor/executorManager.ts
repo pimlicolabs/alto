@@ -454,6 +454,7 @@ export class ExecutorManager {
         entryPoint: Address
         blockNumber: bigint
     }) {
+        this.logger.info("[DEBUG] CHECKING FRONTRUN")
         const unwatch = this.config.publicClient.watchBlockNumber({
             onBlockNumber: async (currentBlockNumber) => {
                 if (currentBlockNumber > blockNumber + 1n) {
@@ -674,11 +675,14 @@ export class ExecutorManager {
         this.cachedLatestBlock = { value: blockNumber, timestamp: Date.now() }
 
         if (this.currentlyHandlingBlock) {
+            this.logger.info(
+                `[DEBUG] Currently handling block ${blockNumber.toString()}`
+            )
             return
         }
 
         this.currentlyHandlingBlock = true
-        this.logger.debug({ blockNumber }, "handling block")
+        this.logger.info(`[DEBUG] Handling block ${blockNumber.toString()}`)
 
         const dumpSubmittedEntries = async () => {
             const submittedEntries = []
