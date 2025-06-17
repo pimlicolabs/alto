@@ -91,26 +91,14 @@ const getEventManager = ({
 }
 
 const getExecutor = ({
-    mempool,
     config,
-    reputationManager,
-    metrics,
-    gasPriceManager,
     eventManager
 }: {
-    mempool: Mempool
     config: AltoConfig
-    reputationManager: InterfaceReputationManager
-    metrics: Metrics
-    gasPriceManager: GasPriceManager
     eventManager: EventManager
 }): Executor => {
     return new Executor({
-        mempool,
         config,
-        reputationManager,
-        metrics,
-        gasPriceManager,
         eventManager
     })
 }
@@ -280,11 +268,7 @@ export const setupServer = async ({
     })
 
     const executor = getExecutor({
-        mempool,
         config,
-        reputationManager,
-        metrics,
-        gasPriceManager,
         eventManager
     })
 
