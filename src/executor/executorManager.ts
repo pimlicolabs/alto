@@ -1043,9 +1043,22 @@ export class ExecutorManager {
                 const opDetails = userOperationDetails[userOpHash]
 
                 const firstSubmitted = userOpInfo.addedToMempool
-                this.metrics.userOperationInclusionDuration.observe(
+                const inclusionTimeSeconds =
                     (Date.now() - firstSubmitted) / 1000
+                this.metrics.userOperationInclusionDuration.observe(
+                    inclusionTimeSeconds
                 )
+
+                if (inclusionTimeSeconds > 1) {
+                    this.logger.info(
+                        {
+                            userOpHash,
+                            inclusionTimeSeconds,
+                            submissionAttempts
+                        },
+                        "[DEBUG] UserOp inclusion time exceeded 1 second"
+                    )
+                }
 
                 // Track the number of submission attempts for included ops
                 this.metrics.userOperationsSubmissionAttempts.observe(
