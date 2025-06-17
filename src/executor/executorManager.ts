@@ -6,30 +6,19 @@ import type {
 } from "@alto/mempool"
 import {
     type BundlingMode,
-    EntryPointV06Abi,
-    type HexData32,
-    type SubmittedUserOp,
     type TransactionInfo,
     RejectedUserOp,
     UserOperationBundle,
     UserOpInfo
 } from "@alto/types"
-import type { BundlingStatus, Logger, Metrics } from "@alto/utils"
-import {
-    getAAError,
-    getBundleStatus,
-    parseUserOperationReceipt,
-    jsonStringifyWithBigint
-} from "@alto/utils"
+import type { Logger, Metrics } from "@alto/utils"
+import { getAAError, jsonStringifyWithBigint } from "@alto/utils"
 import {
     type Address,
     type Hash,
-    type TransactionReceipt,
-    TransactionReceiptNotFoundError,
-    type WatchBlocksReturnType,
-    getAbiItem,
     Hex,
-    NonceTooLowError
+    NonceTooLowError,
+    type WatchBlocksReturnType
 } from "viem"
 import type { Executor } from "./executor"
 import type { AltoConfig } from "../createConfig"
@@ -37,17 +26,7 @@ import { SenderManager } from "./senderManager"
 import { BaseError } from "abitype"
 import { getUserOpHashes } from "./utils"
 import { GasPriceParameters } from "@alto/types"
-
-function getTransactionsFromUserOperationEntries(
-    submittedOps: SubmittedUserOp[]
-): TransactionInfo[] {
-    const transactionInfos = submittedOps.map(
-        (userOpInfo) => userOpInfo.transactionInfo
-    )
-
-    // Remove duplicates
-    return Array.from(new Set(transactionInfos))
-}
+import { BundleMonitor } from "./bundleMonitor"
 
 const SCALE_FACTOR = 10 // Interval increases by 10ms per task per minute
 const RPM_WINDOW = 60000 // 1 minute window in ms
@@ -60,34 +39,14 @@ export class ExecutorManager {
     private monitor: Monitor
     private logger: Logger
     private metrics: Metrics
-    private reputationManager: InterfaceReputationManager
-    private unWatch: WatchBlocksReturnType | undefined
     private gasPriceManager: GasPriceManager
     private eventManager: EventManager
     private opsCount: number[] = []
     private bundlingMode: BundlingMode
-    private cachedLatestBlock: { value: bigint; timestamp: number } | null
-    private blockCacheTTL: number
+    private bundleMonitor: BundleMonitor
+    private unWatch: WatchBlocksReturnType | undefined
 
     private currentlyHandlingBlock = false
-
-    private async getLatestBlockWithCache(): Promise<bigint> {
-        const now = Date.now()
-        if (
-            this.cachedLatestBlock &&
-            now - this.cachedLatestBlock.timestamp < this.blockCacheTTL
-        ) {
-            // Use cached block number if it's still valid
-            this.logger.debug("Using cached block number")
-            return this.cachedLatestBlock.value
-        }
-
-        // Otherwise fetch a new block number and cache it
-        const latestBlock = await this.config.publicClient.getBlockNumber()
-        this.cachedLatestBlock = { value: latestBlock, timestamp: now }
-        this.logger.debug("Fetched and cached new block number")
-        return latestBlock
-    }
 
     constructor({
         config,
@@ -110,9 +69,7 @@ export class ExecutorManager {
         eventManager: EventManager
         senderManager: SenderManager
     }) {
-        this.cachedLatestBlock = null
         this.config = config
-        this.reputationManager = reputationManager
         this.executor = executor
         this.mempool = mempool
         this.monitor = monitor
@@ -127,7 +84,16 @@ export class ExecutorManager {
         this.eventManager = eventManager
         this.senderManager = senderManager
 
-        this.blockCacheTTL = config.blockNumberCacheTtl
+        this.bundleMonitor = new BundleMonitor({
+            config,
+            mempool,
+            monitor,
+            metrics,
+            eventManager,
+            senderManager,
+            reputationManager
+        })
+
         this.bundlingMode = this.config.bundleMode
 
         if (this.bundlingMode === "auto") {
@@ -186,8 +152,11 @@ export class ExecutorManager {
         if (this.unWatch) {
             return
         }
+
         this.unWatch = this.config.publicClient.watchBlockNumber({
-            onBlockNumber: (blockNumber) => this.handleBlock(blockNumber),
+            onBlockNumber: async (blockNumber) => {
+                await this.handleBlock(blockNumber)
+            },
             onError: (error) => {
                 this.logger.error({ error }, "error while watching blocks")
             },
@@ -365,343 +334,20 @@ export class ExecutorManager {
         }
     }
 
-    // update the current status of the bundling transaction/s
-    private async refreshTransactionStatus(transactionInfo: TransactionInfo) {
-        const {
-            transactionHash: currentTxhash,
-            bundle,
-            previousTransactionHashes
-        } = transactionInfo
-
-        const { userOps, entryPoint } = bundle
-        const txHashesToCheck = [currentTxhash, ...previousTransactionHashes]
-
-        const transactionDetails = await Promise.all(
-            txHashesToCheck.map(async (transactionHash) => ({
-                transactionHash,
-                ...(await getBundleStatus({
-                    transactionHash,
-                    bundle: transactionInfo.bundle,
-                    publicClient: this.config.publicClient,
-                    logger: this.logger
-                }))
-            }))
-        )
-
-        // first check if bundling txs returns status "mined", if not, check for reverted
-        const mined = transactionDetails.find(
-            ({ bundlingStatus }) => bundlingStatus.status === "included"
-        )
-        const reverted = transactionDetails.find(
-            ({ bundlingStatus }) => bundlingStatus.status === "reverted"
-        )
-
-        const finalizedTransaction = mined ?? reverted
-
-        if (!finalizedTransaction) {
-            return
-        }
-
-        const { bundlingStatus, transactionHash, blockNumber } =
-            finalizedTransaction as {
-                bundlingStatus: BundlingStatus
-                blockNumber: bigint // block number is undefined only if transaction is not found
-                transactionHash: `0x${string}`
-            }
-
-        // Free executor if tx landed onchain
-        if (bundlingStatus.status !== "not_found") {
-            await this.senderManager.markWalletProcessed(
-                transactionInfo.executor
-            )
-        }
-
-        if (bundlingStatus.status === "included") {
-            const { userOperationDetails } = bundlingStatus
-            await this.markUserOpsIncluded(
-                userOps,
-                entryPoint,
-                blockNumber,
-                transactionHash,
-                userOperationDetails
-            )
-        }
-
-        if (bundlingStatus.status === "reverted") {
-            await Promise.all(
-                userOps.map(async (userOpInfo) => {
-                    const { userOpHash } = userOpInfo
-                    await this.checkFrontrun({
-                        entryPoint,
-                        userOpHash,
-                        transactionHash,
-                        blockNumber
-                    })
-                })
-            )
-            await this.removeSubmitted(entryPoint, userOps)
-        }
-    }
-
-    async checkFrontrun({
-        userOpHash,
-        entryPoint,
-        transactionHash,
-        blockNumber
-    }: {
-        userOpHash: HexData32
-        transactionHash: Hash
-        entryPoint: Address
-        blockNumber: bigint
-    }) {
-        const unwatch = this.config.publicClient.watchBlockNumber({
-            onBlockNumber: async (currentBlockNumber) => {
-                if (currentBlockNumber > blockNumber + 1n) {
-                    try {
-                        const userOperationReceipt =
-                            await this.getUserOperationReceipt(userOpHash)
-
-                        if (userOperationReceipt) {
-                            const transactionHash =
-                                userOperationReceipt.receipt.transactionHash
-                            const blockNumber =
-                                userOperationReceipt.receipt.blockNumber
-
-                            await this.mempool.removeSubmitted({
-                                entryPoint,
-                                userOpHash
-                            })
-                            await this.monitor.setUserOperationStatus(
-                                userOpHash,
-                                {
-                                    status: "included",
-                                    transactionHash
-                                }
-                            )
-
-                            this.eventManager.emitFrontranOnChain(
-                                userOpHash,
-                                transactionHash,
-                                blockNumber
-                            )
-
-                            this.logger.info(
-                                {
-                                    userOpHash,
-                                    transactionHash
-                                },
-                                "user op frontrun onchain"
-                            )
-
-                            this.metrics.userOperationsOnChain
-                                .labels({ status: "frontran" })
-                                .inc(1)
-                        } else {
-                            await this.monitor.setUserOperationStatus(
-                                userOpHash,
-                                {
-                                    status: "failed",
-                                    transactionHash
-                                }
-                            )
-                            this.eventManager.emitFailedOnChain(
-                                userOpHash,
-                                transactionHash,
-                                blockNumber
-                            )
-                            this.logger.info(
-                                {
-                                    userOpHash,
-                                    transactionHash
-                                },
-                                "user op failed onchain"
-                            )
-                            this.metrics.userOperationsOnChain
-                                .labels({ status: "reverted" })
-                                .inc(1)
-                        }
-                    } catch (error) {
-                        this.logger.error(
-                            {
-                                userOpHash,
-                                transactionHash,
-                                error
-                            },
-                            "Error checking frontrun status"
-                        )
-
-                        // Still mark as failed since we couldn't verify inclusion
-                        await this.monitor.setUserOperationStatus(userOpHash, {
-                            status: "failed",
-                            transactionHash
-                        })
-                    }
-                    unwatch()
-                }
-            }
-        })
-    }
-
-    async getUserOperationReceipt(userOperationHash: HexData32) {
-        const userOperationEventAbiItem = getAbiItem({
-            abi: EntryPointV06Abi,
-            name: "UserOperationEvent"
-        })
-
-        let fromBlock: bigint | undefined = undefined
-        let toBlock: "latest" | undefined = undefined
-        if (this.config.maxBlockRange !== undefined) {
-            const latestBlock = await this.getLatestBlockWithCache()
-
-            fromBlock = latestBlock - BigInt(this.config.maxBlockRange)
-            if (fromBlock < 0n) {
-                fromBlock = 0n
-            }
-            toBlock = "latest"
-        }
-
-        const filterResult = await this.config.publicClient.getLogs({
-            address: this.config.entrypoints,
-            event: userOperationEventAbiItem,
-            fromBlock,
-            toBlock,
-            args: {
-                userOpHash: userOperationHash
-            }
-        })
-
-        this.logger.debug(
-            {
-                filterResult: filterResult.length,
-                userOperationEvent:
-                    filterResult.length === 0
-                        ? undefined
-                        : filterResult[0].transactionHash
-            },
-            "filter result length"
-        )
-
-        if (filterResult.length === 0) {
-            return null
-        }
-
-        const userOperationEvent = filterResult[0]
-        // throw if any of the members of userOperationEvent are undefined
-        if (
-            userOperationEvent.args.actualGasCost === undefined ||
-            userOperationEvent.args.sender === undefined ||
-            userOperationEvent.args.nonce === undefined ||
-            userOperationEvent.args.userOpHash === undefined ||
-            userOperationEvent.args.success === undefined ||
-            userOperationEvent.args.paymaster === undefined ||
-            userOperationEvent.args.actualGasUsed === undefined
-        ) {
-            throw new Error("userOperationEvent has undefined members")
-        }
-
-        const txHash = userOperationEvent.transactionHash
-        if (txHash === null) {
-            // transaction pending
-            return null
-        }
-
-        const getTransactionReceipt = async (
-            txHash: HexData32
-        ): Promise<TransactionReceipt> => {
-            while (true) {
-                try {
-                    const transactionReceipt =
-                        await this.config.publicClient.getTransactionReceipt({
-                            hash: txHash
-                        })
-
-                    let effectiveGasPrice: bigint | undefined =
-                        transactionReceipt.effectiveGasPrice ??
-                        (transactionReceipt as any).gasPrice ??
-                        undefined
-
-                    if (effectiveGasPrice === undefined) {
-                        const tx =
-                            await this.config.publicClient.getTransaction({
-                                hash: txHash
-                            })
-                        effectiveGasPrice = tx.gasPrice ?? undefined
-                    }
-
-                    if (effectiveGasPrice) {
-                        transactionReceipt.effectiveGasPrice = effectiveGasPrice
-                    }
-
-                    return transactionReceipt
-                } catch (e) {
-                    if (e instanceof TransactionReceiptNotFoundError) {
-                        continue
-                    }
-
-                    throw e
-                }
-            }
-        }
-
-        const receipt = await getTransactionReceipt(txHash)
-        const logs = receipt.logs
-
-        if (
-            logs.some(
-                (log) =>
-                    log.blockHash === null ||
-                    log.blockNumber === null ||
-                    log.transactionIndex === null ||
-                    log.transactionHash === null ||
-                    log.logIndex === null ||
-                    log.topics.length === 0
-            )
-        ) {
-            // transaction pending
-            return null
-        }
-
-        const userOperationReceipt = parseUserOperationReceipt(
-            userOperationHash,
-            receipt
-        )
-
-        return userOperationReceipt
-    }
-
-    async handleBlock(blockNumber: bigint) {
-        // Update the cached block number whenever we receive a new block
-        this.cachedLatestBlock = { value: blockNumber, timestamp: Date.now() }
-
+    private async handleBlock(blockNumber: bigint) {
         if (this.currentlyHandlingBlock) {
             return
         }
-
         this.currentlyHandlingBlock = true
-        this.logger.debug({ blockNumber }, "handling block")
 
-        const dumpSubmittedEntries = async () => {
-            const submittedEntries = []
-            for (const entryPoint of this.config.entrypoints) {
-                const entries = await this.mempool.dumpSubmittedOps(entryPoint)
-                submittedEntries.push(...entries)
-            }
-            return submittedEntries
-        }
+        // Process the block and get the results
+        const result = await this.bundleMonitor.processBlock(blockNumber)
 
-        const submittedEntries = await dumpSubmittedEntries()
-        if (submittedEntries.length === 0) {
+        if (!result.hasSubmittedEntries) {
             this.stopWatchingBlocks()
             this.currentlyHandlingBlock = false
             return
         }
-
-        // refresh op statuses
-        const ops = await dumpSubmittedEntries()
-        const txs = getTransactionsFromUserOperationEntries(ops)
-        await Promise.all(
-            txs.map((txInfo) => this.refreshTransactionStatus(txInfo))
-        )
 
         // for all still not included check if needs to be replaced (based on gas price)
         const [gasPriceParams, networkBaseFee] = await Promise.all([
@@ -712,9 +358,8 @@ export class ExecutorManager {
             this.getBaseFee().catch(() => 0n)
         ])
 
-        const transactionInfos = getTransactionsFromUserOperationEntries(
-            await dumpSubmittedEntries()
-        )
+        // Use the submitted transactions from the result
+        const transactionInfos = result.submittedTransactions
 
         await Promise.all(
             transactionInfos.map(async (txInfo) => {
@@ -787,7 +432,7 @@ export class ExecutorManager {
 
         // Free wallet and return if potentially included too many times.
         if (txInfo.timesPotentiallyIncluded >= 3) {
-            this.removeSubmitted(entryPoint, bundle.userOps)
+            await this.removeUserOpsFromMempool(entryPoint, bundle.userOps)
             this.logger.warn(
                 {
                     oldTxHash,
@@ -966,12 +611,13 @@ export class ExecutorManager {
                     userOpHash,
                     transactionInfo
                 })
-                this.startWatchingBlocks()
                 this.metrics.userOperationsSubmitted
                     .labels({ status: "success" })
                     .inc()
             })
         )
+        // Start watching blocks after marking operations as submitted
+        this.startWatchingBlocks()
     }
 
     async resubmitUserOperations(
@@ -1011,75 +657,14 @@ export class ExecutorManager {
         await this.dropUserOps(entryPoint, rejectedUserOps)
     }
 
-    async removeSubmitted(entryPoint: Address, userOps: UserOpInfo[]) {
+    private async removeUserOpsFromMempool(
+        entryPoint: Address,
+        userOps: UserOpInfo[]
+    ) {
         await Promise.all(
             userOps.map(async (userOpInfo) => {
                 const { userOpHash } = userOpInfo
                 await this.mempool.removeSubmitted({ entryPoint, userOpHash })
-            })
-        )
-    }
-
-    async markUserOpsIncluded(
-        userOps: UserOpInfo[],
-        entryPoint: Address,
-        blockNumber: bigint,
-        transactionHash: Hash,
-        userOperationDetails: Record<string, any>
-    ) {
-        await Promise.all(
-            userOps.map(async (userOpInfo) => {
-                this.metrics.userOperationsOnChain
-                    .labels({ status: "included" })
-                    .inc()
-
-                const { userOpHash, userOp, submissionAttempts } = userOpInfo
-                const opDetails = userOperationDetails[userOpHash]
-
-                const firstSubmitted = userOpInfo.addedToMempool
-                this.metrics.userOperationInclusionDuration.observe(
-                    (Date.now() - firstSubmitted) / 1000
-                )
-
-                // Track the number of submission attempts for included ops
-                this.metrics.userOperationsSubmissionAttempts.observe(
-                    submissionAttempts
-                )
-
-                await this.mempool.removeSubmitted({ entryPoint, userOpHash })
-                this.reputationManager.updateUserOperationIncludedStatus(
-                    userOp,
-                    entryPoint,
-                    opDetails.accountDeployed
-                )
-
-                if (opDetails.status === "succesful") {
-                    this.eventManager.emitIncludedOnChain(
-                        userOpHash,
-                        transactionHash,
-                        blockNumber as bigint
-                    )
-                } else {
-                    this.eventManager.emitExecutionRevertedOnChain(
-                        userOpHash,
-                        transactionHash,
-                        opDetails.revertReason || "0x",
-                        blockNumber as bigint
-                    )
-                }
-
-                await this.monitor.setUserOperationStatus(userOpHash, {
-                    status: "included",
-                    transactionHash
-                })
-
-                this.logger.info(
-                    {
-                        opHash: userOpHash,
-                        transactionHash
-                    },
-                    "user op included"
-                )
             })
         )
     }

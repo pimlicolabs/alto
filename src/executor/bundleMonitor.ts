@@ -1,0 +1,523 @@
+import type { EventManager } from "@alto/handlers"
+import type {
+    InterfaceReputationManager,
+    Mempool,
+    Monitor
+} from "@alto/mempool"
+import {
+    EntryPointV06Abi,
+    type HexData32,
+    type SubmittedUserOp,
+    type TransactionInfo,
+    UserOpInfo,
+    UserOperationBundle
+} from "@alto/types"
+import type { BundlingStatus, Logger, Metrics } from "@alto/utils"
+import { getBundleStatus, parseUserOperationReceipt } from "@alto/utils"
+import {
+    type Address,
+    type Hash,
+    type TransactionReceipt,
+    TransactionReceiptNotFoundError,
+    getAbiItem
+} from "viem"
+import type { AltoConfig } from "../createConfig"
+import { SenderManager } from "./senderManager"
+
+export function getTransactionsFromUserOperationEntries(
+    submittedOps: SubmittedUserOp[]
+): TransactionInfo[] {
+    const transactionInfos = submittedOps.map(
+        (userOpInfo) => userOpInfo.transactionInfo
+    )
+
+    // Remove duplicates
+    return Array.from(new Set(transactionInfos))
+}
+
+export interface BlockProcessingResult {
+    hasSubmittedEntries: boolean
+    submittedTransactions: TransactionInfo[]
+}
+
+export class BundleMonitor {
+    private config: AltoConfig
+    private mempool: Mempool
+    private monitor: Monitor
+    private logger: Logger
+    private metrics: Metrics
+    private eventManager: EventManager
+    private senderManager: SenderManager
+    private reputationManager: InterfaceReputationManager
+    private cachedLatestBlock: { value: bigint; timestamp: number } | null
+    private submittedBundles: Map<Address, UserOperationBundle>
+
+    constructor({
+        config,
+        mempool,
+        monitor,
+        metrics,
+        eventManager,
+        senderManager,
+        reputationManager
+    }: {
+        config: AltoConfig
+        mempool: Mempool
+        monitor: Monitor
+        metrics: Metrics
+        eventManager: EventManager
+        senderManager: SenderManager
+        reputationManager: InterfaceReputationManager
+    }) {
+        this.config = config
+        this.mempool = mempool
+        this.monitor = monitor
+        this.metrics = metrics
+        this.eventManager = eventManager
+        this.senderManager = senderManager
+        this.reputationManager = reputationManager
+        this.cachedLatestBlock = null
+        this.logger = config.getLogger(
+            { module: "transaction_monitor" },
+            {
+                level: config.executorLogLevel || config.logLevel
+            }
+        )
+    }
+
+    async getLatestBlockWithCache(): Promise<bigint> {
+        const now = Date.now()
+
+        // Use cached block number if it's still valid
+        if (
+            this.cachedLatestBlock &&
+            now - this.cachedLatestBlock.timestamp <
+                this.config.blockNumberCacheTtl
+        ) {
+            return this.cachedLatestBlock.value
+        }
+
+        // Otherwise fetch a new block number and cache it
+        const latestBlock = await this.config.publicClient.getBlockNumber()
+        this.cachedLatestBlock = { value: latestBlock, timestamp: now }
+        return latestBlock
+    }
+
+    updateCachedBlock(blockNumber: bigint): void {
+        this.cachedLatestBlock = { value: blockNumber, timestamp: Date.now() }
+    }
+
+    // update the current status of the bundling transaction/s
+    async refreshTransactionStatus(transactionInfo: TransactionInfo) {
+        const {
+            transactionHash: currentTxhash,
+            bundle,
+            previousTransactionHashes
+        } = transactionInfo
+
+        const { userOps, entryPoint } = bundle
+        const txHashesToCheck = [currentTxhash, ...previousTransactionHashes]
+
+        const transactionDetails = await Promise.all(
+            txHashesToCheck.map(async (transactionHash) => ({
+                transactionHash,
+                ...(await getBundleStatus({
+                    transactionHash,
+                    bundle: transactionInfo.bundle,
+                    publicClient: this.config.publicClient,
+                    logger: this.logger
+                }))
+            }))
+        )
+
+        // first check if bundling txs returns status "mined", if not, check for reverted
+        const mined = transactionDetails.find(
+            ({ bundlingStatus }) => bundlingStatus.status === "included"
+        )
+        const reverted = transactionDetails.find(
+            ({ bundlingStatus }) => bundlingStatus.status === "reverted"
+        )
+
+        const finalizedTransaction = mined ?? reverted
+
+        if (!finalizedTransaction) {
+            return
+        }
+
+        const { bundlingStatus, transactionHash, blockNumber } =
+            finalizedTransaction as {
+                bundlingStatus: BundlingStatus
+                blockNumber: bigint // block number is undefined only if transaction is not found
+                transactionHash: `0x${string}`
+            }
+
+        // Free executor if tx landed onchain
+        if (bundlingStatus.status !== "not_found") {
+            await this.senderManager.markWalletProcessed(
+                transactionInfo.executor
+            )
+        }
+
+        if (bundlingStatus.status === "included") {
+            const { userOperationDetails } = bundlingStatus
+            await this.markUserOpsIncluded(
+                userOps,
+                entryPoint,
+                blockNumber,
+                transactionHash,
+                userOperationDetails
+            )
+        }
+
+        if (bundlingStatus.status === "reverted") {
+            await Promise.all(
+                userOps.map(async (userOpInfo) => {
+                    const { userOpHash } = userOpInfo
+                    await this.checkFrontrun({
+                        entryPoint,
+                        userOpHash,
+                        transactionHash,
+                        blockNumber
+                    })
+                })
+            )
+            await this.removeSubmitted(entryPoint, userOps)
+        }
+    }
+
+    async checkFrontrun({
+        userOpHash,
+        entryPoint,
+        transactionHash,
+        blockNumber
+    }: {
+        userOpHash: HexData32
+        transactionHash: Hash
+        entryPoint: Address
+        blockNumber: bigint
+    }) {
+        const unwatch = this.config.publicClient.watchBlockNumber({
+            onBlockNumber: async (currentBlockNumber) => {
+                if (currentBlockNumber > blockNumber + 1n) {
+                    try {
+                        const userOperationReceipt =
+                            await this.getUserOperationReceipt(userOpHash)
+
+                        if (userOperationReceipt) {
+                            const transactionHash =
+                                userOperationReceipt.receipt.transactionHash
+                            const blockNumber =
+                                userOperationReceipt.receipt.blockNumber
+
+                            await this.mempool.removeSubmitted({
+                                entryPoint,
+                                userOpHash
+                            })
+                            await this.monitor.setUserOperationStatus(
+                                userOpHash,
+                                {
+                                    status: "included",
+                                    transactionHash
+                                }
+                            )
+
+                            this.eventManager.emitFrontranOnChain(
+                                userOpHash,
+                                transactionHash,
+                                blockNumber
+                            )
+
+                            this.logger.info(
+                                {
+                                    userOpHash,
+                                    transactionHash
+                                },
+                                "user op frontrun onchain"
+                            )
+
+                            this.metrics.userOperationsOnChain
+                                .labels({ status: "frontran" })
+                                .inc(1)
+                        } else {
+                            await this.monitor.setUserOperationStatus(
+                                userOpHash,
+                                {
+                                    status: "failed",
+                                    transactionHash
+                                }
+                            )
+                            this.eventManager.emitFailedOnChain(
+                                userOpHash,
+                                transactionHash,
+                                blockNumber
+                            )
+                            this.logger.info(
+                                {
+                                    userOpHash,
+                                    transactionHash
+                                },
+                                "user op failed onchain"
+                            )
+                            this.metrics.userOperationsOnChain
+                                .labels({ status: "reverted" })
+                                .inc(1)
+                        }
+                    } catch (error) {
+                        this.logger.error(
+                            {
+                                userOpHash,
+                                transactionHash,
+                                error
+                            },
+                            "Error checking frontrun status"
+                        )
+
+                        // Still mark as failed since we couldn't verify inclusion
+                        await this.monitor.setUserOperationStatus(userOpHash, {
+                            status: "failed",
+                            transactionHash
+                        })
+                    }
+                    unwatch()
+                }
+            }
+        })
+    }
+
+    async getUserOperationReceipt(userOperationHash: HexData32) {
+        const userOperationEventAbiItem = getAbiItem({
+            abi: EntryPointV06Abi,
+            name: "UserOperationEvent"
+        })
+
+        let fromBlock: bigint | undefined = undefined
+        let toBlock: "latest" | undefined = undefined
+        if (this.config.maxBlockRange !== undefined) {
+            const latestBlock = await this.getLatestBlockWithCache()
+
+            fromBlock = latestBlock - BigInt(this.config.maxBlockRange)
+            if (fromBlock < 0n) {
+                fromBlock = 0n
+            }
+            toBlock = "latest"
+        }
+
+        const filterResult = await this.config.publicClient.getLogs({
+            address: this.config.entrypoints,
+            event: userOperationEventAbiItem,
+            fromBlock,
+            toBlock,
+            args: {
+                userOpHash: userOperationHash
+            }
+        })
+
+        this.logger.debug(
+            {
+                filterResult: filterResult.length,
+                userOperationEvent:
+                    filterResult.length === 0
+                        ? undefined
+                        : filterResult[0].transactionHash
+            },
+            "filter result length"
+        )
+
+        if (filterResult.length === 0) {
+            return null
+        }
+
+        const userOperationEvent = filterResult[0]
+        // throw if any of the members of userOperationEvent are undefined
+        if (
+            userOperationEvent.args.actualGasCost === undefined ||
+            userOperationEvent.args.sender === undefined ||
+            userOperationEvent.args.nonce === undefined ||
+            userOperationEvent.args.userOpHash === undefined ||
+            userOperationEvent.args.success === undefined ||
+            userOperationEvent.args.paymaster === undefined ||
+            userOperationEvent.args.actualGasUsed === undefined
+        ) {
+            throw new Error("userOperationEvent has undefined members")
+        }
+
+        const txHash = userOperationEvent.transactionHash
+        if (txHash === null) {
+            // transaction pending
+            return null
+        }
+
+        const getTransactionReceipt = async (
+            txHash: HexData32
+        ): Promise<TransactionReceipt> => {
+            while (true) {
+                try {
+                    const transactionReceipt =
+                        await this.config.publicClient.getTransactionReceipt({
+                            hash: txHash
+                        })
+
+                    let effectiveGasPrice: bigint | undefined =
+                        transactionReceipt.effectiveGasPrice ??
+                        (transactionReceipt as any).gasPrice ??
+                        undefined
+
+                    if (effectiveGasPrice === undefined) {
+                        const tx =
+                            await this.config.publicClient.getTransaction({
+                                hash: txHash
+                            })
+                        effectiveGasPrice = tx.gasPrice ?? undefined
+                    }
+
+                    if (effectiveGasPrice) {
+                        transactionReceipt.effectiveGasPrice = effectiveGasPrice
+                    }
+
+                    return transactionReceipt
+                } catch (e) {
+                    if (e instanceof TransactionReceiptNotFoundError) {
+                        continue
+                    }
+
+                    throw e
+                }
+            }
+        }
+
+        const receipt = await getTransactionReceipt(txHash)
+        const logs = receipt.logs
+
+        if (
+            logs.some(
+                (log) =>
+                    log.blockHash === null ||
+                    log.blockNumber === null ||
+                    log.transactionIndex === null ||
+                    log.transactionHash === null ||
+                    log.logIndex === null ||
+                    log.topics.length === 0
+            )
+        ) {
+            // transaction pending
+            return null
+        }
+
+        const userOperationReceipt = parseUserOperationReceipt(
+            userOperationHash,
+            receipt
+        )
+
+        return userOperationReceipt
+    }
+
+    async processBlock(blockNumber: bigint): Promise<BlockProcessingResult> {
+        // Update the cached block number whenever we receive a new block
+        this.updateCachedBlock(blockNumber)
+
+        this.logger.debug({ blockNumber }, "processing block")
+
+        const dumpSubmittedEntries = async () => {
+            const submittedEntries = []
+            for (const entryPoint of this.config.entrypoints) {
+                const entries = await this.mempool.dumpSubmittedOps(entryPoint)
+                submittedEntries.push(...entries)
+            }
+            return submittedEntries
+        }
+
+        const submittedEntries = await dumpSubmittedEntries()
+        if (submittedEntries.length === 0) {
+            return {
+                hasSubmittedEntries: false,
+                submittedTransactions: []
+            }
+        }
+
+        // refresh op statuses
+        const ops = await dumpSubmittedEntries()
+        const txs = getTransactionsFromUserOperationEntries(ops)
+        await Promise.all(
+            txs.map((txInfo) => this.refreshTransactionStatus(txInfo))
+        )
+
+        // Return the submitted transactions for further processing
+        return {
+            hasSubmittedEntries: true,
+            submittedTransactions: txs
+        }
+    }
+
+    private async removeSubmitted(entryPoint: Address, userOps: UserOpInfo[]) {
+        await Promise.all(
+            userOps.map(async (userOpInfo) => {
+                const { userOpHash } = userOpInfo
+                await this.mempool.removeSubmitted({ entryPoint, userOpHash })
+            })
+        )
+    }
+
+    private async markUserOpsIncluded(
+        userOps: UserOpInfo[],
+        entryPoint: Address,
+        blockNumber: bigint,
+        transactionHash: Hash,
+        userOperationDetails: Record<string, any>
+    ) {
+        await Promise.all(
+            userOps.map(async (userOpInfo) => {
+                this.metrics.userOperationsOnChain
+                    .labels({ status: "included" })
+                    .inc()
+
+                const { userOpHash, userOp, submissionAttempts } = userOpInfo
+                const opDetails = userOperationDetails[userOpHash]
+
+                const firstSubmitted = userOpInfo.addedToMempool
+                this.metrics.userOperationInclusionDuration.observe(
+                    (Date.now() - firstSubmitted) / 1000
+                )
+
+                // Track the number of submission attempts for included ops
+                this.metrics.userOperationsSubmissionAttempts.observe(
+                    submissionAttempts
+                )
+
+                await this.mempool.removeSubmitted({ entryPoint, userOpHash })
+                this.reputationManager.updateUserOperationIncludedStatus(
+                    userOp,
+                    entryPoint,
+                    opDetails.accountDeployed
+                )
+
+                if (opDetails.status === "succesful") {
+                    this.eventManager.emitIncludedOnChain(
+                        userOpHash,
+                        transactionHash,
+                        blockNumber as bigint
+                    )
+                } else {
+                    this.eventManager.emitExecutionRevertedOnChain(
+                        userOpHash,
+                        transactionHash,
+                        opDetails.revertReason || "0x",
+                        blockNumber as bigint
+                    )
+                }
+
+                await this.monitor.setUserOperationStatus(userOpHash, {
+                    status: "included",
+                    transactionHash
+                })
+
+                this.logger.info(
+                    {
+                        opHash: userOpHash,
+                        transactionHash
+                    },
+                    "user op included"
+                )
+            })
+        )
+    }
+}
