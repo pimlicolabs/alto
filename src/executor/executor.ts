@@ -1,15 +1,13 @@
-import type { EventManager, GasPriceManager } from "@alto/handlers"
-import type { InterfaceReputationManager, Mempool } from "@alto/mempool"
+import type { EventManager } from "@alto/handlers"
 import type {
     Address,
     BundleResult,
     HexData32,
-    UserOperation,
     GasPriceParameters,
     UserOperationBundle,
     UserOpInfo
 } from "@alto/types"
-import type { Logger, Metrics } from "@alto/utils"
+import type { Logger } from "@alto/utils"
 import {
     roundUpBigInt,
     maxBigInt,
@@ -73,43 +71,23 @@ type HandleOpsGasParams =
 export class Executor {
     config: AltoConfig
     logger: Logger
-    metrics: Metrics
-    reputationManager: InterfaceReputationManager
-    gasPriceManager: GasPriceManager
-    mempool: Mempool
     eventManager: EventManager
 
     constructor({
         config,
-        mempool,
-        reputationManager,
-        metrics,
-        gasPriceManager,
         eventManager
     }: {
         config: AltoConfig
-        mempool: Mempool
-        reputationManager: InterfaceReputationManager
-        metrics: Metrics
-        gasPriceManager: GasPriceManager
         eventManager: EventManager
     }) {
         this.config = config
-        this.mempool = mempool
-        this.reputationManager = reputationManager
         this.logger = config.getLogger(
             { module: "executor" },
             {
                 level: config.executorLogLevel || config.logLevel
             }
         )
-        this.metrics = metrics
-        this.gasPriceManager = gasPriceManager
         this.eventManager = eventManager
-    }
-
-    cancelOps(_entryPoint: Address, _ops: UserOperation[]): Promise<void> {
-        throw new Error("Method not implemented.")
     }
 
     async getBundleGasPrice({
@@ -383,7 +361,7 @@ export class Executor {
         })
 
         let filterOpsResult = await filterOpsAndEstimateGas({
-            gasPriceManager: this.gasPriceManager,
+            networkBaseFee,
             userOpBundle,
             config: this.config,
             logger: childLogger
