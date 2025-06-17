@@ -227,6 +227,15 @@ export class ExecutorManager {
     async sendBundleToExecutor(
         userOpBundle: UserOperationBundle
     ): Promise<Hex | undefined> {
+        this.logger.info(
+            {
+                userOps: userOpBundle.userOps.map(
+                    ({ userOpHash }) => userOpHash
+                )
+            },
+            "Sending bundle to executor"
+        )
+
         const { entryPoint, userOps, version } = userOpBundle
         if (userOps.length === 0) {
             return undefined

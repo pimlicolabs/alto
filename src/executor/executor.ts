@@ -382,12 +382,23 @@ export class Executor {
             entryPoint
         })
 
+        const filterStartTime = performance.now()
+
         let filterOpsResult = await filterOpsAndEstimateGas({
             gasPriceManager: this.gasPriceManager,
             userOpBundle,
             config: this.config,
             logger: childLogger
         })
+
+        const filterDuration = performance.now() - filterStartTime
+        childLogger.info(
+            {
+                userOpHashes: getUserOpHashes(userOpBundle.userOps),
+                durationMs: filterDuration
+            },
+            "filterOpsAndEstimateGas completed"
+        )
 
         if (filterOpsResult.status === "unhandled_error") {
             childLogger.error("encountered unexpected failure during filterOps")
@@ -455,6 +466,8 @@ export class Executor {
                 }
             }
 
+            const sendStartTime = performance.now()
+
             transactionHash = await this.sendHandleOpsTransaction({
                 txParam: {
                     account: executor,
@@ -465,6 +478,15 @@ export class Executor {
                 },
                 gasOpts
             })
+
+            const sendDuration = performance.now() - sendStartTime
+            childLogger.info(
+                {
+                    userOpHashes: getUserOpHashes(userOpsToBundle),
+                    durationMs: sendDuration
+                },
+                "sendHandleOpsTransaction completed"
+            )
 
             this.eventManager.emitSubmitted({
                 userOpHashes: getUserOpHashes(userOpsToBundle),
