@@ -642,7 +642,8 @@ export class ExecutorManager {
     ) {
         await Promise.all(
             userOps.map(async (userOpInfo) => {
-                await this.mempool.removeFromMempool({ entryPoint, userOpInfo })
+                const { userOpHash } = userOpInfo
+                await this.mempool.removeSubmitted({ entryPoint, userOpHash })
             })
         )
     }

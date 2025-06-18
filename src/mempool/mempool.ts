@@ -25,7 +25,7 @@ import {
     jsonStringifyWithBigint,
     scaleBigIntByPercent
 } from "@alto/utils"
-import { getAddress, getContract } from "viem"
+import { Hex, getAddress, getContract } from "viem"
 import type { Monitor } from "./monitoring"
 import {
     type InterfaceReputationManager,
@@ -139,15 +139,14 @@ export class Mempool {
         )
     }
 
-    async removeFromMempool({
-        userOpInfo,
+    async removeSubmitted({
+        userOpHash,
         entryPoint
     }: {
-        userOpInfo: UserOpInfo
+        userOpHash: Hex
         entryPoint: Address
     }) {
-        const { userOpHash } = userOpInfo
-        await this.removeSubmitted({ entryPoint, userOpHash })
+        await this.store.removeSubmitted({ entryPoint, userOpHash })
     }
 
     // === Methods for dropping mempool entries === //
@@ -162,13 +161,6 @@ export class Mempool {
 
     async dumpSubmittedOps(entryPoint: Address): Promise<UserOpInfo[]> {
         return await this.store.dumpSubmitted(entryPoint)
-    }
-
-    async removeSubmitted({
-        entryPoint,
-        userOpHash
-    }: { entryPoint: Address; userOpHash: `0x${string}` }) {
-        await this.store.removeSubmitted({ entryPoint, userOpHash })
     }
 
     // === Methods for entity management === //

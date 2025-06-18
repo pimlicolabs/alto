@@ -155,10 +155,9 @@ export class BundleMonitor {
         if (bundlingStatus.status === "reverted") {
             await Promise.all(
                 userOps.map(async (userOpInfo) => {
-                    const { userOpHash } = userOpInfo
                     await this.checkFrontrun({
                         entryPoint,
-                        userOpHash,
+                        userOpInfo,
                         transactionHash,
                         blockNumber
                     })
@@ -169,16 +168,17 @@ export class BundleMonitor {
     }
 
     async checkFrontrun({
-        userOpHash,
+        userOpInfo,
         entryPoint,
         transactionHash,
         blockNumber
     }: {
-        userOpHash: HexData32
+        userOpInfo: UserOpInfo
         transactionHash: Hash
         entryPoint: Address
         blockNumber: bigint
     }) {
+        const { userOpHash } = userOpInfo
         const unwatch = this.config.publicClient.watchBlockNumber({
             onBlockNumber: async (currentBlockNumber) => {
                 if (currentBlockNumber > blockNumber + 1n) {
