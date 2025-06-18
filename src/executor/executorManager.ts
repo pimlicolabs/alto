@@ -7,7 +7,6 @@ import type {
 import {
     type BundlingMode,
     type SubmittedBundleInfo,
-    RejectedUserOp,
     UserOperationBundle,
     UserOpInfo
 } from "@alto/types"
@@ -430,7 +429,8 @@ export class ExecutorManager {
 
         // Free wallet and return if potentially included too many times.
         if (txInfo.timesPotentiallyIncluded >= 3) {
-            await this.removeUserOpsFromMempool(entryPoint, bundle.userOps)
+            const userOpHashes = bundle.userOps.map((op) => op.userOpHash)
+            await this.mempool.removeSubmittedUserOps(entryPoint, userOpHashes)
             this.logger.warn(
                 {
                     oldTxHash,
@@ -492,22 +492,21 @@ export class ExecutorManager {
 
         if (bundleResult.status === "filterops_unhandled_error") {
             const { rejectedUserOps } = bundleResult
-            await this.failedToReplaceTransaction({
-                entryPoint,
-                oldTxHash,
-                reason: "filterOps simulation error",
-                rejectedUserOps
-            })
+            this.logger.warn(
+                { oldTxHash, reason: "filterOps simulation error" },
+                "failed to replace transaction"
+            )
+            await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
             return
         }
 
         if (bundleResult.status === "filterops_all_rejected") {
-            await this.failedToReplaceTransaction({
-                entryPoint,
-                oldTxHash,
-                reason: "all ops failed simulation",
-                rejectedUserOps: bundleResult.rejectedUserOps
-            })
+            const { rejectedUserOps } = bundleResult
+            this.logger.warn(
+                { oldTxHash, reason: "all ops failed simulation" },
+                "failed to replace transaction"
+            )
+            await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
             return
         }
 
@@ -516,12 +515,11 @@ export class ExecutorManager {
             const submissionFailureReason =
                 reason instanceof BaseError ? reason.name : "INTERNAL FAILURE"
 
-            await this.failedToReplaceTransaction({
-                oldTxHash,
-                rejectedUserOps,
-                reason: submissionFailureReason,
-                entryPoint
-            })
+            this.logger.warn(
+                { oldTxHash, reason: submissionFailureReason },
+                "failed to replace transaction"
+            )
+            await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
             return
         }
 
@@ -622,32 +620,5 @@ export class ExecutorManager {
         )
 
         this.metrics.userOperationsResubmitted.inc(userOps.length)
-    }
-
-    async failedToReplaceTransaction({
-        oldTxHash,
-        rejectedUserOps,
-        reason,
-        entryPoint
-    }: {
-        oldTxHash: Hex
-        rejectedUserOps: RejectedUserOp[]
-        reason: string
-        entryPoint: Address
-    }) {
-        this.logger.warn({ oldTxHash, reason }, "failed to replace transaction")
-        await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
-    }
-
-    private async removeUserOpsFromMempool(
-        entryPoint: Address,
-        userOps: UserOpInfo[]
-    ) {
-        await Promise.all(
-            userOps.map(async (userOpInfo) => {
-                const { userOpHash } = userOpInfo
-                await this.mempool.removeSubmitted({ entryPoint, userOpHash })
-            })
-        )
     }
 }

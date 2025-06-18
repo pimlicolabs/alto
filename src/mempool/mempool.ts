@@ -124,7 +124,7 @@ export class Mempool {
             rejectedUserOps.map(async (rejectedUserOp) => {
                 const { userOp, reason, userOpHash } = rejectedUserOp
                 await this.store.removeProcessing({ entryPoint, userOpHash })
-                await this.removeSubmitted({ entryPoint, userOpHash })
+                await this.store.removeSubmitted({ entryPoint, userOpHash })
                 this.eventManager.emitDropped(userOpHash, reason, getAAError(reason))
                 await this.monitor.setUserOperationStatus(userOpHash, {
                     status: "rejected",
@@ -142,14 +142,15 @@ export class Mempool {
         )
     }
 
-    async removeSubmitted({
-        userOpHash,
-        entryPoint
-    }: {
-        userOpHash: Hex
-        entryPoint: Address
-    }) {
-        await this.store.removeSubmitted({ entryPoint, userOpHash })
+    async removeSubmittedUserOps(
+        entryPoint: Address,
+        userOpHashes: Hex[]
+    ) {
+        await Promise.all(
+            userOpHashes.map(async (userOpHash) => {
+                await this.store.removeSubmitted({ entryPoint, userOpHash })
+            })
+        )
     }
 
     // === Methods for dropping mempool entries === //
