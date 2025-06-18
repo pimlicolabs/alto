@@ -455,15 +455,15 @@ export class ExecutorManager {
             bundleResult.status === "submission_generic_error" &&
             bundleResult.reason instanceof NonceTooLowError
 
-        const allOpsFailedSimulation =
+        const onchainConflict =
             bundleResult.status === "filterops_all_rejected" &&
             bundleResult.rejectedUserOps.every(
-                (op) =>
-                    op.reason === "AA25 invalid account nonce" ||
-                    op.reason === "AA10 sender already constructed"
+                ({ reason }) =>
+                    reason === "AA25 invalid account nonce" ||
+                    reason === "AA10 sender already constructed"
             )
 
-        const potentiallyIncluded = nonceTooLow || allOpsFailedSimulation
+        const potentiallyIncluded = nonceTooLow || onchainConflict
 
         // log metrics
         const replaceStatus = (() => {
