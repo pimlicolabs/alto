@@ -311,7 +311,13 @@ export class ExecutorManager {
             }
 
             this.bundleMonitor.setSubmittedBundle(submittedBundle)
-            await this.markUserOpsAsSubmitted(submittedBundle)
+            await this.mempool.markUserOpsAsSubmitted({
+                userOps: submittedBundle.bundle.userOps,
+                entryPoint: submittedBundle.bundle.entryPoint,
+                transactionHash: submittedBundle.transactionHash
+            })
+            // Start watching blocks after marking operations as submitted
+            this.startWatchingBlocks()
             await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
             this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
 
@@ -580,25 +586,4 @@ export class ExecutorManager {
         return
     }
 
-    async markUserOpsAsSubmitted(submittedBundle: SubmittedBundleInfo) {
-        const { bundle, transactionHash } = submittedBundle
-        const { userOps, entryPoint } = bundle
-        await Promise.all(
-            userOps.map(async (userOpInfo) => {
-                const { userOpHash } = userOpInfo
-                await this.mempool.markSubmitted({ entryPoint, userOpInfo })
-                await this.monitor.setUserOperationStatus(userOpHash, {
-                    status: "submitted",
-                    transactionHash
-                })
-            })
-        )
-
-        this.metrics.userOperationsSubmitted
-            .labels({ status: "success" })
-            .inc(userOps.length)
-
-        // Start watching blocks after marking operations as submitted
-        this.startWatchingBlocks()
-    }
 }

@@ -83,18 +83,30 @@ export class Mempool {
 
     // === Methods for handling changing userOp state === //
 
-    async markSubmitted({
-        userOpInfo,
-        entryPoint
+    async markUserOpsAsSubmitted({
+        userOps,
+        entryPoint,
+        transactionHash
     }: {
-        userOpInfo: UserOpInfo
+        userOps: UserOpInfo[]
         entryPoint: Address
+        transactionHash: Hex
     }) {
-        await this.store.removeProcessing({
-            entryPoint,
-            userOpHash: userOpInfo.userOpHash
-        })
-        await this.store.addSubmitted({ entryPoint, userOpInfo })
+        await Promise.all(
+            userOps.map(async (userOpInfo) => {
+                const { userOpHash } = userOpInfo
+                await this.store.removeProcessing({ entryPoint, userOpHash })
+                await this.store.addSubmitted({ entryPoint, userOpInfo })
+                await this.monitor.setUserOperationStatus(userOpHash, {
+                    status: "submitted",
+                    transactionHash
+                })
+            })
+        )
+
+        this.metrics.userOperationsSubmitted
+            .labels({ status: "success" })
+            .inc(userOps.length)
     }
 
     async resubmitUserOps(
