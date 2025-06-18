@@ -36,9 +36,11 @@ import type { MempoolStore } from "@alto/store"
 import { calculateAA95GasFloor } from "../executor/utils"
 import { privateKeyToAddress, generatePrivateKey } from "viem/accounts"
 import { EntryPointVersion } from "viem/account-abstraction"
+import { Metric } from "prom-client"
 
 export class Mempool {
     private config: AltoConfig
+    private metrics: Metric
     private monitor: Monitor
     private reputationManager: InterfaceReputationManager
     public store: MempoolStore
@@ -49,6 +51,7 @@ export class Mempool {
 
     constructor({
         config,
+        metrics,
         monitor,
         reputationManager,
         validator,
@@ -56,12 +59,14 @@ export class Mempool {
         eventManager
     }: {
         config: AltoConfig
+        metrics: Metric
         monitor: Monitor
         reputationManager: InterfaceReputationManager
         validator: InterfaceValidator
         store: MempoolStore
         eventManager: EventManager
     }) {
+        this.metrics = metrics
         this.store = store
         this.config = config
         this.reputationManager = reputationManager
@@ -114,28 +119,26 @@ export class Mempool {
         await this.add(userOp, entryPoint)
     }
 
-    async dropUserOp({
-        rejectedUserOp,
-        entryPoint
-    }: {
-        rejectedUserOp: RejectedUserOp
-        entryPoint: Address
-    }) {
-        const { userOp, reason, userOpHash } = rejectedUserOp
-        await this.store.removeProcessing({ entryPoint, userOpHash })
-        await this.removeSubmitted({ entryPoint, userOpHash })
-        this.eventManager.emitDropped(userOpHash, reason, getAAError(reason))
-        await this.monitor.setUserOperationStatus(userOpHash, {
-            status: "rejected",
-            transactionHash: null
-        })
-        this.logger.warn(
-            {
-                userOperation: jsonStringifyWithBigint(userOp),
-                userOpHash,
-                reason
-            },
-            "user operation rejected"
+    async dropUserOps(entryPoint: Address, rejectedUserOps: RejectedUserOp[]) {
+        await Promise.all(
+            rejectedUserOps.map(async (rejectedUserOp) => {
+                const { userOp, reason, userOpHash } = rejectedUserOp
+                await this.store.removeProcessing({ entryPoint, userOpHash })
+                await this.removeSubmitted({ entryPoint, userOpHash })
+                this.eventManager.emitDropped(userOpHash, reason, getAAError(reason))
+                await this.monitor.setUserOperationStatus(userOpHash, {
+                    status: "rejected",
+                    transactionHash: null
+                })
+                this.logger.warn(
+                    {
+                        userOperation: jsonStringifyWithBigint(userOp),
+                        userOpHash,
+                        reason
+                    },
+                    "user operation rejected"
+                )
+            })
         )
     }
 

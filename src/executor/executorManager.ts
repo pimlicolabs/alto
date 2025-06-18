@@ -232,12 +232,15 @@ export class ExecutorManager {
         // Free wallet if no bundle was sent.
         if (bundleResult.status !== "submission_success") {
             await this.senderManager.markWalletProcessed(wallet)
+            this.metrics.userOperationsSubmitted
+                .labels({ status: "failed" })
+                .inc(bundleResult.rejectedUserOps.length)
         }
 
         // All ops failed simulation, drop them and return.
         if (bundleResult.status === "filterops_all_rejected") {
             const { rejectedUserOps } = bundleResult
-            await this.dropUserOps(entryPoint, rejectedUserOps)
+            await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
             return undefined
         }
 
@@ -247,7 +250,7 @@ export class ExecutorManager {
                 ...userOp,
                 reason: "filterOps simulation error"
             }))
-            await this.dropUserOps(entryPoint, rejectedUserOps)
+            await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
             this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
             return undefined
         }
@@ -255,7 +258,7 @@ export class ExecutorManager {
         // Resubmit if executor has insufficient funds.
         if (bundleResult.status === "submission_insufficient_funds_error") {
             const { userOpsToBundle, rejectedUserOps } = bundleResult
-            await this.dropUserOps(entryPoint, rejectedUserOps)
+            await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
             await this.resubmitUserOps(
                 userOpsToBundle,
                 entryPoint,
@@ -268,7 +271,7 @@ export class ExecutorManager {
         // Encountered unhandled error during bundle submission.
         if (bundleResult.status === "submission_generic_error") {
             const { rejectedUserOps, userOpsToBundle, reason } = bundleResult
-            await this.dropUserOps(entryPoint, rejectedUserOps)
+            await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
             // NOTE: these ops passed validation, so we can try resubmitting them
             await this.resubmitUserOps(
                 userOpsToBundle,
@@ -312,7 +315,7 @@ export class ExecutorManager {
 
             this.bundleMonitor.setSubmittedBundle(submittedBundle)
             await this.markUserOpsAsSubmitted(submittedBundle)
-            await this.dropUserOps(entryPoint, rejectedUserOps)
+            await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
             this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
 
             return transactionHash
@@ -524,7 +527,7 @@ export class ExecutorManager {
 
         if (bundleResult.status === "submission_insufficient_funds_error") {
             const { userOpsToBundle, rejectedUserOps } = bundleResult
-            await this.dropUserOps(entryPoint, rejectedUserOps)
+            await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
             await this.resubmitUserOps(
                 userOpsToBundle,
                 entryPoint,
@@ -567,7 +570,7 @@ export class ExecutorManager {
         this.bundleMonitor.setSubmittedBundle(newTxInfo)
 
         // Drop all userOperations that were rejected during simulation.
-        await this.dropUserOps(entryPoint, rejectedUserOps)
+        await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
 
         this.logger.info(
             {
@@ -633,7 +636,7 @@ export class ExecutorManager {
         entryPoint: Address
     }) {
         this.logger.warn({ oldTxHash, reason }, "failed to replace transaction")
-        await this.dropUserOps(entryPoint, rejectedUserOps)
+        await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
     }
 
     private async removeUserOpsFromMempool(
@@ -646,20 +649,5 @@ export class ExecutorManager {
                 await this.mempool.removeSubmitted({ entryPoint, userOpHash })
             })
         )
-    }
-
-    async dropUserOps(entryPoint: Address, rejectedUserOps: RejectedUserOp[]) {
-        await Promise.all(
-            rejectedUserOps.map(async (rejectedUserOp) => {
-                await this.mempool.dropUserOp({
-                    rejectedUserOp,
-                    entryPoint
-                })
-            })
-        )
-
-        this.metrics.userOperationsSubmitted
-            .labels({ status: "failed" })
-            .inc(rejectedUserOps.length)
     }
 }
