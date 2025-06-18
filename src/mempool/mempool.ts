@@ -76,37 +76,6 @@ export class Mempool {
         this.eventManager = eventManager
     }
 
-    async replaceSubmitted({
-        userOpInfo,
-        transactionInfo
-    }: {
-        userOpInfo: UserOpInfo
-        transactionInfo: SubmittedBundleInfo
-    }) {
-        const entryPoint = transactionInfo.bundle.entryPoint
-        const { userOpHash } = userOpInfo
-        const sumbittedUserOps = await this.store.dumpSubmitted(entryPoint)
-        const existingUserOpToReplace = sumbittedUserOps.find(
-            (userOpInfo: SubmittedUserOp) =>
-                userOpInfo.userOpHash === userOpHash
-        )
-
-        if (existingUserOpToReplace) {
-            await this.store.removeSubmitted({ entryPoint, userOpHash })
-            await this.store.addSubmitted({
-                entryPoint,
-                submittedUserOp: {
-                    ...userOpInfo,
-                    transactionInfo
-                }
-            })
-            await this.monitor.setUserOperationStatus(userOpHash, {
-                status: "submitted",
-                transactionHash: transactionInfo.transactionHash
-            })
-        }
-    }
-
     async markSubmitted({
         userOpHash,
         transactionInfo

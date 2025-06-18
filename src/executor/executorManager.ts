@@ -566,8 +566,8 @@ export class ExecutorManager {
             }
         }
 
+        // Replace existing submitted bundle with new one
         this.bundleMonitor.setSubmittedBundle(newTxInfo)
-        await this.markUserOpsAsReplaced(userOpsReplaced, newTxInfo)
 
         // Drop all userOperations that were rejected during simulation.
         await this.dropUserOps(entryPoint, rejectedUserOps)
@@ -582,21 +582,6 @@ export class ExecutorManager {
         )
 
         return
-    }
-
-    async markUserOpsAsReplaced(
-        userOpsReplaced: UserOpInfo[],
-        newTxInfo: SubmittedBundleInfo
-    ) {
-        // Mark as replaced in mempool
-        await Promise.all(
-            userOpsReplaced.map(async (userOpInfo) => {
-                await this.mempool.replaceSubmitted({
-                    userOpInfo,
-                    transactionInfo: newTxInfo
-                })
-            })
-        )
     }
 
     async markUserOpsAsSubmitted(

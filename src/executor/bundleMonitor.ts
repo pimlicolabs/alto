@@ -7,10 +7,8 @@ import type {
 import {
     EntryPointV06Abi,
     type HexData32,
-    type SubmittedUserOp,
     type SubmittedBundleInfo,
-    UserOpInfo,
-    UserOperationBundle
+    UserOpInfo
 } from "@alto/types"
 import type { BundlingStatus, Logger, Metrics } from "@alto/utils"
 import { getBundleStatus, parseUserOperationReceipt } from "@alto/utils"
@@ -23,17 +21,6 @@ import {
 } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { SenderManager } from "./senderManager"
-
-export function getTransactionsFromUserOperationEntries(
-    submittedOps: SubmittedUserOp[]
-): SubmittedBundleInfo[] {
-    const transactionInfos = submittedOps.map(
-        (userOpInfo) => userOpInfo.transactionInfo
-    )
-
-    // Remove duplicates
-    return Array.from(new Set(transactionInfos))
-}
 
 export interface BlockProcessingResult {
     hasSubmittedEntries: boolean
@@ -413,17 +400,10 @@ export class BundleMonitor {
 
         this.logger.debug({ blockNumber }, "processing block")
 
-        const dumpSubmittedEntries = async () => {
-            const submittedEntries = []
-            for (const entryPoint of this.config.entrypoints) {
-                const entries = await this.mempool.dumpSubmittedOps(entryPoint)
-                submittedEntries.push(...entries)
-            }
-            return submittedEntries
-        }
+        // Collect all submitted bundles
+        const submittedTransactions = Array.from(this.submittedBundles.values())
 
-        const submittedEntries = await dumpSubmittedEntries()
-        if (submittedEntries.length === 0) {
+        if (submittedTransactions.length === 0) {
             return {
                 hasSubmittedEntries: false,
                 submittedTransactions: []
@@ -431,16 +411,16 @@ export class BundleMonitor {
         }
 
         // refresh op statuses
-        const ops = await dumpSubmittedEntries()
-        const txs = getTransactionsFromUserOperationEntries(ops)
         await Promise.all(
-            txs.map((txInfo) => this.refreshTransactionStatus(txInfo))
+            submittedTransactions.map((txInfo) =>
+                this.refreshTransactionStatus(txInfo)
+            )
         )
 
         // Return the submitted transactions for further processing
         return {
             hasSubmittedEntries: true,
-            submittedTransactions: txs
+            submittedTransactions
         }
     }
 
