@@ -7,12 +7,10 @@ import type {
 import {
     type BundlingMode,
     type SubmittedBundleInfo,
-    UserOperationBundle,
-    UserOpInfo
+    UserOperationBundle
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import {
-    type Address,
     type Hash,
     Hex,
     NonceTooLowError,
@@ -210,7 +208,7 @@ export class ExecutorManager {
         })
 
         if (!gasPriceParams || nonce === undefined) {
-            await this.resubmitUserOps(
+            await this.mempool.resubmitUserOps(
                 userOps,
                 entryPoint,
                 "Failed to get nonce and gas parameters for bundling"
@@ -258,7 +256,7 @@ export class ExecutorManager {
         if (bundleResult.status === "submission_insufficient_funds_error") {
             const { userOpsToBundle, rejectedUserOps } = bundleResult
             await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
-            await this.resubmitUserOps(
+            await this.mempool.resubmitUserOps(
                 userOpsToBundle,
                 entryPoint,
                 "Executor has insufficient funds"
@@ -272,7 +270,7 @@ export class ExecutorManager {
             const { rejectedUserOps, userOpsToBundle, reason } = bundleResult
             await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
             // NOTE: these ops passed validation, so we can try resubmitting them
-            await this.resubmitUserOps(
+            await this.mempool.resubmitUserOps(
                 userOpsToBundle,
                 entryPoint,
                 reason instanceof BaseError
@@ -526,7 +524,7 @@ export class ExecutorManager {
         if (bundleResult.status === "submission_insufficient_funds_error") {
             const { userOpsToBundle, rejectedUserOps } = bundleResult
             await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
-            await this.resubmitUserOps(
+            await this.mempool.resubmitUserOps(
                 userOpsToBundle,
                 entryPoint,
                 "Executor has insufficient funds"
@@ -602,23 +600,5 @@ export class ExecutorManager {
 
         // Start watching blocks after marking operations as submitted
         this.startWatchingBlocks()
-    }
-
-    async resubmitUserOps(
-        userOps: UserOpInfo[],
-        entryPoint: Address,
-        reason: string
-    ) {
-        await Promise.all(
-            userOps.map(async (userOpInfo) => {
-                await this.mempool.resubmitUserOp({
-                    userOpInfo,
-                    entryPoint,
-                    reason
-                })
-            })
-        )
-
-        this.metrics.userOperationsResubmitted.inc(userOps.length)
     }
 }

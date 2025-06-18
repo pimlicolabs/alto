@@ -14,7 +14,7 @@ import {
     type Address,
     RejectedUserOp
 } from "@alto/types"
-import type { Logger } from "@alto/utils"
+import type { Logger, Metrics } from "@alto/utils"
 import {
     getAAError,
     getAddressFromInitCodeOrPaymasterAndData,
@@ -36,11 +36,10 @@ import type { MempoolStore } from "@alto/store"
 import { calculateAA95GasFloor } from "../executor/utils"
 import { privateKeyToAddress, generatePrivateKey } from "viem/accounts"
 import { EntryPointVersion } from "viem/account-abstraction"
-import { Metric } from "prom-client"
 
 export class Mempool {
     private config: AltoConfig
-    private metrics: Metric
+    private metrics: Metrics
     private monitor: Monitor
     private reputationManager: InterfaceReputationManager
     public store: MempoolStore
@@ -59,7 +58,7 @@ export class Mempool {
         eventManager
     }: {
         config: AltoConfig
-        metrics: Metric
+        metrics: Metrics
         monitor: Monitor
         reputationManager: InterfaceReputationManager
         validator: InterfaceValidator
@@ -98,25 +97,27 @@ export class Mempool {
         await this.store.addSubmitted({ entryPoint, userOpInfo })
     }
 
-    async resubmitUserOp({
-        userOpInfo,
-        entryPoint,
-        reason
-    }: {
-        userOpInfo: UserOpInfo
-        entryPoint: Address
+    async resubmitUserOps(
+        userOps: UserOpInfo[],
+        entryPoint: Address,
         reason: string
-    }) {
-        const { userOpHash, userOp } = userOpInfo
-        this.logger.warn(
-            {
-                userOpHash,
-                reason
-            },
-            "resubmitting user operation"
+    ) {
+        await Promise.all(
+            userOps.map(async (userOpInfo) => {
+                const { userOpHash, userOp } = userOpInfo
+                this.logger.warn(
+                    {
+                        userOpHash,
+                        reason
+                    },
+                    "resubmitting user operation"
+                )
+                await this.store.removeProcessing({ entryPoint, userOpHash })
+                await this.add(userOp, entryPoint)
+            })
         )
-        await this.store.removeProcessing({ entryPoint, userOpHash })
-        await this.add(userOp, entryPoint)
+
+        this.metrics.userOperationsResubmitted.inc(userOps.length)
     }
 
     async dropUserOps(entryPoint: Address, rejectedUserOps: RejectedUserOp[]) {
@@ -125,7 +126,11 @@ export class Mempool {
                 const { userOp, reason, userOpHash } = rejectedUserOp
                 await this.store.removeProcessing({ entryPoint, userOpHash })
                 await this.store.removeSubmitted({ entryPoint, userOpHash })
-                this.eventManager.emitDropped(userOpHash, reason, getAAError(reason))
+                this.eventManager.emitDropped(
+                    userOpHash,
+                    reason,
+                    getAAError(reason)
+                )
                 await this.monitor.setUserOperationStatus(userOpHash, {
                     status: "rejected",
                     transactionHash: null
@@ -142,10 +147,7 @@ export class Mempool {
         )
     }
 
-    async removeSubmittedUserOps(
-        entryPoint: Address,
-        userOpHashes: Hex[]
-    ) {
+    async removeSubmittedUserOps(entryPoint: Address, userOpHashes: Hex[]) {
         await Promise.all(
             userOpHashes.map(async (userOpHash) => {
                 await this.store.removeSubmitted({ entryPoint, userOpHash })
