@@ -159,7 +159,10 @@ export class Mempool {
         )
     }
 
-    async removeSubmittedUserOps(entryPoint: Address, userOpHashes: Hex[]) {
+    async removeSubmittedUserOps({
+        entryPoint,
+        userOpHashes
+    }: { entryPoint: Address; userOpHashes: Hex[] }) {
         await Promise.all(
             userOpHashes.map(async (userOpHash) => {
                 await this.store.removeSubmitted({ entryPoint, userOpHash })

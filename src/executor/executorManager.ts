@@ -10,12 +10,7 @@ import {
     UserOperationBundle
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
-import {
-    type Hash,
-    Hex,
-    NonceTooLowError,
-    type WatchBlocksReturnType
-} from "viem"
+import { Hex, NonceTooLowError, type WatchBlocksReturnType } from "viem"
 import type { Executor } from "./executor"
 import type { AltoConfig } from "../createConfig"
 import { SenderManager } from "./senderManager"
@@ -32,7 +27,6 @@ export class ExecutorManager {
     private config: AltoConfig
     private executor: Executor
     private mempool: Mempool
-    private monitor: Monitor
     private logger: Logger
     private metrics: Metrics
     private gasPriceManager: GasPriceManager
@@ -67,7 +61,6 @@ export class ExecutorManager {
         this.config = config
         this.executor = executor
         this.mempool = mempool
-        this.monitor = monitor
         this.logger = config.getLogger(
             { module: "executor_manager" },
             {
@@ -118,19 +111,21 @@ export class ExecutorManager {
         const bundles = await this.mempool.getBundles()
 
         if (bundles.length > 0) {
-            const opsCount: number = bundles
-                .map(({ userOps }) => userOps.length)
-                .reduce((a, b) => a + b)
-
-            // Add timestamps for each task
-            const timestamp = Date.now()
-            this.opsCount.push(...Array(opsCount).fill(timestamp))
-
-            // Send bundles to executor
-            bundles.map((bundle) => this.sendBundleToExecutor(bundle))
+            // Count total ops and add timestamps
+            const totalOps = bundles.reduce(
+                (sum, bundle) => sum + bundle.userOps.length,
+                0
+            )
+            this.opsCount.push(...Array(totalOps).fill(Date.now()))
         }
 
-        const rpm: number = this.opsCount.length
+        // Send bundles to executor
+        for (const bundle of bundles) {
+            this.sendBundleToExecutor(bundle)
+        }
+
+        const rpm = this.opsCount.length
+
         // Calculate next interval with linear scaling
         const nextInterval: number = Math.min(
             this.config.minBundleInterval + rpm * SCALE_FACTOR, // Linear scaling
@@ -159,24 +154,6 @@ export class ExecutorManager {
         })
 
         this.logger.debug("started watching blocks")
-    }
-
-    // Debug endpoint
-    async sendBundleNow(): Promise<Hash | undefined> {
-        const bundles = await this.mempool.getBundles(1)
-        const bundle = bundles[0]
-
-        if (bundles.length === 0 || bundle.userOps.length === 0) {
-            return
-        }
-
-        const txHash = await this.sendBundleToExecutor(bundle)
-
-        if (!txHash) {
-            throw new Error("no tx hash")
-        }
-
-        return txHash
     }
 
     async getBaseFee(): Promise<bigint> {
@@ -269,13 +246,16 @@ export class ExecutorManager {
         if (bundleResult.status === "submission_generic_error") {
             const { rejectedUserOps, userOpsToBundle, reason } = bundleResult
             await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
+
             // NOTE: these ops passed validation, so we can try resubmitting them
+            const resubmitReason =
+                reason instanceof BaseError
+                    ? reason.name
+                    : "Encountered generic error during bundle submission"
             await this.mempool.resubmitUserOps(
                 userOpsToBundle,
                 entryPoint,
-                reason instanceof BaseError
-                    ? reason.name
-                    : "Encountered unhandled error during bundle submission"
+                resubmitReason
             )
             this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
             return undefined
@@ -434,7 +414,10 @@ export class ExecutorManager {
         // Free wallet and return if potentially included too many times.
         if (txInfo.timesPotentiallyIncluded >= 3) {
             const userOpHashes = bundle.userOps.map((op) => op.userOpHash)
-            await this.mempool.removeSubmittedUserOps(entryPoint, userOpHashes)
+            await this.mempool.removeSubmittedUserOps({
+                entryPoint,
+                userOpHashes
+            })
             this.logger.warn(
                 {
                     oldTxHash,
@@ -447,7 +430,7 @@ export class ExecutorManager {
             return
         }
 
-        // Free wallet if no bundle was sent or potentially included.
+        // Free wallet if no bundle was sent.
         if (bundleResult.status !== "submission_success") {
             await this.senderManager.markWalletProcessed(txInfo.executor)
         }
@@ -585,5 +568,4 @@ export class ExecutorManager {
 
         return
     }
-
 }

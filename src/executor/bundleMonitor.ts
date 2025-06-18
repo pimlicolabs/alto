@@ -424,15 +424,6 @@ export class BundleMonitor {
         }
     }
 
-    private async removeSubmitted(entryPoint: Address, userOps: UserOpInfo[]) {
-        await Promise.all(
-            userOps.map(async (userOpInfo) => {
-                const { userOpHash } = userOpInfo
-                await this.mempool.removeSubmitted({ entryPoint, userOpHash })
-            })
-        )
-    }
-
     private async markUserOpsIncluded(
         userOps: UserOpInfo[],
         entryPoint: Address,
@@ -459,7 +450,10 @@ export class BundleMonitor {
                     submissionAttempts
                 )
 
-                await this.mempool.removeSubmitted({ entryPoint, userOpHash })
+                await this.mempool.removeSubmittedUserOps({
+                    entryPoint,
+                    userOpHash
+                })
                 this.reputationManager.updateUserOperationIncludedStatus(
                     userOp,
                     entryPoint,
