@@ -185,13 +185,13 @@ export class ExecutorManager {
         })
 
         if (!gasPriceParams || nonce === undefined) {
-            await this.mempool.resubmitUserOps(
-                userOps,
-                entryPoint,
-                "Failed to get nonce and gas parameters for bundling"
-            )
             // Free executor if failed to get initial params.
             await this.senderManager.markWalletProcessed(wallet)
+            await this.mempool.resubmitUserOps({
+                userOps,
+                entryPoint,
+                reason: "Failed to get nonce and gas parameters for bundling"
+            })
             return undefined
         }
 
@@ -203,108 +203,73 @@ export class ExecutorManager {
             nonce
         })
 
-        // Free wallet if no bundle was sent.
-        if (bundleResult.status !== "submission_success") {
+        if (!bundleResult.success) {
+            const { rejectedUserOps, recoverableOps, reason } = bundleResult
+            // Free wallet as no bundle was sent.
             await this.senderManager.markWalletProcessed(wallet)
+
+            // Drop rejected ops
+            await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
             this.metrics.userOperationsSubmitted
                 .labels({ status: "failed" })
-                .inc(bundleResult.rejectedUserOps.length)
-        }
+                .inc(rejectedUserOps.length)
 
-        // All ops failed simulation, drop them and return.
-        if (bundleResult.status === "filterops_all_rejected") {
-            const { rejectedUserOps } = bundleResult
-            await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
-            return undefined
-        }
-
-        // Unhandled error during simulation, drop all ops.
-        if (bundleResult.status === "filterops_unhandled_error") {
-            const rejectedUserOps = userOps.map((userOp) => ({
-                ...userOp,
-                reason: "filterOps simulation error"
-            }))
-            await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
-            this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
-            return undefined
-        }
-
-        // Resubmit if executor has insufficient funds.
-        if (bundleResult.status === "submission_insufficient_funds_error") {
-            const { userOpsToBundle, rejectedUserOps } = bundleResult
-            await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
-            await this.mempool.resubmitUserOps(
-                userOpsToBundle,
-                entryPoint,
-                "Executor has insufficient funds"
-            )
-            this.metrics.bundlesSubmitted.labels({ status: "resubmit" }).inc()
-            return undefined
-        }
-
-        // Encountered unhandled error during bundle submission.
-        if (bundleResult.status === "submission_generic_error") {
-            const { rejectedUserOps, userOpsToBundle, reason } = bundleResult
-            await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
-
-            // NOTE: these ops passed validation, so we can try resubmitting them
-            const resubmitReason =
-                reason instanceof BaseError
-                    ? reason.name
-                    : "Encountered generic error during bundle submission"
-            await this.mempool.resubmitUserOps(
-                userOpsToBundle,
-                entryPoint,
-                resubmitReason
-            )
-            this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
-            return undefined
-        }
-
-        if (bundleResult.status === "submission_success") {
-            let {
-                userOpsBundled,
-                rejectedUserOps,
-                transactionRequest,
-                transactionHash
-            } = bundleResult
-
-            // Increment submission attempts for all userOps submitted.
-            userOpsBundled = userOpsBundled.map((userOpInfo) => ({
-                ...userOpInfo,
-                submissionAttempts: userOpInfo.submissionAttempts + 1
-            }))
-
-            const submittedBundle: SubmittedBundleInfo = {
-                executor: wallet,
-                transactionHash,
-                transactionRequest,
-                bundle: {
+            // Handle recoverable ops
+            if (recoverableOps.length) {
+                await this.mempool.resubmitUserOps({
+                    userOps: recoverableOps,
                     entryPoint,
-                    version,
-                    userOps: userOpsBundled,
-                    submissionAttempts: 1
-                },
-                previousTransactionHashes: [],
-                lastReplaced: Date.now(),
-                timesPotentiallyIncluded: 0
+                    reason
+                })
             }
 
-            this.bundleMonitor.setSubmittedBundle(submittedBundle)
-            await this.mempool.markUserOpsAsSubmitted({
-                userOps: submittedBundle.bundle.userOps,
-                entryPoint: submittedBundle.bundle.entryPoint,
-                transactionHash: submittedBundle.transactionHash
-            })
-            // Start watching blocks after marking operations as submitted
-            this.startWatchingBlocks()
-            await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
-            this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
+            if (reason === "filter_failed" || reason === "generic_error") {
+                this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
+            }
 
-            return transactionHash
+            return undefined
         }
 
-        return undefined
+        // Success case
+        let {
+            userOpsBundled,
+            rejectedUserOps,
+            transactionRequest,
+            transactionHash
+        } = bundleResult
+
+        // Increment submission attempts for all userOps submitted.
+        userOpsBundled = userOpsBundled.map((userOpInfo) => ({
+            ...userOpInfo,
+            submissionAttempts: userOpInfo.submissionAttempts + 1
+        }))
+
+        const submittedBundle: SubmittedBundleInfo = {
+            executor: wallet,
+            transactionHash,
+            transactionRequest,
+            bundle: {
+                entryPoint,
+                version,
+                userOps: userOpsBundled,
+                submissionAttempts: 1
+            },
+            previousTransactionHashes: [],
+            lastReplaced: Date.now()
+        }
+
+        this.bundleMonitor.setSubmittedBundle(submittedBundle)
+        await this.mempool.markUserOpsAsSubmitted({
+            userOps: submittedBundle.bundle.userOps,
+            entryPoint: submittedBundle.bundle.entryPoint,
+            transactionHash: submittedBundle.transactionHash
+        })
+        // Start watching blocks after marking operations as submitted
+        this.startWatchingBlocks()
+        await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
+        this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
+
+        return transactionHash
     }
 
     stopWatchingBlocks(): void {
@@ -394,7 +359,6 @@ export class ExecutorManager {
         networkBaseFee: bigint
         reason: "gas_price" | "stuck"
     }): Promise<void> {
-        // Setup vars
         const {
             bundle,
             executor,
@@ -411,117 +375,37 @@ export class ExecutorManager {
             nonce: transactionRequest.nonce
         })
 
-        // Free wallet and return if potentially included too many times.
-        if (txInfo.timesPotentiallyIncluded >= 3) {
-            const userOpHashes = bundle.userOps.map((op) => op.userOpHash)
-            await this.mempool.removeSubmittedUserOps({
-                entryPoint,
-                userOpHashes
-            })
-            this.logger.warn(
-                {
-                    oldTxHash,
-                    userOps: getUserOpHashes(bundleResult.rejectedUserOps)
-                },
-                "transaction potentially already included too many times, removing"
-            )
-
-            await this.senderManager.markWalletProcessed(txInfo.executor)
-            return
-        }
-
         // Free wallet if no bundle was sent.
-        if (bundleResult.status !== "submission_success") {
+        if (!bundleResult.success) {
+            const { rejectedUserOps, recoverableOps, reason } = bundleResult
+            // Free wallet if failed to send bundle.
             await this.senderManager.markWalletProcessed(txInfo.executor)
-        }
 
-        // Check if the transaction is potentially included.
-        const nonceTooLow =
-            bundleResult.status === "submission_generic_error" &&
-            bundleResult.reason instanceof NonceTooLowError
-
-        const onchainConflict =
-            bundleResult.status === "filterops_all_rejected" &&
-            bundleResult.rejectedUserOps.every(
-                ({ reason }) =>
-                    reason === "AA25 invalid account nonce" ||
-                    reason === "AA10 sender already constructed"
+            this.logger.warn(
+                { oldTxHash, reason },
+                "failed to replace transaction"
             )
 
-        const potentiallyIncluded = nonceTooLow || onchainConflict
+            // Drop rejected ops
+            await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
 
-        // log metrics
-        const replaceStatus = (() => {
-            switch (true) {
-                case potentiallyIncluded:
-                    return "potentially_already_included"
-                case bundleResult?.status === "submission_success":
-                    return "replaced"
-                default:
-                    return "failed"
+            // Handle recoverable ops
+            if (recoverableOps.length) {
+                await this.mempool.resubmitUserOps({
+                    userOps: recoverableOps,
+                    entryPoint,
+                    reason
+                })
             }
-        })()
-        this.metrics.replacedTransactions
-            .labels({ reason, status: replaceStatus })
-            .inc()
 
-        if (potentiallyIncluded) {
-            this.logger.info(
-                {
-                    oldTxHash,
-                    userOpHashes: getUserOpHashes(bundleResult.rejectedUserOps)
-                },
-                "transaction potentially already included"
-            )
-            txInfo.timesPotentiallyIncluded += 1
+            this.metrics.replacedTransactions
+                .labels({ reason, status: "failed" })
+                .inc()
+
             return
         }
 
-        if (bundleResult.status === "filterops_unhandled_error") {
-            const { rejectedUserOps } = bundleResult
-            this.logger.warn(
-                { oldTxHash, reason: "filterOps simulation error" },
-                "failed to replace transaction"
-            )
-            await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
-            return
-        }
-
-        if (bundleResult.status === "filterops_all_rejected") {
-            const { rejectedUserOps } = bundleResult
-            this.logger.warn(
-                { oldTxHash, reason: "all ops failed simulation" },
-                "failed to replace transaction"
-            )
-            await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
-            return
-        }
-
-        if (bundleResult.status === "submission_generic_error") {
-            const { reason, rejectedUserOps } = bundleResult
-            const submissionFailureReason =
-                reason instanceof BaseError ? reason.name : "INTERNAL FAILURE"
-
-            this.logger.warn(
-                { oldTxHash, reason: submissionFailureReason },
-                "failed to replace transaction"
-            )
-            await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
-            return
-        }
-
-        if (bundleResult.status === "submission_insufficient_funds_error") {
-            const { userOpsToBundle, rejectedUserOps } = bundleResult
-            await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
-            await this.mempool.resubmitUserOps(
-                userOpsToBundle,
-                entryPoint,
-                "Executor has insufficient funds"
-            )
-            this.metrics.bundlesSubmitted.labels({ status: "resubmit" }).inc()
-            return
-        }
-
+        // Success case
         const {
             rejectedUserOps,
             userOpsBundled,

@@ -109,11 +109,15 @@ export class Mempool {
             .inc(userOps.length)
     }
 
-    async resubmitUserOps(
-        userOps: UserOpInfo[],
-        entryPoint: Address,
+    async resubmitUserOps({
+        userOps,
+        entryPoint,
+        reason
+    }: {
+        userOps: UserOpInfo[]
+        entryPoint: Address
         reason: string
-    ) {
+    }) {
         await Promise.all(
             userOps.map(async (userOpInfo) => {
                 const { userOpHash, userOp } = userOpInfo
