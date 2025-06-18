@@ -8,7 +8,7 @@ import {
     EntryPointV06Abi,
     type HexData32,
     type SubmittedUserOp,
-    type TransactionInfo,
+    type SubmittedBundleInfo,
     UserOpInfo,
     UserOperationBundle
 } from "@alto/types"
@@ -26,7 +26,7 @@ import { SenderManager } from "./senderManager"
 
 export function getTransactionsFromUserOperationEntries(
     submittedOps: SubmittedUserOp[]
-): TransactionInfo[] {
+): SubmittedBundleInfo[] {
     const transactionInfos = submittedOps.map(
         (userOpInfo) => userOpInfo.transactionInfo
     )
@@ -37,7 +37,7 @@ export function getTransactionsFromUserOperationEntries(
 
 export interface BlockProcessingResult {
     hasSubmittedEntries: boolean
-    submittedTransactions: TransactionInfo[]
+    submittedTransactions: SubmittedBundleInfo[]
 }
 
 export class BundleMonitor {
@@ -50,7 +50,7 @@ export class BundleMonitor {
     private senderManager: SenderManager
     private reputationManager: InterfaceReputationManager
     private cachedLatestBlock: { value: bigint; timestamp: number } | null
-    private submittedBundles: Map<Address, UserOperationBundle>
+    private submittedBundles: Map<Address, SubmittedBundleInfo> = new Map()
 
     constructor({
         config,
@@ -85,30 +85,26 @@ export class BundleMonitor {
         )
     }
 
+    public setSubmittedBundle(submittedBundle: SubmittedBundleInfo) {
+        const executor = submittedBundle.executor.address
+        this.submittedBundles.set(executor, submittedBundle)
+    }
+
     async getLatestBlockWithCache(): Promise<bigint> {
         const now = Date.now()
+        const cache = this.cachedLatestBlock
 
-        // Use cached block number if it's still valid
-        if (
-            this.cachedLatestBlock &&
-            now - this.cachedLatestBlock.timestamp <
-                this.config.blockNumberCacheTtl
-        ) {
-            return this.cachedLatestBlock.value
+        if (cache && now - cache.timestamp < this.config.blockNumberCacheTtl) {
+            return cache.value
         }
 
-        // Otherwise fetch a new block number and cache it
         const latestBlock = await this.config.publicClient.getBlockNumber()
         this.cachedLatestBlock = { value: latestBlock, timestamp: now }
         return latestBlock
     }
 
-    updateCachedBlock(blockNumber: bigint): void {
-        this.cachedLatestBlock = { value: blockNumber, timestamp: Date.now() }
-    }
-
     // update the current status of the bundling transaction/s
-    async refreshTransactionStatus(transactionInfo: TransactionInfo) {
+    async refreshTransactionStatus(transactionInfo: SubmittedBundleInfo) {
         const {
             transactionHash: currentTxhash,
             bundle,
@@ -413,7 +409,7 @@ export class BundleMonitor {
 
     async processBlock(blockNumber: bigint): Promise<BlockProcessingResult> {
         // Update the cached block number whenever we receive a new block
-        this.updateCachedBlock(blockNumber)
+        this.cachedLatestBlock = { value: blockNumber, timestamp: Date.now() }
 
         this.logger.debug({ blockNumber }, "processing block")
 

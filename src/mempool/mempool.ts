@@ -7,7 +7,7 @@ import {
     RpcError,
     type StorageMap,
     type SubmittedUserOp,
-    type TransactionInfo,
+    type SubmittedBundleInfo,
     type UserOperation,
     type UserOperationBundle,
     type UserOpInfo,
@@ -81,7 +81,7 @@ export class Mempool {
         transactionInfo
     }: {
         userOpInfo: UserOpInfo
-        transactionInfo: TransactionInfo
+        transactionInfo: SubmittedBundleInfo
     }) {
         const entryPoint = transactionInfo.bundle.entryPoint
         const { userOpHash } = userOpInfo
@@ -112,7 +112,7 @@ export class Mempool {
         transactionInfo
     }: {
         userOpHash: Address
-        transactionInfo: TransactionInfo
+        transactionInfo: SubmittedBundleInfo
     }) {
         const entryPoint = transactionInfo.bundle.entryPoint
         const processingUserOps = await this.store.dumpProcessing(entryPoint)

@@ -3,11 +3,10 @@ import type { Address, BaseError, Prettify } from "viem"
 import { EntryPointVersion } from "viem/account-abstraction"
 import type { Account } from "viem/accounts"
 
-export type TransactionInfo = {
+export type SubmittedBundleInfo = {
     transactionHash: HexData32
     previousTransactionHashes: HexData32[]
     transactionRequest: {
-        gas: bigint
         maxFeePerGas: bigint
         maxPriorityFeePerGas: bigint
         nonce: number
@@ -33,7 +32,7 @@ export enum SubmissionStatus {
 }
 
 export type SubmittedUserOp = UserOpInfo & {
-    transactionInfo: TransactionInfo
+    transactionInfo: SubmittedBundleInfo
 }
 
 export type RejectedUserOp = Prettify<
@@ -50,7 +49,6 @@ export type BundleResult =
           rejectedUserOps: RejectedUserOp[]
           transactionHash: HexData32
           transactionRequest: {
-              gas: bigint
               maxFeePerGas: bigint
               maxPriorityFeePerGas: bigint
               nonce: number

@@ -6,7 +6,7 @@ import type {
 } from "@alto/mempool"
 import {
     type BundlingMode,
-    type TransactionInfo,
+    type SubmittedBundleInfo,
     RejectedUserOp,
     UserOperationBundle,
     UserOpInfo
@@ -214,7 +214,7 @@ export class ExecutorManager {
         })
 
         if (!gasPriceParams || nonce === undefined) {
-            await this.resubmitUserOperations(
+            await this.resubmitUserOps(
                 userOps,
                 entryPoint,
                 "Failed to get nonce and gas parameters for bundling"
@@ -259,7 +259,7 @@ export class ExecutorManager {
         if (bundleResult.status === "submission_insufficient_funds_error") {
             const { userOpsToBundle, rejectedUserOps } = bundleResult
             await this.dropUserOps(entryPoint, rejectedUserOps)
-            await this.resubmitUserOperations(
+            await this.resubmitUserOps(
                 userOpsToBundle,
                 entryPoint,
                 "Executor has insufficient funds"
@@ -273,7 +273,7 @@ export class ExecutorManager {
             const { rejectedUserOps, userOpsToBundle, reason } = bundleResult
             await this.dropUserOps(entryPoint, rejectedUserOps)
             // NOTE: these ops passed validation, so we can try resubmitting them
-            await this.resubmitUserOperations(
+            await this.resubmitUserOps(
                 userOpsToBundle,
                 entryPoint,
                 reason instanceof BaseError
@@ -298,7 +298,7 @@ export class ExecutorManager {
                 submissionAttempts: userOpInfo.submissionAttempts + 1
             }))
 
-            const transactionInfo: TransactionInfo = {
+            const submittedBundle: SubmittedBundleInfo = {
                 executor: wallet,
                 transactionHash,
                 transactionRequest,
@@ -313,10 +313,8 @@ export class ExecutorManager {
                 timesPotentiallyIncluded: 0
             }
 
-            await this.markUserOperationsAsSubmitted(
-                userOpsBundled,
-                transactionInfo
-            )
+            this.bundleMonitor.setSubmittedBundle(submittedBundle)
+            await this.markUserOpsAsSubmitted(userOpsBundled, submittedBundle)
             await this.dropUserOps(entryPoint, rejectedUserOps)
             this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
 
@@ -408,7 +406,7 @@ export class ExecutorManager {
         networkBaseFee,
         reason
     }: {
-        txInfo: TransactionInfo
+        txInfo: SubmittedBundleInfo
         gasPriceParams: GasPriceParameters
         networkBaseFee: bigint
         reason: "gas_price" | "stuck"
@@ -530,7 +528,7 @@ export class ExecutorManager {
         if (bundleResult.status === "submission_insufficient_funds_error") {
             const { userOpsToBundle, rejectedUserOps } = bundleResult
             await this.dropUserOps(entryPoint, rejectedUserOps)
-            await this.resubmitUserOperations(
+            await this.resubmitUserOps(
                 userOpsToBundle,
                 entryPoint,
                 "Executor has insufficient funds"
@@ -552,7 +550,7 @@ export class ExecutorManager {
             submissionAttempts: userOpInfo.submissionAttempts + 1
         }))
 
-        const newTxInfo: TransactionInfo = {
+        const newTxInfo: SubmittedBundleInfo = {
             ...txInfo,
             transactionRequest: newTransactionRequest,
             transactionHash: newTxHash,
@@ -568,7 +566,8 @@ export class ExecutorManager {
             }
         }
 
-        await this.markUserOperationsAsReplaced(userOpsReplaced, newTxInfo)
+        this.bundleMonitor.setSubmittedBundle(newTxInfo)
+        await this.markUserOpsAsReplaced(userOpsReplaced, newTxInfo)
 
         // Drop all userOperations that were rejected during simulation.
         await this.dropUserOps(entryPoint, rejectedUserOps)
@@ -585,9 +584,9 @@ export class ExecutorManager {
         return
     }
 
-    async markUserOperationsAsReplaced(
+    async markUserOpsAsReplaced(
         userOpsReplaced: UserOpInfo[],
-        newTxInfo: TransactionInfo
+        newTxInfo: SubmittedBundleInfo
     ) {
         // Mark as replaced in mempool
         await Promise.all(
@@ -600,9 +599,9 @@ export class ExecutorManager {
         )
     }
 
-    async markUserOperationsAsSubmitted(
+    async markUserOpsAsSubmitted(
         userOpInfos: UserOpInfo[],
-        transactionInfo: TransactionInfo
+        transactionInfo: SubmittedBundleInfo
     ) {
         await Promise.all(
             userOpInfos.map(async (userOpInfo) => {
@@ -620,7 +619,7 @@ export class ExecutorManager {
         this.startWatchingBlocks()
     }
 
-    async resubmitUserOperations(
+    async resubmitUserOps(
         userOps: UserOpInfo[],
         entryPoint: Address,
         reason: string

@@ -506,7 +506,6 @@ export class Executor {
             rejectedUserOps,
             transactionHash,
             transactionRequest: {
-                gas: bundleGasLimit,
                 maxFeePerGas,
                 maxPriorityFeePerGas,
                 nonce
