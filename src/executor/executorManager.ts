@@ -12,7 +12,6 @@ import {
     UserOpInfo
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
-import { getAAError, jsonStringifyWithBigint } from "@alto/utils"
 import {
     type Address,
     type Hash,
@@ -40,7 +39,6 @@ export class ExecutorManager {
     private logger: Logger
     private metrics: Metrics
     private gasPriceManager: GasPriceManager
-    private eventManager: EventManager
     private opsCount: number[] = []
     private bundlingMode: BundlingMode
     private bundleMonitor: BundleMonitor
@@ -81,7 +79,6 @@ export class ExecutorManager {
         )
         this.metrics = metrics
         this.gasPriceManager = gasPriceManager
-        this.eventManager = eventManager
         this.senderManager = senderManager
 
         this.bundleMonitor = new BundleMonitor({
@@ -314,7 +311,7 @@ export class ExecutorManager {
             }
 
             this.bundleMonitor.setSubmittedBundle(submittedBundle)
-            await this.markUserOpsAsSubmitted(userOpsBundled, submittedBundle)
+            await this.markUserOpsAsSubmitted(submittedBundle)
             await this.dropUserOps(entryPoint, rejectedUserOps)
             this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
 
@@ -584,22 +581,24 @@ export class ExecutorManager {
         return
     }
 
-    async markUserOpsAsSubmitted(
-        userOpInfos: UserOpInfo[],
-        transactionInfo: SubmittedBundleInfo
-    ) {
+    async markUserOpsAsSubmitted(submittedBundle: SubmittedBundleInfo) {
+        const { bundle, transactionHash } = submittedBundle
+        const { userOps, entryPoint } = bundle
         await Promise.all(
-            userOpInfos.map(async (userOpInfo) => {
+            userOps.map(async (userOpInfo) => {
                 const { userOpHash } = userOpInfo
-                await this.mempool.markSubmitted({
-                    userOpHash,
-                    transactionInfo
+                await this.mempool.markSubmitted({ entryPoint, userOpInfo })
+                await this.monitor.setUserOperationStatus(userOpHash, {
+                    status: "submitted",
+                    transactionHash
                 })
-                this.metrics.userOperationsSubmitted
-                    .labels({ status: "success" })
-                    .inc()
             })
         )
+
+        this.metrics.userOperationsSubmitted
+            .labels({ status: "success" })
+            .inc(userOps.length)
+
         // Start watching blocks after marking operations as submitted
         this.startWatchingBlocks()
     }
@@ -611,19 +610,15 @@ export class ExecutorManager {
     ) {
         await Promise.all(
             userOps.map(async (userOpInfo) => {
-                const { userOpHash, userOp } = userOpInfo
-                this.logger.warn(
-                    {
-                        userOpHash,
-                        reason
-                    },
-                    "resubmitting user operation"
-                )
-                await this.mempool.removeProcessing({ entryPoint, userOpHash })
-                await this.mempool.add(userOp, entryPoint)
-                this.metrics.userOperationsResubmitted.inc()
+                await this.mempool.resubmitUserOp({
+                    userOpInfo,
+                    entryPoint,
+                    reason
+                })
             })
         )
+
+        this.metrics.userOperationsResubmitted.inc(userOps.length)
     }
 
     async failedToReplaceTransaction({
@@ -647,8 +642,7 @@ export class ExecutorManager {
     ) {
         await Promise.all(
             userOps.map(async (userOpInfo) => {
-                const { userOpHash } = userOpInfo
-                await this.mempool.removeSubmitted({ entryPoint, userOpHash })
+                await this.mempool.removeFromMempool({ entryPoint, userOpInfo })
             })
         )
     }
@@ -656,30 +650,15 @@ export class ExecutorManager {
     async dropUserOps(entryPoint: Address, rejectedUserOps: RejectedUserOp[]) {
         await Promise.all(
             rejectedUserOps.map(async (rejectedUserOp) => {
-                const { userOp, reason, userOpHash } = rejectedUserOp
-                await this.mempool.removeProcessing({ entryPoint, userOpHash })
-                await this.mempool.removeSubmitted({ entryPoint, userOpHash })
-                this.eventManager.emitDropped(
-                    userOpHash,
-                    reason,
-                    getAAError(reason)
-                )
-                await this.monitor.setUserOperationStatus(userOpHash, {
-                    status: "rejected",
-                    transactionHash: null
+                await this.mempool.dropUserOp({
+                    rejectedUserOp,
+                    entryPoint
                 })
-                this.logger.warn(
-                    {
-                        userOperation: jsonStringifyWithBigint(userOp),
-                        userOpHash,
-                        reason
-                    },
-                    "user operation rejected"
-                )
-                this.metrics.userOperationsSubmitted
-                    .labels({ status: "failed" })
-                    .inc()
             })
         )
+
+        this.metrics.userOperationsSubmitted
+            .labels({ status: "failed" })
+            .inc(rejectedUserOps.length)
     }
 }

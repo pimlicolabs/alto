@@ -31,10 +31,6 @@ export enum SubmissionStatus {
     Included = "included"
 }
 
-export type SubmittedUserOp = UserOpInfo & {
-    transactionInfo: SubmittedBundleInfo
-}
-
 export type RejectedUserOp = Prettify<
     UserOpInfo & {
         reason: string

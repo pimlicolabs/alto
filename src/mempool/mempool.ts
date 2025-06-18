@@ -6,22 +6,23 @@ import {
     type ReferencedCodeHashes,
     RpcError,
     type StorageMap,
-    type SubmittedUserOp,
-    type SubmittedBundleInfo,
     type UserOperation,
     type UserOperationBundle,
     type UserOpInfo,
     ValidationErrors,
     type ValidationResult,
-    type Address
+    type Address,
+    RejectedUserOp
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
+    getAAError,
     getAddressFromInitCodeOrPaymasterAndData,
     getUserOperationHash,
     isVersion06,
     isVersion07,
     isVersion08,
+    jsonStringifyWithBigint,
     scaleBigIntByPercent
 } from "@alto/utils"
 import { getAddress, getContract } from "viem"
@@ -76,34 +77,80 @@ export class Mempool {
         this.eventManager = eventManager
     }
 
-    async markSubmitted({
-        userOpHash,
-        transactionInfo
-    }: {
-        userOpHash: Address
-        transactionInfo: SubmittedBundleInfo
-    }) {
-        const entryPoint = transactionInfo.bundle.entryPoint
-        const processingUserOps = await this.store.dumpProcessing(entryPoint)
-        const processingUserOp = processingUserOps.find(
-            (userOpInfo: UserOpInfo) => userOpInfo.userOpHash === userOpHash
-        )
+    // === Methods for handling changing userOp state === //
 
-        if (processingUserOp) {
-            await this.store.removeProcessing({ entryPoint, userOpHash })
-            await this.store.addSubmitted({
-                entryPoint,
-                submittedUserOp: {
-                    ...processingUserOp,
-                    transactionInfo
-                }
-            })
-            await this.monitor.setUserOperationStatus(userOpHash, {
-                status: "submitted",
-                transactionHash: transactionInfo.transactionHash
-            })
-        }
+    async markSubmitted({
+        userOpInfo,
+        entryPoint
+    }: {
+        userOpInfo: UserOpInfo
+        entryPoint: Address
+    }) {
+        await this.store.removeProcessing({
+            entryPoint,
+            userOpHash: userOpInfo.userOpHash
+        })
+        await this.store.addSubmitted({ entryPoint, userOpInfo })
     }
+
+    async resubmitUserOp({
+        userOpInfo,
+        entryPoint,
+        reason
+    }: {
+        userOpInfo: UserOpInfo
+        entryPoint: Address
+        reason: string
+    }) {
+        const { userOpHash, userOp } = userOpInfo
+        this.logger.warn(
+            {
+                userOpHash,
+                reason
+            },
+            "resubmitting user operation"
+        )
+        await this.store.removeProcessing({ entryPoint, userOpHash })
+        await this.add(userOp, entryPoint)
+    }
+
+    async dropUserOp({
+        rejectedUserOp,
+        entryPoint
+    }: {
+        rejectedUserOp: RejectedUserOp
+        entryPoint: Address
+    }) {
+        const { userOp, reason, userOpHash } = rejectedUserOp
+        await this.store.removeProcessing({ entryPoint, userOpHash })
+        await this.removeSubmitted({ entryPoint, userOpHash })
+        this.eventManager.emitDropped(userOpHash, reason, getAAError(reason))
+        await this.monitor.setUserOperationStatus(userOpHash, {
+            status: "rejected",
+            transactionHash: null
+        })
+        this.logger.warn(
+            {
+                userOperation: jsonStringifyWithBigint(userOp),
+                userOpHash,
+                reason
+            },
+            "user operation rejected"
+        )
+    }
+
+    async removeFromMempool({
+        userOpInfo,
+        entryPoint
+    }: {
+        userOpInfo: UserOpInfo
+        entryPoint: Address
+    }) {
+        const { userOpHash } = userOpInfo
+        await this.removeSubmitted({ entryPoint, userOpHash })
+    }
+
+    // === Methods for dropping mempool entries === //
 
     async dumpOutstanding(entryPoint: Address): Promise<UserOpInfo[]> {
         return await this.store.dumpOutstanding(entryPoint)
@@ -113,7 +160,7 @@ export class Mempool {
         return await this.store.dumpProcessing(entryPoint)
     }
 
-    async dumpSubmittedOps(entryPoint: Address): Promise<SubmittedUserOp[]> {
+    async dumpSubmittedOps(entryPoint: Address): Promise<UserOpInfo[]> {
         return await this.store.dumpSubmitted(entryPoint)
     }
 
@@ -124,12 +171,7 @@ export class Mempool {
         await this.store.removeSubmitted({ entryPoint, userOpHash })
     }
 
-    async removeProcessing({
-        entryPoint,
-        userOpHash
-    }: { entryPoint: Address; userOpHash: `0x${string}` }) {
-        await this.store.removeProcessing({ entryPoint, userOpHash })
-    }
+    // === Methods for entity management === //
 
     async checkEntityMultipleRoleViolation(
         entryPoint: Address,
@@ -227,6 +269,8 @@ export class Mempool {
 
         return entities
     }
+
+    // === Methods for adding userOps / creating bundles === //
 
     async add(
         userOp: UserOperation,
