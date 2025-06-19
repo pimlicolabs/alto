@@ -661,9 +661,10 @@ export function parseUserOperationReceipt(
           }
         | undefined = undefined
 
-    let startIndex = -1
-    let endIndex = -1
+    let beforeExecutionIndex = -1
+    let userOpEventIndex = -1
 
+    // First pass: find our UserOperationEvent
     for (let index = 0; index < receipt.logs.length; index++) {
         const log = receipt.logs[index]
         try {
@@ -675,43 +676,54 @@ export function parseUserOperationReceipt(
                     }),
                     getAbiItem({
                         abi: entryPoint07Abi,
-                        name: "BeforeExecution"
+                        name: "UserOperationRevertReason"
                     }),
                     getAbiItem({
                         abi: entryPoint07Abi,
-                        name: "UserOperationRevertReason"
+                        name: "BeforeExecution"
                     })
                 ],
                 data: log.data,
                 topics: log.topics
             })
 
-            if (eventName === "UserOperationEvent") {
-                if (args.userOpHash === userOpHash) {
-                    // it's our userOpHash. save as end of logs array
-                    endIndex = index
-                    entryPoint = log.address
-                    userOpEventArgs = args
-                } else if (endIndex === -1) {
-                    // it's a different hash. remember it as beginning index, but only if we didn't find our end index yet.
-                    startIndex = index
-                }
+            if (eventName === "BeforeExecution") {
+                beforeExecutionIndex = index
             }
 
-            if (eventName === "UserOperationRevertReason") {
-                if (args.userOpHash === userOpHash) {
-                    // it's our userOpHash. capture revert reason.
-                    revertReason = args.revertReason
-                }
+            if (
+                eventName === "UserOperationRevertReason" &&
+                args.userOpHash === userOpHash
+            ) {
+                revertReason = args.revertReason
+            }
+
+            if (
+                eventName === "UserOperationEvent" &&
+                args.userOpHash === userOpHash
+            ) {
+                userOpEventIndex = index
+                entryPoint = log.address
+                userOpEventArgs = args
+                // We found start and end index for this userOperation, so we can break the loop.
+                break
             }
         } catch (e) {}
     }
 
-    if (endIndex === -1 || !userOpEventArgs) {
+    if (
+        userOpEventIndex === -1 ||
+        beforeExecutionIndex === -1 ||
+        !userOpEventArgs
+    ) {
         throw new Error("fatal: no UserOperationEvent in logs")
     }
 
-    const filteredLogs = receipt.logs.slice(startIndex + 1, endIndex)
+    // Get logs between BeforeExecution and UserOperationEvent
+    const filteredLogs = receipt.logs.slice(
+        beforeExecutionIndex + 1,
+        userOpEventIndex
+    )
 
     const parsedLogs = z.array(logSchema).parse(filteredLogs)
     const parsedReceipt = receiptSchema.parse({
