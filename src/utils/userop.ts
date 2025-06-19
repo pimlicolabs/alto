@@ -726,9 +726,7 @@ export function parseUserOperationReceipt(
         status: receipt.status === "success" ? 1 : 0
     })
 
-    const eventArgs = userOpEventArgs
-
-    let paymaster: Address | undefined = eventArgs.paymaster
+    let paymaster: Address | undefined = userOpEventArgs.paymaster
     if (paymaster === zeroAddress) {
         paymaster = undefined
     }
@@ -737,11 +735,11 @@ export function parseUserOperationReceipt(
         userOpHash,
         entryPoint,
         paymaster,
-        sender: eventArgs.sender,
-        nonce: eventArgs.nonce,
-        actualGasUsed: eventArgs.actualGasUsed,
-        actualGasCost: eventArgs.actualGasCost,
-        success: eventArgs.success,
+        sender: userOpEventArgs.sender,
+        nonce: userOpEventArgs.nonce,
+        actualGasUsed: userOpEventArgs.actualGasUsed,
+        actualGasCost: userOpEventArgs.actualGasCost,
+        success: userOpEventArgs.success,
         reason: revertReason,
         logs: parsedLogs,
         receipt: parsedReceipt
