@@ -1,17 +1,11 @@
 import {
-    EntryPointV06Abi,
-    EntryPointV07Abi,
-    type PackedUserOperation,
+    EntryPointV06Abi, type PackedUserOperation,
     type UserOperation,
     type UserOperationV06,
     type UserOperationV07,
     logSchema,
-    receiptSchema,
-    type UserOperationBundle,
-    type UserOperationReceipt
+    receiptSchema, type UserOperationReceipt
 } from "@alto/types"
-import * as sentry from "@sentry/node"
-import type { Logger } from "pino"
 import {
     type Address,
     type Hex,
@@ -33,7 +27,7 @@ import {
 } from "viem"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
-import { areAddressesEqual, getAuthorizationStateOverrides } from "./helpers"
+import { getAuthorizationStateOverrides } from "./helpers"
 
 // Type predicate check if the UserOperation is V06.
 export function isVersion06(
@@ -213,128 +207,6 @@ export function getAddressFromInitCodeOrPaymasterAndData(
         return getAddress(data.slice(0, 42))
     }
     return null
-}
-
-type UserOperationDetailsType = {
-    accountDeployed: boolean
-    status: "succesful" | "calldata_phase_reverted"
-    revertReason?: Hex
-}
-
-export type BundlingStatus =
-    | {
-          // The tx was successfully mined
-          // The status of each userOperation is recorded in userOperaitonDetails
-          status: "included"
-          userOperationDetails: Record<Hex, UserOperationDetailsType>
-      }
-    | {
-          // The tx reverted due to a op in the bundle failing EntryPoint validation
-          status: "reverted"
-      }
-    | {
-          // The tx could not be found (pending or invalid hash)
-          status: "not_found"
-      }
-
-// Return the status of the bundling transaction.
-export const getBundleStatus = async ({
-    transactionHash,
-    publicClient,
-    bundle,
-    logger
-}: {
-    transactionHash: Hex
-    bundle: UserOperationBundle
-    publicClient: PublicClient
-    logger: Logger
-}): Promise<{
-    bundlingStatus: BundlingStatus
-    blockNumber: bigint | undefined
-}> => {
-    try {
-        const { entryPoint, version } = bundle
-        const isVersion06 = version === "0.6"
-
-        const receipt = await publicClient.getTransactionReceipt({
-            hash: transactionHash
-        })
-        const blockNumber = receipt.blockNumber
-
-        if (receipt.status === "reverted") {
-            const bundlingStatus: {
-                status: "reverted"
-            } = {
-                status: "reverted"
-            }
-
-            return { bundlingStatus, blockNumber }
-        }
-
-        const userOperationDetails = receipt.logs
-            .filter((log) => areAddressesEqual(log.address, entryPoint))
-            .reduce((result: Record<Hex, UserOperationDetailsType>, log) => {
-                try {
-                    const { data, topics } = log
-                    const { eventName, args } = decodeEventLog({
-                        abi: isVersion06 ? EntryPointV06Abi : EntryPointV07Abi,
-                        data,
-                        topics
-                    })
-
-                    if (
-                        eventName === "AccountDeployed" ||
-                        eventName === "UserOperationRevertReason" ||
-                        eventName === "UserOperationEvent"
-                    ) {
-                        const opHash = args.userOpHash
-
-                        // create result entry if doesn't exist
-                        result[opHash] ??= {
-                            accountDeployed: false,
-                            status: "succesful"
-                        }
-
-                        switch (eventName) {
-                            case "AccountDeployed": {
-                                result[opHash].accountDeployed = true
-                                break
-                            }
-                            case "UserOperationRevertReason": {
-                                result[opHash].revertReason = args.revertReason
-                                break
-                            }
-                            case "UserOperationEvent": {
-                                const status = args.success
-                                    ? "succesful"
-                                    : "calldata_phase_reverted"
-                                result[opHash].status = status
-                                break
-                            }
-                        }
-                    }
-                } catch (e) {
-                    sentry.captureException(e)
-                }
-
-                return result
-            }, {})
-
-        return {
-            bundlingStatus: {
-                status: "included",
-                userOperationDetails
-            },
-            blockNumber
-        }
-    } catch {
-        return {
-            bundlingStatus: {
-                status: "not_found"
-            },
-            blockNumber: undefined
-        }
-    }
 }
 
 export const getUserOperationHashV06 = ({

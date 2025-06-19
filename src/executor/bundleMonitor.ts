@@ -11,7 +11,7 @@ import {
     UserOpInfo
 } from "@alto/types"
 import type { BundlingStatus, Logger, Metrics } from "@alto/utils"
-import { getBundleStatus, parseUserOperationReceipt } from "@alto/utils"
+import { parseUserOperationReceipt } from "@alto/utils"
 import {
     type Address,
     type Hash,
@@ -21,6 +21,7 @@ import {
 } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { SenderManager } from "./senderManager"
+import { getBundleStatus } from "../esm/utils"
 
 export interface BlockProcessingResult {
     hasSubmittedEntries: boolean
@@ -91,27 +92,14 @@ export class BundleMonitor {
     }
 
     // update the current status of the bundling transaction/s
-    async refreshTransactionStatus(transactionInfo: SubmittedBundleInfo) {
-        const {
-            transactionHash: currentTxhash,
-            previousTransactionHashes,
-            bundle
-        } = transactionInfo
-
-        const { userOps, entryPoint } = bundle
-        const txHashesToCheck = [currentTxhash, ...previousTransactionHashes]
-
-        const transactionDetails = await Promise.all(
-            txHashesToCheck.map(async (transactionHash) => ({
-                transactionHash,
-                ...(await getBundleStatus({
-                    transactionHash,
-                    bundle,
-                    publicClient: this.config.publicClient,
-                    logger: this.logger
-                }))
-            }))
-        )
+    async refreshBundleStatuses(bundles: SubmittedBundleInfo[]) {
+        for (const bundle of bundles) {
+            const bundleStatuses = await getBundleStatus({
+                bundle,
+                publicClient: this.config.publicClient,
+                logger: this.logger
+            })
+        }
 
         // first check if bundling txs returns status "mined", if not, check for reverted
         const mined = transactionDetails.find(
@@ -136,9 +124,7 @@ export class BundleMonitor {
 
         // Free executor if tx landed onchain
         if (bundlingStatus.status !== "not_found") {
-            await this.senderManager.markWalletProcessed(
-                transactionInfo.executor
-            )
+            await this.senderManager.markWalletProcessed(bundles.executor)
         }
 
         if (bundlingStatus.status === "included") {
@@ -404,9 +390,9 @@ export class BundleMonitor {
         this.logger.debug({ blockNumber }, "processing block")
 
         // Collect all submitted bundles
-        const submittedTransactions = Array.from(this.submittedBundles.values())
+        const submittedBundles = Array.from(this.submittedBundles.values())
 
-        if (submittedTransactions.length === 0) {
+        if (submittedBundles.length === 0) {
             return {
                 hasSubmittedEntries: false,
                 submittedTransactions: []
@@ -414,16 +400,12 @@ export class BundleMonitor {
         }
 
         // refresh op statuses
-        await Promise.all(
-            submittedTransactions.map((txInfo) =>
-                this.refreshTransactionStatus(txInfo)
-            )
-        )
+        await this.refreshBundleStatuses(submittedBundles)
 
         // Return the submitted transactions for further processing
         return {
             hasSubmittedEntries: true,
-            submittedTransactions
+            submittedTransactions: submittedBundles
         }
     }
 
