@@ -289,8 +289,6 @@ describe.each([
                     sender: smartAccountClient.account.address
                 }
             })
-
-            // Verify that receipt.receipt.logs contains all EntryPoint logs
         })
 
         test("Returns empty logs field when UserOperation emits no events", async () => {
@@ -322,7 +320,7 @@ describe.each([
             expect(receipt?.logs).toEqual([])
         })
 
-        test.only("Returns only logs for specific UserOperation (not other ops in bundle)", async () => {
+        test("Returns only logs for specific UserOperation (not other ops in bundle)", async () => {
             await setBundlingMode({ mode: "manual", altoRpc })
 
             // Create two clients and send operations
