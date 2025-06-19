@@ -18,7 +18,6 @@ import {
     getAddress,
     keccak256,
     pad,
-    parseEventLogs,
     size,
     slice,
     toHex,
@@ -26,9 +25,8 @@ import {
     getAbiItem
 } from "viem"
 import { z } from "zod"
-import { fromZodError } from "zod-validation-error"
 import { getAuthorizationStateOverrides } from "./helpers"
-import { entryPoint07Abi } from "viem/_types/account-abstraction"
+import { entryPoint07Abi } from "viem/account-abstraction"
 
 // Type predicate check if the UserOperation is V06.
 export function isVersion06(
@@ -522,15 +520,26 @@ export function parseUserOperationReceipt(
     userOpHash: Hex,
     receipt: TransactionReceipt
 ) {
-    let userOperationEventArgs
     let entryPoint: Address = zeroAddress
     let revertReason = undefined
+    let userOpEventArgs:
+        | {
+              userOpHash: Hex
+              sender: Address
+              paymaster: Address
+              nonce: bigint
+              success: boolean
+              actualGasCost: bigint
+              actualGasUsed: bigint
+          }
+        | undefined = undefined
 
-    // Find all UserOperationEvent indices
-    const userOpEventIndices: number[] = []
-    let ourOpIndex = -1
+    let startIndex = -1
+    let userOpEventIndex = -1
 
-    receipt.logs.forEach((log, index) => {
+    // Find our UserOperationEvent and determine the starting point for logs
+    for (let index = 0; index < receipt.logs.length; index++) {
+        const log = receipt.logs[index]
         try {
             const { eventName, args } = decodeEventLog({
                 abi: [
@@ -541,48 +550,55 @@ export function parseUserOperationReceipt(
                     getAbiItem({
                         abi: entryPoint07Abi,
                         name: "UserOperationRevertReason"
+                    }),
+                    getAbiItem({
+                        abi: entryPoint07Abi,
+                        name: "BeforeExecution"
                     })
                 ],
                 data: log.data,
                 topics: log.topics
             })
 
+            if (eventName === "BeforeExecution") {
+                // BeforeExecution is emitted once and before individually executing UserOperations.
+                startIndex = index
+            }
+
+            if (
+                eventName === "UserOperationRevertReason" &&
+                args.userOpHash === userOpHash
+            ) {
+                revertReason = args.revertReason
+            }
+
             if (eventName === "UserOperationEvent") {
-                userOpEventIndices.push(index)
                 if (args.userOpHash === userOpHash) {
-                    ourOpIndex = index
+                    userOpEventIndex = index
                     entryPoint = log.address
-                    userOperationEventArgs = args
+                    userOpEventArgs = args
+                    break
+                } else {
+                    // Update startIndex to this UserOperationEvent for the next UserOp's logs
+                    startIndex = index
                 }
             }
+        } catch (e) {}
+    }
 
-            if (eventName === "UserOperationRevertReason") {
-                if (args.userOpHash === userOpHash) {
-                    revertReason = args.revertReason
-                }
-            }
-        } catch {}
-    })
-
-    if (ourOpIndex === -1 || !userOperationEventArgs) {
+    if (userOpEventIndex === -1 || startIndex === -1 || !userOpEventArgs) {
         throw new Error("fatal: no UserOperationEvent in logs")
     }
 
-    // Find the previous UserOperationEvent index (if any)
-    const ourPositionInOps = userOpEventIndices.indexOf(ourOpIndex)
-    const prevOpIndex =
-        ourPositionInOps > 0 ? userOpEventIndices[ourPositionInOps - 1] : -1
-
-    // Extract logs between the previous op and our op
-    const filteredLogs = receipt.logs.slice(prevOpIndex + 1, ourOpIndex)
-
+    // Get logs between the starting point and our UserOperationEvent
+    const filteredLogs = receipt.logs.slice(startIndex + 1, userOpEventIndex)
     const parsedLogs = z.array(logSchema).parse(filteredLogs)
     const parsedReceipt = receiptSchema.parse({
         ...receipt,
         status: receipt.status === "success" ? 1 : 0
     })
 
-    let paymaster: Address | undefined = userOperationEventArgs.paymaster
+    let paymaster: Address | undefined = userOpEventArgs.paymaster
     if (paymaster === zeroAddress) {
         paymaster = undefined
     }
@@ -590,12 +606,12 @@ export function parseUserOperationReceipt(
     const userOperationReceipt: UserOperationReceipt = {
         userOpHash,
         entryPoint,
-        sender: userOperationEvent.args.sender,
-        nonce: userOperationEvent.args.nonce,
         paymaster,
-        actualGasUsed: userOperationEvent.args.actualGasUsed,
-        actualGasCost: userOperationEvent.args.actualGasCost,
-        success: userOperationEvent.args.success,
+        sender: userOpEventArgs.sender,
+        nonce: userOpEventArgs.nonce,
+        actualGasUsed: userOpEventArgs.actualGasUsed,
+        actualGasCost: userOpEventArgs.actualGasCost,
+        success: userOpEventArgs.success,
         reason: revertReason,
         logs: parsedLogs,
         receipt: parsedReceipt
