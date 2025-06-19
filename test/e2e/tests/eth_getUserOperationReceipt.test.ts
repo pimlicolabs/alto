@@ -291,6 +291,35 @@ describe.each([
             })
         })
 
+        test.only("Returns empty logs field when UserOperation emits no events", async () => {
+            const smartAccountClient = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            // Send operation with no calldata (no events will be emitted)
+            const hash = await smartAccountClient.sendUserOperation({
+                calls: [
+                    {
+                        to: smartAccountClient.account.address,
+                        data: "0x",
+                        value: 0n
+                    }
+                ]
+            })
+
+            await new Promise((resolve) => setTimeout(resolve, 1500))
+
+            const receipt = await smartAccountClient.getUserOperationReceipt({
+                hash
+            })
+
+            expect(receipt).not.toBeNull()
+            expect(receipt?.success).toEqual(true)
+            expect(receipt?.logs).toEqual([])
+        })
+
         test.only("Returns only logs for specific UserOperation (not other ops in bundle)", async () => {
             await setBundlingMode({ mode: "manual", altoRpc })
 
