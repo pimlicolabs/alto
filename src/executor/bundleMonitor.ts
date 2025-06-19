@@ -94,8 +94,8 @@ export class BundleMonitor {
     async refreshTransactionStatus(transactionInfo: SubmittedBundleInfo) {
         const {
             transactionHash: currentTxhash,
-            bundle,
-            previousTransactionHashes
+            previousTransactionHashes,
+            bundle
         } = transactionInfo
 
         const { userOps, entryPoint } = bundle
@@ -106,7 +106,7 @@ export class BundleMonitor {
                 transactionHash,
                 ...(await getBundleStatus({
                     transactionHash,
-                    bundle: transactionInfo.bundle,
+                    bundle,
                     publicClient: this.config.publicClient,
                     logger: this.logger
                 }))
@@ -163,7 +163,10 @@ export class BundleMonitor {
                     })
                 })
             )
-            await this.removeSubmitted(entryPoint, userOps)
+            await this.mempool.markUserOpsAsIncluded({
+                entryPoint,
+                userOpHashes: userOps.map(({ userOpHash }) => userOpHash)
+            })
         }
     }
 
@@ -192,9 +195,9 @@ export class BundleMonitor {
                             const blockNumber =
                                 userOperationReceipt.receipt.blockNumber
 
-                            await this.mempool.removeSubmitted({
+                            await this.mempool.markUserOpsAsIncluded({
                                 entryPoint,
-                                userOpHash
+                                userOpHashes: [userOpHash]
                             })
                             await this.monitor.setUserOperationStatus(
                                 userOpHash,
@@ -450,10 +453,11 @@ export class BundleMonitor {
                     submissionAttempts
                 )
 
-                await this.mempool.removeSubmittedUserOps({
+                await this.mempool.markUserOpsAsIncluded({
                     entryPoint,
-                    userOpHash
+                    userOpHashes: [userOpHash]
                 })
+
                 this.reputationManager.updateUserOperationIncludedStatus(
                     userOp,
                     entryPoint,

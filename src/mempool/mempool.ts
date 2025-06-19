@@ -163,7 +163,7 @@ export class Mempool {
         )
     }
 
-    async removeSubmittedUserOps({
+    async markUserOpsAsIncluded({
         entryPoint,
         userOpHashes
     }: { entryPoint: Address; userOpHashes: Hex[] }) {

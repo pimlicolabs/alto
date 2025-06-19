@@ -10,12 +10,10 @@ import {
     UserOperationBundle
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
-import { Hex, NonceTooLowError, type WatchBlocksReturnType } from "viem"
+import { Hex, type WatchBlocksReturnType } from "viem"
 import type { Executor } from "./executor"
 import type { AltoConfig } from "../createConfig"
 import { SenderManager } from "./senderManager"
-import { BaseError } from "abitype"
-import { getUserOpHashes } from "./utils"
 import { GasPriceParameters } from "@alto/types"
 import { BundleMonitor } from "./bundleMonitor"
 
@@ -223,7 +221,7 @@ export class ExecutorManager {
                 })
             }
 
-            if (reason === "filter_failed" || reason === "generic_error") {
+            if (reason === "filterops_failed" || reason === "generic_error") {
                 this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
             }
 
@@ -274,7 +272,6 @@ export class ExecutorManager {
 
     stopWatchingBlocks(): void {
         if (this.unWatch) {
-            this.logger.debug("stopped watching blocks")
             this.unWatch()
             this.unWatch = undefined
         }
@@ -296,7 +293,7 @@ export class ExecutorManager {
         }
 
         // for all still not included check if needs to be replaced (based on gas price)
-        const [gasPriceParams, networkBaseFee] = await Promise.all([
+        const [networkGasPrice, networkBaseFee] = await Promise.all([
             this.gasPriceManager.tryGetNetworkGasPrice().catch(() => ({
                 maxFeePerGas: 0n,
                 maxPriorityFeePerGas: 0n
@@ -310,14 +307,21 @@ export class ExecutorManager {
         await Promise.all(
             transactionInfos.map(async (txInfo) => {
                 const { transactionRequest } = txInfo
-                const { maxFeePerGas, maxPriorityFeePerGas } =
-                    transactionRequest
 
-                const isMaxFeeTooLow =
-                    maxFeePerGas < gasPriceParams.maxFeePerGas
+                const {
+                    maxFeePerGas: txMaxFee,
+                    maxPriorityFeePerGas: txMaxPriorityFee
+                } = transactionRequest
+
+                const {
+                    maxFeePerGas: networkMaxFee,
+                    maxPriorityFeePerGas: networkMaxPriorityFee
+                } = networkGasPrice
+
+                const isMaxFeeTooLow = txMaxFee < networkMaxFee
 
                 const isPriorityFeeTooLow =
-                    maxPriorityFeePerGas < gasPriceParams.maxPriorityFeePerGas
+                    txMaxPriorityFee < networkMaxPriorityFee
 
                 const isStuck =
                     Date.now() - txInfo.lastReplaced >
@@ -326,21 +330,17 @@ export class ExecutorManager {
                 if (isMaxFeeTooLow || isPriorityFeeTooLow) {
                     await this.replaceTransaction({
                         txInfo,
-                        gasPriceParams,
+                        gasPriceParams: networkGasPrice,
                         networkBaseFee,
                         reason: "gas_price"
                     })
-                    return
-                }
-
-                if (isStuck) {
+                } else if (isStuck) {
                     await this.replaceTransaction({
                         txInfo,
-                        gasPriceParams,
+                        gasPriceParams: networkGasPrice,
                         networkBaseFee,
                         reason: "stuck"
                     })
-                    return
                 }
             })
         )
@@ -375,11 +375,11 @@ export class ExecutorManager {
             nonce: transactionRequest.nonce
         })
 
-        // Free wallet if no bundle was sent.
+        // Handle case where no bundle was sent.
         if (!bundleResult.success) {
-            const { rejectedUserOps, recoverableOps, reason } = bundleResult
-            // Free wallet if failed to send bundle.
+            // Free wallet as no bundle was sent.
             await this.senderManager.markWalletProcessed(txInfo.executor)
+            const { rejectedUserOps, recoverableOps, reason } = bundleResult
 
             this.logger.warn(
                 { oldTxHash, reason },

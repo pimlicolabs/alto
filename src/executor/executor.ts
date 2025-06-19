@@ -368,20 +368,22 @@ export class Executor {
         })
 
         if (filterOpsResult.status === "unhandled_error") {
-            childLogger.error("encountered unexpected failure during filterOps")
+            childLogger.error(
+                "encountered unhandled failure during filterOps simulation"
+            )
             return {
                 success: false,
-                reason: "filter_failed",
+                reason: "filterops_failed",
                 rejectedUserOps: filterOpsResult.rejectedUserOps,
                 recoverableOps: []
             }
         }
 
         if (filterOpsResult.status === "all_ops_rejected") {
-            childLogger.warn("all ops failed simulation")
+            childLogger.warn("all ops failed filterOps simulation")
             return {
                 success: false,
-                reason: "filter_failed",
+                reason: "filterops_failed",
                 rejectedUserOps: filterOpsResult.rejectedUserOps,
                 recoverableOps: []
             }
