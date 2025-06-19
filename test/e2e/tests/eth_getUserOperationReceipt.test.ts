@@ -227,7 +227,7 @@ describe.each([
         })
 
         // https://github.com/eth-infinitism/bundler/blob/3706bc/packages/bundler/test/UserOpMethodHandler.test.ts#L369-L372
-        test.only("receipt should contain only userOp execution events", async () => {
+        test("receipt should contain only userOp execution events", async () => {
             const smartAccountClient = await getSmartAccountClient({
                 entryPointVersion,
                 anvilRpc,
@@ -289,9 +289,11 @@ describe.each([
                     sender: smartAccountClient.account.address
                 }
             })
+
+            // Verify that receipt.receipt.logs contains all EntryPoint logs
         })
 
-        test.only("Returns empty logs field when UserOperation emits no events", async () => {
+        test("Returns empty logs field when UserOperation emits no events", async () => {
             const smartAccountClient = await getSmartAccountClient({
                 entryPointVersion,
                 anvilRpc,

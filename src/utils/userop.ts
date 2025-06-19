@@ -661,10 +661,10 @@ export function parseUserOperationReceipt(
           }
         | undefined = undefined
 
-    let beforeExecutionIndex = -1
+    let startIndex = -1
     let userOpEventIndex = -1
 
-    // First pass: find our UserOperationEvent
+    // Find our UserOperationEvent and determine the starting point for logs
     for (let index = 0; index < receipt.logs.length; index++) {
         const log = receipt.logs[index]
         try {
@@ -688,7 +688,8 @@ export function parseUserOperationReceipt(
             })
 
             if (eventName === "BeforeExecution") {
-                beforeExecutionIndex = index
+                // BeforeExecution is emitted once and before individually executing UserOperations.
+                startIndex = index
             }
 
             if (
@@ -698,32 +699,26 @@ export function parseUserOperationReceipt(
                 revertReason = args.revertReason
             }
 
-            if (
-                eventName === "UserOperationEvent" &&
-                args.userOpHash === userOpHash
-            ) {
-                userOpEventIndex = index
-                entryPoint = log.address
-                userOpEventArgs = args
-                // We found start and end index for this userOperation, so we can break the loop.
-                break
+            if (eventName === "UserOperationEvent") {
+                if (args.userOpHash === userOpHash) {
+                    userOpEventIndex = index
+                    entryPoint = log.address
+                    userOpEventArgs = args
+                    break
+                } else {
+                    // Update startIndex to this UserOperationEvent for the next UserOp's logs
+                    startIndex = index
+                }
             }
         } catch (e) {}
     }
 
-    if (
-        userOpEventIndex === -1 ||
-        beforeExecutionIndex === -1 ||
-        !userOpEventArgs
-    ) {
+    if (userOpEventIndex === -1 || startIndex === -1 || !userOpEventArgs) {
         throw new Error("fatal: no UserOperationEvent in logs")
     }
 
-    // Get logs between BeforeExecution and UserOperationEvent
-    const filteredLogs = receipt.logs.slice(
-        beforeExecutionIndex + 1,
-        userOpEventIndex
-    )
+    // Get logs between the starting point and our UserOperationEvent
+    const filteredLogs = receipt.logs.slice(startIndex + 1, userOpEventIndex)
 
     const parsedLogs = z.array(logSchema).parse(filteredLogs)
     const parsedReceipt = receiptSchema.parse({
