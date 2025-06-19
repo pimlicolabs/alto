@@ -769,6 +769,9 @@ export class ExecutorManager {
             })
         )
 
+        this.logger.info(
+            `[DEBUG] Finished handling block ${blockNumber.toString()}`
+        )
         this.currentlyHandlingBlock = false
     }
 
