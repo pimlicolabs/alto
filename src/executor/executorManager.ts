@@ -256,7 +256,7 @@ export class ExecutorManager {
             lastReplaced: Date.now()
         }
 
-        this.bundleMonitor.setSubmittedBundle(submittedBundle)
+        this.bundleMonitor.setPendingBundle(submittedBundle)
         await this.mempool.markUserOpsAsSubmitted({
             userOps: submittedBundle.bundle.userOps,
             entryPoint: submittedBundle.bundle.entryPoint,
@@ -284,9 +284,10 @@ export class ExecutorManager {
         this.currentlyHandlingBlock = true
 
         // Process the block and get the results
-        const result = await this.bundleMonitor.processBlock(blockNumber)
+        const pendingBundles =
+            await this.bundleMonitor.processBlock(blockNumber)
 
-        if (!result.hasSubmittedEntries) {
+        if (pendingBundles.length === 0) {
             this.stopWatchingBlocks()
             this.currentlyHandlingBlock = false
             return
@@ -301,11 +302,8 @@ export class ExecutorManager {
             this.getBaseFee().catch(() => 0n)
         ])
 
-        // Use the submitted transactions from the result
-        const transactionInfos = result.submittedTransactions
-
         await Promise.all(
-            transactionInfos.map(async (txInfo) => {
+            pendingBundles.map(async (txInfo) => {
                 const { transactionRequest } = txInfo
 
                 const {
@@ -436,7 +434,7 @@ export class ExecutorManager {
         }
 
         // Replace existing submitted bundle with new one
-        this.bundleMonitor.setSubmittedBundle(newTxInfo)
+        this.bundleMonitor.setPendingBundle(newTxInfo)
 
         // Drop all userOperations that were rejected during simulation.
         await this.mempool.dropUserOps(entryPoint, rejectedUserOps)

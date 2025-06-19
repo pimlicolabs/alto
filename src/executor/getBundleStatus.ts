@@ -18,25 +18,26 @@ type UserOpDetailsType = {
     revertReason?: Hex
 }
 
-export type BundleStatus =
-    | {
-          // The tx was successfully mined
-          // The status of each userOperation is recorded in userOpDetails
-          status: "included"
-          userOpDetails: Record<Hex, UserOpDetailsType>
-          transactionHash: Hex
-          blockNumber: bigint
-      }
-    | {
-          // The tx reverted due to a userOp in the bundle failing EntryPoint validation
-          status: "reverted"
-          transactionHash: Hex
-          blockNumber: bigint
-      }
-    | {
-          // The tx could not be found (pending or invalid hash)
-          status: "not_found"
-      }
+// The tx was successfully mined
+// The status of each userOperation is recorded in userOpDetails
+export type BundleIncluded = {
+    status: "included"
+    userOpDetails: Record<Hex, UserOpDetailsType>
+    transactionHash: Hex
+    blockNumber: bigint
+}
+
+export type BundleReverted = {
+    status: "reverted"
+    blockNumber: bigint
+    transactionHash: Hex
+}
+
+export type BundleNotFound = {
+    status: "not_found"
+}
+
+export type BundleStatus = BundleIncluded | BundleReverted | BundleNotFound
 
 const parseEntryPointLogs = (
     logs: Log[],

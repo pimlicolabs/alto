@@ -21,12 +21,7 @@ import {
 } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { SenderManager } from "./senderManager"
-import { getBundleStatus } from "./getBundleStatus"
-
-export interface BlockProcessingResult {
-    hasSubmittedEntries: boolean
-    submittedTransactions: SubmittedBundleInfo[]
-}
+import { BundleIncluded, getBundleStatus } from "./getBundleStatus"
 
 export class BundleMonitor {
     private config: AltoConfig
@@ -38,7 +33,7 @@ export class BundleMonitor {
     private senderManager: SenderManager
     private reputationManager: InterfaceReputationManager
     private cachedLatestBlock: { value: bigint; timestamp: number } | null
-    private submittedBundles: Map<Address, SubmittedBundleInfo> = new Map()
+    private pendingBundles: Map<Address, SubmittedBundleInfo> = new Map()
 
     constructor({
         config,
@@ -66,18 +61,38 @@ export class BundleMonitor {
         this.reputationManager = reputationManager
         this.cachedLatestBlock = null
         this.logger = config.getLogger(
-            { module: "transaction_monitor" },
+            { module: "bundle_monitor" },
             {
                 level: config.executorLogLevel || config.logLevel
             }
         )
     }
 
-    public setSubmittedBundle(submittedBundle: SubmittedBundleInfo) {
-        const executor = submittedBundle.executor.address
-        this.submittedBundles.set(executor, submittedBundle)
+    async processBlock(blockNumber: bigint): Promise<SubmittedBundleInfo[]> {
+        // Update the cached block number whenever we receive a new block.
+        this.cachedLatestBlock = { value: blockNumber, timestamp: Date.now() }
+
+        // Collect all pending bundles.
+        const pendingBundles = Array.from(this.pendingBundles.values())
+
+        // Refresh all submitted bundle statuses.
+        await Promise.all(pendingBundles.map(this.refreshBundleStatus))
+
+        // Return the submitted transactions for further processing.
+        return pendingBundles
     }
 
+    public setPendingBundle(submittedBundle: SubmittedBundleInfo) {
+        const executor = submittedBundle.executor.address
+        this.pendingBundles.set(executor, submittedBundle)
+    }
+
+    private freePendingBundle(submittedBundle: SubmittedBundleInfo) {
+        const executor = submittedBundle.executor.address
+        this.pendingBundles.delete(executor)
+    }
+
+    // Helpers //
     async getLatestBlockWithCache(): Promise<bigint> {
         const now = Date.now()
         const cache = this.cachedLatestBlock
@@ -91,20 +106,12 @@ export class BundleMonitor {
         return latestBlock
     }
 
-    // update the current status of the bundling transaction/s
     async refreshBundleStatus(submittedBundle: SubmittedBundleInfo) {
         let bundleStatus = await getBundleStatus({
             submittedBundle,
             publicClient: this.config.publicClient,
             logger: this.logger
         })
-
-        // Free executor if tx landed onchain
-        if (bundleStatus.status !== "not_found") {
-            await this.senderManager.markWalletProcessed(
-                submittedBundle.executor
-            )
-        }
 
         if (bundleStatus.status === "included") {
             const { userOps, entryPoint } = submittedBundle.bundle
@@ -365,27 +372,74 @@ export class BundleMonitor {
         return userOperationReceipt
     }
 
-    async processBlock(blockNumber: bigint): Promise<BlockProcessingResult> {
-        // Update the cached block number whenever we receive a new block.
-        this.cachedLatestBlock = { value: blockNumber, timestamp: Date.now() }
+    private async markBundleIncluded(
+        submittedBundle: SubmittedBundleInfo,
+        status: BundleIncluded
+    ) {
+        const { bundle, executor } = submittedBundle
+        const { userOpDetails, transactionHash, blockNumber } = status
+        const { userOps, entryPoint } = bundle
 
-        // Collect all submitted bundles.
-        const submittedBundles = Array.from(this.submittedBundles.values())
+        // Free executor.
+        await this.senderManager.markWalletProcessed(executor)
+        this.freePendingBundle(submittedBundle)
 
-        if (submittedBundles.length === 0) {
-            return {
-                hasSubmittedEntries: false,
-                submittedTransactions: []
+        this.metrics.userOperationsOnChain
+            .labels({ status: "included" })
+            .inc(userOps.length)
+
+        for (const userOpInfo of userOps) {
+            const { userOpHash, userOp, submissionAttempts } = userOpInfo
+            const opDetails = userOpDetails[userOpHash]
+
+            const firstSubmitted = userOpInfo.addedToMempool
+            this.metrics.userOperationInclusionDuration.observe(
+                (Date.now() - firstSubmitted) / 1000
+            )
+
+            // Track the number of submission attempts for included ops
+            this.metrics.userOperationsSubmissionAttempts.observe(
+                submissionAttempts
+            )
+
+            await this.mempool.markUserOpsAsIncluded({
+                entryPoint,
+                userOpHashes: [userOpHash]
+            })
+
+            this.reputationManager.updateUserOperationIncludedStatus(
+                userOp,
+                entryPoint,
+                opDetails.accountDeployed
+            )
+
+            if (opDetails.success) {
+                this.eventManager.emitIncludedOnChain(
+                    userOpHash,
+                    transactionHash,
+                    blockNumber as bigint
+                )
+            } else {
+                this.eventManager.emitExecutionRevertedOnChain(
+                    userOpHash,
+                    transactionHash,
+                    opDetails.revertReason || "0x",
+                    blockNumber as bigint
+                )
             }
-        }
 
-        // Refresh all submitted bundle statuses.
-        await Promise.all(submittedBundles.map(this.refreshBundleStatus))
+            await this.monitor.setUserOperationStatus(userOpHash, {
+                status: "included",
+                transactionHash
+            })
 
-        // Return the submitted transactions for further processing.
-        return {
-            hasSubmittedEntries: true,
-            submittedTransactions: submittedBundles
+            this.logger.info(
+                {
+                    opHash: userOpHash,
+                    transactionHash
+                },
+                "user op included"
+            )
         }
     }
 
