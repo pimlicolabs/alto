@@ -1,11 +1,18 @@
 import { Logger } from "pino"
-import { Hex, PublicClient, decodeEventLog, Log, Address } from "viem"
+import {
+    Hex,
+    PublicClient,
+    decodeEventLog,
+    Log,
+    Address,
+    getAbiItem
+} from "viem"
 import { EntryPointV07Abi } from "../types/contracts"
 import { SubmittedBundleInfo } from "../types/mempool"
 import { areAddressesEqual } from "../utils/helpers"
 import * as sentry from "@sentry/node"
 
-type UserOperationDetailsType = {
+type UserOpDetailsType = {
     accountDeployed: boolean
     success: boolean
     revertReason?: Hex
@@ -14,14 +21,16 @@ type UserOperationDetailsType = {
 export type BundleStatus =
     | {
           // The tx was successfully mined
-          // The status of each userOperation is recorded in userOperaitonDetails
+          // The status of each userOperation is recorded in userOpDetails
           status: "included"
-          userOperationDetails: Record<Hex, UserOperationDetailsType>
+          userOpDetails: Record<Hex, UserOpDetailsType>
+          transactionHash: Hex
           blockNumber: bigint
       }
     | {
           // The tx reverted due to a userOp in the bundle failing EntryPoint validation
           status: "reverted"
+          transactionHash: Hex
           blockNumber: bigint
       }
     | {
@@ -29,52 +38,49 @@ export type BundleStatus =
           status: "not_found"
       }
 
-const parseUserOperationLogs = (
+const parseEntryPointLogs = (
     logs: Log[],
     entryPoint: Address
-): Record<Hex, UserOperationDetailsType> => {
+): Record<Hex, UserOpDetailsType> => {
     return logs
         .filter((log) => areAddressesEqual(log.address, entryPoint))
-        .reduce((result: Record<Hex, UserOperationDetailsType>, log) => {
+        .reduce((result: Record<Hex, UserOpDetailsType>, log) => {
             try {
                 const { eventName, args } = decodeEventLog({
-                    // All EntryPoint versions have the same event interface
-                    abi: EntryPointV07Abi,
+                    // All EntryPoint versions have the same event interface.
+                    abi: [
+                        getAbiItem({
+                            abi: EntryPointV07Abi,
+                            name: "UserOperationEvent"
+                        }),
+                        getAbiItem({
+                            abi: EntryPointV07Abi,
+                            name: "AccountDeployed"
+                        }),
+                        getAbiItem({
+                            abi: EntryPointV07Abi,
+                            name: "UserOperationRevertReason"
+                        })
+                    ],
                     data: log.data,
                     topics: log.topics
                 })
 
+                result[args.userOpHash] ??= {
+                    accountDeployed: false,
+                    success: true
+                }
+
                 if (eventName === "AccountDeployed") {
-                    const { userOpHash } = args
-
-                    result[userOpHash] ??= {
-                        accountDeployed: false,
-                        success: true
-                    }
-
-                    result[userOpHash].accountDeployed = true
+                    result[args.userOpHash].accountDeployed = true
                 }
 
                 if (eventName === "UserOperationEvent") {
-                    const { userOpHash, success } = args
-
-                    result[userOpHash] ??= {
-                        accountDeployed: false,
-                        success: true
-                    }
-
-                    result[userOpHash].success = success
+                    result[args.userOpHash].success = args.success
                 }
 
                 if (eventName === "UserOperationRevertReason") {
-                    const { userOpHash, revertReason } = args
-
-                    result[userOpHash] ??= {
-                        accountDeployed: false,
-                        success: false
-                    }
-
-                    result[userOpHash].revertReason = revertReason
+                    result[args.userOpHash].revertReason = args.revertReason
                 }
             } catch (e) {
                 sentry.captureException(e)
@@ -99,7 +105,6 @@ export const getBundleStatus = async ({
         transactionHash: currentHash,
         previousTransactionHashes: previousHashes
     } = submittedBundle
-    const { entryPoint } = bundle
 
     const receipts = await Promise.all(
         [currentHash, ...previousHashes].map((hash) =>
@@ -113,12 +118,12 @@ export const getBundleStatus = async ({
 
     // If any of the receipts are included.
     if (includedReceipt) {
-        const { logs, blockNumber } = includedReceipt
-        const userOperationDetails = parseUserOperationLogs(logs, entryPoint)
-
+        const { entryPoint } = bundle
+        const { logs, blockNumber, transactionHash } = includedReceipt
         return {
             status: "included",
-            userOperationDetails,
+            userOpDetails: parseEntryPointLogs(logs, entryPoint),
+            transactionHash,
             blockNumber
         }
     }
@@ -129,9 +134,11 @@ export const getBundleStatus = async ({
 
     // If any of the receipts reverted.
     if (revertedReceipt) {
+        const { blockNumber, transactionHash } = revertedReceipt
         return {
             status: "reverted",
-            blockNumber: revertedReceipt.blockNumber
+            blockNumber,
+            transactionHash
         }
     }
 

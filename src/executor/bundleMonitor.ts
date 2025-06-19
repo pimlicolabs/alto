@@ -21,7 +21,7 @@ import {
 } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { SenderManager } from "./senderManager"
-import { getBundleStatus } from "../esm/utils"
+import { getBundleStatus } from "./getBundleStatus"
 
 export interface BlockProcessingResult {
     hasSubmittedEntries: boolean
@@ -92,53 +92,35 @@ export class BundleMonitor {
     }
 
     // update the current status of the bundling transaction/s
-    async refreshBundleStatuses(bundles: SubmittedBundleInfo[]) {
-        for (const bundle of bundles) {
-            const bundleStatuses = await getBundleStatus({
-                bundle,
-                publicClient: this.config.publicClient,
-                logger: this.logger
-            })
-        }
-
-        // first check if bundling txs returns status "mined", if not, check for reverted
-        const mined = transactionDetails.find(
-            ({ bundlingStatus }) => bundlingStatus.status === "included"
-        )
-        const reverted = transactionDetails.find(
-            ({ bundlingStatus }) => bundlingStatus.status === "reverted"
-        )
-
-        const finalizedTransaction = mined ?? reverted
-
-        if (!finalizedTransaction) {
-            return
-        }
-
-        const { bundlingStatus, transactionHash, blockNumber } =
-            finalizedTransaction as {
-                bundlingStatus: BundlingStatus
-                blockNumber: bigint // block number is undefined only if transaction is not found
-                transactionHash: `0x${string}`
-            }
+    async refreshBundleStatus(submittedBundle: SubmittedBundleInfo) {
+        let bundleStatus = await getBundleStatus({
+            submittedBundle,
+            publicClient: this.config.publicClient,
+            logger: this.logger
+        })
 
         // Free executor if tx landed onchain
-        if (bundlingStatus.status !== "not_found") {
-            await this.senderManager.markWalletProcessed(bundles.executor)
+        if (bundleStatus.status !== "not_found") {
+            await this.senderManager.markWalletProcessed(
+                submittedBundle.executor
+            )
         }
 
-        if (bundlingStatus.status === "included") {
-            const { userOperationDetails } = bundlingStatus
+        if (bundleStatus.status === "included") {
+            const { userOps, entryPoint } = submittedBundle.bundle
+            const { userOpDetails, blockNumber, transactionHash } = bundleStatus
             await this.markUserOpsIncluded(
                 userOps,
                 entryPoint,
                 blockNumber,
                 transactionHash,
-                userOperationDetails
+                userOpDetails
             )
         }
 
-        if (bundlingStatus.status === "reverted") {
+        if (bundleStatus.status === "reverted") {
+            const { userOps, entryPoint } = submittedBundle.bundle
+            const { blockNumber, transactionHash } = bundleStatus
             await Promise.all(
                 userOps.map(async (userOpInfo) => {
                     await this.checkFrontrun({
@@ -384,12 +366,10 @@ export class BundleMonitor {
     }
 
     async processBlock(blockNumber: bigint): Promise<BlockProcessingResult> {
-        // Update the cached block number whenever we receive a new block
+        // Update the cached block number whenever we receive a new block.
         this.cachedLatestBlock = { value: blockNumber, timestamp: Date.now() }
 
-        this.logger.debug({ blockNumber }, "processing block")
-
-        // Collect all submitted bundles
+        // Collect all submitted bundles.
         const submittedBundles = Array.from(this.submittedBundles.values())
 
         if (submittedBundles.length === 0) {
@@ -399,10 +379,10 @@ export class BundleMonitor {
             }
         }
 
-        // refresh op statuses
-        await this.refreshBundleStatuses(submittedBundles)
+        // Refresh all submitted bundle statuses.
+        await Promise.all(submittedBundles.map(this.refreshBundleStatus))
 
-        // Return the submitted transactions for further processing
+        // Return the submitted transactions for further processing.
         return {
             hasSubmittedEntries: true,
             submittedTransactions: submittedBundles
