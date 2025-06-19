@@ -31,7 +31,6 @@ export class BundleMonitor {
     private metrics: Metrics
     private eventManager: EventManager
     private senderManager: SenderManager
-    private reputationManager: InterfaceReputationManager
     private cachedLatestBlock: { value: bigint; timestamp: number } | null
     private pendingBundles: Map<Address, SubmittedBundleInfo> = new Map()
 
@@ -41,8 +40,7 @@ export class BundleMonitor {
         monitor,
         metrics,
         eventManager,
-        senderManager,
-        reputationManager
+        senderManager
     }: {
         config: AltoConfig
         mempool: Mempool
@@ -50,7 +48,6 @@ export class BundleMonitor {
         metrics: Metrics
         eventManager: EventManager
         senderManager: SenderManager
-        reputationManager: InterfaceReputationManager
     }) {
         this.config = config
         this.mempool = mempool
@@ -58,7 +55,6 @@ export class BundleMonitor {
         this.metrics = metrics
         this.eventManager = eventManager
         this.senderManager = senderManager
-        this.reputationManager = reputationManager
         this.cachedLatestBlock = null
         this.logger = config.getLogger(
             { module: "bundle_monitor" },
@@ -107,27 +103,22 @@ export class BundleMonitor {
     }
 
     async refreshBundleStatus(submittedBundle: SubmittedBundleInfo) {
-        let bundleStatus = await getBundleStatus({
+        let bundleReceipt = await getBundleStatus({
             submittedBundle,
             publicClient: this.config.publicClient,
             logger: this.logger
         })
 
-        if (bundleStatus.status === "included") {
-            const { userOps, entryPoint } = submittedBundle.bundle
-            const { userOpDetails, blockNumber, transactionHash } = bundleStatus
-            await this.markUserOpsIncluded(
-                userOps,
-                entryPoint,
-                blockNumber,
-                transactionHash,
-                userOpDetails
-            )
+        if (bundleReceipt.status === "included") {
+            await this.markBundleIncluded({
+                submittedBundle,
+                bundleReceipt
+            })
         }
 
-        if (bundleStatus.status === "reverted") {
+        if (bundleReceipt.status === "reverted") {
             const { userOps, entryPoint } = submittedBundle.bundle
-            const { blockNumber, transactionHash } = bundleStatus
+            const { blockNumber, transactionHash } = bundleReceipt
             await Promise.all(
                 userOps.map(async (userOpInfo) => {
                     await this.checkFrontrun({
@@ -372,142 +363,24 @@ export class BundleMonitor {
         return userOperationReceipt
     }
 
-    private async markBundleIncluded(
-        submittedBundle: SubmittedBundleInfo,
-        status: BundleIncluded
-    ) {
+    private async markBundleIncluded({
+        submittedBundle,
+        bundleReceipt
+    }: {
+        submittedBundle: SubmittedBundleInfo
+        bundleReceipt: BundleIncluded
+    }) {
         const { bundle, executor } = submittedBundle
-        const { userOpDetails, transactionHash, blockNumber } = status
         const { userOps, entryPoint } = bundle
 
         // Free executor.
         await this.senderManager.markWalletProcessed(executor)
         this.freePendingBundle(submittedBundle)
 
-        this.metrics.userOperationsOnChain
-            .labels({ status: "included" })
-            .inc(userOps.length)
-
-        for (const userOpInfo of userOps) {
-            const { userOpHash, userOp, submissionAttempts } = userOpInfo
-            const opDetails = userOpDetails[userOpHash]
-
-            const firstSubmitted = userOpInfo.addedToMempool
-            this.metrics.userOperationInclusionDuration.observe(
-                (Date.now() - firstSubmitted) / 1000
-            )
-
-            // Track the number of submission attempts for included ops
-            this.metrics.userOperationsSubmissionAttempts.observe(
-                submissionAttempts
-            )
-
-            await this.mempool.markUserOpsAsIncluded({
-                entryPoint,
-                userOpHashes: [userOpHash]
-            })
-
-            this.reputationManager.updateUserOperationIncludedStatus(
-                userOp,
-                entryPoint,
-                opDetails.accountDeployed
-            )
-
-            if (opDetails.success) {
-                this.eventManager.emitIncludedOnChain(
-                    userOpHash,
-                    transactionHash,
-                    blockNumber as bigint
-                )
-            } else {
-                this.eventManager.emitExecutionRevertedOnChain(
-                    userOpHash,
-                    transactionHash,
-                    opDetails.revertReason || "0x",
-                    blockNumber as bigint
-                )
-            }
-
-            await this.monitor.setUserOperationStatus(userOpHash, {
-                status: "included",
-                transactionHash
-            })
-
-            this.logger.info(
-                {
-                    opHash: userOpHash,
-                    transactionHash
-                },
-                "user op included"
-            )
-        }
-    }
-
-    private async markUserOpsIncluded(
-        userOps: UserOpInfo[],
-        entryPoint: Address,
-        blockNumber: bigint,
-        transactionHash: Hash,
-        userOperationDetails: Record<string, any>
-    ) {
-        await Promise.all(
-            userOps.map(async (userOpInfo) => {
-                this.metrics.userOperationsOnChain
-                    .labels({ status: "included" })
-                    .inc()
-
-                const { userOpHash, userOp, submissionAttempts } = userOpInfo
-                const opDetails = userOperationDetails[userOpHash]
-
-                const firstSubmitted = userOpInfo.addedToMempool
-                this.metrics.userOperationInclusionDuration.observe(
-                    (Date.now() - firstSubmitted) / 1000
-                )
-
-                // Track the number of submission attempts for included ops
-                this.metrics.userOperationsSubmissionAttempts.observe(
-                    submissionAttempts
-                )
-
-                await this.mempool.markUserOpsAsIncluded({
-                    entryPoint,
-                    userOpHashes: [userOpHash]
-                })
-
-                this.reputationManager.updateUserOperationIncludedStatus(
-                    userOp,
-                    entryPoint,
-                    opDetails.accountDeployed
-                )
-
-                if (opDetails.status === "succesful") {
-                    this.eventManager.emitIncludedOnChain(
-                        userOpHash,
-                        transactionHash,
-                        blockNumber as bigint
-                    )
-                } else {
-                    this.eventManager.emitExecutionRevertedOnChain(
-                        userOpHash,
-                        transactionHash,
-                        opDetails.revertReason || "0x",
-                        blockNumber as bigint
-                    )
-                }
-
-                await this.monitor.setUserOperationStatus(userOpHash, {
-                    status: "included",
-                    transactionHash
-                })
-
-                this.logger.info(
-                    {
-                        opHash: userOpHash,
-                        transactionHash
-                    },
-                    "user op included"
-                )
-            })
-        )
+        await this.mempool.markUserOpsAsIncluded({
+            userOps,
+            bundleReceipt: bundleReceipt,
+            entryPoint
+        })
     }
 }

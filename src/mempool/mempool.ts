@@ -36,6 +36,7 @@ import type { MempoolStore } from "@alto/store"
 import { calculateAA95GasFloor } from "../executor/utils"
 import { privateKeyToAddress, generatePrivateKey } from "viem/accounts"
 import { EntryPointVersion } from "viem/account-abstraction"
+import { BundleIncluded } from "../executor/getBundleStatus"
 
 export class Mempool {
     private config: AltoConfig
@@ -165,11 +166,69 @@ export class Mempool {
 
     async markUserOpsAsIncluded({
         entryPoint,
-        userOpHashes
-    }: { entryPoint: Address; userOpHashes: Hex[] }) {
+        userOps,
+        bundleReceipt
+    }: {
+        entryPoint: Address
+        userOps: UserOpInfo[]
+        bundleReceipt: BundleIncluded
+    }) {
+        const { userOpDetails, transactionHash, blockNumber } = bundleReceipt
+        this.metrics.userOperationsOnChain
+            .labels({ status: "included" })
+            .inc(userOps.length)
+
         await Promise.all(
-            userOpHashes.map(async (userOpHash) => {
+            userOps.map(async (userOpInfo) => {
+                const { userOpHash, userOp, submissionAttempts } = userOpInfo
+                const { accountDeployed, success, revertReason } =
+                    userOpDetails[userOpHash]
+
+                this.logger.info(
+                    {
+                        userOpHash,
+                        transactionHash
+                    },
+                    "user op included"
+                )
+
+                const firstSubmitted = userOpInfo.addedToMempool
+                this.metrics.userOperationInclusionDuration.observe(
+                    (Date.now() - firstSubmitted) / 1000
+                )
+
+                // Track the number of submission attempts for included ops
+                this.metrics.userOperationsSubmissionAttempts.observe(
+                    submissionAttempts
+                )
+
                 await this.store.removeSubmitted({ entryPoint, userOpHash })
+
+                this.reputationManager.updateUserOperationIncludedStatus(
+                    userOp,
+                    entryPoint,
+                    accountDeployed
+                )
+
+                if (success) {
+                    this.eventManager.emitIncludedOnChain(
+                        userOpHash,
+                        transactionHash,
+                        blockNumber
+                    )
+                } else {
+                    this.eventManager.emitExecutionRevertedOnChain(
+                        userOpHash,
+                        transactionHash,
+                        revertReason || "0x",
+                        blockNumber
+                    )
+                }
+
+                await this.monitor.setUserOperationStatus(userOpHash, {
+                    status: "included",
+                    transactionHash
+                })
             })
         )
     }
