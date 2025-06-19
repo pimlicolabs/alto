@@ -604,13 +604,6 @@ export const getNonceKeyAndSequence = (nonce: bigint) => {
     return [nonceKey, nonceSequence]
 }
 
-export const encodeNonce = ({
-    nonceKey,
-    nonceSequence
-}: { nonceKey: bigint; nonceSequence: bigint }) => {
-    return (nonceKey << 64n) | nonceSequence
-}
-
 export function toUnpackedUserOperation(
     packedUserOperation: PackedUserOperation
 ): UserOperationV07 {
@@ -650,31 +643,6 @@ export function toUnpackedUserOperation(
         paymasterData: paymasterData,
         signature: packedUserOperation.signature
     }
-}
-
-export const getRequiredPrefund = (userOperation: UserOperation) => {
-    if (isVersion06(userOperation)) {
-        const op = userOperation as UserOperationV06
-        const multiplier =
-            (op.paymasterAndData?.length ?? 0) > 2 ? BigInt(3) : BigInt(1)
-        const requiredGas =
-            op.callGasLimit +
-            op.verificationGasLimit * multiplier +
-            op.preVerificationGas
-
-        return BigInt(requiredGas) * BigInt(op.maxFeePerGas)
-    }
-
-    const op = userOperation as UserOperationV07
-
-    const requiredGas =
-        op.verificationGasLimit +
-        op.callGasLimit +
-        (op.paymasterVerificationGasLimit || 0n) +
-        (op.paymasterPostOpGasLimit || 0n) +
-        op.preVerificationGas
-
-    return requiredGas * op.maxFeePerGas
 }
 
 export function parseUserOperationReceipt(
