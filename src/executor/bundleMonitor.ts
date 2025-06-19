@@ -10,7 +10,7 @@ import {
     type SubmittedBundleInfo,
     UserOpInfo
 } from "@alto/types"
-import type { BundlingStatus, Logger, Metrics } from "@alto/utils"
+import type { Logger, Metrics } from "@alto/utils"
 import { parseUserOperationReceipt } from "@alto/utils"
 import {
     type Address,
