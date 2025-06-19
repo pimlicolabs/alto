@@ -1,9 +1,5 @@
 import type { EventManager } from "@alto/handlers"
-import type {
-    InterfaceReputationManager,
-    Mempool,
-    Monitor
-} from "@alto/mempool"
+import type { Mempool, Monitor } from "@alto/mempool"
 import {
     EntryPointV06Abi,
     type HexData32,
@@ -68,13 +64,8 @@ export class BundleMonitor {
         // Update the cached block number whenever we receive a new block.
         this.cachedLatestBlock = { value: blockNumber, timestamp: Date.now() }
 
-        // Collect all pending bundles.
         const pendingBundles = Array.from(this.pendingBundles.values())
-
-        // Refresh all submitted bundle statuses.
         await Promise.all(pendingBundles.map(this.refreshBundleStatus))
-
-        // Return the submitted transactions for further processing.
         return pendingBundles
     }
 
@@ -263,17 +254,6 @@ export class BundleMonitor {
                 userOpHash: userOperationHash
             }
         })
-
-        this.logger.debug(
-            {
-                filterResult: filterResult.length,
-                userOperationEvent:
-                    filterResult.length === 0
-                        ? undefined
-                        : filterResult[0].transactionHash
-            },
-            "filter result length"
-        )
 
         if (filterResult.length === 0) {
             return null

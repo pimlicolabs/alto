@@ -1,10 +1,11 @@
 import {
-    EntryPointV06Abi, type PackedUserOperation,
+    type PackedUserOperation,
     type UserOperation,
     type UserOperationV06,
     type UserOperationV07,
     logSchema,
-    receiptSchema, type UserOperationReceipt
+    receiptSchema,
+    type UserOperationReceipt
 } from "@alto/types"
 import {
     type Address,
@@ -14,20 +15,20 @@ import {
     concat,
     decodeEventLog,
     encodeAbiParameters,
-    encodeEventTopics,
     getAddress,
     keccak256,
     pad,
-    parseAbi,
     parseEventLogs,
     size,
     slice,
     toHex,
-    zeroAddress
+    zeroAddress,
+    getAbiItem
 } from "viem"
 import { z } from "zod"
 import { fromZodError } from "zod-validation-error"
 import { getAuthorizationStateOverrides } from "./helpers"
+import { entryPoint07Abi } from "viem/_types/account-abstraction"
 
 // Type predicate check if the UserOperation is V06.
 export function isVersion06(
@@ -476,13 +477,6 @@ export const getNonceKeyAndSequence = (nonce: bigint) => {
     return [nonceKey, nonceSequence]
 }
 
-export const encodeNonce = ({
-    nonceKey,
-    nonceSequence
-}: { nonceKey: bigint; nonceSequence: bigint }) => {
-    return (nonceKey << 64n) | nonceSequence
-}
-
 export function toUnpackedUserOperation(
     packedUserOperation: PackedUserOperation
 ): UserOperationV07 {
@@ -524,112 +518,74 @@ export function toUnpackedUserOperation(
     }
 }
 
-export const getRequiredPrefund = (userOperation: UserOperation) => {
-    if (isVersion06(userOperation)) {
-        const op = userOperation as UserOperationV06
-        const multiplier =
-            (op.paymasterAndData?.length ?? 0) > 2 ? BigInt(3) : BigInt(1)
-        const requiredGas =
-            op.callGasLimit +
-            op.verificationGasLimit * multiplier +
-            op.preVerificationGas
-
-        return BigInt(requiredGas) * BigInt(op.maxFeePerGas)
-    }
-
-    const op = userOperation as UserOperationV07
-
-    const requiredGas =
-        op.verificationGasLimit +
-        op.callGasLimit +
-        (op.paymasterVerificationGasLimit || 0n) +
-        (op.paymasterPostOpGasLimit || 0n) +
-        op.preVerificationGas
-
-    return requiredGas * op.maxFeePerGas
-}
-
 export function parseUserOperationReceipt(
     userOpHash: Hex,
     receipt: TransactionReceipt
 ) {
-    const userOperationRevertReasonAbi = parseAbi([
-        "event UserOperationRevertReason(bytes32 indexed userOpHash, address indexed sender, uint256 nonce, bytes revertReason)"
-    ])
-    const userOperationEventTopic = encodeEventTopics({
-        abi: EntryPointV06Abi,
-        eventName: "UserOperationEvent"
-    })
-
-    const userOperationRevertReasonTopicEvent = encodeEventTopics({
-        abi: userOperationRevertReasonAbi
-    })[0]
-
+    let userOperationEventArgs
     let entryPoint: Address = zeroAddress
     let revertReason = undefined
 
-    let startIndex = -1
-    let endIndex = -1
+    // Find all UserOperationEvent indices
+    const userOpEventIndices: number[] = []
+    let ourOpIndex = -1
+
     receipt.logs.forEach((log, index) => {
-        if (log?.topics[0] === userOperationEventTopic[0]) {
-            // process UserOperationEvent
-            if (log.topics[1] === userOpHash) {
-                // it's our userOpHash. save as end of logs array
-                endIndex = index
-                entryPoint = log.address
-            } else if (endIndex === -1) {
-                // it's a different hash. remember it as beginning index, but only if we didn't find our end index yet.
-                startIndex = index
-            }
-        }
+        try {
+            const { eventName, args } = decodeEventLog({
+                abi: [
+                    getAbiItem({
+                        abi: entryPoint07Abi,
+                        name: "UserOperationEvent"
+                    }),
+                    getAbiItem({
+                        abi: entryPoint07Abi,
+                        name: "UserOperationRevertReason"
+                    })
+                ],
+                data: log.data,
+                topics: log.topics
+            })
 
-        if (log?.topics[0] === userOperationRevertReasonTopicEvent) {
-            // process UserOperationRevertReason
-            if (log.topics[1] === userOpHash) {
-                // it's our userOpHash. capture revert reason.
-                const decodedLog = decodeEventLog({
-                    abi: userOperationRevertReasonAbi,
-                    data: log.data,
-                    topics: log.topics
-                })
-
-                revertReason = decodedLog.args.revertReason
+            if (eventName === "UserOperationEvent") {
+                userOpEventIndices.push(index)
+                if (args.userOpHash === userOpHash) {
+                    ourOpIndex = index
+                    entryPoint = log.address
+                    userOperationEventArgs = args
+                }
             }
-        }
+
+            if (eventName === "UserOperationRevertReason") {
+                if (args.userOpHash === userOpHash) {
+                    revertReason = args.revertReason
+                }
+            }
+        } catch {}
     })
 
-    if (endIndex === -1) {
+    if (ourOpIndex === -1 || !userOperationEventArgs) {
         throw new Error("fatal: no UserOperationEvent in logs")
     }
 
-    const filteredLogs = receipt.logs.slice(startIndex + 1, endIndex)
+    // Find the previous UserOperationEvent index (if any)
+    const ourPositionInOps = userOpEventIndices.indexOf(ourOpIndex)
+    const prevOpIndex =
+        ourPositionInOps > 0 ? userOpEventIndices[ourPositionInOps - 1] : -1
 
-    const logsParsing = z.array(logSchema).safeParse(filteredLogs)
-    if (!logsParsing.success) {
-        const err = fromZodError(logsParsing.error)
-        throw err
-    }
+    // Extract logs between the previous op and our op
+    const filteredLogs = receipt.logs.slice(prevOpIndex + 1, ourOpIndex)
 
-    const receiptParsing = receiptSchema.safeParse({
+    const parsedLogs = z.array(logSchema).parse(filteredLogs)
+    const parsedReceipt = receiptSchema.parse({
         ...receipt,
         status: receipt.status === "success" ? 1 : 0
     })
-    if (!receiptParsing.success) {
-        const err = fromZodError(receiptParsing.error)
-        throw err
+
+    let paymaster: Address | undefined = userOperationEventArgs.paymaster
+    if (paymaster === zeroAddress) {
+        paymaster = undefined
     }
-
-    const userOperationEvent = parseEventLogs({
-        abi: EntryPointV06Abi,
-        eventName: "UserOperationEvent",
-        args: {
-            userOpHash
-        },
-        logs: receipt.logs
-    })[0]
-
-    let paymaster: Address | undefined = userOperationEvent.args.paymaster
-    paymaster = paymaster === zeroAddress ? undefined : paymaster
 
     const userOperationReceipt: UserOperationReceipt = {
         userOpHash,
@@ -641,8 +597,8 @@ export function parseUserOperationReceipt(
         actualGasCost: userOperationEvent.args.actualGasCost,
         success: userOperationEvent.args.success,
         reason: revertReason,
-        logs: logsParsing.data,
-        receipt: receiptParsing.data
+        logs: parsedLogs,
+        receipt: parsedReceipt
     }
 
     return userOperationReceipt
