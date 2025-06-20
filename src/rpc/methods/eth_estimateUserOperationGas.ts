@@ -1,6 +1,6 @@
 import { scaleBigIntByPercent, maxBigInt } from "../../utils/bigInt"
 import { isVersion06, isVersion07, deepHexlify } from "../../utils/userop"
-import { calcPreVerificationGas } from "../../utils/validation"
+import { calcPreVerificationGas } from "../../utils/preVerificationGasCalculator"
 import { createMethodHandler } from "../createMethodHandler"
 import {
     Address,
