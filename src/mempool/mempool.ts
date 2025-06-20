@@ -25,7 +25,7 @@ import {
     jsonStringifyWithBigint,
     scaleBigIntByPercent
 } from "@alto/utils"
-import { Hex, getAddress, getContract } from "viem"
+import { Hex, decodeEventLog, getAddress, getContract } from "viem"
 import type { Monitor } from "./monitoring"
 import {
     type InterfaceReputationManager,
@@ -35,7 +35,7 @@ import type { AltoConfig } from "../createConfig"
 import type { MempoolStore } from "@alto/store"
 import { calculateAA95GasFloor } from "../executor/utils"
 import { privateKeyToAddress, generatePrivateKey } from "viem/accounts"
-import { EntryPointVersion } from "viem/account-abstraction"
+import { EntryPointVersion, entryPoint07Abi } from "viem/account-abstraction"
 import { BundleIncluded } from "../executor/getBundleStatus"
 
 export class Mempool {
@@ -173,7 +173,7 @@ export class Mempool {
         userOps: UserOpInfo[]
         bundleReceipt: BundleIncluded
     }) {
-        const { userOpDetails, transactionHash, blockNumber } = bundleReceipt
+        const { userOpReceipts, transactionHash, blockNumber } = bundleReceipt
         this.metrics.userOperationsOnChain
             .labels({ status: "included" })
             .inc(userOps.length)
@@ -181,8 +181,27 @@ export class Mempool {
         await Promise.all(
             userOps.map(async (userOpInfo) => {
                 const { userOpHash, userOp, submissionAttempts } = userOpInfo
-                const { accountDeployed, success, revertReason } =
-                    userOpDetails[userOpHash]
+                const userOpReceipt = userOpReceipts[userOpHash]
+                if (!userOpReceipt) {
+                    throw new Error("userOpReceipt is undefined")
+                }
+
+                const success = userOpReceipt.success
+                const accountDeployed = userOpReceipt.receipt.logs.some(
+                    (log) => {
+                        try {
+                            const { args } = decodeEventLog({
+                                abi: entryPoint07Abi,
+                                data: log.data,
+                                eventName: "AccountDeployed",
+                                topics: log.topics as [Hex, ...Hex[]]
+                            })
+                            return getAddress(args.sender) === userOp.sender
+                        } catch {
+                            return false
+                        }
+                    }
+                )
 
                 this.logger.info(
                     {
@@ -217,6 +236,7 @@ export class Mempool {
                         blockNumber
                     )
                 } else {
+                    const revertReason = userOpReceipt.reason
                     this.eventManager.emitExecutionRevertedOnChain(
                         userOpHash,
                         transactionHash,

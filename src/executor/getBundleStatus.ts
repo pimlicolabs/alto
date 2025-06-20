@@ -1,28 +1,14 @@
 import { Logger } from "pino"
-import {
-    Hex,
-    PublicClient,
-    decodeEventLog,
-    Log,
-    Address,
-    getAbiItem
-} from "viem"
-import { EntryPointV07Abi } from "../types/contracts"
+import { Hex, PublicClient } from "viem"
 import { SubmittedBundleInfo } from "../types/mempool"
-import { areAddressesEqual } from "../utils/helpers"
-import * as sentry from "@sentry/node"
-
-type UserOpDetailsType = {
-    accountDeployed: boolean
-    success: boolean
-    revertReason?: Hex
-}
+import { UserOperationReceipt } from "@alto/types"
+import { parseUserOperationReceipt } from "../utils/userop"
 
 // The tx was successfully mined
 // The status of each userOperation is recorded in userOpDetails
 export type BundleIncluded = {
     status: "included"
-    userOpDetails: Record<Hex, UserOpDetailsType>
+    userOpReceipts: Record<Hex, UserOperationReceipt>
     transactionHash: Hex
     blockNumber: bigint
 }
@@ -39,58 +25,6 @@ export type BundleNotFound = {
 
 export type BundleStatus = BundleIncluded | BundleReverted | BundleNotFound
 
-const parseEntryPointLogs = (
-    logs: Log[],
-    entryPoint: Address
-): Record<Hex, UserOpDetailsType> => {
-    return logs
-        .filter((log) => areAddressesEqual(log.address, entryPoint))
-        .reduce((result: Record<Hex, UserOpDetailsType>, log) => {
-            try {
-                const { eventName, args } = decodeEventLog({
-                    // All EntryPoint versions have the same event interface.
-                    abi: [
-                        getAbiItem({
-                            abi: EntryPointV07Abi,
-                            name: "UserOperationEvent"
-                        }),
-                        getAbiItem({
-                            abi: EntryPointV07Abi,
-                            name: "AccountDeployed"
-                        }),
-                        getAbiItem({
-                            abi: EntryPointV07Abi,
-                            name: "UserOperationRevertReason"
-                        })
-                    ],
-                    data: log.data,
-                    topics: log.topics
-                })
-
-                result[args.userOpHash] ??= {
-                    accountDeployed: false,
-                    success: true
-                }
-
-                if (eventName === "AccountDeployed") {
-                    result[args.userOpHash].accountDeployed = true
-                }
-
-                if (eventName === "UserOperationEvent") {
-                    result[args.userOpHash].success = args.success
-                }
-
-                if (eventName === "UserOperationRevertReason") {
-                    result[args.userOpHash].revertReason = args.revertReason
-                }
-            } catch (e) {
-                sentry.captureException(e)
-            }
-
-            return result
-        }, {})
-}
-
 // Return the status of the bundling transaction.
 export const getBundleStatus = async ({
     publicClient,
@@ -102,9 +36,9 @@ export const getBundleStatus = async ({
     logger: Logger
 }): Promise<BundleStatus> => {
     const {
-        bundle,
         transactionHash: currentHash,
-        previousTransactionHashes: previousHashes
+        previousTransactionHashes: previousHashes,
+        bundle
     } = submittedBundle
 
     const receipts = await Promise.all(
@@ -119,11 +53,20 @@ export const getBundleStatus = async ({
 
     // If any of the receipts are included.
     if (includedReceipt) {
-        const { entryPoint } = bundle
-        const { logs, blockNumber, transactionHash } = includedReceipt
+        const { userOps } = bundle
+        const { blockNumber, transactionHash } = includedReceipt
+        const userOpDetails: Record<Hex, UserOperationReceipt> = {}
+
+        for (const { userOpHash } of userOps) {
+            userOpDetails[userOpHash] = parseUserOperationReceipt(
+                userOpHash,
+                includedReceipt
+            )
+        }
+
         return {
             status: "included",
-            userOpDetails: parseEntryPointLogs(logs, entryPoint),
+            userOpReceipts: userOpDetails,
             transactionHash,
             blockNumber
         }
