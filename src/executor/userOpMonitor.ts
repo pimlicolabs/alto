@@ -1,7 +1,6 @@
 import type { EventManager } from "@alto/handlers"
 import type { Mempool, Monitor } from "@alto/mempool"
 import {
-    EntryPointV06Abi,
     type HexData32,
     type SubmittedBundleInfo,
     UserOpInfo
@@ -18,8 +17,9 @@ import {
 import type { AltoConfig } from "../createConfig"
 import { SenderManager } from "./senderManager"
 import { BundleIncluded, getBundleStatus } from "./getBundleStatus"
+import { entryPoint07Abi } from "viem/_types/account-abstraction"
 
-export class BundleMonitor {
+export class UserOpMonitor {
     private config: AltoConfig
     private mempool: Mempool
     private monitor: Monitor
@@ -120,10 +120,11 @@ export class BundleMonitor {
                     })
                 })
             )
-            await this.mempool.markUserOpsAsIncluded({
-                entryPoint,
-                userOpHashes: userOps.map(({ userOpHash }) => userOpHash)
-            })
+            //await this.mempool.markUserOpsAsIncluded({
+            //    entryPoint,
+            //    userOps,
+            //    bundleReceipt
+            //})
         }
     }
 
@@ -228,11 +229,6 @@ export class BundleMonitor {
     }
 
     async getUserOperationReceipt(userOperationHash: HexData32) {
-        const userOperationEventAbiItem = getAbiItem({
-            abi: EntryPointV06Abi,
-            name: "UserOperationEvent"
-        })
-
         let fromBlock: bigint | undefined = undefined
         let toBlock: "latest" | undefined = undefined
         if (this.config.maxBlockRange !== undefined) {
@@ -247,7 +243,10 @@ export class BundleMonitor {
 
         const filterResult = await this.config.publicClient.getLogs({
             address: this.config.entrypoints,
-            event: userOperationEventAbiItem,
+            event: getAbiItem({
+                abi: entryPoint07Abi,
+                name: "UserOperationEvent"
+            }),
             fromBlock,
             toBlock,
             args: {
@@ -284,8 +283,10 @@ export class BundleMonitor {
         ): Promise<TransactionReceipt> => {
             while (true) {
                 try {
+                    const publicClient = this.config.publicClient
+
                     const transactionReceipt =
-                        await this.config.publicClient.getTransactionReceipt({
+                        await publicClient.getTransactionReceipt({
                             hash: txHash
                         })
 
@@ -295,10 +296,9 @@ export class BundleMonitor {
                         undefined
 
                     if (effectiveGasPrice === undefined) {
-                        const tx =
-                            await this.config.publicClient.getTransaction({
-                                hash: txHash
-                            })
+                        const tx = await publicClient.getTransaction({
+                            hash: txHash
+                        })
                         effectiveGasPrice = tx.gasPrice ?? undefined
                     }
 
@@ -318,23 +318,6 @@ export class BundleMonitor {
         }
 
         const receipt = await getTransactionReceipt(txHash)
-        const logs = receipt.logs
-
-        if (
-            logs.some(
-                (log) =>
-                    log.blockHash === null ||
-                    log.blockNumber === null ||
-                    log.transactionIndex === null ||
-                    log.transactionHash === null ||
-                    log.logIndex === null ||
-                    log.topics.length === 0
-            )
-        ) {
-            // transaction pending
-            return null
-        }
-
         const userOperationReceipt = parseUserOperationReceipt(
             userOperationHash,
             receipt

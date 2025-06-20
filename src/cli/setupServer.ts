@@ -15,6 +15,7 @@ import type { AltoConfig } from "../createConfig"
 import { validateAndRefillWallets } from "../executor/senderManager/validateAndRefill"
 import { flushOnStartUp } from "../executor/senderManager/flushOnStartUp"
 import { createMempoolStore } from "../store/createMempoolStore"
+import { UserOpMonitor } from "../executor/userOpMonitor"
 
 const getReputationManager = (
     config: AltoConfig
@@ -73,6 +74,7 @@ const getMempool = ({
     return new Mempool({
         config,
         monitor,
+        metrics,
         store: createMempoolStore({ config, metrics }),
         reputationManager,
         validator,
@@ -107,33 +109,27 @@ const getExecutorManager = ({
     config,
     executor,
     mempool,
-    monitor,
     senderManager,
-    reputationManager,
     metrics,
     gasPriceManager,
-    eventManager
+    userOpMonitor
 }: {
     config: AltoConfig
     executor: Executor
     mempool: Mempool
-    monitor: Monitor
-    reputationManager: InterfaceReputationManager
     senderManager: SenderManager
     metrics: Metrics
     gasPriceManager: GasPriceManager
-    eventManager: EventManager
+    userOpMonitor: UserOpMonitor
 }) => {
     return new ExecutorManager({
         config,
         executor,
+        userOpMonitor,
         mempool,
-        monitor,
         senderManager,
-        reputationManager,
         metrics,
-        gasPriceManager,
-        eventManager
+        gasPriceManager
     })
 }
 
@@ -272,16 +268,23 @@ export const setupServer = async ({
         eventManager
     })
 
+    const userOpMonitor = new UserOpMonitor({
+        config,
+        mempool,
+        monitor,
+        metrics,
+        eventManager,
+        senderManager
+    })
+
     const executorManager = getExecutorManager({
+        userOpMonitor,
         config,
         executor,
         mempool,
-        monitor,
         senderManager,
-        reputationManager,
         metrics,
-        gasPriceManager,
-        eventManager
+        gasPriceManager
     })
 
     const rpcEndpoint = getRpcHandler({

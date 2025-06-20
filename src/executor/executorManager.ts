@@ -1,9 +1,5 @@
-import type { EventManager, GasPriceManager } from "@alto/handlers"
-import type {
-    InterfaceReputationManager,
-    Mempool,
-    Monitor
-} from "@alto/mempool"
+import type { GasPriceManager } from "@alto/handlers"
+import type { Mempool } from "@alto/mempool"
 import {
     type BundlingMode,
     type SubmittedBundleInfo,
@@ -15,7 +11,7 @@ import type { Executor } from "./executor"
 import type { AltoConfig } from "../createConfig"
 import { SenderManager } from "./senderManager"
 import { GasPriceParameters } from "@alto/types"
-import { BundleMonitor } from "./bundleMonitor"
+import { UserOpMonitor } from "./userOpMonitor"
 
 const SCALE_FACTOR = 10 // Interval increases by 10ms per task per minute
 const RPM_WINDOW = 60000 // 1 minute window in ms
@@ -30,7 +26,7 @@ export class ExecutorManager {
     private gasPriceManager: GasPriceManager
     private opsCount: number[] = []
     private bundlingMode: BundlingMode
-    private bundleMonitor: BundleMonitor
+    private userOpMonitor: UserOpMonitor
     private unWatch: WatchBlocksReturnType | undefined
 
     private currentlyHandlingBlock = false
@@ -39,22 +35,18 @@ export class ExecutorManager {
         config,
         executor,
         mempool,
-        monitor,
-        reputationManager,
         metrics,
         gasPriceManager,
-        eventManager,
-        senderManager
+        senderManager,
+        userOpMonitor
     }: {
         config: AltoConfig
         executor: Executor
         mempool: Mempool
-        monitor: Monitor
-        reputationManager: InterfaceReputationManager
         metrics: Metrics
         gasPriceManager: GasPriceManager
-        eventManager: EventManager
         senderManager: SenderManager
+        userOpMonitor: UserOpMonitor
     }) {
         this.config = config
         this.executor = executor
@@ -68,18 +60,8 @@ export class ExecutorManager {
         this.metrics = metrics
         this.gasPriceManager = gasPriceManager
         this.senderManager = senderManager
-
-        this.bundleMonitor = new BundleMonitor({
-            config,
-            mempool,
-            monitor,
-            metrics,
-            eventManager,
-            senderManager,
-            reputationManager
-        })
-
         this.bundlingMode = this.config.bundleMode
+        this.userOpMonitor = userOpMonitor
 
         if (this.bundlingMode === "auto") {
             this.autoScalingBundling()
@@ -256,7 +238,7 @@ export class ExecutorManager {
             lastReplaced: Date.now()
         }
 
-        this.bundleMonitor.setPendingBundle(submittedBundle)
+        this.userOpMonitor.setPendingBundle(submittedBundle)
         await this.mempool.markUserOpsAsSubmitted({
             userOps: submittedBundle.bundle.userOps,
             entryPoint: submittedBundle.bundle.entryPoint,
@@ -285,7 +267,7 @@ export class ExecutorManager {
 
         // Process the block and get the results
         const pendingBundles =
-            await this.bundleMonitor.processBlock(blockNumber)
+            await this.userOpMonitor.processBlock(blockNumber)
 
         if (pendingBundles.length === 0) {
             this.stopWatchingBlocks()
@@ -434,7 +416,7 @@ export class ExecutorManager {
         }
 
         // Replace existing submitted bundle with new one
-        this.bundleMonitor.setPendingBundle(newTxInfo)
+        this.userOpMonitor.setPendingBundle(newTxInfo)
 
         // Drop all userOperations that were rejected during simulation.
         await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
