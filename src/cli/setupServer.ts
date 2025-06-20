@@ -141,6 +141,7 @@ const getRpcHandler = ({
     monitor,
     executorManager,
     reputationManager,
+    userOpMonitor,
     metrics,
     gasPriceManager,
     eventManager
@@ -152,6 +153,7 @@ const getRpcHandler = ({
     monitor: Monitor
     executorManager: ExecutorManager
     reputationManager: InterfaceReputationManager
+    userOpMonitor: UserOpMonitor
     metrics: Metrics
     eventManager: EventManager
     gasPriceManager: GasPriceManager
@@ -164,6 +166,7 @@ const getRpcHandler = ({
         monitor,
         executorManager,
         reputationManager,
+        userOpMonitor,
         metrics,
         eventManager,
         gasPriceManager
@@ -296,6 +299,7 @@ export const setupServer = async ({
         monitor,
         executorManager,
         reputationManager,
+        userOpMonitor,
         metrics,
         gasPriceManager,
         eventManager
