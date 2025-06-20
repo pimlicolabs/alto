@@ -238,7 +238,7 @@ export class ExecutorManager {
             lastReplaced: Date.now()
         }
 
-        this.userOpMonitor.setPendingBundle(submittedBundle)
+        this.userOpMonitor.trackBundle(submittedBundle)
         await this.mempool.markUserOpsAsSubmitted({
             userOps: submittedBundle.bundle.userOps,
             entryPoint: submittedBundle.bundle.entryPoint,
@@ -410,7 +410,7 @@ export class ExecutorManager {
         }
 
         // Replace existing submitted bundle with new one
-        this.userOpMonitor.setPendingBundle(newTxInfo)
+        this.userOpMonitor.trackBundle(newTxInfo)
 
         // Drop all userOperations that were rejected during simulation.
         await this.mempool.dropUserOps(entryPoint, rejectedUserOps)

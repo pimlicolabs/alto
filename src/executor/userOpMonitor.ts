@@ -26,6 +26,11 @@ import { SenderManager } from "./senderManager"
 import { getBundleStatus } from "./getBundleStatus"
 import { entryPoint07Abi } from "viem/_types/account-abstraction"
 
+interface CachedReceipt {
+    receipt: any
+    timestamp: number
+}
+
 export class UserOpMonitor {
     private reputationManager: InterfaceReputationManager
     private config: AltoConfig
@@ -37,6 +42,8 @@ export class UserOpMonitor {
     private senderManager: SenderManager
     private cachedLatestBlock: { value: bigint; timestamp: number } | null
     private pendingBundles: Map<Address, SubmittedBundleInfo> = new Map()
+    private receiptCache: Map<HexData32, CachedReceipt> = new Map()
+    private readonly receiptTtl = 5 * 60 * 1000 // 5 minutes
 
     constructor({
         config,
@@ -76,7 +83,9 @@ export class UserOpMonitor {
         this.cachedLatestBlock = { value: blockNumber, timestamp: Date.now() }
 
         const pendingBundles = Array.from(this.pendingBundles.values())
-        await Promise.all(pendingBundles.map(this.refreshBundleStatus))
+        await Promise.all(
+            pendingBundles.map((bundle) => this.refreshBundleStatus(bundle))
+        )
         return pendingBundles
     }
 
@@ -108,6 +117,9 @@ export class UserOpMonitor {
                     if (!userOpReceipt) {
                         throw new Error("userOpReceipt is undefined")
                     }
+
+                    // Cache the receipt
+                    this.cacheReceipt(userOpInfo.userOpHash, userOpReceipt)
 
                     await this.processIncludedUserOp(
                         userOpInfo,
@@ -141,7 +153,7 @@ export class UserOpMonitor {
         }
     }
 
-    public setPendingBundle(submittedBundle: SubmittedBundleInfo) {
+    public trackBundle(submittedBundle: SubmittedBundleInfo) {
         const executor = submittedBundle.executor.address
         this.pendingBundles.set(executor, submittedBundle)
     }
@@ -158,6 +170,32 @@ export class UserOpMonitor {
         const latestBlock = await this.config.publicClient.getBlockNumber()
         this.cachedLatestBlock = { value: latestBlock, timestamp: now }
         return latestBlock
+    }
+
+    private cacheReceipt(userOpHash: Hex, receipt: any) {
+        this.cleanupReceiptCache()
+        this.receiptCache.set(userOpHash, {
+            receipt,
+            timestamp: Date.now()
+        })
+    }
+
+    private getCachedReceipt(userOpHash: Hex): any | undefined {
+        this.cleanupReceiptCache()
+        const cached = this.receiptCache.get(userOpHash)
+        if (!cached) return undefined
+        return cached.receipt
+    }
+
+    private cleanupReceiptCache(): void {
+        const now = Date.now()
+        const expiredEntries = Array.from(this.receiptCache.entries()).filter(
+            ([_, cached]) => now - cached.timestamp > this.receiptTtl
+        )
+
+        expiredEntries.forEach(([userOpHash]) =>
+            this.receiptCache.delete(userOpHash)
+        )
     }
 
     // Free executors and remove userOps from mempool.
@@ -307,7 +345,14 @@ export class UserOpMonitor {
         }
     }
 
+
     async getUserOpReceipt(userOperationHash: HexData32) {
+        // Check cache first
+        const cached = this.getCachedReceipt(userOperationHash)
+        if (cached) {
+            return cached
+        }
+
         let fromBlock: bigint | undefined = undefined
         let toBlock: "latest" | undefined = undefined
         if (this.config.maxBlockRange !== undefined) {
@@ -402,6 +447,9 @@ export class UserOpMonitor {
             userOperationHash,
             receipt
         )
+
+        // Cache the receipt before returning
+        this.cacheReceipt(userOperationHash, userOperationReceipt)
 
         return userOperationReceipt
     }
