@@ -273,6 +273,7 @@ export const setupServer = async ({
         mempool,
         monitor,
         metrics,
+        reputationManager,
         eventManager,
         senderManager
     })

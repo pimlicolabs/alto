@@ -1,5 +1,9 @@
 import type { EventManager } from "@alto/handlers"
-import type { Mempool, Monitor } from "@alto/mempool"
+import type {
+    InterfaceReputationManager,
+    Mempool,
+    Monitor
+} from "@alto/mempool"
 import {
     type HexData32,
     type SubmittedBundleInfo,
@@ -12,14 +16,18 @@ import {
     type Hash,
     type TransactionReceipt,
     TransactionReceiptNotFoundError,
-    getAbiItem
+    getAbiItem,
+    Hex,
+    decodeEventLog,
+    getAddress
 } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { SenderManager } from "./senderManager"
-import { BundleIncluded, getBundleStatus } from "./getBundleStatus"
+import { getBundleStatus } from "./getBundleStatus"
 import { entryPoint07Abi } from "viem/_types/account-abstraction"
 
 export class UserOpMonitor {
+    private reputationManager: InterfaceReputationManager
     private config: AltoConfig
     private mempool: Mempool
     private monitor: Monitor
@@ -35,6 +43,7 @@ export class UserOpMonitor {
         mempool,
         monitor,
         metrics,
+        reputationManager,
         eventManager,
         senderManager
     }: {
@@ -42,9 +51,11 @@ export class UserOpMonitor {
         mempool: Mempool
         monitor: Monitor
         metrics: Metrics
+        reputationManager: InterfaceReputationManager
         eventManager: EventManager
         senderManager: SenderManager
     }) {
+        this.reputationManager = reputationManager
         this.config = config
         this.mempool = mempool
         this.monitor = monitor
@@ -53,7 +64,7 @@ export class UserOpMonitor {
         this.senderManager = senderManager
         this.cachedLatestBlock = null
         this.logger = config.getLogger(
-            { module: "bundle_monitor" },
+            { module: "userop_monitor" },
             {
                 level: config.executorLogLevel || config.logLevel
             }
@@ -101,134 +112,211 @@ export class UserOpMonitor {
         })
 
         if (bundleReceipt.status === "included") {
-            await this.markBundleIncluded({
-                submittedBundle,
+            const { bundle, executor } = submittedBundle
+            const { userOps, entryPoint } = bundle
+            const { transactionHash, blockNumber, userOpReceipts } =
                 bundleReceipt
+
+            // Free executor and remove userOp from mempool.
+            this.freePendingBundle(submittedBundle)
+            await this.senderManager.markWalletProcessed(executor)
+            await this.mempool.removeSubmittedUserOps({
+                entryPoint,
+                userOps
             })
+
+            // Log userOps onchain metric.
+            this.metrics.userOperationsOnChain
+                .labels({ status: "included" })
+                .inc(userOps.length)
+
+            await Promise.all(
+                userOps.map(async (userOpInfo) => {
+                    const {
+                        userOpHash,
+                        userOp,
+                        submissionAttempts,
+                        addedToMempool
+                    } = userOpInfo
+
+                    const userOpReceipt = userOpReceipts[userOpHash]
+                    if (!userOpReceipt) {
+                        throw new Error("userOpReceipt is undefined")
+                    }
+
+                    this.logger.info(
+                        {
+                            userOpHash,
+                            transactionHash
+                        },
+                        "user op included"
+                    )
+
+                    // Update status and emit event
+                    await this.monitor.setUserOperationStatus(userOpHash, {
+                        status: "included",
+                        transactionHash
+                    })
+                    if (userOpReceipt.success) {
+                        this.eventManager.emitIncludedOnChain(
+                            userOpHash,
+                            transactionHash,
+                            blockNumber
+                        )
+                    } else {
+                        const revertReason = userOpReceipt.reason
+                        this.eventManager.emitExecutionRevertedOnChain(
+                            userOpHash,
+                            transactionHash,
+                            revertReason || "0x",
+                            blockNumber
+                        )
+                    }
+
+                    // Track inclusion metrics
+                    this.metrics.userOperationInclusionDuration.observe(
+                        (Date.now() - addedToMempool) / 1000
+                    )
+                    this.metrics.userOperationsSubmissionAttempts.observe(
+                        submissionAttempts
+                    )
+
+                    // Update reputation manager
+                    const accountDeployed = userOpReceipt.receipt.logs.some(
+                        (log) => {
+                            try {
+                                const { args } = decodeEventLog({
+                                    abi: entryPoint07Abi,
+                                    data: log.data,
+                                    eventName: "AccountDeployed",
+                                    topics: log.topics as [Hex, ...Hex[]]
+                                })
+                                return getAddress(args.sender) === userOp.sender
+                            } catch {
+                                return false
+                            }
+                        }
+                    )
+
+                    this.reputationManager.updateUserOperationIncludedStatus(
+                        userOp,
+                        entryPoint,
+                        accountDeployed
+                    )
+                })
+            )
         }
 
         if (bundleReceipt.status === "reverted") {
-            const { userOps, entryPoint } = submittedBundle.bundle
+            const { executor, bundle } = submittedBundle
+            const { userOps, entryPoint } = bundle
             const { blockNumber, transactionHash } = bundleReceipt
-            await Promise.all(
+
+            // Free executor and remove userOp from mempool.
+            this.freePendingBundle(submittedBundle)
+            await this.senderManager.markWalletProcessed(executor)
+            await this.mempool.removeSubmittedUserOps({
+                entryPoint,
+                userOps
+            })
+
+            // Fire and forget
+            Promise.all(
                 userOps.map(async (userOpInfo) => {
-                    await this.checkFrontrun({
-                        entryPoint,
+                    this.checkFrontrun({
                         userOpInfo,
                         transactionHash,
                         blockNumber
                     })
                 })
             )
-            //await this.mempool.markUserOpsAsIncluded({
-            //    entryPoint,
-            //    userOps,
-            //    bundleReceipt
-            //})
         }
     }
 
     async checkFrontrun({
         userOpInfo,
-        entryPoint,
         transactionHash,
         blockNumber
     }: {
         userOpInfo: UserOpInfo
         transactionHash: Hash
-        entryPoint: Address
         blockNumber: bigint
     }) {
         const { userOpHash } = userOpInfo
-        const unwatch = this.config.publicClient.watchBlockNumber({
-            onBlockNumber: async (currentBlockNumber) => {
-                if (currentBlockNumber > blockNumber + 1n) {
-                    try {
-                        const userOperationReceipt =
-                            await this.getUserOperationReceipt(userOpHash)
 
-                        if (userOperationReceipt) {
-                            const transactionHash =
-                                userOperationReceipt.receipt.transactionHash
-                            const blockNumber =
-                                userOperationReceipt.receipt.blockNumber
+        // Try to find userOp onchain
+        try {
+            const userOpReceipt = await this.getUserOpReceipt(userOpHash)
 
-                            await this.mempool.markUserOpsAsIncluded({
-                                entryPoint,
-                                userOpHashes: [userOpHash]
-                            })
-                            await this.monitor.setUserOperationStatus(
-                                userOpHash,
-                                {
-                                    status: "included",
-                                    transactionHash
-                                }
-                            )
+            if (userOpReceipt) {
+                const transactionHash = userOpReceipt.receipt.transactionHash
+                const blockNumber = userOpReceipt.receipt.blockNumber
 
-                            this.eventManager.emitFrontranOnChain(
-                                userOpHash,
-                                transactionHash,
-                                blockNumber
-                            )
+                await this.monitor.setUserOperationStatus(userOpHash, {
+                    status: "included",
+                    transactionHash
+                })
 
-                            this.logger.info(
-                                {
-                                    userOpHash,
-                                    transactionHash
-                                },
-                                "user op frontrun onchain"
-                            )
+                this.eventManager.emitFrontranOnChain(
+                    userOpHash,
+                    transactionHash,
+                    blockNumber
+                )
 
-                            this.metrics.userOperationsOnChain
-                                .labels({ status: "frontran" })
-                                .inc(1)
-                        } else {
-                            await this.monitor.setUserOperationStatus(
-                                userOpHash,
-                                {
-                                    status: "failed",
-                                    transactionHash
-                                }
-                            )
-                            this.eventManager.emitFailedOnChain(
-                                userOpHash,
-                                transactionHash,
-                                blockNumber
-                            )
-                            this.logger.info(
-                                {
-                                    userOpHash,
-                                    transactionHash
-                                },
-                                "user op failed onchain"
-                            )
-                            this.metrics.userOperationsOnChain
-                                .labels({ status: "reverted" })
-                                .inc(1)
-                        }
-                    } catch (error) {
-                        this.logger.error(
-                            {
-                                userOpHash,
-                                transactionHash,
-                                error
-                            },
-                            "Error checking frontrun status"
-                        )
+                this.logger.info(
+                    {
+                        userOpHash,
+                        transactionHash
+                    },
+                    "user op frontrun onchain"
+                )
 
-                        // Still mark as failed since we couldn't verify inclusion
-                        await this.monitor.setUserOperationStatus(userOpHash, {
-                            status: "failed",
-                            transactionHash
-                        })
-                    }
-                    unwatch()
-                }
+                this.metrics.userOperationsOnChain
+                    .labels({ status: "frontran" })
+                    .inc(1)
+            } else {
+                await this.monitor.setUserOperationStatus(userOpHash, {
+                    status: "failed",
+                    transactionHash
+                })
+
+                this.eventManager.emitFailedOnChain(
+                    userOpHash,
+                    transactionHash,
+                    blockNumber
+                )
+
+                this.logger.info(
+                    {
+                        userOpHash,
+                        transactionHash
+                    },
+                    "user op failed onchain"
+                )
+
+                this.metrics.userOperationsOnChain
+                    .labels({ status: "reverted" })
+                    .inc(1)
             }
-        })
+        } catch (error) {
+            this.logger.error(
+                {
+                    userOpHash,
+                    transactionHash,
+                    error
+                },
+                "Error checking frontrun status"
+            )
+
+            // Still mark as failed since we couldn't verify inclusion
+            await this.monitor.setUserOperationStatus(userOpHash, {
+                status: "failed",
+                transactionHash
+            })
+        }
     }
 
-    async getUserOperationReceipt(userOperationHash: HexData32) {
+    async getUserOpReceipt(userOperationHash: HexData32) {
         let fromBlock: bigint | undefined = undefined
         let toBlock: "latest" | undefined = undefined
         if (this.config.maxBlockRange !== undefined) {
@@ -238,6 +326,7 @@ export class UserOpMonitor {
             if (fromBlock < 0n) {
                 fromBlock = 0n
             }
+
             toBlock = "latest"
         }
 
@@ -324,26 +413,5 @@ export class UserOpMonitor {
         )
 
         return userOperationReceipt
-    }
-
-    private async markBundleIncluded({
-        submittedBundle,
-        bundleReceipt
-    }: {
-        submittedBundle: SubmittedBundleInfo
-        bundleReceipt: BundleIncluded
-    }) {
-        const { bundle, executor } = submittedBundle
-        const { userOps, entryPoint } = bundle
-
-        // Free executor.
-        await this.senderManager.markWalletProcessed(executor)
-        this.freePendingBundle(submittedBundle)
-
-        await this.mempool.markUserOpsAsIncluded({
-            userOps,
-            bundleReceipt: bundleReceipt,
-            entryPoint
-        })
     }
 }

@@ -25,7 +25,7 @@ import {
     jsonStringifyWithBigint,
     scaleBigIntByPercent
 } from "@alto/utils"
-import { Hex, decodeEventLog, getAddress, getContract } from "viem"
+import { Hex, getAddress, getContract } from "viem"
 import type { Monitor } from "./monitoring"
 import {
     type InterfaceReputationManager,
@@ -35,8 +35,7 @@ import type { AltoConfig } from "../createConfig"
 import type { MempoolStore } from "@alto/store"
 import { calculateAA95GasFloor } from "../executor/utils"
 import { privateKeyToAddress, generatePrivateKey } from "viem/accounts"
-import { EntryPointVersion, entryPoint07Abi } from "viem/account-abstraction"
-import { BundleIncluded } from "../executor/getBundleStatus"
+import { EntryPointVersion } from "viem/account-abstraction"
 
 export class Mempool {
     private config: AltoConfig
@@ -164,91 +163,16 @@ export class Mempool {
         )
     }
 
-    async markUserOpsAsIncluded({
-        entryPoint,
+    async removeSubmittedUserOps({
         userOps,
-        bundleReceipt
+        entryPoint
     }: {
-        entryPoint: Address
         userOps: UserOpInfo[]
-        bundleReceipt: BundleIncluded
+        entryPoint: Address
     }) {
-        const { userOpReceipts, transactionHash, blockNumber } = bundleReceipt
-        this.metrics.userOperationsOnChain
-            .labels({ status: "included" })
-            .inc(userOps.length)
-
         await Promise.all(
-            userOps.map(async (userOpInfo) => {
-                const { userOpHash, userOp, submissionAttempts } = userOpInfo
-                const userOpReceipt = userOpReceipts[userOpHash]
-                if (!userOpReceipt) {
-                    throw new Error("userOpReceipt is undefined")
-                }
-
-                const success = userOpReceipt.success
-                const accountDeployed = userOpReceipt.receipt.logs.some(
-                    (log) => {
-                        try {
-                            const { args } = decodeEventLog({
-                                abi: entryPoint07Abi,
-                                data: log.data,
-                                eventName: "AccountDeployed",
-                                topics: log.topics as [Hex, ...Hex[]]
-                            })
-                            return getAddress(args.sender) === userOp.sender
-                        } catch {
-                            return false
-                        }
-                    }
-                )
-
-                this.logger.info(
-                    {
-                        userOpHash,
-                        transactionHash
-                    },
-                    "user op included"
-                )
-
-                const firstSubmitted = userOpInfo.addedToMempool
-                this.metrics.userOperationInclusionDuration.observe(
-                    (Date.now() - firstSubmitted) / 1000
-                )
-
-                // Track the number of submission attempts for included ops
-                this.metrics.userOperationsSubmissionAttempts.observe(
-                    submissionAttempts
-                )
-
+            userOps.map(async ({ userOpHash }) => {
                 await this.store.removeSubmitted({ entryPoint, userOpHash })
-
-                this.reputationManager.updateUserOperationIncludedStatus(
-                    userOp,
-                    entryPoint,
-                    accountDeployed
-                )
-
-                if (success) {
-                    this.eventManager.emitIncludedOnChain(
-                        userOpHash,
-                        transactionHash,
-                        blockNumber
-                    )
-                } else {
-                    const revertReason = userOpReceipt.reason
-                    this.eventManager.emitExecutionRevertedOnChain(
-                        userOpHash,
-                        transactionHash,
-                        revertReason || "0x",
-                        blockNumber
-                    )
-                }
-
-                await this.monitor.setUserOperationStatus(userOpHash, {
-                    status: "included",
-                    transactionHash
-                })
             })
         )
     }
