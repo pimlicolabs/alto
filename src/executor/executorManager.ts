@@ -244,6 +244,7 @@ export class ExecutorManager {
             entryPoint: submittedBundle.bundle.entryPoint,
             transactionHash: submittedBundle.transactionHash
         })
+
         // Start watching blocks after marking operations as submitted
         this.startWatchingBlocks()
         await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
@@ -285,39 +286,29 @@ export class ExecutorManager {
         ])
 
         await Promise.all(
-            pendingBundles.map(async (txInfo) => {
-                const { transactionRequest } = txInfo
+            pendingBundles.map(async (submittedBundle) => {
+                const { transactionRequest, lastReplaced } = submittedBundle
+                const { maxFeePerGas, maxPriorityFeePerGas } =
+                    transactionRequest
 
-                const {
-                    maxFeePerGas: txMaxFee,
-                    maxPriorityFeePerGas: txMaxPriorityFee
-                } = transactionRequest
-
-                const {
-                    maxFeePerGas: networkMaxFee,
-                    maxPriorityFeePerGas: networkMaxPriorityFee
-                } = networkGasPrice
-
-                const isMaxFeeTooLow = txMaxFee < networkMaxFee
-
-                const isPriorityFeeTooLow =
-                    txMaxPriorityFee < networkMaxPriorityFee
+                const isGasPriceTooLow =
+                    maxFeePerGas < networkGasPrice.maxFeePerGas ||
+                    maxPriorityFeePerGas < networkGasPrice.maxPriorityFeePerGas
 
                 const isStuck =
-                    Date.now() - txInfo.lastReplaced >
-                    this.config.resubmitStuckTimeout
+                    Date.now() - lastReplaced > this.config.resubmitStuckTimeout
 
-                if (isMaxFeeTooLow || isPriorityFeeTooLow) {
+                if (isGasPriceTooLow) {
                     await this.replaceTransaction({
-                        txInfo,
-                        gasPriceParams: networkGasPrice,
+                        submittedBundle,
+                        networkGasPrice,
                         networkBaseFee,
                         reason: "gas_price"
                     })
                 } else if (isStuck) {
                     await this.replaceTransaction({
-                        txInfo,
-                        gasPriceParams: networkGasPrice,
+                        submittedBundle,
+                        networkGasPrice,
                         networkBaseFee,
                         reason: "stuck"
                     })
@@ -329,13 +320,13 @@ export class ExecutorManager {
     }
 
     async replaceTransaction({
-        txInfo,
-        gasPriceParams,
+        submittedBundle,
+        networkGasPrice,
         networkBaseFee,
         reason
     }: {
-        txInfo: SubmittedBundleInfo
-        gasPriceParams: GasPriceParameters
+        submittedBundle: SubmittedBundleInfo
+        networkGasPrice: GasPriceParameters
         networkBaseFee: bigint
         reason: "gas_price" | "stuck"
     }): Promise<void> {
@@ -344,12 +335,13 @@ export class ExecutorManager {
             executor,
             transactionRequest,
             transactionHash: oldTxHash
-        } = txInfo
+        } = submittedBundle
+
         const { entryPoint } = bundle
 
         const bundleResult = await this.executor.bundle({
             executor: executor,
-            networkGasPrice: gasPriceParams,
+            networkGasPrice,
             networkBaseFee,
             userOpBundle: bundle,
             nonce: transactionRequest.nonce
@@ -358,7 +350,9 @@ export class ExecutorManager {
         // Handle case where no bundle was sent.
         if (!bundleResult.success) {
             // Free wallet as no bundle was sent.
-            await this.senderManager.markWalletProcessed(txInfo.executor)
+            await this.senderManager.markWalletProcessed(
+                submittedBundle.executor
+            )
             const { rejectedUserOps, recoverableOps, reason } = bundleResult
 
             this.logger.warn(
@@ -400,12 +394,12 @@ export class ExecutorManager {
         }))
 
         const newTxInfo: SubmittedBundleInfo = {
-            ...txInfo,
+            ...submittedBundle,
             transactionRequest: newTransactionRequest,
             transactionHash: newTxHash,
             previousTransactionHashes: [
-                txInfo.transactionHash,
-                ...txInfo.previousTransactionHashes
+                submittedBundle.transactionHash,
+                ...submittedBundle.previousTransactionHashes
             ],
             lastReplaced: Date.now(),
             bundle: {
