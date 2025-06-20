@@ -4,8 +4,6 @@ import { SubmittedBundleInfo } from "../types/mempool"
 import { UserOperationReceipt } from "@alto/types"
 import { parseUserOperationReceipt } from "../utils/userop"
 
-// The tx was successfully mined
-// The status of each userOperation is recorded in userOpDetails
 export type BundleIncluded = {
     status: "included"
     userOpReceipts: Record<Hex, UserOperationReceipt>
@@ -47,20 +45,18 @@ export const getBundleStatus = async ({
         )
     )
 
-    const includedReceipt = receipts.find(
-        (receipt) => receipt?.status === "success"
-    )
+    const included = receipts.find((receipt) => receipt?.status === "success")
 
-    // If any of the receipts are included.
-    if (includedReceipt) {
+    // If any of the txs are included.
+    if (included) {
         const { userOps } = bundle
-        const { blockNumber, transactionHash } = includedReceipt
+        const { blockNumber, transactionHash } = included
         const userOpDetails: Record<Hex, UserOperationReceipt> = {}
 
         for (const { userOpHash } of userOps) {
             userOpDetails[userOpHash] = parseUserOperationReceipt(
                 userOpHash,
-                includedReceipt
+                included
             )
         }
 
@@ -72,13 +68,11 @@ export const getBundleStatus = async ({
         }
     }
 
-    const revertedReceipt = receipts.find(
-        (receipt) => receipt?.status === "reverted"
-    )
+    const reverted = receipts.find((receipt) => receipt?.status === "reverted")
 
-    // If any of the receipts reverted.
-    if (revertedReceipt) {
-        const { blockNumber, transactionHash } = revertedReceipt
+    // If any of the txs reverted.
+    if (reverted) {
+        const { blockNumber, transactionHash } = reverted
         return {
             status: "reverted",
             blockNumber,
