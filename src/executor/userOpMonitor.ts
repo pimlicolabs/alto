@@ -24,7 +24,7 @@ import {
 import type { AltoConfig } from "../createConfig"
 import { SenderManager } from "./senderManager"
 import { getBundleStatus } from "./getBundleStatus"
-import { entryPoint07Abi } from "viem/_types/account-abstraction"
+import { entryPoint07Abi } from "viem/account-abstraction"
 
 interface CachedReceipt {
     receipt: any
@@ -344,7 +344,6 @@ export class UserOpMonitor {
             })
         }
     }
-
 
     async getUserOpReceipt(userOperationHash: HexData32) {
         // Check cache first

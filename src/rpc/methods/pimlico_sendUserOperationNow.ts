@@ -12,7 +12,7 @@ import {
     ValidationErrors,
     pimlicoSendUserOperationNowSchema
 } from "@alto/types"
-import { EntryPointVersion } from "viem/_types/account-abstraction"
+import { EntryPointVersion } from "viem/account-abstraction"
 
 export const pimlicoSendUserOperationNowHandler = createMethodHandler({
     method: "pimlico_sendUserOperationNow",
