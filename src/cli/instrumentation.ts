@@ -13,6 +13,13 @@ import {
 } from "@opentelemetry/sdk-trace-base"
 import { SemanticAttributes } from "@opentelemetry/semantic-conventions"
 
+import module from 'node:module'
+import { createAddHookMessageChannel } from 'import-in-the-middle'
+
+// Yes, createAddHookMessageChannel is new. See below.
+const { registerOptions, waitForAllMessagesAcknowledged } = createAddHookMessageChannel();
+module.register('import-in-the-middle/hook.mjs', import.meta.url, registerOptions);
+
 class CustomSampler implements Sampler {
     shouldSample(
         _context: Context,
@@ -59,3 +66,4 @@ const sdk = new NodeSDK({
 })
 
 sdk.start()
+await waitForAllMessagesAcknowledged();
