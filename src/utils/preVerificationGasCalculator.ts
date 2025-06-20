@@ -18,7 +18,6 @@ import {
     encodeAbiParameters,
     getContract,
     serializeTransaction,
-    toBytes,
     maxUint64,
     encodeFunctionData,
     parseGwei,
@@ -27,13 +26,21 @@ import {
     toHex,
     size,
     concat,
-    slice
+    slice,
+    Hex,
+    getAbiItem,
+    toBytes,
+    toBytes
 } from "viem"
 import { minBigInt, randomBigInt } from "./bigInt"
 import { isVersion06, isVersion07, toPackedUserOperation } from "./userop"
 import type { AltoConfig } from "../createConfig"
 import { ArbitrumL1FeeAbi } from "../types/contracts/ArbitrumL1FeeAbi"
 import crypto from "crypto"
+import {
+    entryPoint06Abi,
+    entryPoint07Abi
+} from "viem/_types/account-abstraction"
 
 export interface GasOverheads {
     /**
@@ -74,7 +81,7 @@ export interface GasOverheads {
     sigSize: number
 }
 
-export const DefaultGasOverheads: GasOverheads = {
+const defaultOverHeads: GasOverheads = {
     fixed: 21000,
     perUserOp: 18300,
     perUserOpWord: 4,
@@ -84,101 +91,9 @@ export const DefaultGasOverheads: GasOverheads = {
     sigSize: 65
 }
 
-/**
- * pack the userOperation
- * @param op
- *  "false" to pack entire UserOp, for calculating the calldata cost of putting it on-chain.
- */
-export function packUserOpV06(op: UserOperationV06): `0x${string}` {
-    return encodeAbiParameters(
-        [
-            {
-                internalType: "address",
-                name: "sender",
-                type: "address"
-            },
-            {
-                internalType: "uint256",
-                name: "nonce",
-                type: "uint256"
-            },
-            {
-                internalType: "bytes",
-                name: "initCode",
-                type: "bytes"
-            },
-            {
-                internalType: "bytes",
-                name: "callData",
-                type: "bytes"
-            },
-            {
-                internalType: "uint256",
-                name: "callGasLimit",
-                type: "uint256"
-            },
-            {
-                internalType: "uint256",
-                name: "verificationGasLimit",
-                type: "uint256"
-            },
-            {
-                internalType: "uint256",
-                name: "preVerificationGas",
-                type: "uint256"
-            },
-            {
-                internalType: "uint256",
-                name: "maxFeePerGas",
-                type: "uint256"
-            },
-            {
-                internalType: "uint256",
-                name: "maxPriorityFeePerGas",
-                type: "uint256"
-            },
-            {
-                internalType: "bytes",
-                name: "paymasterAndData",
-                type: "bytes"
-            },
-            {
-                internalType: "bytes",
-                name: "signature",
-                type: "bytes"
-            }
-        ],
-        [
-            op.sender,
-            BigInt(
-                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-            ),
-            op.initCode,
-            op.callData,
-            BigInt(
-                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-            ),
-            BigInt(
-                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-            ),
-            BigInt(
-                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-            ),
-            BigInt(
-                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-            ),
-            BigInt(
-                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-            ),
-            bytesToHex(new Uint8Array(op.paymasterAndData.length).fill(255)),
-            bytesToHex(new Uint8Array(op.signature.length).fill(255))
-        ]
-    )
-}
-
-export function removeZeroBytesFromUserOp<T extends UserOperation>(
-    userOpearation: T
-): T extends UserOperationV06 ? UserOperationV06 : PackedUserOperation {
+export function fillAndPackUserOp(
+    userOpearation: UserOperation
+): UserOperationV06 | PackedUserOperation {
     if (isVersion06(userOpearation)) {
         return {
             sender: userOpearation.sender,
@@ -196,7 +111,7 @@ export function removeZeroBytesFromUserOp<T extends UserOperation>(
             signature: bytesToHex(
                 new Uint8Array(userOpearation.signature.length).fill(255)
             )
-        } as T extends UserOperationV06 ? UserOperationV06 : PackedUserOperation
+        }
     }
 
     const packedUserOperation: PackedUserOperation = toPackedUserOperation(
@@ -219,70 +134,7 @@ export function removeZeroBytesFromUserOp<T extends UserOperation>(
         signature: bytesToHex(
             new Uint8Array(packedUserOperation.signature.length).fill(255)
         )
-    } as T extends UserOperationV06 ? UserOperationV06 : PackedUserOperation
-}
-
-export function packUserOpV07(op: PackedUserOperation): `0x${string}` {
-    return encodeAbiParameters(
-        [
-            {
-                internalType: "address",
-                name: "sender",
-                type: "address"
-            },
-            {
-                internalType: "uint256",
-                name: "nonce",
-                type: "uint256"
-            },
-            {
-                internalType: "bytes",
-                name: "initCode",
-                type: "bytes"
-            },
-            {
-                internalType: "bytes",
-                name: "callData",
-                type: "bytes"
-            },
-            {
-                internalType: "uint256",
-                name: "accountGasLimits",
-                type: "bytes32"
-            },
-            {
-                internalType: "uint256",
-                name: "preVerificationGas",
-                type: "uint256"
-            },
-            {
-                internalType: "uint256",
-                name: "gasFees",
-                type: "bytes32"
-            },
-            {
-                internalType: "bytes",
-                name: "paymasterAndData",
-                type: "bytes"
-            },
-            {
-                internalType: "bytes",
-                name: "signature",
-                type: "bytes"
-            }
-        ],
-        [
-            op.sender,
-            op.nonce, // need non zero bytes to get better estimations for preVerificationGas
-            op.initCode,
-            op.callData,
-            op.accountGasLimits, // need non zero bytes to get better estimations for preVerificationGas
-            op.preVerificationGas, // need non zero bytes to get better estimations for preVerificationGas
-            op.gasFees, // need non zero bytes to get better estimations for preVerificationGas
-            op.paymasterAndData,
-            op.signature
-        ]
-    )
+    }
 }
 
 export async function calcPreVerificationGas({
@@ -290,15 +142,13 @@ export async function calcPreVerificationGas({
     userOperation,
     entryPoint,
     gasPriceManager,
-    validate,
-    overheads
+    validate
 }: {
     config: AltoConfig
     userOperation: UserOperation
     entryPoint: Address
     gasPriceManager: GasPriceManager
     validate: boolean // when calculating preVerificationGas for validation
-    overheads?: GasOverheads
 }): Promise<bigint> {
     let simulationUserOp = {
         ...userOperation
@@ -324,10 +174,7 @@ export async function calcPreVerificationGas({
         }
     }
 
-    let preVerificationGas = calcDefaultPreVerificationGas(
-        simulationUserOp,
-        overheads
-    )
+    let preVerificationGas = calcDefaultPreVerificationGas(simulationUserOp)
 
     switch (config.chainType) {
         case "op-stack":
@@ -377,24 +224,63 @@ export async function calcPreVerificationGas({
  * @param userOp filled userOp to calculate. The only possible missing fields can be the signature and preVerificationGas itself
  * @param overheads gas overheads to use, to override the default values
  */
-function calcDefaultPreVerificationGas(
-    userOperation: UserOperation,
-    overheads?: Partial<GasOverheads>
-): bigint {
-    const ov = { ...DefaultGasOverheads, ...(overheads ?? {}) }
-
-    const p: UserOperationV06 | PackedUserOperation =
-        removeZeroBytesFromUserOp(userOperation)
+function calcDefaultPreVerificationGas(userOperation: UserOperation): bigint {
+    const ov = { ...defaultOverHeads }
+    const p = fillAndPackUserOp(userOperation)
 
     let packed: Uint8Array
 
     if (isVersion06(userOperation)) {
-        packed = toBytes(packUserOpV06(p as UserOperationV06))
+        packed = toBytes(
+            encodeAbiParameters(
+                [
+                    {
+                        components: [
+                            { name: "sender", type: "address" },
+                            { name: "nonce", type: "uint256" },
+                            { name: "initCode", type: "bytes" },
+                            { name: "callData", type: "bytes" },
+                            { name: "callGasLimit", type: "uint256" },
+                            { name: "verificationGasLimit", type: "uint256" },
+                            { name: "preVerificationGas", type: "uint256" },
+                            { name: "maxFeePerGas", type: "uint256" },
+                            { name: "maxPriorityFeePerGas", type: "uint256" },
+                            { name: "paymasterAndData", type: "bytes" },
+                            { name: "signature", type: "bytes" }
+                        ],
+                        name: "userOperation",
+                        type: "tuple"
+                    }
+                ],
+                [p as UserOperationV06]
+            )
+        )
     } else {
-        packed = toBytes(packUserOpV07(p as PackedUserOperation))
+        packed = toBytes(
+            encodeAbiParameters(
+                [
+                    {
+                        components: [
+                            { name: "sender", type: "address" },
+                            { name: "nonce", type: "uint256" },
+                            { name: "initCode", type: "bytes" },
+                            { name: "callData", type: "bytes" },
+                            { name: "accountGasLimits", type: "bytes32" },
+                            { name: "preVerificationGas", type: "uint256" },
+                            { name: "gasFees", type: "bytes32" },
+                            { name: "paymasterAndData", type: "bytes" },
+                            { name: "signature", type: "bytes" }
+                        ],
+                        name: "userOperation",
+                        type: "tuple"
+                    }
+                ],
+                [p as PackedUserOperation]
+            )
+        )
     }
 
-    const lengthInWord = (packed.length + 31) / 32
+    const lengthInWord = (size(packed) + 31) / 32
     const callDataCost = packed
         .map((x) => (x === 0 ? ov.zeroByte : ov.nonZeroByte))
         .reduce((sum, x) => sum + x)
@@ -432,7 +318,7 @@ export function getHandleOpsCallData({
     if (isV07) {
         const processed = removeZeros
             ? (userOps.map((op) =>
-                  removeZeroBytesFromUserOp(op)
+                  fillAndPackUserOp(op)
               ) as PackedUserOperation[])
             : userOps.map((op) => toPackedUserOperation(op as UserOperationV07))
 
@@ -444,9 +330,7 @@ export function getHandleOpsCallData({
     }
 
     const processed = removeZeros
-        ? (userOps.map((op) =>
-              removeZeroBytesFromUserOp(op)
-          ) as UserOperationV06[])
+        ? (userOps.map((op) => fillAndPackUserOp(op)) as UserOperationV06[])
         : (userOps as UserOperationV06[])
 
     return encodeFunctionData({
@@ -745,3 +629,4 @@ async function calcArbitrumPreVerificationGas(
 
     return staticFee + gasForL1
 }
+
