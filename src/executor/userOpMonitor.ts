@@ -24,10 +24,11 @@ import {
 import type { AltoConfig } from "../createConfig"
 import { SenderManager } from "./senderManager"
 import { getBundleStatus } from "./getBundleStatus"
+import { UserOperationReceipt } from "@alto/types"
 import { entryPoint07Abi } from "viem/account-abstraction"
 
 interface CachedReceipt {
-    receipt: any
+    receipt: UserOperationReceipt
     timestamp: number
 }
 
