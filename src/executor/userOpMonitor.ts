@@ -209,6 +209,12 @@ export class UserOpMonitor {
         await this.mempool.removeSubmittedUserOps({ entryPoint, userOps })
     }
 
+    // Stop tracking bundle in event resubmit fails
+    public async stopTrackingBundle(submittedBundle: SubmittedBundleInfo) {
+        const { executor } = submittedBundle
+        this.pendingBundles.delete(executor.address)
+    }
+
     private async processIncludedUserOp(
         userOpInfo: UserOpInfo,
         userOpReceipt: any,
