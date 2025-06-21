@@ -1,7 +1,12 @@
 import Redis from "ioredis"
-import { Store, UserOpType } from "."
+import { Store } from "."
 import { AltoConfig } from "../createConfig"
-import { HexData32, UserOperation, userOperationSchema } from "../types/schemas"
+import {
+    HexData32,
+    UserOpInfo,
+    UserOperation,
+    userOperationSchema
+} from "../types/schemas"
 import { isVersion06, isVersion07 } from "../utils/userop"
 import { Address, toHex } from "viem"
 import { RedisHash } from "./createRedisOutstandingStore"
@@ -42,7 +47,7 @@ const deserializeUserOp = (data: string): UserOperation => {
     }
 }
 
-export const createRedisStore = <T extends UserOpType>({
+export const createRedisStore = ({
     config,
     storeType,
     entryPoint
@@ -50,7 +55,7 @@ export const createRedisStore = <T extends UserOpType>({
     config: AltoConfig
     storeType: string
     entryPoint: Address
-}): Store<T> => {
+}): Store => {
     if (!config.redisMempoolUrl) {
         throw new Error("Missing required redisMempoolUrl")
     }
@@ -67,14 +72,14 @@ export const createRedisStore = <T extends UserOpType>({
     const senderNonceLookup = new RedisHash(redis, senderNonceLookupKey) // sender + nonce -> userOp
     const userOpHashLookup = new RedisHash(redis, userOpHashLookupKey) // userOpHash -> userOp
 
-    const memoryStore = createMemoryStore<T>({ config })
+    const memoryStore = createMemoryStore({ config })
 
     const encodeSenderNonce = (userOp: UserOperation) => {
         return `${userOp.sender}-${userOp.nonce}`
     }
 
     return {
-        add: async (op: T) => {
+        add: async (op: UserOpInfo) => {
             // Local memory logic
             memoryStore.add(op)
 

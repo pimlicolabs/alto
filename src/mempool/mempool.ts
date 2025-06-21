@@ -6,25 +6,26 @@ import {
     type ReferencedCodeHashes,
     RpcError,
     type StorageMap,
-    type SubmittedUserOp,
-    type TransactionInfo,
     type UserOperation,
     type UserOperationBundle,
     type UserOpInfo,
     ValidationErrors,
     type ValidationResult,
-    type Address
+    type Address,
+    RejectedUserOp
 } from "@alto/types"
-import type { Logger } from "@alto/utils"
+import type { Logger, Metrics } from "@alto/utils"
 import {
+    getAAError,
     getAddressFromInitCodeOrPaymasterAndData,
     getUserOperationHash,
     isVersion06,
     isVersion07,
     isVersion08,
+    jsonStringifyWithBigint,
     scaleBigIntByPercent
 } from "@alto/utils"
-import { getAddress, getContract } from "viem"
+import { Hex, getAddress, getContract } from "viem"
 import type { Monitor } from "./monitoring"
 import {
     type InterfaceReputationManager,
@@ -38,6 +39,7 @@ import { EntryPointVersion } from "viem/account-abstraction"
 
 export class Mempool {
     private config: AltoConfig
+    private metrics: Metrics
     private monitor: Monitor
     private reputationManager: InterfaceReputationManager
     public store: MempoolStore
@@ -48,6 +50,7 @@ export class Mempool {
 
     constructor({
         config,
+        metrics,
         monitor,
         reputationManager,
         validator,
@@ -55,12 +58,14 @@ export class Mempool {
         eventManager
     }: {
         config: AltoConfig
+        metrics: Metrics
         monitor: Monitor
         reputationManager: InterfaceReputationManager
         validator: InterfaceValidator
         store: MempoolStore
         eventManager: EventManager
     }) {
+        this.metrics = metrics
         this.store = store
         this.config = config
         this.reputationManager = reputationManager
@@ -76,65 +81,103 @@ export class Mempool {
         this.eventManager = eventManager
     }
 
-    async replaceSubmitted({
-        userOpInfo,
-        transactionInfo
+    // === Methods for handling changing userOp state === //
+
+    async markUserOpsAsSubmitted({
+        userOps,
+        entryPoint,
+        transactionHash
     }: {
-        userOpInfo: UserOpInfo
-        transactionInfo: TransactionInfo
+        userOps: UserOpInfo[]
+        entryPoint: Address
+        transactionHash: Hex
     }) {
-        const entryPoint = transactionInfo.bundle.entryPoint
-        const { userOpHash } = userOpInfo
-        const sumbittedUserOps = await this.store.dumpSubmitted(entryPoint)
-        const existingUserOpToReplace = sumbittedUserOps.find(
-            (userOpInfo: SubmittedUserOp) =>
-                userOpInfo.userOpHash === userOpHash
+        await Promise.all(
+            userOps.map(async (userOpInfo) => {
+                const { userOpHash } = userOpInfo
+                await this.store.removeProcessing({ entryPoint, userOpHash })
+                await this.store.addSubmitted({ entryPoint, userOpInfo })
+                await this.monitor.setUserOperationStatus(userOpHash, {
+                    status: "submitted",
+                    transactionHash
+                })
+            })
         )
 
-        if (existingUserOpToReplace) {
-            await this.store.removeSubmitted({ entryPoint, userOpHash })
-            await this.store.addSubmitted({
-                entryPoint,
-                submittedUserOp: {
-                    ...userOpInfo,
-                    transactionInfo
-                }
-            })
-            await this.monitor.setUserOperationStatus(userOpHash, {
-                status: "submitted",
-                transactionHash: transactionInfo.transactionHash
-            })
-        }
+        this.metrics.userOperationsSubmitted
+            .labels({ status: "success" })
+            .inc(userOps.length)
     }
 
-    async markSubmitted({
-        userOpHash,
-        transactionInfo
+    async resubmitUserOps({
+        userOps,
+        entryPoint,
+        reason
     }: {
-        userOpHash: Address
-        transactionInfo: TransactionInfo
+        userOps: UserOpInfo[]
+        entryPoint: Address
+        reason: string
     }) {
-        const entryPoint = transactionInfo.bundle.entryPoint
-        const processingUserOps = await this.store.dumpProcessing(entryPoint)
-        const processingUserOp = processingUserOps.find(
-            (userOpInfo: UserOpInfo) => userOpInfo.userOpHash === userOpHash
+        await Promise.all(
+            userOps.map(async (userOpInfo) => {
+                const { userOpHash, userOp } = userOpInfo
+                this.logger.warn(
+                    {
+                        userOpHash,
+                        reason
+                    },
+                    "resubmitting user operation"
+                )
+                await this.store.removeProcessing({ entryPoint, userOpHash })
+                await this.add(userOp, entryPoint)
+            })
         )
 
-        if (processingUserOp) {
-            await this.store.removeProcessing({ entryPoint, userOpHash })
-            await this.store.addSubmitted({
-                entryPoint,
-                submittedUserOp: {
-                    ...processingUserOp,
-                    transactionInfo
-                }
-            })
-            await this.monitor.setUserOperationStatus(userOpHash, {
-                status: "submitted",
-                transactionHash: transactionInfo.transactionHash
-            })
-        }
+        this.metrics.userOperationsResubmitted.inc(userOps.length)
     }
+
+    async dropUserOps(entryPoint: Address, rejectedUserOps: RejectedUserOp[]) {
+        await Promise.all(
+            rejectedUserOps.map(async (rejectedUserOp) => {
+                const { userOp, reason, userOpHash } = rejectedUserOp
+                await this.store.removeProcessing({ entryPoint, userOpHash })
+                await this.store.removeSubmitted({ entryPoint, userOpHash })
+                this.eventManager.emitDropped(
+                    userOpHash,
+                    reason,
+                    getAAError(reason)
+                )
+                await this.monitor.setUserOperationStatus(userOpHash, {
+                    status: "rejected",
+                    transactionHash: null
+                })
+                this.logger.warn(
+                    {
+                        userOperation: jsonStringifyWithBigint(userOp),
+                        userOpHash,
+                        reason
+                    },
+                    "user operation rejected"
+                )
+            })
+        )
+    }
+
+    async removeSubmittedUserOps({
+        userOps,
+        entryPoint
+    }: {
+        userOps: UserOpInfo[]
+        entryPoint: Address
+    }) {
+        await Promise.all(
+            userOps.map(async ({ userOpHash }) => {
+                await this.store.removeSubmitted({ entryPoint, userOpHash })
+            })
+        )
+    }
+
+    // === Methods for dropping mempool entries === //
 
     async dumpOutstanding(entryPoint: Address): Promise<UserOpInfo[]> {
         return await this.store.dumpOutstanding(entryPoint)
@@ -144,23 +187,11 @@ export class Mempool {
         return await this.store.dumpProcessing(entryPoint)
     }
 
-    async dumpSubmittedOps(entryPoint: Address): Promise<SubmittedUserOp[]> {
+    async dumpSubmittedOps(entryPoint: Address): Promise<UserOpInfo[]> {
         return await this.store.dumpSubmitted(entryPoint)
     }
 
-    async removeSubmitted({
-        entryPoint,
-        userOpHash
-    }: { entryPoint: Address; userOpHash: `0x${string}` }) {
-        await this.store.removeSubmitted({ entryPoint, userOpHash })
-    }
-
-    async removeProcessing({
-        entryPoint,
-        userOpHash
-    }: { entryPoint: Address; userOpHash: `0x${string}` }) {
-        await this.store.removeProcessing({ entryPoint, userOpHash })
-    }
+    // === Methods for entity management === //
 
     async checkEntityMultipleRoleViolation(
         entryPoint: Address,
@@ -258,6 +289,8 @@ export class Mempool {
 
         return entities
     }
+
+    // === Methods for adding userOps / creating bundles === //
 
     async add(
         userOp: UserOperation,

@@ -368,18 +368,24 @@ export class Executor {
         })
 
         if (filterOpsResult.status === "unhandled_error") {
-            childLogger.error("encountered unexpected failure during filterOps")
+            childLogger.error(
+                "encountered unhandled failure during filterOps simulation"
+            )
             return {
-                status: "filterops_unhandled_error",
-                rejectedUserOps: filterOpsResult.rejectedUserOps
+                success: false,
+                reason: "filterops_failed",
+                rejectedUserOps: filterOpsResult.rejectedUserOps,
+                recoverableOps: []
             }
         }
 
         if (filterOpsResult.status === "all_ops_rejected") {
-            childLogger.warn("all ops failed simulation")
+            childLogger.warn("all ops failed filterOps simulation")
             return {
-                status: "filterops_all_rejected",
-                rejectedUserOps: filterOpsResult.rejectedUserOps
+                success: false,
+                reason: "filterops_failed",
+                rejectedUserOps: filterOpsResult.rejectedUserOps,
+                recoverableOps: []
             }
         }
 
@@ -460,10 +466,10 @@ export class Executor {
                     "unknown error submitting bundle transaction"
                 )
                 return {
+                    success: false,
+                    reason: "generic_error",
                     rejectedUserOps,
-                    userOpsToBundle,
-                    status: "submission_generic_error",
-                    reason: "INTERNAL FAILURE"
+                    recoverableOps: userOpsToBundle
                 }
             }
 
@@ -477,9 +483,10 @@ export class Executor {
                     "executor has insufficient funds"
                 )
                 return {
+                    success: false,
+                    reason: "insufficient_funds",
                     rejectedUserOps,
-                    userOpsToBundle,
-                    status: "submission_insufficient_funds_error"
+                    recoverableOps: userOpsToBundle
                 }
             }
 
@@ -491,22 +498,21 @@ export class Executor {
             )
 
             return {
+                success: false,
+                reason: "generic_error",
                 rejectedUserOps,
-                userOpsToBundle,
-                status: "submission_generic_error",
-                reason: e
+                recoverableOps: userOpsToBundle
             }
         }
 
         const userOpsBundled = userOpsToBundle
 
         const bundleResult: BundleResult = {
-            status: "submission_success",
+            success: true,
             userOpsBundled,
             rejectedUserOps,
             transactionHash,
             transactionRequest: {
-                gas: bundleGasLimit,
                 maxFeePerGas,
                 maxPriorityFeePerGas,
                 nonce

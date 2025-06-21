@@ -1,9 +1,4 @@
-import {
-    UserOperation,
-    type HexData32,
-    type SubmittedUserOp,
-    type UserOpInfo
-} from "@alto/types"
+import { UserOperation, type HexData32 } from "@alto/types"
 import { type Metrics } from "@alto/utils"
 import type { Logger } from "@alto/utils"
 import {
@@ -12,7 +7,6 @@ import {
     OutstandingStore,
     StoreType,
     EntryPointUserOpHashParam,
-    EntryPointSubmittedUserOpParam,
     EntryPointUserOpInfoParam
 } from "."
 import { AltoConfig } from "../createConfig"
@@ -36,8 +30,8 @@ export const createMempoolStore = ({
     const storeHandlers: Map<
         Address,
         {
-            processing: Store<UserOpInfo>
-            submitted: Store<SubmittedUserOp>
+            processing: Store
+            submitted: Store
             outstanding: OutstandingStore
         }
     > = new Map()
@@ -55,19 +49,19 @@ export const createMempoolStore = ({
 
     for (const entryPoint of config.entrypoints) {
         let outstanding: OutstandingStore
-        let processing: Store<UserOpInfo>
-        let submitted: Store<SubmittedUserOp>
+        let processing: Store
+        let submitted: Store
         if (config.redisMempoolUrl) {
             outstanding = createRedisOutstandingQueue({
                 config,
                 entryPoint
             })
-            processing = createRedisStore<UserOpInfo>({
+            processing = createRedisStore({
                 config,
                 entryPoint,
                 storeType: "processing"
             })
-            submitted = createRedisStore<SubmittedUserOp>({
+            submitted = createRedisStore({
                 config,
                 entryPoint,
                 storeType: "submitted"
@@ -79,10 +73,10 @@ export const createMempoolStore = ({
             outstanding = createMemoryOutstandingQueue({
                 config
             })
-            processing = createMemoryStore<UserOpInfo>({
+            processing = createMemoryStore({
                 config
             })
-            submitted = createMemoryStore<SubmittedUserOp>({
+            submitted = createMemoryStore({
                 config
             })
             logger.info(
@@ -166,11 +160,11 @@ export const createMempoolStore = ({
         },
         addSubmitted: ({
             entryPoint,
-            submittedUserOp
-        }: EntryPointSubmittedUserOpParam) => {
+            userOpInfo
+        }: EntryPointUserOpInfoParam) => {
             const { submitted } = getStoreHandlers(entryPoint)
-            logAddOperation(submittedUserOp.userOpHash, "submitted")
-            submitted.add(submittedUserOp)
+            logAddOperation(userOpInfo.userOpHash, "submitted")
+            submitted.add(userOpInfo)
             return Promise.resolve()
         },
         removeOutstanding: async ({

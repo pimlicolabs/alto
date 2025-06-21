@@ -111,7 +111,7 @@ const signedAuthorizationSchema = z.union([
     })
 ])
 
-const userOperationV06Schema =  z
+const userOperationV06Schema = z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
@@ -131,7 +131,7 @@ const userOperationV06Schema =  z
         return val
     })
 
-const userOperationV07Schema =   z
+const userOperationV07Schema = z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
@@ -171,7 +171,7 @@ const userOperationV07Schema =   z
     .strict()
     .transform((val) => val)
 
-const userOperationV08Schema =   z
+const userOperationV08Schema = z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
@@ -340,15 +340,9 @@ export const userOperationSchema = z.union([
     userOperationV08Schema
 ])
 
-export type UserOperationV06 = z.infer<
-    typeof userOperationV06Schema
->
-export type UserOperationV07 = z.infer<
-    typeof userOperationV07Schema
->
-export type UserOperationV08 = z.infer<
-    typeof userOperationV08Schema
->
+export type UserOperationV06 = z.infer<typeof userOperationV06Schema>
+export type UserOperationV07 = z.infer<typeof userOperationV07Schema>
+export type UserOperationV08 = z.infer<typeof userOperationV08Schema>
 export type PackedUserOperation = z.infer<typeof packerUserOperationSchema>
 export type UserOperation = z.infer<typeof userOperationSchema>
 
@@ -762,19 +756,15 @@ export const referencedCodeHashesSchema = z.object({
     hash: z.string()
 })
 
-export const userOpDetailsSchema = z.object({
+export const userOpInfoSchema = z.object({
+    userOp: userOperationSchema,
+    // === userOp Details ===
     userOpHash: hexData32Schema,
-    // timestamp when the bundling process begins (when it leaves outstanding mempool)
-    addedToMempool: z.number(),
+    addedToMempool: z.number(), // timestamp when the bundling process begins (when it leaves outstanding mempool)
     referencedContracts: referencedCodeHashesSchema.optional(),
     submissionAttempts: z.number()
 })
 
-export const userOpInfoSchema = userOpDetailsSchema.extend({
-    userOp: userOperationSchema
-})
-
 // Export types derived from schemas
 export type ReferencedCodeHashes = z.infer<typeof referencedCodeHashesSchema>
-export type UserOpDetails = z.infer<typeof userOpDetailsSchema>
 export type UserOpInfo = z.infer<typeof userOpInfoSchema>

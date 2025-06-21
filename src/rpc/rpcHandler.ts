@@ -27,6 +27,7 @@ import type { MethodHandler } from "./createMethodHandler"
 import { registerHandlers } from "./methods"
 import { recoverAuthorizationAddress } from "viem/utils"
 import { privateKeyToAddress, generatePrivateKey } from "viem/accounts"
+import { UserOpMonitor } from "../executor/userOpMonitor"
 
 export class RpcHandler {
     public config: AltoConfig
@@ -39,6 +40,7 @@ export class RpcHandler {
     public metrics: Metrics
     public eventManager: EventManager
     public gasPriceManager: GasPriceManager
+    public userOpMonitor: UserOpMonitor
     public logger: Logger
 
     private methodHandlers: Map<string, MethodHandler>
@@ -52,6 +54,7 @@ export class RpcHandler {
         monitor,
         executorManager,
         reputationManager,
+        userOpMonitor,
         metrics,
         eventManager,
         gasPriceManager
@@ -63,6 +66,7 @@ export class RpcHandler {
         monitor: Monitor
         executorManager: ExecutorManager
         reputationManager: InterfaceReputationManager
+        userOpMonitor: UserOpMonitor
         metrics: Metrics
         eventManager: EventManager
         gasPriceManager: GasPriceManager
@@ -77,6 +81,7 @@ export class RpcHandler {
         this.metrics = metrics
         this.eventManager = eventManager
         this.gasPriceManager = gasPriceManager
+        this.userOpMonitor = userOpMonitor
 
         this.logger = config.getLogger(
             { module: "rpc" },
