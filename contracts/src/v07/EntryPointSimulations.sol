@@ -118,26 +118,17 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
         revert("Invalid mode");
     }
 
-    function simulateValidationBulk(PackedUserOperation[] calldata userOps)
-        public
-        returns (ValidationResult[] memory)
-    {
-        ValidationResult[] memory results = new ValidationResult[](userOps.length);
-
-        for (uint256 i = 0; i < userOps.length; i++) {
-            ValidationResult memory result = simulateValidation(userOps[i]);
-            results[i] = result;
+    function simulateValidationWithContext(
+        PackedUserOperation[] calldata contextOps,
+        PackedUserOperation calldata targetOp
+    ) external returns (ValidationResult memory) {
+        // Validate all context operations first to set up state
+        for (uint256 i = 0; i < contextOps.length; i++) {
+            simulateValidation(contextOps[i]);
         }
-
-        return results;
-    }
-
-    function simulateValidationLast(PackedUserOperation[] calldata userOps)
-        external
-        returns (ValidationResult memory)
-    {
-        ValidationResult[] memory results = simulateValidationBulk(userOps);
-        return results[userOps.length - 1];
+        
+        // Validate and return the result of the target operation
+        return simulateValidation(targetOp);
     }
 
     function simulateCallAndRevert(address target, bytes calldata data, uint256 gas) external {
@@ -251,7 +242,7 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
         return BinarySearchResult(optimalGas, targetSuccess, targetResult);
     }
 
-    function binarySearchPaymasterVerificationGasLimit(
+    function findOptimalPaymasterVerificationGasLimit(
         BinarySearchArgs[] calldata queuedUserOps,
         BinarySearchArgs calldata targetUserOp,
         address entryPoint,
@@ -277,7 +268,7 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
         );
     }
 
-    function binarySearchVerificationGasLimit(
+    function findOptimalVerificationGasLimit(
         BinarySearchArgs[] calldata queuedUserOps,
         BinarySearchArgs calldata targetUserOp,
         address entryPoint,
@@ -306,7 +297,7 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
      * @param gasAllowance - The margin to add to the binary search to account for overhead.
      * @return optimalGas - The estimated gas limit for the call.
      */
-    function binarySearchCallGasLimit(
+    function findOptimalCallGasLimit(
         BinarySearchArgs[] calldata queuedUserOps,
         BinarySearchArgs calldata targetUserOp,
         address entryPoint,
@@ -365,24 +356,17 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
         );
     }
 
-    function simulateHandleOpBulk(PackedUserOperation[] calldata ops) public returns (ExecutionResult[] memory) {
-        ExecutionResult[] memory results = new ExecutionResult[](ops.length);
-
-        for (uint256 i = 0; i < ops.length; i++) {
-            ExecutionResult memory result = simulateHandleOp(ops[i], address(0), "");
-
-            results[i] = result;
+    function simulateHandleOpWithContext(
+        PackedUserOperation[] calldata contextOps,
+        PackedUserOperation calldata targetOp
+    ) external returns (ExecutionResult memory) {
+        // Execute all context operations first to set up state
+        for (uint256 i = 0; i < contextOps.length; i++) {
+            simulateHandleOp(contextOps[i], address(0), "");
         }
-
-        return results;
-    }
-
-    function simulateHandleOpLast(PackedUserOperation[] calldata ops) external returns (ExecutionResult memory) {
-        ExecutionResult[] memory results = new ExecutionResult[](ops.length);
-
-        results = simulateHandleOpBulk(ops);
-
-        return results[ops.length - 1];
+        
+        // Execute and return the result of the target operation
+        return simulateHandleOp(targetOp, address(0), "");
     }
 
     function _simulationOnlyValidations(PackedUserOperation calldata userOp) internal view {
