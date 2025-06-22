@@ -1,9 +1,10 @@
-pragma solidity ^0.8.28;
 // SPDX-License-Identifier: MIT
+// Note: Modified version of EntryPoint 0.8 Eip7702Support that uses interface from account-abstraction-v7 to avoid conflicts.
+pragma solidity ^0.8.28;
 // solhint-disable no-inline-assembly
 
-import "account-abstraction-v8/interfaces/PackedUserOperation.sol";
-import "account-abstraction-v8/core/UserOperationLib.sol";
+import "account-abstraction-v7/interfaces/PackedUserOperation.sol";
+import "./UserOperationLib.sol";
 
 library Eip7702Support {
     // EIP-7702 code prefix before delegate address.

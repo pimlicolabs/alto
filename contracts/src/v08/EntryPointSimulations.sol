@@ -4,17 +4,13 @@ pragma solidity ^0.8.28;
 /* solhint-disable avoid-low-level-calls */
 /* solhint-disable no-inline-assembly */
 
-import {IStakeManager as IStakeManager07} from "account-abstraction-v7/interfaces/IStakeManager.sol";
-import {PackedUserOperation as PackedUserOperation07} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
-import {UserOperationLib as UserOperationLib07} from "account-abstraction-v7/core/UserOperationLib.sol";
-import {IEntryPoint as IEntryPoint07} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
+import {IStakeManager} from "account-abstraction-v7/interfaces/IStakeManager.sol";
+import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
+import {IEntryPoint} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
 
-import {UserOperationLib as UserOperationLib08} from "account-abstraction-v8/core/UserOperationLib.sol";
-import {PackedUserOperation as PackedUserOperation08} from "account-abstraction-v8/interfaces/PackedUserOperation.sol";
-import {IEntryPoint as IEntryPoint08} from "account-abstraction-v8/interfaces/IEntryPoint.sol";
-
+import "./overrides/UserOperationLib.sol";
 import "./EntryPoint.sol";
-import {IEntryPointSimulations} from "../IEntryPointSimulations.sol";
+import "../IEntryPointSimulations.sol";
 
 enum BinarySearchMode {
     PaymasterPostOpGasLimit, // TODO
@@ -30,10 +26,10 @@ enum BinarySearchMode {
  */
 contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
     EntryPointSimulations08 immutable thisContract = this;
-    IEntryPoint07.AggregatorStakeInfo private NOT_AGGREGATED =
-        IEntryPoint07.AggregatorStakeInfo(address(0), IStakeManager07.StakeInfo(0, 0));
+    IEntryPoint.AggregatorStakeInfo private NOT_AGGREGATED =
+        IEntryPoint.AggregatorStakeInfo(address(0), IStakeManager.StakeInfo(0, 0));
 
-    using UserOperationLib08 for PackedUserOperation07;
+    using UserOperationLib for PackedUserOperation;
 
     // Thrown when the binary search fails due hitting the simulation gasLimit.
     error SimulationOutOfGas(uint256 optimalGas, uint256 minGas, uint256 maxGas);
@@ -45,30 +41,15 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
      */
     constructor() {}
 
-    // Helper function to convert a packed user operation to a packed user operation v8.
-    function to08(PackedUserOperation07 memory op) internal pure returns (PackedUserOperation memory) {
-        return PackedUserOperation08({
-            sender: op.sender,
-            nonce: op.nonce,
-            initCode: op.initCode,
-            callData: op.callData,
-            accountGasLimits: op.accountGasLimits,
-            preVerificationGas: op.preVerificationGas,
-            gasFees: op.gasFees,
-            paymasterAndData: op.paymasterAndData,
-            signature: op.signature
-        });
-    }
-
     /// @inheritdoc IEntryPointSimulations
-    function simulateValidation(PackedUserOperation07 calldata userOp) public returns (ValidationResult memory) {
+    function simulateValidation(PackedUserOperation calldata userOp) public returns (ValidationResult memory) {
         UserOpInfo memory outOpInfo;
 
         _simulationOnlyValidations(userOp);
         (
             uint256 validationData,
             uint256 paymasterValidationData, // uint256 paymasterVerificationGasLimit
-        ) = _validatePrepayment(0, to08(userOp), outOpInfo, true);
+        ) = _validatePrepayment(0, userOp, outOpInfo, true);
 
         _validateAccountAndPaymasterValidationData(0, validationData, paymasterValidationData, address(0));
 
@@ -90,13 +71,11 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
             _getMemoryBytesFromOffset(outOpInfo.contextOffset)
         );
 
-        //EP07.AggregatorStakeInfo memory aggregatorInfo = NOT_AGGREGATED;
-        //if (uint160(aggregator) != SIG_VALIDATION_SUCCESS && uint160(aggregator) != SIG_VALIDATION_FAILED) {
-        //    aggregatorInfo = EP07.AggregatorStakeInfo(aggregator, _getStakeInfo(aggregator));
-        //}
-        //return ValidationResult(returnInfo, senderInfo, factoryInfo, paymasterInfo, aggregatorInfo);
-
-        revert("TODO");
+        IEntryPoint.AggregatorStakeInfo memory aggregatorInfo = NOT_AGGREGATED;
+        if (uint160(aggregator) != SIG_VALIDATION_SUCCESS && uint160(aggregator) != SIG_VALIDATION_FAILED) {
+            aggregatorInfo = IEntryPoint.AggregatorStakeInfo(aggregator, _getStakeInfo(aggregator));
+        }
+        return ValidationResult(returnInfo, senderInfo, factoryInfo, paymasterInfo, aggregatorInfo);
     }
 
     function encodeBinarySearchCalldata(BinarySearchMode mode, BinarySearchArgs calldata targetUserOp, uint256 gas)
@@ -140,7 +119,7 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
         revert("Invalid mode");
     }
 
-    function simulateValidationBulk(PackedUserOperation07[] calldata userOps)
+    function simulateValidationBulk(PackedUserOperation[] calldata userOps)
         public
         returns (ValidationResult[] memory)
     {
@@ -154,7 +133,7 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
         return results;
     }
 
-    function simulateValidationLast(PackedUserOperation07[] calldata userOps)
+    function simulateValidationLast(PackedUserOperation[] calldata userOps)
         external
         returns (ValidationResult memory)
     {
@@ -177,7 +156,7 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
         external
         returns (bool success, bytes memory result)
     {
-        try IEntryPoint08(payable(entryPoint)).delegateAndRevert{gas: gas}(address(thisContract), payload) {}
+        try IEntryPoint(payable(entryPoint)).delegateAndRevert{gas: gas}(address(thisContract), payload) {}
         catch (bytes memory reason) {
             if (reason.length < 4) {
                 // Calls that revert due to out of gas revert with empty bytes.
@@ -357,7 +336,7 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
     }
 
     /// @inheritdoc IEntryPointSimulations
-    function simulateHandleOp(PackedUserOperation07 calldata op, address target, bytes memory targetCallData)
+    function simulateHandleOp(PackedUserOperation calldata op, address target, bytes memory targetCallData)
         public
         nonReentrant
         returns (ExecutionResult memory)
@@ -387,7 +366,7 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
         );
     }
 
-    function simulateHandleOpBulk(PackedUserOperation07[] calldata ops) public returns (ExecutionResult[] memory) {
+    function simulateHandleOpBulk(PackedUserOperation[] calldata ops) public returns (ExecutionResult[] memory) {
         ExecutionResult[] memory results = new ExecutionResult[](ops.length);
 
         for (uint256 i = 0; i < ops.length; i++) {
@@ -399,7 +378,7 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
         return results;
     }
 
-    function simulateHandleOpLast(PackedUserOperation07[] calldata ops) external returns (ExecutionResult memory) {
+    function simulateHandleOpLast(PackedUserOperation[] calldata ops) external returns (ExecutionResult memory) {
         ExecutionResult[] memory results = new ExecutionResult[](ops.length);
 
         results = simulateHandleOpBulk(ops);
@@ -407,7 +386,7 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
         return results[ops.length - 1];
     }
 
-    function _simulationOnlyValidations(PackedUserOperation07 calldata userOp) internal view {
+    function _simulationOnlyValidations(PackedUserOperation calldata userOp) internal view {
         string memory revertReason =
             _validateSenderAndPaymaster(userOp.initCode, userOp.sender, userOp.paymasterAndData);
         if (bytes(revertReason).length != 0) {

@@ -3,17 +3,19 @@ pragma solidity ^0.8.28;
 /* solhint-disable avoid-low-level-calls */
 /* solhint-disable no-inline-assembly */
 
-import "account-abstraction-v8/interfaces/IAccount.sol";
-import "account-abstraction-v8/interfaces/IAccountExecute.sol";
-import "account-abstraction-v8/interfaces/IPaymaster.sol";
+// @note: Versions 0.7 and 0.8 have identical interfaces.
+import "account-abstraction-v7/interfaces/IAccount.sol";
+import "account-abstraction-v7/interfaces/IAccountExecute.sol";
+import "account-abstraction-v7/interfaces/IPaymaster.sol";
+import "account-abstraction-v7/core/NonceManager.sol";
+import "account-abstraction-v7/utils/Exec.sol";
 
-import "account-abstraction-v8/core/UserOperationLib.sol";
-import "account-abstraction-v8/core/StakeManager.sol";
-import "account-abstraction-v8/core/NonceManager.sol";
+import "./overrides/SenderCreator.sol";
+import "./overrides/Eip7702Support.sol";
+import "./overrides/StakeManager.sol";
+import "./overrides/UserOperationLib.sol";
+
 import "account-abstraction-v8/core/Helpers.sol";
-import "./SenderCreator.sol";
-import "./Eip7702Support.sol";
-import "account-abstraction-v8/utils/Exec.sol";
 
 import "@openzeppelin-v5.1.0/contracts/utils/ReentrancyGuardTransient.sol";
 import "@openzeppelin-v5.1.0/contracts/utils/cryptography/EIP712.sol";
@@ -67,7 +69,6 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         revert SenderAddressResult(sender);
     }
 
-    /// @inheritdoc IEntryPoint
     function senderCreator() public view virtual returns (ISenderCreator) {
         return this.senderCreator();
     }
