@@ -18,7 +18,7 @@ import { createAddHookMessageChannel } from 'import-in-the-middle'
 
 // Yes, createAddHookMessageChannel is new. See below.
 const { registerOptions, waitForAllMessagesAcknowledged } = createAddHookMessageChannel();
-// @ts-ignore
+// @ts-ignore —  @types/node needs to be updated first
 module.register('import-in-the-middle/hook.mjs', import.meta.url, registerOptions);
 
 class CustomSampler implements Sampler {
