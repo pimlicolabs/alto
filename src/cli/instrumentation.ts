@@ -12,7 +12,6 @@ import {
     SamplingDecision
 } from "@opentelemetry/sdk-trace-base"
 import { SemanticAttributes } from "@opentelemetry/semantic-conventions"
-
 import module from 'node:module'
 import { createAddHookMessageChannel } from 'import-in-the-middle'
 
