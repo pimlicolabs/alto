@@ -4,15 +4,6 @@ pragma solidity ^0.8.23;
 import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import {IEntryPoint} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
 
-/**
- * Returned aggregated signature info:
- * The aggregator returned by the account, and its current stake.
- */
-struct AggregatorStakeInfo {
-    address aggregator;
-    IEntryPoint.StakeInfo stakeInfo;
-}
-
 interface IEntryPointSimulations {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                Gas Estimation Binary Search                */
@@ -96,7 +87,7 @@ interface IEntryPointSimulations {
         IEntryPoint.StakeInfo senderInfo;
         IEntryPoint.StakeInfo factoryInfo;
         IEntryPoint.StakeInfo paymasterInfo;
-        AggregatorStakeInfo aggregatorInfo;
+        IEntryPoint.AggregatorStakeInfo aggregatorInfo;
     }
 
     function simulateValidation(PackedUserOperation calldata userOp) external returns (ValidationResult memory);

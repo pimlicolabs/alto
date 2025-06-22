@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 /* solhint-disable no-inline-assembly */
 
 import "account-abstraction-v8/interfaces/ISenderCreator.sol";
-import "./IEntryPoint.sol";
+import "account-abstraction-v8/interfaces/IEntryPoint.sol";
 import "account-abstraction-v8/utils/Exec.sol";
 
 /**

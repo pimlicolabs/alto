@@ -10,6 +10,7 @@ import {IEntryPoint as IEntryPoint08} from "account-abstraction-v8/interfaces/IE
 
 import {Exec} from "account-abstraction-v7/utils/Exec.sol";
 import {LibBytes} from "solady/utils/LibBytes.sol";
+import {ERC20} from "solady/tokens/ERC20.sol";
 
 /// @title PimlicoSimulations
 /// @author Pimlico (https://github.com/pimlicolabs/alto)
@@ -172,4 +173,22 @@ contract PimlicoSimulations {
             rejectedUserOps: rejectedUserOps
         });
     }
+
+    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /*                     ERC-20 Validation                      */
+    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+    //function validateERC20PostOp(
+    //    address entryPointSimulation,
+    //    UserOperation calldata userOp,
+    //    address erc20,
+    //    address payable treasury
+    //) external {
+    //    uint256 balanceBefore = ERC20(erc20).balanceOf(treasury);
+    //    bytes memory callData =
+    //        abi.encodeWithSelector(IEntryPoint07.delegateAndRevert.selector, entryPointSimulation, data[i]);
+    //    bool success = Exec.call(entryPoint, 0, callData, gasleft());
+    //    if (!success) {
+    //        returnData = Exec.getReturnData(REVERT_REASON_MAX_LEN);
+    //    }
+    //}
 }
