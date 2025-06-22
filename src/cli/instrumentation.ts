@@ -16,7 +16,6 @@ import { SemanticAttributes } from "@opentelemetry/semantic-conventions"
 import module from 'node:module'
 import { createAddHookMessageChannel } from 'import-in-the-middle'
 
-// Yes, createAddHookMessageChannel is new. See below.
 const { registerOptions, waitForAllMessagesAcknowledged } = createAddHookMessageChannel();
 // @ts-ignore —  @types/node needs to be updated first
 module.register('import-in-the-middle/hook.mjs', import.meta.url, registerOptions);
