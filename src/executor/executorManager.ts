@@ -82,7 +82,7 @@ export class ExecutorManager {
         }
     }
 
-    autoScalingBundling = async () => {
+    async autoScalingBundling() {
         const now = Date.now()
         this.opsCount = this.opsCount.filter(
             (timestamp) => now - timestamp < RPM_WINDOW
@@ -113,7 +113,7 @@ export class ExecutorManager {
         )
 
         if (this.bundlingMode === "auto") {
-            setTimeout(this.autoScalingBundling, nextInterval)
+            setTimeout(this.autoScalingBundling.bind(this), nextInterval)
         }
     }
 

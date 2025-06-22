@@ -83,11 +83,14 @@ export class UserOpMonitor {
         // Update the cached block number whenever we receive a new block.
         this.cachedLatestBlock = { value: blockNumber, timestamp: Date.now() }
 
+        // Refresh the statuses of all pending bundles.
         const pendingBundles = Array.from(this.pendingBundles.values())
         await Promise.all(
             pendingBundles.map((bundle) => this.refreshBundleStatus(bundle))
         )
-        return pendingBundles
+
+        // Return all pending bundles that still need processing.
+        return Array.from(this.pendingBundles.values())
     }
 
     async refreshBundleStatus(submittedBundle: SubmittedBundleInfo) {
