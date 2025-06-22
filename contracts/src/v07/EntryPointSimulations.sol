@@ -118,15 +118,15 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
         revert("Invalid mode");
     }
 
-    function simulateValidation(
-        PackedUserOperation[] calldata setupUserOps,
-        PackedUserOperation calldata targetUserOp
-    ) external returns (ValidationResult memory) {
+    function simulateValidation(PackedUserOperation[] calldata setupUserOps, PackedUserOperation calldata targetUserOp)
+        external
+        returns (ValidationResult memory)
+    {
         // Validate all setup operations first to set up state
         for (uint256 i = 0; i < setupUserOps.length; i++) {
             simulateValidation(setupUserOps[i]);
         }
-        
+
         // Validate and return the result of the target operation
         return simulateValidation(targetUserOp);
     }
@@ -356,15 +356,15 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
         );
     }
 
-    function simulateHandleOp(
-        PackedUserOperation[] calldata setupUserOps,
-        PackedUserOperation calldata targetUserOp
-    ) external returns (ExecutionResult memory) {
+    function simulateHandleOp(PackedUserOperation[] calldata setupUserOps, PackedUserOperation calldata targetUserOp)
+        external
+        returns (ExecutionResult memory)
+    {
         // Execute all setup operations first to set up state
         for (uint256 i = 0; i < setupUserOps.length; i++) {
             simulateHandleOp(setupUserOps[i], address(0), "");
         }
-        
+
         // Execute and return the result of the target operation
         return simulateHandleOp(targetUserOp, address(0), "");
     }
