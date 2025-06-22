@@ -68,9 +68,9 @@ interface IEntryPointSimulations {
         external
         returns (ExecutionResult memory);
 
-    function simulateHandleOpWithContext(
-        PackedUserOperation[] calldata contextOps,
-        PackedUserOperation calldata targetOp
+    function simulateHandleOp(
+        PackedUserOperation[] calldata setupUserOps,
+        PackedUserOperation calldata targetUserOp
     ) external returns (ExecutionResult memory);
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -97,8 +97,8 @@ interface IEntryPointSimulations {
 
     function simulateValidation(PackedUserOperation calldata userOp) external returns (ValidationResult memory);
 
-    function simulateValidationWithContext(
-        PackedUserOperation[] calldata contextOps,
-        PackedUserOperation calldata targetOp
+    function simulateValidation(
+        PackedUserOperation[] calldata setupUserOps,
+        PackedUserOperation calldata targetUserOp
     ) external returns (ValidationResult memory);
 }

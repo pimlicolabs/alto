@@ -119,17 +119,17 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
         revert("Invalid mode");
     }
 
-    function simulateValidationWithContext(
-        PackedUserOperation[] calldata contextOps,
-        PackedUserOperation calldata targetOp
+    function simulateValidation(
+        PackedUserOperation[] calldata setupUserOps,
+        PackedUserOperation calldata targetUserOp
     ) external returns (ValidationResult memory) {
-        // Validate all context operations first to set up state
-        for (uint256 i = 0; i < contextOps.length; i++) {
-            simulateValidation(contextOps[i]);
+        // Validate all setup operations first to set up state
+        for (uint256 i = 0; i < setupUserOps.length; i++) {
+            simulateValidation(setupUserOps[i]);
         }
         
         // Validate and return the result of the target operation
-        return simulateValidation(targetOp);
+        return simulateValidation(targetUserOp);
     }
 
     function simulateCallAndRevert(address target, bytes calldata data, uint256 gas) external {
@@ -357,17 +357,17 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
         );
     }
 
-    function simulateHandleOpWithContext(
-        PackedUserOperation[] calldata contextOps,
-        PackedUserOperation calldata targetOp
+    function simulateHandleOp(
+        PackedUserOperation[] calldata setupUserOps,
+        PackedUserOperation calldata targetUserOp
     ) external returns (ExecutionResult memory) {
-        // Execute all context operations first to set up state
-        for (uint256 i = 0; i < contextOps.length; i++) {
-            simulateHandleOp(contextOps[i], address(0), "");
+        // Execute all setup operations first to set up state
+        for (uint256 i = 0; i < setupUserOps.length; i++) {
+            simulateHandleOp(setupUserOps[i], address(0), "");
         }
         
         // Execute and return the result of the target operation
-        return simulateHandleOp(targetOp, address(0), "");
+        return simulateHandleOp(targetUserOp, address(0), "");
     }
 
     function _simulationOnlyValidations(PackedUserOperation calldata userOp) internal view {
