@@ -52,7 +52,7 @@
         "@opentelemetry/semantic-conventions": "^1.25.1",
         "@pimlico/opentelemetry-instrumentation-viem": "^0.0.4",
         "@sentry/node": "^9.15.0",
-        "@types/node": "^20.19.1",
+        "@types/node": "^18.16.3",
         "@types/ws": "^8.5.10",
         "abitype": "^0.8.0",
         "async-mutex": "^0.4.0",
