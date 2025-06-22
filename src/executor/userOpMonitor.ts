@@ -173,22 +173,23 @@ export class UserOpMonitor {
         return latestBlock
     }
 
-    private cacheReceipt(userOpHash: Hex, receipt: any) {
-        this.cleanupReceiptCache()
+    private cacheReceipt(userOpHash: Hex, receipt: UserOperationReceipt) {
+        this.pruneReceiptCache()
         this.receiptCache.set(userOpHash, {
             receipt,
             timestamp: Date.now()
         })
     }
 
-    private getCachedReceipt(userOpHash: Hex): any | undefined {
-        this.cleanupReceiptCache()
+    private getCachedReceipt(
+        userOpHash: Hex
+    ): UserOperationReceipt | undefined {
         const cached = this.receiptCache.get(userOpHash)
         if (!cached) return undefined
         return cached.receipt
     }
 
-    private cleanupReceiptCache(): void {
+    private pruneReceiptCache(): void {
         const now = Date.now()
         const expiredEntries = Array.from(this.receiptCache.entries()).filter(
             ([_, cached]) => now - cached.timestamp > this.receiptTtl
