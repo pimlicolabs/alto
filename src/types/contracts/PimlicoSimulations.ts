@@ -1,5 +1,4 @@
-export const PimlicoSimulationsAbi =
-    [
+export const pimlicoSimulationsAbi = [
   {
     "type": "constructor",
     "inputs": [],
@@ -332,12 +331,111 @@ export const PimlicoSimulationsAbi =
   },
   {
     "type": "function",
-    "name": "simulateEntryPoint",
+    "name": "simulateAndEstimateGasLimits",
     "inputs": [
       {
-        "name": "entryPointSimulation",
-        "type": "address",
-        "internalType": "address"
+        "name": "queuedUserOps",
+        "type": "tuple[]",
+        "internalType": "struct PackedUserOperation[]",
+        "components": [
+          {
+            "name": "sender",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "nonce",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "initCode",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "callData",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "accountGasLimits",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "preVerificationGas",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "gasFees",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "paymasterAndData",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "signature",
+            "type": "bytes",
+            "internalType": "bytes"
+          }
+        ]
+      },
+      {
+        "name": "targetUserOp",
+        "type": "tuple",
+        "internalType": "struct PackedUserOperation",
+        "components": [
+          {
+            "name": "sender",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "nonce",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "initCode",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "callData",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "accountGasLimits",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "preVerificationGas",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "gasFees",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "paymasterAndData",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "signature",
+            "type": "bytes",
+            "internalType": "bytes"
+          }
+        ]
       },
       {
         "name": "entryPoint",
@@ -345,23 +443,131 @@ export const PimlicoSimulationsAbi =
         "internalType": "address payable"
       },
       {
-        "name": "data",
-        "type": "bytes[]",
-        "internalType": "bytes[]"
+        "name": "entryPointSimulation",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "initialMinGas",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "toleranceDelta",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "gasAllowance",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [
       {
-        "name": "",
-        "type": "bytes[]",
-        "internalType": "bytes[]"
+        "name": "result",
+        "type": "tuple",
+        "internalType": "struct PimlicoSimulations.VerificationGasLimitsResult",
+        "components": [
+          {
+            "name": "simulationResult",
+            "type": "tuple",
+            "internalType": "struct IEntryPointSimulations.ExecutionResult",
+            "components": [
+              {
+                "name": "preOpGas",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "paid",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "accountValidationData",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "paymasterValidationData",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "paymasterVerificationGasLimit",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "paymasterPostOpGasLimit",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "targetSuccess",
+                "type": "bool",
+                "internalType": "bool"
+              },
+              {
+                "name": "targetResult",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ]
+          },
+          {
+            "name": "verificationGasLimit",
+            "type": "tuple",
+            "internalType": "struct IEntryPointSimulations.BinarySearchResult",
+            "components": [
+              {
+                "name": "gasUsed",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "success",
+                "type": "bool",
+                "internalType": "bool"
+              },
+              {
+                "name": "returnData",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ]
+          },
+          {
+            "name": "paymasterVerificationGasLimit",
+            "type": "tuple",
+            "internalType": "struct IEntryPointSimulations.BinarySearchResult",
+            "components": [
+              {
+                "name": "gasUsed",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "success",
+                "type": "bool",
+                "internalType": "bool"
+              },
+              {
+                "name": "returnData",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ]
+          }
+        ]
       }
     ],
     "stateMutability": "nonpayable"
   },
   {
     "type": "event",
-    "name": "PimlicoSimulationV7Deployed",
+    "name": "PimlicoSimulationDeployed",
     "inputs": [],
     "anonymous": false
   }

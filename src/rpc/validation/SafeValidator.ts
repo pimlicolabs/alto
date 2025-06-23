@@ -15,8 +15,8 @@ import {
     CodeHashGetterAbi,
     CodeHashGetterBytecode,
     EntryPointV06Abi,
-    EntryPointV07SimulationsAbi,
-    PimlicoSimulationsAbi,
+    entryPointSimulations07Abi,
+    pimlicoSimulationsAbi,
     type ReferencedCodeHashes,
     RpcError,
     type StakeInfo,
@@ -455,7 +455,7 @@ export class SafeValidator
         )
 
         const entryPointSimulationsCallData = encodeFunctionData({
-            abi: EntryPointV07SimulationsAbi,
+            abi: entryPointSimulations07Abi,
             functionName: "simulateValidationLast",
             args: [[...packedQueuedUserOperations, packedUserOperation]]
         })
@@ -475,7 +475,7 @@ export class SafeValidator
         }
 
         const callData = encodeFunctionData({
-            abi: PimlicoSimulationsAbi,
+            abi: pimlicoSimulationsAbi,
             functionName: "simulateEntryPoint",
             args: [
                 entryPointSimulationsAddress,

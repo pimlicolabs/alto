@@ -1,9 +1,9 @@
 import {
     EntryPointV07Abi,
-    EntryPointV07SimulationsAbi,
+    entryPointSimulations07Abi,
     ExecutionErrors,
     type ExecutionResult,
-    PimlicoSimulationsAbi,
+    pimlicoSimulationsAbi,
     RpcError,
     type StateOverrides,
     type BinarySearchCallResult,
@@ -38,6 +38,7 @@ import {
     simulationValidationResultStruct
 } from "./types"
 import type { AltoConfig } from "../../createConfig"
+import { packUserOps } from "../../executor/utils"
 
 export class GasEstimatorV07 {
     private config: AltoConfig
@@ -70,7 +71,7 @@ export class GasEstimatorV07 {
         )
 
         const simulateValidationLast = encodeFunctionData({
-            abi: EntryPointV07SimulationsAbi,
+            abi: entryPointSimulations07Abi,
             functionName: "simulateValidationLast",
             args: [packedUserOperations]
         })
@@ -138,38 +139,6 @@ export class GasEstimatorV07 {
         return packedOp.callData
     }
 
-    async encodeSimulateHandleOpLast({
-        userOperation,
-        queuedUserOperations,
-        entryPoint
-    }: {
-        userOperation: UserOperationV07
-        queuedUserOperations: UserOperationV07[]
-        entryPoint: Address
-    }): Promise<Hex> {
-        const userOperations = [...queuedUserOperations, userOperation]
-        const packedUserOperations = await Promise.all(
-            userOperations.map(async (uop) => ({
-                packedUserOperation: toPackedUserOperation(uop),
-                userOperation: uop,
-                userOperationHash: await getUserOperationHash({
-                    userOperation: uop,
-                    entryPointAddress: entryPoint,
-                    chainId: this.config.chainId,
-                    publicClient: this.config.publicClient
-                })
-            }))
-        )
-
-        const simulateHandleOpCallData = encodeFunctionData({
-            abi: EntryPointV07SimulationsAbi,
-            functionName: "simulateHandleOpLast",
-            args: [packedUserOperations.map((uop) => uop.packedUserOperation)]
-        })
-
-        return simulateHandleOpCallData
-    }
-
     async encodeBinarySearchGasLimit({
         entryPoint,
         userOperation,
@@ -210,7 +179,7 @@ export class GasEstimatorV07 {
         }
 
         const binarySearchVerificationGasLimit = encodeFunctionData({
-            abi: EntryPointV07SimulationsAbi,
+            abi: entryPointSimulations07Abi,
             functionName,
             args: [
                 queuedOps,
@@ -435,79 +404,54 @@ export class GasEstimatorV07 {
 
     async simulateHandleOpV07({
         entryPoint,
-        userOperation,
-        queuedUserOperations,
+        userOp,
+        queuedUserOps,
         stateOverrides = {}
     }: {
         entryPoint: Address
-        userOperation: UserOperationV07
-        queuedUserOperations: UserOperationV07[]
+        userOp: UserOperationV07
+        queuedUserOps: UserOperationV07[]
         stateOverrides?: StateOverrides | undefined
     }): Promise<SimulateHandleOpResult> {
-        const simulateHandleOpLast = await this.encodeSimulateHandleOpLast({
-            entryPoint,
-            userOperation,
-            queuedUserOperations
-        })
+        const {
+            binarySearchToleranceDelta,
+            binarySearchGasAllowance,
+            splitSimulationCalls,
+            publicClient,
+            pimlicoSimulationContract,
+            entrypointSimulationContractV7,
+            entrypointSimulationContractV8,
+            fixedGasLimitForEstimation
+        } = this.config
 
-        const binarySearchVerificationGasLimit =
-            await this.encodeBinarySearchGasLimit({
-                initialMinGas: 9_000n,
-                entryPoint,
-                userOperation,
-                queuedUserOperations,
-                target: zeroAddress,
-                targetCallData: "0x" as Hex,
-                functionName: "binarySearchVerificationGasLimit"
-            })
+        const isV8 = isVersion08(userOp, entryPoint)
+        const entryPointSimulations = isV8
+            ? entrypointSimulationContractV8
+            : entrypointSimulationContractV7
 
-        const binarySearchPaymasterVerificationGasLimit =
-            userOperation.paymaster
-                ? await this.encodeBinarySearchGasLimit({
-                      initialMinGas: 9_000n,
-                      entryPoint,
-                      userOperation,
-                      queuedUserOperations,
-                      target: zeroAddress,
-                      targetCallData: "0x" as Hex,
-                      functionName: "binarySearchPaymasterVerificationGasLimit"
-                  })
-                : null
-
-        const binarySearchCallGasLimit = await this.encodeBinarySearchGasLimit({
-            initialMinGas: 9_000n,
-            entryPoint,
-            userOperation,
-            queuedUserOperations,
-            target: userOperation.sender,
-            targetCallData: await this.encodeUserOperationCalldata({
-                op: userOperation,
-                entryPoint
-            }),
-            functionName: "binarySearchCallGasLimit"
-        })
-
-        stateOverrides = getAuthorizationStateOverrides({
-            userOperations: [...queuedUserOperations, userOperation],
-            stateOverrides
-        })
-
-        let cause: readonly [Hex, Hex, Hex | null, Hex]
-        const isV8 = isVersion08(userOperation, entryPoint)
-
-        const entryPointSimulationsAddress = isV8
-            ? this.config.entrypointSimulationContractV8
-            : this.config.entrypointSimulationContractV7
-
-        if (!entryPointSimulationsAddress) {
+        if (!entryPointSimulations) {
             throw new Error(
-                `Cannot find entryPointSimulationsAddress for version ${
+                `missing entryPointSimulations contract for version ${
                     isV8 ? "08" : "07"
                 }`
             )
         }
 
-        if (this.config.splitSimulationCalls) {
+        if (!pimlicoSimulationContract) {
+            throw new RpcError(
+                "pimlicoSimulationContract must be provided",
+                ValidationErrors.InvalidFields
+            )
+        }
+
+        stateOverrides = getAuthorizationStateOverrides({
+            userOperations: [...queuedUserOps, userOp],
+            stateOverrides
+        })
+
+        let cause: readonly [Hex, Hex, Hex | null, Hex]
+
+        if (splitSimulationCalls) {
             // due to Hedera specific restrictions, we can't combine these two calls.
             const [
                 simulateHandleOpLastCause,
@@ -519,7 +463,7 @@ export class GasEstimatorV07 {
                     entryPoint,
                     entryPointSimulationsCallData: [simulateHandleOpLast],
                     stateOverrides,
-                    entryPointSimulationsAddress
+                    entryPointSimulationsAddress: entryPointSimulations
                 }),
                 this.callPimlicoSimulations({
                     entryPoint,
@@ -527,7 +471,7 @@ export class GasEstimatorV07 {
                         binarySearchVerificationGasLimit
                     ],
                     stateOverrides,
-                    entryPointSimulationsAddress
+                    entryPointSimulationsAddress: entryPointSimulations
                 }),
                 binarySearchPaymasterVerificationGasLimit
                     ? this.callPimlicoSimulations({
@@ -536,14 +480,14 @@ export class GasEstimatorV07 {
                               binarySearchPaymasterVerificationGasLimit
                           ],
                           stateOverrides,
-                          entryPointSimulationsAddress
+                          entryPointSimulationsAddress: entryPointSimulations
                       })
                     : null,
                 this.callPimlicoSimulations({
                     entryPoint,
                     entryPointSimulationsCallData: [binarySearchCallGasLimit],
                     stateOverrides,
-                    entryPointSimulationsAddress
+                    entryPointSimulationsAddress: entryPointSimulations
                 })
             ])
 
@@ -554,35 +498,48 @@ export class GasEstimatorV07 {
                 binarySearchCallGasLimitCause[0]
             ]
         } else {
+            const simulateAndEstimateGasLimits = encodeFunctionData({
+                abi: pimlicoSimulationsAbi,
+                functionName: "simulateAndEstimateGasLimits",
+                args: [
+                    packUserOps(queuedUserOps), // queuedUserOps
+                    toPackedUserOperation(userOp), // targetUserOp
+                    entryPoint, // entryPoint
+                    entryPointSimulations, // entryPointSimulation
+                    9_000n, // initialMinGas
+                    binarySearchToleranceDelta, // toleranceDelta
+                    binarySearchGasAllowance // gasAllowance
+                ]
+            })
+
+            const findOptimalCallGasLimit = encodeFunctionData({
+                abi: entryPointSimulations07Abi,
+                functionName: "findOptimalCallGasLimit",
+                args: [
+                    packUserOps(queuedUserOps), // queuedUserOps
+                    toPackedUserOperation(userOp), // targetUserOp
+                    entryPoint, // entryPoint
+                    9_000n, // initialMinGas
+                    binarySearchToleranceDelta, // toleranceDelta
+                    binarySearchGasAllowance // gasAllowance
+                ]
+            })
+
             const [
-                handleOpAndBinarySearchVerificationGasLimits,
-                binarySearchCallDataGasLimits
+                simulateAndEstimateGasLimitsResult,
+                findOptimalCallGasLimitResult
             ] = await Promise.all([
-                binarySearchPaymasterVerificationGasLimit
-                    ? await this.callPimlicoSimulations({
-                          entryPoint,
-                          entryPointSimulationsCallData: [
-                              simulateHandleOpLast,
-                              binarySearchVerificationGasLimit,
-                              binarySearchPaymasterVerificationGasLimit
-                          ],
-                          stateOverrides,
-                          entryPointSimulationsAddress
-                      })
-                    : await this.callPimlicoSimulations({
-                          entryPoint,
-                          entryPointSimulationsCallData: [
-                              simulateHandleOpLast,
-                              binarySearchVerificationGasLimit
-                          ],
-                          stateOverrides,
-                          entryPointSimulationsAddress
-                      }),
-                await this.callPimlicoSimulations({
-                    entryPoint,
-                    entryPointSimulationsCallData: [binarySearchCallGasLimit],
-                    stateOverrides,
-                    entryPointSimulationsAddress
+                publicClient.call({
+                    to: pimlicoSimulationContract,
+                    data: simulateAndEstimateGasLimits,
+                    gas: fixedGasLimitForEstimation,
+                    stateOverrides
+                }),
+                publicClient.call({
+                    to: entryPointSimulations,
+                    data: findOptimalCallGasLimit,
+                    gas: fixedGasLimitForEstimation,
+                    stateOverrides
                 })
             ])
 
@@ -656,7 +613,7 @@ export class GasEstimatorV07 {
                     target: zeroAddress,
                     targetCallData: "0x" as Hex,
                     functionName: "binarySearchVerificationGasLimit",
-                    queuedOps: queuedUserOperations,
+                    queuedOps: queuedUserOps,
                     stateOverrides
                 })
 
@@ -706,7 +663,7 @@ export class GasEstimatorV07 {
                     target: zeroAddress,
                     targetCallData: "0x" as Hex,
                     functionName: "binarySearchPaymasterVerificationGasLimit",
-                    queuedOps: queuedUserOperations,
+                    queuedOps: queuedUserOps,
                     stateOverrides
                 })
 
@@ -746,7 +703,7 @@ export class GasEstimatorV07 {
                         entryPoint
                     }),
                     functionName: "binarySearchCallGasLimit",
-                    queuedOps: queuedUserOperations,
+                    queuedOps: queuedUserOps,
                     stateOverrides
                 })
 
@@ -815,7 +772,7 @@ export class GasEstimatorV07 {
         }
 
         const callData = encodeFunctionData({
-            abi: PimlicoSimulationsAbi,
+            abi: pimlicoSimulationsAbi,
             functionName: "simulateEntryPoint",
             args: [
                 entryPointSimulationsAddress,
@@ -931,7 +888,7 @@ export function getSimulateValidationResult(errorData: Hex): {
 
     try {
         const decodedError = decodeErrorResult({
-            abi: EntryPointV07SimulationsAbi,
+            abi: entryPointSimulations07Abi,
             data: decodedDelegateAndError.args[1] as Hex
         })
 
@@ -999,7 +956,7 @@ function validateBinarySearchDataResult(
       } {
     try {
         const targetCallResult = decodeFunctionResult({
-            abi: EntryPointV07SimulationsAbi,
+            abi: entryPointSimulations07Abi,
             functionName: fnName,
             data: data
         })
@@ -1022,7 +979,7 @@ function validateBinarySearchDataResult(
     } catch (_e) {
         try {
             const res = decodeErrorResult({
-                abi: EntryPointV07SimulationsAbi,
+                abi: entryPointSimulations07Abi,
                 data: data
             })
 
@@ -1056,7 +1013,7 @@ function validateBinarySearchDataResult(
 function getSimulateHandleOpResult(data: Hex): SimulateHandleOpResult {
     try {
         const decodedError = decodeErrorResult({
-            abi: EntryPointV07SimulationsAbi,
+            abi: entryPointSimulations07Abi,
             data: data
         })
 
@@ -1100,7 +1057,7 @@ function getSimulateHandleOpResult(data: Hex): SimulateHandleOpResult {
     } catch {
         // no error we go the result
         const decodedResult: ExecutionResult = decodeFunctionResult({
-            abi: EntryPointV07SimulationsAbi,
+            abi: entryPointSimulations07Abi,
             functionName: "simulateHandleOp",
             data
         })

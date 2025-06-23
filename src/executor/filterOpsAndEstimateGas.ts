@@ -24,7 +24,7 @@ import {
     scaleBigIntByPercent,
     toPackedUserOperation
 } from "@alto/utils"
-import { PimlicoSimulationsAbi } from "../types/contracts/PimlicoSimulations"
+import { pimlicoSimulationsAbi } from "../types/contracts/PimlicoSimulations"
 import * as sentry from "@sentry/node"
 import { getEip7702DelegationOverrides } from "../utils/eip7702"
 import { encodeHandleOpsCalldata, calculateAA95GasFloor } from "./utils"
@@ -207,7 +207,7 @@ const getFilterOpsResult = async ({
     switch (version) {
         case "0.8": {
             data = encodeFunctionData({
-                abi: PimlicoSimulationsAbi,
+                abi: pimlicoSimulationsAbi,
                 functionName: "filterOps08",
                 args: [
                     userOps.map(({ userOp }) =>
@@ -221,7 +221,7 @@ const getFilterOpsResult = async ({
         }
         case "0.7": {
             data = encodeFunctionData({
-                abi: PimlicoSimulationsAbi,
+                abi: pimlicoSimulationsAbi,
                 functionName: "filterOps07",
                 args: [
                     userOps.map(({ userOp }) =>
@@ -235,7 +235,7 @@ const getFilterOpsResult = async ({
         }
         default: {
             data = encodeFunctionData({
-                abi: PimlicoSimulationsAbi,
+                abi: pimlicoSimulationsAbi,
                 functionName: "filterOps06",
                 args: [
                     userOps.map(({ userOp }) => userOp) as UserOperationV06[],
