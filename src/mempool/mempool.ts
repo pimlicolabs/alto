@@ -512,8 +512,8 @@ export class Mempool {
             }
 
             validationResult = await this.validator.validateUserOperation({
-                userOperation: userOp,
-                queuedUserOperations,
+                userOp,
+                queuedUserOps: queuedUserOperations,
                 entryPoint,
                 referencedContracts
             })

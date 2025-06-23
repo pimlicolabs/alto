@@ -67,8 +67,8 @@ const getUserOpValidationResult = async (
             entryPoint
         })
     const validationResult = await rpcHandler.validator.validateUserOperation({
-        userOperation,
-        queuedUserOperations,
+        userOp: userOperation,
+        queuedUserOps: queuedUserOperations,
         entryPoint
     })
 

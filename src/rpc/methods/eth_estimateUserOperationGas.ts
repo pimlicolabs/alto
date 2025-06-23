@@ -145,9 +145,9 @@ const getGasEstimates = async ({
     }
 
     const executionResult = await rpcHandler.validator.getExecutionResult({
-        userOperation: simulationUserOp,
+        userOp: userOperation,
+        queuedUserOps: queuedUserOperations,
         entryPoint,
-        queuedUserOperations,
         stateOverrides: deepHexlify(mutableStateOverrides)
     })
 
@@ -316,13 +316,13 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
 
         // Check if userOperation passes without estimation balance overrides (will throw error if it fails validation)
         await rpcHandler.validator.validateHandleOp({
-            userOperation: {
+            userOp: {
                 ...userOperation,
                 ...gasEstimateResult.estimates, // use actual callGasLimit, verificationGasLimit, paymasterPostOpGasLimit, paymasterVerificationGasLimit
                 preVerificationGas
             },
+            queuedUserOps: gasEstimateResult.queuedUserOperations,
             entryPoint,
-            queuedUserOperations: gasEstimateResult.queuedUserOperations,
             stateOverrides: deepHexlify(stateOverrides)
         })
 
