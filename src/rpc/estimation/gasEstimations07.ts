@@ -35,7 +35,10 @@ import {
     slice,
     toFunctionSelector,
     zeroAddress,
-    getContract
+    getContract,
+    type StateOverride,
+    type GetContractReturnType,
+    type PublicClient
 } from "viem"
 import { AccountExecuteAbi } from "../../types/contracts/IAccountExecute"
 import {
@@ -77,6 +80,150 @@ export class GasEstimatorV07 {
                 level: config.logLevel
             }
         )
+    }
+
+    private async executeSimulateHandleOp(
+        epSimulationsContract: GetContractReturnType<
+            typeof entryPointSimulations07Abi,
+            PublicClient
+        >,
+        queuedUserOps: UserOperationV07[],
+        targetUserOp: UserOperationV07,
+        stateOverride: StateOverride
+    ): Promise<SimulateHandleOpResult> {
+        const packedQueuedOps = packUserOps(queuedUserOps)
+        const packedTargetOp = toPackedUserOperation(targetUserOp)
+
+        try {
+            const result =
+                await epSimulationsContract.simulate.simulateHandleOp(
+                    [packedQueuedOps, packedTargetOp],
+                    {
+                        stateOverride,
+                        gas: this.config.fixedGasLimitForEstimation
+                    }
+                )
+            return getSimulateHandleOpResult(result.result)
+        } catch (error) {
+            if (error instanceof ContractFunctionRevertedError) {
+                return getSimulateHandleOpResult(error)
+            }
+            throw error
+        }
+    }
+
+    private async binarySearchVerificationGasLimit(
+        epSimulationsContract: GetContractReturnType<
+            typeof entryPointSimulations07Abi,
+            PublicClient
+        >,
+        queuedUserOps: UserOperationV07[],
+        targetUserOp: UserOperationV07,
+        entryPoint: Address,
+        stateOverride: StateOverride
+    ): Promise<GasLimitResult | ContractFunctionRevertedError> {
+        const packedQueuedOps = packUserOps(queuedUserOps)
+        const packedTargetOp = toPackedUserOperation(targetUserOp)
+
+        try {
+            const result =
+                await epSimulationsContract.simulate.findOptimalVerificationGasLimit(
+                    [
+                        packedQueuedOps,
+                        packedTargetOp,
+                        entryPoint,
+                        9_000n, // initialMinGas
+                        this.config.binarySearchToleranceDelta,
+                        this.config.binarySearchGasAllowance
+                    ],
+                    {
+                        stateOverride,
+                        gas: this.config.fixedGasLimitForEstimation
+                    }
+                )
+            return result.result as GasLimitResult
+        } catch (error) {
+            if (error instanceof ContractFunctionRevertedError) {
+                return error
+            }
+            throw error
+        }
+    }
+
+    private async binarySearchPaymasterVerificationGasLimit(
+        epSimulationsContract: GetContractReturnType<
+            typeof entryPointSimulations07Abi,
+            PublicClient
+        >,
+        queuedUserOps: UserOperationV07[],
+        targetUserOp: UserOperationV07,
+        entryPoint: Address,
+        stateOverride: StateOverride
+    ): Promise<GasLimitResult | ContractFunctionRevertedError> {
+        const packedQueuedOps = packUserOps(queuedUserOps)
+        const packedTargetOp = toPackedUserOperation(targetUserOp)
+
+        try {
+            const result =
+                await epSimulationsContract.simulate.findOptimalPaymasterVerificationGasLimit(
+                    [
+                        packedQueuedOps,
+                        packedTargetOp,
+                        entryPoint,
+                        9_000n, // initialMinGas
+                        this.config.binarySearchToleranceDelta,
+                        this.config.binarySearchGasAllowance
+                    ],
+                    {
+                        stateOverride,
+                        gas: this.config.fixedGasLimitForEstimation
+                    }
+                )
+            return result.result as GasLimitResult
+        } catch (error) {
+            if (error instanceof ContractFunctionRevertedError) {
+                return error
+            }
+            throw error
+        }
+    }
+
+    private async binarySearchCallGasLimit(
+        epSimulationsContract: GetContractReturnType<
+            typeof entryPointSimulations07Abi,
+            PublicClient
+        >,
+        queuedUserOps: UserOperationV07[],
+        targetUserOp: UserOperationV07,
+        entryPoint: Address,
+        stateOverride: StateOverride
+    ): Promise<GasLimitResult | ContractFunctionRevertedError> {
+        const packedQueuedOps = packUserOps(queuedUserOps)
+        const packedTargetOp = toPackedUserOperation(targetUserOp)
+
+        try {
+            const result =
+                await epSimulationsContract.simulate.findOptimalCallGasLimit(
+                    [
+                        packedQueuedOps,
+                        packedTargetOp,
+                        entryPoint,
+                        9_000n, // initialMinGas
+                        this.config.binarySearchToleranceDelta,
+                        this.config.binarySearchGasAllowance
+                    ],
+                    {
+                        stateOverride,
+                        gas: this.config.fixedGasLimitForEstimation
+                    }
+                )
+            return result.result as GasLimitResult
+        } catch (error) {
+            if (error instanceof ContractFunctionRevertedError) {
+                return error
+            }
+            throw error
+        }
     }
 
     async simulateValidation({
@@ -497,67 +644,39 @@ export class GasEstimatorV07 {
 
         if (splitSimulationCalls) {
             const [sho, fovgl, fopvgl, focgl] = await Promise.all([
-                epSimulationsContract.simulate
-                    .simulateHandleOp([packedQueuedOps, packedTargetOp], {
-                        stateOverride,
-                        gas: fixedGasLimitForEstimation
-                    })
-                    .then((r) => r.result)
-                    .catch((e) => e),
-                epSimulationsContract.simulate
-                    .findOptimalVerificationGasLimit(
-                        [
-                            packedQueuedOps,
-                            packedTargetOp,
-                            entryPoint,
-                            9_000n, // initialMinGas
-                            binarySearchToleranceDelta,
-                            binarySearchGasAllowance
-                        ],
-                        {
-                            stateOverride,
-                            gas: fixedGasLimitForEstimation
-                        }
-                    )
-                    .then((r) => r.result),
-                epSimulationsContract.simulate
-                    .findOptimalPaymasterVerificationGasLimit(
-                        [
-                            packedQueuedOps,
-                            packedTargetOp,
-                            entryPoint,
-                            9_000n, // initialMinGas
-                            binarySearchToleranceDelta,
-                            binarySearchGasAllowance
-                        ],
-                        {
-                            stateOverride,
-                            gas: fixedGasLimitForEstimation
-                        }
-                    )
-                    .then((r) => r.result),
-                epSimulationsContract.simulate
-                    .findOptimalCallGasLimit(
-                        [
-                            packedQueuedOps,
-                            packedTargetOp,
-                            entryPoint,
-                            9_000n, // initialMinGas
-                            binarySearchToleranceDelta,
-                            binarySearchGasAllowance
-                        ],
-                        {
-                            stateOverride,
-                            gas: fixedGasLimitForEstimation
-                        }
-                    )
-                    .then((r) => r.result)
+                this.executeSimulateHandleOp(
+                    epSimulationsContract,
+                    queuedUserOps,
+                    userOp,
+                    stateOverride
+                ),
+                this.binarySearchVerificationGasLimit(
+                    epSimulationsContract,
+                    queuedUserOps,
+                    userOp,
+                    entryPoint,
+                    stateOverride
+                ),
+                this.binarySearchPaymasterVerificationGasLimit(
+                    epSimulationsContract,
+                    queuedUserOps,
+                    userOp,
+                    entryPoint,
+                    stateOverride
+                ),
+                this.binarySearchCallGasLimit(
+                    epSimulationsContract,
+                    queuedUserOps,
+                    userOp,
+                    entryPoint,
+                    stateOverride
+                )
             ])
 
-            simulateHandleOpResult = sho
-            verificationGasResult = fovgl
-            paymasterVerificationGasResult = fopvgl
-            callGasLimitResult = focgl
+            // Handle the results
+            if (sho.result === "failed") {
+                return sho as SimulateHandleOpResult<"failed">
+            }
         } else {
             const [saegl, focgl] = await Promise.all([
                 pimlicoSimulationContract.simulate
@@ -774,9 +893,10 @@ const panicCodes: { [key: number]: string } = {
 }
 
 export function parseFailedOpWithRevert(data: Hex) {
-    const methodSig = data.slice(0, 10)
-    const dataParams = `0x${data.slice(10)}` as Hex
+    const methodSig = slice(data, 0, 4)
+    const dataParams = slice(data, 4)
 
+    // Selector for Error(string)
     if (methodSig === "0x08c379a0") {
         const [err] = decodeAbiParameters(
             [
@@ -791,6 +911,7 @@ export function parseFailedOpWithRevert(data: Hex) {
         return err
     }
 
+    // Selector for Panic(uint256)
     if (methodSig === "0x4e487b71") {
         const [code] = decodeAbiParameters(
             [
