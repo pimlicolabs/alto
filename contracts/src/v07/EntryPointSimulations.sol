@@ -11,6 +11,7 @@ import {SIG_VALIDATION_SUCCESS, SIG_VALIDATION_FAILED} from "account-abstraction
 import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import {UserOperationLib} from "account-abstraction-v7/core/UserOperationLib.sol";
 import {IEntryPoint} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
+import {IAccountExecute} from "account-abstraction-v7/interfaces/IAccountExecute.sol";
 
 enum BinarySearchMode {
     PaymasterPostOpGasLimit, // TODO
@@ -77,22 +78,48 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
         return ValidationResult(returnInfo, senderInfo, factoryInfo, paymasterInfo, aggregatorInfo);
     }
 
-    function encodeBinarySearchCalldata(BinarySearchMode mode, BinarySearchArgs calldata targetUserOp, uint256 gas)
+    /// @dev Helper function to encode target call data for a user operation
+    /// @param userOp The user operation to encode call data for
+    /// @param userOpHash The hash of the user operation (for executeUserOp calls)
+    /// @return target The target address (sender)
+    /// @return targetCallData The encoded call data
+    function _encodeTargetCallData(PackedUserOperation calldata userOp, bytes32 userOpHash) 
+        internal 
+        pure 
+        returns (address target, bytes memory targetCallData) 
+    {
+        target = userOp.sender;
+        bytes calldata callData = userOp.callData;
+        
+        // Encode userOperation calldata
+        bytes4 methodSig;
+        assembly ("memory-safe") {
+            let len := callData.length
+            if gt(len, 3) { methodSig := calldataload(callData.offset) }
+        }
+        if (methodSig == IAccountExecute.executeUserOp.selector) {
+            targetCallData = abi.encodeCall(IAccountExecute.executeUserOp, (userOp, userOpHash));
+        } else {
+            targetCallData = userOp.callData;
+        }
+    }
+
+    function encodeBinarySearchCalldata(BinarySearchMode mode, PackedUserOperation calldata targetUserOp, uint256 gas)
         internal
         pure
         returns (bytes memory)
     {
         UserOpInfo memory opInfo;
-        PackedUserOperation memory op = targetUserOp.op;
+        PackedUserOperation memory op = targetUserOp;
 
         if (mode == BinarySearchMode.PaymasterVerificationGasLimit) {
             (address paymaster,, uint256 postOpGasLimit) =
-                UserOperationLib.unpackPaymasterStaticFields(targetUserOp.op.paymasterAndData);
+                UserOperationLib.unpackPaymasterStaticFields(targetUserOp.paymasterAndData);
 
             // Get paymaster data
             bytes memory paymasterData;
             if (op.paymasterAndData.length > UserOperationLib.PAYMASTER_DATA_OFFSET) {
-                paymasterData = targetUserOp.op.paymasterAndData[UserOperationLib.PAYMASTER_DATA_OFFSET:];
+                paymasterData = targetUserOp.paymasterAndData[UserOperationLib.PAYMASTER_DATA_OFFSET:];
             }
 
             // Rebuild paymasterAndData with custom paymasterVerificationGasLimit
@@ -103,15 +130,14 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
         }
 
         if (mode == BinarySearchMode.VerificationGasLimit) {
-            uint256 callGasLimit = targetUserOp.op.unpackCallGasLimit();
+            uint256 callGasLimit = targetUserOp.unpackCallGasLimit();
             bytes32 accountGasLimits = bytes32((uint256(gas) << 128) | uint128(callGasLimit));
             op.accountGasLimits = accountGasLimits;
             return abi.encodeWithSelector(this._validatePrepayment.selector, 0, op, opInfo, false);
         }
 
         if (mode == BinarySearchMode.CallGasLimit) {
-            address target = targetUserOp.target;
-            bytes memory targetCallData = targetUserOp.targetCallData;
+            (address target, bytes memory targetCallData) = _encodeTargetCallData(targetUserOp, opInfo.userOpHash);
             return abi.encodeWithSelector(this.simulateCallAndRevert.selector, target, targetCallData, gas);
         }
 
@@ -161,25 +187,28 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
         }
     }
 
-    function processQueuedUserOps(BinarySearchArgs[] calldata queuedUserOps) internal {
+    function processQueuedUserOps(PackedUserOperation[] calldata queuedUserOps) internal {
         // Run all queued userOps to ensure that state is valid for the target userOp.
         for (uint256 i = 0; i < queuedUserOps.length; i++) {
-            UserOpInfo memory queuedOpInfo;
-            BinarySearchArgs calldata args = queuedUserOps[i];
-            _simulationOnlyValidations(args.op);
-            _validatePrepayment(0, args.op, queuedOpInfo, true);
+            UserOpInfo memory opInfo;
+            PackedUserOperation calldata userOp = queuedUserOps[i];
+            _simulationOnlyValidations(userOp);
+            _validatePrepayment(0, userOp, opInfo, true);
 
-            if (args.target == address(0)) {
+            // If there is no callData to execute, skip
+            if (userOp.callData.length == 0) {
                 continue;
             }
 
-            args.target.call(args.targetCallData);
+            // Execute calldata
+            (address target, bytes memory targetCallData) = _encodeTargetCallData(userOp, opInfo.userOpHash);
+            target.call(targetCallData);
         }
     }
 
     function binarySearchGasLimit(
         BinarySearchMode mode,
-        BinarySearchArgs calldata targetUserOp,
+        PackedUserOperation calldata targetUserOp,
         address entryPoint,
         uint256 initialMinGas,
         uint256 toleranceDelta,
@@ -243,20 +272,20 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
     }
 
     function findOptimalPaymasterVerificationGasLimit(
-        BinarySearchArgs[] calldata queuedUserOps,
-        BinarySearchArgs calldata targetUserOp,
+        PackedUserOperation[] calldata queuedUserOps,
+        PackedUserOperation calldata targetUserOp,
         address entryPoint,
         uint256 initialMinGas,
         uint256 toleranceDelta,
         uint256 gasAllowance
     ) public returns (BinarySearchResult memory) {
         UserOpInfo memory setupOpInfo;
-        _copyUserOpToMemory(targetUserOp.op, setupOpInfo.mUserOp);
-        _validateAccountPrepayment(0, targetUserOp.op, setupOpInfo, 0, gasleft());
+        _copyUserOpToMemory(targetUserOp, setupOpInfo.mUserOp);
+        _validateAccountPrepayment(0, targetUserOp, setupOpInfo, 0, gasleft());
 
         // Prepare for simulation.
         processQueuedUserOps(queuedUserOps);
-        _simulationOnlyValidations(targetUserOp.op);
+        _simulationOnlyValidations(targetUserOp);
 
         return binarySearchGasLimit(
             BinarySearchMode.PaymasterVerificationGasLimit,
@@ -269,8 +298,8 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
     }
 
     function findOptimalVerificationGasLimit(
-        BinarySearchArgs[] calldata queuedUserOps,
-        BinarySearchArgs calldata targetUserOp,
+        PackedUserOperation[] calldata queuedUserOps,
+        PackedUserOperation calldata targetUserOp,
         address entryPoint,
         uint256 initialMinGas,
         uint256 toleranceDelta,
@@ -278,7 +307,7 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
     ) public returns (BinarySearchResult memory) {
         // Prepare for simulation.
         processQueuedUserOps(queuedUserOps);
-        _simulationOnlyValidations(targetUserOp.op);
+        _simulationOnlyValidations(targetUserOp);
 
         return binarySearchGasLimit(
             BinarySearchMode.VerificationGasLimit, targetUserOp, entryPoint, initialMinGas, toleranceDelta, gasAllowance
@@ -298,27 +327,27 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
      * @return optimalGas - The estimated gas limit for the call.
      */
     function findOptimalCallGasLimit(
-        BinarySearchArgs[] calldata queuedUserOps,
-        BinarySearchArgs calldata targetUserOp,
+        PackedUserOperation[] calldata queuedUserOps,
+        PackedUserOperation calldata targetUserOp,
         address entryPoint,
         uint256 initialMinGas,
         uint256 toleranceDelta,
         uint256 gasAllowance
     ) public returns (BinarySearchResult memory) {
+        // If callData.length == 0, EntryPoint skips innerHandleOp phase.
+        if (targetUserOp.callData.length == 0) {
+            return BinarySearchResult(0, false, new bytes(0));
+        }
+
         processQueuedUserOps(queuedUserOps);
 
         // Extract out the target userOperation info.
-        PackedUserOperation calldata op = targetUserOp.op;
-        address target = targetUserOp.target;
+        PackedUserOperation calldata op = targetUserOp;
 
         // Run our target userOperation.
         UserOpInfo memory opInfo;
         _simulationOnlyValidations(op);
         _validatePrepayment(0, op, opInfo, true);
-
-        if (target == address(0)) {
-            return BinarySearchResult(0, false, new bytes(0));
-        }
 
         return binarySearchGasLimit(
             BinarySearchMode.CallGasLimit, targetUserOp, entryPoint, initialMinGas, toleranceDelta, gasAllowance
