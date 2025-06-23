@@ -11,7 +11,6 @@ import {
     estimateUserOperationGasSchema
 } from "@alto/types"
 import { RpcHandler } from "../rpcHandler"
-import { SimulateHandleOpResult } from "../estimation/types"
 import { toHex } from "viem"
 
 type GasEstimateResult =
@@ -153,16 +152,15 @@ const getGasEstimates = async ({
     })
 
     if (executionResult.result === "failed") {
-        const errorResult = executionResult as SimulateHandleOpResult<"failed">
         return {
             status: "failed",
-            error: errorResult.data,
-            code: errorResult.code
+            error: executionResult.data,
+            code: executionResult.code
         }
     }
 
     // type cast as typescript doesn't know the type
-    const successResult = executionResult as SimulateHandleOpResult<"execution">
+    const successResult = executionResult
 
     let { verificationGasLimit, callGasLimit, paymasterVerificationGasLimit } =
         calcVerificationGasAndCallGasLimit(

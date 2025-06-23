@@ -611,7 +611,7 @@ export class GasEstimatorV07 {
         const packedTargetOp = toPackedUserOperation(userOp)
 
         if (splitSimulationCalls) {
-            const [sho, fovgl, fopvgl, focgl] = await Promise.all([
+            const [sho, bsvgl, bspvgl, bscgl] = await Promise.all([
                 this.executeSimulateHandleOp(
                     epSimulationsContract,
                     queuedUserOps,
@@ -645,24 +645,24 @@ export class GasEstimatorV07 {
                 return sho
             }
 
-            if (fovgl.result === "failed") {
-                return fovgl
+            if (bsvgl.result === "failed") {
+                return bsvgl
             }
 
-            if (fopvgl.result === "failed") {
-                return fopvgl
+            if (bspvgl.result === "failed") {
+                return bspvgl
             }
 
-            if (focgl.result === "failed") {
-                return focgl
+            if (bscgl.result === "failed") {
+                return bscgl
             }
 
             return {
                 result: "execution",
                 data: {
-                    callGasLimit: focgl.data.gasUsed,
-                    verificationGasLimit: fovgl.data.gasUsed,
-                    paymasterVerificationGasLimit: fopvgl.data.gasUsed,
+                    callGasLimit: bscgl.data.gasUsed,
+                    verificationGasLimit: bsvgl.data.gasUsed,
+                    paymasterVerificationGasLimit: bspvgl.data.gasUsed,
                     executionResult: sho.data.executionResult
                 }
             }
@@ -686,23 +686,16 @@ export class GasEstimatorV07 {
                     )
                     .then((r) => r.result)
                     .catch((e) => e),
-                epSimulationsContract.simulate
-                    .findOptimalCallGasLimit(
-                        [
-                            packedQueuedOps, // queuedUserOps
-                            packedTargetOp, // targetUserOp
-                            entryPoint, // entryPoint
-                            9_000n, // initialMinGas
-                            binarySearchToleranceDelta, // toleranceDelta
-                            binarySearchGasAllowance // gasAllowance
-                        ],
-                        {
-                            stateOverride,
-                            gas: fixedGasLimitForEstimation
-                        }
-                    )
-                    .then((r) => r.result)
+                this.binarySearchCallGasLimit(
+                    epSimulationsContract,
+                    queuedUserOps,
+                    userOp,
+                    entryPoint,
+                    stateOverride
+                )
             ])
+
+            if ()
         }
     }
 }
