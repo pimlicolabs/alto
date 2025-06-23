@@ -15,9 +15,7 @@ import {
     publicActions,
     GetBlockParameters,
     GetBalanceParameters,
-    GetTransactionCountParameters,
-    BlockTag,
-    GetTransactionReceiptParameters
+    GetTransactionCountParameters
 } from "viem"
 import type { IOptionsInput } from "./config"
 import { customTransport } from "./customTransport"
@@ -143,7 +141,10 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
             .extend((client) => ({
                 // @ts-ignore
                 async getBlock(args?: GetBlockParameters) {
-                    if (args?.blockHash !== undefined || args?.blockNumber !== undefined) {
+                    if (
+                        args?.blockHash !== undefined ||
+                        args?.blockNumber !== undefined
+                    ) {
                         return await client.getBlock(args)
                     }
 
@@ -172,7 +173,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
                             blockTag: "pending"
                         })
                     }
-                },
+                }
             }))
             // @ts-ignore
             .extend(publicActions)

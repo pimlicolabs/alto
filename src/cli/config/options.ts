@@ -121,7 +121,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description: "Enable flashblocks. Overrides some RPC calls parameters.",
         type: "boolean",
         default: false
-    },
+    }
 }
 
 export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
