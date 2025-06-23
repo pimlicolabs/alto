@@ -152,6 +152,74 @@ describe.each([
             expect(estimation.paymasterVerificationGasLimit).toBe(0n)
         })
 
+        test("No paymaster should result in zero paymaster gas limits", async () => {
+            if (entryPointVersion === "0.6") {
+                return
+            }
+
+            const bundlerClient = createBundlerClient({
+                chain: foundry,
+                transport: http(altoRpc)
+            })
+
+            const smartAccountClient = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const userOp = await smartAccountClient.prepareUserOperation({
+                calls: [
+                    {
+                        to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
+                        data: "0x",
+                        value: 0n
+                    }
+                ]
+            })
+
+            const estimation = await bundlerClient.estimateUserOperationGas({
+                userOperation: {
+                    ...userOp,
+                    paymaster: undefined,
+                    paymasterData: undefined,
+                    paymasterVerificationGasLimit: undefined,
+                    paymasterPostOpGasLimit: undefined
+                },
+                entryPointAddress: entryPoint
+            })
+
+            expect(estimation.paymasterVerificationGasLimit).toBe(0n)
+            expect(estimation.paymasterPostOpGasLimit).toBe(0n)
+        })
+
+        test("Empty calldata should result in zero callGasLimit", async () => {
+            const bundlerClient = createBundlerClient({
+                chain: foundry,
+                transport: http(altoRpc)
+            })
+
+            const smartAccountClient = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const userOp = await smartAccountClient.prepareUserOperation({
+                calls: []
+            })
+
+            const estimation = await bundlerClient.estimateUserOperationGas({
+                userOperation: {
+                    ...userOp,
+                    callData: "0x"
+                },
+                entryPointAddress: entryPoint
+            })
+
+            expect(estimation.callGasLimit).toBe(0n)
+        })
+
         test("Should throw revert reason if simulation reverted during callphase", async () => {
             const smartAccountClient = await getSmartAccountClient({
                 entryPointVersion,
