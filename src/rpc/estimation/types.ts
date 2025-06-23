@@ -1,6 +1,11 @@
 import type { Hex } from "viem"
 import type { ExecutionResult } from "@alto/types"
 
+export enum BinarySearchResultType {
+    Success = 0,
+    OutOfGas = 1
+}
+
 export type SimulateHandleOpResult =
     | {
           result: "failed"
@@ -21,17 +26,9 @@ export type SimulateBinarySearchResult =
     | {
           result: "success"
           data: {
-              resultType: 0 // Success enum value
-              successData: {
-                  gasUsed: bigint
-                  success: boolean
-                  returnData: Hex
-              }
-              outOfGasData: {
-                  optimalGas: bigint
-                  minGas: bigint
-                  maxGas: bigint
-              }
+              gasUsed: bigint
+              success: boolean
+              returnData: Hex
           }
       }
     | {

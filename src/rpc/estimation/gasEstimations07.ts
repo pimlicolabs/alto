@@ -24,6 +24,7 @@ import {
     type PublicClient
 } from "viem"
 import {
+    BinarySearchResultType,
     SimulateBinarySearchResult,
     type SimulateHandleOpResult
 } from "./types"
@@ -120,15 +121,8 @@ export class GasEstimatorV07 {
                     }
                 )
 
-            if (result.successData.success) {
-                return {
-                    result: "success",
-                    data: result
-                } as const
-            }
-
-            // Check if simulation ran out of gas (resultType 1 = OutOfGas)
-            if (result.resultType === 1) {
+            // Check if simulation ran out of gas
+            if (result.resultType === BinarySearchResultType.OutOfGas) {
                 // Check if we've hit the retry limit
                 if (retryCount >= this.config.binarySearchMaxRetries) {
                     return {
@@ -151,6 +145,21 @@ export class GasEstimatorV07 {
                     result.outOfGasData.minGas,
                     newGasAllowance
                 )
+            }
+
+            // Check for successful result
+            if (
+                result.resultType === BinarySearchResultType.Success &&
+                result.successData.success
+            ) {
+                return {
+                    result: "success",
+                    data: {
+                        gasUsed: result.successData.gasUsed,
+                        success: result.successData.success,
+                        returnData: result.successData.returnData
+                    }
+                } as const
             }
 
             return {
@@ -200,15 +209,8 @@ export class GasEstimatorV07 {
                     }
                 )
 
-            if (result.successData.success) {
-                return {
-                    result: "success",
-                    data: result
-                } as const
-            }
-
-            // Check if simulation ran out of gas (resultType 1 = OutOfGas)
-            if (result.resultType === 1) {
+            // Check if simulation ran out of gas
+            if (result.resultType === BinarySearchResultType.OutOfGas) {
                 // Check if we've hit the retry limit
                 if (retryCount >= this.config.binarySearchMaxRetries) {
                     return {
@@ -231,6 +233,21 @@ export class GasEstimatorV07 {
                     result.outOfGasData.minGas,
                     newGasAllowance
                 )
+            }
+
+            // Check for successful result
+            if (
+                result.resultType === BinarySearchResultType.Success &&
+                result.successData.success
+            ) {
+                return {
+                    result: "success",
+                    data: {
+                        gasUsed: result.successData.gasUsed,
+                        success: result.successData.success,
+                        returnData: result.successData.returnData
+                    }
+                } as const
             }
 
             return {
@@ -299,9 +316,8 @@ export class GasEstimatorV07 {
 
             return {
                 result: "success",
-                verificationGas: verificationGasLimit.successData.gasUsed,
-                paymasterVerificationGas:
-                    paymasterVerificationGasLimit.successData.gasUsed,
+                verificationGas: verificationGasLimit.gasUsed,
+                paymasterVerificationGas: paymasterVerificationGasLimit.gasUsed,
                 executionResult: simulationResult
             }
         } catch (error) {
@@ -372,15 +388,8 @@ export class GasEstimatorV07 {
                     }
                 )
 
-            if (result.successData.success) {
-                return {
-                    result: "success",
-                    data: result
-                } as const
-            }
-
-            // Check if simulation ran out of gas (resultType 1 = OutOfGas)
-            if (result.resultType === 1) {
+            // Check if simulation ran out of gas
+            if (result.resultType === BinarySearchResultType.OutOfGas) {
                 // Check if we've hit the retry limit
                 if (retryCount >= this.config.binarySearchMaxRetries) {
                     return {
@@ -403,6 +412,21 @@ export class GasEstimatorV07 {
                     result.outOfGasData.minGas,
                     newGasAllowance
                 )
+            }
+
+            // Check for successful result
+            if (
+                result.resultType === BinarySearchResultType.Success &&
+                result.successData.success
+            ) {
+                return {
+                    result: "success",
+                    data: {
+                        gasUsed: result.successData.gasUsed,
+                        success: result.successData.success,
+                        returnData: result.successData.returnData
+                    }
+                } as const
             }
 
             return {
@@ -713,10 +737,9 @@ export class GasEstimatorV07 {
             return {
                 result: "execution",
                 data: {
-                    callGasLimit: bscgl.data.successData.gasUsed,
-                    verificationGasLimit: bsvgl.data.successData.gasUsed,
-                    paymasterVerificationGasLimit:
-                        bspvgl.data.successData.gasUsed,
+                    callGasLimit: bscgl.data.gasUsed,
+                    verificationGasLimit: bsvgl.data.gasUsed,
+                    paymasterVerificationGasLimit: bspvgl.data.gasUsed,
                     executionResult: sho.data.executionResult
                 }
             }
@@ -756,7 +779,7 @@ export class GasEstimatorV07 {
             return {
                 result: "execution",
                 data: {
-                    callGasLimit: focgl.data.successData.gasUsed,
+                    callGasLimit: focgl.data.gasUsed,
                     verificationGasLimit: verificationGas,
                     paymasterVerificationGasLimit: paymasterVerificationGas,
                     executionResult: executionResult
