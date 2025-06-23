@@ -63,7 +63,10 @@ export class GasEstimatorV07 {
             typeof entryPointSimulations07Abi,
             PublicClient
         >,
-        searchType: "verification" | "paymasterVerification" | "call",
+        methodName:
+            | "findOptimalVerificationGasLimit"
+            | "findOptimalPaymasterVerificationGasLimit"
+            | "findOptimalCallGasLimit",
         queuedUserOps: UserOperationV07[],
         targetUserOp: UserOperationV07,
         entryPoint: Address,
@@ -76,25 +79,16 @@ export class GasEstimatorV07 {
         if (retryCount > this.config.binarySearchMaxRetries) {
             return {
                 result: "failed",
-                data: `Max retries reached for ${searchType} gas limit search`,
+                data: `Max retries reached when calling ${methodName}`,
                 code: ValidationErrors.SimulateValidation
-            } as const
+            }
         }
 
         const packedQueuedOps = packUserOps(queuedUserOps)
         const packedTargetOp = toPackedUserOperation(targetUserOp)
 
         try {
-            // Call the appropriate method based on search type
-            const methodMap = {
-                verification: "findOptimalVerificationGasLimit",
-                paymasterVerification:
-                    "findOptimalPaymasterVerificationGasLimit",
-                call: "findOptimalCallGasLimit"
-            } as const
-
-            const method = methodMap[searchType]
-            const { result } = await epSimulationsContract.simulate[method](
+            const { result } = await epSimulationsContract.simulate[methodName](
                 [
                     packedQueuedOps,
                     packedTargetOp,
@@ -116,7 +110,7 @@ export class GasEstimatorV07 {
 
                 return await this.performBinarySearch(
                     epSimulationsContract,
-                    searchType,
+                    methodName,
                     queuedUserOps,
                     targetUserOp,
                     entryPoint,
@@ -571,7 +565,7 @@ export class GasEstimatorV07 {
                 ),
                 this.performBinarySearch(
                     epSimulationsContract,
-                    "verification",
+                    "findOptimalVerificationGasLimit",
                     queuedUserOps,
                     userOp,
                     entryPoint,
@@ -579,7 +573,7 @@ export class GasEstimatorV07 {
                 ),
                 this.performBinarySearch(
                     epSimulationsContract,
-                    "paymasterVerification",
+                    "findOptimalPaymasterVerificationGasLimit",
                     queuedUserOps,
                     userOp,
                     entryPoint,
@@ -587,7 +581,7 @@ export class GasEstimatorV07 {
                 ),
                 this.performBinarySearch(
                     epSimulationsContract,
-                    "call",
+                    "findOptimalCallGasLimit",
                     queuedUserOps,
                     userOp,
                     entryPoint,
@@ -632,7 +626,7 @@ export class GasEstimatorV07 {
                 ),
                 this.performBinarySearch(
                     epSimulationsContract,
-                    "call",
+                    "findOptimalCallGasLimit",
                     queuedUserOps,
                     userOp,
                     entryPoint,
