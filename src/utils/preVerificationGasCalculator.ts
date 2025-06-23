@@ -27,9 +27,6 @@ import {
     size,
     concat,
     slice,
-    Hex,
-    getAbiItem,
-    toBytes,
     toBytes
 } from "viem"
 import { minBigInt, randomBigInt } from "./bigInt"
@@ -37,58 +34,39 @@ import { isVersion06, isVersion07, toPackedUserOperation } from "./userop"
 import type { AltoConfig } from "../createConfig"
 import { ArbitrumL1FeeAbi } from "../types/contracts/ArbitrumL1FeeAbi"
 import crypto from "crypto"
-import {
-    entryPoint06Abi,
-    entryPoint07Abi
-} from "viem/_types/account-abstraction"
 
 export interface GasOverheads {
-    /**
-     * fixed overhead for entire handleOp bundle.
-     */
-    fixed: number
-
-    /**
-     * per userOp overhead, added on top of the above fixed per-bundle.
-     */
-    perUserOp: number
-
-    /**
-     * overhead for userOp word (32 bytes) block
-     */
-    perUserOpWord: number
-
-    // perCallDataWord: number
-
-    /**
-     * zero byte cost, for calldata gas cost calculations
-     */
-    zeroByte: number
-
-    /**
-     * non-zero byte cost, for calldata gas cost calculations
-     */
-    nonZeroByte: number
-
-    /**
-     * expected bundle size, to split per-bundle overhead between all ops.
-     */
-    bundleSize: number
-
-    /**
-     * expected length of the userOp signature.
-     */
-    sigSize: number
+    perUserOp: number // per userOp overhead, added on top of the above fixed per-bundle
+    zeroByte: number // zero byte cost, for calldata gas cost calculations
+    nonZeroByte: number // non-zero byte cost, for calldata gas cost calculations
+    bundleSize: number // expected bundle size, to split per-bundle overhead between all ops
+    sigSize: number // expected length of the userOp signature
+    eip7702AuthGas: number // overhead for EIP-7702 auth gas
+    executeUserOpGasOverhead: number // extra per-userop overhead, if callData starts with "executeUserOp" method signature.
+    executeUserOpPerWordGasOverhead: number // extra per-userop overhead, if callData starts with "executeUserOp" method signature.
+    perUserOpWordGasOverhead: number // Gas overhead per single "word" (32 bytes) in callData. (all validation fields are covered by verification gas checks)
+    fixedGasOverhead: number // Gas overhead is added to entire 'handleOp' bundle (on top of the transactionGasStipend).
+    expectedBundleSize: number // Expected bundle size, to split per-bundle overhead between all ops
+    transactionGasStipend: number // Cost of sending a basic transaction on the current chain.
+    standardTokenGasCost: number
+    tokensPerNonzeroByte: number
 }
 
 const defaultOverHeads: GasOverheads = {
-    fixed: 21000,
-    perUserOp: 18300,
-    perUserOpWord: 4,
+    tokensPerNonzeroByte: 4,
+    fixedGasOverhead: 9830,
+    transactionGasStipend: 21000,
+    perUserOp: 7260,
+    standardTokenGasCost: 4,
     zeroByte: 4,
     nonZeroByte: 16,
     bundleSize: 1,
-    sigSize: 65
+    sigSize: 65,
+    eip7702AuthGas: 25000,
+    executeUserOpGasOverhead: 1610,
+    executeUserOpPerWordGasOverhead: 8.2,
+    perUserOpWordGasOverhead: 9.2,
+    expectedBundleSize: 1
 }
 
 export function fillAndPackUserOp(
@@ -156,21 +134,23 @@ export async function calcPreVerificationGas({
 
     // Add random gasFields during estimations
     if (!validate) {
-        simulationUserOp.callGasLimit = randomBigInt({ upper: 10_000_000n })
-        simulationUserOp.verificationGasLimit = randomBigInt({
-            upper: 10_000_000n
-        })
-        simulationUserOp.preVerificationGas = randomBigInt({
-            upper: 10_000_000n
-        })
+        simulationUserOp = {
+            ...simulationUserOp,
+            callGasLimit: randomBigInt({ upper: 10_000_000n }),
+            verificationGasLimit: randomBigInt({ upper: 10_000_000n }),
+            preVerificationGas: randomBigInt({ upper: 10_000_000n })
+        }
 
         if (isVersion07(simulationUserOp)) {
-            simulationUserOp.paymasterVerificationGasLimit = randomBigInt({
-                upper: 10_000_000n
-            })
-            simulationUserOp.paymasterPostOpGasLimit = randomBigInt({
-                upper: 10_000_000n
-            })
+            simulationUserOp = {
+                ...simulationUserOp,
+                paymasterVerificationGasLimit: randomBigInt({
+                    upper: 10_000_000n
+                }),
+                paymasterPostOpGasLimit: randomBigInt({
+                    upper: 10_000_000n
+                })
+            }
         }
     }
 
@@ -217,20 +197,20 @@ export async function calcPreVerificationGas({
     }
 }
 
-/**
- * calculate the preVerificationGas of the given UserOperation
- * preVerificationGas (by definition) is the cost overhead that can't be calculated on-chain.
- * it is based on parameters that are defined by the Ethereum protocol for external transactions.
- * @param userOp filled userOp to calculate. The only possible missing fields can be the signature and preVerificationGas itself
- * @param overheads gas overheads to use, to override the default values
- */
-function calcDefaultPreVerificationGas(userOperation: UserOperation): bigint {
-    const ov = { ...defaultOverHeads }
-    const p = fillAndPackUserOp(userOperation)
+// Calculate the preVerificationGas of the given UserOperation
+// preVerificationGas (by definition) is the cost overhead that can't be calculated on-chain.
+function calcDefaultPreVerificationGas(userOp: UserOperation): bigint {
+    const oh = { ...defaultOverHeads }
+    const p = fillAndPackUserOp(userOp)
+
+    let callDataOverhead = 0
+    let perUserOpOverhead = oh.perUserOp
+    if (userOp.eip7702Auth) {
+        perUserOpOverhead += oh.eip7702AuthGas
+    }
 
     let packed: Uint8Array
-
-    if (isVersion06(userOperation)) {
+    if (isVersion06(userOp)) {
         packed = toBytes(
             encodeAbiParameters(
                 [
@@ -280,23 +260,39 @@ function calcDefaultPreVerificationGas(userOperation: UserOperation): bigint {
         )
     }
 
-    const lengthInWord = (size(packed) + 31) / 32
-    const callDataCost = packed
-        .map((x) => (x === 0 ? ov.zeroByte : ov.nonZeroByte))
+    const tokenCount = packed
+        .map((x) => (x === 0 ? 1 : oh.tokensPerNonzeroByte))
         .reduce((sum, x) => sum + x)
+    const userOpWordsLength = (size(packed) + 31) / 32
 
-    const authorizationCost = userOperation.eip7702Auth
-        ? 37500 // overhead for PER_EMPTY_ACCOUNT_COST + PER_AUTH_BASE_COST
-        : 0
+    // If callData starts with executeUserOp method selector
+    if (slice(userOp.callData, 0, 4) === "0x8dd7712f") {
+        perUserOpOverhead +=
+            oh.executeUserOpGasOverhead +
+            oh.executeUserOpPerWordGasOverhead * userOpWordsLength
+    } else {
+        callDataOverhead =
+            Math.ceil(size(userOp.callData) / 32) * oh.perUserOpWordGasOverhead
+    }
 
-    const ret = Math.round(
-        authorizationCost +
-            callDataCost +
-            ov.fixed / ov.bundleSize +
-            ov.perUserOp +
-            ov.perUserOpWord * lengthInWord
-    )
-    return BigInt(ret)
+    const userOpSpecificOverhead = perUserOpOverhead + callDataOverhead
+    const userOpShareOfBundleCost = oh.fixedGasOverhead / oh.expectedBundleSize
+
+    const userOpShareOfStipend =
+        oh.transactionGasStipend / oh.expectedBundleSize
+
+    const usingEip7623 = false
+    if (usingEip7623) {
+        return BigInt(0) // Not using EIP-7623.
+    } else {
+        // Not using EIP-7623.
+        return BigInt(
+            oh.standardTokenGasCost * tokenCount +
+                userOpShareOfStipend +
+                userOpShareOfBundleCost +
+                userOpSpecificOverhead
+        )
+    }
 }
 
 // Returns back the bytes for the handleOps call
@@ -629,4 +625,3 @@ async function calcArbitrumPreVerificationGas(
 
     return staticFee + gasForL1
 }
-
