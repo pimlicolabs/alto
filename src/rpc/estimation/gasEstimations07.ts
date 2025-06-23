@@ -79,10 +79,52 @@ export class GasEstimatorV07 {
                         gas: this.config.fixedGasLimitForEstimation
                     }
                 )
-            return getSimulateHandleOpResult(result.result)
+            return {
+                result: "execution",
+                data: {
+                    executionResult: result.result
+                }
+            }
         } catch (error) {
             if (error instanceof ContractFunctionRevertedError) {
-                return getSimulateHandleOpResult(error)
+                // Try to decode the error data if available
+                if (error.data) {
+                    const errorName = error.name
+                    const args = error.data.args
+
+                    if (errorName === "FailedOp" && args) {
+                        return {
+                            result: "failed",
+                            data: args[1] as string,
+                            code: ValidationErrors.SimulateValidation
+                        } as const
+                    }
+
+                    if (errorName === "FailedOpWithRevert" && args) {
+                        return {
+                            result: "failed",
+                            data: `${args[1]} ${parseFailedOpWithRevert(
+                                args[2] as Hex
+                            )}`,
+                            code: ValidationErrors.SimulateValidation
+                        } as const
+                    }
+
+                    if (errorName === "CallPhaseReverted" && args) {
+                        return {
+                            result: "failed",
+                            data: args[0] as Hex,
+                            code: ValidationErrors.SimulateValidation
+                        } as const
+                    }
+                }
+
+                // Default error response
+                return {
+                    result: "failed",
+                    data: error.message || "Unknown error during simulation",
+                    code: ValidationErrors.SimulateValidation
+                }
             }
             throw error
         }
@@ -837,58 +879,4 @@ export function parseFailedOpWithRevert(data: Hex) {
     }
 
     return data
-}
-
-function getSimulateHandleOpResult(
-    data: SimulateHandleOpSuccessResult | ContractFunctionRevertedError
-): SimulateHandleOpResult {
-    // If data is already a successful result, return it wrapped in the expected format
-    if (!(data instanceof ContractFunctionRevertedError)) {
-        return {
-            result: "execution",
-            data: {
-                executionResult: data
-            }
-        }
-    }
-
-    // Handle ContractFunctionExecutionError
-    const error = data
-
-    // Try to decode the error data if available
-    if (error.data) {
-        const errorName = error.name
-        const args = error.data.args
-
-        if (errorName === "FailedOp" && args) {
-            return {
-                result: "failed",
-                data: args[1] as string,
-                code: ValidationErrors.SimulateValidation
-            } as const
-        }
-
-        if (errorName === "FailedOpWithRevert" && args) {
-            return {
-                result: "failed",
-                data: `${args[1]} ${parseFailedOpWithRevert(args[2] as Hex)}`,
-                code: ValidationErrors.SimulateValidation
-            } as const
-        }
-
-        if (errorName === "CallPhaseReverted" && args) {
-            return {
-                result: "failed",
-                data: args[0] as Hex,
-                code: ValidationErrors.SimulateValidation
-            } as const
-        }
-    }
-
-    // Default error response
-    return {
-        result: "failed",
-        data: error.message || "Unknown error during simulation",
-        code: ValidationErrors.SimulateValidation
-    }
 }
