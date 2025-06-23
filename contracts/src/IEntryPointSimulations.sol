@@ -83,16 +83,7 @@ interface IEntryPointSimulations {
     /*                   Safe Validator Methods                   */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    /**
-     * Successful result from simulateValidation.
-     * If the account returns a signature aggregator the "aggregatorInfo" struct is filled in as well.
-     * @param returnInfo     Gas and time-range returned values
-     * @param senderInfo     Stake information about the sender
-     * @param factoryInfo    Stake information about the factory (if any)
-     * @param paymasterInfo  Stake information about the paymaster (if any)
-     * @param aggregatorInfo Signature aggregation info (if the account requires signature aggregator)
-     *                       Bundler MUST use it to verify the signature, or reject the UserOperation.
-     */
+    // Successful result from simulateValidation.
     struct ValidationResult {
         IEntryPoint.ReturnInfo returnInfo;
         IEntryPoint.StakeInfo senderInfo;
