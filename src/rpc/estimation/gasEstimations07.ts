@@ -41,12 +41,6 @@ type SimulateHandleOpSuccessResult = {
     targetResult: Hex
 }
 
-type GasLimitResult = {
-    gasUsed: bigint
-    success: boolean
-    returnData: Hex
-}
-
 export class GasEstimatorV07 {
     private config: AltoConfig
     private logger: Logger
@@ -268,6 +262,97 @@ export class GasEstimatorV07 {
                 data: "Unknown error, could not parse target call data result.",
                 code: ExecutionErrors.UserOperationReverted
             } as const
+        }
+    }
+
+    private async simulateAndEstimateGasLimits(
+        pimlicoSimulationContract: GetContractReturnType<
+            typeof pimlicoSimulationsAbi,
+            PublicClient
+        >,
+        queuedUserOps: UserOperationV07[],
+        targetUserOp: UserOperationV07,
+        entryPoint: Address,
+        epSimulationsAddress: Address,
+        stateOverride: StateOverride
+    ): Promise<
+        | {
+              result: "success"
+              verificationGas: bigint
+              paymasterVerificationGas: bigint
+              executionResult: SimulateHandleOpSuccessResult
+          }
+        | {
+              result: "failed"
+              data: string
+              code: number
+          }
+    > {
+        const packedQueuedOps = packUserOps(queuedUserOps)
+        const packedTargetOp = toPackedUserOperation(targetUserOp)
+
+        try {
+            const { result } =
+                await pimlicoSimulationContract.simulate.simulateAndEstimateGasLimits(
+                    [
+                        packedQueuedOps,
+                        packedTargetOp,
+                        entryPoint,
+                        epSimulationsAddress,
+                        9_000n,
+                        this.config.binarySearchToleranceDelta,
+                        this.config.binarySearchGasAllowance
+                    ],
+                    {
+                        stateOverride,
+                        gas: this.config.fixedGasLimitForEstimation
+                    }
+                )
+
+            const {
+                verificationGasLimit,
+                paymasterVerificationGasLimit,
+                simulationResult
+            } = result
+
+            return {
+                result: "success",
+                verificationGas: verificationGasLimit.gasUsed,
+                paymasterVerificationGas: paymasterVerificationGasLimit.gasUsed,
+                executionResult: simulationResult
+            }
+        } catch (error) {
+            if (error instanceof Error) {
+                const errorName = error.name
+
+                if (errorName === "EstimateGasExecutionError") {
+                    return {
+                        result: "failed",
+                        data: "UserOperation execution reverted",
+                        code: ExecutionErrors.UserOperationReverted
+                    }
+                }
+
+                if (errorName === "EstimateGasUserOperationError") {
+                    return {
+                        result: "failed",
+                        data: error.message,
+                        code: ValidationErrors.SimulateValidation
+                    }
+                }
+
+                return {
+                    result: "failed",
+                    data: "Unknown error during gas estimation",
+                    code: ValidationErrors.SimulateValidation
+                }
+            }
+
+            return {
+                result: "failed",
+                data: "Unknown error in simulateAndEstimateGasLimits",
+                code: ValidationErrors.SimulateValidation
+            }
         }
     }
 
@@ -561,13 +646,10 @@ export class GasEstimatorV07 {
     }): Promise<SimulateHandleOpResult> {
         const {
             pimlicoSimulationContract: pimlicoSimulationAddress,
-            binarySearchToleranceDelta,
-            binarySearchGasAllowance,
             splitSimulationCalls,
             publicClient,
             entrypointSimulationContractV7,
-            entrypointSimulationContractV8,
-            fixedGasLimitForEstimation
+            entrypointSimulationContractV8
         } = this.config
 
         const is08 = isVersion08(userOp, entryPoint)
@@ -606,9 +688,6 @@ export class GasEstimatorV07 {
             userOperations: [...queuedUserOps, userOp],
             stateOverrides: userStateOverrides
         })
-
-        const packedQueuedOps = packUserOps(queuedUserOps)
-        const packedTargetOp = toPackedUserOperation(userOp)
 
         if (splitSimulationCalls) {
             const [sho, bsvgl, bspvgl, bscgl] = await Promise.all([
@@ -668,24 +747,14 @@ export class GasEstimatorV07 {
             }
         } else {
             const [saegl, focgl] = await Promise.all([
-                pimlicoSimulationContract.simulate
-                    .simulateAndEstimateGasLimits(
-                        [
-                            packedQueuedOps, // queuedUserOps
-                            packedTargetOp, // targetUserOp
-                            entryPoint, // entryPoint
-                            epSimulationsAddress, // entryPointSimulation
-                            9_000n, // initialMinGas
-                            binarySearchToleranceDelta, // toleranceDelta
-                            binarySearchGasAllowance // gasAllowance
-                        ],
-                        {
-                            stateOverride,
-                            gas: fixedGasLimitForEstimation
-                        }
-                    )
-                    .then((r) => r.result)
-                    .catch((e) => e),
+                this.simulateAndEstimateGasLimits(
+                    pimlicoSimulationContract,
+                    queuedUserOps,
+                    userOp,
+                    entryPoint,
+                    epSimulationsAddress,
+                    stateOverride
+                ),
                 this.binarySearchCallGasLimit(
                     epSimulationsContract,
                     queuedUserOps,
@@ -695,7 +764,29 @@ export class GasEstimatorV07 {
                 )
             ])
 
-            if ()
+            if (saegl.result === "failed") {
+                return saegl
+            }
+
+            if (focgl.result === "failed") {
+                return focgl
+            }
+
+            const {
+                verificationGas,
+                paymasterVerificationGas,
+                executionResult
+            } = saegl
+
+            return {
+                result: "execution",
+                data: {
+                    callGasLimit: focgl.data.gasUsed,
+                    verificationGasLimit: verificationGas,
+                    paymasterVerificationGasLimit: paymasterVerificationGas,
+                    executionResult: executionResult
+                }
+            }
         }
     }
 }
