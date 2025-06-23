@@ -24,7 +24,7 @@ import {
     type PublicClient
 } from "viem"
 import {
-    SimulateBinarySearchRetryResult,
+    SimulateBinarySearchResult,
     type SimulateHandleOpResult
 } from "./types"
 import type { AltoConfig } from "../../createConfig"
@@ -105,7 +105,7 @@ export class GasEstimatorV07 {
         retryCount = 0,
         initialMinGas = 9_000n,
         gasAllowance?: bigint
-    ): Promise<SimulateBinarySearchRetryResult> {
+    ): Promise<SimulateBinarySearchResult> {
         const packedQueuedOps = packUserOps(queuedUserOps)
         const packedTargetOp = toPackedUserOperation(targetUserOp)
 
@@ -194,7 +194,7 @@ export class GasEstimatorV07 {
         retryCount = 0,
         initialMinGas = 9_000n,
         gasAllowance?: bigint
-    ): Promise<SimulateBinarySearchRetryResult> {
+    ): Promise<SimulateBinarySearchResult> {
         const packedQueuedOps = packUserOps(queuedUserOps)
         const packedTargetOp = toPackedUserOperation(targetUserOp)
 
@@ -283,7 +283,7 @@ export class GasEstimatorV07 {
         retryCount = 0,
         initialMinGas = 9_000n,
         gasAllowance?: bigint
-    ): Promise<SimulateBinarySearchRetryResult> {
+    ): Promise<SimulateBinarySearchResult> {
         const packedQueuedOps = packUserOps(queuedUserOps)
         const packedTargetOp = toPackedUserOperation(targetUserOp)
 
@@ -610,13 +610,6 @@ export class GasEstimatorV07 {
         const packedQueuedOps = packUserOps(queuedUserOps)
         const packedTargetOp = toPackedUserOperation(userOp)
 
-        let simulateHandleOpResult:
-            | SimulateHandleOpSuccessResult
-            | ContractFunctionRevertedError
-        let verificationGasResult: GasLimitResult
-        let paymasterVerificationGasResult: GasLimitResult
-        let callGasLimitResult: GasLimitResult
-
         if (splitSimulationCalls) {
             const [sho, fovgl, fopvgl, focgl] = await Promise.all([
                 this.executeSimulateHandleOp(
@@ -648,9 +641,30 @@ export class GasEstimatorV07 {
                 )
             ])
 
-            // Handle the results
             if (sho.result === "failed") {
-                return sho as SimulateHandleOpResult<"failed">
+                return sho
+            }
+
+            if (fovgl.result === "failed") {
+                return fovgl
+            }
+
+            if (fopvgl.result === "failed") {
+                return fopvgl
+            }
+
+            if (focgl.result === "failed") {
+                return focgl
+            }
+
+            return {
+                result: "execution",
+                data: {
+                    callGasLimit: focgl.data.gasUsed,
+                    verificationGasLimit: fovgl.data.gasUsed,
+                    paymasterVerificationGasLimit: fopvgl.data.gasUsed,
+                    executionResult: sho.data.executionResult
+                }
             }
         } else {
             const [saegl, focgl] = await Promise.all([
@@ -689,11 +703,6 @@ export class GasEstimatorV07 {
                     )
                     .then((r) => r.result)
             ])
-
-            simulateHandleOpResult = saegl.simulationResult
-            verificationGasResult = saegl.verificationGasLimit
-            paymasterVerificationGasResult = saegl.paymasterVerificationGasLimit
-            callGasLimitResult = focgl
         }
     }
 }
