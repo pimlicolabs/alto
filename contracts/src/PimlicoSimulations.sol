@@ -65,16 +65,8 @@ contract PimlicoSimulations {
     /*                    Estimation Methods                      */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    /// @notice Simulates operation and estimates verification gas limits in a single call
-    /// @param queuedUserOps Operations to execute before the target operation
-    /// @param targetUserOp The target operation to simulate and estimate
-    /// @param entryPoint The entry point contract address
-    /// @param entryPointSimulation The entry point simulation contract address
-    /// @param initialMinGas The initial minimum gas for binary search
-    /// @param toleranceDelta The tolerance for binary search
-    /// @param gasAllowance The gas allowance for binary search
-    /// @return result Contains simulation result and gas estimates
-    function simulateAndEstimateVerificationGasLimits(
+    /// @notice Simulates userOp and estimates verification & paymaster gas limits
+    function simulateAndEstimateGasLimits(
         PackedUserOperation[] calldata queuedUserOps,
         PackedUserOperation calldata targetUserOp,
         address payable entryPoint,
@@ -84,10 +76,8 @@ contract PimlicoSimulations {
         uint256 gasAllowance
     ) external returns (VerificationGasLimitsResult memory result) {
         // Step 1: Simulate the operation to ensure it's valid
-        result.simulationResult = IEntryPointSimulations(entryPointSimulation).simulateHandleOp(
-            queuedUserOps,
-            targetUserOp
-        );
+        result.simulationResult =
+            IEntryPointSimulations(entryPointSimulation).simulateHandleOp(queuedUserOps, targetUserOp);
 
         // If simulation failed, return early with just the simulation result
         if (!result.simulationResult.targetSuccess) {
@@ -96,47 +86,16 @@ contract PimlicoSimulations {
 
         // Step 2: Find optimal verification gas limit
         result.verificationGasLimit = IEntryPointSimulations(entryPointSimulation).findOptimalVerificationGasLimit(
-            queuedUserOps,
-            targetUserOp,
-            entryPoint,
-            initialMinGas,
-            toleranceDelta,
-            gasAllowance
+            queuedUserOps, targetUserOp, entryPoint, initialMinGas, toleranceDelta, gasAllowance
         );
 
         // Step 3: If paymaster is present, find optimal paymaster verification gas limit
         if (targetUserOp.paymasterAndData.length >= 20) {
             result.paymasterVerificationGasLimit = IEntryPointSimulations(entryPointSimulation)
                 .findOptimalPaymasterVerificationGasLimit(
-                queuedUserOps,
-                targetUserOp,
-                entryPoint,
-                initialMinGas,
-                toleranceDelta,
-                gasAllowance
+                queuedUserOps, targetUserOp, entryPoint, initialMinGas, toleranceDelta, gasAllowance
             );
         }
-    }
-
-    function simulateEntryPoint(address entryPointSimulation, address payable entryPoint, bytes[] memory data)
-        public
-        returns (bytes[] memory)
-    {
-        uint256 REVERT_REASON_MAX_LEN = type(uint256).max;
-        bytes[] memory returnDataArray = new bytes[](data.length);
-
-        for (uint256 i = 0; i < data.length; i++) {
-            bytes memory returnData;
-            bytes memory callData =
-                abi.encodeWithSelector(IEntryPoint07.delegateAndRevert.selector, entryPointSimulation, data[i]);
-            bool success = Exec.call(entryPoint, 0, callData, gasleft());
-            if (!success) {
-                returnData = Exec.getReturnData(REVERT_REASON_MAX_LEN);
-            }
-            returnDataArray[i] = returnData;
-        }
-
-        return returnDataArray;
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/

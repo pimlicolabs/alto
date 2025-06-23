@@ -41,7 +41,7 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
      */
     constructor() {}
 
-    /// @inheritdoc IEntryPointSimulations
+    /// @notice simulate and validates a single userOperation (taken from EntryPoint simulation example)
     function simulateValidation(PackedUserOperation calldata userOp) public returns (ValidationResult memory) {
         UserOpInfo memory outOpInfo;
 
@@ -355,7 +355,7 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
         );
     }
 
-    /// @inheritdoc IEntryPointSimulations
+    /// @notice simulates a single userOperation (taken from EntryPoint simulation example)
     function simulateHandleOp(PackedUserOperation calldata op, address target, bytes memory targetCallData)
         public
         nonReentrant

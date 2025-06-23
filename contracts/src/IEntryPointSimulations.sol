@@ -58,10 +58,6 @@ interface IEntryPointSimulations {
         bytes targetResult;
     }
 
-    function simulateHandleOp(PackedUserOperation calldata op, address target, bytes memory targetCallData)
-        external
-        returns (ExecutionResult memory);
-
     function simulateHandleOp(PackedUserOperation[] calldata queuedUserOps, PackedUserOperation calldata targetUserOp)
         external
         returns (ExecutionResult memory);
@@ -87,8 +83,6 @@ interface IEntryPointSimulations {
         IEntryPoint.StakeInfo paymasterInfo;
         IEntryPoint.AggregatorStakeInfo aggregatorInfo;
     }
-
-    function simulateValidation(PackedUserOperation calldata userOp) external returns (ValidationResult memory);
 
     function simulateValidation(PackedUserOperation[] calldata queuedUserOps, PackedUserOperation calldata targetUserOp)
         external
