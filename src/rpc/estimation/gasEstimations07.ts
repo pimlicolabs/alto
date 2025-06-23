@@ -58,6 +58,102 @@ export class GasEstimatorV07 {
         )
     }
 
+    private async performBinarySearch(
+        epSimulationsContract: GetContractReturnType<
+            typeof entryPointSimulations07Abi,
+            PublicClient
+        >,
+        searchType: "verification" | "paymasterVerification" | "call",
+        queuedUserOps: UserOperationV07[],
+        targetUserOp: UserOperationV07,
+        entryPoint: Address,
+        stateOverride: StateOverride,
+        retryCount = 0,
+        initialMinGas = 9_000n,
+        gasAllowance?: bigint
+    ): Promise<SimulateBinarySearchResult> {
+        // Check if we've hit the retry limit
+        if (retryCount > this.config.binarySearchMaxRetries) {
+            return {
+                result: "failed",
+                data: `Max retries reached for ${searchType} gas limit search`,
+                code: ValidationErrors.SimulateValidation
+            } as const
+        }
+
+        const packedQueuedOps = packUserOps(queuedUserOps)
+        const packedTargetOp = toPackedUserOperation(targetUserOp)
+
+        try {
+            // Call the appropriate method based on search type
+            const methodMap = {
+                verification: "findOptimalVerificationGasLimit",
+                paymasterVerification:
+                    "findOptimalPaymasterVerificationGasLimit",
+                call: "findOptimalCallGasLimit"
+            } as const
+
+            const method = methodMap[searchType]
+            const { result } = await epSimulationsContract.simulate[method](
+                [
+                    packedQueuedOps,
+                    packedTargetOp,
+                    entryPoint,
+                    initialMinGas,
+                    this.config.binarySearchToleranceDelta,
+                    gasAllowance ?? this.config.binarySearchGasAllowance
+                ],
+                {
+                    stateOverride,
+                    gas: this.config.fixedGasLimitForEstimation
+                }
+            )
+
+            // Check if simulation ran out of gas
+            if (result.resultType === BinarySearchResultType.OutOfGas) {
+                const { optimalGas, minGas } = result.outOfGasData
+                const newGasAllowance = optimalGas - minGas
+
+                return await this.performBinarySearch(
+                    epSimulationsContract,
+                    searchType,
+                    queuedUserOps,
+                    targetUserOp,
+                    entryPoint,
+                    stateOverride,
+                    retryCount + 1,
+                    minGas,
+                    newGasAllowance
+                )
+            }
+
+            // Check for successful result
+            if (result.resultType === BinarySearchResultType.Success) {
+                const successData = result.successData
+                return {
+                    result: "success",
+                    data: {
+                        gasUsed: successData.gasUsed,
+                        success: successData.success,
+                        returnData: successData.returnData
+                    }
+                } as const
+            }
+
+            return {
+                result: "failed",
+                data: result.successData.returnData,
+                code: ExecutionErrors.UserOperationReverted
+            }
+        } catch (error) {
+            return {
+                result: "failed",
+                data: "Unknown error, could not parse target call data result.",
+                code: ExecutionErrors.UserOperationReverted
+            } as const
+        }
+    }
+
     private async executeSimulateHandleOp(
         epSimulationsContract: GetContractReturnType<
             typeof entryPointSimulations07Abi,
@@ -88,11 +184,11 @@ export class GasEstimatorV07 {
         } catch (error) {
             if (error instanceof ContractFunctionRevertedError) {
                 // Try to decode the error data if available
-                if (error.data) {
+                if (error.data && error.data.args) {
                     const errorName = error.name
                     const args = error.data.args
 
-                    if (errorName === "FailedOp" && args) {
+                    if (errorName === "FailedOp") {
                         return {
                             result: "failed",
                             data: args[1] as string,
@@ -100,7 +196,7 @@ export class GasEstimatorV07 {
                         } as const
                     }
 
-                    if (errorName === "FailedOpWithRevert" && args) {
+                    if (errorName === "FailedOpWithRevert") {
                         return {
                             result: "failed",
                             data: `${args[1]} ${parseFailedOpWithRevert(
@@ -110,7 +206,7 @@ export class GasEstimatorV07 {
                         } as const
                     }
 
-                    if (errorName === "CallPhaseReverted" && args) {
+                    if (errorName === "CallPhaseReverted") {
                         return {
                             result: "failed",
                             data: args[0] as Hex,
@@ -127,182 +223,6 @@ export class GasEstimatorV07 {
                 }
             }
             throw error
-        }
-    }
-
-    private async binarySearchVerificationGasLimit(
-        epSimulationsContract: GetContractReturnType<
-            typeof entryPointSimulations07Abi,
-            PublicClient
-        >,
-        queuedUserOps: UserOperationV07[],
-        targetUserOp: UserOperationV07,
-        entryPoint: Address,
-        stateOverride: StateOverride,
-        retryCount = 0,
-        initialMinGas = 9_000n,
-        gasAllowance?: bigint
-    ): Promise<SimulateBinarySearchResult> {
-        const packedQueuedOps = packUserOps(queuedUserOps)
-        const packedTargetOp = toPackedUserOperation(targetUserOp)
-
-        try {
-            const { result } =
-                await epSimulationsContract.simulate.findOptimalVerificationGasLimit(
-                    [
-                        packedQueuedOps,
-                        packedTargetOp,
-                        entryPoint,
-                        initialMinGas,
-                        this.config.binarySearchToleranceDelta,
-                        gasAllowance ?? this.config.binarySearchGasAllowance
-                    ],
-                    {
-                        stateOverride,
-                        gas: this.config.fixedGasLimitForEstimation
-                    }
-                )
-
-            // Check if simulation ran out of gas
-            if (result.resultType === BinarySearchResultType.OutOfGas) {
-                // Check if we've hit the retry limit
-                if (retryCount >= this.config.binarySearchMaxRetries) {
-                    return {
-                        result: "failed",
-                        data: "Max retries reached for verification gas limit search",
-                        code: ValidationErrors.SimulateValidation
-                    } as const
-                }
-
-                // Recursively call itself with new gas limits
-                const newGasAllowance =
-                    result.outOfGasData.optimalGas - result.outOfGasData.minGas
-                return this.binarySearchVerificationGasLimit(
-                    epSimulationsContract,
-                    queuedUserOps,
-                    targetUserOp,
-                    entryPoint,
-                    stateOverride,
-                    retryCount + 1,
-                    result.outOfGasData.minGas,
-                    newGasAllowance
-                )
-            }
-
-            // Check for successful result
-            if (
-                result.resultType === BinarySearchResultType.Success &&
-                result.successData.success
-            ) {
-                return {
-                    result: "success",
-                    data: {
-                        gasUsed: result.successData.gasUsed,
-                        success: result.successData.success,
-                        returnData: result.successData.returnData
-                    }
-                } as const
-            }
-
-            return {
-                result: "failed",
-                data: result.successData.returnData,
-                code: ExecutionErrors.UserOperationReverted
-            }
-        } catch (error) {
-            return {
-                result: "failed",
-                data: "Unknown error, could not parse target call data result.",
-                code: ExecutionErrors.UserOperationReverted
-            } as const
-        }
-    }
-
-    private async binarySearchPaymasterVerificationGasLimit(
-        epSimulationsContract: GetContractReturnType<
-            typeof entryPointSimulations07Abi,
-            PublicClient
-        >,
-        queuedUserOps: UserOperationV07[],
-        targetUserOp: UserOperationV07,
-        entryPoint: Address,
-        stateOverride: StateOverride,
-        retryCount = 0,
-        initialMinGas = 9_000n,
-        gasAllowance?: bigint
-    ): Promise<SimulateBinarySearchResult> {
-        const packedQueuedOps = packUserOps(queuedUserOps)
-        const packedTargetOp = toPackedUserOperation(targetUserOp)
-
-        try {
-            const { result } =
-                await epSimulationsContract.simulate.findOptimalPaymasterVerificationGasLimit(
-                    [
-                        packedQueuedOps,
-                        packedTargetOp,
-                        entryPoint,
-                        initialMinGas,
-                        this.config.binarySearchToleranceDelta,
-                        gasAllowance ?? this.config.binarySearchGasAllowance
-                    ],
-                    {
-                        stateOverride,
-                        gas: this.config.fixedGasLimitForEstimation
-                    }
-                )
-
-            // Check if simulation ran out of gas
-            if (result.resultType === BinarySearchResultType.OutOfGas) {
-                // Check if we've hit the retry limit
-                if (retryCount >= this.config.binarySearchMaxRetries) {
-                    return {
-                        result: "failed",
-                        data: "Max retries reached for paymaster verification gas limit search",
-                        code: ValidationErrors.SimulateValidation
-                    } as const
-                }
-
-                // Recursively call itself with new gas limits
-                const newGasAllowance =
-                    result.outOfGasData.optimalGas - result.outOfGasData.minGas
-                return this.binarySearchPaymasterVerificationGasLimit(
-                    epSimulationsContract,
-                    queuedUserOps,
-                    targetUserOp,
-                    entryPoint,
-                    stateOverride,
-                    retryCount + 1,
-                    result.outOfGasData.minGas,
-                    newGasAllowance
-                )
-            }
-
-            // Check for successful result
-            if (
-                result.resultType === BinarySearchResultType.Success &&
-                result.successData.success
-            ) {
-                return {
-                    result: "success",
-                    data: {
-                        gasUsed: result.successData.gasUsed,
-                        success: result.successData.success,
-                        returnData: result.successData.returnData
-                    }
-                } as const
-            }
-
-            return {
-                result: "failed",
-                data: result.successData.returnData,
-                code: ExecutionErrors.UserOperationReverted
-            }
-        } catch (error) {
-            return {
-                result: "failed",
-                data: "Unknown error, could not parse target call data result.",
-                code: ExecutionErrors.UserOperationReverted
-            } as const
         }
     }
 
@@ -394,94 +314,6 @@ export class GasEstimatorV07 {
                 data: "Unknown error in simulateAndEstimateGasLimits",
                 code: ValidationErrors.SimulateValidation
             }
-        }
-    }
-
-    private async binarySearchCallGasLimit(
-        epSimulationsContract: GetContractReturnType<
-            typeof entryPointSimulations07Abi,
-            PublicClient
-        >,
-        queuedUserOps: UserOperationV07[],
-        targetUserOp: UserOperationV07,
-        entryPoint: Address,
-        stateOverride: StateOverride,
-        retryCount = 0,
-        initialMinGas = 9_000n,
-        gasAllowance?: bigint
-    ): Promise<SimulateBinarySearchResult> {
-        const packedQueuedOps = packUserOps(queuedUserOps)
-        const packedTargetOp = toPackedUserOperation(targetUserOp)
-
-        try {
-            const { result } =
-                await epSimulationsContract.simulate.findOptimalCallGasLimit(
-                    [
-                        packedQueuedOps,
-                        packedTargetOp,
-                        entryPoint,
-                        initialMinGas,
-                        this.config.binarySearchToleranceDelta,
-                        gasAllowance ?? this.config.binarySearchGasAllowance
-                    ],
-                    {
-                        stateOverride,
-                        gas: this.config.fixedGasLimitForEstimation
-                    }
-                )
-
-            // Check if simulation ran out of gas
-            if (result.resultType === BinarySearchResultType.OutOfGas) {
-                // Check if we've hit the retry limit
-                if (retryCount >= this.config.binarySearchMaxRetries) {
-                    return {
-                        result: "failed",
-                        data: "Max retries reached for call gas limit search",
-                        code: ValidationErrors.SimulateValidation
-                    }
-                }
-
-                // Recursively call itself with new gas limits
-                const newGasAllowance =
-                    result.outOfGasData.optimalGas - result.outOfGasData.minGas
-                return this.binarySearchCallGasLimit(
-                    epSimulationsContract,
-                    queuedUserOps,
-                    targetUserOp,
-                    entryPoint,
-                    stateOverride,
-                    retryCount + 1,
-                    result.outOfGasData.minGas,
-                    newGasAllowance
-                )
-            }
-
-            // Check for successful result
-            if (
-                result.resultType === BinarySearchResultType.Success &&
-                result.successData.success
-            ) {
-                return {
-                    result: "success",
-                    data: {
-                        gasUsed: result.successData.gasUsed,
-                        success: result.successData.success,
-                        returnData: result.successData.returnData
-                    }
-                } as const
-            }
-
-            return {
-                result: "failed",
-                data: result.successData.returnData,
-                code: ExecutionErrors.UserOperationReverted
-            }
-        } catch (error) {
-            return {
-                result: "failed",
-                data: "Unknown error, could not parse target call data result.",
-                code: ExecutionErrors.UserOperationReverted
-            } as const
         }
     }
 
@@ -737,22 +569,25 @@ export class GasEstimatorV07 {
                     userOp,
                     stateOverride
                 ),
-                this.binarySearchVerificationGasLimit(
+                this.performBinarySearch(
                     epSimulationsContract,
+                    "verification",
                     queuedUserOps,
                     userOp,
                     entryPoint,
                     stateOverride
                 ),
-                this.binarySearchPaymasterVerificationGasLimit(
+                this.performBinarySearch(
                     epSimulationsContract,
+                    "paymasterVerification",
                     queuedUserOps,
                     userOp,
                     entryPoint,
                     stateOverride
                 ),
-                this.binarySearchCallGasLimit(
+                this.performBinarySearch(
                     epSimulationsContract,
+                    "call",
                     queuedUserOps,
                     userOp,
                     entryPoint,
@@ -795,8 +630,9 @@ export class GasEstimatorV07 {
                     epSimulationsAddress,
                     stateOverride
                 ),
-                this.binarySearchCallGasLimit(
+                this.performBinarySearch(
                     epSimulationsContract,
+                    "call",
                     queuedUserOps,
                     userOp,
                     entryPoint,
