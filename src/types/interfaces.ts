@@ -11,21 +11,21 @@ import type * as validation from "./validation"
 
 export interface InterfaceValidator {
     validateHandleOp(args: {
-        userOp: UserOperation
+        userOperation: UserOperation
         entryPoint: Address
-        queuedUserOps: UserOperation[]
+        queuedUserOperations: UserOperation[]
         stateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult>
 
     getExecutionResult(args: {
-        userOp: UserOperation
+        userOperation: UserOperation
         entryPoint: Address
-        queuedUserOps: UserOperation[]
+        queuedUserOperations: UserOperation[]
         stateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult>
 
     getValidationResultV06(args: {
-        userOp: UserOperationV06
+        userOperation: UserOperationV06
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
     }): Promise<
@@ -39,8 +39,8 @@ export interface InterfaceValidator {
     >
 
     getValidationResultV07(args: {
-        userOp: UserOperationV07
-        queuedUserOps: UserOperation[]
+        userOperation: UserOperationV07
+        queuedUserOperations: UserOperation[]
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
     }): Promise<
@@ -54,8 +54,8 @@ export interface InterfaceValidator {
     >
 
     getValidationResult(args: {
-        userOp: UserOperation
-        queuedUserOps: UserOperation[]
+        userOperation: UserOperation
+        queuedUserOperations: UserOperation[]
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
     }): Promise<
@@ -69,8 +69,8 @@ export interface InterfaceValidator {
     >
 
     validateUserOperation(args: {
-        userOp: UserOperation
-        queuedUserOps: UserOperation[]
+        userOperation: UserOperation
+        queuedUserOperations: UserOperation[]
         entryPoint: Address
         referencedContracts?: ReferencedCodeHashes
     }): Promise<

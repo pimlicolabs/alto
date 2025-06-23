@@ -149,19 +149,19 @@ export class UnsafeValidator implements InterfaceValidator {
     }
 
     async validateHandleOp({
-        userOp,
+        userOperation,
         entryPoint,
-        queuedUserOps,
+        queuedUserOperations,
         stateOverrides
     }: {
-        userOp: UserOperation
+        userOperation: UserOperation
         entryPoint: Address
-        queuedUserOps: UserOperation[]
+        queuedUserOperations: UserOperation[]
         stateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult> {
         const error = await this.gasEstimationHandler.validateHandleOp({
-            userOperation: userOp,
-            queuedUserOperations: queuedUserOps,
+            userOperation,
+            queuedUserOperations,
             entryPoint,
             targetAddress: zeroAddress,
             targetCallData: "0x",
@@ -185,19 +185,19 @@ export class UnsafeValidator implements InterfaceValidator {
     }
 
     async getExecutionResult({
-        userOp,
+        userOperation,
         entryPoint,
-        queuedUserOps,
+        queuedUserOperations,
         stateOverrides
     }: {
-        userOp: UserOperation
+        userOperation: UserOperation
         entryPoint: Address
-        queuedUserOps: UserOperation[]
+        queuedUserOperations: UserOperation[]
         stateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult> {
         const error = await this.gasEstimationHandler.simulateHandleOp({
-            userOperation: userOp,
-            queuedUserOperations: queuedUserOps,
+            userOperation,
+            queuedUserOperations,
             entryPoint,
             targetAddress: zeroAddress,
             targetCallData: "0x",
@@ -228,10 +228,10 @@ export class UnsafeValidator implements InterfaceValidator {
     }
 
     async getValidationResultV06({
-        userOp,
+        userOperation,
         entryPoint
     }: {
-        userOp: UserOperationV06
+        userOperation: UserOperationV06
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
     }): Promise<
@@ -249,13 +249,13 @@ export class UnsafeValidator implements InterfaceValidator {
         })
 
         let eip7702Override: StateOverride | undefined
-        if (userOp.eip7702Auth) {
-            eip7702Override = getEip7702DelegationOverrides([userOp])
+        if (userOperation.eip7702Auth) {
+            eip7702Override = getEip7702DelegationOverrides([userOperation])
         }
 
         const simulateValidationPromise = entryPointContract.simulate
             .simulateValidation(
-                [userOp],
+                [userOperation],
                 eip7702Override ? { stateOverride: eip7702Override } : {}
             )
             .catch((e) => {
@@ -268,7 +268,7 @@ export class UnsafeValidator implements InterfaceValidator {
         const runtimeValidationPromise =
             this.gasEstimationHandler.gasEstimatorV06.simulateHandleOpV06({
                 entryPoint,
-                userOperation: userOp,
+                userOperation,
                 useCodeOverride: false, // disable code override so that call phase reverts aren't caught
                 targetAddress: zeroAddress,
                 targetCallData: "0x"
@@ -280,7 +280,7 @@ export class UnsafeValidator implements InterfaceValidator {
 
         const validationResult = {
             ...((await this.getSimulationResult(
-                isVersion06(userOp),
+                isVersion06(userOperation),
                 simulateValidationResult,
                 this.logger,
                 "validation"
@@ -405,12 +405,12 @@ export class UnsafeValidator implements InterfaceValidator {
     }
 
     async getValidationResultV07({
-        userOp,
-        queuedUserOps,
+        userOperation,
+        queuedUserOperations,
         entryPoint
     }: {
-        userOp: UserOperationV07
-        queuedUserOps: UserOperationV07[]
+        userOperation: UserOperationV07
+        queuedUserOperations: UserOperationV07[]
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
     }): Promise<
@@ -422,8 +422,8 @@ export class UnsafeValidator implements InterfaceValidator {
         const simulateValidationResult =
             await this.gasEstimationHandler.gasEstimatorV07.simulateValidation({
                 entryPoint,
-                userOp,
-                queuedUserOps
+                userOp: userOperation,
+                queuedUserOps: queuedUserOperations
             })
 
         if (simulateValidationResult.status === "failed") {
@@ -453,20 +453,20 @@ export class UnsafeValidator implements InterfaceValidator {
             },
             senderInfo: {
                 ...validationResult.senderInfo,
-                addr: userOp.sender
+                addr: userOperation.sender
             },
             factoryInfo:
-                userOp.factory && validationResult.factoryInfo
+                userOperation.factory && validationResult.factoryInfo
                     ? {
                           ...validationResult.factoryInfo,
-                          addr: userOp.factory
+                          addr: userOperation.factory
                       }
                     : undefined,
             paymasterInfo:
-                userOp.paymaster && validationResult.paymasterInfo
+                userOperation.paymaster && validationResult.paymasterInfo
                     ? {
                           ...validationResult.paymasterInfo,
-                          addr: userOp.paymaster
+                          addr: userOperation.paymaster
                       }
                     : undefined,
             aggregatorInfo: validationResult.aggregatorInfo,
@@ -513,13 +513,13 @@ export class UnsafeValidator implements InterfaceValidator {
     }
 
     getValidationResult({
-        userOp,
-        queuedUserOps,
+        userOperation,
+        queuedUserOperations,
         entryPoint,
         codeHashes
     }: {
-        userOp: UserOperation
-        queuedUserOps: UserOperation[]
+        userOperation: UserOperation
+        queuedUserOperations: UserOperation[]
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
     }): Promise<
@@ -528,27 +528,27 @@ export class UnsafeValidator implements InterfaceValidator {
             referencedContracts?: ReferencedCodeHashes
         }
     > {
-        if (isVersion06(userOp)) {
+        if (isVersion06(userOperation)) {
             return this.getValidationResultV06({
-                userOp,
+                userOperation,
                 entryPoint,
                 codeHashes
             })
         }
         return this.getValidationResultV07({
-            userOp: userOp,
-            queuedUserOps: queuedUserOps as UserOperationV07[],
+            userOperation,
+            queuedUserOperations: queuedUserOperations as UserOperationV07[],
             entryPoint
         })
     }
 
     async validateUserOperation({
-        userOp,
-        queuedUserOps,
+        userOperation,
+        queuedUserOperations,
         entryPoint
     }: {
-        userOp: UserOperation
-        queuedUserOps: UserOperation[]
+        userOperation: UserOperation
+        queuedUserOperations: UserOperation[]
         entryPoint: Address
         _referencedContracts?: ReferencedCodeHashes
     }): Promise<
@@ -559,8 +559,8 @@ export class UnsafeValidator implements InterfaceValidator {
     > {
         try {
             const validationResult = await this.getValidationResult({
-                userOp,
-                queuedUserOps,
+                userOperation,
+                queuedUserOperations,
                 entryPoint
             })
 

@@ -78,13 +78,13 @@ export class SafeValidator
     }
 
     async validateUserOperation({
-        userOp,
-        queuedUserOps,
+        userOperation,
+        queuedUserOperations,
         entryPoint,
         referencedContracts
     }: {
-        userOp: UserOperation
-        queuedUserOps: UserOperation[]
+        userOperation: UserOperation
+        queuedUserOperations: UserOperation[]
         entryPoint: Address
         referencedContracts?: ReferencedCodeHashes
     }): Promise<
@@ -95,8 +95,8 @@ export class SafeValidator
     > {
         try {
             const validationResult = await this.getValidationResult({
-                userOp,
-                queuedUserOps,
+                userOperation,
+                queuedUserOperations,
                 entryPoint,
                 codeHashes: referencedContracts
             })
@@ -141,13 +141,13 @@ export class SafeValidator
     }
 
     async getValidationResultV07({
-        userOp,
-        queuedUserOps,
+        userOperation,
+        queuedUserOperations,
         entryPoint,
         codeHashes
     }: {
-        userOp: UserOperationV07
-        queuedUserOps: UserOperation[]
+        userOperation: UserOperationV07
+        queuedUserOperations: UserOperation[]
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
     }): Promise<
@@ -167,13 +167,13 @@ export class SafeValidator
         }
 
         const [res, tracerResult] = await this.getValidationResultWithTracerV07(
-            userOp,
-            queuedUserOps as UserOperationV07[],
+            userOperation,
+            queuedUserOperations as UserOperationV07[],
             entryPoint
         )
 
         const [contractAddresses, storageMap] = tracerResultParserV07(
-            userOp,
+            userOperation,
             tracerResult,
             res,
             entryPoint.toLowerCase() as Address
@@ -211,11 +211,11 @@ export class SafeValidator
     }
 
     async getValidationResultV06({
-        userOp,
+        userOperation,
         entryPoint,
         codeHashes
     }: {
-        userOp: UserOperationV06
+        userOperation: UserOperationV06
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
     }): Promise<
@@ -235,12 +235,12 @@ export class SafeValidator
         }
 
         const [res, tracerResult] = await this.getValidationResultWithTracerV06(
-            userOp,
+            userOperation,
             entryPoint
         )
 
         const [contractAddresses, storageMap] = tracerResultParserV06(
-            userOp,
+            userOperation,
             tracerResult,
             res,
             entryPoint.toLowerCase() as Address
