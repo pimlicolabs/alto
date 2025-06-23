@@ -11,7 +11,6 @@ import {
     estimateUserOperationGasSchema
 } from "@alto/types"
 import { RpcHandler } from "../rpcHandler"
-import { SimulateHandleOpResult } from "../estimation/types"
 import { parseEther, toHex } from "viem"
 
 type GasEstimateResult =
@@ -194,7 +193,7 @@ const getGasEstimates = async ({
 
         const userOperationPaymasterPostOpGasLimit =
             "paymasterPostOpGasLimit" in userOperation
-                ? (userOperation.paymasterPostOpGasLimit ?? 1n)
+                ? userOperation.paymasterPostOpGasLimit ?? 1n
                 : 1n
 
         paymasterPostOpGasLimit = maxBigInt(
