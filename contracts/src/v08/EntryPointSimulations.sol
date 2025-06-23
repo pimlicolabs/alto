@@ -83,14 +83,14 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
     /// @param userOpHash The hash of the user operation (for executeUserOp calls)
     /// @return target The target address (sender)
     /// @return targetCallData The encoded call data
-    function _encodeTargetCallData(PackedUserOperation calldata userOp, bytes32 userOpHash) 
-        internal 
-        pure 
-        returns (address target, bytes memory targetCallData) 
+    function _encodeTargetCallData(PackedUserOperation calldata userOp, bytes32 userOpHash)
+        internal
+        pure
+        returns (address target, bytes memory targetCallData)
     {
         target = userOp.sender;
         bytes calldata callData = userOp.callData;
-        
+
         // Encode userOperation calldata
         bytes4 methodSig;
         assembly ("memory-safe") {
