@@ -11,14 +11,17 @@ import {
     type Address,
     decodeErrorResult,
     encodeFunctionData,
-    toHex,
     RpcRequestError
 } from "viem"
 import { z } from "zod"
 import type { SimulateHandleOpResult } from "./types"
 import type { AltoConfig } from "../../createConfig"
-import { parseFailedOpWithRevert } from "./gasEstimationsV07"
-import { deepHexlify, getAuthorizationStateOverrides } from "@alto/utils"
+import { parseFailedOpWithRevert } from "./gasEstimations07"
+import {
+    deepHexlify,
+    getAuthorizationStateOverrides,
+    type Logger
+} from "@alto/utils"
 import entryPointOverride from "../../contracts/EntryPointGasEstimationOverride.sol/EntryPointGasEstimationOverride06.json" with {
     type: "json"
 }
@@ -26,9 +29,18 @@ import { getSenderCreatorOverride } from "../../utils/entryPointOverrides"
 
 export class GasEstimatorV06 {
     private config: AltoConfig
+    private logger: Logger
 
     constructor(config: AltoConfig) {
         this.config = config
+        this.logger = config.getLogger(
+            {
+                module: "gas-estimator-v06"
+            },
+            {
+                level: config.logLevel
+            }
+        )
     }
 
     decodeSimulateHandleOpResult(data: Hex): SimulateHandleOpResult {
@@ -52,7 +64,8 @@ export class GasEstimatorV06 {
         ) {
             return {
                 result: "failed",
-                data: decodedError.args[1] as string
+                data: decodedError.args[1] as string,
+                code: ValidationErrors.SimulateValidation
             } as const
         }
 
@@ -64,7 +77,8 @@ export class GasEstimatorV06 {
         ) {
             return {
                 result: "failed",
-                data: decodedError.args[0]
+                data: decodedError.args[0],
+                code: ValidationErrors.SimulateValidation
             } as const
         }
 
@@ -78,7 +92,8 @@ export class GasEstimatorV06 {
                 result: "failed",
                 data: `${decodedError.args?.[1]} ${parseFailedOpWithRevert(
                     decodedError.args?.[2] as Hex
-                )}`
+                )}`,
+                code: ValidationErrors.SimulateValidation
             } as const
         }
 
@@ -89,7 +104,8 @@ export class GasEstimatorV06 {
         ) {
             return {
                 result: "failed",
-                data: decodedError.args[0]
+                data: decodedError.args[0],
+                code: ValidationErrors.SimulateValidation
             } as const
         }
 
@@ -117,70 +133,62 @@ export class GasEstimatorV06 {
         targetCallData,
         entryPoint,
         useCodeOverride = true,
-        stateOverrides = undefined
+        userStateOverrides = undefined
     }: {
         userOperation: UserOperationV06
         targetAddress: Address
         targetCallData: Hex
         entryPoint: Address
         useCodeOverride?: boolean
-        stateOverrides?: StateOverrides | undefined
+        userStateOverrides?: StateOverrides | undefined
     }): Promise<SimulateHandleOpResult> {
-        const publicClient = this.config.publicClient
-        const blockTagSupport = this.config.blockTagSupport
-        const utilityWalletAddress = this.config.utilityWalletAddress
-        const fixedGasLimitForEstimation =
-            this.config.fixedGasLimitForEstimation
+        const {
+            publicClient,
+            //blockTagSupport,
+            utilityWalletAddress,
+            fixedGasLimitForEstimation,
+            balanceOverride,
+            codeOverrideSupport
+        } = this.config
 
-        if (this.config.codeOverrideSupport && useCodeOverride) {
-            if (stateOverrides === undefined) {
-                stateOverrides = {}
+        if (codeOverrideSupport && useCodeOverride) {
+            if (userStateOverrides === undefined) {
+                userStateOverrides = {}
             }
 
             const senderCreatorOverride = getSenderCreatorOverride(entryPoint)
 
-            stateOverrides[entryPoint] = {
-                ...deepHexlify(stateOverrides?.[entryPoint] || {}),
+            userStateOverrides[entryPoint] = {
+                ...deepHexlify(userStateOverrides?.[entryPoint] || {}),
                 stateDiff: {
-                    ...(stateOverrides[entryPoint]?.stateDiff || {}),
+                    ...(userStateOverrides[entryPoint]?.stateDiff || {}),
                     [senderCreatorOverride.slot]: senderCreatorOverride.value
                 },
                 code: entryPointOverride.deployedBytecode.object as Hex
             }
         }
 
-        stateOverrides = getAuthorizationStateOverrides({
+        const stateOverride = getAuthorizationStateOverrides({
             userOperations: [userOperation],
-            stateOverrides
+            stateOverrides: userStateOverrides
         })
 
         // Remove state override if not supported by network.
-        if (!this.config.balanceOverride && !this.config.codeOverrideSupport) {
-            stateOverrides = undefined
+        if (!balanceOverride && !codeOverrideSupport) {
+            userStateOverrides = undefined
         }
 
         try {
-            await publicClient.request({
-                method: "eth_call",
-                params: [
-                    {
-                        to: entryPoint,
-                        from: utilityWalletAddress,
-                        data: encodeFunctionData({
-                            abi: EntryPointV06Abi,
-                            functionName: "simulateHandleOp",
-                            args: [userOperation, targetAddress, targetCallData]
-                        }),
-                        ...(fixedGasLimitForEstimation !== undefined && {
-                            gas: `0x${fixedGasLimitForEstimation.toString(16)}`
-                        })
-                    },
-                    blockTagSupport
-                        ? "latest"
-                        : toHex(await publicClient.getBlockNumber()),
-                    // @ts-ignore
-                    ...(stateOverrides ? [stateOverrides] : [])
-                ]
+            await publicClient.call({
+                account: utilityWalletAddress,
+                to: entryPoint,
+                data: encodeFunctionData({
+                    abi: EntryPointV06Abi,
+                    functionName: "simulateHandleOp",
+                    args: [userOperation, targetAddress, targetCallData]
+                }),
+                gas: fixedGasLimitForEstimation,
+                stateOverride
             })
         } catch (e) {
             const err = e as RpcRequestErrorType
@@ -193,7 +201,8 @@ export class GasEstimatorV06 {
                 // out of bound (low level evm error) occurs when paymaster reverts with less than 32bytes
                 return {
                     result: "failed",
-                    data: "AA50 postOp revert (paymaster revert data out of bounds)"
+                    data: "AA50 postOp revert (paymaster revert data out of bounds)",
+                    code: ValidationErrors.SimulateValidation
                 } as const
             }
 
@@ -215,6 +224,10 @@ export class GasEstimatorV06 {
                 .safeParse(cause?.cause)
 
             if (!causeParseResult.success) {
+                this.logger.warn(
+                    { err: cause },
+                    "Failed to parse RPC error in simulateHandleOp"
+                )
                 throw new Error(JSON.stringify(cause))
             }
 

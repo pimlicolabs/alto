@@ -39,7 +39,7 @@ export class GasEstimationHandler {
                 entryPoint,
                 targetAddress,
                 targetCallData,
-                stateOverrides
+                userStateOverrides: stateOverrides
             })
         }
 
@@ -72,7 +72,7 @@ export class GasEstimationHandler {
                 entryPoint,
                 targetAddress,
                 targetCallData,
-                stateOverrides
+                userStateOverrides: stateOverrides
             })
         }
 
