@@ -12,7 +12,10 @@ import {
     formatEther,
     fallback,
     type CallParameters,
-    publicActions
+    publicActions,
+    GetBlockParameters,
+    GetBalanceParameters,
+    GetTransactionCountParameters
 } from "viem"
 import type { IOptionsInput } from "./config"
 import { customTransport } from "./customTransport"
@@ -129,6 +132,52 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         }),
         chain
     })
+
+    // When Flashblocks support is enabled, override the relevant public actions
+    // to always query against the "pending" block tag as per
+    // https://docs.base.org/chain/flashblocks/apps
+    if (args.flashblocksEnabled) {
+        publicClient = publicClient
+            .extend((client) => ({
+                // @ts-ignore
+                async getBlock(args?: GetBlockParameters) {
+                    if (
+                        args?.blockHash !== undefined ||
+                        args?.blockNumber !== undefined
+                    ) {
+                        return await client.getBlock(args)
+                    }
+
+                    return await client.getBlock({
+                        blockTag: "pending"
+                    })
+                },
+                async getBalance(args: GetBalanceParameters) {
+                    if (args.blockNumber !== undefined) {
+                        return await client.getBalance(args)
+                    } else {
+                        return await client.getBalance({
+                            address: args.address,
+                            blockNumber: undefined,
+                            blockTag: "pending"
+                        })
+                    }
+                },
+                async getTransactionCount(args: GetTransactionCountParameters) {
+                    if (args.blockNumber !== undefined) {
+                        return await client.getTransactionCount(args)
+                    } else {
+                        return await client.getTransactionCount({
+                            address: args.address,
+                            blockNumber: undefined,
+                            blockTag: "pending"
+                        })
+                    }
+                }
+            }))
+            // @ts-ignore
+            .extend(publicActions)
+    }
 
     // Some permissioned chains require a whitelisted address to make deployments.
     // In order for simulations to work, we need to make our eth_call's from a whitelisted address.

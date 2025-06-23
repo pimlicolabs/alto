@@ -195,7 +195,7 @@ const getGasEstimates = async ({
 
         const userOperationPaymasterPostOpGasLimit =
             "paymasterPostOpGasLimit" in userOperation
-                ? userOperation.paymasterPostOpGasLimit ?? 1n
+                ? (userOperation.paymasterPostOpGasLimit ?? 1n)
                 : 1n
 
         paymasterPostOpGasLimit = maxBigInt(

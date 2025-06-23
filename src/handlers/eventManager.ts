@@ -184,11 +184,7 @@ export class EventManager {
     }
 
     // emits when the userOperation was dropped from the internal mempool
-    emitDropped(
-        userOperationHash: Hex,
-        reason?: string,
-        aaError?: string
-    ) {
+    emitDropped(userOperationHash: Hex, reason?: string, aaError?: string) {
         this.emitEvent({
             userOperationHash,
             event: {

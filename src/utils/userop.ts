@@ -55,9 +55,9 @@ export function getInitCode(unpackedUserOperation: UserOperationV07) {
         ? concat([
               unpackedUserOperation.factory === "0x7702"
                   ? pad(unpackedUserOperation.factory, {
-                          dir: "right",
-                          size: 20
-                      })
+                        dir: "right",
+                        size: 20
+                    })
                   : unpackedUserOperation.factory,
               unpackedUserOperation.factoryData || ("0x" as Hex)
           ])
