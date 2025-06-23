@@ -336,53 +336,82 @@ export class GasEstimatorV07 {
 
     async simulateValidation({
         entryPoint,
-        userOperation,
-        queuedUserOperations
+        userOp,
+        queuedUserOps
     }: {
         entryPoint: Address
-        userOperation: UserOperationV07
-        queuedUserOperations: UserOperationV07[]
+        userOp: UserOperationV07
+        queuedUserOps: UserOperationV07[]
     }) {
-        const userOperations = [...queuedUserOperations, userOperation]
-        const packedUserOperations = userOperations.map((uo) =>
-            toPackedUserOperation(uo)
-        )
-
-        const simulateValidationLast = encodeFunctionData({
-            abi: entryPointSimulations07Abi,
-            functionName: "simulateValidationLast",
-            args: [packedUserOperations]
-        })
-
-        const stateOverrides: StateOverrides = getAuthorizationStateOverrides({
-            userOperations: [...queuedUserOperations, userOperation]
-        })
-
-        const isV8 = isVersion08(userOperation, entryPoint)
-
-        const entryPointSimulationsAddress = isV8
+        const is08 = isVersion08(userOp, entryPoint)
+        const entryPointSimulationsAddress = is08
             ? this.config.entrypointSimulationContractV8
             : this.config.entrypointSimulationContractV7
 
         if (!entryPointSimulationsAddress) {
             throw new Error(
-                `Cannot find entryPointSimulationsAddress for version ${
-                    isV8 ? "08" : "07"
+                `Cannot find entryPointSimulations Address for version ${
+                    is08 ? "08" : "07"
                 }`
             )
         }
 
-        const errorResult = await this.callPimlicoSimulations({
-            entryPoint,
-            entryPointSimulationsCallData: [simulateValidationLast],
-            stateOverrides,
-            entryPointSimulationsAddress
+        const stateOverride = getAuthorizationStateOverrides({
+            userOperations: [...queuedUserOps, userOp]
         })
 
+        try {
+            const epSimulationContract = getContract({
+                abi: entryPointSimulations07Abi,
+                address: entryPointSimulationsAddress,
+                client: this.config.publicClient
+            })
+
+            const { result } =
+                await epSimulationContract.simulate.simulateValidation(
+                    [packUserOps(queuedUserOps), toPackedUserOperation(userOp)],
+                    {
+                        stateOverride,
+                        gas: this.config.fixedGasLimitForEstimation
+                    }
+                )
+
+            return {
+                status: "validation",
+                data: result
+            }
+        } catch (error) {
+            if (
+                error instanceof ContractFunctionRevertedError &&
+                error.name === "FailedOp" &&
+                error.data &&
+                error.data.args
+            ) {
+                return {
+                    status: "failed",
+                    data: error.data.args[1] as string
+                } as const
+            }
+
+            if (
+                error instanceof ContractFunctionRevertedError &&
+                error.name === "FailedOpWithRevert" &&
+                error.data &&
+                error.data.args
+            ) {
+                return {
+                    status: "failed",
+                    data: `${error.data.args[1]} - ${parseFailedOpWithRevert(
+                        error.data.args[2] as Hex
+                    )}`
+                } as const
+            }
+        }
+
         return {
-            simulateValidationResult: getSimulateValidationResult(
-                errorResult[0]
-            )
+            status: "failed",
+            data: "Unknown error, could not parse simulate validation result.",
+            code: ValidationErrors.SimulateValidation
         }
     }
 
@@ -531,7 +560,7 @@ export class GasEstimatorV07 {
 
             if (!entryPointSimulationsAddress) {
                 throw new Error(
-                    `Cannot find entryPointSimulationsAddress for version ${
+                    `Cannot find entryPointSimulations Address for version ${
                         isV8 ? "08" : "07"
                     }`
                 )
@@ -617,7 +646,7 @@ export class GasEstimatorV07 {
 
         if (!entryPointSimulationsAddress) {
             throw new Error(
-                `Cannot find entryPointSimulationsAddress for version ${
+                `Cannot find entryPointSimulations Address for version ${
                     isV8 ? "08" : "07"
                 }`
             )
@@ -1035,143 +1064,6 @@ export function parseFailedOpWithRevert(data: Hex) {
     }
 
     return data
-}
-
-export function getSimulateValidationResult(errorData: Hex): {
-    status: "failed" | "validation"
-    data: ValidationResultV07 | Hex | string
-} {
-    const decodedDelegateAndError = decodeErrorResult({
-        abi: EntryPointV07Abi,
-        data: errorData
-    })
-
-    if (!decodedDelegateAndError?.args?.[1]) {
-        throw new Error("Unexpected error")
-    }
-
-    try {
-        const decodedError = decodeErrorResult({
-            abi: entryPointSimulations07Abi,
-            data: decodedDelegateAndError.args[1] as Hex
-        })
-
-        if (
-            decodedError &&
-            decodedError.errorName === "FailedOp" &&
-            decodedError.args
-        ) {
-            return {
-                status: "failed",
-                data: decodedError.args[1] as Hex | string
-            } as const
-        }
-
-        if (
-            decodedError &&
-            decodedError.errorName === "FailedOpWithRevert" &&
-            decodedError.args
-        ) {
-            return {
-                status: "failed",
-                data: `${decodedError.args?.[1]} - ${parseFailedOpWithRevert(
-                    decodedError.args?.[2] as Hex
-                )}`
-            } as const
-        }
-    } catch {
-        const decodedResult = decodeAbiParameters(
-            simulationValidationResultStruct,
-            decodedDelegateAndError.args[1] as Hex
-        )[0]
-
-        return {
-            status: "validation",
-            data: decodedResult
-        }
-    }
-
-    throw new Error(
-        "Unexpected error - errorName is not ValidationResult or ValidationResultWithAggregation"
-    )
-}
-
-function validateBinarySearchDataResult(
-    data: Hex,
-    fnName:
-        | "binarySearchCallGasLimit"
-        | "binarySearchVerificationGasLimit"
-        | "binarySearchPaymasterVerificationGasLimit"
-):
-    | {
-          result: "success"
-          data: BinarySearchCallResult
-      }
-    | {
-          result: "failed"
-          data: string
-          code: number
-      }
-    | {
-          result: "retry" // retry with new bounds if the initial simulation hit the eth_call gasLimit
-          optimalGas: bigint
-          maxGas: bigint
-          minGas: bigint
-      } {
-    try {
-        const targetCallResult = decodeFunctionResult({
-            abi: entryPointSimulations07Abi,
-            functionName: fnName,
-            data: data
-        })
-
-        const parsedTargetCallResult =
-            binarySearchCallResultSchema.parse(targetCallResult)
-
-        if (parsedTargetCallResult.success) {
-            return {
-                result: "success",
-                data: parsedTargetCallResult
-            } as const
-        }
-
-        return {
-            result: "failed",
-            data: parsedTargetCallResult.returnData,
-            code: ExecutionErrors.UserOperationReverted
-        } as const
-    } catch (_e) {
-        try {
-            const res = decodeErrorResult({
-                abi: entryPointSimulations07Abi,
-                data: data
-            })
-
-            if (res.errorName === "SimulationOutOfGas") {
-                const [optimalGas, minGas, maxGas] = res.args
-
-                return {
-                    result: "retry",
-                    optimalGas,
-                    minGas,
-                    maxGas
-                } as const
-            }
-
-            return {
-                result: "failed",
-                data,
-                code: ExecutionErrors.UserOperationReverted
-            }
-        } catch {
-            // no error we go the result
-            return {
-                result: "failed",
-                data: "Unknown error, could not parse target call data result.",
-                code: ExecutionErrors.UserOperationReverted
-            } as const
-        }
-    }
 }
 
 function getSimulateHandleOpResult(
