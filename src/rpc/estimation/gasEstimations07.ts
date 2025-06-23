@@ -23,7 +23,10 @@ import {
     type GetContractReturnType,
     type PublicClient
 } from "viem"
-import { type SimulateHandleOpResult } from "./types"
+import {
+    SimulateBinarySearchRetryResult,
+    type SimulateHandleOpResult
+} from "./types"
 import type { AltoConfig } from "../../createConfig"
 import { packUserOps } from "../../executor/utils"
 
@@ -102,10 +105,7 @@ export class GasEstimatorV07 {
         retryCount = 0,
         initialMinGas = 9_000n,
         gasAllowance?: bigint
-    ): Promise<
-        | { result: "success"; data: GasLimitResult }
-        | { result: "failed"; data: any; code: number }
-    > {
+    ): Promise<SimulateBinarySearchRetryResult> {
         const packedQueuedOps = packUserOps(queuedUserOps)
         const packedTargetOp = toPackedUserOperation(targetUserOp)
 
@@ -139,15 +139,8 @@ export class GasEstimatorV07 {
                 code: ExecutionErrors.UserOperationReverted
             }
         } catch (error) {
-            if (!(error instanceof ContractFunctionRevertedError)) {
-                return {
-                    result: "failed",
-                    data: "Unknown error, could not parse target call data result.",
-                    code: ExecutionErrors.UserOperationReverted
-                } as const
-            }
-
             if (
+                error instanceof ContractFunctionRevertedError &&
                 error.name === "SimulationOutOfGas" &&
                 error.data &&
                 error.data.args
@@ -183,9 +176,9 @@ export class GasEstimatorV07 {
 
             return {
                 result: "failed",
-                data: error.data,
+                data: "Unknown error, could not parse target call data result.",
                 code: ExecutionErrors.UserOperationReverted
-            }
+            } as const
         }
     }
 
@@ -201,10 +194,7 @@ export class GasEstimatorV07 {
         retryCount = 0,
         initialMinGas = 9_000n,
         gasAllowance?: bigint
-    ): Promise<
-        | { result: "success"; data: GasLimitResult }
-        | { result: "failed"; data: any; code: number }
-    > {
+    ): Promise<SimulateBinarySearchRetryResult> {
         const packedQueuedOps = packUserOps(queuedUserOps)
         const packedTargetOp = toPackedUserOperation(targetUserOp)
 
@@ -238,15 +228,8 @@ export class GasEstimatorV07 {
                 code: ExecutionErrors.UserOperationReverted
             }
         } catch (error) {
-            if (!(error instanceof ContractFunctionRevertedError)) {
-                return {
-                    result: "failed",
-                    data: "Unknown error, could not parse target call data result.",
-                    code: ExecutionErrors.UserOperationReverted
-                } as const
-            }
-
             if (
+                error instanceof ContractFunctionRevertedError &&
                 error.name === "SimulationOutOfGas" &&
                 error.data &&
                 error.data.args
@@ -282,9 +265,9 @@ export class GasEstimatorV07 {
 
             return {
                 result: "failed",
-                data: error.data,
+                data: "Unknown error, could not parse target call data result.",
                 code: ExecutionErrors.UserOperationReverted
-            }
+            } as const
         }
     }
 
@@ -300,10 +283,7 @@ export class GasEstimatorV07 {
         retryCount = 0,
         initialMinGas = 9_000n,
         gasAllowance?: bigint
-    ): Promise<
-        | { result: "success"; data: GasLimitResult }
-        | { result: "failed"; data: Hex; code: number }
-    > {
+    ): Promise<SimulateBinarySearchRetryResult> {
         const packedQueuedOps = packUserOps(queuedUserOps)
         const packedTargetOp = toPackedUserOperation(targetUserOp)
 
@@ -337,15 +317,8 @@ export class GasEstimatorV07 {
                 code: ExecutionErrors.UserOperationReverted
             }
         } catch (error) {
-            if (!(error instanceof ContractFunctionRevertedError)) {
-                return {
-                    result: "failed",
-                    data: "Unknown error, could not parse target call data result.",
-                    code: ExecutionErrors.UserOperationReverted
-                } as const
-            }
-
             if (
+                error instanceof ContractFunctionRevertedError &&
                 error.name === "SimulationOutOfGas" &&
                 error.data &&
                 error.data.args
@@ -362,7 +335,7 @@ export class GasEstimatorV07 {
                         result: "failed",
                         data: "Max retries reached for call gas limit search",
                         code: ValidationErrors.SimulateValidation
-                    } as const
+                    }
                 }
 
                 // Recursively call itself with new gas limits
@@ -381,9 +354,9 @@ export class GasEstimatorV07 {
 
             return {
                 result: "failed",
-                data: error.data,
+                data: "Unknown error, could not parse target call data result.",
                 code: ExecutionErrors.UserOperationReverted
-            }
+            } as const
         }
     }
 
