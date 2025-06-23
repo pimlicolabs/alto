@@ -63,7 +63,7 @@ export class GasEstimatorV07 {
     ): { result: "failed"; data: string; code: number } | null {
         if (!error.data?.args) {
             this.logger.debug(
-                { errorName: error.name },
+                { err: error },
                 "ContractFunctionRevertedError has no args"
             )
             return null
@@ -124,7 +124,7 @@ export class GasEstimatorV07 {
     ): Promise<SimulateBinarySearchResult> {
         // Check if we've hit the retry limit
         if (retryCount > this.config.binarySearchMaxRetries) {
-            this.logger.error(
+            this.logger.warn(
                 { methodName, retryCount },
                 "Max retries reached in binary search"
             )
@@ -191,8 +191,8 @@ export class GasEstimatorV07 {
                 code: ExecutionErrors.UserOperationReverted
             }
         } catch (error) {
-            this.logger.error(
-                { error, methodName },
+            this.logger.warn(
+                { err: error, methodName },
                 "Error in performBinarySearch"
             )
             return {
@@ -236,16 +236,16 @@ export class GasEstimatorV07 {
                     this.decodeContractFunctionRevertedError(error)
 
                 if (decodedError) {
-                    this.logger.error(
-                        { error: errorName, data: decodedError.data },
+                    this.logger.warn(
+                        { err: error, data: decodedError.data },
                         "Contract function reverted in executeSimulateHandleOp"
                     )
                     return decodedError
                 }
 
                 // Default error response
-                this.logger.error(
-                    { error: error.message },
+                this.logger.warn(
+                    { err: error },
                     "Unhandled contract revert in executeSimulateHandleOp"
                 )
                 return {
@@ -319,8 +319,8 @@ export class GasEstimatorV07 {
                 const errorName = error.name
 
                 if (errorName === "EstimateGasExecutionError") {
-                    this.logger.error(
-                        { errorName },
+                    this.logger.warn(
+                        { err: error },
                         "User operation execution reverted in simulateAndEstimateGasLimits"
                     )
                     return {
@@ -331,8 +331,8 @@ export class GasEstimatorV07 {
                 }
 
                 if (errorName === "EstimateGasUserOperationError") {
-                    this.logger.error(
-                        { errorName, message: error.message },
+                    this.logger.warn(
+                        { err: error },
                         "User operation error in simulateAndEstimateGasLimits"
                     )
                     return {
@@ -342,8 +342,8 @@ export class GasEstimatorV07 {
                     }
                 }
 
-                this.logger.error(
-                    { error },
+                this.logger.warn(
+                    { err: error },
                     "Unknown error in simulateAndEstimateGasLimits"
                 )
                 return {
@@ -353,8 +353,8 @@ export class GasEstimatorV07 {
                 }
             }
 
-            this.logger.error(
-                { error },
+            this.logger.warn(
+                { err: error },
                 "Non-Error exception in simulateAndEstimateGasLimits"
             )
             return {
@@ -383,7 +383,7 @@ export class GasEstimatorV07 {
             const errorMsg = `Cannot find entryPointSimulations Address for version ${
                 is08 ? "08" : "07"
             }`
-            this.logger.error(errorMsg)
+            this.logger.warn(errorMsg)
             throw new Error(errorMsg)
         }
 
@@ -417,8 +417,8 @@ export class GasEstimatorV07 {
                     this.decodeContractFunctionRevertedError(error)
 
                 if (decodedError) {
-                    this.logger.error(
-                        { error: error.name, data: decodedError.data },
+                    this.logger.warn(
+                        { err: error, data: decodedError.data },
                         "Contract function reverted in simulateValidation"
                     )
                     return {
@@ -429,7 +429,7 @@ export class GasEstimatorV07 {
             }
         }
 
-        this.logger.error("Failed to parse simulate validation result")
+        this.logger.warn("Failed to parse simulate validation result")
         return {
             status: "failed",
             data: "Unknown error, could not parse simulate validation result.",
@@ -457,7 +457,7 @@ export class GasEstimatorV07 {
             const errorMsg = `Cannot find entryPointSimulations Address for version ${
                 is08 ? "08" : "07"
             }`
-            this.logger.error(errorMsg)
+            this.logger.warn(errorMsg)
             throw new Error(errorMsg)
         }
 
@@ -499,8 +499,8 @@ export class GasEstimatorV07 {
                 const decodedError =
                     this.decodeContractFunctionRevertedError(error)
                 if (decodedError) {
-                    this.logger.error(
-                        { error: error.name, data: decodedError.data },
+                    this.logger.warn(
+                        { err: error, data: decodedError.data },
                         "Contract function reverted in validateHandleOpV07"
                     )
                     return decodedError
@@ -508,7 +508,7 @@ export class GasEstimatorV07 {
             }
         }
 
-        this.logger.error(
+        this.logger.warn(
             "Failed to parse simulate handle op result in validateHandleOpV07"
         )
         return {
@@ -546,12 +546,12 @@ export class GasEstimatorV07 {
             const errorMsg = `missing entryPointSimulations contract for version ${
                 is08 ? "08" : "07"
             }`
-            this.logger.error(errorMsg)
+            this.logger.warn(errorMsg)
             throw new Error(errorMsg)
         }
 
         if (!pimlicoSimulationAddress) {
-            this.logger.error("pimlicoSimulationContract must be provided")
+            this.logger.warn("pimlicoSimulationContract must be provided")
             throw new RpcError(
                 "pimlicoSimulationContract must be provided",
                 ValidationErrors.InvalidFields
