@@ -19,7 +19,13 @@ import {
     isVersion08,
     toPackedUserOperation
 } from "@alto/utils"
-import { ContractFunctionExecutionError, type Hex } from "viem"
+import {
+    ContractFunctionExecutionError,
+    type Hex,
+    type ContractFunctionResult,
+    type ExtractAbiFunctionNames,
+    ContractFunctionRevertedError
+} from "viem"
 import {
     type Address,
     decodeAbiParameters,
@@ -399,6 +405,7 @@ export class GasEstimatorV07 {
             if (simulateHandleOpLastResult.result === "failed") {
                 return simulateHandleOpLastResult as SimulateHandleOpResult<"failed">
             }
+
             return {
                 result: "execution",
                 data: {
@@ -483,7 +490,7 @@ export class GasEstimatorV07 {
 
         let simulateHandleOpResult:
             | SimulateHandleOpSuccessResult
-            | ContractFunctionExecutionError
+            | ContractFunctionRevertedError
         let verificationGasResult: GasLimitResult
         let paymasterVerificationGasResult: GasLimitResult
         let callGasLimitResult: GasLimitResult
@@ -597,7 +604,7 @@ export class GasEstimatorV07 {
 
         try {
             const simulateHandleOpLastResult = getSimulateHandleOpResult(
-                simulateHandleOpLastCause
+                simulateHandleOpResult
             )
 
             if (simulateHandleOpLastResult.result === "failed") {
@@ -605,7 +612,7 @@ export class GasEstimatorV07 {
             }
 
             const verificationGasLimitResult = validateBinarySearchDataResult(
-                binarySearchVerificationGasLimitCause,
+                verificationGasResult as unknown as Hex,
                 "binarySearchVerificationGasLimit"
             )
 
@@ -643,9 +650,9 @@ export class GasEstimatorV07 {
             }
 
             const paymasterVerificationGasLimitResult =
-                binarySearchPaymasterVerificationGasLimitCause
+                paymasterVerificationGasResult
                     ? validateBinarySearchDataResult(
-                          binarySearchPaymasterVerificationGasLimitCause,
+                          paymasterVerificationGasResult as unknown as Hex,
                           "binarySearchPaymasterVerificationGasLimit"
                       )
                     : ({
@@ -693,7 +700,7 @@ export class GasEstimatorV07 {
             }
 
             const callGasLimitResult = validateBinarySearchDataResult(
-                binarySearchCallGasLimitCause,
+                callGasLimitResult as unknown as Hex,
                 "binarySearchCallGasLimit"
             )
 
@@ -939,10 +946,10 @@ function validateBinarySearchDataResult(
 }
 
 function getSimulateHandleOpResult(
-    data: SimulateHandleOpSuccessResult | ContractFunctionExecutionError
+    data: SimulateHandleOpSuccessResult | ContractFunctionRevertedError
 ): SimulateHandleOpResult {
     // If data is already a successful result, return it wrapped in the expected format
-    if (!(data instanceof ContractFunctionExecutionError)) {
+    if (!(data instanceof ContractFunctionRevertedError)) {
         return {
             result: "execution",
             data: {
@@ -953,65 +960,34 @@ function getSimulateHandleOpResult(
 
     // Handle ContractFunctionExecutionError
     const error = data
-    
-    // Check if there's a revert reason in the error
-    if (error.cause && 'reason' in error.cause) {
-        return {
-            result: "failed",
-            data: error.cause.reason as string,
-            code: ValidationErrors.SimulateValidation
-        }
-    }
 
     // Try to decode the error data if available
-    if (error.cause && 'data' in error.cause && error.cause.data) {
-        const errorData = error.cause.data as Hex
-        
-        try {
-            const decodedError = decodeErrorResult({
-                abi: entryPointSimulations07Abi,
-                data: errorData
-            })
+    if (error.data) {
+        const errorName = error.name
+        const args = error.data.args
 
-            if (
-                decodedError &&
-                decodedError.errorName === "FailedOp" &&
-                decodedError.args
-            ) {
-                return {
-                    result: "failed",
-                    data: decodedError.args[1] as string,
-                    code: ValidationErrors.SimulateValidation
-                } as const
-            }
+        if (errorName === "FailedOp" && args) {
+            return {
+                result: "failed",
+                data: args[1] as string,
+                code: ValidationErrors.SimulateValidation
+            } as const
+        }
 
-            if (
-                decodedError &&
-                decodedError.errorName === "FailedOpWithRevert" &&
-                decodedError.args
-            ) {
-                return {
-                    result: "failed",
-                    data: `${decodedError.args[1]} ${parseFailedOpWithRevert(
-                        decodedError.args?.[2] as Hex
-                    )}`,
-                    code: ValidationErrors.SimulateValidation
-                } as const
-            }
+        if (errorName === "FailedOpWithRevert" && args) {
+            return {
+                result: "failed",
+                data: `${args[1]} ${parseFailedOpWithRevert(args[2] as Hex)}`,
+                code: ValidationErrors.SimulateValidation
+            } as const
+        }
 
-            if (
-                decodedError &&
-                decodedError.errorName === "CallPhaseReverted" &&
-                decodedError.args
-            ) {
-                return {
-                    result: "failed",
-                    data: decodedError.args[0],
-                    code: ValidationErrors.SimulateValidation
-                } as const
-            }
-        } catch {
-            // If we can't decode the error, return a generic message
+        if (errorName === "CallPhaseReverted" && args) {
+            return {
+                result: "failed",
+                data: args[0] as Hex,
+                code: ValidationErrors.SimulateValidation
+            } as const
         }
     }
 
