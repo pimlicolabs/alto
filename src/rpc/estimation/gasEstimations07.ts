@@ -19,7 +19,7 @@ import {
     isVersion08,
     toPackedUserOperation
 } from "@alto/utils"
-import type { Hex } from "viem"
+import { ContractFunctionExecutionError, type Hex } from "viem"
 import {
     type Address,
     decodeAbiParameters,
@@ -28,9 +28,7 @@ import {
     encodeFunctionData,
     slice,
     toFunctionSelector,
-    toHex,
     zeroAddress,
-    getContractAddress,
     getContract
 } from "viem"
 import { AccountExecuteAbi } from "../../types/contracts/IAccountExecute"
@@ -41,8 +39,23 @@ import {
 } from "./types"
 import type { AltoConfig } from "../../createConfig"
 import { packUserOps } from "../../executor/utils"
-import { entryPoint07Abi } from "viem/_types/account-abstraction"
-import { EntryPointV07SimulationsAbi } from "../../esm/types"
+
+type SimulateHandleOpSuccessResult = {
+    preOpGas: bigint
+    paid: bigint
+    accountValidationData: bigint
+    paymasterValidationData: bigint
+    paymasterVerificationGasLimit: bigint
+    paymasterPostOpGasLimit: bigint
+    targetSuccess: boolean
+    targetResult: Hex
+}
+
+type GasLimitResult = {
+    gasUsed: bigint
+    success: boolean
+    returnData: Hex
+}
 
 export class GasEstimatorV07 {
     private config: AltoConfig
@@ -406,7 +419,7 @@ export class GasEstimatorV07 {
         }
     }
 
-    async simulateHandleOpV07({
+    async simulateHandleOp07({
         entryPoint,
         userOp,
         queuedUserOps,
@@ -428,15 +441,15 @@ export class GasEstimatorV07 {
             fixedGasLimitForEstimation
         } = this.config
 
-        const isV8 = isVersion08(userOp, entryPoint)
-        const epSimulationsAddress = isV8
+        const is08 = isVersion08(userOp, entryPoint)
+        const epSimulationsAddress = is08
             ? entrypointSimulationContractV8
             : entrypointSimulationContractV7
 
         if (!epSimulationsAddress) {
             throw new Error(
                 `missing entryPointSimulations contract for version ${
-                    isV8 ? "08" : "07"
+                    is08 ? "08" : "07"
                 }`
             )
         }
@@ -465,125 +478,122 @@ export class GasEstimatorV07 {
             stateOverrides: userStateOverrides
         })
 
-        let cause: readonly [Hex, Hex, Hex | null, Hex]
+        const packedQueuedOps = packUserOps(queuedUserOps)
+        const packedTargetOp = toPackedUserOperation(userOp)
+
+        let simulateHandleOpResult:
+            | SimulateHandleOpSuccessResult
+            | ContractFunctionExecutionError
+        let verificationGasResult: GasLimitResult
+        let paymasterVerificationGasResult: GasLimitResult
+        let callGasLimitResult: GasLimitResult
 
         if (splitSimulationCalls) {
-            // due to Hedera specific restrictions, we can't combine these two calls.
-            const [
-                simulateHandleOpLastCause,
-                binarySearchVerificationGasLimitCause,
-                binarySearchPaymasterVerificationGasLimitCause,
-                binarySearchCallGasLimitCause
-            ] = await Promise.all([
-                this.callPimlicoSimulations({
-                    entryPoint,
-                    entryPointSimulationsCallData: [simulateHandleOpLast],
-                    stateOverrides: stateOverride,
-                    entryPointSimulationsAddress: entryPointSimulations
-                }),
-                this.callPimlicoSimulations({
-                    entryPoint,
-                    entryPointSimulationsCallData: [
-                        binarySearchVerificationGasLimit
-                    ],
-                    stateOverrides: stateOverride,
-                    entryPointSimulationsAddress: entryPointSimulations
-                }),
-                binarySearchPaymasterVerificationGasLimit
-                    ? this.callPimlicoSimulations({
-                          entryPoint,
-                          entryPointSimulationsCallData: [
-                              binarySearchPaymasterVerificationGasLimit
-                          ],
-                          stateOverrides: stateOverride,
-                          entryPointSimulationsAddress: entryPointSimulations
-                      })
-                    : null,
-                this.callPimlicoSimulations({
-                    entryPoint,
-                    entryPointSimulationsCallData: [binarySearchCallGasLimit],
-                    stateOverrides: stateOverride,
-                    entryPointSimulationsAddress: entryPointSimulations
-                })
+            const [sho, fovgl, fopvgl, focgl] = await Promise.all([
+                epSimulationsContract.simulate
+                    .simulateHandleOp([packedQueuedOps, packedTargetOp], {
+                        stateOverride,
+                        gas: fixedGasLimitForEstimation
+                    })
+                    .then((r) => r.result)
+                    .catch((e) => e),
+                epSimulationsContract.simulate
+                    .findOptimalVerificationGasLimit(
+                        [
+                            packedQueuedOps,
+                            packedTargetOp,
+                            entryPoint,
+                            9_000n, // initialMinGas
+                            binarySearchToleranceDelta,
+                            binarySearchGasAllowance
+                        ],
+                        {
+                            stateOverride,
+                            gas: fixedGasLimitForEstimation
+                        }
+                    )
+                    .then((r) => r.result),
+                epSimulationsContract.simulate
+                    .findOptimalPaymasterVerificationGasLimit(
+                        [
+                            packedQueuedOps,
+                            packedTargetOp,
+                            entryPoint,
+                            9_000n, // initialMinGas
+                            binarySearchToleranceDelta,
+                            binarySearchGasAllowance
+                        ],
+                        {
+                            stateOverride,
+                            gas: fixedGasLimitForEstimation
+                        }
+                    )
+                    .then((r) => r.result),
+                epSimulationsContract.simulate
+                    .findOptimalCallGasLimit(
+                        [
+                            packedQueuedOps,
+                            packedTargetOp,
+                            entryPoint,
+                            9_000n, // initialMinGas
+                            binarySearchToleranceDelta,
+                            binarySearchGasAllowance
+                        ],
+                        {
+                            stateOverride,
+                            gas: fixedGasLimitForEstimation
+                        }
+                    )
+                    .then((r) => r.result)
             ])
 
-            cause = [
-                simulateHandleOpLastCause[0],
-                binarySearchVerificationGasLimitCause[0],
-                binarySearchPaymasterVerificationGasLimitCause?.[0] ?? null,
-                binarySearchCallGasLimitCause[0]
-            ]
+            simulateHandleOpResult = sho
+            verificationGasResult = fovgl
+            paymasterVerificationGasResult = fopvgl
+            callGasLimitResult = focgl
         } else {
-            const [
-                simulateAndEstimateGasLimitsResult,
-                findOptimalCallGasLimitResult
-            ] = await Promise.all([
-                pimlicoSimulationContract.simulate.simulateAndEstimateGasLimits(
-                    [
-                        packUserOps(queuedUserOps), // queuedUserOps
-                        toPackedUserOperation(userOp), // targetUserOp
-                        entryPoint, // entryPoint
-                        epSimulationsAddress, // entryPointSimulation
-                        9_000n, // initialMinGas
-                        binarySearchToleranceDelta, // toleranceDelta
-                        binarySearchGasAllowance // gasAllowance
-                    ],
-                    {
-                        stateOverride,
-                        gas: fixedGasLimitForEstimation
-                    }
-                ),
-                epSimulationsContract.simulate.findOptimalCallGasLimit(
-                    [
-                        packUserOps(queuedUserOps), // queuedUserOps
-                        toPackedUserOperation(userOp), // targetUserOp
-                        entryPoint, // entryPoint
-                        9_000n, // initialMinGas
-                        binarySearchToleranceDelta, // toleranceDelta
-                        binarySearchGasAllowance // gasAllowance
-                    ],
-                    {
-                        stateOverride,
-                        gas: fixedGasLimitForEstimation
-                    }
-                )
+            const [saegl, focgl] = await Promise.all([
+                pimlicoSimulationContract.simulate
+                    .simulateAndEstimateGasLimits(
+                        [
+                            packedQueuedOps, // queuedUserOps
+                            packedTargetOp, // targetUserOp
+                            entryPoint, // entryPoint
+                            epSimulationsAddress, // entryPointSimulation
+                            9_000n, // initialMinGas
+                            binarySearchToleranceDelta, // toleranceDelta
+                            binarySearchGasAllowance // gasAllowance
+                        ],
+                        {
+                            stateOverride,
+                            gas: fixedGasLimitForEstimation
+                        }
+                    )
+                    .then((r) => r.result)
+                    .catch((e) => e),
+                epSimulationsContract.simulate
+                    .findOptimalCallGasLimit(
+                        [
+                            packedQueuedOps, // queuedUserOps
+                            packedTargetOp, // targetUserOp
+                            entryPoint, // entryPoint
+                            9_000n, // initialMinGas
+                            binarySearchToleranceDelta, // toleranceDelta
+                            binarySearchGasAllowance // gasAllowance
+                        ],
+                        {
+                            stateOverride,
+                            gas: fixedGasLimitForEstimation
+                        }
+                    )
+                    .then((r) => r.result)
             ])
 
-            cause = [
-                handleOpAndBinarySearchVerificationGasLimits[0],
-                handleOpAndBinarySearchVerificationGasLimits[1],
-                binarySearchPaymasterVerificationGasLimit
-                    ? handleOpAndBinarySearchVerificationGasLimits[2]
-                    : null,
-                binarySearchCallDataGasLimits[0]
-            ]
+            simulateHandleOpResult = saegl.simulationResult
+            verificationGasResult = saegl.verificationGasLimit
+            paymasterVerificationGasResult = saegl.paymasterVerificationGasLimit
+            callGasLimitResult = focgl
         }
-
-        cause = cause.map((data: Hex | null) => {
-            if (!data) {
-                return null
-            }
-            const decodedDelegateAndError = decodeErrorResult({
-                abi: EntryPointV07Abi,
-                data: data
-            })
-
-            const delegateAndRevertResponseBytes =
-                decodedDelegateAndError?.args?.[1]
-
-            if (!delegateAndRevertResponseBytes) {
-                throw new Error("Unexpected error")
-            }
-
-            return delegateAndRevertResponseBytes as Hex
-        }) as [Hex, Hex, Hex | null, Hex]
-
-        const [
-            simulateHandleOpLastCause,
-            binarySearchVerificationGasLimitCause,
-            binarySearchPaymasterVerificationGasLimitCause,
-            binarySearchCallGasLimitCause
-        ] = cause
 
         try {
             const simulateHandleOpLastResult = getSimulateHandleOpResult(
@@ -739,94 +749,6 @@ export class GasEstimatorV07 {
                 data: "Unknown error, could not parse simulate handle op result.",
                 code: ValidationErrors.SimulateValidation
             }
-        }
-    }
-
-    async callPimlicoSimulations({
-        entryPoint,
-        entryPointSimulationsCallData,
-        stateOverrides,
-        entryPointSimulationsAddress
-    }: {
-        entryPoint: Address
-        entryPointSimulationsCallData: Hex[]
-        stateOverrides?: StateOverrides
-        entryPointSimulationsAddress: Address
-    }) {
-        const {
-            publicClient,
-            blockTagSupport,
-            utilityWalletAddress,
-            fixedGasLimitForEstimation,
-            balanceOverride: balanceOverrideSupport,
-            codeOverrideSupport,
-            pimlicoSimulationContract
-        } = this.config
-
-        if (!entryPointSimulationsAddress) {
-            throw new RpcError(
-                "entryPointSimulationsAddress must be provided",
-                ValidationErrors.InvalidFields
-            )
-        }
-
-        if (!pimlicoSimulationContract) {
-            throw new RpcError(
-                "pimlicoSimulationContract must be provided",
-                ValidationErrors.InvalidFields
-            )
-        }
-
-        const callData = encodeFunctionData({
-            abi: pimlicoSimulationsAbi,
-            functionName: "simulateEntryPoint",
-            args: [
-                entryPointSimulationsAddress,
-                entryPoint,
-                entryPointSimulationsCallData
-            ]
-        })
-
-        // Remove state override if not supported by network.
-        if (!balanceOverrideSupport && !codeOverrideSupport) {
-            stateOverrides = undefined
-        }
-
-        const result = (await publicClient.request({
-            method: "eth_call",
-            params: [
-                {
-                    to: pimlicoSimulationContract,
-                    from: utilityWalletAddress,
-                    data: callData,
-                    ...(fixedGasLimitForEstimation !== undefined && {
-                        gas: `0x${fixedGasLimitForEstimation.toString(16)}`
-                    })
-                },
-                blockTagSupport
-                    ? "latest"
-                    : toHex(await publicClient.getBlockNumber()),
-                // @ts-ignore
-                ...(stateOverrides ? [stateOverrides] : [])
-            ]
-        })) as Hex
-
-        try {
-            const returnBytes = decodeAbiParameters(
-                [{ name: "ret", type: "bytes[]" }],
-                result
-            )
-
-            return returnBytes[0]
-        } catch (err) {
-            this.logger.error(
-                { err, result },
-                "Failed to decode simulation result"
-            )
-            throw new RpcError(
-                "Failed to decode simulation result",
-                ValidationErrors.SimulateValidation
-            )
         }
     }
 }
@@ -1016,64 +938,87 @@ function validateBinarySearchDataResult(
     }
 }
 
-function getSimulateHandleOpResult(data: Hex): SimulateHandleOpResult {
-    try {
-        const decodedError = decodeErrorResult({
-            abi: entryPointSimulations07Abi,
-            data: data
-        })
-
-        if (
-            decodedError &&
-            decodedError.errorName === "FailedOp" &&
-            decodedError.args
-        ) {
-            return {
-                result: "failed",
-                data: decodedError.args[1] as string,
-                code: ValidationErrors.SimulateValidation
-            } as const
-        }
-
-        if (
-            decodedError &&
-            decodedError.errorName === "FailedOpWithRevert" &&
-            decodedError.args
-        ) {
-            return {
-                result: "failed",
-                data: `${decodedError.args[1]} ${parseFailedOpWithRevert(
-                    decodedError.args?.[2] as Hex
-                )}`,
-                code: ValidationErrors.SimulateValidation
-            } as const
-        }
-
-        if (
-            decodedError &&
-            decodedError.errorName === "CallPhaseReverted" &&
-            decodedError.args
-        ) {
-            return {
-                result: "failed",
-                data: decodedError.args[0],
-                code: ValidationErrors.SimulateValidation
-            } as const
-        }
-    } catch {
-        // no error we go the result
-        const decodedResult: ExecutionResult = decodeFunctionResult({
-            abi: entryPointSimulations07Abi,
-            functionName: "simulateHandleOp",
-            data
-        })
-
+function getSimulateHandleOpResult(
+    data: SimulateHandleOpSuccessResult | ContractFunctionExecutionError
+): SimulateHandleOpResult {
+    // If data is already a successful result, return it wrapped in the expected format
+    if (!(data instanceof ContractFunctionExecutionError)) {
         return {
             result: "execution",
             data: {
-                executionResult: decodedResult
-            } as const
+                executionResult: data
+            }
         }
     }
-    throw new Error("Unexpected error")
+
+    // Handle ContractFunctionExecutionError
+    const error = data
+    
+    // Check if there's a revert reason in the error
+    if (error.cause && 'reason' in error.cause) {
+        return {
+            result: "failed",
+            data: error.cause.reason as string,
+            code: ValidationErrors.SimulateValidation
+        }
+    }
+
+    // Try to decode the error data if available
+    if (error.cause && 'data' in error.cause && error.cause.data) {
+        const errorData = error.cause.data as Hex
+        
+        try {
+            const decodedError = decodeErrorResult({
+                abi: entryPointSimulations07Abi,
+                data: errorData
+            })
+
+            if (
+                decodedError &&
+                decodedError.errorName === "FailedOp" &&
+                decodedError.args
+            ) {
+                return {
+                    result: "failed",
+                    data: decodedError.args[1] as string,
+                    code: ValidationErrors.SimulateValidation
+                } as const
+            }
+
+            if (
+                decodedError &&
+                decodedError.errorName === "FailedOpWithRevert" &&
+                decodedError.args
+            ) {
+                return {
+                    result: "failed",
+                    data: `${decodedError.args[1]} ${parseFailedOpWithRevert(
+                        decodedError.args?.[2] as Hex
+                    )}`,
+                    code: ValidationErrors.SimulateValidation
+                } as const
+            }
+
+            if (
+                decodedError &&
+                decodedError.errorName === "CallPhaseReverted" &&
+                decodedError.args
+            ) {
+                return {
+                    result: "failed",
+                    data: decodedError.args[0],
+                    code: ValidationErrors.SimulateValidation
+                } as const
+            }
+        } catch {
+            // If we can't decode the error, return a generic message
+        }
+    }
+
+    // Default error response
+    return {
+        result: "failed",
+        data: error.message || "Unknown error during simulation",
+        code: ValidationErrors.SimulateValidation
+    }
 }
