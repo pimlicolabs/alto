@@ -78,6 +78,32 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
         return ValidationResult(returnInfo, senderInfo, factoryInfo, paymasterInfo, aggregatorInfo);
     }
 
+    /// @dev Helper function to encode target call data for a user operation
+    /// @param userOp The user operation to encode call data for
+    /// @param userOpHash The hash of the user operation (for executeUserOp calls)
+    /// @return target The target address (sender)
+    /// @return targetCallData The encoded call data
+    function _encodeTargetCallData(PackedUserOperation calldata userOp, bytes32 userOpHash) 
+        internal 
+        pure 
+        returns (address target, bytes memory targetCallData) 
+    {
+        target = userOp.sender;
+        bytes calldata callData = userOp.callData;
+        
+        // Encode userOperation calldata
+        bytes4 methodSig;
+        assembly ("memory-safe") {
+            let len := callData.length
+            if gt(len, 3) { methodSig := calldataload(callData.offset) }
+        }
+        if (methodSig == IAccountExecute.executeUserOp.selector) {
+            targetCallData = abi.encodeCall(IAccountExecute.executeUserOp, (userOp, userOpHash));
+        } else {
+            targetCallData = userOp.callData;
+        }
+    }
+
     function encodeBinarySearchCalldata(BinarySearchMode mode, PackedUserOperation calldata targetUserOp, uint256 gas)
         internal
         pure
@@ -111,22 +137,7 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
         }
 
         if (mode == BinarySearchMode.CallGasLimit) {
-            address target = targetUserOp.sender;
-            bytes memory targetCallData;
-            bytes calldata callData = targetUserOp.callData;
-
-            // Encode userOperation calldata
-            bytes4 methodSig;
-            assembly ("memory-safe") {
-                let len := callData.length
-                if gt(len, 3) { methodSig := calldataload(callData.offset) }
-            }
-            if (methodSig == IAccountExecute.executeUserOp.selector) {
-                targetCallData = abi.encodeCall(IAccountExecute.executeUserOp, (targetUserOp, opInfo.userOpHash));
-            } else {
-                targetCallData = targetUserOp.callData;
-            }
-
+            (address target, bytes memory targetCallData) = _encodeTargetCallData(targetUserOp, opInfo.userOpHash);
             return abi.encodeWithSelector(this.simulateCallAndRevert.selector, target, targetCallData, gas);
         }
 
@@ -190,22 +201,7 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
             }
 
             // Execute calldata
-            address target = userOp.sender;
-            bytes memory targetCallData;
-            bytes calldata callData = userOp.callData;
-
-            // Encode userOperation calldata
-            bytes4 methodSig;
-            assembly ("memory-safe") {
-                let len := callData.length
-                if gt(len, 3) { methodSig := calldataload(callData.offset) }
-            }
-            if (methodSig == IAccountExecute.executeUserOp.selector) {
-                targetCallData = abi.encodeCall(IAccountExecute.executeUserOp, (userOp, opInfo.userOpHash));
-            } else {
-                targetCallData = userOp.callData;
-            }
-
+            (address target, bytes memory targetCallData) = _encodeTargetCallData(userOp, opInfo.userOpHash);
             (bool success,) = target.call(targetCallData);
             success;
         }
