@@ -1,15 +1,13 @@
-import type { EventManager, GasPriceManager } from "@alto/handlers"
-import type { InterfaceReputationManager, Mempool } from "@alto/mempool"
+import type { EventManager } from "@alto/handlers"
 import type {
     Address,
     BundleResult,
     HexData32,
-    UserOperation,
     GasPriceParameters,
     UserOperationBundle,
     UserOpInfo
 } from "@alto/types"
-import type { Logger, Metrics } from "@alto/utils"
+import type { Logger } from "@alto/utils"
 import {
     roundUpBigInt,
     maxBigInt,
@@ -73,43 +71,23 @@ type HandleOpsGasParams =
 export class Executor {
     config: AltoConfig
     logger: Logger
-    metrics: Metrics
-    reputationManager: InterfaceReputationManager
-    gasPriceManager: GasPriceManager
-    mempool: Mempool
     eventManager: EventManager
 
     constructor({
         config,
-        mempool,
-        reputationManager,
-        metrics,
-        gasPriceManager,
         eventManager
     }: {
         config: AltoConfig
-        mempool: Mempool
-        reputationManager: InterfaceReputationManager
-        metrics: Metrics
-        gasPriceManager: GasPriceManager
         eventManager: EventManager
     }) {
         this.config = config
-        this.mempool = mempool
-        this.reputationManager = reputationManager
         this.logger = config.getLogger(
             { module: "executor" },
             {
                 level: config.executorLogLevel || config.logLevel
             }
         )
-        this.metrics = metrics
-        this.gasPriceManager = gasPriceManager
         this.eventManager = eventManager
-    }
-
-    cancelOps(_entryPoint: Address, _ops: UserOperation[]): Promise<void> {
-        throw new Error("Method not implemented.")
     }
 
     async getBundleGasPrice({
@@ -383,25 +361,31 @@ export class Executor {
         })
 
         let filterOpsResult = await filterOpsAndEstimateGas({
-            gasPriceManager: this.gasPriceManager,
+            networkBaseFee,
             userOpBundle,
             config: this.config,
             logger: childLogger
         })
 
         if (filterOpsResult.status === "unhandled_error") {
-            childLogger.error("encountered unexpected failure during filterOps")
+            childLogger.error(
+                "encountered unhandled failure during filterOps simulation"
+            )
             return {
-                status: "filterops_unhandled_error",
-                rejectedUserOps: filterOpsResult.rejectedUserOps
+                success: false,
+                reason: "filterops_failed",
+                rejectedUserOps: filterOpsResult.rejectedUserOps,
+                recoverableOps: []
             }
         }
 
         if (filterOpsResult.status === "all_ops_rejected") {
-            childLogger.warn("all ops failed simulation")
+            childLogger.warn("all ops failed filterOps simulation")
             return {
-                status: "filterops_all_rejected",
-                rejectedUserOps: filterOpsResult.rejectedUserOps
+                success: false,
+                reason: "filterops_failed",
+                rejectedUserOps: filterOpsResult.rejectedUserOps,
+                recoverableOps: []
             }
         }
 
@@ -482,10 +466,10 @@ export class Executor {
                     "unknown error submitting bundle transaction"
                 )
                 return {
+                    success: false,
+                    reason: "generic_error",
                     rejectedUserOps,
-                    userOpsToBundle,
-                    status: "submission_generic_error",
-                    reason: "INTERNAL FAILURE"
+                    recoverableOps: userOpsToBundle
                 }
             }
 
@@ -499,9 +483,10 @@ export class Executor {
                     "executor has insufficient funds"
                 )
                 return {
+                    success: false,
+                    reason: "insufficient_funds",
                     rejectedUserOps,
-                    userOpsToBundle,
-                    status: "submission_insufficient_funds_error"
+                    recoverableOps: userOpsToBundle
                 }
             }
 
@@ -513,22 +498,21 @@ export class Executor {
             )
 
             return {
+                success: false,
+                reason: "generic_error",
                 rejectedUserOps,
-                userOpsToBundle,
-                status: "submission_generic_error",
-                reason: e
+                recoverableOps: userOpsToBundle
             }
         }
 
         const userOpsBundled = userOpsToBundle
 
         const bundleResult: BundleResult = {
-            status: "submission_success",
+            success: true,
             userOpsBundled,
             rejectedUserOps,
             transactionHash,
             transactionRequest: {
-                gas: bundleGasLimit,
                 maxFeePerGas,
                 maxPriorityFeePerGas,
                 nonce

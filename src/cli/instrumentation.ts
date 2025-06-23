@@ -12,6 +12,17 @@ import {
     SamplingDecision
 } from "@opentelemetry/sdk-trace-base"
 import { SemanticAttributes } from "@opentelemetry/semantic-conventions"
+import module from "node:module"
+import { createAddHookMessageChannel } from "import-in-the-middle"
+
+const { registerOptions, waitForAllMessagesAcknowledged } =
+    createAddHookMessageChannel()
+// @ts-ignore —  @types/node needs to be updated first
+module.register(
+    "import-in-the-middle/hook.mjs",
+    import.meta.url,
+    registerOptions
+)
 
 class CustomSampler implements Sampler {
     shouldSample(
@@ -59,3 +70,4 @@ const sdk = new NodeSDK({
 })
 
 sdk.start()
+await waitForAllMessagesAcknowledged()

@@ -11,7 +11,8 @@ import {
     estimateUserOperationGasSchema
 } from "@alto/types"
 import { RpcHandler } from "../rpcHandler"
-import { toHex } from "viem"
+import { SimulateHandleOpResult } from "../estimation/types"
+import { parseEther, toHex } from "viem"
 
 type GasEstimateResult =
     | {
@@ -125,11 +126,7 @@ const getGasEstimates = async ({
 
         // gas estimation simulation is done with maxFeePerGas/maxPriorityFeePerGas = 1.
         // Because of this, sender must have atleast maxGas of wei.
-        const maxGas =
-            simulationCallGasLimit +
-            simulationVerificationGasLimit +
-            simulationPaymasterVerificationGasLimit +
-            simulationPaymasterPostOpGasLimit
+        const maxGas = parseEther("100")
 
         mutableStateOverrides[sender] = {
             ...deepHexlify(mutableStateOverrides[sender] || {}),
@@ -197,7 +194,7 @@ const getGasEstimates = async ({
 
         const userOperationPaymasterPostOpGasLimit =
             "paymasterPostOpGasLimit" in userOperation
-                ? userOperation.paymasterPostOpGasLimit ?? 1n
+                ? (userOperation.paymasterPostOpGasLimit ?? 1n)
                 : 1n
 
         paymasterPostOpGasLimit = maxBigInt(

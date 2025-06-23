@@ -1,3 +1,4 @@
+import { isVersion06, isVersion07 } from "@alto/utils"
 import {
     boostSendUserOperationSchema,
     type UserOperation
@@ -16,6 +17,27 @@ const validateUserOperation = ({
         throw new RpcError(
             "maxFeePerGas and maxPriorityFeePerGas must be 0 for a boosted user operation"
         )
+    }
+
+    if (isVersion06(userOperation)) {
+        if (userOperation.paymasterAndData !== "0x") {
+            throw new RpcError(
+                "Paymaster is not supported for boosted user operations. paymasterAndData must be '0x'"
+            )
+        }
+    }
+
+    if (isVersion07(userOperation)) {
+        if (
+            userOperation.paymaster ||
+            userOperation.paymasterData ||
+            userOperation.paymasterPostOpGasLimit ||
+            userOperation.paymasterVerificationGasLimit
+        ) {
+            throw new RpcError(
+                "Paymaster is not supported for boosted user operations. All paymaster fields must be empty"
+            )
+        }
     }
 }
 
@@ -49,7 +71,7 @@ export const boostSendUserOperationHandler = createMethodHandler({
             rpcHandler.metrics.userOperationsReceived
                 .labels({
                     status,
-                    type: "boost"
+                    type: !!userOperation.eip7702Auth ? "7702" : "boost"
                 })
                 .inc()
         }

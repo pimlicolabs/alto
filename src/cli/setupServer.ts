@@ -15,6 +15,7 @@ import type { AltoConfig } from "../createConfig"
 import { validateAndRefillWallets } from "../executor/senderManager/validateAndRefill"
 import { flushOnStartUp } from "../executor/senderManager/flushOnStartUp"
 import { createMempoolStore } from "../store/createMempoolStore"
+import { UserOpMonitor } from "../executor/userOpMonitor"
 
 const getReputationManager = (
     config: AltoConfig
@@ -73,6 +74,7 @@ const getMempool = ({
     return new Mempool({
         config,
         monitor,
+        metrics,
         store: createMempoolStore({ config, metrics }),
         reputationManager,
         validator,
@@ -91,26 +93,14 @@ const getEventManager = ({
 }
 
 const getExecutor = ({
-    mempool,
     config,
-    reputationManager,
-    metrics,
-    gasPriceManager,
     eventManager
 }: {
-    mempool: Mempool
     config: AltoConfig
-    reputationManager: InterfaceReputationManager
-    metrics: Metrics
-    gasPriceManager: GasPriceManager
     eventManager: EventManager
 }): Executor => {
     return new Executor({
-        mempool,
         config,
-        reputationManager,
-        metrics,
-        gasPriceManager,
         eventManager
     })
 }
@@ -119,33 +109,27 @@ const getExecutorManager = ({
     config,
     executor,
     mempool,
-    monitor,
     senderManager,
-    reputationManager,
     metrics,
     gasPriceManager,
-    eventManager
+    userOpMonitor
 }: {
     config: AltoConfig
     executor: Executor
     mempool: Mempool
-    monitor: Monitor
-    reputationManager: InterfaceReputationManager
     senderManager: SenderManager
     metrics: Metrics
     gasPriceManager: GasPriceManager
-    eventManager: EventManager
+    userOpMonitor: UserOpMonitor
 }) => {
     return new ExecutorManager({
         config,
         executor,
+        userOpMonitor,
         mempool,
-        monitor,
         senderManager,
-        reputationManager,
         metrics,
-        gasPriceManager,
-        eventManager
+        gasPriceManager
     })
 }
 
@@ -157,6 +141,7 @@ const getRpcHandler = ({
     monitor,
     executorManager,
     reputationManager,
+    userOpMonitor,
     metrics,
     gasPriceManager,
     eventManager
@@ -168,6 +153,7 @@ const getRpcHandler = ({
     monitor: Monitor
     executorManager: ExecutorManager
     reputationManager: InterfaceReputationManager
+    userOpMonitor: UserOpMonitor
     metrics: Metrics
     eventManager: EventManager
     gasPriceManager: GasPriceManager
@@ -180,6 +166,7 @@ const getRpcHandler = ({
         monitor,
         executorManager,
         reputationManager,
+        userOpMonitor,
         metrics,
         eventManager,
         gasPriceManager
@@ -280,24 +267,28 @@ export const setupServer = async ({
     })
 
     const executor = getExecutor({
-        mempool,
         config,
-        reputationManager,
-        metrics,
-        gasPriceManager,
         eventManager
     })
 
+    const userOpMonitor = new UserOpMonitor({
+        config,
+        mempool,
+        monitor,
+        metrics,
+        reputationManager,
+        eventManager,
+        senderManager
+    })
+
     const executorManager = getExecutorManager({
+        userOpMonitor,
         config,
         executor,
         mempool,
-        monitor,
         senderManager,
-        reputationManager,
         metrics,
-        gasPriceManager,
-        eventManager
+        gasPriceManager
     })
 
     const rpcEndpoint = getRpcHandler({
@@ -308,6 +299,7 @@ export const setupServer = async ({
         monitor,
         executorManager,
         reputationManager,
+        userOpMonitor,
         metrics,
         gasPriceManager,
         eventManager
@@ -348,7 +340,7 @@ export const setupServer = async ({
             const outstanding = [...(await mempool.dumpOutstanding(entryPoint))]
             const submitted = [...(await mempool.dumpSubmittedOps(entryPoint))]
             const processing = [...(await mempool.dumpProcessing(entryPoint))]
-            await executorManager.dropUserOps(entryPoint, [
+            await mempool.dropUserOps(entryPoint, [
                 ...outstanding.map((userOp) => ({
                     ...userOp,
                     reason: "shutdown"

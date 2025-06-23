@@ -28,7 +28,6 @@ import { pimlicoSimulationsAbi } from "../types/contracts/PimlicoSimulations"
 import * as sentry from "@sentry/node"
 import { getEip7702DelegationOverrides } from "../utils/eip7702"
 import { encodeHandleOpsCalldata, calculateAA95GasFloor } from "./utils"
-import { GasPriceManager } from "../handlers/gasPriceManager"
 import { getFilterOpsStateOverride } from "../utils/entryPointOverrides"
 
 export type FilterOpsResult =
@@ -159,27 +158,23 @@ const getBundleGasLimit = async ({
 const getFilterOpsResult = async ({
     config,
     userOpBundle,
-    gasPriceManager,
+    networkBaseFee,
     beneficiary
 }: {
     userOpBundle: UserOperationBundle
     config: AltoConfig
-    gasPriceManager: GasPriceManager
+    networkBaseFee: bigint
     beneficiary: Address
 }): Promise<{
     gasUsed: bigint
     balanceChange: bigint
     rejectedUserOps: readonly {
-        userOpHash: `0x${string}`
-        revertReason: `0x${string}`
+        userOpHash: Hex
+        revertReason: Hex
     }[]
 }> => {
-    let {
-        publicClient,
-        pimlicoSimulationContract,
-        legacyTransactions,
-        codeOverrideSupport
-    } = config
+    let { publicClient, pimlicoSimulationContract, codeOverrideSupport } =
+        config
 
     if (!pimlicoSimulationContract) {
         throw new Error("pimlicoSimulationContract not set")
@@ -196,9 +191,7 @@ const getFilterOpsResult = async ({
         simulationOverrides = getFilterOpsStateOverride({
             version,
             entryPoint,
-            baseFeePerGas: legacyTransactions
-                ? 0n
-                : await gasPriceManager.getBaseFee()
+            baseFeePerGas: networkBaseFee
         })
     }
 
@@ -295,12 +288,12 @@ export async function filterOpsAndEstimateGas({
     userOpBundle,
     config,
     logger,
-    gasPriceManager
+    networkBaseFee
 }: {
     userOpBundle: UserOperationBundle
     config: AltoConfig
     logger: Logger
-    gasPriceManager: GasPriceManager
+    networkBaseFee: bigint
 }): Promise<FilterOpsResult> {
     let { utilityWalletAddress: beneficiary } = config
     const { userOps, entryPoint } = userOpBundle
@@ -312,7 +305,7 @@ export async function filterOpsAndEstimateGas({
         const filterOpsPromise = getFilterOpsResult({
             userOpBundle,
             config,
-            gasPriceManager,
+            networkBaseFee,
             beneficiary
         })
 
