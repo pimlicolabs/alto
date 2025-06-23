@@ -279,6 +279,11 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
         uint256 toleranceDelta,
         uint256 gasAllowance
     ) public returns (BinarySearchResult memory) {
+        // If there is no paymaster, _validatePaymasterUserOp is never called.
+        if (targetUserOp.paymasterAndData.length < 20) {
+            return BinarySearchResult(0, false, new bytes(0));
+        }
+
         UserOpInfo memory setupOpInfo;
         _copyUserOpToMemory(targetUserOp, setupOpInfo.mUserOp);
         _validateAccountPrepayment(0, targetUserOp, setupOpInfo, 0, gasleft());
