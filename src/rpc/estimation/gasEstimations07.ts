@@ -120,31 +120,15 @@ export class GasEstimatorV07 {
                     }
                 )
 
-            if (result.success) {
+            if (result.successData.success) {
                 return {
                     result: "success",
                     data: result
                 } as const
             }
 
-            return {
-                result: "failed",
-                data: result.returnData,
-                code: ExecutionErrors.UserOperationReverted
-            }
-        } catch (error) {
-            if (
-                error instanceof ContractFunctionRevertedError &&
-                error.name === "SimulationOutOfGas" &&
-                error.data &&
-                error.data.args
-            ) {
-                const [optimalGas, minGas] = error.data.args as [
-                    bigint,
-                    bigint,
-                    bigint
-                ]
-
+            // Check if simulation ran out of gas (resultType 1 = OutOfGas)
+            if (result.resultType === 1) {
                 // Check if we've hit the retry limit
                 if (retryCount >= this.config.binarySearchMaxRetries) {
                     return {
@@ -155,7 +139,8 @@ export class GasEstimatorV07 {
                 }
 
                 // Recursively call itself with new gas limits
-                const newGasAllowance = optimalGas - minGas
+                const newGasAllowance =
+                    result.outOfGasData.optimalGas - result.outOfGasData.minGas
                 return this.binarySearchVerificationGasLimit(
                     epSimulationsContract,
                     queuedUserOps,
@@ -163,11 +148,17 @@ export class GasEstimatorV07 {
                     entryPoint,
                     stateOverride,
                     retryCount + 1,
-                    minGas,
+                    result.outOfGasData.minGas,
                     newGasAllowance
                 )
             }
 
+            return {
+                result: "failed",
+                data: result.successData.returnData,
+                code: ExecutionErrors.UserOperationReverted
+            }
+        } catch (error) {
             return {
                 result: "failed",
                 data: "Unknown error, could not parse target call data result.",
@@ -209,31 +200,15 @@ export class GasEstimatorV07 {
                     }
                 )
 
-            if (result.success) {
+            if (result.successData.success) {
                 return {
                     result: "success",
                     data: result
                 } as const
             }
 
-            return {
-                result: "failed",
-                data: result.returnData,
-                code: ExecutionErrors.UserOperationReverted
-            }
-        } catch (error) {
-            if (
-                error instanceof ContractFunctionRevertedError &&
-                error.name === "SimulationOutOfGas" &&
-                error.data &&
-                error.data.args
-            ) {
-                const [optimalGas, minGas] = error.data.args as [
-                    bigint,
-                    bigint,
-                    bigint
-                ]
-
+            // Check if simulation ran out of gas (resultType 1 = OutOfGas)
+            if (result.resultType === 1) {
                 // Check if we've hit the retry limit
                 if (retryCount >= this.config.binarySearchMaxRetries) {
                     return {
@@ -244,7 +219,8 @@ export class GasEstimatorV07 {
                 }
 
                 // Recursively call itself with new gas limits
-                const newGasAllowance = optimalGas - minGas
+                const newGasAllowance =
+                    result.outOfGasData.optimalGas - result.outOfGasData.minGas
                 return this.binarySearchPaymasterVerificationGasLimit(
                     epSimulationsContract,
                     queuedUserOps,
@@ -252,11 +228,17 @@ export class GasEstimatorV07 {
                     entryPoint,
                     stateOverride,
                     retryCount + 1,
-                    minGas,
+                    result.outOfGasData.minGas,
                     newGasAllowance
                 )
             }
 
+            return {
+                result: "failed",
+                data: result.successData.returnData,
+                code: ExecutionErrors.UserOperationReverted
+            }
+        } catch (error) {
             return {
                 result: "failed",
                 data: "Unknown error, could not parse target call data result.",
@@ -317,8 +299,9 @@ export class GasEstimatorV07 {
 
             return {
                 result: "success",
-                verificationGas: verificationGasLimit.gasUsed,
-                paymasterVerificationGas: paymasterVerificationGasLimit.gasUsed,
+                verificationGas: verificationGasLimit.successData.gasUsed,
+                paymasterVerificationGas:
+                    paymasterVerificationGasLimit.successData.gasUsed,
                 executionResult: simulationResult
             }
         } catch (error) {
@@ -389,31 +372,15 @@ export class GasEstimatorV07 {
                     }
                 )
 
-            if (result.success) {
+            if (result.successData.success) {
                 return {
                     result: "success",
                     data: result
                 } as const
             }
 
-            return {
-                result: "failed",
-                data: result.returnData,
-                code: ExecutionErrors.UserOperationReverted
-            }
-        } catch (error) {
-            if (
-                error instanceof ContractFunctionRevertedError &&
-                error.name === "SimulationOutOfGas" &&
-                error.data &&
-                error.data.args
-            ) {
-                const [optimalGas, minGas] = error.data.args as [
-                    bigint,
-                    bigint,
-                    bigint
-                ]
-
+            // Check if simulation ran out of gas (resultType 1 = OutOfGas)
+            if (result.resultType === 1) {
                 // Check if we've hit the retry limit
                 if (retryCount >= this.config.binarySearchMaxRetries) {
                     return {
@@ -424,7 +391,8 @@ export class GasEstimatorV07 {
                 }
 
                 // Recursively call itself with new gas limits
-                const newGasAllowance = optimalGas - minGas
+                const newGasAllowance =
+                    result.outOfGasData.optimalGas - result.outOfGasData.minGas
                 return this.binarySearchCallGasLimit(
                     epSimulationsContract,
                     queuedUserOps,
@@ -432,11 +400,17 @@ export class GasEstimatorV07 {
                     entryPoint,
                     stateOverride,
                     retryCount + 1,
-                    minGas,
+                    result.outOfGasData.minGas,
                     newGasAllowance
                 )
             }
 
+            return {
+                result: "failed",
+                data: result.successData.returnData,
+                code: ExecutionErrors.UserOperationReverted
+            }
+        } catch (error) {
             return {
                 result: "failed",
                 data: "Unknown error, could not parse target call data result.",
@@ -739,9 +713,10 @@ export class GasEstimatorV07 {
             return {
                 result: "execution",
                 data: {
-                    callGasLimit: bscgl.data.gasUsed,
-                    verificationGasLimit: bsvgl.data.gasUsed,
-                    paymasterVerificationGasLimit: bspvgl.data.gasUsed,
+                    callGasLimit: bscgl.data.successData.gasUsed,
+                    verificationGasLimit: bsvgl.data.successData.gasUsed,
+                    paymasterVerificationGasLimit:
+                        bspvgl.data.successData.gasUsed,
                     executionResult: sho.data.executionResult
                 }
             }
@@ -781,7 +756,7 @@ export class GasEstimatorV07 {
             return {
                 result: "execution",
                 data: {
-                    callGasLimit: focgl.data.gasUsed,
+                    callGasLimit: focgl.data.successData.gasUsed,
                     verificationGasLimit: verificationGas,
                     paymasterVerificationGasLimit: paymasterVerificationGas,
                     executionResult: executionResult

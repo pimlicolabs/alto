@@ -21,9 +21,17 @@ export type SimulateBinarySearchResult =
     | {
           result: "success"
           data: {
-              gasUsed: bigint
-              success: boolean
-              returnData: Hex
+              resultType: 0 // Success enum value
+              successData: {
+                  gasUsed: bigint
+                  success: boolean
+                  returnData: Hex
+              }
+              outOfGasData: {
+                  optimalGas: bigint
+                  minGas: bigint
+                  maxGas: bigint
+              }
           }
       }
     | {

@@ -135,19 +135,53 @@ export const entryPointSimulations07Abi = [
         "internalType": "struct IEntryPointSimulations.BinarySearchResult",
         "components": [
           {
-            "name": "gasUsed",
-            "type": "uint256",
-            "internalType": "uint256"
+            "name": "resultType",
+            "type": "uint8",
+            "internalType": "enum IEntryPointSimulations.BinarySearchResultType"
           },
           {
-            "name": "success",
-            "type": "bool",
-            "internalType": "bool"
+            "name": "successData",
+            "type": "tuple",
+            "internalType": "struct IEntryPointSimulations.BinarySearchSuccess",
+            "components": [
+              {
+                "name": "gasUsed",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "success",
+                "type": "bool",
+                "internalType": "bool"
+              },
+              {
+                "name": "returnData",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ]
           },
           {
-            "name": "returnData",
-            "type": "bytes",
-            "internalType": "bytes"
+            "name": "outOfGasData",
+            "type": "tuple",
+            "internalType": "struct IEntryPointSimulations.BinarySearchOutOfGas",
+            "components": [
+              {
+                "name": "optimalGas",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "minGas",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "maxGas",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
           }
         ]
       }
@@ -290,19 +324,53 @@ export const entryPointSimulations07Abi = [
         "internalType": "struct IEntryPointSimulations.BinarySearchResult",
         "components": [
           {
-            "name": "gasUsed",
-            "type": "uint256",
-            "internalType": "uint256"
+            "name": "resultType",
+            "type": "uint8",
+            "internalType": "enum IEntryPointSimulations.BinarySearchResultType"
           },
           {
-            "name": "success",
-            "type": "bool",
-            "internalType": "bool"
+            "name": "successData",
+            "type": "tuple",
+            "internalType": "struct IEntryPointSimulations.BinarySearchSuccess",
+            "components": [
+              {
+                "name": "gasUsed",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "success",
+                "type": "bool",
+                "internalType": "bool"
+              },
+              {
+                "name": "returnData",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ]
           },
           {
-            "name": "returnData",
-            "type": "bytes",
-            "internalType": "bytes"
+            "name": "outOfGasData",
+            "type": "tuple",
+            "internalType": "struct IEntryPointSimulations.BinarySearchOutOfGas",
+            "components": [
+              {
+                "name": "optimalGas",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "minGas",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "maxGas",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
           }
         ]
       }
@@ -445,19 +513,53 @@ export const entryPointSimulations07Abi = [
         "internalType": "struct IEntryPointSimulations.BinarySearchResult",
         "components": [
           {
-            "name": "gasUsed",
-            "type": "uint256",
-            "internalType": "uint256"
+            "name": "resultType",
+            "type": "uint8",
+            "internalType": "enum IEntryPointSimulations.BinarySearchResultType"
           },
           {
-            "name": "success",
-            "type": "bool",
-            "internalType": "bool"
+            "name": "successData",
+            "type": "tuple",
+            "internalType": "struct IEntryPointSimulations.BinarySearchSuccess",
+            "components": [
+              {
+                "name": "gasUsed",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "success",
+                "type": "bool",
+                "internalType": "bool"
+              },
+              {
+                "name": "returnData",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ]
           },
           {
-            "name": "returnData",
-            "type": "bytes",
-            "internalType": "bytes"
+            "name": "outOfGasData",
+            "type": "tuple",
+            "internalType": "struct IEntryPointSimulations.BinarySearchOutOfGas",
+            "components": [
+              {
+                "name": "optimalGas",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "minGas",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "maxGas",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
           }
         ]
       }

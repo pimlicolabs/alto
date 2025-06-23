@@ -9,10 +9,27 @@ interface IEntryPointSimulations {
     /*                Gas Estimation Binary Search                */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    struct BinarySearchResult {
+    enum BinarySearchResultType {
+        Success,
+        OutOfGas
+    }
+
+    struct BinarySearchSuccess {
         uint256 gasUsed;
         bool success;
         bytes returnData;
+    }
+
+    struct BinarySearchOutOfGas {
+        uint256 optimalGas;
+        uint256 minGas;
+        uint256 maxGas;
+    }
+
+    struct BinarySearchResult {
+        BinarySearchResultType resultType;
+        BinarySearchSuccess successData;
+        BinarySearchOutOfGas outOfGasData;
     }
 
     function findOptimalVerificationGasLimit(

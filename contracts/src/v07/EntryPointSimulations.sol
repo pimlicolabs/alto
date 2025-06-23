@@ -31,8 +31,6 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
 
     using UserOperationLib for PackedUserOperation;
 
-    // Thrown when the binary search fails due hitting the simulation gasLimit.
-    error SimulationOutOfGas(uint256 optimalGas, uint256 minGas, uint256 maxGas);
     error innerCallResult(uint256 remainingGas);
 
     /**
@@ -228,7 +226,7 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
 
             // If the call reverts then don't binary search.
             if (!targetSuccess) {
-                return BinarySearchResult(0, targetSuccess, targetResult);
+                return BinarySearchResult(BinarySearchResultType.Success, BinarySearchSuccess(0, targetSuccess, targetResult), BinarySearchOutOfGas(0, 0, 0));
             }
         } else {
             // Find the minGas (reduces number of iterations + checks if the call reverts).
@@ -239,7 +237,7 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
 
             // If the call reverts then don't binary search.
             if (!targetSuccess) {
-                return BinarySearchResult(0, targetSuccess, targetResult);
+                return BinarySearchResult(BinarySearchResultType.Success, BinarySearchSuccess(0, targetSuccess, targetResult), BinarySearchOutOfGas(0, 0, 0));
             }
         }
 
@@ -249,7 +247,7 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
         while ((maxGas - minGas) >= toleranceDelta) {
             // Check that we can do one more run.
             if (gasleft() < minGas + 5_000) {
-                revert SimulationOutOfGas(optimalGas, minGas, maxGas);
+                return BinarySearchResult(BinarySearchResultType.OutOfGas, BinarySearchSuccess(0, false, new bytes(0)), BinarySearchOutOfGas(optimalGas, minGas, maxGas));
             }
 
             uint256 midGas = (minGas + maxGas) / 2;
@@ -268,7 +266,7 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
             }
         }
 
-        return BinarySearchResult(optimalGas, targetSuccess, targetResult);
+        return BinarySearchResult(BinarySearchResultType.Success, BinarySearchSuccess(optimalGas, targetSuccess, targetResult), BinarySearchOutOfGas(0, 0, 0));
     }
 
     function findOptimalPaymasterVerificationGasLimit(
@@ -281,7 +279,7 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
     ) public returns (BinarySearchResult memory) {
         // If there is no paymaster, _validatePaymasterUserOp is never called.
         if (targetUserOp.paymasterAndData.length < 20) {
-            return BinarySearchResult(0, false, new bytes(0));
+            return BinarySearchResult(BinarySearchResultType.Success, BinarySearchSuccess(0, false, new bytes(0)), BinarySearchOutOfGas(0, 0, 0));
         }
 
         UserOpInfo memory setupOpInfo;
@@ -341,7 +339,7 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
     ) public returns (BinarySearchResult memory) {
         // If callData.length == 0, EntryPoint skips innerHandleOp phase.
         if (targetUserOp.callData.length == 0) {
-            return BinarySearchResult(0, false, new bytes(0));
+            return BinarySearchResult(BinarySearchResultType.Success, BinarySearchSuccess(0, false, new bytes(0)), BinarySearchOutOfGas(0, 0, 0));
         }
 
         processQueuedUserOps(queuedUserOps);
