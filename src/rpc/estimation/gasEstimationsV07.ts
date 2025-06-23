@@ -29,7 +29,9 @@ import {
     slice,
     toFunctionSelector,
     toHex,
-    zeroAddress
+    zeroAddress,
+    getContractAddress,
+    getContract
 } from "viem"
 import { AccountExecuteAbi } from "../../types/contracts/IAccountExecute"
 import {
@@ -39,6 +41,8 @@ import {
 } from "./types"
 import type { AltoConfig } from "../../createConfig"
 import { packUserOps } from "../../executor/utils"
+import { entryPoint07Abi } from "viem/_types/account-abstraction"
+import { EntryPointV07SimulationsAbi } from "../../esm/types"
 
 export class GasEstimatorV07 {
     private config: AltoConfig
@@ -406,30 +410,30 @@ export class GasEstimatorV07 {
         entryPoint,
         userOp,
         queuedUserOps,
-        stateOverrides = {}
+        userStateOverrides = {}
     }: {
         entryPoint: Address
         userOp: UserOperationV07
         queuedUserOps: UserOperationV07[]
-        stateOverrides?: StateOverrides | undefined
+        userStateOverrides?: StateOverrides | undefined
     }): Promise<SimulateHandleOpResult> {
         const {
+            pimlicoSimulationContract: pimlicoSimulationAddress,
             binarySearchToleranceDelta,
             binarySearchGasAllowance,
             splitSimulationCalls,
             publicClient,
-            pimlicoSimulationContract,
             entrypointSimulationContractV7,
             entrypointSimulationContractV8,
             fixedGasLimitForEstimation
         } = this.config
 
         const isV8 = isVersion08(userOp, entryPoint)
-        const entryPointSimulations = isV8
+        const epSimulationsAddress = isV8
             ? entrypointSimulationContractV8
             : entrypointSimulationContractV7
 
-        if (!entryPointSimulations) {
+        if (!epSimulationsAddress) {
             throw new Error(
                 `missing entryPointSimulations contract for version ${
                     isV8 ? "08" : "07"
@@ -437,16 +441,28 @@ export class GasEstimatorV07 {
             )
         }
 
-        if (!pimlicoSimulationContract) {
+        if (!pimlicoSimulationAddress) {
             throw new RpcError(
                 "pimlicoSimulationContract must be provided",
                 ValidationErrors.InvalidFields
             )
         }
 
-        stateOverrides = getAuthorizationStateOverrides({
+        const epSimulationsContract = getContract({
+            abi: entryPointSimulations07Abi,
+            address: epSimulationsAddress,
+            client: publicClient
+        })
+
+        const pimlicoSimulationContract = getContract({
+            abi: pimlicoSimulationsAbi,
+            address: pimlicoSimulationAddress,
+            client: publicClient
+        })
+
+        const stateOverride = getAuthorizationStateOverrides({
             userOperations: [...queuedUserOps, userOp],
-            stateOverrides
+            stateOverrides: userStateOverrides
         })
 
         let cause: readonly [Hex, Hex, Hex | null, Hex]
@@ -462,7 +478,7 @@ export class GasEstimatorV07 {
                 this.callPimlicoSimulations({
                     entryPoint,
                     entryPointSimulationsCallData: [simulateHandleOpLast],
-                    stateOverrides,
+                    stateOverrides: stateOverride,
                     entryPointSimulationsAddress: entryPointSimulations
                 }),
                 this.callPimlicoSimulations({
@@ -470,7 +486,7 @@ export class GasEstimatorV07 {
                     entryPointSimulationsCallData: [
                         binarySearchVerificationGasLimit
                     ],
-                    stateOverrides,
+                    stateOverrides: stateOverride,
                     entryPointSimulationsAddress: entryPointSimulations
                 }),
                 binarySearchPaymasterVerificationGasLimit
@@ -479,14 +495,14 @@ export class GasEstimatorV07 {
                           entryPointSimulationsCallData: [
                               binarySearchPaymasterVerificationGasLimit
                           ],
-                          stateOverrides,
+                          stateOverrides: stateOverride,
                           entryPointSimulationsAddress: entryPointSimulations
                       })
                     : null,
                 this.callPimlicoSimulations({
                     entryPoint,
                     entryPointSimulationsCallData: [binarySearchCallGasLimit],
-                    stateOverrides,
+                    stateOverrides: stateOverride,
                     entryPointSimulationsAddress: entryPointSimulations
                 })
             ])
@@ -498,49 +514,39 @@ export class GasEstimatorV07 {
                 binarySearchCallGasLimitCause[0]
             ]
         } else {
-            const simulateAndEstimateGasLimits = encodeFunctionData({
-                abi: pimlicoSimulationsAbi,
-                functionName: "simulateAndEstimateGasLimits",
-                args: [
-                    packUserOps(queuedUserOps), // queuedUserOps
-                    toPackedUserOperation(userOp), // targetUserOp
-                    entryPoint, // entryPoint
-                    entryPointSimulations, // entryPointSimulation
-                    9_000n, // initialMinGas
-                    binarySearchToleranceDelta, // toleranceDelta
-                    binarySearchGasAllowance // gasAllowance
-                ]
-            })
-
-            const findOptimalCallGasLimit = encodeFunctionData({
-                abi: entryPointSimulations07Abi,
-                functionName: "findOptimalCallGasLimit",
-                args: [
-                    packUserOps(queuedUserOps), // queuedUserOps
-                    toPackedUserOperation(userOp), // targetUserOp
-                    entryPoint, // entryPoint
-                    9_000n, // initialMinGas
-                    binarySearchToleranceDelta, // toleranceDelta
-                    binarySearchGasAllowance // gasAllowance
-                ]
-            })
-
             const [
                 simulateAndEstimateGasLimitsResult,
                 findOptimalCallGasLimitResult
             ] = await Promise.all([
-                publicClient.call({
-                    to: pimlicoSimulationContract,
-                    data: simulateAndEstimateGasLimits,
-                    gas: fixedGasLimitForEstimation,
-                    stateOverrides
-                }),
-                publicClient.call({
-                    to: entryPointSimulations,
-                    data: findOptimalCallGasLimit,
-                    gas: fixedGasLimitForEstimation,
-                    stateOverrides
-                })
+                pimlicoSimulationContract.simulate.simulateAndEstimateGasLimits(
+                    [
+                        packUserOps(queuedUserOps), // queuedUserOps
+                        toPackedUserOperation(userOp), // targetUserOp
+                        entryPoint, // entryPoint
+                        epSimulationsAddress, // entryPointSimulation
+                        9_000n, // initialMinGas
+                        binarySearchToleranceDelta, // toleranceDelta
+                        binarySearchGasAllowance // gasAllowance
+                    ],
+                    {
+                        stateOverride,
+                        gas: fixedGasLimitForEstimation
+                    }
+                ),
+                epSimulationsContract.simulate.findOptimalCallGasLimit(
+                    [
+                        packUserOps(queuedUserOps), // queuedUserOps
+                        toPackedUserOperation(userOp), // targetUserOp
+                        entryPoint, // entryPoint
+                        9_000n, // initialMinGas
+                        binarySearchToleranceDelta, // toleranceDelta
+                        binarySearchGasAllowance // gasAllowance
+                    ],
+                    {
+                        stateOverride,
+                        gas: fixedGasLimitForEstimation
+                    }
+                )
             ])
 
             cause = [
@@ -614,7 +620,7 @@ export class GasEstimatorV07 {
                     targetCallData: "0x" as Hex,
                     functionName: "binarySearchVerificationGasLimit",
                     queuedOps: queuedUserOps,
-                    stateOverrides
+                    stateOverrides: stateOverride
                 })
 
                 if (binarySearchResult.result === "failed") {
@@ -664,7 +670,7 @@ export class GasEstimatorV07 {
                     targetCallData: "0x" as Hex,
                     functionName: "binarySearchPaymasterVerificationGasLimit",
                     queuedOps: queuedUserOps,
-                    stateOverrides
+                    stateOverrides: stateOverride
                 })
 
                 if (binarySearchResult.result === "failed") {
@@ -704,7 +710,7 @@ export class GasEstimatorV07 {
                     }),
                     functionName: "binarySearchCallGasLimit",
                     queuedOps: queuedUserOps,
-                    stateOverrides
+                    stateOverrides: stateOverride
                 })
 
                 if (binarySearchResult.result === "failed") {
