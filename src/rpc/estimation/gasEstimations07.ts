@@ -121,12 +121,12 @@ export class GasEstimatorV07 {
         targetUserOp: UserOperationV07,
         entryPoint: Address,
         stateOverride: StateOverride
-    ): Promise<GasLimitResult | ContractFunctionRevertedError> {
+    ) {
         const packedQueuedOps = packUserOps(queuedUserOps)
         const packedTargetOp = toPackedUserOperation(targetUserOp)
 
         try {
-            const result =
+            const { result } =
                 await epSimulationsContract.simulate.findOptimalVerificationGasLimit(
                     [
                         packedQueuedOps,
@@ -141,12 +141,48 @@ export class GasEstimatorV07 {
                         gas: this.config.fixedGasLimitForEstimation
                     }
                 )
-            return result.result as GasLimitResult
-        } catch (error) {
-            if (error instanceof ContractFunctionRevertedError) {
-                return error
+
+            if (result.success) {
+                return {
+                    result: "success",
+                    data: result
+                } as const
             }
-            throw error
+
+            return {
+                result: "failed",
+                data: result.returnData,
+                code: ExecutionErrors.UserOperationReverted
+            }
+        } catch (error) {
+            if (!(error instanceof ContractFunctionRevertedError)) {
+                return {
+                    result: "failed",
+                    data: "Unknown error, could not parse target call data result.",
+                    code: ExecutionErrors.UserOperationReverted
+                } as const
+            }
+
+            if (
+                error.name === "SimulationOutOfGas" &&
+                error.data &&
+                error.data.args
+            ) {
+                const [optimalGas, minGas, maxGas] = error.data.args
+
+                return {
+                    result: "retry",
+                    optimalGas,
+                    minGas,
+                    maxGas
+                } as const
+            }
+
+            return {
+                result: "failed",
+                data: error.data,
+                code: ExecutionErrors.UserOperationReverted
+            }
         }
     }
 
@@ -159,12 +195,12 @@ export class GasEstimatorV07 {
         targetUserOp: UserOperationV07,
         entryPoint: Address,
         stateOverride: StateOverride
-    ): Promise<GasLimitResult | ContractFunctionRevertedError> {
+    ) {
         const packedQueuedOps = packUserOps(queuedUserOps)
         const packedTargetOp = toPackedUserOperation(targetUserOp)
 
         try {
-            const result =
+            const { result } =
                 await epSimulationsContract.simulate.findOptimalPaymasterVerificationGasLimit(
                     [
                         packedQueuedOps,
@@ -179,12 +215,48 @@ export class GasEstimatorV07 {
                         gas: this.config.fixedGasLimitForEstimation
                     }
                 )
-            return result.result as GasLimitResult
-        } catch (error) {
-            if (error instanceof ContractFunctionRevertedError) {
-                return error
+
+            if (result.success) {
+                return {
+                    result: "success",
+                    data: result
+                } as const
             }
-            throw error
+
+            return {
+                result: "failed",
+                data: result.returnData,
+                code: ExecutionErrors.UserOperationReverted
+            }
+        } catch (error) {
+            if (!(error instanceof ContractFunctionRevertedError)) {
+                return {
+                    result: "failed",
+                    data: "Unknown error, could not parse target call data result.",
+                    code: ExecutionErrors.UserOperationReverted
+                } as const
+            }
+
+            if (
+                error.name === "SimulationOutOfGas" &&
+                error.data &&
+                error.data.args
+            ) {
+                const [optimalGas, minGas, maxGas] = error.data.args
+
+                return {
+                    result: "retry",
+                    optimalGas,
+                    minGas,
+                    maxGas
+                } as const
+            }
+
+            return {
+                result: "failed",
+                data: error.data,
+                code: ExecutionErrors.UserOperationReverted
+            }
         }
     }
 
@@ -197,12 +269,12 @@ export class GasEstimatorV07 {
         targetUserOp: UserOperationV07,
         entryPoint: Address,
         stateOverride: StateOverride
-    ): Promise<GasLimitResult | ContractFunctionRevertedError> {
+    ) {
         const packedQueuedOps = packUserOps(queuedUserOps)
         const packedTargetOp = toPackedUserOperation(targetUserOp)
 
         try {
-            const result =
+            const { result } =
                 await epSimulationsContract.simulate.findOptimalCallGasLimit(
                     [
                         packedQueuedOps,
@@ -217,12 +289,48 @@ export class GasEstimatorV07 {
                         gas: this.config.fixedGasLimitForEstimation
                     }
                 )
-            return result.result as GasLimitResult
-        } catch (error) {
-            if (error instanceof ContractFunctionRevertedError) {
-                return error
+
+            if (result.success) {
+                return {
+                    result: "success",
+                    data: result
+                } as const
             }
-            throw error
+
+            return {
+                result: "failed",
+                data: result.returnData,
+                code: ExecutionErrors.UserOperationReverted
+            }
+        } catch (error) {
+            if (!(error instanceof ContractFunctionRevertedError)) {
+                return {
+                    result: "failed",
+                    data: "Unknown error, could not parse target call data result.",
+                    code: ExecutionErrors.UserOperationReverted
+                } as const
+            }
+
+            if (
+                error.name === "SimulationOutOfGas" &&
+                error.data &&
+                error.data.args
+            ) {
+                const [optimalGas, minGas, maxGas] = error.data.args
+
+                return {
+                    result: "retry",
+                    optimalGas,
+                    minGas,
+                    maxGas
+                } as const
+            }
+
+            return {
+                result: "failed",
+                data: error.data,
+                code: ExecutionErrors.UserOperationReverted
+            }
         }
     }
 
