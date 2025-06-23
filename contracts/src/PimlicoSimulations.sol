@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
+import {IEntryPointSimulations} from "./IEntryPointSimulations.sol";
+
 import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import {UserOperation} from "account-abstraction-v6/interfaces/UserOperation.sol";
 
@@ -22,15 +24,24 @@ contract PimlicoSimulations {
     /*                          Types                             */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
+    // Return type for filterOps.
     struct RejectedUserOp {
         bytes32 userOpHash;
         bytes revertReason;
     }
 
+    // Return type for filterOps.
     struct FilterOpsResult {
         uint256 gasUsed;
         uint256 balanceChange;
         RejectedUserOp[] rejectedUserOps;
+    }
+
+    // Return type for verifcation ans estimation.
+    struct VerificationGasLimitsResult {
+        IEntryPointSimulations.ExecutionResult simulationResult;
+        IEntryPointSimulations.BinarySearchResult verificationGasLimit;
+        IEntryPointSimulations.BinarySearchResult paymasterVerificationGasLimit;
     }
 
     event PimlicoSimulationDeployed();
@@ -53,6 +64,59 @@ contract PimlicoSimulations {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                    Estimation Methods                      */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+
+    /// @notice Simulates operation and estimates verification gas limits in a single call
+    /// @param queuedUserOps Operations to execute before the target operation
+    /// @param targetUserOp The target operation to simulate and estimate
+    /// @param entryPoint The entry point contract address
+    /// @param entryPointSimulation The entry point simulation contract address
+    /// @param initialMinGas The initial minimum gas for binary search
+    /// @param toleranceDelta The tolerance for binary search
+    /// @param gasAllowance The gas allowance for binary search
+    /// @return result Contains simulation result and gas estimates
+    function simulateAndEstimateVerificationGasLimits(
+        PackedUserOperation[] calldata queuedUserOps,
+        PackedUserOperation calldata targetUserOp,
+        address payable entryPoint,
+        address entryPointSimulation,
+        uint256 initialMinGas,
+        uint256 toleranceDelta,
+        uint256 gasAllowance
+    ) external returns (VerificationGasLimitsResult memory result) {
+        // Step 1: Simulate the operation to ensure it's valid
+        result.simulationResult = IEntryPointSimulations(entryPointSimulation).simulateHandleOp(
+            queuedUserOps,
+            targetUserOp
+        );
+
+        // If simulation failed, return early with just the simulation result
+        if (!result.simulationResult.targetSuccess) {
+            return result;
+        }
+
+        // Step 2: Find optimal verification gas limit
+        result.verificationGasLimit = IEntryPointSimulations(entryPointSimulation).findOptimalVerificationGasLimit(
+            queuedUserOps,
+            targetUserOp,
+            entryPoint,
+            initialMinGas,
+            toleranceDelta,
+            gasAllowance
+        );
+
+        // Step 3: If paymaster is present, find optimal paymaster verification gas limit
+        if (targetUserOp.paymasterAndData.length >= 20) {
+            result.paymasterVerificationGasLimit = IEntryPointSimulations(entryPointSimulation)
+                .findOptimalPaymasterVerificationGasLimit(
+                queuedUserOps,
+                targetUserOp,
+                entryPoint,
+                initialMinGas,
+                toleranceDelta,
+                gasAllowance
+            );
+        }
+    }
 
     function simulateEntryPoint(address entryPointSimulation, address payable entryPoint, bytes[] memory data)
         public

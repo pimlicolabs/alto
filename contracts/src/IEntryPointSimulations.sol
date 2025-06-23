@@ -15,15 +15,9 @@ interface IEntryPointSimulations {
         bytes returnData;
     }
 
-    struct BinarySearchArgs {
-        PackedUserOperation op;
-        address target;
-        bytes targetCallData;
-    }
-
     function findOptimalVerificationGasLimit(
-        BinarySearchArgs[] calldata queuedUserOps,
-        BinarySearchArgs calldata targetUserOp,
+        PackedUserOperation[] calldata queuedUserOps,
+        PackedUserOperation calldata targetUserOp,
         address entryPoint,
         uint256 initialMinGas,
         uint256 toleranceDelta,
@@ -31,8 +25,8 @@ interface IEntryPointSimulations {
     ) external returns (BinarySearchResult memory);
 
     function findOptimalPaymasterVerificationGasLimit(
-        BinarySearchArgs[] calldata queuedUserOps,
-        BinarySearchArgs calldata targetUserOp,
+        PackedUserOperation[] calldata queuedUserOps,
+        PackedUserOperation calldata targetUserOp,
         address entryPoint,
         uint256 initialMinGas,
         uint256 toleranceDelta,
@@ -40,8 +34,8 @@ interface IEntryPointSimulations {
     ) external returns (BinarySearchResult memory);
 
     function findOptimalCallGasLimit(
-        BinarySearchArgs[] calldata queuedUserOps,
-        BinarySearchArgs calldata targetUserOp,
+        PackedUserOperation[] calldata queuedUserOps,
+        PackedUserOperation calldata targetUserOp,
         address entryPoint,
         uint256 initialMinGas,
         uint256 toleranceDelta,
@@ -68,7 +62,7 @@ interface IEntryPointSimulations {
         external
         returns (ExecutionResult memory);
 
-    function simulateHandleOp(PackedUserOperation[] calldata setupUserOps, PackedUserOperation calldata targetUserOp)
+    function simulateHandleOp(PackedUserOperation[] calldata queuedUserOps, PackedUserOperation calldata targetUserOp)
         external
         returns (ExecutionResult memory);
 
@@ -96,7 +90,7 @@ interface IEntryPointSimulations {
 
     function simulateValidation(PackedUserOperation calldata userOp) external returns (ValidationResult memory);
 
-    function simulateValidation(PackedUserOperation[] calldata setupUserOps, PackedUserOperation calldata targetUserOp)
+    function simulateValidation(PackedUserOperation[] calldata queuedUserOps, PackedUserOperation calldata targetUserOp)
         external
         returns (ValidationResult memory);
 }
