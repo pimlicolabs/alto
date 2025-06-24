@@ -168,14 +168,15 @@ export class GasEstimatorV06 {
             }
         }
 
-        const stateOverride = getAuthorizationStateOverrides({
-            userOperations: [userOperation],
-            stateOverrides: userStateOverrides
-        })
+        let stateOverride: StateOverrides | undefined =
+            getAuthorizationStateOverrides({
+                userOperations: [userOperation],
+                stateOverrides: userStateOverrides
+            })
 
         // Remove state override if not supported by network.
         if (!balanceOverride && !codeOverrideSupport) {
-            userStateOverrides = undefined
+            stateOverride = undefined
         }
 
         try {

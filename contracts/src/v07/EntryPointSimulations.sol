@@ -76,11 +76,7 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
         return ValidationResult(returnInfo, senderInfo, factoryInfo, paymasterInfo, aggregatorInfo);
     }
 
-    /// @dev Helper function to encode target call data for a user operation
-    /// @param userOp The user operation to encode call data for
-    /// @param userOpHash The hash of the user operation (for executeUserOp calls)
-    /// @return target The target address (sender)
-    /// @return targetCallData The encoded call data
+    /// @notice Helper function to encode target call data for a user operation
     function _encodeTargetCallData(PackedUserOperation calldata userOp, bytes32 userOpHash)
         internal
         pure

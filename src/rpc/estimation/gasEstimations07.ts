@@ -97,7 +97,7 @@ export class GasEstimatorV07 {
                 }
 
             default:
-                this.logger.debug(
+                this.logger.warn(
                     { errorName },
                     "Unknown ContractFunctionRevertedError name"
                 )

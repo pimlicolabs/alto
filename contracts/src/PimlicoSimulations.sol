@@ -12,7 +12,6 @@ import {IEntryPoint as IEntryPoint08} from "account-abstraction-v8/interfaces/IE
 
 import {Exec} from "account-abstraction-v7/utils/Exec.sol";
 import {LibBytes} from "solady/utils/LibBytes.sol";
-import {ERC20} from "solady/tokens/ERC20.sol";
 
 /// @title PimlicoSimulations
 /// @author Pimlico (https://github.com/pimlicolabs/alto)
@@ -38,7 +37,7 @@ contract PimlicoSimulations {
     }
 
     // Return type for verifcation ans estimation.
-    struct VerificationGasLimitsResult {
+    struct SimulateAndEstimateGasResult {
         IEntryPointSimulations.ExecutionResult simulationResult;
         IEntryPointSimulations.BinarySearchResult verificationGasLimit;
         IEntryPointSimulations.BinarySearchResult paymasterVerificationGasLimit;
@@ -66,7 +65,7 @@ contract PimlicoSimulations {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @notice Simulates userOp and estimates verification & paymaster gas limits
-    function simulateAndEstimateGasLimits(
+    function simulateAndEstimateGas(
         PackedUserOperation[] calldata queuedUserOps,
         PackedUserOperation calldata targetUserOp,
         address payable entryPoint,
@@ -74,7 +73,7 @@ contract PimlicoSimulations {
         uint256 initialMinGas,
         uint256 toleranceDelta,
         uint256 gasAllowance
-    ) external returns (VerificationGasLimitsResult memory result) {
+    ) external returns (SimulateAndEstimateGasResult memory result) {
         // Step 1: Simulate the operation to ensure it's valid
         result.simulationResult =
             IEntryPointSimulations(entryPointSimulation).simulateHandleOp(queuedUserOps, targetUserOp);
