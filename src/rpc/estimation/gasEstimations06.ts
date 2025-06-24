@@ -26,6 +26,7 @@ import entryPointOverride from "../../contracts/EntryPointGasEstimationOverride.
     type: "json"
 }
 import { getSenderCreatorOverride } from "../../utils/entryPointOverrides"
+import { toViemStateOverrides } from "../../utils/toViemStateOverrides"
 
 export class GasEstimatorV06 {
     private config: AltoConfig
@@ -189,7 +190,7 @@ export class GasEstimatorV06 {
                     args: [userOperation, targetAddress, targetCallData]
                 }),
                 gas: fixedGasLimitForEstimation,
-                stateOverride
+                stateOverride: toViemStateOverrides(stateOverride)
             })
         } catch (e) {
             const err = e as RpcRequestErrorType

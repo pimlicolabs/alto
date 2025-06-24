@@ -13,11 +13,14 @@ import {
     isVersion08,
     toPackedUserOperation
 } from "@alto/utils"
-import { type Hex, ContractFunctionRevertedError } from "viem"
+import {
+    type Hex,
+    ContractFunctionRevertedError,
+    decodeErrorResult,
+    parseAbi
+} from "viem"
 import {
     type Address,
-    decodeAbiParameters,
-    slice,
     getContract,
     type StateOverride,
     type GetContractReturnType,
@@ -30,6 +33,7 @@ import {
 } from "./types"
 import type { AltoConfig } from "../../createConfig"
 import { packUserOps } from "../../executor/utils"
+import { toViemStateOverrides } from "../../utils/toViemStateOverrides"
 
 type SimulateHandleOpSuccessResult = {
     preOpGas: bigint
@@ -58,7 +62,7 @@ export class GasEstimatorV07 {
         )
     }
 
-    private decodeContractFunctionRevertedError(
+    private decodeSimulateHandleOpError(
         error: ContractFunctionRevertedError
     ): { result: "failed"; data: string; code: number } | null {
         if (!error.data?.args) {
@@ -232,8 +236,7 @@ export class GasEstimatorV07 {
             }
         } catch (error) {
             if (error instanceof ContractFunctionRevertedError) {
-                const decodedError =
-                    this.decodeContractFunctionRevertedError(error)
+                const decodedError = this.decodeSimulateHandleOpError(error)
 
                 if (decodedError) {
                     this.logger.warn(
@@ -316,8 +319,7 @@ export class GasEstimatorV07 {
             }
         } catch (error) {
             if (error instanceof ContractFunctionRevertedError) {
-                const decodedError =
-                    this.decodeContractFunctionRevertedError(error)
+                const decodedError = this.decodeSimulateHandleOpError(error)
 
                 if (decodedError) {
                     this.logger.warn(
@@ -381,7 +383,7 @@ export class GasEstimatorV07 {
                         toPackedUserOperation(userOperation)
                     ],
                     {
-                        stateOverride,
+                        stateOverride: toViemStateOverrides(stateOverride),
                         gas: this.config.fixedGasLimitForEstimation
                     }
                 )
@@ -392,8 +394,7 @@ export class GasEstimatorV07 {
             }
         } catch (error) {
             if (error instanceof ContractFunctionRevertedError) {
-                const decodedError =
-                    this.decodeContractFunctionRevertedError(error)
+                const decodedError = this.decodeSimulateHandleOpError(error)
 
                 if (decodedError) {
                     this.logger.warn(
@@ -459,7 +460,7 @@ export class GasEstimatorV07 {
                         toPackedUserOperation(userOperation)
                     ],
                     {
-                        stateOverride,
+                        stateOverride: toViemStateOverrides(stateOverride),
                         gas: this.config.fixedGasLimitForEstimation
                     }
                 )
@@ -475,8 +476,7 @@ export class GasEstimatorV07 {
             }
         } catch (error) {
             if (error instanceof ContractFunctionRevertedError) {
-                const decodedError =
-                    this.decodeContractFunctionRevertedError(error)
+                const decodedError = this.decodeSimulateHandleOpError(error)
                 if (decodedError) {
                     this.logger.warn(
                         { err: error, data: decodedError.data },
@@ -560,7 +560,7 @@ export class GasEstimatorV07 {
                     epSimulationsContract,
                     queuedUserOperations,
                     userOperation,
-                    stateOverride
+                    toViemStateOverrides(stateOverride)
                 ),
                 this.performBinarySearch(
                     epSimulationsContract,
@@ -568,7 +568,7 @@ export class GasEstimatorV07 {
                     queuedUserOperations,
                     userOperation,
                     entryPoint,
-                    stateOverride
+                    toViemStateOverrides(stateOverride)
                 ),
                 this.performBinarySearch(
                     epSimulationsContract,
@@ -576,7 +576,7 @@ export class GasEstimatorV07 {
                     queuedUserOperations,
                     userOperation,
                     entryPoint,
-                    stateOverride
+                    toViemStateOverrides(stateOverride)
                 ),
                 this.performBinarySearch(
                     epSimulationsContract,
@@ -584,7 +584,7 @@ export class GasEstimatorV07 {
                     queuedUserOperations,
                     userOperation,
                     entryPoint,
-                    stateOverride
+                    toViemStateOverrides(stateOverride)
                 )
             ])
 
@@ -621,7 +621,7 @@ export class GasEstimatorV07 {
                     userOperation,
                     entryPoint,
                     epSimulationsAddress,
-                    stateOverride
+                    toViemStateOverrides(stateOverride)
                 ),
                 this.performBinarySearch(
                     epSimulationsContract,
@@ -629,7 +629,7 @@ export class GasEstimatorV07 {
                     queuedUserOperations,
                     userOperation,
                     entryPoint,
-                    stateOverride
+                    toViemStateOverrides(stateOverride)
                 )
             ])
 
@@ -660,52 +660,35 @@ export class GasEstimatorV07 {
     }
 }
 
-const panicCodes: { [key: number]: string } = {
-    // from https://docs.soliditylang.org/en/v0.8.0/control-structures.html
-    1: "assert(false)",
-    17: "arithmetic overflow/underflow",
-    18: "divide by zero",
-    33: "invalid enum value",
-    34: "storage byte array that is incorrectly encoded",
-    49: ".pop() on an empty array.",
-    50: "array sout-of-bounds or negative index",
-    65: "memory overflow",
-    81: "zero-initialized variable of internal function type"
-}
-
 export function parseFailedOpWithRevert(data: Hex) {
-    const methodSig = slice(data, 0, 4)
-    const dataParams = slice(data, 4)
+    try {
+        const decoded = decodeErrorResult({
+            abi: parseAbi(["error Error(string)", "error Panic(uint256)"]),
+            data
+        })
 
-    // Selector for Error(string)
-    if (methodSig === "0x08c379a0") {
-        const [err] = decodeAbiParameters(
-            [
-                {
-                    name: "err",
-                    type: "string"
-                }
-            ],
-            dataParams
-        )
+        if (decoded.errorName === "Error") {
+            return decoded.args[0]
+        }
 
-        return err
-    }
+        if (decoded.errorName === "Panic") {
+            // from https://docs.soliditylang.org/en/v0.8.0/control-structures.html
+            const panicCodes: { [key: number]: string } = {
+                1: "assert(false)",
+                17: "arithmetic overflow/underflow",
+                18: "divide by zero",
+                33: "invalid enum value",
+                34: "storage byte array that is incorrectly encoded",
+                49: ".pop() on an empty array.",
+                50: "array sout-of-bounds or negative index",
+                65: "memory overflow",
+                81: "zero-initialized variable of internal function type"
+            }
 
-    // Selector for Panic(uint256)
-    if (methodSig === "0x4e487b71") {
-        const [code] = decodeAbiParameters(
-            [
-                {
-                    name: "err",
-                    type: "uint256"
-                }
-            ],
-            dataParams
-        )
-
-        return panicCodes[Number(code)] ?? `${code}`
-    }
+            const [code] = decoded.args
+            return panicCodes[Number(code)] ?? `${code}`
+        }
+    } catch {}
 
     return data
 }
