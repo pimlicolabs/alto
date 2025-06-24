@@ -425,8 +425,7 @@ export const getUserOperationHashV08 = async ({
         stateOverride: [
             ...Object.keys(stateOverrides).map((address) => ({
                 address: address as Address,
-                // @ts-ignore
-                code: stateOverrides[address]?.code ?? "0x"
+                code: stateOverrides[address as Address]?.code ?? "0x"
             }))
         ]
     })
