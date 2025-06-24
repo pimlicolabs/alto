@@ -8,8 +8,7 @@ import type {
     ValidationResultV06,
     ValidationResultV07,
     ValidationResultWithAggregationV06,
-    ValidationResultWithAggregationV07,
-    StateOverrides
+    ValidationResultWithAggregationV07
 } from "@alto/types"
 import {
     type Address,
@@ -297,32 +296,9 @@ export class SafeValidator
         userOperation: UserOperationV06,
         entryPoint: Address
     ): Promise<[ValidationResultV06, BundlerTracerResult]> {
-        const viemStateOverride = getAuthorizationStateOverrides({
+        const stateOverrides = getAuthorizationStateOverrides({
             userOperations: [userOperation]
         })
-
-        // Convert array format to object format for StateOverrides
-        const stateOverrides: StateOverrides = {}
-        for (const override of viemStateOverride) {
-            stateOverrides[override.address] = {
-                balance: override.balance,
-                nonce: override.nonce ? BigInt(override.nonce) : undefined,
-                code: override.code,
-                ...(override.state && {
-                    state: Object.fromEntries(
-                        override.state.map(({ slot, value }) => [slot, value])
-                    )
-                }),
-                ...(override.stateDiff && {
-                    stateDiff: Object.fromEntries(
-                        override.stateDiff.map(({ slot, value }) => [
-                            slot,
-                            value
-                        ])
-                    )
-                })
-            }
-        }
 
         const tracerResult = await debug_traceCall(
             this.config.publicClient,
@@ -496,32 +472,9 @@ export class SafeValidator
             )
         }
 
-        const viemStateOverride = getAuthorizationStateOverrides({
+        const stateOverrides = getAuthorizationStateOverrides({
             userOperations: [userOperation]
         })
-
-        // Convert array format to object format for StateOverrides
-        const stateOverrides: StateOverrides = {}
-        for (const override of viemStateOverride) {
-            stateOverrides[override.address] = {
-                balance: override.balance,
-                nonce: override.nonce ? BigInt(override.nonce) : undefined,
-                code: override.code,
-                ...(override.state && {
-                    state: Object.fromEntries(
-                        override.state.map(({ slot, value }) => [slot, value])
-                    )
-                }),
-                ...(override.stateDiff && {
-                    stateDiff: Object.fromEntries(
-                        override.stateDiff.map(({ slot, value }) => [
-                            slot,
-                            value
-                        ])
-                    )
-                })
-            }
-        }
 
         const tracerResult = await debug_traceCall(
             this.config.publicClient,
