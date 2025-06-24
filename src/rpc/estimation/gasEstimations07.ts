@@ -315,53 +315,29 @@ export class GasEstimatorV07 {
                 executionResult: simulationResult
             }
         } catch (error) {
-            if (error instanceof Error) {
-                const errorName = error.name
+            if (error instanceof ContractFunctionRevertedError) {
+                const decodedError =
+                    this.decodeContractFunctionRevertedError(error)
 
-                if (errorName === "EstimateGasExecutionError") {
+                if (decodedError) {
                     this.logger.warn(
-                        { err: error },
-                        "User operation execution reverted in simulateAndEstimateGasLimits"
+                        { err: error, data: decodedError.data },
+                        "Contract function reverted in simulateValidation"
                     )
                     return {
                         result: "failed",
-                        data: "UserOperation execution reverted",
-                        code: ExecutionErrors.UserOperationReverted
-                    }
-                }
-
-                if (errorName === "EstimateGasUserOperationError") {
-                    this.logger.warn(
-                        { err: error },
-                        "User operation error in simulateAndEstimateGasLimits"
-                    )
-                    return {
-                        result: "failed",
-                        data: error.message,
+                        data: decodedError.data,
                         code: ValidationErrors.SimulateValidation
-                    }
-                }
-
-                this.logger.warn(
-                    { err: error },
-                    "Unknown error in simulateAndEstimateGasLimits"
-                )
-                return {
-                    result: "failed",
-                    data: "Unknown error during gas estimation",
-                    code: ValidationErrors.SimulateValidation
+                    } as const
                 }
             }
+        }
 
-            this.logger.warn(
-                { err: error },
-                "Non-Error exception in simulateAndEstimateGasLimits"
-            )
-            return {
-                result: "failed",
-                data: "Unknown error in simulateAndEstimateGasLimits",
-                code: ValidationErrors.SimulateValidation
-            }
+        this.logger.warn("Failed to parse simulate validation result")
+        return {
+            result: "failed",
+            data: "Unknown error, could not parse simulate validation result.",
+            code: ValidationErrors.SimulateValidation
         }
     }
 
@@ -411,7 +387,7 @@ export class GasEstimatorV07 {
                 )
 
             return {
-                status: "validation",
+                result: "validation",
                 data: result
             }
         } catch (error) {
@@ -425,7 +401,7 @@ export class GasEstimatorV07 {
                         "Contract function reverted in simulateValidation"
                     )
                     return {
-                        status: "failed",
+                        result: "failed",
                         data: decodedError.data
                     } as const
                 }
@@ -434,7 +410,7 @@ export class GasEstimatorV07 {
 
         this.logger.warn("Failed to parse simulate validation result")
         return {
-            status: "failed",
+            result: "failed",
             data: "Unknown error, could not parse simulate validation result.",
             code: ValidationErrors.SimulateValidation
         }

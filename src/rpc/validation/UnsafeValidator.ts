@@ -426,7 +426,7 @@ export class UnsafeValidator implements InterfaceValidator {
                 queuedUserOperations: queuedUserOperations
             })
 
-        if (simulateValidationResult.status === "failed") {
+        if (simulateValidationResult.result === "failed") {
             throw new RpcError(
                 `UserOperation reverted with reason: ${
                     simulateValidationResult.data as string
