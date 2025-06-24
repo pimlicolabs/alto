@@ -140,6 +140,11 @@ export class Mempool {
                         { userOpHash, failureReason },
                         "Failed to resubmit user operation"
                     )
+                    const rejectedUserOp = {
+                        ...userOpInfo,
+                        reason: failureReason
+                    }
+                    this.dropUserOps(entryPoint, [rejectedUserOp])
                 }
             })
         )
