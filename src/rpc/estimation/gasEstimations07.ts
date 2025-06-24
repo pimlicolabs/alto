@@ -17,7 +17,9 @@ import {
     type Hex,
     ContractFunctionRevertedError,
     decodeErrorResult,
-    parseAbi
+    parseAbi,
+    BaseError,
+    parseAbiItem
 } from "viem"
 import {
     type Address,
@@ -34,6 +36,7 @@ import {
 import type { AltoConfig } from "../../createConfig"
 import { packUserOps } from "../../executor/utils"
 import { toViemStateOverrides } from "../../utils/toViemStateOverrides"
+import { entryPoint07Abi } from "viem/_types/account-abstraction"
 
 type SimulateHandleOpSuccessResult = {
     preOpGas: bigint
@@ -62,19 +65,50 @@ export class GasEstimatorV07 {
         )
     }
 
-    private decodeSimulateHandleOpError(
-        error: ContractFunctionRevertedError
-    ): { result: "failed"; data: string; code: number } | null {
-        if (!error.data?.args) {
+    private decodeSimulateHandleOpError(error: unknown): {
+        result: "failed"
+        data: string
+        code: number
+    } {
+        // Check if it's a BaseError with ContractFunctionRevertedError
+        if (!(error instanceof BaseError)) {
+            console.log("not base error")
+            return {
+                result: "failed",
+                data: "Unknown error, could not parse simulate validation result.",
+                code: ValidationErrors.SimulateValidation
+            }
+        }
+
+        const revertError = error.walk(
+            (e) => e instanceof ContractFunctionRevertedError
+        ) as ContractFunctionRevertedError
+
+        if (!revertError) {
+            console.log("no walk")
+            return {
+                result: "failed",
+                data: "Unknown error, could not parse simulate validation result.",
+                code: ValidationErrors.SimulateValidation
+            }
+        }
+
+        if (!revertError.data?.args) {
             this.logger.debug(
                 { err: error },
                 "ContractFunctionRevertedError has no args"
             )
-            return null
+            console.log("ContractFunctionRevertedError has no args")
+            console.log(revertError)
+            return {
+                result: "failed",
+                data: "Unknown error, could not parse simulate validation result.",
+                code: ValidationErrors.SimulateValidation
+            }
         }
 
-        const errorName = error.name
-        const args = error.data.args
+        const errorName = revertError.name
+        const args = revertError.data.args
 
         switch (errorName) {
             case "FailedOp":
@@ -105,7 +139,12 @@ export class GasEstimatorV07 {
                     { errorName },
                     "Unknown ContractFunctionRevertedError name"
                 )
-                return null
+                console.log("Unknown ContractFunctionRevertedError name")
+                return {
+                    result: "failed",
+                    data: "Unknown error, could not parse simulate validation result.",
+                    code: ValidationErrors.SimulateValidation
+                }
         }
     }
 
@@ -235,29 +274,12 @@ export class GasEstimatorV07 {
                 }
             }
         } catch (error) {
-            if (error instanceof ContractFunctionRevertedError) {
-                const decodedError = this.decodeSimulateHandleOpError(error)
-
-                if (decodedError) {
-                    this.logger.warn(
-                        { err: error, data: decodedError.data },
-                        "Contract function reverted in executeSimulateHandleOp"
-                    )
-                    return decodedError
-                }
-
-                // Default error response
-                this.logger.warn(
-                    { err: error },
-                    "Unhandled contract revert in executeSimulateHandleOp"
-                )
-                return {
-                    result: "failed",
-                    data: error.message || "Unknown error during simulation",
-                    code: ValidationErrors.SimulateValidation
-                }
-            }
-            throw error
+            const decodedError = this.decodeSimulateHandleOpError(error)
+            this.logger.warn(
+                { err: error, data: decodedError.data },
+                "Contract function reverted in executeSimulateHandleOp"
+            )
+            return decodedError
         }
     }
 
@@ -318,28 +340,12 @@ export class GasEstimatorV07 {
                 executionResult: simulationResult
             }
         } catch (error) {
-            if (error instanceof ContractFunctionRevertedError) {
-                const decodedError = this.decodeSimulateHandleOpError(error)
-
-                if (decodedError) {
-                    this.logger.warn(
-                        { err: error, data: decodedError.data },
-                        "Contract function reverted in simulateValidation"
-                    )
-                    return {
-                        result: "failed",
-                        data: decodedError.data,
-                        code: ValidationErrors.SimulateValidation
-                    } as const
-                }
-            }
-        }
-
-        this.logger.warn("Failed to parse simulate validation result")
-        return {
-            result: "failed",
-            data: "Unknown error, could not parse simulate validation result.",
-            code: ValidationErrors.SimulateValidation
+            const decodedError = this.decodeSimulateHandleOpError(error)
+            this.logger.warn(
+                { err: error, data: decodedError.data },
+                "Contract function reverted in simulateValidation"
+            )
+            return decodedError
         }
     }
 
@@ -393,27 +399,12 @@ export class GasEstimatorV07 {
                 data: result
             }
         } catch (error) {
-            if (error instanceof ContractFunctionRevertedError) {
-                const decodedError = this.decodeSimulateHandleOpError(error)
-
-                if (decodedError) {
-                    this.logger.warn(
-                        { err: error, data: decodedError.data },
-                        "Contract function reverted in simulateValidation"
-                    )
-                    return {
-                        result: "failed",
-                        data: decodedError.data
-                    } as const
-                }
-            }
-        }
-
-        this.logger.warn("Failed to parse simulate validation result")
-        return {
-            result: "failed",
-            data: "Unknown error, could not parse simulate validation result.",
-            code: ValidationErrors.SimulateValidation
+            const decodedError = this.decodeSimulateHandleOpError(error)
+            this.logger.warn(
+                { err: error, data: decodedError.data },
+                "Contract function reverted in simulateValidation"
+            )
+            return decodedError
         }
     }
 
@@ -475,25 +466,12 @@ export class GasEstimatorV07 {
                 }
             }
         } catch (error) {
-            if (error instanceof ContractFunctionRevertedError) {
-                const decodedError = this.decodeSimulateHandleOpError(error)
-                if (decodedError) {
-                    this.logger.warn(
-                        { err: error, data: decodedError.data },
-                        "Contract function reverted in validateHandleOpV07"
-                    )
-                    return decodedError
-                }
-            }
-        }
-
-        this.logger.warn(
-            "Failed to parse simulate handle op result in validateHandleOpV07"
-        )
-        return {
-            result: "failed",
-            data: "Unknown error, could not parse simulate handle op result.",
-            code: ValidationErrors.SimulateValidation
+            const decodedError = this.decodeSimulateHandleOpError(error)
+            this.logger.warn(
+                { err: error, data: decodedError.data },
+                "Contract function reverted in validateHandleOpV07"
+            )
+            return decodedError
         }
     }
 
@@ -538,13 +516,23 @@ export class GasEstimatorV07 {
         }
 
         const epSimulationsContract = getContract({
-            abi: entryPointSimulations07Abi,
+            abi: [
+                ...entryPointSimulations07Abi,
+                parseAbiItem("error FailedOp(string)"), // FailedOp(string reason)
+                parseAbiItem("error CallPhaseReverted(bytes)"), // CallPhaseReverted(bytes reason)
+                parseAbiItem("error FailedOpWithRevert(uint256,string,bytes)") // FailedOpWithRevert(uint256 opIndex, string reason, bytes inner)
+            ],
             address: epSimulationsAddress,
             client: publicClient
         })
 
         const pimlicoSimulationContract = getContract({
-            abi: pimlicoSimulationsAbi,
+            abi: [
+                pimlicoSimulationsAbi,
+                parseAbiItem("error FailedOp(string)"), // FailedOp(string reason)
+                parseAbiItem("error CallPhaseReverted(bytes)"), // CallPhaseReverted(bytes reason)
+                parseAbiItem("error FailedOpWithRevert(uint256,string,bytes)") // FailedOpWithRevert(uint256 opIndex, string reason, bytes inner)
+            ],
             address: pimlicoSimulationAddress,
             client: publicClient
         })
