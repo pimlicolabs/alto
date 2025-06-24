@@ -85,15 +85,22 @@ export class UserOpMonitor {
 
         // Refresh the statuses of all pending bundles.
         const pendingBundles = Array.from(this.pendingBundles.values())
-        await Promise.all(
-            pendingBundles.map((bundle) => this.refreshBundleStatus(bundle))
+        const refreshResults = await Promise.all(
+            pendingBundles.map(async (bundle) => {
+                const needsProcessing = await this.refreshBundleStatus(bundle)
+                return needsProcessing ? bundle : null
+            })
         )
 
-        // Return all pending bundles that still need processing.
-        return Array.from(this.pendingBundles.values())
+        // Return only bundles that still need processing
+        return refreshResults.filter(
+            (bundle): bundle is SubmittedBundleInfo => bundle !== null
+        )
     }
 
-    async refreshBundleStatus(submittedBundle: SubmittedBundleInfo) {
+    async refreshBundleStatus(
+        submittedBundle: SubmittedBundleInfo
+    ): Promise<boolean> {
         let bundleReceipt = await getBundleStatus({
             submittedBundle,
             publicClient: this.config.publicClient,
@@ -134,6 +141,9 @@ export class UserOpMonitor {
                     )
                 })
             )
+
+            // Bundle was included, no further processing needed
+            return false
         }
 
         if (bundleReceipt.status === "reverted") {
@@ -154,7 +164,13 @@ export class UserOpMonitor {
                     })
                 })
             )
+
+            // Bundle was reverted, no further processing needed
+            return false
         }
+
+        // Bundle is still pending, needs further processing
+        return true
     }
 
     public trackBundle(submittedBundle: SubmittedBundleInfo) {
