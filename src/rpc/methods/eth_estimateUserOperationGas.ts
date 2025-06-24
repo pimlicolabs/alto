@@ -141,7 +141,7 @@ const getGasEstimates = async ({
     }
 
     const executionResult = await rpcHandler.validator.getExecutionResult({
-        userOperation,
+        userOperation: simulationUserOp,
         queuedUserOperations,
         entryPoint,
         stateOverrides: deepHexlify(mutableStateOverrides)
@@ -193,7 +193,7 @@ const getGasEstimates = async ({
 
         const userOperationPaymasterPostOpGasLimit =
             "paymasterPostOpGasLimit" in userOperation
-                ? userOperation.paymasterPostOpGasLimit ?? 1n
+                ? (userOperation.paymasterPostOpGasLimit ?? 1n)
                 : 1n
 
         paymasterPostOpGasLimit = maxBigInt(
