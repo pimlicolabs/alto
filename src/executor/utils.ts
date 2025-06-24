@@ -99,6 +99,10 @@ export const getUserOpHashes = (userOpInfos: UserOpInfo[]) => {
 }
 
 export const packUserOps = (userOps: UserOperation[]) => {
+    if (userOps.length === 0) {
+        return []
+    }
+
     const isV06 = isVersion06(userOps[0])
     const packedUserOps = isV06
         ? userOps
