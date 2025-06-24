@@ -111,9 +111,9 @@ export class GasEstimatorV07 {
             PublicClient
         >,
         methodName:
-            | "findOptimalVerificationGasLimit"
-            | "findOptimalPaymasterVerificationGasLimit"
-            | "findOptimalCallGasLimit",
+            | "binarySearchVerificationGas"
+            | "binarySearchPaymasterVerificationGas"
+            | "binarySearchCallGas",
         queuedUserOps: UserOperationV07[],
         targetUserOp: UserOperationV07,
         entryPoint: Address,
@@ -588,7 +588,7 @@ export class GasEstimatorV07 {
                 ),
                 this.performBinarySearch(
                     epSimulationsContract,
-                    "findOptimalVerificationGasLimit",
+                    "binarySearchVerificationGas",
                     queuedUserOperations,
                     userOperation,
                     entryPoint,
@@ -596,7 +596,7 @@ export class GasEstimatorV07 {
                 ),
                 this.performBinarySearch(
                     epSimulationsContract,
-                    "findOptimalPaymasterVerificationGasLimit",
+                    "binarySearchPaymasterVerificationGas",
                     queuedUserOperations,
                     userOperation,
                     entryPoint,
@@ -604,7 +604,7 @@ export class GasEstimatorV07 {
                 ),
                 this.performBinarySearch(
                     epSimulationsContract,
-                    "findOptimalCallGasLimit",
+                    "binarySearchCallGas",
                     queuedUserOperations,
                     userOperation,
                     entryPoint,
@@ -649,7 +649,7 @@ export class GasEstimatorV07 {
                 ),
                 this.performBinarySearch(
                     epSimulationsContract,
-                    "findOptimalCallGasLimit",
+                    "binarySearchCallGas",
                     queuedUserOperations,
                     userOperation,
                     entryPoint,

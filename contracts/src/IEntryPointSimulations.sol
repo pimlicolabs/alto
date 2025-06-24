@@ -32,7 +32,7 @@ interface IEntryPointSimulations {
         BinarySearchOutOfGas outOfGasData;
     }
 
-    function findOptimalVerificationGasLimit(
+    function binarySearchVerificationGas(
         PackedUserOperation[] calldata queuedUserOps,
         PackedUserOperation calldata targetUserOp,
         address entryPoint,
@@ -41,7 +41,7 @@ interface IEntryPointSimulations {
         uint256 gasAllowance
     ) external returns (BinarySearchResult memory);
 
-    function findOptimalPaymasterVerificationGasLimit(
+    function binarySearchPaymasterVerificationGas(
         PackedUserOperation[] calldata queuedUserOps,
         PackedUserOperation calldata targetUserOp,
         address entryPoint,
@@ -50,7 +50,7 @@ interface IEntryPointSimulations {
         uint256 gasAllowance
     ) external returns (BinarySearchResult memory);
 
-    function findOptimalCallGasLimit(
+    function binarySearchCallGas(
         PackedUserOperation[] calldata queuedUserOps,
         PackedUserOperation calldata targetUserOp,
         address entryPoint,

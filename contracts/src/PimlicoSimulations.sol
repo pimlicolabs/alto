@@ -85,14 +85,14 @@ contract PimlicoSimulations {
         }
 
         // Step 2: Find optimal verification gas limit
-        result.verificationGasLimit = IEntryPointSimulations(entryPointSimulation).findOptimalVerificationGasLimit(
+        result.verificationGasLimit = IEntryPointSimulations(entryPointSimulation).binarySearchVerificationGas(
             queuedUserOps, targetUserOp, entryPoint, initialMinGas, toleranceDelta, gasAllowance
         );
 
         // Step 3: If paymaster is present, find optimal paymaster verification gas limit
         if (targetUserOp.paymasterAndData.length >= 20) {
             result.paymasterVerificationGasLimit = IEntryPointSimulations(entryPointSimulation)
-                .findOptimalPaymasterVerificationGasLimit(
+                .binarySearchPaymasterVerificationGas(
                 queuedUserOps, targetUserOp, entryPoint, initialMinGas, toleranceDelta, gasAllowance
             );
         }

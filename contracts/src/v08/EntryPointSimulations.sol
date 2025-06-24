@@ -282,7 +282,7 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
         );
     }
 
-    function findOptimalPaymasterVerificationGasLimit(
+    function binarySearchPaymasterVerificationGas(
         PackedUserOperation[] calldata queuedUserOps,
         PackedUserOperation calldata targetUserOp,
         address entryPoint,
@@ -317,7 +317,7 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
         );
     }
 
-    function findOptimalVerificationGasLimit(
+    function binarySearchVerificationGas(
         PackedUserOperation[] calldata queuedUserOps,
         PackedUserOperation calldata targetUserOp,
         address entryPoint,
@@ -346,7 +346,7 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
      * @param gasAllowance - The margin to add to the binary search to account for overhead.
      * @return optimalGas - The estimated gas limit for the call.
      */
-    function findOptimalCallGasLimit(
+    function binarySearchCallGas(
         PackedUserOperation[] calldata queuedUserOps,
         PackedUserOperation calldata targetUserOp,
         address entryPoint,

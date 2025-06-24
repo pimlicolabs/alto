@@ -1,7 +1,7 @@
 export const entryPointSimulations07Abi = [
   {
     "type": "function",
-    "name": "findOptimalCallGasLimit",
+    "name": "binarySearchCallGas",
     "inputs": [
       {
         "name": "queuedUserOps",
@@ -190,7 +190,7 @@ export const entryPointSimulations07Abi = [
   },
   {
     "type": "function",
-    "name": "findOptimalPaymasterVerificationGasLimit",
+    "name": "binarySearchPaymasterVerificationGas",
     "inputs": [
       {
         "name": "queuedUserOps",
@@ -379,7 +379,7 @@ export const entryPointSimulations07Abi = [
   },
   {
     "type": "function",
-    "name": "findOptimalVerificationGasLimit",
+    "name": "binarySearchVerificationGas",
     "inputs": [
       {
         "name": "queuedUserOps",
