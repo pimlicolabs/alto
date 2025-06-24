@@ -129,7 +129,18 @@ export class Mempool {
                     "resubmitting user operation"
                 )
                 await this.store.removeProcessing({ entryPoint, userOpHash })
-                await this.add(userOp, entryPoint)
+                await this.store.removeSubmitted({ entryPoint, userOpHash })
+                const [success, failureReason] = await this.add(
+                    userOp,
+                    entryPoint
+                )
+
+                if (!success) {
+                    this.logger.error(
+                        { userOpHash, failureReason },
+                        "Failed to resubmit user operation"
+                    )
+                }
             })
         )
 
