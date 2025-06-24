@@ -77,8 +77,8 @@ export class GasEstimationHandler {
         }
 
         return this.gasEstimatorV07.simulateHandleOp07({
-            userOp: userOperation as UserOperationV07,
-            queuedUserOps: queuedUserOperations as UserOperationV07[],
+            userOperataion: userOperation as UserOperationV07,
+            queuedUserOperations: queuedUserOperations as UserOperationV07[],
             entryPoint,
             userStateOverrides: stateOverrides
         })

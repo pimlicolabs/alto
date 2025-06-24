@@ -367,14 +367,14 @@ export class GasEstimatorV07 {
 
     async simulateValidation({
         entryPoint,
-        userOp,
-        queuedUserOps
+        userOperation,
+        queuedUserOperations
     }: {
         entryPoint: Address
-        userOp: UserOperationV07
-        queuedUserOps: UserOperationV07[]
+        userOperation: UserOperationV07
+        queuedUserOperations: UserOperationV07[]
     }) {
-        const is08 = isVersion08(userOp, entryPoint)
+        const is08 = isVersion08(userOperation, entryPoint)
         const entryPointSimulationsAddress = is08
             ? this.config.entrypointSimulationContractV8
             : this.config.entrypointSimulationContractV7
@@ -388,7 +388,7 @@ export class GasEstimatorV07 {
         }
 
         const stateOverride = getAuthorizationStateOverrides({
-            userOperations: [...queuedUserOps, userOp]
+            userOperations: [...queuedUserOperations, userOperation]
         })
 
         try {
@@ -400,7 +400,10 @@ export class GasEstimatorV07 {
 
             const { result } =
                 await epSimulationContract.simulate.simulateValidation(
-                    [packUserOps(queuedUserOps), toPackedUserOperation(userOp)],
+                    [
+                        packUserOps(queuedUserOperations),
+                        toPackedUserOperation(userOperation)
+                    ],
                     {
                         stateOverride,
                         gas: this.config.fixedGasLimitForEstimation
@@ -520,13 +523,13 @@ export class GasEstimatorV07 {
 
     async simulateHandleOp07({
         entryPoint,
-        userOp,
-        queuedUserOps,
+        userOperation,
+        queuedUserOperations,
         userStateOverrides = {}
     }: {
         entryPoint: Address
-        userOp: UserOperationV07
-        queuedUserOps: UserOperationV07[]
+        userOperation: UserOperationV07
+        queuedUserOperations: UserOperationV07[]
         userStateOverrides?: StateOverrides | undefined
     }): Promise<SimulateHandleOpResult> {
         const {
@@ -537,7 +540,7 @@ export class GasEstimatorV07 {
             entrypointSimulationContractV8
         } = this.config
 
-        const is08 = isVersion08(userOp, entryPoint)
+        const is08 = isVersion08(userOperation, entryPoint)
         const epSimulationsAddress = is08
             ? entrypointSimulationContractV8
             : entrypointSimulationContractV7
@@ -571,7 +574,7 @@ export class GasEstimatorV07 {
         })
 
         const stateOverride = getAuthorizationStateOverrides({
-            userOperations: [...queuedUserOps, userOp],
+            userOperations: [...queuedUserOperations, userOperation],
             stateOverrides: userStateOverrides
         })
 
@@ -579,31 +582,31 @@ export class GasEstimatorV07 {
             const [sho, bsvgl, bspvgl, bscgl] = await Promise.all([
                 this.executeSimulateHandleOp(
                     epSimulationsContract,
-                    queuedUserOps,
-                    userOp,
+                    queuedUserOperations,
+                    userOperation,
                     stateOverride
                 ),
                 this.performBinarySearch(
                     epSimulationsContract,
                     "findOptimalVerificationGasLimit",
-                    queuedUserOps,
-                    userOp,
+                    queuedUserOperations,
+                    userOperation,
                     entryPoint,
                     stateOverride
                 ),
                 this.performBinarySearch(
                     epSimulationsContract,
                     "findOptimalPaymasterVerificationGasLimit",
-                    queuedUserOps,
-                    userOp,
+                    queuedUserOperations,
+                    userOperation,
                     entryPoint,
                     stateOverride
                 ),
                 this.performBinarySearch(
                     epSimulationsContract,
                     "findOptimalCallGasLimit",
-                    queuedUserOps,
-                    userOp,
+                    queuedUserOperations,
+                    userOperation,
                     entryPoint,
                     stateOverride
                 )
@@ -638,8 +641,8 @@ export class GasEstimatorV07 {
             const [saegl, focgl] = await Promise.all([
                 this.simulateAndEstimateGasLimits(
                     pimlicoSimulationContract,
-                    queuedUserOps,
-                    userOp,
+                    queuedUserOperations,
+                    userOperation,
                     entryPoint,
                     epSimulationsAddress,
                     stateOverride
@@ -647,8 +650,8 @@ export class GasEstimatorV07 {
                 this.performBinarySearch(
                     epSimulationsContract,
                     "findOptimalCallGasLimit",
-                    queuedUserOps,
-                    userOp,
+                    queuedUserOperations,
+                    userOperation,
                     entryPoint,
                     stateOverride
                 )

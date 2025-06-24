@@ -422,8 +422,8 @@ export class UnsafeValidator implements InterfaceValidator {
         const simulateValidationResult =
             await this.gasEstimationHandler.gasEstimatorV07.simulateValidation({
                 entryPoint,
-                userOp: userOperation,
-                queuedUserOps: queuedUserOperations
+                userOperation: userOperation,
+                queuedUserOperations: queuedUserOperations
             })
 
         if (simulateValidationResult.status === "failed") {
