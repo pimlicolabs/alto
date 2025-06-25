@@ -32,6 +32,63 @@ import { ArbitrumL1FeeAbi } from "../types/contracts/ArbitrumL1FeeAbi"
 import { encodeHandleOpsCalldata } from "../executor/utils"
 import crypto from "crypto"
 
+// Encodes a user operation into bytes for gas calculation
+export function encodeUserOp(userOp: UserOperation): Uint8Array {
+    const p = fillUserOpWithDummyData(userOp)
+
+    if (isVersion06(userOp)) {
+        return toBytes(
+            encodeAbiParameters(
+                [
+                    {
+                        components: [
+                            { name: "sender", type: "address" },
+                            { name: "nonce", type: "uint256" },
+                            { name: "initCode", type: "bytes" },
+                            { name: "callData", type: "bytes" },
+                            { name: "callGasLimit", type: "uint256" },
+                            { name: "verificationGasLimit", type: "uint256" },
+                            { name: "preVerificationGas", type: "uint256" },
+                            { name: "maxFeePerGas", type: "uint256" },
+                            { name: "maxPriorityFeePerGas", type: "uint256" },
+                            { name: "paymasterAndData", type: "bytes" },
+                            { name: "signature", type: "bytes" }
+                        ],
+                        name: "userOperation",
+                        type: "tuple"
+                    }
+                ],
+                [p as UserOperationV06]
+            )
+        )
+    } else {
+        // For v0.7, we need to pack the user operation
+        const packedOp = toPackedUserOperation(p as UserOperationV07)
+        return toBytes(
+            encodeAbiParameters(
+                [
+                    {
+                        components: [
+                            { name: "sender", type: "address" },
+                            { name: "nonce", type: "uint256" },
+                            { name: "initCode", type: "bytes" },
+                            { name: "callData", type: "bytes" },
+                            { name: "accountGasLimits", type: "bytes32" },
+                            { name: "preVerificationGas", type: "uint256" },
+                            { name: "gasFees", type: "bytes32" },
+                            { name: "paymasterAndData", type: "bytes" },
+                            { name: "signature", type: "bytes" }
+                        ],
+                        name: "userOperation",
+                        type: "tuple"
+                    }
+                ],
+                [packedOp]
+            )
+        )
+    }
+}
+
 export interface GasOverheads {
     perUserOp: number // Gas overhead per UserOperation added on top of fixed per-bundle overhead
     zeroByte: number // zero byte cost, for calldata gas cost calculations
@@ -123,71 +180,18 @@ export function calcExecutionPvgComponent({
     config: AltoConfig
 }): bigint {
     const oh = { ...defaultOverHeads }
-    const p = fillUserOpWithDummyData(userOp)
+    const packed = encodeUserOp(userOp)
+
+    const tokenCount = packed
+        .map((x) => (x === 0 ? 1 : oh.tokensPerNonzeroByte))
+        .reduce((sum, x) => sum + x)
+    const userOpWordsLength = (size(packed) + 31) / 32
 
     let callDataOverhead = 0
     let perUserOpOverhead = oh.perUserOp
     if (userOp.eip7702Auth) {
         perUserOpOverhead += oh.eip7702AuthGas
     }
-
-    let packed: Uint8Array
-    if (isVersion06(userOp)) {
-        packed = toBytes(
-            encodeAbiParameters(
-                [
-                    {
-                        components: [
-                            { name: "sender", type: "address" },
-                            { name: "nonce", type: "uint256" },
-                            { name: "initCode", type: "bytes" },
-                            { name: "callData", type: "bytes" },
-                            { name: "callGasLimit", type: "uint256" },
-                            { name: "verificationGasLimit", type: "uint256" },
-                            { name: "preVerificationGas", type: "uint256" },
-                            { name: "maxFeePerGas", type: "uint256" },
-                            { name: "maxPriorityFeePerGas", type: "uint256" },
-                            { name: "paymasterAndData", type: "bytes" },
-                            { name: "signature", type: "bytes" }
-                        ],
-                        name: "userOperation",
-                        type: "tuple"
-                    }
-                ],
-                [p as UserOperationV06]
-            )
-        )
-    } else {
-        // For v0.7, we need to pack the user operation
-        const packedOp = toPackedUserOperation(p as UserOperationV07)
-        packed = toBytes(
-            encodeAbiParameters(
-                [
-                    {
-                        components: [
-                            { name: "sender", type: "address" },
-                            { name: "nonce", type: "uint256" },
-                            { name: "initCode", type: "bytes" },
-                            { name: "callData", type: "bytes" },
-                            { name: "accountGasLimits", type: "bytes32" },
-                            { name: "preVerificationGas", type: "uint256" },
-                            { name: "gasFees", type: "bytes32" },
-                            { name: "paymasterAndData", type: "bytes" },
-                            { name: "signature", type: "bytes" }
-                        ],
-                        name: "userOperation",
-                        type: "tuple"
-                    }
-                ],
-                [packedOp]
-            )
-        )
-    }
-
-    const tokenCount = packed
-        .map((x) => (x === 0 ? 1 : oh.tokensPerNonzeroByte))
-        .reduce((sum, x) => sum + x)
-    const userOpWordsLength = (size(packed) + 31) / 32
 
     // If callData starts with executeUserOp method selector
     if (slice(userOp.callData, 0, 4) === "0x8dd7712f") {
@@ -257,6 +261,7 @@ function getEip7623transactionGasCost({
     )
 }
 
+// during validation, collect only the gas known to be paid: the actual validation and 10% of execution gas.
 function getUserOpGasUsed({
     userOp,
     config
