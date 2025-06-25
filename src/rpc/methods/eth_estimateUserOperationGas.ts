@@ -1,6 +1,9 @@
 import { scaleBigIntByPercent, maxBigInt } from "../../utils/bigInt"
 import { isVersion06, isVersion07, deepHexlify } from "../../utils/userop"
-import { calcExecutionGasComponent, calcL2GasComponent } from "../../utils/preVerificationGasCalculator"
+import {
+    calcExecutionGasComponent,
+    calcL2GasComponent
+} from "../../utils/preVerificationGasCalculator"
 import { createMethodHandler } from "../createMethodHandler"
 import {
     Address,
@@ -80,6 +83,21 @@ const getGasEstimates = async ({
     entryPoint: Address
     stateOverrides?: StateOverrides
 }): Promise<GasEstimateResult> => {
+    // Prepare userOperation for simulation.
+    const {
+        simulationVerificationGasLimit,
+        simulationCallGasLimit,
+        simulationPaymasterVerificationGasLimit,
+        simulationPaymasterPostOpGasLimit,
+        paymasterGasLimitMultiplier,
+        v6CallGasLimitMultiplier,
+        v6VerificationGasLimitMultiplier,
+        v7VerificationGasLimitMultiplier,
+        v7PaymasterVerificationGasLimitMultiplier,
+        v7CallGasLimitMultiplier,
+        v7PaymasterPostOpGasLimitMultiplier
+    } = rpcHandler.config
+
     // Create a deep mutable copy of stateOverrides to avoid modifying frozen objects
     let mutableStateOverrides: StateOverrides | undefined
     if (stateOverrides) {
@@ -95,14 +113,6 @@ const getGasEstimates = async ({
             userOp: userOperation,
             entryPoint
         })
-
-    // Prepare userOperation for simulation.
-    const {
-        simulationVerificationGasLimit,
-        simulationCallGasLimit,
-        simulationPaymasterVerificationGasLimit,
-        simulationPaymasterPostOpGasLimit
-    } = rpcHandler.config
 
     const simulationUserOp = {
         ...userOperation,
@@ -185,7 +195,7 @@ const getGasEstimates = async ({
 
         paymasterVerificationGasLimit = scaleBigIntByPercent(
             paymasterVerificationGasLimit,
-            rpcHandler.config.paymasterGasLimitMultiplier
+            paymasterGasLimitMultiplier
         )
     }
 
@@ -199,14 +209,14 @@ const getGasEstimates = async ({
 
         const userOperationPaymasterPostOpGasLimit =
             "paymasterPostOpGasLimit" in userOperation
-                ? userOperation.paymasterPostOpGasLimit ?? 1n
+                ? (userOperation.paymasterPostOpGasLimit ?? 1n)
                 : 1n
 
         paymasterPostOpGasLimit = maxBigInt(
             userOperationPaymasterPostOpGasLimit,
             scaleBigIntByPercent(
                 paymasterPostOpGasLimit,
-                rpcHandler.config.paymasterGasLimitMultiplier
+                paymasterGasLimitMultiplier
             )
         )
     }
@@ -218,30 +228,30 @@ const getGasEstimates = async ({
     if (isVersion06(simulationUserOp)) {
         callGasLimit = scaleBigIntByPercent(
             callGasLimit,
-            rpcHandler.config.v6CallGasLimitMultiplier
+            v6CallGasLimitMultiplier
         )
         verificationGasLimit = scaleBigIntByPercent(
             verificationGasLimit,
-            rpcHandler.config.v6VerificationGasLimitMultiplier
+            v6VerificationGasLimitMultiplier
         )
     }
 
     if (isVersion07(simulationUserOp)) {
         verificationGasLimit = scaleBigIntByPercent(
             verificationGasLimit,
-            rpcHandler.config.v7VerificationGasLimitMultiplier
+            v7VerificationGasLimitMultiplier
         )
         paymasterVerificationGasLimit = scaleBigIntByPercent(
             paymasterVerificationGasLimit,
-            rpcHandler.config.v7PaymasterVerificationGasLimitMultiplier
+            v7PaymasterVerificationGasLimitMultiplier
         )
         callGasLimit = scaleBigIntByPercent(
             callGasLimit,
-            rpcHandler.config.v7CallGasLimitMultiplier
+            v7CallGasLimitMultiplier
         )
         paymasterPostOpGasLimit = scaleBigIntByPercent(
             paymasterPostOpGasLimit,
-            rpcHandler.config.v7PaymasterPostOpGasLimitMultiplier
+            v7PaymasterPostOpGasLimitMultiplier
         )
     }
 
@@ -264,6 +274,13 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         const [userOperation, entryPoint, stateOverrides] = params
         rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
+        // Extract all config values at the beginning
+        const {
+            supportsEip7623,
+            v7PreVerificationGasLimitMultiplier,
+            v6PreVerificationGasLimitMultiplier
+        } = rpcHandler.config
+
         // Execute multiple async operations in parallel
         let [
             [validEip7702Auth, validEip7702AuthError],
@@ -280,10 +297,12 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
                 entryPoint,
                 stateOverrides
             }),
-            Promise.resolve(calcExecutionGasComponent({
-                userOp: userOperation,
-                supportsEip7623: rpcHandler.config.supportsEip7623
-            })),
+            Promise.resolve(
+                calcExecutionGasComponent({
+                    userOp: userOperation,
+                    supportsEip7623
+                })
+            ),
             calcL2GasComponent({
                 config: rpcHandler.config,
                 userOperation,
@@ -292,7 +311,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
                 validate: false
             })
         ])
-        
+
         // Calculate total preVerificationGas by summing both components
         let preVerificationGas = executionGasComponent + l2GasComponent
 
@@ -313,14 +332,14 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         if (isVersion07(userOperation)) {
             preVerificationGas = scaleBigIntByPercent(
                 preVerificationGas,
-                rpcHandler.config.v7PreVerificationGasLimitMultiplier
+                v7PreVerificationGasLimitMultiplier
             )
         }
 
         if (isVersion06(userOperation)) {
             preVerificationGas = scaleBigIntByPercent(
                 preVerificationGas,
-                rpcHandler.config.v6PreVerificationGasLimitMultiplier
+                v6PreVerificationGasLimitMultiplier
             )
         }
 
