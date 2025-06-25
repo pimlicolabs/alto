@@ -276,8 +276,6 @@ function getUserOpGasUsed({
         v6CallGasLimitMultiplier,
         v6VerificationGasLimitMultiplier,
         v7CallGasLimitMultiplier,
-        v7VerificationGasLimitMultiplier,
-        v7PaymasterVerificationGasLimitMultiplier,
         v7PaymasterPostOpGasLimitMultiplier
     } = config
 
@@ -291,32 +289,18 @@ function getUserOpGasUsed({
             BigInt(v6VerificationGasLimitMultiplier)
         )
 
-        return realCallGasLimit + realVerificationGasLimit
+        return (realCallGasLimit + realVerificationGasLimit) / 10n
     } else if (isVersion07(userOp)) {
         const realCallGasLimit = unscaleBigIntByPercent(
             userOp.callGasLimit,
             BigInt(v7CallGasLimitMultiplier)
-        )
-        const realVerificationGasLimit = unscaleBigIntByPercent(
-            userOp.verificationGasLimit,
-            BigInt(v7VerificationGasLimitMultiplier)
-        )
-
-        const realPaymasterVerificationGasLimit = unscaleBigIntByPercent(
-            userOp.paymasterVerificationGasLimit ?? 0n,
-            BigInt(v7PaymasterVerificationGasLimitMultiplier)
         )
         const realPaymasterPostOpGasLimit = unscaleBigIntByPercent(
             userOp.paymasterPostOpGasLimit ?? 0n,
             BigInt(v7PaymasterPostOpGasLimitMultiplier)
         )
 
-        return (
-            realCallGasLimit +
-            realVerificationGasLimit +
-            realPaymasterVerificationGasLimit +
-            realPaymasterPostOpGasLimit
-        )
+        return (realCallGasLimit + realPaymasterPostOpGasLimit) / 10n
     }
 
     throw new Error("Invalid user operation version")
