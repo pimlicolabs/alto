@@ -314,7 +314,8 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
 
         const executionGasComponent = calcExecutionPvgComponent({
             userOp: userOpWithEstimatedGas,
-            supportsEip7623
+            supportsEip7623,
+            config: rpcHandler.config
         })
 
         // Calculate total preVerificationGas by summing both components

@@ -29,27 +29,28 @@ import {
     slice,
     toBytes
 } from "viem"
-import { minBigInt, randomBigInt } from "./bigInt"
+import { minBigInt, randomBigInt, unscaleBigIntByPercent } from "./bigInt"
 import { isVersion06, isVersion07, toPackedUserOperation } from "./userop"
 import type { AltoConfig } from "../createConfig"
 import { ArbitrumL1FeeAbi } from "../types/contracts/ArbitrumL1FeeAbi"
 import crypto from "crypto"
 
 export interface GasOverheads {
-    perUserOp: number // per userOp overhead, added on top of the above fixed per-bundle
+    perUserOp: number // Gas overhead per UserOperation added on top of fixed per-bundle overhead
     zeroByte: number // zero byte cost, for calldata gas cost calculations
     nonZeroByte: number // non-zero byte cost, for calldata gas cost calculations
     bundleSize: number // expected bundle size, to split per-bundle overhead between all ops
-    sigSize: number // expected length of the userOp signature
-    eip7702AuthGas: number // overhead for EIP-7702 auth gas
-    executeUserOpGasOverhead: number // extra per-userop overhead, if callData starts with "executeUserOp" method signature.
-    executeUserOpPerWordGasOverhead: number // extra per-userop overhead, if callData starts with "executeUserOp" method signature.
-    perUserOpWordGasOverhead: number // Gas overhead per single "word" (32 bytes) in callData. (all validation fields are covered by verification gas checks)
-    fixedGasOverhead: number // Gas overhead is added to entire 'handleOp' bundle (on top of the transactionGasStipend).
-    expectedBundleSize: number // Expected bundle size, to split per-bundle overhead between all ops
-    transactionGasStipend: number // Cost of sending a basic transaction on the current chain.
-    standardTokenGasCost: number
-    tokensPerNonzeroByte: number
+    sigSize: number // Size of dummy 'signature' parameter for estimation
+    eip7702AuthGas: number // Gas cost of EIP-7702 authorization
+    executeUserOpGasOverhead: number // Extra per-userop overhead if callData starts with "executeUserOp" method signature
+    executeUserOpPerWordGasOverhead: number // Extra per-word overhead if callData starts with "executeUserOp" method signature
+    perUserOpWordGasOverhead: number // Gas overhead per single "word" (32 bytes) in callData
+    fixedGasOverhead: number // Gas overhead added to entire 'handleOp' bundle
+    expectedBundleSize: number // Expected average bundle size in current network conditions
+    transactionGasStipend: number // Cost of sending a basic transaction on the current chain
+    standardTokenGasCost: number // Gas cost of a single "token" (zero byte) of the ABI-encoded UserOperation
+    tokensPerNonzeroByte: number // Number of non-zero bytes counted as a single token (EIP-7623)
+    floorPerTokenGasCost: number // The EIP-7623 floor gas cost of a single token
 }
 
 const defaultOverHeads: GasOverheads = {
@@ -66,7 +67,8 @@ const defaultOverHeads: GasOverheads = {
     executeUserOpGasOverhead: 1610,
     executeUserOpPerWordGasOverhead: 8.2,
     perUserOpWordGasOverhead: 9.2,
-    expectedBundleSize: 1
+    expectedBundleSize: 1,
+    floorPerTokenGasCost: 10
 }
 
 export function fillAndPackUserOp(
@@ -118,10 +120,12 @@ export function fillAndPackUserOp(
 // Calculate the execution gas component of preVerificationGas
 export function calcExecutionPvgComponent({
     userOp,
-    supportsEip7623
+    supportsEip7623,
+    config
 }: {
     userOp: UserOperation
     supportsEip7623: boolean
+    config: AltoConfig
 }): bigint {
     const oh = { ...defaultOverHeads }
     const p = fillAndPackUserOp(userOp)
@@ -205,25 +209,25 @@ export function calcExecutionPvgComponent({
         oh.transactionGasStipend / oh.expectedBundleSize
 
     if (supportsEip7623) {
-        const userOpGasUsed =
+        const calculatedGasUsed = getUserOpGasUsed({
+            userOp,
+            config
+        })
 
-        // Using EIP-7623: Count zero bytes as full tokens
-        const tokenCountEip7623 = packed.length * oh.tokensPerNonzeroByte
-        const userOpFloorCost = BigInt(
-            oh.standardTokenGasCost * tokenCountEip7623
-        )
+        const preVerificationGas =
+            getEip7623transactionGasCost({
+                stipendGasCost: BigInt(Math.round(userOpShareOfStipend)),
+                tokenGasCount: BigInt(tokenCount),
+                oh,
+                executionGasCost:
+                    BigInt(
+                        Math.round(
+                            userOpShareOfBundleCost + userOpSpecificOverhead
+                        )
+                    ) + calculatedGasUsed
+            }) - calculatedGasUsed
 
-        const userOpActualGas = BigInt(
-            oh.standardTokenGasCost * tokenCount +
-                userOpShareOfStipend +
-                userOpShareOfBundleCost +
-                userOpSpecificOverhead
-        )
-
-        // Return the maximum of floor cost and actual gas
-        return userOpFloorCost > userOpActualGas
-            ? userOpFloorCost
-            : userOpActualGas
+        return preVerificationGas
     } else {
         // Not using EIP-7623.
         return BigInt(
@@ -235,21 +239,80 @@ export function calcExecutionPvgComponent({
     }
 }
 
+// Based on the formula in https://eips.ethereum.org/EIPS/eip-7623#specification
+function getEip7623transactionGasCost({
+    stipendGasCost,
+    tokenGasCount,
+    executionGasCost,
+    oh
+}: {
+    stipendGasCost: bigint
+    tokenGasCount: bigint
+    executionGasCost: bigint
+    oh: GasOverheads
+}): bigint {
+    const standardCost =
+        BigInt(oh.standardTokenGasCost) * tokenGasCount + executionGasCost
+    const floorCost = BigInt(oh.floorPerTokenGasCost) * tokenGasCount
+
+    return (
+        stipendGasCost + (standardCost > floorCost ? standardCost : floorCost)
+    )
+}
+
 function getUserOpGasUsed({
     userOp,
     config
 }: { userOp: UserOperation; config: AltoConfig }): bigint {
-    // Sum up the gas limits without padding
-    let totalGas = userOp.callGasLimit + userOp.verificationGasLimit
+    // Extract all multipliers from config
+    const {
+        v6CallGasLimitMultiplier,
+        v6VerificationGasLimitMultiplier,
+        v7CallGasLimitMultiplier,
+        v7VerificationGasLimitMultiplier,
+        v7PaymasterVerificationGasLimitMultiplier,
+        v7PaymasterPostOpGasLimitMultiplier
+    } = config
 
-    // For v0.7 operations, also add paymaster gas limits
-    if (isVersion07(userOp)) {
-        totalGas +=
-            (userOp.paymasterVerificationGasLimit ?? 0n) +
-            (userOp.paymasterPostOpGasLimit ?? 0n)
+    if (isVersion06(userOp)) {
+        const realCallGasLimit = unscaleBigIntByPercent(
+            userOp.callGasLimit,
+            BigInt(v6CallGasLimitMultiplier)
+        )
+        const realVerificationGasLimit = unscaleBigIntByPercent(
+            userOp.verificationGasLimit,
+            BigInt(v6VerificationGasLimitMultiplier)
+        )
+
+        return realCallGasLimit + realVerificationGasLimit
+    } else if (isVersion07(userOp)) {
+        const realCallGasLimit = unscaleBigIntByPercent(
+            userOp.callGasLimit,
+            BigInt(v7CallGasLimitMultiplier)
+        )
+        const realVerificationGasLimit = unscaleBigIntByPercent(
+            userOp.verificationGasLimit,
+            BigInt(v7VerificationGasLimitMultiplier)
+        )
+
+        const realPaymasterVerificationGasLimit = unscaleBigIntByPercent(
+            userOp.paymasterVerificationGasLimit ?? 0n,
+            BigInt(v7PaymasterVerificationGasLimitMultiplier)
+        )
+        const realPaymasterPostOpGasLimit = unscaleBigIntByPercent(
+            userOp.paymasterPostOpGasLimit ?? 0n,
+            BigInt(v7PaymasterPostOpGasLimitMultiplier)
+        )
+
+        return (
+            realCallGasLimit +
+            realVerificationGasLimit +
+            realPaymasterVerificationGasLimit +
+            realPaymasterPostOpGasLimit
+        )
     }
 
-    return totalGas
+    throw new Error("Invalid user operation version")
 }
 
 // Calculate the L2-specific gas component of preVerificationGas

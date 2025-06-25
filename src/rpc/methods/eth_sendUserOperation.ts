@@ -35,7 +35,8 @@ const validatePvg = async (
 
     const executionGasComponent = calcExecutionPvgComponent({
         userOp: userOperation,
-        supportsEip7623: rpcHandler.config.supportsEip7623
+        supportsEip7623: rpcHandler.config.supportsEip7623,
+        config: rpcHandler.config
     })
     const l2GasComponent = await calcL2PvgComponent({
         config: rpcHandler.config,
