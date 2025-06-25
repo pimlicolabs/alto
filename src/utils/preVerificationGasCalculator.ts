@@ -22,7 +22,8 @@ import {
     size,
     concat,
     slice,
-    toBytes
+    toBytes,
+    maxUint128
 } from "viem"
 import { minBigInt, randomBigInt, unscaleBigIntByPercent } from "./bigInt"
 import { isVersion06, isVersion07, toPackedUserOperation } from "./userop"
@@ -73,11 +74,11 @@ export function fillUserOpWithDummyData(
     if (isVersion06(userOperation)) {
         return {
             ...userOperation,
-            callGasLimit: maxUint256,
-            verificationGasLimit: maxUint256,
+            callGasLimit: maxUint128,
+            verificationGasLimit: maxUint128,
             preVerificationGas: maxUint256,
-            maxFeePerGas: maxUint256,
-            maxPriorityFeePerGas: maxUint256,
+            maxFeePerGas: maxUint128,
+            maxPriorityFeePerGas: maxUint128,
             paymasterAndData: bytesToHex(
                 new Uint8Array(userOperation.paymasterAndData.length).fill(255)
             ),
@@ -91,14 +92,14 @@ export function fillUserOpWithDummyData(
     const hasPaymaster = !!userOperation.paymaster
     return {
         ...userOperation,
-        callGasLimit: maxUint256,
-        verificationGasLimit: maxUint256,
+        callGasLimit: maxUint128,
+        verificationGasLimit: maxUint128,
         preVerificationGas: maxUint256,
-        maxFeePerGas: maxUint256,
-        maxPriorityFeePerGas: maxUint256,
+        maxFeePerGas: maxUint128,
+        maxPriorityFeePerGas: maxUint128,
         ...(hasPaymaster && {
-            paymasterVerificationGasLimit: maxUint256,
-            paymasterPostOpGasLimit: maxUint256,
+            paymasterVerificationGasLimit: maxUint128,
+            paymasterPostOpGasLimit: maxUint128,
             paymasterData: bytesToHex(
                 new Uint8Array(size(userOperation.paymasterData || "0x")).fill(
                     255
