@@ -12,7 +12,11 @@ import {
     type ApiVersion,
     ReferencedCodeHashes
 } from "@alto/types"
-import { calcPreVerificationGas, getAAError } from "@alto/utils"
+import {
+    calcExecutionGasComponent,
+    calcL2GasComponent,
+    getAAError
+} from "@alto/utils"
 import { RpcHandler } from "../rpcHandler"
 import type * as validation from "@alto/types"
 import { Hex } from "viem"
@@ -29,13 +33,15 @@ const validatePvg = async (
         return [true, ""]
     }
 
-    const requiredPvg = await calcPreVerificationGas({
+    const executionGasComponent = calcExecutionGasComponent(userOperation)
+    const l2GasComponent = await calcL2GasComponent({
         config: rpcHandler.config,
         userOperation,
         entryPoint,
         gasPriceManager: rpcHandler.gasPriceManager,
         validate: true
     })
+    const requiredPvg = executionGasComponent + l2GasComponent
 
     if (requiredPvg > userOperation.preVerificationGas) {
         return [

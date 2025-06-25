@@ -115,91 +115,8 @@ export function fillAndPackUserOp(
     }
 }
 
-export async function calcPreVerificationGas({
-    config,
-    userOperation,
-    entryPoint,
-    gasPriceManager,
-    validate
-}: {
-    config: AltoConfig
-    userOperation: UserOperation
-    entryPoint: Address
-    gasPriceManager: GasPriceManager
-    validate: boolean // when calculating preVerificationGas for validation
-}): Promise<bigint> {
-    let simulationUserOp = {
-        ...userOperation
-    }
-
-    // Add random gasFields during estimations
-    if (!validate) {
-        simulationUserOp = {
-            ...simulationUserOp,
-            callGasLimit: randomBigInt({ upper: 10_000_000n }),
-            verificationGasLimit: randomBigInt({ upper: 10_000_000n }),
-            preVerificationGas: randomBigInt({ upper: 10_000_000n })
-        }
-
-        if (isVersion07(simulationUserOp)) {
-            simulationUserOp = {
-                ...simulationUserOp,
-                paymasterVerificationGasLimit: randomBigInt({
-                    upper: 10_000_000n
-                }),
-                paymasterPostOpGasLimit: randomBigInt({
-                    upper: 10_000_000n
-                })
-            }
-        }
-    }
-
-    let preVerificationGas = calcDefaultPreVerificationGas(simulationUserOp)
-
-    switch (config.chainType) {
-        case "op-stack":
-            return await calcOptimismPreVerificationGas(
-                config.publicClient,
-                simulationUserOp,
-                entryPoint,
-                preVerificationGas,
-                gasPriceManager,
-                validate
-            )
-        case "arbitrum":
-            return await calcArbitrumPreVerificationGas(
-                config.publicClient,
-                simulationUserOp,
-                entryPoint,
-                preVerificationGas,
-                gasPriceManager,
-                validate
-            )
-        case "mantle":
-            return await calcMantlePreVerificationGas(
-                config.publicClient,
-                simulationUserOp,
-                entryPoint,
-                preVerificationGas,
-                gasPriceManager,
-                validate
-            )
-        case "etherlink":
-            return await calcEtherlinkPreVerificationGas(
-                simulationUserOp,
-                entryPoint,
-                preVerificationGas,
-                gasPriceManager,
-                validate
-            )
-        default:
-            return preVerificationGas
-    }
-}
-
-// Calculate the preVerificationGas of the given UserOperation
-// preVerificationGas (by definition) is the cost overhead that can't be calculated on-chain.
-function calcDefaultPreVerificationGas(userOp: UserOperation): bigint {
+// Calculate the execution gas component of preVerificationGas
+export function calcExecutionGasComponent(userOp: UserOperation): bigint {
     const oh = { ...defaultOverHeads }
     const p = fillAndPackUserOp(userOp)
 
@@ -295,6 +212,83 @@ function calcDefaultPreVerificationGas(userOp: UserOperation): bigint {
     }
 }
 
+// Calculate the L2-specific gas component of preVerificationGas
+export async function calcL2GasComponent({
+    config,
+    userOperation,
+    entryPoint,
+    gasPriceManager,
+    validate
+}: {
+    config: AltoConfig
+    userOperation: UserOperation
+    entryPoint: Address
+    gasPriceManager: GasPriceManager
+    validate: boolean
+}): Promise<bigint> {
+    let simulationUserOp = {
+        ...userOperation
+    }
+
+    // Add random gasFields during estimations
+    if (!validate) {
+        simulationUserOp = {
+            ...simulationUserOp,
+            callGasLimit: randomBigInt({ upper: 10_000_000n }),
+            verificationGasLimit: randomBigInt({ upper: 10_000_000n }),
+            preVerificationGas: randomBigInt({ upper: 10_000_000n })
+        }
+
+        if (isVersion07(simulationUserOp)) {
+            simulationUserOp = {
+                ...simulationUserOp,
+                paymasterVerificationGasLimit: randomBigInt({
+                    upper: 10_000_000n
+                }),
+                paymasterPostOpGasLimit: randomBigInt({
+                    upper: 10_000_000n
+                })
+            }
+        }
+    }
+
+    switch (config.chainType) {
+        case "op-stack":
+            return await calcOptimismPvg(
+                config.publicClient,
+                simulationUserOp,
+                entryPoint,
+                gasPriceManager,
+                validate
+            )
+        case "arbitrum":
+            return await calcArbitrumPvg(
+                config.publicClient,
+                simulationUserOp,
+                entryPoint,
+                gasPriceManager,
+                validate
+            )
+        case "mantle":
+            return await calcMantlePvg(
+                config.publicClient,
+                simulationUserOp,
+                entryPoint,
+                gasPriceManager,
+                validate
+            )
+        case "etherlink":
+            return await calcEtherlinkPvg(
+                simulationUserOp,
+                entryPoint,
+                gasPriceManager,
+                validate
+            )
+        default:
+            return 0n
+    }
+}
+
 // Returns back the bytes for the handleOps call
 export function getHandleOpsCallData({
     userOps,
@@ -336,10 +330,9 @@ export function getHandleOpsCallData({
     })
 }
 
-async function calcEtherlinkPreVerificationGas(
+async function calcEtherlinkPvg(
     op: UserOperation,
     entryPoint: Address,
-    staticFee: bigint,
     gasPriceManager: GasPriceManager,
     verify?: boolean
 ) {
@@ -361,17 +354,16 @@ async function calcEtherlinkPreVerificationGas(
         ? gasPriceManager.getHighestMaxFeePerGas()
         : gasPriceManager.getGasPrice().then((res) => res.maxFeePerGas))
 
-    // Convert the inclusion fee to gas units and add to the static fee
+    // Convert the inclusion fee to gas units
     const inclusionFeeInGas = inclusionFee / maxFeePerGas
 
-    return staticFee + inclusionFeeInGas
+    return inclusionFeeInGas
 }
 
-async function calcMantlePreVerificationGas(
+async function calcMantlePvg(
     publicClient: PublicClient<Transport, Chain>,
     op: UserOperation,
     entryPoint: Address,
-    staticFee: bigint,
     gasPriceManager: GasPriceManager,
     verify?: boolean
 ) {
@@ -452,7 +444,7 @@ async function calcMantlePreVerificationGas(
         : gasPriceManager.getGasPrice().then((res) => res.maxFeePerGas))
     const l2MaxFee = BigInt(maxFeePerGas)
 
-    return staticFee + l1RollupFee / l2MaxFee
+    return l1RollupFee / l2MaxFee
 }
 
 function getOpStackHandleOpsCallData(
@@ -502,11 +494,10 @@ function getOpStackHandleOpsCallData(
     })
 }
 
-async function calcOptimismPreVerificationGas(
+async function calcOptimismPvg(
     publicClient: PublicClient<Transport, Chain>,
     op: UserOperation,
     entryPoint: Address,
-    staticFee: bigint,
     gasPriceManager: GasPriceManager,
     validate: boolean
 ) {
@@ -561,14 +552,13 @@ async function calcOptimismPreVerificationGas(
 
     const l2price = minBigInt(l2MaxFee, l2PriorityFee)
 
-    return staticFee + l1Fee / l2price
+    return l1Fee / l2price
 }
 
-async function calcArbitrumPreVerificationGas(
+async function calcArbitrumPvg(
     publicClient: PublicClient<Transport, Chain | undefined>,
     op: UserOperation,
     entryPoint: Address,
-    staticFee: bigint,
     gasPriceManager: GasPriceManager,
     validate: boolean
 ) {
@@ -623,5 +613,5 @@ async function calcArbitrumPreVerificationGas(
         gasForL1 = (gasForL1 * l2BaseFee * minL1Fee) / (maxL1Fee * maxL2Fee)
     }
 
-    return staticFee + gasForL1
+    return gasForL1
 }

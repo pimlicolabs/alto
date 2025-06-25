@@ -1,6 +1,6 @@
 import { scaleBigIntByPercent, maxBigInt } from "../../utils/bigInt"
 import { isVersion06, isVersion07, deepHexlify } from "../../utils/userop"
-import { calcPreVerificationGas } from "../../utils/preVerificationGasCalculator"
+import { calcExecutionGasComponent, calcL2GasComponent } from "../../utils/preVerificationGasCalculator"
 import { createMethodHandler } from "../createMethodHandler"
 import {
     Address,
@@ -268,7 +268,8 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         let [
             [validEip7702Auth, validEip7702AuthError],
             gasEstimateResult,
-            preVerificationGas
+            executionGasComponent,
+            l2GasComponent
         ] = await Promise.all([
             rpcHandler.validateEip7702Auth({
                 userOperation
@@ -279,7 +280,8 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
                 entryPoint,
                 stateOverrides
             }),
-            calcPreVerificationGas({
+            Promise.resolve(calcExecutionGasComponent(userOperation)),
+            calcL2GasComponent({
                 config: rpcHandler.config,
                 userOperation,
                 entryPoint,
@@ -287,6 +289,9 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
                 validate: false
             })
         ])
+        
+        // Calculate total preVerificationGas by summing both components
+        let preVerificationGas = executionGasComponent + l2GasComponent
 
         // Validate eip7702Auth
         if (!validEip7702Auth) {
