@@ -15,7 +15,7 @@ import {
     CodeHashGetterAbi,
     CodeHashGetterBytecode,
     EntryPointV06Abi,
-    entryPointSimulations07Abi,
+    pimlicoSimulationsAbi,
     type ReferencedCodeHashes,
     RpcError,
     type StakeInfo,
@@ -452,12 +452,6 @@ export class SafeValidator
             toPackedUserOperation(uop)
         )
 
-        const entryPointSimulationsCallData = encodeFunctionData({
-            abi: entryPointSimulations07Abi,
-            functionName: "simulateValidation",
-            args: [packedQueuedUserOperations, packedUserOperation]
-        })
-
         const isV8 = isVersion08(userOperation, entryPoint)
 
         const entryPointSimulationsAddress = isV8
@@ -472,6 +466,17 @@ export class SafeValidator
             )
         }
 
+        const entryPointSimulationsCallData = encodeFunctionData({
+            abi: pimlicoSimulationsAbi,
+            functionName: "simulateValidation",
+            args: [
+                entryPointSimulationsAddress,
+                entryPoint,
+                packedQueuedUserOperations,
+                packedUserOperation
+            ]
+        })
+
         const stateOverrides = getAuthorizationStateOverrides({
             userOperations: [userOperation]
         })
@@ -480,7 +485,7 @@ export class SafeValidator
             this.config.publicClient,
             {
                 from: zeroAddress,
-                to: entryPointSimulationsAddress,
+                to: pimlicoSimulationsAddress,
                 data: entryPointSimulationsCallData
             },
             {
@@ -501,7 +506,7 @@ export class SafeValidator
 
         // Decode the validation result from the revert data
         const { errorName, args } = decodeErrorResult({
-            abi: entryPointSimulations07Abi,
+            abi: pimlicoSimulationsAbi,
             data: resultData
         })
 
