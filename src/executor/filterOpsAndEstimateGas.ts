@@ -11,8 +11,6 @@ import {
     Address,
     StateOverride,
     getContract,
-    maxUint64,
-    serializeTransaction,
     encodeFunctionData,
     Hex,
     decodeAbiParameters
