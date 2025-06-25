@@ -194,6 +194,32 @@ contract PimlicoSimulations {
         return abi.decode(returnData, (IEntryPointSimulations.BinarySearchResult));
     }
 
+    /// @notice Simulates validation of a UserOperation
+    function simulateValidation(
+        address entryPointSimulation,
+        address payable entryPoint,
+        PackedUserOperation[] calldata queuedUserOps,
+        PackedUserOperation calldata targetUserOp
+    ) external returns (IEntryPointSimulations.ValidationResult memory) {
+        bytes4 identifier = IEntryPointSimulations.simulateValidation.selector;
+        bytes memory data = abi.encodeWithSelector(identifier, queuedUserOps, targetUserOp);
+        bytes memory returnData = simulateEntryPoint(entryPointSimulation, entryPoint, data);
+        return abi.decode(returnData, (IEntryPointSimulations.ValidationResult));
+    }
+
+    /// @notice Simulates handling of a UserOperation
+    function simulateHandleOp(
+        address entryPointSimulation,
+        address payable entryPoint,
+        PackedUserOperation[] calldata queuedUserOps,
+        PackedUserOperation calldata targetUserOp
+    ) external returns (IEntryPointSimulations.ExecutionResult memory) {
+        bytes4 identifier = IEntryPointSimulations.simulateHandleOp.selector;
+        bytes memory data = abi.encodeWithSelector(identifier, queuedUserOps, targetUserOp);
+        bytes memory returnData = simulateEntryPoint(entryPointSimulation, entryPoint, data);
+        return abi.decode(returnData, (IEntryPointSimulations.ExecutionResult));
+    }
+
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                     Validation Methods                     */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
