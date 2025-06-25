@@ -27,12 +27,14 @@ import {
     size,
     concat,
     slice,
-    toBytes
+    toBytes,
+    type Hex
 } from "viem"
 import { minBigInt, randomBigInt, unscaleBigIntByPercent } from "./bigInt"
 import { isVersion06, isVersion07, toPackedUserOperation } from "./userop"
 import type { AltoConfig } from "../createConfig"
 import { ArbitrumL1FeeAbi } from "../types/contracts/ArbitrumL1FeeAbi"
+import { encodeHandleOpsCalldata } from "../executor/utils"
 import crypto from "crypto"
 
 export interface GasOverheads {
@@ -71,50 +73,48 @@ const defaultOverHeads: GasOverheads = {
     floorPerTokenGasCost: 10
 }
 
-export function fillAndPackUserOp(
-    userOpearation: UserOperation
-): UserOperationV06 | PackedUserOperation {
-    if (isVersion06(userOpearation)) {
+export function fillUserOpWithDummyData(
+    userOperation: UserOperation
+): UserOperation {
+    if (isVersion06(userOperation)) {
         return {
-            sender: userOpearation.sender,
-            nonce: userOpearation.nonce,
-            initCode: userOpearation.initCode,
-            callData: userOpearation.callData,
+            ...userOperation,
             callGasLimit: maxUint256,
             verificationGasLimit: maxUint256,
             preVerificationGas: maxUint256,
             maxFeePerGas: maxUint256,
             maxPriorityFeePerGas: maxUint256,
             paymasterAndData: bytesToHex(
-                new Uint8Array(userOpearation.paymasterAndData.length).fill(255)
+                new Uint8Array(userOperation.paymasterAndData.length).fill(255)
             ),
             signature: bytesToHex(
-                new Uint8Array(userOpearation.signature.length).fill(255)
+                new Uint8Array(userOperation.signature.length).fill(255)
             )
         }
     }
 
-    const packedUserOperation: PackedUserOperation = toPackedUserOperation(
-        userOpearation as UserOperationV07
-    )
-
+    // For v0.7
+    const hasPaymaster = !!userOperation.paymaster
     return {
-        sender: packedUserOperation.sender,
-        nonce: maxUint256,
-        initCode: packedUserOperation.initCode,
-        callData: packedUserOperation.callData,
-        accountGasLimits: toHex(maxUint256),
+        ...userOperation,
+        callGasLimit: maxUint256,
+        verificationGasLimit: maxUint256,
         preVerificationGas: maxUint256,
-        gasFees: toHex(maxUint256),
-        paymasterAndData: bytesToHex(
-            new Uint8Array(packedUserOperation.paymasterAndData.length).fill(
-                255
+        maxFeePerGas: maxUint256,
+        maxPriorityFeePerGas: maxUint256,
+        ...(hasPaymaster && {
+            paymasterVerificationGasLimit: maxUint256,
+            paymasterPostOpGasLimit: maxUint256,
+            paymasterData: bytesToHex(
+                new Uint8Array(size(userOperation.paymasterData || "0x")).fill(
+                    255
+                )
             )
-        ),
+        }),
         signature: bytesToHex(
-            new Uint8Array(packedUserOperation.signature.length).fill(255)
+            new Uint8Array(size(userOperation.signature)).fill(255)
         )
-    }
+    } as UserOperationV07
 }
 
 // Calculate the execution gas component of preVerificationGas
@@ -128,7 +128,7 @@ export function calcExecutionPvgComponent({
     config: AltoConfig
 }): bigint {
     const oh = { ...defaultOverHeads }
-    const p = fillAndPackUserOp(userOp)
+    const p = fillUserOpWithDummyData(userOp)
 
     let callDataOverhead = 0
     let perUserOpOverhead = oh.perUserOp
@@ -163,6 +163,8 @@ export function calcExecutionPvgComponent({
             )
         )
     } else {
+        // For v0.7, we need to pack the user operation
+        const packedOp = toPackedUserOperation(p as UserOperationV07)
         packed = toBytes(
             encodeAbiParameters(
                 [
@@ -182,7 +184,7 @@ export function calcExecutionPvgComponent({
                         type: "tuple"
                     }
                 ],
-                [p as PackedUserOperation]
+                [packedOp]
             )
         )
     }
@@ -454,36 +456,15 @@ export function getSerializedHandleOpsTx({
         })
     }
 
-    const isV07 = isVersion07(processedOps[0])
+    // Apply removeZeros logic if needed
+    const finalOps = removeZeros
+        ? processedOps.map((op) => fillUserOpWithDummyData(op))
+        : processedOps
 
-    let data: Hex
-    if (isV07) {
-        const processed = removeZeros
-            ? (processedOps.map((op) =>
-                  fillAndPackUserOp(op)
-              ) as PackedUserOperation[])
-            : processedOps.map((op) =>
-                  toPackedUserOperation(op as UserOperationV07)
-              )
-
-        data = encodeFunctionData({
-            abi: EntryPointV07Abi,
-            functionName: "handleOps",
-            args: [processed, entryPoint]
-        })
-    } else {
-        const processed = removeZeros
-            ? (processedOps.map((op) =>
-                  fillAndPackUserOp(op)
-              ) as UserOperationV06[])
-            : (processedOps as UserOperationV06[])
-
-        data = encodeFunctionData({
-            abi: EntryPointV06Abi,
-            functionName: "handleOps",
-            args: [processed, entryPoint]
-        })
-    }
+    const data = encodeHandleOpsCalldata({
+        userOps: finalOps,
+        beneficiary: entryPoint
+    })
 
     // Prepare transaction parameters
     const txParams = {
