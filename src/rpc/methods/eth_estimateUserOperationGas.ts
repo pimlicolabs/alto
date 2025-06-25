@@ -280,7 +280,10 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
                 entryPoint,
                 stateOverrides
             }),
-            Promise.resolve(calcExecutionGasComponent(userOperation)),
+            Promise.resolve(calcExecutionGasComponent({
+                userOp: userOperation,
+                supportsEip7623: rpcHandler.config.supportsEip7623
+            })),
             calcL2GasComponent({
                 config: rpcHandler.config,
                 userOperation,

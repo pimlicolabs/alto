@@ -116,7 +116,13 @@ export function fillAndPackUserOp(
 }
 
 // Calculate the execution gas component of preVerificationGas
-export function calcExecutionGasComponent(userOp: UserOperation): bigint {
+export function calcExecutionGasComponent({
+    userOp,
+    supportsEip7623
+}: {
+    userOp: UserOperation
+    supportsEip7623: boolean
+}): bigint {
     const oh = { ...defaultOverHeads }
     const p = fillAndPackUserOp(userOp)
 
@@ -198,9 +204,8 @@ export function calcExecutionGasComponent(userOp: UserOperation): bigint {
     const userOpShareOfStipend =
         oh.transactionGasStipend / oh.expectedBundleSize
 
-    const usingEip7623 = false
-    if (usingEip7623) {
-        return BigInt(0) // Not using EIP-7623.
+    if (supportsEip7623) {
+        return BigInt(0) // Using EIP-7623.
     } else {
         // Not using EIP-7623.
         return BigInt(

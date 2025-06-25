@@ -33,7 +33,10 @@ const validatePvg = async (
         return [true, ""]
     }
 
-    const executionGasComponent = calcExecutionGasComponent(userOperation)
+    const executionGasComponent = calcExecutionGasComponent({
+        userOp: userOperation,
+        supportsEip7623: rpcHandler.config.supportsEip7623
+    })
     const l2GasComponent = await calcL2GasComponent({
         config: rpcHandler.config,
         userOperation,
