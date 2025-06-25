@@ -25,7 +25,12 @@ import {
     toBytes,
     maxUint128
 } from "viem"
-import { minBigInt, randomBigInt, unscaleBigIntByPercent } from "./bigInt"
+import {
+    maxBigInt,
+    minBigInt,
+    randomBigInt,
+    unscaleBigIntByPercent
+} from "./bigInt"
 import { isVersion06, isVersion07, toPackedUserOperation } from "./userop"
 import type { AltoConfig } from "../createConfig"
 import { ArbitrumL1FeeAbi } from "../types/contracts/ArbitrumL1FeeAbi"
@@ -90,39 +95,39 @@ export function encodeUserOp(userOp: UserOperation): Uint8Array {
 }
 
 export interface GasOverheads {
-    perUserOp: number // Gas overhead per UserOperation added on top of fixed per-bundle overhead
-    zeroByte: number // zero byte cost, for calldata gas cost calculations
-    nonZeroByte: number // non-zero byte cost, for calldata gas cost calculations
-    bundleSize: number // expected bundle size, to split per-bundle overhead between all ops
-    sigSize: number // Size of dummy 'signature' parameter for estimation
-    eip7702AuthGas: number // Gas cost of EIP-7702 authorization
-    executeUserOpGasOverhead: number // Extra per-userop overhead if callData starts with "executeUserOp" method signature
-    executeUserOpPerWordGasOverhead: number // Extra per-word overhead if callData starts with "executeUserOp" method signature
-    perUserOpWordGasOverhead: number // Gas overhead per single "word" (32 bytes) in callData
-    fixedGasOverhead: number // Gas overhead added to entire 'handleOp' bundle
-    expectedBundleSize: number // Expected average bundle size in current network conditions
-    transactionGasStipend: number // Cost of sending a basic transaction on the current chain
-    standardTokenGasCost: number // Gas cost of a single "token" (zero byte) of the ABI-encoded UserOperation
-    tokensPerNonzeroByte: number // Number of non-zero bytes counted as a single token (EIP-7623)
-    floorPerTokenGasCost: number // The EIP-7623 floor gas cost of a single token
+    perUserOp: bigint // Gas overhead per UserOperation added on top of fixed per-bundle overhead
+    zeroByte: bigint // zero byte cost, for calldata gas cost calculations
+    nonZeroByte: bigint // non-zero byte cost, for calldata gas cost calculations
+    bundleSize: bigint // expected bundle size, to split per-bundle overhead between all ops
+    sigSize: bigint // Size of dummy 'signature' parameter for estimation
+    eip7702AuthGas: bigint // Gas cost of EIP-7702 authorization
+    executeUserOpGasOverhead: bigint // Extra per-userop overhead if callData starts with "executeUserOp" method signature
+    executeUserOpPerWordGasOverhead: bigint // Extra per-word overhead if callData starts with "executeUserOp" method signature (scaled by 1000 to avoid decimals)
+    perUserOpWordGasOverhead: bigint // Gas overhead per single "word" (32 bytes) in callData (scaled by 1000 to avoid decimals)
+    fixedGasOverhead: bigint // Gas overhead added to entire 'handleOp' bundle
+    expectedBundleSize: bigint // Expected average bundle size in current network conditions
+    transactionGasStipend: bigint // Cost of sending a basic transaction on the current chain
+    standardTokenGasCost: bigint // Gas cost of a single "token" (zero byte) of the ABI-encoded UserOperation
+    tokensPerNonzeroByte: bigint // Number of non-zero bytes counted as a single token (EIP-7623)
+    floorPerTokenGasCost: bigint // The EIP-7623 floor gas cost of a single token
 }
 
 const defaultOverHeads: GasOverheads = {
-    tokensPerNonzeroByte: 4,
-    fixedGasOverhead: 9830,
-    transactionGasStipend: 21000,
-    perUserOp: 7260,
-    standardTokenGasCost: 4,
-    zeroByte: 4,
-    nonZeroByte: 16,
-    bundleSize: 1,
-    sigSize: 65,
-    eip7702AuthGas: 25000,
-    executeUserOpGasOverhead: 1610,
-    executeUserOpPerWordGasOverhead: 8.2,
-    perUserOpWordGasOverhead: 9.2,
-    expectedBundleSize: 1,
-    floorPerTokenGasCost: 10
+    tokensPerNonzeroByte: 4n,
+    fixedGasOverhead: 9830n,
+    transactionGasStipend: 21000n,
+    perUserOp: 7260n,
+    standardTokenGasCost: 4n,
+    zeroByte: 4n,
+    nonZeroByte: 16n,
+    bundleSize: 1n,
+    sigSize: 65n,
+    eip7702AuthGas: 25000n,
+    executeUserOpGasOverhead: 1610n,
+    executeUserOpPerWordGasOverhead: 8200n, // 8.2 * 1000 to avoid decimals
+    perUserOpWordGasOverhead: 9200n, // 9.2 * 1000 to avoid decimals
+    expectedBundleSize: 1n,
+    floorPerTokenGasCost: 10n
 }
 
 export function fillUserOpWithDummyData(
@@ -182,12 +187,14 @@ export function calcExecutionPvgComponent({
     const oh = { ...defaultOverHeads }
     const packed = encodeUserOp(userOp)
 
-    const tokenCount = packed
-        .map((x) => (x === 0 ? 1 : oh.tokensPerNonzeroByte))
-        .reduce((sum, x) => sum + x)
-    const userOpWordsLength = (size(packed) + 31) / 32
+    const tokenCount = BigInt(
+        packed
+            .map((x) => (x === 0 ? 1 : Number(oh.tokensPerNonzeroByte)))
+            .reduce((sum, x) => sum + x)
+    )
+    const userOpWordsLength = BigInt(Math.floor((size(packed) + 31) / 32))
 
-    let callDataOverhead = 0
+    let callDataOverhead = 0n
     let perUserOpOverhead = oh.perUserOp
     if (userOp.eip7702Auth) {
         perUserOpOverhead += oh.eip7702AuthGas
@@ -197,10 +204,12 @@ export function calcExecutionPvgComponent({
     if (slice(userOp.callData, 0, 4) === "0x8dd7712f") {
         perUserOpOverhead +=
             oh.executeUserOpGasOverhead +
-            oh.executeUserOpPerWordGasOverhead * userOpWordsLength
+            (oh.executeUserOpPerWordGasOverhead * userOpWordsLength) / 1000n
     } else {
         callDataOverhead =
-            Math.ceil(size(userOp.callData) / 32) * oh.perUserOpWordGasOverhead
+            (BigInt(Math.ceil(size(userOp.callData) / 32)) *
+                oh.perUserOpWordGasOverhead) /
+            1000n
     }
 
     const userOpSpecificOverhead = perUserOpOverhead + callDataOverhead
@@ -217,25 +226,23 @@ export function calcExecutionPvgComponent({
 
         const preVerificationGas =
             getEip7623transactionGasCost({
-                stipendGasCost: BigInt(Math.round(userOpShareOfStipend)),
-                tokenGasCount: BigInt(tokenCount),
+                stipendGasCost: userOpShareOfStipend,
+                tokenGasCount: tokenCount,
                 oh,
                 executionGasCost:
-                    BigInt(
-                        Math.round(
-                            userOpShareOfBundleCost + userOpSpecificOverhead
-                        )
-                    ) + calculatedGasUsed
+                    userOpShareOfBundleCost +
+                    userOpSpecificOverhead +
+                    calculatedGasUsed
             }) - calculatedGasUsed
 
         return preVerificationGas
     } else {
         // Not using EIP-7623.
-        return BigInt(
+        return (
             oh.standardTokenGasCost * tokenCount +
-                userOpShareOfStipend +
-                userOpShareOfBundleCost +
-                userOpSpecificOverhead
+            userOpShareOfStipend +
+            userOpShareOfBundleCost +
+            userOpSpecificOverhead
         )
     }
 }
@@ -253,12 +260,10 @@ function getEip7623transactionGasCost({
     oh: GasOverheads
 }): bigint {
     const standardCost =
-        BigInt(oh.standardTokenGasCost) * tokenGasCount + executionGasCost
-    const floorCost = BigInt(oh.floorPerTokenGasCost) * tokenGasCount
+        oh.standardTokenGasCost * tokenGasCount + executionGasCost
+    const floorCost = oh.floorPerTokenGasCost * tokenGasCount
 
-    return (
-        stipendGasCost + (standardCost > floorCost ? standardCost : floorCost)
-    )
+    return stipendGasCost + maxBigInt(standardCost, floorCost)
 }
 
 // during validation, collect only the gas known to be paid: the actual validation and 10% of execution gas.
