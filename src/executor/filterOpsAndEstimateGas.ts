@@ -20,7 +20,7 @@ import {
 import { AltoConfig } from "../createConfig"
 import {
     Logger,
-    getHandleOpsCallData,
+    getSerializedHandleOpsTx,
     scaleBigIntByPercent,
     toPackedUserOperation
 } from "@alto/utils"
@@ -58,30 +58,15 @@ const getChainSpecificOverhead = async ({
 
     switch (chainType) {
         case "arbitrum": {
-            const data = getHandleOpsCallData({
-                userOps,
-                entryPoint,
-                removeZeros: false
-            })
-
             const precompileAddress =
                 "0x00000000000000000000000000000000000000C8"
 
-            const serializedTx = serializeTransaction(
-                {
-                    to: entryPoint,
-                    chainId: publicClient.chain?.id ?? 10,
-                    nonce: 999999,
-                    gasLimit: maxUint64,
-                    gasPrice: maxUint64,
-                    data
-                },
-                {
-                    r: "0x123451234512345123451234512345123451234512345123451234512345",
-                    s: "0x123451234512345123451234512345123451234512345123451234512345",
-                    v: 28n
-                }
-            )
+            const serializedTx = getSerializedHandleOpsTx({
+                userOps,
+                entryPoint,
+                chainId: publicClient.chain?.id ?? 10,
+                removeZeros: false
+            })
 
             const arbGasPriceOracle = getContract({
                 abi: ArbitrumL1FeeAbi,

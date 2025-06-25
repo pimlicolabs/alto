@@ -315,6 +315,22 @@ function getUserOpGasUsed({
     throw new Error("Invalid user operation version")
 }
 
+// Helper function to serialize transaction with default values
+function serializeTxWithDefaults(txParams: any) {
+    // Default values for required fields
+    txParams.nonce = 999999
+    txParams.gasLimit = maxUint64
+    txParams.maxFeePerGas = maxUint64
+    txParams.maxPriorityFeePerGas = maxUint64
+
+    // Always use EIP-1559 transaction
+    return serializeTransaction(txParams, {
+        r: "0x123451234512345123451234512345123451234512345123451234512345",
+        s: "0x123451234512345123451234512345123451234512345123451234512345",
+        yParity: 1
+    })
+}
+
 // Calculate the L2-specific gas component of preVerificationGas
 export async function calcL2PvgComponent({
     config,
@@ -392,45 +408,91 @@ export async function calcL2PvgComponent({
     }
 }
 
-// Returns back the bytes for the handleOps call
-export function getHandleOpsCallData({
+// Returns a serialized transaction for the handleOps call
+export function getSerializedHandleOpsTx({
     userOps,
     entryPoint,
-    removeZeros = true
+    chainId,
+    removeZeros = true,
+    randomizeSignature = false
 }: {
     userOps: UserOperation[]
     entryPoint: Address
+    chainId: number
     removeZeros?: boolean
+    randomizeSignature?: boolean
 }) {
     if (userOps.length === 0) {
         throw new Error("No user operations provided")
     }
 
-    const isV07 = isVersion07(userOps[0])
+    // Process operations based on configuration
+    let processedOps = userOps
 
+    if (randomizeSignature) {
+        processedOps = userOps.map((op) => {
+            const sigLength = size(op.signature)
+            let newSignature: `0x${string}`
+
+            const randomizeBytes = (length: number) =>
+                toHex(crypto.randomBytes(length).toString("hex"))
+
+            if (sigLength < 65) {
+                // For short signatures, randomize the entire thing
+                newSignature = randomizeBytes(sigLength)
+            } else {
+                // For longer signatures, only randomize the last 65 bytes
+                const originalPart = slice(op.signature, 0, sigLength - 65)
+                const randomPart = randomizeBytes(65)
+                newSignature = concat([originalPart, randomPart])
+            }
+
+            return {
+                ...op,
+                signature: newSignature
+            }
+        })
+    }
+
+    const isV07 = isVersion07(processedOps[0])
+
+    let data: Hex
     if (isV07) {
         const processed = removeZeros
-            ? (userOps.map((op) =>
+            ? (processedOps.map((op) =>
                   fillAndPackUserOp(op)
               ) as PackedUserOperation[])
-            : userOps.map((op) => toPackedUserOperation(op as UserOperationV07))
+            : processedOps.map((op) =>
+                  toPackedUserOperation(op as UserOperationV07)
+              )
 
-        return encodeFunctionData({
+        data = encodeFunctionData({
             abi: EntryPointV07Abi,
+            functionName: "handleOps",
+            args: [processed, entryPoint]
+        })
+    } else {
+        const processed = removeZeros
+            ? (processedOps.map((op) =>
+                  fillAndPackUserOp(op)
+              ) as UserOperationV06[])
+            : (processedOps as UserOperationV06[])
+
+        data = encodeFunctionData({
+            abi: EntryPointV06Abi,
             functionName: "handleOps",
             args: [processed, entryPoint]
         })
     }
 
-    const processed = removeZeros
-        ? (userOps.map((op) => fillAndPackUserOp(op)) as UserOperationV06[])
-        : (userOps as UserOperationV06[])
+    // Prepare transaction parameters
+    const txParams = {
+        to: entryPoint,
+        chainId,
+        data
+    }
 
-    return encodeFunctionData({
-        abi: EntryPointV06Abi,
-        functionName: "handleOps",
-        args: [processed, entryPoint]
-    })
+    return serializeTxWithDefaults(txParams)
 }
 
 async function calcEtherlinkPvg(
@@ -439,13 +501,17 @@ async function calcEtherlinkPvg(
     gasPriceManager: GasPriceManager,
     verify?: boolean
 ) {
-    const data = getHandleOpsCallData({ userOps: [op], entryPoint })
+    const serializedTx = getSerializedHandleOpsTx({
+        userOps: [op],
+        entryPoint,
+        chainId: 128123 // Etherlink chain ID
+    })
 
     // Etherlink calculates the inclusion fee (data availability fee) with:
     // 0.000004 XTZ * (150 + tx.data.size() + tx.access_list.size())
 
-    // Get the size of data in bytes
-    const dataSize = BigInt(size(data))
+    // Get the size of serialized transaction in bytes
+    const dataSize = BigInt(size(serializedTx))
 
     const baseConstant = 150n
     const xtzRate = parseEther("0.000004")
@@ -470,23 +536,11 @@ async function calcMantlePvg(
     gasPriceManager: GasPriceManager,
     verify?: boolean
 ) {
-    const data = getHandleOpsCallData({ userOps: [op], entryPoint })
-
-    const serializedTx = serializeTransaction(
-        {
-            to: entryPoint,
-            chainId: publicClient.chain.id,
-            nonce: 999999,
-            gasLimit: maxUint64,
-            gasPrice: maxUint64,
-            data
-        },
-        {
-            r: "0x123451234512345123451234512345123451234512345123451234512345",
-            s: "0x123451234512345123451234512345123451234512345123451234512345",
-            v: 28n
-        }
-    )
+    const serializedTx = getSerializedHandleOpsTx({
+        userOps: [op],
+        entryPoint,
+        chainId: publicClient.chain.id
+    })
 
     let tokenRatio: bigint
     let scalar: bigint
@@ -550,53 +604,6 @@ async function calcMantlePvg(
     return l1RollupFee / l2MaxFee
 }
 
-function getOpStackHandleOpsCallData(
-    op: UserOperation,
-    entryPoint: Address,
-    verify: boolean
-) {
-    let modifiedOp = {
-        ...op
-    }
-    // Only randomize signature during estimations.
-    if (!verify) {
-        const randomizeBytes = (length: number) =>
-            toHex(crypto.randomBytes(length).toString("hex"))
-
-        const sigLength = size(op.signature)
-        let newSignature: `0x${string}`
-
-        if (sigLength < 65) {
-            // For short signatures, randomize the entire thing
-            newSignature = randomizeBytes(sigLength)
-        } else {
-            // For longer signatures, only randomize the last 65 bytes
-            const originalPart = slice(op.signature, 0, sigLength - 65)
-            const randomPart = randomizeBytes(65)
-            newSignature = concat([originalPart, randomPart])
-        }
-
-        modifiedOp = {
-            ...op,
-            signature: newSignature
-        }
-    }
-
-    if (isVersion07(modifiedOp)) {
-        return encodeFunctionData({
-            abi: EntryPointV07Abi,
-            functionName: "handleOps",
-            args: [[toPackedUserOperation(modifiedOp)], entryPoint]
-        })
-    }
-
-    return encodeFunctionData({
-        abi: EntryPointV06Abi,
-        functionName: "handleOps",
-        args: [[modifiedOp], entryPoint]
-    })
-}
-
 async function calcOptimismPvg(
     publicClient: PublicClient<Transport, Chain>,
     op: UserOperation,
@@ -604,23 +611,13 @@ async function calcOptimismPvg(
     gasPriceManager: GasPriceManager,
     validate: boolean
 ) {
-    const data = getOpStackHandleOpsCallData(op, entryPoint, validate)
-
-    const serializedTx = serializeTransaction(
-        {
-            to: entryPoint,
-            chainId: publicClient.chain.id,
-            maxFeePerGas: parseGwei("120"),
-            maxPriorityFeePerGas: parseGwei("120"),
-            gas: 10_000_000n,
-            data
-        },
-        {
-            r: "0x123451234512345123451234512345123451234512345123451234512345",
-            s: "0x123451234512345123451234512345123451234512345123451234512345",
-            yParity: 1
-        }
-    )
+    const serializedTx = getSerializedHandleOpsTx({
+        userOps: [op],
+        entryPoint,
+        chainId: publicClient.chain.id,
+        removeZeros: false,
+        randomizeSignature: !validate
+    })
 
     const opGasPriceOracle = getContract({
         abi: OpL1FeeAbi,
@@ -665,25 +662,13 @@ async function calcArbitrumPvg(
     gasPriceManager: GasPriceManager,
     validate: boolean
 ) {
-    const data = getHandleOpsCallData({ userOps: [op], entryPoint })
-
     const precompileAddress = "0x00000000000000000000000000000000000000C8"
 
-    const serializedTx = serializeTransaction(
-        {
-            to: entryPoint,
-            chainId: publicClient.chain?.id ?? 10,
-            nonce: 999999,
-            gasLimit: maxUint64,
-            gasPrice: maxUint64,
-            data
-        },
-        {
-            r: "0x123451234512345123451234512345123451234512345123451234512345",
-            s: "0x123451234512345123451234512345123451234512345123451234512345",
-            v: 28n
-        }
-    )
+    const serializedTx = getSerializedHandleOpsTx({
+        userOps: [op],
+        entryPoint,
+        chainId: publicClient.chain?.id ?? 10
+    })
 
     const arbGasPriceOracle = getContract({
         abi: ArbitrumL1FeeAbi,
