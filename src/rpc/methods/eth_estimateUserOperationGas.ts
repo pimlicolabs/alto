@@ -301,6 +301,14 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             })
         ])
 
+        // Validate eip7702Auth
+        if (!validEip7702Auth) {
+            throw new RpcError(
+                validEip7702AuthError,
+                ValidationErrors.InvalidFields
+            )
+        }
+
         // Validate gas estimation result first
         if (gasEstimateResult.status === "failed") {
             throw new RpcError(gasEstimateResult.error, gasEstimateResult.code)
@@ -320,14 +328,6 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
 
         // Calculate total preVerificationGas by summing both components
         let preVerificationGas = executionGasComponent + l2GasComponent
-
-        // Validate eip7702Auth
-        if (!validEip7702Auth) {
-            throw new RpcError(
-                validEip7702AuthError,
-                ValidationErrors.InvalidFields
-            )
-        }
 
         // Add multipliers to pvg
         if (isVersion07(userOperation)) {
