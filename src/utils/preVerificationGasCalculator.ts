@@ -1,9 +1,6 @@
 import type { GasPriceManager } from "@alto/handlers"
 import {
     type Address,
-    EntryPointV06Abi,
-    EntryPointV07Abi,
-    type PackedUserOperation,
     type UserOperation,
     type UserOperationV06,
     type UserOperationV07,
@@ -19,16 +16,13 @@ import {
     getContract,
     serializeTransaction,
     maxUint64,
-    encodeFunctionData,
-    parseGwei,
     parseEther,
     maxUint256,
     toHex,
     size,
     concat,
     slice,
-    toBytes,
-    type Hex
+    toBytes
 } from "viem"
 import { minBigInt, randomBigInt, unscaleBigIntByPercent } from "./bigInt"
 import { isVersion06, isVersion07, toPackedUserOperation } from "./userop"
@@ -114,7 +108,7 @@ export function fillUserOpWithDummyData(
         signature: bytesToHex(
             new Uint8Array(size(userOperation.signature)).fill(255)
         )
-    } as UserOperationV07
+    }
 }
 
 // Calculate the execution gas component of preVerificationGas
