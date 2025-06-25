@@ -1,5 +1,4 @@
 import {
-    entryPointSimulations07Abi,
     ExecutionErrors,
     pimlicoSimulationsAbi,
     RpcError,
@@ -18,8 +17,7 @@ import {
     ContractFunctionRevertedError,
     decodeErrorResult,
     parseAbi,
-    BaseError,
-    parseAbiItem
+    BaseError
 } from "viem"
 import {
     type Address,
@@ -36,7 +34,7 @@ import {
 import type { AltoConfig } from "../../createConfig"
 import { packUserOps } from "../../executor/utils"
 import { toViemStateOverrides } from "../../utils/toViemStateOverrides"
-import { entryPoint07Abi } from "viem/_types/account-abstraction"
+import { parseFailedOpWithRevert } from "./utils"
 
 type SimulateHandleOpSuccessResult = {
     preOpGas: bigint
@@ -63,6 +61,41 @@ export class GasEstimatorV07 {
                 level: config.logLevel
             }
         )
+    }
+
+    private getSimulationContracts(
+        entryPoint: Address,
+        userOperation: UserOperationV07
+    ) {
+        const is08 = isVersion08(userOperation, entryPoint)
+        const epSimulationsAddress = is08
+            ? this.config.entrypointSimulationContractV8
+            : this.config.entrypointSimulationContractV7
+
+        if (!epSimulationsAddress) {
+            const errorMsg = `Cannot find entryPointSimulations Address for version ${
+                is08 ? "08" : "07"
+            }`
+            this.logger.warn(errorMsg)
+            throw new Error(errorMsg)
+        }
+
+        if (!this.config.pimlicoSimulationContract) {
+            this.logger.warn("pimlicoSimulation must be provided")
+            throw new RpcError(
+                "pimlicoSimulation must be provided",
+                ValidationErrors.InvalidFields
+            )
+        }
+
+        return {
+            epSimulationsAddress,
+            pimlicoSimulation: getContract({
+                abi: pimlicoSimulationsAbi,
+                address: this.config.pimlicoSimulationContract,
+                client: this.config.publicClient
+            })
+        }
     }
 
     private decodeSimulateHandleOpError(error: unknown): {
@@ -148,23 +181,35 @@ export class GasEstimatorV07 {
         }
     }
 
-    private async performBinarySearch(
-        epSimulationsContract: GetContractReturnType<
-            typeof entryPointSimulations07Abi,
+    private async performBinarySearch({
+        pimlicoSimulation,
+        epSimulationsAddress,
+        entryPoint,
+        methodName,
+        queuedUserOps,
+        targetUserOp,
+        stateOverride,
+        retryCount = 0,
+        initialMinGas = 9_000n,
+        gasAllowance
+    }: {
+        pimlicoSimulation: GetContractReturnType<
+            typeof pimlicoSimulationsAbi,
             PublicClient
-        >,
+        >
+        epSimulationsAddress: Address
+        entryPoint: Address
         methodName:
             | "binarySearchVerificationGas"
             | "binarySearchPaymasterVerificationGas"
-            | "binarySearchCallGas",
-        queuedUserOps: UserOperationV07[],
-        targetUserOp: UserOperationV07,
-        entryPoint: Address,
-        stateOverride: StateOverride,
-        retryCount = 0,
-        initialMinGas = 9_000n,
+            | "binarySearchCallGas"
+        queuedUserOps: UserOperationV07[]
+        targetUserOp: UserOperationV07
+        stateOverride: StateOverride
+        retryCount?: number
+        initialMinGas?: bigint
         gasAllowance?: bigint
-    ): Promise<SimulateBinarySearchResult> {
+    }): Promise<SimulateBinarySearchResult> {
         // Check if we've hit the retry limit
         if (retryCount > this.config.binarySearchMaxRetries) {
             this.logger.warn(
@@ -182,11 +227,12 @@ export class GasEstimatorV07 {
         const packedTargetOp = toPackedUserOperation(targetUserOp)
 
         try {
-            const { result } = await epSimulationsContract.simulate[methodName](
+            const { result } = await pimlicoSimulation.simulate[methodName](
                 [
+                    epSimulationsAddress,
+                    entryPoint,
                     packedQueuedOps,
                     packedTargetOp,
-                    entryPoint,
                     initialMinGas,
                     this.config.binarySearchToleranceDelta,
                     gasAllowance ?? this.config.binarySearchGasAllowance
@@ -202,17 +248,18 @@ export class GasEstimatorV07 {
                 const { optimalGas, minGas } = result.outOfGasData
                 const newGasAllowance = optimalGas - minGas
 
-                return await this.performBinarySearch(
-                    epSimulationsContract,
+                return await this.performBinarySearch({
+                    pimlicoSimulation,
+                    epSimulationsAddress,
+                    entryPoint,
                     methodName,
                     queuedUserOps,
                     targetUserOp,
-                    entryPoint,
                     stateOverride,
-                    retryCount + 1,
-                    minGas,
-                    newGasAllowance
-                )
+                    retryCount: retryCount + 1,
+                    initialMinGas: minGas,
+                    gasAllowance: newGasAllowance
+                })
             }
 
             // Check for successful result
@@ -246,27 +293,40 @@ export class GasEstimatorV07 {
         }
     }
 
-    private async executeSimulateHandleOp(
-        epSimulationsContract: GetContractReturnType<
-            typeof entryPointSimulations07Abi,
+    private async simulateHandleOp({
+        pimlicoSimulation,
+        epSimulationsAddress,
+        entryPoint,
+        queuedUserOps,
+        targetUserOp,
+        stateOverride
+    }: {
+        pimlicoSimulation: GetContractReturnType<
+            typeof pimlicoSimulationsAbi,
             PublicClient
-        >,
-        queuedUserOps: UserOperationV07[],
-        targetUserOp: UserOperationV07,
+        >
+        epSimulationsAddress: Address
+        entryPoint: Address
+        queuedUserOps: UserOperationV07[]
+        targetUserOp: UserOperationV07
         stateOverride: StateOverride
-    ): Promise<SimulateHandleOpResult> {
+    }): Promise<SimulateHandleOpResult> {
         const packedQueuedOps = packUserOps(queuedUserOps)
         const packedTargetOp = toPackedUserOperation(targetUserOp)
 
         try {
-            const result =
-                await epSimulationsContract.simulate.simulateHandleOp(
-                    [packedQueuedOps, packedTargetOp],
-                    {
-                        stateOverride,
-                        gas: this.config.fixedGasLimitForEstimation
-                    }
-                )
+            const result = await pimlicoSimulation.simulate.simulateHandleOp(
+                [
+                    epSimulationsAddress,
+                    entryPoint,
+                    packedQueuedOps,
+                    packedTargetOp
+                ],
+                {
+                    stateOverride,
+                    gas: this.config.fixedGasLimitForEstimation
+                }
+            )
             return {
                 result: "execution",
                 data: {
@@ -283,17 +343,24 @@ export class GasEstimatorV07 {
         }
     }
 
-    private async simulateAndEstimateGasLimits(
-        pimlicoSimulationContract: GetContractReturnType<
+    private async simulateAndEstimateGasLimits({
+        pimlicoSimulation,
+        epSimulationsAddress,
+        entryPoint,
+        queuedUserOps,
+        targetUserOp,
+        stateOverride
+    }: {
+        pimlicoSimulation: GetContractReturnType<
             typeof pimlicoSimulationsAbi,
             PublicClient
-        >,
-        queuedUserOps: UserOperationV07[],
-        targetUserOp: UserOperationV07,
-        entryPoint: Address,
-        epSimulationsAddress: Address,
+        >
+        epSimulationsAddress: Address
+        entryPoint: Address
+        queuedUserOps: UserOperationV07[]
+        targetUserOp: UserOperationV07
         stateOverride: StateOverride
-    ): Promise<
+    }): Promise<
         | {
               result: "success"
               verificationGas: bigint
@@ -311,12 +378,12 @@ export class GasEstimatorV07 {
 
         try {
             const { result } =
-                await pimlicoSimulationContract.simulate.simulateAndEstimateGasLimits(
+                await pimlicoSimulation.simulate.simulateAndEstimateGas(
                     [
+                        epSimulationsAddress,
+                        entryPoint,
                         packedQueuedOps,
                         packedTargetOp,
-                        entryPoint,
-                        epSimulationsAddress,
                         9_000n,
                         this.config.binarySearchToleranceDelta,
                         this.config.binarySearchGasAllowance
@@ -358,33 +425,19 @@ export class GasEstimatorV07 {
         userOperation: UserOperationV07
         queuedUserOperations: UserOperationV07[]
     }) {
-        const is08 = isVersion08(userOperation, entryPoint)
-        const entryPointSimulationsAddress = is08
-            ? this.config.entrypointSimulationContractV8
-            : this.config.entrypointSimulationContractV7
-
-        if (!entryPointSimulationsAddress) {
-            const errorMsg = `Cannot find entryPointSimulations Address for version ${
-                is08 ? "08" : "07"
-            }`
-            this.logger.warn(errorMsg)
-            throw new Error(errorMsg)
-        }
+        const { epSimulationsAddress, pimlicoSimulation } =
+            this.getSimulationContracts(entryPoint, userOperation)
 
         const stateOverride = getAuthorizationStateOverrides({
             userOperations: [...queuedUserOperations, userOperation]
         })
 
         try {
-            const epSimulationContract = getContract({
-                abi: entryPointSimulations07Abi,
-                address: entryPointSimulationsAddress,
-                client: this.config.publicClient
-            })
-
             const { result } =
-                await epSimulationContract.simulate.simulateValidation(
+                await pimlicoSimulation.simulate.simulateValidation(
                     [
+                        epSimulationsAddress,
+                        entryPoint,
                         packUserOps(queuedUserOperations),
                         toPackedUserOperation(userOperation)
                     ],
@@ -419,18 +472,8 @@ export class GasEstimatorV07 {
         queuedUserOperations: UserOperationV07[]
         stateOverrides?: StateOverrides | undefined
     }): Promise<SimulateHandleOpResult> {
-        const is08 = isVersion08(userOperation, entryPoint)
-        const entryPointSimulationsAddress = is08
-            ? this.config.entrypointSimulationContractV8
-            : this.config.entrypointSimulationContractV7
-
-        if (!entryPointSimulationsAddress) {
-            const errorMsg = `Cannot find entryPointSimulations Address for version ${
-                is08 ? "08" : "07"
-            }`
-            this.logger.warn(errorMsg)
-            throw new Error(errorMsg)
-        }
+        const { epSimulationsAddress, pimlicoSimulation } =
+            this.getSimulationContracts(entryPoint, userOperation)
 
         const stateOverride = getAuthorizationStateOverrides({
             userOperations: [...queuedUserOperations, userOperation],
@@ -438,15 +481,11 @@ export class GasEstimatorV07 {
         })
 
         try {
-            const epSimulationContract = getContract({
-                abi: entryPointSimulations07Abi,
-                address: entryPointSimulationsAddress,
-                client: this.config.publicClient
-            })
-
             const { result } =
-                await epSimulationContract.simulate.simulateHandleOp(
+                await pimlicoSimulation.simulate.simulateHandleOp(
                     [
+                        epSimulationsAddress,
+                        entryPoint,
                         packUserOps(queuedUserOperations),
                         toPackedUserOperation(userOperation)
                     ],
@@ -486,56 +525,10 @@ export class GasEstimatorV07 {
         queuedUserOperations: UserOperationV07[]
         userStateOverrides?: StateOverrides | undefined
     }): Promise<SimulateHandleOpResult> {
-        const {
-            pimlicoSimulationContract: pimlicoSimulationAddress,
-            splitSimulationCalls,
-            publicClient,
-            entrypointSimulationContractV7,
-            entrypointSimulationContractV8
-        } = this.config
+        const { splitSimulationCalls } = this.config
 
-        const is08 = isVersion08(userOperation, entryPoint)
-        const epSimulationsAddress = is08
-            ? entrypointSimulationContractV8
-            : entrypointSimulationContractV7
-
-        if (!epSimulationsAddress) {
-            const errorMsg = `missing entryPointSimulations contract for version ${
-                is08 ? "08" : "07"
-            }`
-            this.logger.warn(errorMsg)
-            throw new Error(errorMsg)
-        }
-
-        if (!pimlicoSimulationAddress) {
-            this.logger.warn("pimlicoSimulationContract must be provided")
-            throw new RpcError(
-                "pimlicoSimulationContract must be provided",
-                ValidationErrors.InvalidFields
-            )
-        }
-
-        const epSimulationsContract = getContract({
-            abi: [
-                ...entryPointSimulations07Abi,
-                parseAbiItem("error FailedOp(string)"), // FailedOp(string reason)
-                parseAbiItem("error CallPhaseReverted(bytes)"), // CallPhaseReverted(bytes reason)
-                parseAbiItem("error FailedOpWithRevert(uint256,string,bytes)") // FailedOpWithRevert(uint256 opIndex, string reason, bytes inner)
-            ],
-            address: epSimulationsAddress,
-            client: publicClient
-        })
-
-        const pimlicoSimulationContract = getContract({
-            abi: [
-                pimlicoSimulationsAbi,
-                parseAbiItem("error FailedOp(string)"), // FailedOp(string reason)
-                parseAbiItem("error CallPhaseReverted(bytes)"), // CallPhaseReverted(bytes reason)
-                parseAbiItem("error FailedOpWithRevert(uint256,string,bytes)") // FailedOpWithRevert(uint256 opIndex, string reason, bytes inner)
-            ],
-            address: pimlicoSimulationAddress,
-            client: publicClient
-        })
+        const { epSimulationsAddress, pimlicoSimulation } =
+            this.getSimulationContracts(entryPoint, userOperation)
 
         const stateOverride = getAuthorizationStateOverrides({
             userOperations: [...queuedUserOperations, userOperation],
@@ -544,36 +537,41 @@ export class GasEstimatorV07 {
 
         if (splitSimulationCalls) {
             const [sho, bsvgl, bspvgl, bscgl] = await Promise.all([
-                this.executeSimulateHandleOp(
-                    epSimulationsContract,
-                    queuedUserOperations,
-                    userOperation,
-                    toViemStateOverrides(stateOverride)
-                ),
-                this.performBinarySearch(
-                    epSimulationsContract,
-                    "binarySearchVerificationGas",
-                    queuedUserOperations,
-                    userOperation,
+                this.simulateHandleOp({
+                    pimlicoSimulation,
+                    epSimulationsAddress,
                     entryPoint,
-                    toViemStateOverrides(stateOverride)
-                ),
-                this.performBinarySearch(
-                    epSimulationsContract,
-                    "binarySearchPaymasterVerificationGas",
-                    queuedUserOperations,
-                    userOperation,
+                    queuedUserOps: queuedUserOperations,
+                    targetUserOp: userOperation,
+                    stateOverride: toViemStateOverrides(stateOverride)
+                }),
+                this.performBinarySearch({
+                    pimlicoSimulation,
+                    epSimulationsAddress,
                     entryPoint,
-                    toViemStateOverrides(stateOverride)
-                ),
-                this.performBinarySearch(
-                    epSimulationsContract,
-                    "binarySearchCallGas",
-                    queuedUserOperations,
-                    userOperation,
+                    methodName: "binarySearchVerificationGas",
+                    queuedUserOps: queuedUserOperations,
+                    targetUserOp: userOperation,
+                    stateOverride: toViemStateOverrides(stateOverride)
+                }),
+                this.performBinarySearch({
+                    pimlicoSimulation,
+                    epSimulationsAddress,
                     entryPoint,
-                    toViemStateOverrides(stateOverride)
-                )
+                    methodName: "binarySearchPaymasterVerificationGas",
+                    queuedUserOps: queuedUserOperations,
+                    targetUserOp: userOperation,
+                    stateOverride: toViemStateOverrides(stateOverride)
+                }),
+                this.performBinarySearch({
+                    pimlicoSimulation,
+                    epSimulationsAddress,
+                    entryPoint,
+                    methodName: "binarySearchCallGas",
+                    queuedUserOps: queuedUserOperations,
+                    targetUserOp: userOperation,
+                    stateOverride: toViemStateOverrides(stateOverride)
+                })
             ])
 
             if (sho.result === "failed") {
@@ -603,22 +601,23 @@ export class GasEstimatorV07 {
             }
         } else {
             const [saegl, focgl] = await Promise.all([
-                this.simulateAndEstimateGasLimits(
-                    pimlicoSimulationContract,
-                    queuedUserOperations,
-                    userOperation,
-                    entryPoint,
+                this.simulateAndEstimateGasLimits({
+                    pimlicoSimulation,
                     epSimulationsAddress,
-                    toViemStateOverrides(stateOverride)
-                ),
-                this.performBinarySearch(
-                    epSimulationsContract,
-                    "binarySearchCallGas",
-                    queuedUserOperations,
-                    userOperation,
+                    queuedUserOps: queuedUserOperations,
+                    targetUserOp: userOperation,
                     entryPoint,
-                    toViemStateOverrides(stateOverride)
-                )
+                    stateOverride: toViemStateOverrides(stateOverride)
+                }),
+                this.performBinarySearch({
+                    pimlicoSimulation,
+                    epSimulationsAddress,
+                    entryPoint,
+                    methodName: "binarySearchCallGas",
+                    queuedUserOps: queuedUserOperations,
+                    targetUserOp: userOperation,
+                    stateOverride: toViemStateOverrides(stateOverride)
+                })
             ])
 
             if (saegl.result === "failed") {
@@ -646,37 +645,4 @@ export class GasEstimatorV07 {
             }
         }
     }
-}
-
-export function parseFailedOpWithRevert(data: Hex) {
-    try {
-        const decoded = decodeErrorResult({
-            abi: parseAbi(["error Error(string)", "error Panic(uint256)"]),
-            data
-        })
-
-        if (decoded.errorName === "Error") {
-            return decoded.args[0]
-        }
-
-        if (decoded.errorName === "Panic") {
-            // from https://docs.soliditylang.org/en/v0.8.0/control-structures.html
-            const panicCodes: { [key: number]: string } = {
-                1: "assert(false)",
-                17: "arithmetic overflow/underflow",
-                18: "divide by zero",
-                33: "invalid enum value",
-                34: "storage byte array that is incorrectly encoded",
-                49: ".pop() on an empty array.",
-                50: "array sout-of-bounds or negative index",
-                65: "memory overflow",
-                81: "zero-initialized variable of internal function type"
-            }
-
-            const [code] = decoded.args
-            return panicCodes[Number(code)] ?? `${code}`
-        }
-    } catch {}
-
-    return data
 }
