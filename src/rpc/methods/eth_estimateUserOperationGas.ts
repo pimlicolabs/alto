@@ -1,8 +1,8 @@
 import { scaleBigIntByPercent, maxBigInt } from "../../utils/bigInt"
 import { isVersion06, isVersion07, deepHexlify } from "../../utils/userop"
 import {
-    calcExecutionGasComponent,
-    calcL2GasComponent
+    calcExecutionPvgComponent,
+    calcL2PvgComponent
 } from "../../utils/preVerificationGasCalculator"
 import { createMethodHandler } from "../createMethodHandler"
 import {
@@ -281,7 +281,6 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         let [
             [validEip7702Auth, validEip7702AuthError],
             gasEstimateResult,
-            executionGasComponent,
             l2GasComponent
         ] = await Promise.all([
             rpcHandler.validateEip7702Auth({
@@ -293,13 +292,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
                 entryPoint,
                 stateOverrides
             }),
-            Promise.resolve(
-                calcExecutionGasComponent({
-                    userOp: userOperation,
-                    supportsEip7623
-                })
-            ),
-            calcL2GasComponent({
+            calcL2PvgComponent({
                 config: rpcHandler.config,
                 userOperation,
                 entryPoint,
@@ -307,6 +300,22 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
                 validate: false
             })
         ])
+
+        // Validate gas estimation result first
+        if (gasEstimateResult.status === "failed") {
+            throw new RpcError(gasEstimateResult.error, gasEstimateResult.code)
+        }
+
+        // Now calculate execution gas component with the estimated gas values
+        const userOpWithEstimatedGas = {
+            ...userOperation,
+            ...gasEstimateResult.estimates
+        }
+
+        const executionGasComponent = calcExecutionPvgComponent({
+            userOp: userOpWithEstimatedGas,
+            supportsEip7623
+        })
 
         // Calculate total preVerificationGas by summing both components
         let preVerificationGas = executionGasComponent + l2GasComponent
@@ -317,11 +326,6 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
                 validEip7702AuthError,
                 ValidationErrors.InvalidFields
             )
-        }
-
-        // Validate gas estimation result
-        if (gasEstimateResult.status === "failed") {
-            throw new RpcError(gasEstimateResult.error, gasEstimateResult.code)
         }
 
         // Add multipliers to pvg

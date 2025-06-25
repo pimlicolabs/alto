@@ -13,8 +13,8 @@ import {
     ReferencedCodeHashes
 } from "@alto/types"
 import {
-    calcExecutionGasComponent,
-    calcL2GasComponent,
+    calcExecutionPvgComponent,
+    calcL2PvgComponent,
     getAAError
 } from "@alto/utils"
 import { RpcHandler } from "../rpcHandler"
@@ -33,11 +33,11 @@ const validatePvg = async (
         return [true, ""]
     }
 
-    const executionGasComponent = calcExecutionGasComponent({
+    const executionGasComponent = calcExecutionPvgComponent({
         userOp: userOperation,
         supportsEip7623: rpcHandler.config.supportsEip7623
     })
-    const l2GasComponent = await calcL2GasComponent({
+    const l2GasComponent = await calcL2PvgComponent({
         config: rpcHandler.config,
         userOperation,
         entryPoint,

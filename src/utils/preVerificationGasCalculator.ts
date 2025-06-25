@@ -116,7 +116,7 @@ export function fillAndPackUserOp(
 }
 
 // Calculate the execution gas component of preVerificationGas
-export function calcExecutionGasComponent({
+export function calcExecutionPvgComponent({
     userOp,
     supportsEip7623
 }: {
@@ -205,7 +205,25 @@ export function calcExecutionGasComponent({
         oh.transactionGasStipend / oh.expectedBundleSize
 
     if (supportsEip7623) {
-        return BigInt(0) // Using EIP-7623.
+        const userOpGasUsed =
+
+        // Using EIP-7623: Count zero bytes as full tokens
+        const tokenCountEip7623 = packed.length * oh.tokensPerNonzeroByte
+        const userOpFloorCost = BigInt(
+            oh.standardTokenGasCost * tokenCountEip7623
+        )
+
+        const userOpActualGas = BigInt(
+            oh.standardTokenGasCost * tokenCount +
+                userOpShareOfStipend +
+                userOpShareOfBundleCost +
+                userOpSpecificOverhead
+        )
+
+        // Return the maximum of floor cost and actual gas
+        return userOpFloorCost > userOpActualGas
+            ? userOpFloorCost
+            : userOpActualGas
     } else {
         // Not using EIP-7623.
         return BigInt(
@@ -217,8 +235,25 @@ export function calcExecutionGasComponent({
     }
 }
 
+function getUserOpGasUsed({
+    userOp,
+    config
+}: { userOp: UserOperation; config: AltoConfig }): bigint {
+    // Sum up the gas limits without padding
+    let totalGas = userOp.callGasLimit + userOp.verificationGasLimit
+
+    // For v0.7 operations, also add paymaster gas limits
+    if (isVersion07(userOp)) {
+        totalGas +=
+            (userOp.paymasterVerificationGasLimit ?? 0n) +
+            (userOp.paymasterPostOpGasLimit ?? 0n)
+    }
+
+    return totalGas
+}
+
 // Calculate the L2-specific gas component of preVerificationGas
-export async function calcL2GasComponent({
+export async function calcL2PvgComponent({
     config,
     userOperation,
     entryPoint,
