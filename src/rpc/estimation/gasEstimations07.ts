@@ -12,20 +12,8 @@ import {
     isVersion08,
     toPackedUserOperation
 } from "@alto/utils"
-import {
-    type Hex,
-    ContractFunctionRevertedError,
-    decodeErrorResult,
-    parseAbi,
-    BaseError
-} from "viem"
-import {
-    type Address,
-    getContract,
-    type StateOverride,
-    type GetContractReturnType,
-    type PublicClient
-} from "viem"
+import { type Hex, ContractFunctionRevertedError, BaseError } from "viem"
+import { type Address, getContract, type StateOverride } from "viem"
 import {
     BinarySearchResultType,
     SimulateBinarySearchResult,
@@ -182,8 +170,6 @@ export class GasEstimatorV07 {
     }
 
     private async performBinarySearch({
-        pimlicoSimulation,
-        epSimulationsAddress,
         entryPoint,
         methodName,
         queuedUserOps,
@@ -193,11 +179,6 @@ export class GasEstimatorV07 {
         initialMinGas = 9_000n,
         gasAllowance
     }: {
-        pimlicoSimulation: GetContractReturnType<
-            typeof pimlicoSimulationsAbi,
-            PublicClient
-        >
-        epSimulationsAddress: Address
         entryPoint: Address
         methodName:
             | "binarySearchVerificationGas"
@@ -210,6 +191,8 @@ export class GasEstimatorV07 {
         initialMinGas?: bigint
         gasAllowance?: bigint
     }): Promise<SimulateBinarySearchResult> {
+        const { pimlicoSimulation, epSimulationsAddress } =
+            this.getSimulationContracts(entryPoint, targetUserOp)
         // Check if we've hit the retry limit
         if (retryCount > this.config.binarySearchMaxRetries) {
             this.logger.warn(
@@ -249,8 +232,6 @@ export class GasEstimatorV07 {
                 const newGasAllowance = optimalGas - minGas
 
                 return await this.performBinarySearch({
-                    pimlicoSimulation,
-                    epSimulationsAddress,
                     entryPoint,
                     methodName,
                     queuedUserOps,
@@ -294,23 +275,19 @@ export class GasEstimatorV07 {
     }
 
     private async simulateHandleOp({
-        pimlicoSimulation,
-        epSimulationsAddress,
         entryPoint,
         queuedUserOps,
         targetUserOp,
         stateOverride
     }: {
-        pimlicoSimulation: GetContractReturnType<
-            typeof pimlicoSimulationsAbi,
-            PublicClient
-        >
-        epSimulationsAddress: Address
         entryPoint: Address
         queuedUserOps: UserOperationV07[]
         targetUserOp: UserOperationV07
         stateOverride: StateOverride
     }): Promise<SimulateHandleOpResult> {
+        const { pimlicoSimulation, epSimulationsAddress } =
+            this.getSimulationContracts(entryPoint, targetUserOp)
+
         const packedQueuedOps = packUserOps(queuedUserOps)
         const packedTargetOp = toPackedUserOperation(targetUserOp)
 
@@ -344,22 +321,17 @@ export class GasEstimatorV07 {
     }
 
     private async simulateAndEstimateGasLimits({
-        pimlicoSimulation,
-        epSimulationsAddress,
         entryPoint,
         queuedUserOps,
         targetUserOp,
-        stateOverride
+        stateOverride,
+        retryCount = 0
     }: {
-        pimlicoSimulation: GetContractReturnType<
-            typeof pimlicoSimulationsAbi,
-            PublicClient
-        >
-        epSimulationsAddress: Address
         entryPoint: Address
         queuedUserOps: UserOperationV07[]
         targetUserOp: UserOperationV07
         stateOverride: StateOverride
+        retryCount?: number
     }): Promise<
         | {
               result: "success"
@@ -373,6 +345,9 @@ export class GasEstimatorV07 {
               code: number
           }
     > {
+        const { pimlicoSimulation, epSimulationsAddress } =
+            this.getSimulationContracts(entryPoint, targetUserOp)
+
         const packedQueuedOps = packUserOps(queuedUserOps)
         const packedTargetOp = toPackedUserOperation(targetUserOp)
 
@@ -400,10 +375,86 @@ export class GasEstimatorV07 {
                 simulationResult
             } = result
 
+            // Check if verification gas limit needs retry
+            let verificationGas: bigint
+            if (
+                verificationGasLimit.resultType ===
+                BinarySearchResultType.OutOfGas
+            ) {
+                const binarySearchResult = await this.performBinarySearch({
+                    entryPoint,
+                    methodName: "binarySearchVerificationGas",
+                    queuedUserOps,
+                    targetUserOp,
+                    stateOverride,
+                    retryCount: retryCount + 1,
+                    initialMinGas: verificationGasLimit.outOfGasData.minGas,
+                    gasAllowance:
+                        verificationGasLimit.outOfGasData.optimalGas -
+                        verificationGasLimit.outOfGasData.minGas
+                })
+
+                if (binarySearchResult.result === "failed") {
+                    return binarySearchResult
+                }
+
+                verificationGas = binarySearchResult.data.gasUsed
+            } else if (
+                verificationGasLimit.resultType ===
+                BinarySearchResultType.Success
+            ) {
+                verificationGas = verificationGasLimit.successData.gasUsed
+            } else {
+                return {
+                    result: "failed",
+                    data: verificationGasLimit.successData.returnData,
+                    code: ExecutionErrors.UserOperationReverted
+                }
+            }
+
+            // Check if paymaster verification gas limit needs retry
+            let paymasterVerificationGas: bigint
+            if (
+                paymasterVerificationGasLimit.resultType ===
+                BinarySearchResultType.OutOfGas
+            ) {
+                const binarySearchResult = await this.performBinarySearch({
+                    entryPoint,
+                    methodName: "binarySearchPaymasterVerificationGas",
+                    queuedUserOps,
+                    targetUserOp,
+                    stateOverride,
+                    retryCount: retryCount + 1,
+                    initialMinGas:
+                        paymasterVerificationGasLimit.outOfGasData.minGas,
+                    gasAllowance:
+                        paymasterVerificationGasLimit.outOfGasData.optimalGas -
+                        paymasterVerificationGasLimit.outOfGasData.minGas
+                })
+
+                if (binarySearchResult.result === "failed") {
+                    return binarySearchResult
+                }
+
+                paymasterVerificationGas = binarySearchResult.data.gasUsed
+            } else if (
+                paymasterVerificationGasLimit.resultType ===
+                BinarySearchResultType.Success
+            ) {
+                paymasterVerificationGas =
+                    paymasterVerificationGasLimit.successData.gasUsed
+            } else {
+                return {
+                    result: "failed",
+                    data: paymasterVerificationGasLimit.successData.returnData,
+                    code: ExecutionErrors.UserOperationReverted
+                }
+            }
+
             return {
                 result: "success",
-                verificationGas: verificationGasLimit.gasUsed,
-                paymasterVerificationGas: paymasterVerificationGasLimit.gasUsed,
+                verificationGas,
+                paymasterVerificationGas,
                 executionResult: simulationResult
             }
         } catch (error) {
@@ -525,29 +576,20 @@ export class GasEstimatorV07 {
         queuedUserOperations: UserOperationV07[]
         userStateOverrides?: StateOverrides | undefined
     }): Promise<SimulateHandleOpResult> {
-        const { splitSimulationCalls } = this.config
-
-        const { epSimulationsAddress, pimlicoSimulation } =
-            this.getSimulationContracts(entryPoint, userOperation)
-
         const stateOverride = getAuthorizationStateOverrides({
             userOperations: [...queuedUserOperations, userOperation],
             stateOverrides: userStateOverrides
         })
 
-        if (splitSimulationCalls) {
+        if (this.config.splitSimulationCalls) {
             const [sho, bsvgl, bspvgl, bscgl] = await Promise.all([
                 this.simulateHandleOp({
-                    pimlicoSimulation,
-                    epSimulationsAddress,
                     entryPoint,
                     queuedUserOps: queuedUserOperations,
                     targetUserOp: userOperation,
                     stateOverride: toViemStateOverrides(stateOverride)
                 }),
                 this.performBinarySearch({
-                    pimlicoSimulation,
-                    epSimulationsAddress,
                     entryPoint,
                     methodName: "binarySearchVerificationGas",
                     queuedUserOps: queuedUserOperations,
@@ -555,8 +597,6 @@ export class GasEstimatorV07 {
                     stateOverride: toViemStateOverrides(stateOverride)
                 }),
                 this.performBinarySearch({
-                    pimlicoSimulation,
-                    epSimulationsAddress,
                     entryPoint,
                     methodName: "binarySearchPaymasterVerificationGas",
                     queuedUserOps: queuedUserOperations,
@@ -564,8 +604,6 @@ export class GasEstimatorV07 {
                     stateOverride: toViemStateOverrides(stateOverride)
                 }),
                 this.performBinarySearch({
-                    pimlicoSimulation,
-                    epSimulationsAddress,
                     entryPoint,
                     methodName: "binarySearchCallGas",
                     queuedUserOps: queuedUserOperations,
@@ -602,16 +640,12 @@ export class GasEstimatorV07 {
         } else {
             const [saegl, focgl] = await Promise.all([
                 this.simulateAndEstimateGasLimits({
-                    pimlicoSimulation,
-                    epSimulationsAddress,
+                    entryPoint,
                     queuedUserOps: queuedUserOperations,
                     targetUserOp: userOperation,
-                    entryPoint,
                     stateOverride: toViemStateOverrides(stateOverride)
                 }),
                 this.performBinarySearch({
-                    pimlicoSimulation,
-                    epSimulationsAddress,
                     entryPoint,
                     methodName: "binarySearchCallGas",
                     queuedUserOps: queuedUserOperations,
