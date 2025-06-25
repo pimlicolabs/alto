@@ -1,12 +1,12 @@
-import { Store, UserOpType } from "."
+import { Store } from "."
 import { AltoConfig } from "../createConfig"
-import { HexData32, UserOperation } from "../types/schemas"
+import { HexData32, UserOpInfo, UserOperation } from "../types/schemas"
 import { isVersion06, isVersion07 } from "../utils/userop"
 
-export const createMemoryStore = <T extends UserOpType>({
+export const createMemoryStore = ({
     config
-}: { config: AltoConfig }): Store<T> => {
-    let store: T[] = []
+}: { config: AltoConfig }): Store => {
+    let store: UserOpInfo[] = []
 
     return {
         findConflicting: async (userOp: UserOperation) => {
@@ -67,7 +67,7 @@ export const createMemoryStore = <T extends UserOpType>({
 
             return undefined
         },
-        add: (op: T) => {
+        add: (op: UserOpInfo) => {
             store = [...store, op]
             return Promise.resolve()
         },
