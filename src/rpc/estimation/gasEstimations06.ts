@@ -16,7 +16,7 @@ import {
 import { z } from "zod"
 import type { SimulateHandleOpResult } from "./types"
 import type { AltoConfig } from "../../createConfig"
-import { parseFailedOpWithRevert } from "./gasEstimations07"
+import { parseFailedOpWithRevert } from "./utils"
 import {
     deepHexlify,
     getAuthorizationStateOverrides,
