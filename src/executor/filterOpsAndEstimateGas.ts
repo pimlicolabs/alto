@@ -13,8 +13,10 @@ import {
     getContract,
     encodeFunctionData,
     Hex,
-    decodeAbiParameters
+    decodeAbiParameters,
+    decodeErrorResult
 } from "viem"
+import { entryPoint07Abi } from "viem/account-abstraction"
 import { AltoConfig } from "../createConfig"
 import {
     Logger,
@@ -329,9 +331,27 @@ export async function filterOpsAndEstimateGas({
                     throw new Error(`UserOp with hash ${userOpHash} not found`)
                 }
 
+                // Try to decode the revert reason
+                let decodedReason: string = revertReason
+                try {
+                    const errorResult = decodeErrorResult({
+                        abi: entryPoint07Abi,
+                        data: revertReason
+                    })
+                    // Format the decoded error as a string
+                    if (errorResult.args && errorResult.args.length > 0) {
+                        decodedReason = `${errorResult.errorName}(${errorResult.args.join(", ")})`
+                    } else {
+                        decodedReason = errorResult.errorName
+                    }
+                } catch (e) {
+                    // If decoding fails, keep the raw hex
+                    decodedReason = revertReason
+                }
+
                 return {
                     ...userOpInfo,
-                    reason: revertReason
+                    reason: decodedReason
                 }
             }
         )
