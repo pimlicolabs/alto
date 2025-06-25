@@ -3,7 +3,7 @@ import { isVersion06, isVersion07, deepHexlify } from "../../utils/userop"
 import {
     calcExecutionPvgComponent,
     calcL2PvgComponent
-} from "../../utils/validation"
+} from "../../utils/preVerificationGasCalulator"
 import { createMethodHandler } from "../createMethodHandler"
 import {
     Address,
