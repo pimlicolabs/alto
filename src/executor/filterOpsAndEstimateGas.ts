@@ -16,6 +16,7 @@ import {
     decodeAbiParameters,
     decodeErrorResult
 } from "viem"
+import { formatAbiItemWithArgs } from "viem/utils"
 import { entryPoint07Abi } from "viem/account-abstraction"
 import { AltoConfig } from "../createConfig"
 import {
@@ -338,12 +339,15 @@ export async function filterOpsAndEstimateGas({
                         abi: entryPoint07Abi,
                         data: revertReason
                     })
-                    // Format the decoded error as a string
-                    if (errorResult.args && errorResult.args.length > 0) {
-                        decodedReason = `${errorResult.errorName}(${errorResult.args.join(", ")})`
-                    } else {
-                        decodedReason = errorResult.errorName
-                    }
+
+                    const formattedError = formatAbiItemWithArgs({
+                        abiItem: errorResult.abiItem,
+                        args: errorResult.args,
+                        includeFunctionName: true,
+                        includeName: false
+                    })
+
+                    decodedReason = formattedError || revertReason
                 } catch (e) {
                     // If decoding fails, keep the raw hex
                     decodedReason = revertReason
