@@ -11,7 +11,6 @@ import type { Logger } from "@alto/utils"
 import {
     roundUpBigInt,
     maxBigInt,
-    parseViemError,
     scaleBigIntByPercent,
     minBigInt,
     jsonStringifyWithBigint
@@ -26,7 +25,8 @@ import {
     NonceTooHighError,
     BaseError,
     FeeCapTooLowError,
-    InsufficientFundsError
+    InsufficientFundsError,
+    ContractFunctionExecutionError
 } from "viem"
 import {
     encodeHandleOpsCalldata,
@@ -455,11 +455,14 @@ export class Executor {
                 transactionHash
             })
         } catch (err: unknown) {
-            const e = parseViemError(err)
             const { rejectedUserOps, userOpsToBundle } = filterOpsResult
 
-            // if unknown error, return INTERNAL FAILURE
-            if (!e) {
+            const isViemExecutionError =
+                err instanceof ContractFunctionExecutionError ||
+                err instanceof TransactionExecutionError
+
+            // Unknown error, return INTERNAL FAILURE.
+            if (!isViemExecutionError) {
                 sentry.captureException(err)
                 childLogger.error(
                     { err: JSON.stringify(err) },
@@ -474,7 +477,10 @@ export class Executor {
             }
 
             // Check if executor has insufficient funds
-            if (e instanceof InsufficientFundsError) {
+            const isInsufficientFundsError = err.walk(
+                (e) => e instanceof InsufficientFundsError
+            )
+            if (isInsufficientFundsError) {
                 childLogger.warn(
                     {
                         executor: executor.address,

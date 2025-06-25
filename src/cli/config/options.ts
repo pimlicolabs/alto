@@ -521,6 +521,13 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
                 "Minimum value for maxPriorityFeePerGas to enforce (in gwei)",
             type: "string",
             require: false
+        },
+        "supports-eip7623": {
+            description:
+                "Whether the chain supports EIP-7623 (Increase calldata cost to reduce maximum block size)",
+            type: "boolean",
+            require: false,
+            default: false
         }
     }
 

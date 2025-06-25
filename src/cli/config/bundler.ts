@@ -184,7 +184,8 @@ export const compatibilityArgsSchema = z.object({
     "floor-max-priority-fee-per-gas": z
         .string()
         .transform((val) => parseGwei(val))
-        .optional()
+        .optional(),
+    "supports-eip7623": z.boolean().default(false)
 })
 
 export const serverArgsSchema = z.object({

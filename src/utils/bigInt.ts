@@ -16,6 +16,14 @@ export const scaleBigIntByPercent = (
     return (value * percent) / 100n
 }
 
+/// Unscale a BigInt by a certain percentage (inverse of scaleBigIntByPercent).
+export const unscaleBigIntByPercent = (
+    value: bigint,
+    percent: bigint
+): bigint => {
+    return (value * 100n) / percent
+}
+
 export const roundUpBigInt = ({
     value,
     multiple
