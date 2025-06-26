@@ -5,7 +5,8 @@ import {
     type StateOverride,
     BaseError,
     ContractFunctionRevertedError,
-    ContractFunctionExecutionError
+    ContractFunctionExecutionError,
+    getAbiItem
 } from "viem"
 import { getAuthorizationStateOverrides, type Logger } from "@alto/utils"
 import type {
@@ -15,11 +16,7 @@ import type {
 } from "@alto/types"
 import { toViemStateOverrides } from "../../utils/toViemStateOverrides"
 import type { AltoConfig } from "../../createConfig"
-import {
-    entryPointSimulations06Abi,
-    ValidationErrors,
-    executionResultSchema
-} from "@alto/types"
+import { ValidationErrors, executionResultSchema } from "@alto/types"
 import type { SimulateHandleOpResult } from "../estimation/types"
 import { entryPoint06Abi } from "viem/account-abstraction"
 
@@ -81,6 +78,7 @@ export function prepareStateOverride({
 }
 
 export const simulationErrors = parseAbi([
+    "error Error(string)",
     "error FailedOp(uint256 opIndex, string reason)",
     "error FailedOpWithRevert(uint256 opIndex, string reason, bytes inner)",
     "error CallPhaseReverted(bytes reason)"
@@ -100,17 +98,34 @@ export function decodeSimulateHandleOpError(
         }
     }
 
-    const revertError = error.walk(
-        (e) =>
-            e instanceof ContractFunctionRevertedError ||
-            e instanceof ContractFunctionExecutionError
-    ) as ContractFunctionRevertedError | ContractFunctionExecutionError
-
     let errorName: string
     let args: readonly unknown[]
 
-    // Indicates that the RPC reverted with non standard format, try to find raw revert bytes and decode
-    if (revertError instanceof ContractFunctionExecutionError) {
+    const contractFunctionRevertedError = error.walk(
+        (e) => e instanceof ContractFunctionRevertedError
+    ) as ContractFunctionRevertedError
+
+    // Indicates that the RPC reverted with non standard format
+    // in this case we try to find raw revert bytes and manually decode
+    const contractFunctionExecutionError = error.walk(
+        (e) => e instanceof ContractFunctionExecutionError
+    ) as ContractFunctionExecutionError
+
+    if (contractFunctionRevertedError) {
+        const error = contractFunctionRevertedError
+        if (!error.data?.args) {
+            logger.warn("Missing args")
+            return {
+                result: "failed",
+                data: "Unknown error, could not parse simulate validation result.",
+                code: ValidationErrors.SimulateValidation
+            }
+        }
+
+        errorName = error.data.errorName
+        args = error.data.args
+    } else if (contractFunctionExecutionError) {
+        // Manually decode revert bytes
         let rawRevertBytes: Hex | undefined
 
         error.walk((e: any) => {
@@ -136,8 +151,10 @@ export function decodeSimulateHandleOpError(
         try {
             const decoded = decodeErrorResult({
                 abi: [
-                    ...entryPoint06Abi,
-                    ...entryPointSimulations06Abi,
+                    getAbiItem({
+                        abi: entryPoint06Abi,
+                        name: "ExecutionResult"
+                    }),
                     ...simulationErrors
                 ],
                 data: rawRevertBytes
@@ -153,18 +170,6 @@ export function decodeSimulateHandleOpError(
                 code: ValidationErrors.SimulateValidation
             }
         }
-    } else if (revertError instanceof ContractFunctionRevertedError) {
-        if (!revertError.data?.args) {
-            logger.warn("Missing args")
-            return {
-                result: "failed",
-                data: "Unknown error, could not parse simulate validation result.",
-                code: ValidationErrors.SimulateValidation
-            }
-        }
-
-        errorName = revertError.data.errorName
-        args = revertError.data.args
     } else {
         return {
             result: "failed",

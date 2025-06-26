@@ -1,15 +1,19 @@
-import { EntryPointV06Abi } from "@alto/types"
 import type { StateOverrides, UserOperationV06 } from "@alto/types"
 import type { Hex } from "viem"
 import { type Address, getContract } from "viem"
 import type { SimulateHandleOpResult } from "./types"
 import type { AltoConfig } from "../../createConfig"
-import { prepareStateOverride, decodeSimulateHandleOpError } from "./utils"
+import {
+    prepareStateOverride,
+    decodeSimulateHandleOpError,
+    simulationErrors
+} from "./utils"
 import { deepHexlify, type Logger } from "@alto/utils"
 import { getSenderCreatorOverride } from "../../utils/entryPointOverrides"
 import entryPointOverride from "../../contracts/EntryPointGasEstimationOverride.sol/EntryPointGasEstimationOverride06.json" with {
     type: "json"
 }
+import { entryPoint06Abi } from "viem/account-abstraction"
 
 export class GasEstimatorV06 {
     private config: AltoConfig
@@ -77,7 +81,7 @@ export class GasEstimatorV06 {
 
         const entryPointContract = getContract({
             address: entryPoint,
-            abi: EntryPointV06Abi,
+            abi: [...entryPoint06Abi, ...simulationErrors],
             client: publicClient
         })
 
