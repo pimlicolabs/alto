@@ -61,6 +61,30 @@ contract PimlicoSimulations {
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /*                      Arbitrary Calls                       */
+    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+
+    function simulateEntryPointBulk(address entryPointSimulation, address payable entryPoint, bytes[] memory data)
+        public
+        returns (bytes[] memory)
+    {
+        bytes[] memory returnDataArray = new bytes[](data.length);
+
+        for (uint256 i = 0; i < data.length; i++) {
+            bytes memory returnData;
+            bytes memory callData =
+                abi.encodeWithSelector(IEntryPoint07.delegateAndRevert.selector, entryPointSimulation, data[i]);
+            bool success = Exec.call(entryPoint, 0, callData, gasleft());
+            if (!success) {
+                returnData = Exec.getReturnData(type(uint256).max);
+            }
+            returnDataArray[i] = returnData;
+        }
+
+        return returnDataArray;
+    }
+
+    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                    Estimation Methods                      */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
