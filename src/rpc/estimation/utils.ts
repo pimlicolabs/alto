@@ -113,6 +113,15 @@ export function decodeSimulateHandleOpError(
 
     if (contractFunctionRevertedError) {
         const error = contractFunctionRevertedError
+
+        if (!error.data?.args && error.raw === "0x") {
+            return {
+                result: "failed",
+                data: "Sender has no code or factory not deployed",
+                code: ValidationErrors.SimulateValidation
+            }
+        }
+
         if (!error.data?.args) {
             logger.warn("Missing args")
             return {
