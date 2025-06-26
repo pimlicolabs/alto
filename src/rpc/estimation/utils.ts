@@ -1,4 +1,8 @@
-import { type Hex, decodeErrorResult, parseAbi } from "viem"
+import { type Hex, decodeErrorResult, parseAbi, type StateOverride } from "viem"
+import { getAuthorizationStateOverrides } from "@alto/utils"
+import type { StateOverrides, UserOperationV06, UserOperationV07 } from "@alto/types"
+import { toViemStateOverrides } from "../../utils/toViemStateOverrides"
+import type { AltoConfig } from "../../createConfig"
 
 export function parseFailedOpWithRevert(data: Hex) {
     try {
@@ -31,4 +35,28 @@ export function parseFailedOpWithRevert(data: Hex) {
     } catch {}
 
     return data
+}
+
+export function prepareStateOverride({
+    userOperations,
+    queuedUserOperations,
+    stateOverrides,
+    config
+}: {
+    userOperations: (UserOperationV06 | UserOperationV07)[]
+    queuedUserOperations: (UserOperationV06 | UserOperationV07)[]
+    stateOverrides?: StateOverrides
+    config: Pick<AltoConfig, "balanceOverride" | "codeOverrideSupport">
+}): StateOverride | undefined {
+    const stateOverride = getAuthorizationStateOverrides({
+        userOperations: [...queuedUserOperations, ...userOperations],
+        stateOverrides
+    })
+
+    // Remove state override if not supported by network.
+    if (!config.balanceOverride && !config.codeOverrideSupport) {
+        return undefined
+    }
+
+    return toViemStateOverrides(stateOverride)
 }

@@ -16,17 +16,15 @@ import {
 import { z } from "zod"
 import type { SimulateHandleOpResult } from "./types"
 import type { AltoConfig } from "../../createConfig"
-import { parseFailedOpWithRevert } from "./utils"
+import { parseFailedOpWithRevert, prepareStateOverride } from "./utils"
 import {
     deepHexlify,
-    getAuthorizationStateOverrides,
     type Logger
 } from "@alto/utils"
 import entryPointOverride from "../../contracts/EntryPointGasEstimationOverride.sol/EntryPointGasEstimationOverride06.json" with {
     type: "json"
 }
 import { getSenderCreatorOverride } from "../../utils/entryPointOverrides"
-import { toViemStateOverrides } from "../../utils/toViemStateOverrides"
 
 export class GasEstimatorV06 {
     private config: AltoConfig
@@ -148,7 +146,6 @@ export class GasEstimatorV06 {
             //blockTagSupport,
             utilityWalletAddress,
             fixedGasLimitForEstimation,
-            balanceOverride,
             codeOverrideSupport
         } = this.config
 
@@ -169,16 +166,12 @@ export class GasEstimatorV06 {
             }
         }
 
-        let stateOverride: StateOverrides | undefined =
-            getAuthorizationStateOverrides({
-                userOperations: [userOperation],
-                stateOverrides: userStateOverrides
-            })
-
-        // Remove state override if not supported by network.
-        if (!balanceOverride && !codeOverrideSupport) {
-            stateOverride = undefined
-        }
+        const viemStateOverride = prepareStateOverride({
+            userOperations: [userOperation],
+            queuedUserOperations: [], // Queued operations are not supported for EntryPoint v0.6
+            stateOverrides: userStateOverrides,
+            config: this.config
+        })
 
         try {
             await publicClient.call({
@@ -190,7 +183,7 @@ export class GasEstimatorV06 {
                     args: [userOperation, targetAddress, targetCallData]
                 }),
                 gas: fixedGasLimitForEstimation,
-                stateOverride: toViemStateOverrides(stateOverride)
+                stateOverride: viemStateOverride
             })
         } catch (e) {
             const err = e as RpcRequestErrorType

@@ -8,7 +8,6 @@ import {
 } from "@alto/types"
 import {
     type Logger,
-    getAuthorizationStateOverrides,
     isVersion08,
     toPackedUserOperation
 } from "@alto/utils"
@@ -21,8 +20,7 @@ import {
 } from "./types"
 import type { AltoConfig } from "../../createConfig"
 import { packUserOps } from "../../executor/utils"
-import { toViemStateOverrides } from "../../utils/toViemStateOverrides"
-import { parseFailedOpWithRevert } from "./utils"
+import { parseFailedOpWithRevert, prepareStateOverride } from "./utils"
 import { parseAbi } from "abitype"
 
 type SimulateHandleOpSuccessResult = {
@@ -93,27 +91,6 @@ export class GasEstimatorV07 {
         }
     }
 
-    private prepareStateOverride({
-        userOperations,
-        queuedUserOperations,
-        stateOverrides
-    }: {
-        userOperations: UserOperationV07[]
-        queuedUserOperations: UserOperationV07[]
-        stateOverrides?: StateOverrides
-    }): StateOverride | undefined {
-        const stateOverride = getAuthorizationStateOverrides({
-            userOperations: [...queuedUserOperations, ...userOperations],
-            stateOverrides
-        })
-
-        // Remove state override if not supported by network.
-        if (!this.config.balanceOverride && !this.config.codeOverrideSupport) {
-            return undefined
-        }
-
-        return toViemStateOverrides(stateOverride)
-    }
 
     private decodeSimulateHandleOpError(error: unknown): {
         result: "failed"
@@ -503,9 +480,10 @@ export class GasEstimatorV07 {
         const { epSimulationsAddress, pimlicoSimulation } =
             this.getSimulationContracts(entryPoint, userOperation)
 
-        const viemStateOverride = this.prepareStateOverride({
+        const viemStateOverride = prepareStateOverride({
             userOperations: [userOperation],
-            queuedUserOperations
+            queuedUserOperations,
+            config: this.config
         })
 
         try {
@@ -551,10 +529,11 @@ export class GasEstimatorV07 {
         const { epSimulationsAddress, pimlicoSimulation } =
             this.getSimulationContracts(entryPoint, userOperation)
 
-        const viemStateOverride = this.prepareStateOverride({
+        const viemStateOverride = prepareStateOverride({
             userOperations: [userOperation],
             queuedUserOperations,
-            stateOverrides
+            stateOverrides,
+            config: this.config
         })
 
         try {
@@ -602,10 +581,11 @@ export class GasEstimatorV07 {
         queuedUserOperations: UserOperationV07[]
         userStateOverrides?: StateOverrides | undefined
     }): Promise<SimulateHandleOpResult> {
-        const viemStateOverride = this.prepareStateOverride({
+        const viemStateOverride = prepareStateOverride({
             userOperations: [userOperation],
             queuedUserOperations,
-            stateOverrides: userStateOverrides
+            stateOverrides: userStateOverrides,
+            config: this.config
         })
 
         if (this.config.splitSimulationCalls) {
