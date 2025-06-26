@@ -12,7 +12,6 @@ import {IEntryPoint as IEntryPoint08} from "account-abstraction-v8/interfaces/IE
 
 import {Exec} from "account-abstraction-v7/utils/Exec.sol";
 import {LibBytes} from "solady/utils/LibBytes.sol";
-import {console} from "forge-std/console.sol";
 
 /// @title PimlicoSimulations
 /// @author Pimlico (https://github.com/pimlicolabs/alto)
@@ -115,11 +114,6 @@ contract PimlicoSimulations {
         bytes memory data = abi.encodeWithSelector(selector, queuedUserOps, targetUserOp);
         bytes memory returnData = simulateEntryPoint(entryPointSimulation, entryPoint, data);
         result.simulationResult = abi.decode(returnData, (IEntryPointSimulations.ExecutionResult));
-
-        // If simulation failed, return early with just the simulation result
-        if (!result.simulationResult.targetSuccess) {
-            return result;
-        }
 
         // Step 2: Find optimal verification gas limit
         result.verificationGasLimit = this.binarySearchVerificationGas(

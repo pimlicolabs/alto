@@ -100,7 +100,6 @@ export class GasEstimatorV07 {
     } {
         // Check if it's a BaseError with ContractFunctionRevertedError
         if (!(error instanceof BaseError)) {
-            console.log("not base error")
             return {
                 result: "failed",
                 data: "Unknown error, could not parse simulate validation result.",
@@ -113,7 +112,6 @@ export class GasEstimatorV07 {
         ) as ContractFunctionRevertedError
 
         if (!revertError) {
-            console.log("no walk")
             return {
                 result: "failed",
                 data: "Unknown error, could not parse simulate validation result.",
@@ -126,8 +124,6 @@ export class GasEstimatorV07 {
                 { err: error },
                 "ContractFunctionRevertedError has no args"
             )
-            console.log("ContractFunctionRevertedError has no args")
-            console.log(revertError)
             return {
                 result: "failed",
                 data: "Unknown error, could not parse simulate validation result.",
@@ -166,10 +162,6 @@ export class GasEstimatorV07 {
                 this.logger.warn(
                     { errorName },
                     "Unknown ContractFunctionRevertedError name"
-                )
-                console.log(
-                    "Unknown ContractFunctionRevertedError name",
-                    errorName
                 )
                 return {
                     result: "failed",
