@@ -226,7 +226,7 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
                 return BinarySearchResult(
                     BinarySearchResultType.Success,
                     BinarySearchSuccess(0, targetSuccess, targetResult),
-                    BinarySearchOutOfGas(0, 0, 0)
+                    BinarySearchOutOfGas(0, 0, 0) // Empty (result not used)
                 );
             }
         } else {
@@ -241,7 +241,7 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
                 return BinarySearchResult(
                     BinarySearchResultType.Success,
                     BinarySearchSuccess(0, targetSuccess, targetResult),
-                    BinarySearchOutOfGas(0, 0, 0)
+                    BinarySearchOutOfGas(0, 0, 0) // Empty (result not used)
                 );
             }
         }
@@ -254,7 +254,7 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
             if (gasleft() < minGas + 5_000) {
                 return BinarySearchResult(
                     BinarySearchResultType.OutOfGas,
-                    BinarySearchSuccess(0, false, new bytes(0)),
+                    BinarySearchSuccess(0, false, new bytes(0)), // Empty (result not used)
                     BinarySearchOutOfGas(optimalGas, minGas, maxGas)
                 );
             }
@@ -278,7 +278,7 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
         return BinarySearchResult(
             BinarySearchResultType.Success,
             BinarySearchSuccess(optimalGas, targetSuccess, targetResult),
-            BinarySearchOutOfGas(0, 0, 0)
+            BinarySearchOutOfGas(0, 0, 0) // Empty (result not used)
         );
     }
 
@@ -295,7 +295,7 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
             return BinarySearchResult(
                 BinarySearchResultType.Success,
                 BinarySearchSuccess(0, false, new bytes(0)),
-                BinarySearchOutOfGas(0, 0, 0)
+                BinarySearchOutOfGas(0, 0, 0) // Empty (result not used)
             );
         }
 
@@ -359,7 +359,7 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
             return BinarySearchResult(
                 BinarySearchResultType.Success,
                 BinarySearchSuccess(0, false, new bytes(0)),
-                BinarySearchOutOfGas(0, 0, 0)
+                BinarySearchOutOfGas(0, 0, 0) // Empty (result not used)
             );
         }
 
