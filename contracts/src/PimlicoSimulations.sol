@@ -75,17 +75,19 @@ contract PimlicoSimulations {
 
         if (!success) {
             returnData = Exec.getReturnData(type(uint256).max);
+        } else {
+            revert("DelegateAndRevert did not revert as expected");
         }
 
         // Check if we have at least 4 bytes for the selector.
         if (returnData.length < 4) {
-            revert("Return data too short");
+            revert("DelegateAndRevert revert data is too short");
         }
 
         // Extract the 4-byte selector using slice.
         bytes4 revertIdentifier = bytes4(returnData.slice(0, 4));
         if (revertIdentifier == IEntryPoint07.delegateAndRevert.selector) {
-            revert("Did not revert as expected");
+            revert("DelegateAndRevert did not revert with DelegateAndRevert error");
         }
 
         // Extract the revert data using slice.
