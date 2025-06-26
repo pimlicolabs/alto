@@ -16,7 +16,7 @@ export const pimlicoSimulationsAbi = [
       {
         "name": "entryPoint",
         "type": "address",
-        "internalType": "address payable"
+        "internalType": "address"
       },
       {
         "name": "queuedUserOps",
@@ -1211,35 +1211,6 @@ export const pimlicoSimulationsAbi = [
             ]
           }
         ]
-      }
-    ],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "simulateEntryPoint",
-    "inputs": [
-      {
-        "name": "entryPointSimulation",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "entryPoint",
-        "type": "address",
-        "internalType": "address payable"
-      },
-      {
-        "name": "data",
-        "type": "bytes",
-        "internalType": "bytes"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes",
-        "internalType": "bytes"
       }
     ],
     "stateMutability": "nonpayable"

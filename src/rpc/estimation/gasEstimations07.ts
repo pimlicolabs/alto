@@ -23,6 +23,7 @@ import type { AltoConfig } from "../../createConfig"
 import { packUserOps } from "../../executor/utils"
 import { toViemStateOverrides } from "../../utils/toViemStateOverrides"
 import { parseFailedOpWithRevert } from "./utils"
+import { parseAbi } from "abitype"
 
 type SimulateHandleOpSuccessResult = {
     preOpGas: bigint
@@ -76,10 +77,16 @@ export class GasEstimatorV07 {
             )
         }
 
+        const simulationErrors = parseAbi([
+            "error FailedOp(uint256 opIndex, string reason)",
+            "error FailedOpWithRevert(uint256 opIndex, string reason, bytes inner)",
+            "error CallPhaseReverted(bytes reason)"
+        ])
+
         return {
             epSimulationsAddress,
             pimlicoSimulation: getContract({
-                abi: pimlicoSimulationsAbi,
+                abi: [...pimlicoSimulationsAbi, ...simulationErrors],
                 address: this.config.pimlicoSimulationContract,
                 client: this.config.publicClient
             })
@@ -128,7 +135,7 @@ export class GasEstimatorV07 {
             }
         }
 
-        const errorName = revertError.name
+        const errorName = revertError.data.errorName
         const args = revertError.data.args
 
         switch (errorName) {
@@ -160,7 +167,10 @@ export class GasEstimatorV07 {
                     { errorName },
                     "Unknown ContractFunctionRevertedError name"
                 )
-                console.log("Unknown ContractFunctionRevertedError name")
+                console.log(
+                    "Unknown ContractFunctionRevertedError name",
+                    errorName
+                )
                 return {
                     result: "failed",
                     data: "Unknown error, could not parse simulate validation result.",
