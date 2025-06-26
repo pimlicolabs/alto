@@ -88,7 +88,7 @@ contract PimlicoSimulations {
     /*                    Estimation Methods                      */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    function simulateEntryPoint(address entryPointSimulation, address entryPoint, bytes memory data)
+    function _simulateEntryPoint(address entryPointSimulation, address entryPoint, bytes memory data)
         private
         returns (bytes memory)
     {
@@ -138,7 +138,7 @@ contract PimlicoSimulations {
         // Step 1: Simulate the operation to ensure it's valid
         bytes4 selector = IEntryPointSimulations.simulateHandleOp.selector;
         bytes memory data = abi.encodeWithSelector(selector, queuedUserOps, targetUserOp);
-        bytes memory returnData = simulateEntryPoint(entryPointSimulation, entryPoint, data);
+        bytes memory returnData = _simulateEntryPoint(entryPointSimulation, entryPoint, data);
         result.simulationResult = abi.decode(returnData, (IEntryPointSimulations.ExecutionResult));
 
         // Step 2: Find optimal verification gas limit
@@ -174,7 +174,7 @@ contract PimlicoSimulations {
         bytes memory data = abi.encodeWithSelector(
             selector, queuedUserOps, targetUserOp, entryPoint, initialMinGas, toleranceDelta, gasAllowance
         );
-        bytes memory returnData = simulateEntryPoint(entryPointSimulation, entryPoint, data);
+        bytes memory returnData = _simulateEntryPoint(entryPointSimulation, entryPoint, data);
         return abi.decode(returnData, (IEntryPointSimulations.BinarySearchResult));
     }
 
@@ -192,7 +192,7 @@ contract PimlicoSimulations {
         bytes memory data = abi.encodeWithSelector(
             selector, queuedUserOps, targetUserOp, entryPoint, initialMinGas, toleranceDelta, gasAllowance
         );
-        bytes memory returnData = simulateEntryPoint(entryPointSimulation, entryPoint, data);
+        bytes memory returnData = _simulateEntryPoint(entryPointSimulation, entryPoint, data);
         return abi.decode(returnData, (IEntryPointSimulations.BinarySearchResult));
     }
 
@@ -210,7 +210,7 @@ contract PimlicoSimulations {
         bytes memory data = abi.encodeWithSelector(
             selector, queuedUserOps, targetUserOp, entryPoint, initialMinGas, toleranceDelta, gasAllowance
         );
-        bytes memory returnData = simulateEntryPoint(entryPointSimulation, entryPoint, data);
+        bytes memory returnData = _simulateEntryPoint(entryPointSimulation, entryPoint, data);
         return abi.decode(returnData, (IEntryPointSimulations.BinarySearchResult));
     }
 
@@ -223,7 +223,7 @@ contract PimlicoSimulations {
     ) external returns (IEntryPointSimulations.ValidationResult memory) {
         bytes4 selector = IEntryPointSimulations.simulateValidation.selector;
         bytes memory data = abi.encodeWithSelector(selector, queuedUserOps, targetUserOp);
-        bytes memory returnData = simulateEntryPoint(entryPointSimulation, entryPoint, data);
+        bytes memory returnData = _simulateEntryPoint(entryPointSimulation, entryPoint, data);
         return abi.decode(returnData, (IEntryPointSimulations.ValidationResult));
     }
 
@@ -236,7 +236,7 @@ contract PimlicoSimulations {
     ) external returns (IEntryPointSimulations.ExecutionResult memory) {
         bytes4 selector = IEntryPointSimulations.simulateHandleOp.selector;
         bytes memory data = abi.encodeWithSelector(selector, queuedUserOps, targetUserOp);
-        bytes memory returnData = simulateEntryPoint(entryPointSimulation, entryPoint, data);
+        bytes memory returnData = _simulateEntryPoint(entryPointSimulation, entryPoint, data);
         return abi.decode(returnData, (IEntryPointSimulations.ExecutionResult));
     }
 
