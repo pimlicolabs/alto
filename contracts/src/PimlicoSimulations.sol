@@ -12,6 +12,7 @@ import {IEntryPoint as IEntryPoint08} from "account-abstraction-v8/interfaces/IE
 
 import {Exec} from "account-abstraction-v7/utils/Exec.sol";
 import {LibBytes} from "solady/utils/LibBytes.sol";
+import {console} from "forge-std/console.sol";
 
 /// @title PimlicoSimulations
 /// @author Pimlico (https://github.com/pimlicolabs/alto)
@@ -64,8 +65,8 @@ contract PimlicoSimulations {
     /*                    Estimation Methods                      */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    function simulateEntryPoint(address entryPointSimulation, address payable entryPoint, bytes memory data)
-        public
+    function simulateEntryPoint(address entryPointSimulation, address entryPoint, bytes memory data)
+        private
         returns (bytes memory)
     {
         bytes memory returnData;
@@ -77,24 +78,23 @@ contract PimlicoSimulations {
             returnData = Exec.getReturnData(type(uint256).max);
         }
 
-        // Decode data
-        bytes4 functionIdentifier;
-        assembly {
-            functionIdentifier := mload(add(returnData, 0x20))
+        // Check if we have at least 4 bytes for the selector.
+        if (returnData.length < 4) {
+            revert("Return data too short");
         }
 
-        if (functionIdentifier == IEntryPoint07.delegateAndRevert.selector) {
+        // Extract the 4-byte selector using slice.
+        bytes4 revertIdentifier = bytes4(returnData.slice(0, 4));
+        if (revertIdentifier == IEntryPoint07.delegateAndRevert.selector) {
             revert("Did not revert as expected");
         }
 
-        (bool delegateAndRevertSuccess, bytes memory delegateAndRevertData) = abi.decode(returnData, (bool, bytes));
+        // Extract the revert data using slice.
+        bytes memory revertData = returnData.slice(4, returnData.length);
+        (bool delegateAndRevertSuccess, bytes memory delegateAndRevertData) = abi.decode(revertData, (bool, bytes));
 
         if (!delegateAndRevertSuccess) {
-            assembly {
-                // ref: https://github.com/latticexyz/mud/blob/41e103/packages/world/src/revertWithBytes.sol#L8-L18
-                // reason+32 is a pointer to the error message, mload(reason) is the length of the error message
-                revert(add(delegateAndRevertData, 0x20), mload(delegateAndRevertData))
-            }
+            Exec.revertWithData(delegateAndRevertData);
         }
 
         return delegateAndRevertData;
@@ -179,7 +179,7 @@ contract PimlicoSimulations {
     /// @notice Binary search for optimal call gas limit
     function binarySearchCallGas(
         address entryPointSimulation,
-        address payable entryPoint,
+        address entryPoint,
         PackedUserOperation[] calldata queuedUserOps,
         PackedUserOperation calldata targetUserOp,
         uint256 initialMinGas,
