@@ -168,7 +168,7 @@ describe.each([
                 altoRpc
             })
 
-            const userOp = await smartAccountClient.prepareUserOperation({
+            const userOp = (await smartAccountClient.prepareUserOperation({
                 calls: [
                     {
                         to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
@@ -176,16 +176,14 @@ describe.each([
                         value: 0n
                     }
                 ]
-            })
+            })) as UserOperation<"0.7">
 
             const estimation = await bundlerClient.estimateUserOperationGas({
-                userOperation: {
-                    ...userOp,
-                    paymaster: undefined,
-                    paymasterData: undefined,
-                    paymasterVerificationGasLimit: undefined,
-                    paymasterPostOpGasLimit: undefined
-                },
+                ...userOp,
+                paymaster: undefined,
+                paymasterData: undefined,
+                paymasterVerificationGasLimit: 0n,
+                paymasterPostOpGasLimit: 0n,
                 entryPointAddress: entryPoint
             })
 
@@ -205,15 +203,13 @@ describe.each([
                 altoRpc
             })
 
-            const userOp = await smartAccountClient.prepareUserOperation({
+            const userOp = (await smartAccountClient.prepareUserOperation({
                 calls: []
-            })
+            })) as UserOperation<"0.7">
 
             const estimation = await bundlerClient.estimateUserOperationGas({
-                userOperation: {
-                    ...userOp,
-                    callData: "0x"
-                },
+                ...userOp,
+                callData: "0x",
                 entryPointAddress: entryPoint
             })
 
