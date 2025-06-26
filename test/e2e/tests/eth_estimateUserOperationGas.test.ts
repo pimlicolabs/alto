@@ -121,7 +121,7 @@ describe.each([
                 })
             } catch (e: any) {
                 expect(e.details).toBe(
-                    "AA23 reverted: UserOperation called non-existant contract, or reverted with 0x"
+                    "UserOperation reverted during simulation with reason: Sender has no code or factory not deployed"
                 )
             }
         })
