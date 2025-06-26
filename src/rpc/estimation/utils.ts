@@ -4,7 +4,8 @@ import {
     parseAbi,
     type StateOverride,
     BaseError,
-    ContractFunctionRevertedError
+    ContractFunctionRevertedError,
+    ContractFunctionExecutionError
 } from "viem"
 import { getAuthorizationStateOverrides, type Logger } from "@alto/utils"
 import type {
@@ -14,8 +15,13 @@ import type {
 } from "@alto/types"
 import { toViemStateOverrides } from "../../utils/toViemStateOverrides"
 import type { AltoConfig } from "../../createConfig"
-import { ValidationErrors, executionResultSchema } from "@alto/types"
+import {
+    entryPointSimulations06Abi,
+    ValidationErrors,
+    executionResultSchema
+} from "@alto/types"
 import type { SimulateHandleOpResult } from "../estimation/types"
+import { entryPoint06Abi } from "viem/account-abstraction"
 
 export function parseFailedOpWithRevert(data: Hex) {
     try {
@@ -74,12 +80,19 @@ export function prepareStateOverride({
     return toViemStateOverrides(stateOverride)
 }
 
+export const simulationErrors = parseAbi([
+    "error FailedOp(uint256 opIndex, string reason)",
+    "error FailedOpWithRevert(uint256 opIndex, string reason, bytes inner)",
+    "error CallPhaseReverted(bytes reason)"
+])
+
 export function decodeSimulateHandleOpError(
     error: unknown,
     logger: Logger
 ): SimulateHandleOpResult {
     // Check if it's a BaseError with ContractFunctionRevertedError
     if (!(error instanceof BaseError)) {
+        logger.warn("Not a BaseError")
         return {
             result: "failed",
             data: "Unknown error, could not parse simulate validation result.",
@@ -88,31 +101,77 @@ export function decodeSimulateHandleOpError(
     }
 
     const revertError = error.walk(
-        (e) => e instanceof ContractFunctionRevertedError
-    ) as ContractFunctionRevertedError
+        (e) =>
+            e instanceof ContractFunctionRevertedError ||
+            e instanceof ContractFunctionExecutionError
+    ) as ContractFunctionRevertedError | ContractFunctionExecutionError
 
-    if (!revertError) {
+    let errorName: string
+    let args: readonly unknown[]
+
+    // Indicates that the RPC reverted with non standard format, try to find raw revert bytes and decode
+    if (revertError instanceof ContractFunctionExecutionError) {
+        let rawRevertBytes: Hex | undefined
+
+        error.walk((e: any) => {
+            if (typeof e?.data === "string") {
+                const hexMatch = e.data.match(/(0x[a-fA-F0-9]+)/)
+                if (hexMatch) {
+                    rawRevertBytes = hexMatch[0]
+                    return true // Stop walking
+                }
+            }
+            return false
+        })
+
+        if (!rawRevertBytes) {
+            logger.warn("Failed to find raw revert bytes")
+            return {
+                result: "failed",
+                data: "Unknown error, could not parse simulate validation result.",
+                code: ValidationErrors.SimulateValidation
+            }
+        }
+
+        try {
+            const decoded = decodeErrorResult({
+                abi: [
+                    ...entryPoint06Abi,
+                    ...entryPointSimulations06Abi,
+                    ...simulationErrors
+                ],
+                data: rawRevertBytes
+            })
+
+            errorName = decoded.errorName
+            args = decoded.args || []
+        } catch (decodeError) {
+            logger.warn({ rawRevertBytes }, "Failed to decode raw revert bytes")
+            return {
+                result: "failed",
+                data: "Unknown error, could not parse simulate validation result.",
+                code: ValidationErrors.SimulateValidation
+            }
+        }
+    } else if (revertError instanceof ContractFunctionRevertedError) {
+        if (!revertError.data?.args) {
+            logger.warn("Missing args")
+            return {
+                result: "failed",
+                data: "Unknown error, could not parse simulate validation result.",
+                code: ValidationErrors.SimulateValidation
+            }
+        }
+
+        errorName = revertError.data.errorName
+        args = revertError.data.args
+    } else {
         return {
             result: "failed",
             data: "Unknown error, could not parse simulate validation result.",
             code: ValidationErrors.SimulateValidation
         }
     }
-
-    if (!revertError.data?.args) {
-        logger.debug(
-            { err: error },
-            "ContractFunctionRevertedError has no args"
-        )
-        return {
-            result: "failed",
-            data: "Unknown error, could not parse simulate validation result.",
-            code: ValidationErrors.SimulateValidation
-        }
-    }
-
-    const errorName = revertError.data.errorName
-    const args = revertError.data.args
 
     switch (errorName) {
         case "FailedOp":

@@ -14,7 +14,7 @@ import {
 import { formatAbiItem, rpc } from "viem/utils"
 import {
     EntryPointV06Abi,
-    EntryPointV06SimulationsAbi
+    entryPointSimulations06Abi
 } from "../types/contracts"
 
 export type RpcRequest = {
@@ -55,7 +55,7 @@ const FAILED_OP_SELECTOR = toFunctionSelector(
 const CALLPHASE_REVERTED_SELECTOR = toFunctionSelector(
     formatAbiItem(
         getAbiItem({
-            abi: EntryPointV06SimulationsAbi,
+            abi: entryPointSimulations06Abi,
             name: "CallPhaseReverted"
         })
     )

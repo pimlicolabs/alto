@@ -1,4 +1,4 @@
-export const EntryPointV06SimulationsAbi = [
+export const entryPointSimulations06Abi = [
     {
         inputs: [
             {

@@ -6,10 +6,10 @@ import type { SimulateHandleOpResult } from "./types"
 import type { AltoConfig } from "../../createConfig"
 import { prepareStateOverride, decodeSimulateHandleOpError } from "./utils"
 import { deepHexlify, type Logger } from "@alto/utils"
+import { getSenderCreatorOverride } from "../../utils/entryPointOverrides"
 import entryPointOverride from "../../contracts/EntryPointGasEstimationOverride.sol/EntryPointGasEstimationOverride06.json" with {
     type: "json"
 }
-import { getSenderCreatorOverride } from "../../utils/entryPointOverrides"
 
 export class GasEstimatorV06 {
     private config: AltoConfig

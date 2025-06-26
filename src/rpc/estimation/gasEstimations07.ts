@@ -16,8 +16,11 @@ import {
 } from "./types"
 import type { AltoConfig } from "../../createConfig"
 import { packUserOps } from "../../executor/utils"
-import { prepareStateOverride, decodeSimulateHandleOpError } from "./utils"
-import { parseAbi } from "abitype"
+import {
+    prepareStateOverride,
+    decodeSimulateHandleOpError,
+    simulationErrors
+} from "./utils"
 
 type SimulateHandleOpSuccessResult = {
     preOpGas: bigint
@@ -70,12 +73,6 @@ export class GasEstimatorV07 {
                 ValidationErrors.InvalidFields
             )
         }
-
-        const simulationErrors = parseAbi([
-            "error FailedOp(uint256 opIndex, string reason)",
-            "error FailedOpWithRevert(uint256 opIndex, string reason, bytes inner)",
-            "error CallPhaseReverted(bytes reason)"
-        ])
 
         return {
             epSimulationsAddress,
