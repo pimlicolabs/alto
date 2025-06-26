@@ -204,7 +204,7 @@ describe.each([
             })
 
             const userOp = (await smartAccountClient.prepareUserOperation({
-                calls: []
+                callData: "0x"
             })) as UserOperation<"0.7">
 
             const estimation = await bundlerClient.estimateUserOperationGas({
