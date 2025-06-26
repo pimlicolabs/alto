@@ -2,25 +2,19 @@ import {
     EntryPointV06Abi,
     EntryPointV06SimulationsAbi,
     ValidationErrors,
-    executionResultSchema,
-    hexDataSchema
+    executionResultSchema
 } from "@alto/types"
 import type { StateOverrides, UserOperationV06 } from "@alto/types"
-import type { Hex, RpcRequestErrorType } from "viem"
-import {
-    type Address,
-    decodeErrorResult,
-    encodeFunctionData,
-    RpcRequestError
-} from "viem"
-import { z } from "zod"
+import type { Hex } from "viem"
+import { type Address, decodeErrorResult, encodeFunctionData } from "viem"
 import type { SimulateHandleOpResult } from "./types"
 import type { AltoConfig } from "../../createConfig"
-import { parseFailedOpWithRevert, prepareStateOverride } from "./utils"
 import {
-    deepHexlify,
-    type Logger
-} from "@alto/utils"
+    parseFailedOpWithRevert,
+    prepareStateOverride,
+    decodeSimulateHandleOpError
+} from "./utils"
+import { deepHexlify, type Logger } from "@alto/utils"
 import entryPointOverride from "../../contracts/EntryPointGasEstimationOverride.sol/EntryPointGasEstimationOverride06.json" with {
     type: "json"
 }
@@ -149,6 +143,7 @@ export class GasEstimatorV06 {
             codeOverrideSupport
         } = this.config
 
+        // EntryPoint simulation 06 code specific overrides
         if (codeOverrideSupport && useCodeOverride) {
             if (userStateOverrides === undefined) {
                 userStateOverrides = {}
@@ -186,49 +181,12 @@ export class GasEstimatorV06 {
                 stateOverride: viemStateOverride
             })
         } catch (e) {
-            const err = e as RpcRequestErrorType
-
-            if (
-                /return data out of bounds.*|EVM error OutOfOffset.*/.test(
-                    err.details
-                )
-            ) {
-                // out of bound (low level evm error) occurs when paymaster reverts with less than 32bytes
-                return {
-                    result: "failed",
-                    data: "AA50 postOp revert (paymaster revert data out of bounds)",
-                    code: ValidationErrors.SimulateValidation
-                } as const
-            }
-
-            const cause = err.walk((err) => err instanceof RpcRequestError)
-
-            const causeParseResult = z
-                .object({
-                    code: z.union([
-                        z.literal(3),
-                        z.literal(-32603),
-                        z.literal(-32015)
-                    ]),
-                    message: z.string(),
-                    data: z
-                        .string()
-                        .transform((data) => data.replace("Reverted ", ""))
-                        .pipe(hexDataSchema)
-                })
-                .safeParse(cause?.cause)
-
-            if (!causeParseResult.success) {
-                this.logger.warn(
-                    { err: cause },
-                    "Failed to parse RPC error in simulateHandleOp"
-                )
-                throw new Error(JSON.stringify(cause))
-            }
-
-            const data = causeParseResult.data.data
-
-            return this.decodeSimulateHandleOpResult(data)
+            const decodedError = decodeSimulateHandleOpError(e, this.logger)
+            this.logger.warn(
+                { err: e, data: decodedError.data },
+                "Contract function reverted in simulateValidation"
+            )
+            return decodedError
         }
         throw new Error("Unexpected error")
     }
