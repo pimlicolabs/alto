@@ -93,6 +93,28 @@ export class GasEstimatorV07 {
         }
     }
 
+    private prepareStateOverride({
+        userOperations,
+        queuedUserOperations,
+        stateOverrides
+    }: {
+        userOperations: UserOperationV07[]
+        queuedUserOperations: UserOperationV07[]
+        stateOverrides?: StateOverrides
+    }): StateOverride | undefined {
+        const stateOverride = getAuthorizationStateOverrides({
+            userOperations: [...queuedUserOperations, ...userOperations],
+            stateOverrides
+        })
+
+        // Remove state override if not supported by network.
+        if (!this.config.balanceOverride && !this.config.codeOverrideSupport) {
+            return undefined
+        }
+
+        return toViemStateOverrides(stateOverride)
+    }
+
     private decodeSimulateHandleOpError(error: unknown): {
         result: "failed"
         data: string
@@ -188,7 +210,7 @@ export class GasEstimatorV07 {
             | "binarySearchCallGas"
         queuedUserOps: UserOperationV07[]
         targetUserOp: UserOperationV07
-        stateOverride: StateOverride
+        stateOverride?: StateOverride
         retryCount?: number
         initialMinGas?: bigint
         gasAllowance?: bigint
@@ -285,7 +307,7 @@ export class GasEstimatorV07 {
         entryPoint: Address
         queuedUserOps: UserOperationV07[]
         targetUserOp: UserOperationV07
-        stateOverride: StateOverride
+        stateOverride?: StateOverride
     }): Promise<SimulateHandleOpResult> {
         const { pimlicoSimulation, epSimulationsAddress } =
             this.getSimulationContracts(entryPoint, targetUserOp)
@@ -332,7 +354,7 @@ export class GasEstimatorV07 {
         entryPoint: Address
         queuedUserOps: UserOperationV07[]
         targetUserOp: UserOperationV07
-        stateOverride: StateOverride
+        stateOverride?: StateOverride
         retryCount?: number
     }): Promise<
         | {
@@ -481,8 +503,9 @@ export class GasEstimatorV07 {
         const { epSimulationsAddress, pimlicoSimulation } =
             this.getSimulationContracts(entryPoint, userOperation)
 
-        const stateOverride = getAuthorizationStateOverrides({
-            userOperations: [...queuedUserOperations, userOperation]
+        const viemStateOverride = this.prepareStateOverride({
+            userOperations: [userOperation],
+            queuedUserOperations
         })
 
         try {
@@ -495,7 +518,7 @@ export class GasEstimatorV07 {
                         toPackedUserOperation(userOperation)
                     ],
                     {
-                        stateOverride: toViemStateOverrides(stateOverride),
+                        stateOverride: viemStateOverride,
                         gas: this.config.fixedGasLimitForEstimation
                     }
                 )
@@ -528,8 +551,9 @@ export class GasEstimatorV07 {
         const { epSimulationsAddress, pimlicoSimulation } =
             this.getSimulationContracts(entryPoint, userOperation)
 
-        const stateOverride = getAuthorizationStateOverrides({
-            userOperations: [...queuedUserOperations, userOperation],
+        const viemStateOverride = this.prepareStateOverride({
+            userOperations: [userOperation],
+            queuedUserOperations,
             stateOverrides
         })
 
@@ -543,7 +567,7 @@ export class GasEstimatorV07 {
                         toPackedUserOperation(userOperation)
                     ],
                     {
-                        stateOverride: toViemStateOverrides(stateOverride),
+                        stateOverride: viemStateOverride,
                         gas: this.config.fixedGasLimitForEstimation
                     }
                 )
@@ -578,8 +602,9 @@ export class GasEstimatorV07 {
         queuedUserOperations: UserOperationV07[]
         userStateOverrides?: StateOverrides | undefined
     }): Promise<SimulateHandleOpResult> {
-        const stateOverride = getAuthorizationStateOverrides({
-            userOperations: [...queuedUserOperations, userOperation],
+        const viemStateOverride = this.prepareStateOverride({
+            userOperations: [userOperation],
+            queuedUserOperations,
             stateOverrides: userStateOverrides
         })
 
@@ -589,28 +614,28 @@ export class GasEstimatorV07 {
                     entryPoint,
                     queuedUserOps: queuedUserOperations,
                     targetUserOp: userOperation,
-                    stateOverride: toViemStateOverrides(stateOverride)
+                    stateOverride: viemStateOverride
                 }),
                 this.performBinarySearch({
                     entryPoint,
                     methodName: "binarySearchVerificationGas",
                     queuedUserOps: queuedUserOperations,
                     targetUserOp: userOperation,
-                    stateOverride: toViemStateOverrides(stateOverride)
+                    stateOverride: viemStateOverride
                 }),
                 this.performBinarySearch({
                     entryPoint,
                     methodName: "binarySearchPaymasterVerificationGas",
                     queuedUserOps: queuedUserOperations,
                     targetUserOp: userOperation,
-                    stateOverride: toViemStateOverrides(stateOverride)
+                    stateOverride: viemStateOverride
                 }),
                 this.performBinarySearch({
                     entryPoint,
                     methodName: "binarySearchCallGas",
                     queuedUserOps: queuedUserOperations,
                     targetUserOp: userOperation,
-                    stateOverride: toViemStateOverrides(stateOverride)
+                    stateOverride: viemStateOverride
                 })
             ])
 
@@ -645,14 +670,14 @@ export class GasEstimatorV07 {
                     entryPoint,
                     queuedUserOps: queuedUserOperations,
                     targetUserOp: userOperation,
-                    stateOverride: toViemStateOverrides(stateOverride)
+                    stateOverride: viemStateOverride
                 }),
                 this.performBinarySearch({
                     entryPoint,
                     methodName: "binarySearchCallGas",
                     queuedUserOps: queuedUserOperations,
                     targetUserOp: userOperation,
-                    stateOverride: toViemStateOverrides(stateOverride)
+                    stateOverride: viemStateOverride
                 })
             ])
 
