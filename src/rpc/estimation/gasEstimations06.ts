@@ -98,10 +98,12 @@ export class GasEstimatorV06 {
             throw new Error("simulateHandleOp did not revert")
         } catch (e) {
             const decodedError = decodeSimulateHandleOpError(e, this.logger)
-            this.logger.warn(
-                { err: e, data: decodedError.data },
-                "Contract function reverted in simulateValidation"
-            )
+            if (decodedError.result === "failed") {
+                this.logger.warn(
+                    { err: e, data: decodedError.data },
+                    "Contract function reverted in simulateValidation"
+                )
+            }
             return decodedError
         }
     }
