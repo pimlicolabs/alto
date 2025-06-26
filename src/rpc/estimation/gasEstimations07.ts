@@ -381,7 +381,11 @@ export class GasEstimatorV07 {
                 { err: error, data: decodedError.data },
                 "Contract function reverted in simulateValidation"
             )
-            return decodedError
+            return decodedError as {
+                result: "failed"
+                data: string
+                code: number
+            }
         }
     }
 

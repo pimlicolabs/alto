@@ -14,7 +14,8 @@ import type {
 } from "@alto/types"
 import { toViemStateOverrides } from "../../utils/toViemStateOverrides"
 import type { AltoConfig } from "../../createConfig"
-import { ValidationErrors } from "@alto/types"
+import { ValidationErrors, executionResultSchema } from "@alto/types"
+import type { SimulateHandleOpResult } from "../estimation/types"
 
 export function parseFailedOpWithRevert(data: Hex) {
     try {
@@ -76,11 +77,7 @@ export function prepareStateOverride({
 export function decodeSimulateHandleOpError(
     error: unknown,
     logger: Logger
-): {
-    result: "failed"
-    data: string
-    code: number
-} {
+): SimulateHandleOpResult {
     // Check if it's a BaseError with ContractFunctionRevertedError
     if (!(error instanceof BaseError)) {
         return {
@@ -139,6 +136,23 @@ export function decodeSimulateHandleOpError(
                 code: ValidationErrors.SimulateValidation
             }
 
+        case "Error":
+            return {
+                result: "failed",
+                data: args[0] as string,
+                code: ValidationErrors.SimulateValidation
+            }
+
+        // 0.6 handleOp reverts with ExecutionResult if successful
+        case "ExecutionResult":
+            const parsedExecutionResult = executionResultSchema.parse(args)
+            return {
+                result: "execution",
+                data: {
+                    executionResult: parsedExecutionResult
+                }
+            }
+
         default:
             logger.warn(
                 { errorName },
@@ -151,4 +165,3 @@ export function decodeSimulateHandleOpError(
             }
     }
 }
-

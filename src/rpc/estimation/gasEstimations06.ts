@@ -1,19 +1,10 @@
-import {
-    EntryPointV06Abi,
-    EntryPointV06SimulationsAbi,
-    ValidationErrors,
-    executionResultSchema
-} from "@alto/types"
+import { EntryPointV06Abi } from "@alto/types"
 import type { StateOverrides, UserOperationV06 } from "@alto/types"
 import type { Hex } from "viem"
-import { type Address, decodeErrorResult, encodeFunctionData } from "viem"
+import { type Address, getContract } from "viem"
 import type { SimulateHandleOpResult } from "./types"
 import type { AltoConfig } from "../../createConfig"
-import {
-    parseFailedOpWithRevert,
-    prepareStateOverride,
-    decodeSimulateHandleOpError
-} from "./utils"
+import { prepareStateOverride, decodeSimulateHandleOpError } from "./utils"
 import { deepHexlify, type Logger } from "@alto/utils"
 import entryPointOverride from "../../contracts/EntryPointGasEstimationOverride.sol/EntryPointGasEstimationOverride06.json" with {
     type: "json"
@@ -33,90 +24,6 @@ export class GasEstimatorV06 {
             {
                 level: config.logLevel
             }
-        )
-    }
-
-    decodeSimulateHandleOpResult(data: Hex): SimulateHandleOpResult {
-        if (data === "0x") {
-            return {
-                result: "failed",
-                data: "AA23 reverted: UserOperation called non-existant contract, or reverted with 0x",
-                code: ValidationErrors.SimulateValidation
-            }
-        }
-
-        const decodedError = decodeErrorResult({
-            abi: [...EntryPointV06Abi, ...EntryPointV06SimulationsAbi],
-            data
-        })
-
-        if (
-            decodedError &&
-            decodedError.errorName === "FailedOp" &&
-            decodedError.args
-        ) {
-            return {
-                result: "failed",
-                data: decodedError.args[1] as string,
-                code: ValidationErrors.SimulateValidation
-            } as const
-        }
-
-        // custom error thrown by entryPoint if code override is used
-        if (
-            decodedError &&
-            decodedError.errorName === "CallPhaseReverted" &&
-            decodedError.args
-        ) {
-            return {
-                result: "failed",
-                data: decodedError.args[0],
-                code: ValidationErrors.SimulateValidation
-            } as const
-        }
-
-        // custom error thrown by entryPoint if code override is used
-        if (
-            decodedError &&
-            decodedError.errorName === "FailedOpWithRevert" &&
-            decodedError.args
-        ) {
-            return {
-                result: "failed",
-                data: `${decodedError.args?.[1]} ${parseFailedOpWithRevert(
-                    decodedError.args?.[2] as Hex
-                )}`,
-                code: ValidationErrors.SimulateValidation
-            } as const
-        }
-
-        if (
-            decodedError &&
-            decodedError.errorName === "Error" &&
-            decodedError.args
-        ) {
-            return {
-                result: "failed",
-                data: decodedError.args[0],
-                code: ValidationErrors.SimulateValidation
-            } as const
-        }
-
-        if (decodedError.errorName === "ExecutionResult") {
-            const parsedExecutionResult = executionResultSchema.parse(
-                decodedError.args
-            )
-
-            return {
-                result: "execution",
-                data: {
-                    executionResult: parsedExecutionResult
-                } as const
-            }
-        }
-
-        throw new Error(
-            "Unexpected error whilst decoding simulateHandleOp result"
         )
     }
 
@@ -168,18 +75,23 @@ export class GasEstimatorV06 {
             config: this.config
         })
 
+        const entryPointContract = getContract({
+            address: entryPoint,
+            abi: EntryPointV06Abi,
+            client: publicClient
+        })
+
         try {
-            await publicClient.call({
-                account: utilityWalletAddress,
-                to: entryPoint,
-                data: encodeFunctionData({
-                    abi: EntryPointV06Abi,
-                    functionName: "simulateHandleOp",
-                    args: [userOperation, targetAddress, targetCallData]
-                }),
-                gas: fixedGasLimitForEstimation,
-                stateOverride: viemStateOverride
-            })
+            await entryPointContract.simulate.simulateHandleOp(
+                [userOperation, targetAddress, targetCallData],
+                {
+                    account: utilityWalletAddress,
+                    gas: fixedGasLimitForEstimation,
+                    stateOverride: viemStateOverride
+                }
+            )
+            // simulateHandleOp should always revert, if it doesn't something is wrong
+            throw new Error("simulateHandleOp did not revert")
         } catch (e) {
             const decodedError = decodeSimulateHandleOpError(e, this.logger)
             this.logger.warn(
@@ -188,6 +100,5 @@ export class GasEstimatorV06 {
             )
             return decodedError
         }
-        throw new Error("Unexpected error")
     }
 }
