@@ -111,8 +111,8 @@ contract PimlicoSimulations {
         uint256 gasAllowance
     ) external returns (SimulateAndEstimateGasResult memory result) {
         // Step 1: Simulate the operation to ensure it's valid
-        bytes4 identifier = IEntryPointSimulations.simulateHandleOp.selector;
-        bytes memory data = abi.encodeWithSelector(identifier, queuedUserOps, targetUserOp);
+        bytes4 selector = IEntryPointSimulations.simulateHandleOp.selector;
+        bytes memory data = abi.encodeWithSelector(selector, queuedUserOps, targetUserOp);
         bytes memory returnData = simulateEntryPoint(entryPointSimulation, entryPoint, data);
         result.simulationResult = abi.decode(returnData, (IEntryPointSimulations.ExecutionResult));
 
@@ -150,9 +150,9 @@ contract PimlicoSimulations {
         uint256 toleranceDelta,
         uint256 gasAllowance
     ) external returns (IEntryPointSimulations.BinarySearchResult memory) {
-        bytes4 identifier = IEntryPointSimulations.binarySearchVerificationGas.selector;
+        bytes4 selector = IEntryPointSimulations.binarySearchVerificationGas.selector;
         bytes memory data = abi.encodeWithSelector(
-            identifier, queuedUserOps, targetUserOp, entryPoint, initialMinGas, toleranceDelta, gasAllowance
+            selector, queuedUserOps, targetUserOp, entryPoint, initialMinGas, toleranceDelta, gasAllowance
         );
         bytes memory returnData = simulateEntryPoint(entryPointSimulation, entryPoint, data);
         return abi.decode(returnData, (IEntryPointSimulations.BinarySearchResult));
@@ -168,9 +168,9 @@ contract PimlicoSimulations {
         uint256 toleranceDelta,
         uint256 gasAllowance
     ) external returns (IEntryPointSimulations.BinarySearchResult memory) {
-        bytes4 identifier = IEntryPointSimulations.binarySearchPaymasterVerificationGas.selector;
+        bytes4 selector = IEntryPointSimulations.binarySearchPaymasterVerificationGas.selector;
         bytes memory data = abi.encodeWithSelector(
-            identifier, queuedUserOps, targetUserOp, entryPoint, initialMinGas, toleranceDelta, gasAllowance
+            selector, queuedUserOps, targetUserOp, entryPoint, initialMinGas, toleranceDelta, gasAllowance
         );
         bytes memory returnData = simulateEntryPoint(entryPointSimulation, entryPoint, data);
         return abi.decode(returnData, (IEntryPointSimulations.BinarySearchResult));
@@ -186,9 +186,9 @@ contract PimlicoSimulations {
         uint256 toleranceDelta,
         uint256 gasAllowance
     ) external returns (IEntryPointSimulations.BinarySearchResult memory) {
-        bytes4 identifier = IEntryPointSimulations.binarySearchCallGas.selector;
+        bytes4 selector = IEntryPointSimulations.binarySearchCallGas.selector;
         bytes memory data = abi.encodeWithSelector(
-            identifier, queuedUserOps, targetUserOp, entryPoint, initialMinGas, toleranceDelta, gasAllowance
+            selector, queuedUserOps, targetUserOp, entryPoint, initialMinGas, toleranceDelta, gasAllowance
         );
         bytes memory returnData = simulateEntryPoint(entryPointSimulation, entryPoint, data);
         return abi.decode(returnData, (IEntryPointSimulations.BinarySearchResult));
@@ -201,8 +201,8 @@ contract PimlicoSimulations {
         PackedUserOperation[] calldata queuedUserOps,
         PackedUserOperation calldata targetUserOp
     ) external returns (IEntryPointSimulations.ValidationResult memory) {
-        bytes4 identifier = IEntryPointSimulations.simulateValidation.selector;
-        bytes memory data = abi.encodeWithSelector(identifier, queuedUserOps, targetUserOp);
+        bytes4 selector = IEntryPointSimulations.simulateValidation.selector;
+        bytes memory data = abi.encodeWithSelector(selector, queuedUserOps, targetUserOp);
         bytes memory returnData = simulateEntryPoint(entryPointSimulation, entryPoint, data);
         return abi.decode(returnData, (IEntryPointSimulations.ValidationResult));
     }
@@ -214,8 +214,8 @@ contract PimlicoSimulations {
         PackedUserOperation[] calldata queuedUserOps,
         PackedUserOperation calldata targetUserOp
     ) external returns (IEntryPointSimulations.ExecutionResult memory) {
-        bytes4 identifier = IEntryPointSimulations.simulateHandleOp.selector;
-        bytes memory data = abi.encodeWithSelector(identifier, queuedUserOps, targetUserOp);
+        bytes4 selector = IEntryPointSimulations.simulateHandleOp.selector;
+        bytes memory data = abi.encodeWithSelector(selector, queuedUserOps, targetUserOp);
         bytes memory returnData = simulateEntryPoint(entryPointSimulation, entryPoint, data);
         return abi.decode(returnData, (IEntryPointSimulations.ExecutionResult));
     }
