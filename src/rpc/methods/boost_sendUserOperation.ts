@@ -7,9 +7,7 @@ import { createMethodHandler } from "../createMethodHandler"
 import { addToMempoolIfValid } from "./eth_sendUserOperation"
 import { RpcError } from "@alto/types"
 
-const validateUserOperation = ({
-    userOp
-}: { userOp: UserOperation }) => {
+const validateUserOp = ({ userOp }: { userOp: UserOperation }) => {
     if (userOp.maxFeePerGas !== 0n || userOp.maxPriorityFeePerGas !== 0n) {
         throw new RpcError(
             "maxFeePerGas and maxPriorityFeePerGas must be 0 for a boosted user operation"
@@ -44,7 +42,7 @@ export const boostSendUserOperationHandler = createMethodHandler({
     handler: async ({ rpcHandler, params, apiVersion }) => {
         const [userOp, entryPoint] = params
 
-        validateUserOperation({ userOp })
+        validateUserOp({ userOp })
 
         let status: "added" | "queued" | "rejected" = "rejected"
         try {

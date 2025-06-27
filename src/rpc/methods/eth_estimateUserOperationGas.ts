@@ -106,11 +106,10 @@ const getGasEstimates = async ({
     }
 
     // Get queued userOps.
-    const queuedUserOps =
-        await rpcHandler.mempool.getQueuedOustandingUserOps({
-            userOp,
-            entryPoint
-        })
+    const queuedUserOps = await rpcHandler.mempool.getQueuedOustandingUserOps({
+        userOp,
+        entryPoint
+    })
 
     const simulationUserOp = {
         ...userOp,
@@ -199,13 +198,13 @@ const getGasEstimates = async ({
         paymasterPostOpGasLimit =
             successResult.data.executionResult.paymasterPostOpGasLimit || 1n
 
-        const userOperationPaymasterPostOpGasLimit =
+        const userOpPaymasterPostOpGasLimit =
             "paymasterPostOpGasLimit" in userOp
                 ? (userOp.paymasterPostOpGasLimit ?? 1n)
                 : 1n
 
         paymasterPostOpGasLimit = maxBigInt(
-            userOperationPaymasterPostOpGasLimit,
+            userOpPaymasterPostOpGasLimit,
             scaleBigIntByPercent(
                 paymasterPostOpGasLimit,
                 paymasterGasLimitMultiplier

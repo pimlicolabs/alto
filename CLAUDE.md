@@ -125,7 +125,14 @@ pnpm run build:contracts-v08
 - **Files**: kebab-case for filenames (e.g., `gas-price-manager.ts`)
 - **Constants**: UPPER_SNAKE_CASE for constants
 - **Functions/Methods**: camelCase
-- **UserOperation Variables**: Use `userOp` instead of `userOperation` (e.g., `submittedUserOp`, `validUserOp`). Types/interfaces can use full `UserOperation` name
+- **UserOperation Naming**: 
+  - **Local variables and parameters**: Use `userOp` (e.g., `submittedUserOp`, `validUserOp`, `queuedUserOps`)
+  - **Local method names**: Use `userOp` (e.g., `dropUserOps`, `addUserOp`, `getUserOpHash`)
+  - **RPC endpoints**: Use full `userOperation` name (e.g., `eth_sendUserOperation`)
+  - **Types and interfaces**: Use full `UserOperation` name (e.g., `UserOperationV07`, `PackedUserOperation`)
+  - **Zod schemas**: Use full `userOperation` name (e.g., `userOperationSchema`, `userOperationV06Schema`)
+  - **Solidity contracts**: Use full `UserOperation` name
+  - **Inline comments**: Use full `userOperation` when referring to the concept
 
 #### Import Organization
 1. External dependencies

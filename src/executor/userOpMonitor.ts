@@ -248,7 +248,7 @@ export class UserOpMonitor {
         this.logger.info({ userOpHash, transactionHash }, "user op included")
 
         // Update status
-        await this.monitor.setUserOperationStatus(userOpHash, {
+        await this.monitor.setUserOpStatus(userOpHash, {
             status: "included",
             transactionHash
         })
@@ -282,7 +282,7 @@ export class UserOpMonitor {
             userOpReceipt,
             userOp.sender
         )
-        this.reputationManager.updateUserOperationIncludedStatus(
+        this.reputationManager.updateUserOpIncludedStatus(
             userOp,
             entryPoint,
             accountDeployed
@@ -308,7 +308,7 @@ export class UserOpMonitor {
                 const transactionHash = userOpReceipt.receipt.transactionHash
                 const blockNumber = userOpReceipt.receipt.blockNumber
 
-                await this.monitor.setUserOperationStatus(userOpHash, {
+                await this.monitor.setUserOpStatus(userOpHash, {
                     status: "included",
                     transactionHash
                 })
@@ -331,7 +331,7 @@ export class UserOpMonitor {
                     .labels({ status: "frontran" })
                     .inc(1)
             } else {
-                await this.monitor.setUserOperationStatus(userOpHash, {
+                await this.monitor.setUserOpStatus(userOpHash, {
                     status: "failed",
                     transactionHash
                 })
@@ -365,7 +365,7 @@ export class UserOpMonitor {
             )
 
             // Still mark as failed since we couldn't verify inclusion
-            await this.monitor.setUserOperationStatus(userOpHash, {
+            await this.monitor.setUserOpStatus(userOpHash, {
                 status: "failed",
                 transactionHash
             })
