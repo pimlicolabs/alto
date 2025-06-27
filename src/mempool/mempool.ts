@@ -18,7 +18,7 @@ import type { Logger, Metrics } from "@alto/utils"
 import {
     getAAError,
     getAddressFromInitCodeOrPaymasterAndData,
-    getUserOperationHash,
+    getUserOpHash,
     isVersion06,
     isVersion07,
     isVersion08,
@@ -97,14 +97,14 @@ export class Mempool {
                 const { userOpHash } = userOpInfo
                 await this.store.removeProcessing({ entryPoint, userOpHash })
                 await this.store.addSubmitted({ entryPoint, userOpInfo })
-                await this.monitor.setUserOperationStatus(userOpHash, {
+                await this.monitor.setUserOpStatus(userOpHash, {
                     status: "submitted",
                     transactionHash
                 })
             })
         )
 
-        this.metrics.userOperationsSubmitted
+        this.metrics.userOpsSubmitted
             .labels({ status: "success" })
             .inc(userOps.length)
     }
@@ -149,7 +149,7 @@ export class Mempool {
             })
         )
 
-        this.metrics.userOperationsResubmitted.inc(userOps.length)
+        this.metrics.userOpsResubmitted.inc(userOps.length)
     }
 
     async dropUserOps(entryPoint: Address, rejectedUserOps: RejectedUserOp[]) {
@@ -163,7 +163,7 @@ export class Mempool {
                     reason,
                     getAAError(reason)
                 )
-                await this.monitor.setUserOperationStatus(userOpHash, {
+                await this.monitor.setUserOpStatus(userOpHash, {
                     status: "rejected",
                     transactionHash: null
                 })
@@ -313,8 +313,8 @@ export class Mempool {
         entryPoint: Address,
         referencedContracts?: ReferencedCodeHashes
     ): Promise<[boolean, string]> {
-        const userOpHash = await getUserOperationHash({
-            userOperation: userOp,
+        const userOpHash = await getUserOpHash({
+            userOp,
             entryPointAddress: entryPoint,
             chainId: this.config.chainId,
             publicClient: this.config.publicClient
@@ -373,13 +373,13 @@ export class Mempool {
                 return [false, `${message}, bump the gas price by minimum 10%`]
             }
 
-            await this.reputationManager.replaceUserOperationSeenStatus(
+            await this.reputationManager.replaceUserOpSeenStatus(
                 conflictingUserOp,
                 entryPoint
             )
         }
 
-        await this.reputationManager.increaseUserOperationSeenStatus(
+        await this.reputationManager.increaseUserOpSeenStatus(
             userOp,
             entryPoint
         )
@@ -395,7 +395,7 @@ export class Mempool {
             }
         })
 
-        await this.monitor.setUserOperationStatus(userOpHash, {
+        await this.monitor.setUserOpStatus(userOpHash, {
             status: "not_submitted",
             transactionHash: null
         })
@@ -551,18 +551,18 @@ export class Mempool {
         let validationResult: ValidationResult & { storageMap: StorageMap }
 
         try {
-            let queuedUserOperations: UserOperation[] = []
+            let queuedUserOps: UserOperation[] = []
 
             if (!isUserOpV06) {
-                queuedUserOperations = await this.getQueuedOustandingUserOps({
+                queuedUserOps = await this.getQueuedOustandingUserOps({
                     userOp,
                     entryPoint
                 })
             }
 
-            validationResult = await this.validator.validateUserOperation({
-                userOperation: userOp,
-                queuedUserOperations,
+            validationResult = await this.validator.validateUserOp({
+                userOp,
+                queuedUserOps: queuedUserOps,
                 entryPoint,
                 referencedContracts
             })
@@ -575,7 +575,7 @@ export class Mempool {
                 "2nd Validation error"
             )
             this.store.removeOutstanding({ entryPoint, userOpHash })
-            this.reputationManager.decreaseUserOperationSeenStatus(
+            this.reputationManager.decreaseUserOpSeenStatus(
                 userOp,
                 entryPoint,
                 e instanceof RpcError ? e.message : JSON.stringify(e)
@@ -814,7 +814,7 @@ export class Mempool {
                 senders = skipResult.senders
                 storageMap = skipResult.storageMap
 
-                this.reputationManager.decreaseUserOperationCount(userOp)
+                this.reputationManager.decreaseUserOpCount(userOp)
                 this.store.addProcessing({ entryPoint, userOpInfo })
 
                 // Add op to current bundle

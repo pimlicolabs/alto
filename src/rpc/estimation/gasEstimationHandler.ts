@@ -19,23 +19,23 @@ export class GasEstimationHandler {
     }
 
     validateHandleOp({
-        userOperation,
-        queuedUserOperations,
+        userOp,
+        queuedUserOps,
         entryPoint,
         targetAddress,
         targetCallData,
         stateOverrides = {}
     }: {
-        userOperation: UserOperation
-        queuedUserOperations: UserOperation[]
+        userOp: UserOperation
+        queuedUserOps: UserOperation[]
         entryPoint: Address
         targetAddress: Address
         targetCallData: Hex
         stateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult> {
-        if (isVersion06(userOperation)) {
+        if (isVersion06(userOp)) {
             return this.gasEstimatorV06.simulateHandleOpV06({
-                userOperation,
+                userOp,
                 entryPoint,
                 targetAddress,
                 targetCallData,
@@ -44,31 +44,31 @@ export class GasEstimationHandler {
         }
 
         return this.gasEstimatorV07.validateHandleOpV07({
-            userOperation: userOperation as UserOperationV07,
-            queuedUserOperations: queuedUserOperations as UserOperationV07[],
+            userOp: userOp as UserOperationV07,
+            queuedUserOps: queuedUserOps as UserOperationV07[],
             entryPoint,
             stateOverrides
         })
     }
 
     simulateHandleOp({
-        userOperation,
-        queuedUserOperations,
+        userOp,
+        queuedUserOps,
         entryPoint,
         targetAddress,
         targetCallData,
         stateOverrides = {}
     }: {
-        userOperation: UserOperation
-        queuedUserOperations: UserOperation[]
+        userOp: UserOperation
+        queuedUserOps: UserOperation[]
         entryPoint: Address
         targetAddress: Address
         targetCallData: Hex
         stateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult> {
-        if (isVersion06(userOperation)) {
+        if (isVersion06(userOp)) {
             return this.gasEstimatorV06.simulateHandleOpV06({
-                userOperation,
+                userOp,
                 entryPoint,
                 targetAddress,
                 targetCallData,
@@ -77,8 +77,8 @@ export class GasEstimationHandler {
         }
 
         return this.gasEstimatorV07.simulateHandleOp07({
-            userOperation: userOperation as UserOperationV07,
-            queuedUserOperations: queuedUserOperations as UserOperationV07[],
+            userOp: userOp as UserOperationV07,
+            queuedUserOps: queuedUserOps as UserOperationV07[],
             entryPoint,
             userStateOverrides: stateOverrides
         })

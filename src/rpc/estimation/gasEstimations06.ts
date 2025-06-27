@@ -32,14 +32,14 @@ export class GasEstimatorV06 {
     }
 
     async simulateHandleOpV06({
-        userOperation,
+        userOp,
         targetAddress,
         targetCallData,
         entryPoint,
         useCodeOverride = true,
         userStateOverrides = undefined
     }: {
-        userOperation: UserOperationV06
+        userOp: UserOperationV06
         targetAddress: Address
         targetCallData: Hex
         entryPoint: Address
@@ -73,8 +73,8 @@ export class GasEstimatorV06 {
         }
 
         const viemStateOverride = prepareStateOverride({
-            userOperations: [userOperation],
-            queuedUserOperations: [], // Queued operations are not supported for EntryPoint v0.6
+            userOps: [userOp],
+            queuedUserOps: [], // Queued operations are not supported for EntryPoint v0.6
             stateOverrides: userStateOverrides,
             config: this.config
         })
@@ -87,7 +87,7 @@ export class GasEstimatorV06 {
 
         try {
             await entryPointContract.simulate.simulateHandleOp(
-                [userOperation, targetAddress, targetCallData],
+                [userOp, targetAddress, targetCallData],
                 {
                     account: utilityWalletAddress,
                     gas: fixedGasLimitForEstimation,

@@ -1,6 +1,6 @@
 import {
     getNonceKeyAndSequence,
-    getUserOperationHash
+    getUserOpHash
 } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import {
@@ -24,7 +24,7 @@ import { Hex } from "viem"
 const validatePvg = async (
     apiVersion: ApiVersion,
     rpcHandler: RpcHandler,
-    userOperation: UserOperation,
+    userOp: UserOperation,
     entryPoint: Address,
     boost = false
 ): Promise<[boolean, string]> => {
@@ -34,23 +34,23 @@ const validatePvg = async (
     }
 
     const executionGasComponent = calcExecutionPvgComponent({
-        userOp: userOperation,
+        userOp,
         supportsEip7623: rpcHandler.config.supportsEip7623,
         config: rpcHandler.config
     })
     const l2GasComponent = await calcL2PvgComponent({
         config: rpcHandler.config,
-        userOperation,
+        userOp,
         entryPoint,
         gasPriceManager: rpcHandler.gasPriceManager,
         validate: true
     })
     const requiredPvg = executionGasComponent + l2GasComponent
 
-    if (requiredPvg > userOperation.preVerificationGas) {
+    if (requiredPvg > userOp.preVerificationGas) {
         return [
             false,
-            `preVerificationGas is not enough, required: ${requiredPvg}, got: ${userOperation.preVerificationGas}`
+            `preVerificationGas is not enough, required: ${requiredPvg}, got: ${userOp.preVerificationGas}`
         ]
     }
 
@@ -59,10 +59,10 @@ const validatePvg = async (
 
 const getUserOpValidationResult = async (
     rpcHandler: RpcHandler,
-    userOperation: UserOperation,
+    userOp: UserOperation,
     entryPoint: Address
 ): Promise<{
-    queuedUserOperations: UserOperation[]
+    queuedUserOps: UserOperation[]
     validationResult: (
         | validation.ValidationResult
         | validation.ValidationResultWithAggregation
@@ -71,32 +71,32 @@ const getUserOpValidationResult = async (
         referencedContracts?: ReferencedCodeHashes
     }
 }> => {
-    const queuedUserOperations: UserOperation[] =
+    const queuedUserOps: UserOperation[] =
         await rpcHandler.mempool.getQueuedOustandingUserOps({
-            userOp: userOperation,
+            userOp,
             entryPoint
         })
-    const validationResult = await rpcHandler.validator.validateUserOperation({
-        userOperation,
-        queuedUserOperations,
+    const validationResult = await rpcHandler.validator.validateUserOp({
+        userOp,
+        queuedUserOps: queuedUserOps,
         entryPoint
     })
 
     return {
-        queuedUserOperations,
+        queuedUserOps,
         validationResult
     }
 }
 
 export async function addToMempoolIfValid({
     rpcHandler,
-    userOperation,
+    userOp,
     entryPoint,
     apiVersion,
     boost = false
 }: {
     rpcHandler: RpcHandler
-    userOperation: UserOperation
+    userOp: UserOperation
     entryPoint: Address
     apiVersion: ApiVersion
     boost?: boolean
@@ -106,24 +106,24 @@ export async function addToMempoolIfValid({
     // Execute multiple async operations in parallel
     const [
         userOpHash,
-        { queuedUserOperations, validationResult },
+        { queuedUserOps, validationResult },
         currentNonceSeq,
         [pvgSuccess, pvgErrorReason],
         [preMempoolSuccess, preMempoolError],
         [validEip7702Auth, validEip7702AuthError]
     ] = await Promise.all([
-        getUserOperationHash({
-            userOperation: userOperation,
+        getUserOpHash({
+            userOp,
             entryPointAddress: entryPoint,
             chainId: rpcHandler.config.chainId,
             publicClient: rpcHandler.config.publicClient
         }),
-        getUserOpValidationResult(rpcHandler, userOperation, entryPoint),
-        rpcHandler.getNonceSeq(userOperation, entryPoint),
-        validatePvg(apiVersion, rpcHandler, userOperation, entryPoint, boost),
-        rpcHandler.preMempoolChecks(userOperation, apiVersion, boost),
+        getUserOpValidationResult(rpcHandler, userOp, entryPoint),
+        rpcHandler.getNonceSeq(userOp, entryPoint),
+        validatePvg(apiVersion, rpcHandler, userOp, entryPoint, boost),
+        rpcHandler.preMempoolChecks(userOp, apiVersion, boost),
         rpcHandler.validateEip7702Auth({
-            userOperation,
+            userOp,
             validateSender: true
         })
     ])
@@ -156,7 +156,7 @@ export async function addToMempoolIfValid({
     }
 
     // Nonce validation
-    const [, userOpNonceSeq] = getNonceKeyAndSequence(userOperation.nonce)
+    const [, userOpNonceSeq] = getNonceKeyAndSequence(userOp.nonce)
     if (userOpNonceSeq < currentNonceSeq) {
         const reason =
             "UserOperation failed validation with reason: AA25 invalid account nonce"
@@ -173,9 +173,9 @@ export async function addToMempoolIfValid({
 
     if (
         userOpNonceSeq >
-        currentNonceSeq + BigInt(queuedUserOperations.length)
+        currentNonceSeq + BigInt(queuedUserOps.length)
     ) {
-        rpcHandler.mempool.add(userOperation, entryPoint)
+        rpcHandler.mempool.add(userOp, entryPoint)
         rpcHandler.eventManager.emitQueued(userOpHash)
         return { result: "queued", userOpHash }
     }
@@ -183,7 +183,7 @@ export async function addToMempoolIfValid({
     // userOp validation
     if (rpcHandler.config.dangerousSkipUserOperationValidation) {
         const [isMempoolAddSuccess, mempoolAddError] =
-            await rpcHandler.mempool.add(userOperation, entryPoint)
+            await rpcHandler.mempool.add(userOp, entryPoint)
 
         if (!isMempoolAddSuccess) {
             rpcHandler.eventManager.emitFailedValidation(
@@ -198,19 +198,19 @@ export async function addToMempoolIfValid({
 
     // ERC-7562 scope rule validation
     rpcHandler.reputationManager.checkReputation(
-        userOperation,
+        userOp,
         entryPoint,
         validationResult
     )
 
     await rpcHandler.mempool.checkEntityMultipleRoleViolation(
         entryPoint,
-        userOperation
+        userOp
     )
 
     // Finally, add to mempool
     const [isMempoolAddSuccess, mempoolAddError] = await rpcHandler.mempool.add(
-        userOperation,
+        userOp,
         entryPoint,
         validationResult.referencedContracts
     )
@@ -231,13 +231,13 @@ export const ethSendUserOperationHandler = createMethodHandler({
     method: "eth_sendUserOperation",
     schema: sendUserOperationSchema,
     handler: async ({ rpcHandler, params, apiVersion }) => {
-        const [userOperation, entryPoint] = params
+        const [userOp, entryPoint] = params
 
         let status: "added" | "queued" | "rejected" = "rejected"
         try {
             const { result, userOpHash } = await addToMempoolIfValid({
                 rpcHandler,
-                userOperation,
+                userOp,
                 entryPoint,
                 apiVersion
             })
@@ -251,10 +251,10 @@ export const ethSendUserOperationHandler = createMethodHandler({
             status = "rejected"
             throw error
         } finally {
-            rpcHandler.metrics.userOperationsReceived
+            rpcHandler.metrics.userOpsReceived
                 .labels({
                     status,
-                    type: !!userOperation.eip7702Auth ? "7702" : "regular"
+                    type: !!userOp.eip7702Auth ? "7702" : "regular"
                 })
                 .inc()
         }

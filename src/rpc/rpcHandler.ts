@@ -136,13 +136,13 @@ export class RpcHandler {
     }
 
     async preMempoolChecks(
-        userOperation: UserOperation,
+        userOp: UserOperation,
         apiVersion: ApiVersion,
         boost: boolean = false
     ): Promise<[boolean, string]> {
         if (
             this.config.legacyTransactions &&
-            userOperation.maxFeePerGas !== userOperation.maxPriorityFeePerGas
+            userOp.maxFeePerGas !== userOp.maxPriorityFeePerGas
         ) {
             return [
                 false,
@@ -154,8 +154,8 @@ export class RpcHandler {
             const { lowestMaxFeePerGas, lowestMaxPriorityFeePerGas } =
                 await this.gasPriceManager.getLowestValidGasPrices()
 
-            const maxFeePerGas = userOperation.maxFeePerGas
-            const maxPriorityFeePerGas = userOperation.maxPriorityFeePerGas
+            const maxFeePerGas = userOp.maxFeePerGas
+            const maxPriorityFeePerGas = userOp.maxPriorityFeePerGas
 
             if (maxFeePerGas < lowestMaxFeePerGas) {
                 return [
@@ -172,18 +172,18 @@ export class RpcHandler {
             }
         }
 
-        if (userOperation.verificationGasLimit < 10000n) {
+        if (userOp.verificationGasLimit < 10000n) {
             return [false, "verificationGasLimit must be at least 10000"]
         }
 
-        if (!boost && userOperation.preVerificationGas === 0n) {
+        if (!boost && userOp.preVerificationGas === 0n) {
             return [
                 false,
                 "userOperation preVerification gas must be larger than 0"
             ]
         }
 
-        if (userOperation.verificationGasLimit === 0n) {
+        if (userOp.verificationGasLimit === 0n) {
             return [
                 false,
                 "userOperation verification gas limit must be larger than 0"
@@ -191,7 +191,7 @@ export class RpcHandler {
         }
 
         const gasLimits = calculateAA95GasFloor({
-            userOps: [userOperation],
+            userOps: [userOp],
             beneficiary: privateKeyToAddress(generatePrivateKey())
         })
 
@@ -206,12 +206,12 @@ export class RpcHandler {
     }
 
     async validateEip7702Auth({
-        userOperation,
+        userOp,
         validateSender = false
-    }: { userOperation: UserOperation; validateSender?: boolean }): Promise<
+    }: { userOp: UserOperation; validateSender?: boolean }): Promise<
         [boolean, string]
     > {
-        if (!userOperation.eip7702Auth) {
+        if (!userOp.eip7702Auth) {
             return [true, ""]
         }
 
@@ -221,9 +221,9 @@ export class RpcHandler {
 
         // Check that auth is valid.
         const delegationDesignator =
-            "address" in userOperation.eip7702Auth
-                ? userOperation.eip7702Auth.address
-                : userOperation.eip7702Auth.contractAddress
+            "address" in userOp.eip7702Auth
+                ? userOp.eip7702Auth.address
+                : userOp.eip7702Auth.contractAddress
 
         // Fetch onchain data in parallel
         const [sender, nonceOnChain, delegateCode] = await Promise.all([
@@ -231,17 +231,17 @@ export class RpcHandler {
                 ? recoverAuthorizationAddress({
                       authorization: {
                           address: delegationDesignator,
-                          chainId: userOperation.eip7702Auth.chainId,
-                          nonce: userOperation.eip7702Auth.nonce,
-                          r: userOperation.eip7702Auth.r,
-                          s: userOperation.eip7702Auth.s,
-                          v: userOperation.eip7702Auth.v,
-                          yParity: userOperation.eip7702Auth.yParity
+                          chainId: userOp.eip7702Auth.chainId,
+                          nonce: userOp.eip7702Auth.nonce,
+                          r: userOp.eip7702Auth.r,
+                          s: userOp.eip7702Auth.s,
+                          v: userOp.eip7702Auth.v,
+                          yParity: userOp.eip7702Auth.yParity
                       }
                   })
-                : Promise.resolve(userOperation.sender),
+                : Promise.resolve(userOp.sender),
             this.config.publicClient.getTransactionCount({
-                address: userOperation.sender
+                address: userOp.sender
             }),
             this.eip7702CodeCache.has(delegationDesignator)
                 ? Promise.resolve("has-code")
@@ -251,8 +251,8 @@ export class RpcHandler {
         ])
 
         if (
-            userOperation.eip7702Auth.chainId !== this.config.chainId &&
-            userOperation.eip7702Auth.chainId !== 0
+            userOp.eip7702Auth.chainId !== this.config.chainId &&
+            userOp.eip7702Auth.chainId !== 0
         ) {
             return [
                 false,
@@ -260,28 +260,28 @@ export class RpcHandler {
             ]
         }
 
-        if (![0, 1].includes(userOperation.eip7702Auth.yParity)) {
+        if (![0, 1].includes(userOp.eip7702Auth.yParity)) {
             return [
                 false,
                 "Invalid EIP-7702 authorization: The yParity value must be either 0 or 1"
             ]
         }
 
-        if (nonceOnChain !== userOperation.eip7702Auth.nonce) {
+        if (nonceOnChain !== userOp.eip7702Auth.nonce) {
             return [
                 false,
                 "Invalid EIP-7702 authorization: The nonce does not match the userOperation sender address"
             ]
         }
 
-        if (sender !== userOperation.sender) {
+        if (sender !== userOp.sender) {
             return [
                 false,
                 "Invalid EIP-7702 authorization: The recovered signer address does not match the userOperation sender address"
             ]
         }
 
-        if (isVersion06(userOperation) && userOperation.initCode !== "0x") {
+        if (isVersion06(userOp) && userOp.initCode !== "0x") {
             return [
                 false,
                 "Invalid EIP-7702 authorization: UserOperation cannot contain initCode."
@@ -289,9 +289,9 @@ export class RpcHandler {
         }
 
         if (
-            isVersion07(userOperation) &&
-            userOperation.factory !== "0x7702" &&
-            userOperation.factory !== null
+            isVersion07(userOp) &&
+            userOp.factory !== "0x7702" &&
+            userOp.factory !== null
         ) {
             return [
                 false,
@@ -324,21 +324,19 @@ export class RpcHandler {
         return [true, ""]
     }
 
-    async getNonceSeq(userOperation: UserOperation, entryPoint: Address) {
+    async getNonceSeq(userOp: UserOperation, entryPoint: Address) {
         const entryPointContract = getContract({
             address: entryPoint,
-            abi: isVersion06(userOperation)
-                ? EntryPointV06Abi
-                : EntryPointV07Abi,
+            abi: isVersion06(userOp) ? EntryPointV06Abi : EntryPointV07Abi,
             client: {
                 public: this.config.publicClient
             }
         })
 
-        const [nonceKey] = getNonceKeyAndSequence(userOperation.nonce)
+        const [nonceKey] = getNonceKeyAndSequence(userOp.nonce)
 
         const getNonceResult = await entryPointContract.read.getNonce(
-            [userOperation.sender, nonceKey],
+            [userOp.sender, nonceKey],
             {
                 blockTag: "latest"
             }

@@ -8,31 +8,28 @@ import { addToMempoolIfValid } from "./eth_sendUserOperation"
 import { RpcError } from "@alto/types"
 
 const validateUserOperation = ({
-    userOperation
-}: { userOperation: UserOperation }) => {
-    if (
-        userOperation.maxFeePerGas !== 0n ||
-        userOperation.maxPriorityFeePerGas !== 0n
-    ) {
+    userOp
+}: { userOp: UserOperation }) => {
+    if (userOp.maxFeePerGas !== 0n || userOp.maxPriorityFeePerGas !== 0n) {
         throw new RpcError(
             "maxFeePerGas and maxPriorityFeePerGas must be 0 for a boosted user operation"
         )
     }
 
-    if (isVersion06(userOperation)) {
-        if (userOperation.paymasterAndData !== "0x") {
+    if (isVersion06(userOp)) {
+        if (userOp.paymasterAndData !== "0x") {
             throw new RpcError(
                 "Paymaster is not supported for boosted user operations. paymasterAndData must be '0x'"
             )
         }
     }
 
-    if (isVersion07(userOperation)) {
+    if (isVersion07(userOp)) {
         if (
-            userOperation.paymaster ||
-            userOperation.paymasterData ||
-            userOperation.paymasterPostOpGasLimit ||
-            userOperation.paymasterVerificationGasLimit
+            userOp.paymaster ||
+            userOp.paymasterData ||
+            userOp.paymasterPostOpGasLimit ||
+            userOp.paymasterVerificationGasLimit
         ) {
             throw new RpcError(
                 "Paymaster is not supported for boosted user operations. All paymaster fields must be empty"
@@ -45,15 +42,15 @@ export const boostSendUserOperationHandler = createMethodHandler({
     method: "boost_sendUserOperation",
     schema: boostSendUserOperationSchema,
     handler: async ({ rpcHandler, params, apiVersion }) => {
-        const [userOperation, entryPoint] = params
+        const [userOp, entryPoint] = params
 
-        validateUserOperation({ userOperation })
+        validateUserOperation({ userOp })
 
         let status: "added" | "queued" | "rejected" = "rejected"
         try {
             const { result, userOpHash } = await addToMempoolIfValid({
                 rpcHandler,
-                userOperation,
+                userOp,
                 entryPoint,
                 apiVersion,
                 boost: true
@@ -68,10 +65,10 @@ export const boostSendUserOperationHandler = createMethodHandler({
             status = "rejected"
             throw error
         } finally {
-            rpcHandler.metrics.userOperationsReceived
+            rpcHandler.metrics.userOpsReceived
                 .labels({
                     status,
-                    type: !!userOperation.eip7702Auth ? "7702" : "boost"
+                    type: !!userOp.eip7702Auth ? "7702" : "boost"
                 })
                 .inc()
         }

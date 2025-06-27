@@ -8,7 +8,7 @@ import Queue, { type Queue as QueueType } from "bull"
 import { asyncCallWithTimeout, AsyncTimeoutError } from "../utils/asyncTimeout"
 
 type QueueMessage = OpEventType & {
-    userOperationHash: Hex
+    userOpHash: Hex
     eventTimestamp: number
     chainId: number
 }
@@ -56,13 +56,13 @@ export class EventManager {
 
     // emits when the userOperation was mined onchain but reverted during the callphase
     emitExecutionRevertedOnChain(
-        userOperationHash: Hex,
+        userOpHash: Hex,
         transactionHash: Hex,
         reason: Hex,
         blockNumber: bigint
     ) {
         this.emitEvent({
-            userOperationHash,
+            userOpHash,
             event: {
                 eventType: "execution_reverted_onchain",
                 transactionHash,
@@ -76,12 +76,12 @@ export class EventManager {
 
     // emits when the userOperation was mined onchain but failed EntryPoint validation
     emitFailedOnChain(
-        userOperationHash: Hex,
+        userOpHash: Hex,
         transactionHash: Hex,
         blockNumber: bigint
     ) {
         this.emitEvent({
-            userOperationHash,
+            userOpHash,
             event: {
                 eventType: "failed_onchain",
                 transactionHash,
@@ -94,12 +94,12 @@ export class EventManager {
 
     // emits when the userOperation has been included onchain but bundled by a frontrunner
     emitFrontranOnChain(
-        userOperationHash: Hex,
+        userOpHash: Hex,
         transactionHash: Hex,
         blockNumber: bigint
     ) {
         this.emitEvent({
-            userOperationHash,
+            userOpHash,
             event: {
                 eventType: "frontran_onchain",
                 transactionHash,
@@ -112,12 +112,12 @@ export class EventManager {
 
     // emits when the userOperation is included onchain
     emitIncludedOnChain(
-        userOperationHash: Hex,
+        userOpHash: Hex,
         transactionHash: Hex,
         blockNumber: bigint
     ) {
         this.emitEvent({
-            userOperationHash,
+            userOpHash,
             event: {
                 eventType: "included_onchain",
                 transactionHash,
@@ -129,9 +129,9 @@ export class EventManager {
     }
 
     // emits when the userOperation is placed in the nonce queue
-    emitQueued(userOperationHash: Hex) {
+    emitQueued(userOpHash: Hex) {
         this.emitEvent({
-            userOperationHash,
+            userOpHash,
             event: {
                 eventType: "queued"
             }
@@ -139,9 +139,9 @@ export class EventManager {
     }
 
     // emits when the userOperation is first seen
-    emitReceived(userOperationHash: Hex, timestamp?: number) {
+    emitReceived(userOpHash: Hex, timestamp?: number) {
         this.emitEvent({
-            userOperationHash,
+            userOpHash,
             event: {
                 eventType: "received"
             },
@@ -151,12 +151,12 @@ export class EventManager {
 
     // emits when the userOperation failed to get added to the mempool
     emitFailedValidation(
-        userOperationHash: Hex,
+        userOpHash: Hex,
         reason?: string,
         aaError?: string
     ) {
         this.emitEvent({
-            userOperationHash,
+            userOpHash,
             event: {
                 eventType: "failed_validation",
                 data: {
@@ -174,7 +174,7 @@ export class EventManager {
     }: { userOpHashes: Hex[]; transactionHash: Hex }) {
         for (const hash of userOpHashes) {
             this.emitEvent({
-                userOperationHash: hash,
+                userOpHash: hash,
                 event: {
                     eventType: "submitted",
                     transactionHash
@@ -184,9 +184,9 @@ export class EventManager {
     }
 
     // emits when the userOperation was dropped from the internal mempool
-    emitDropped(userOperationHash: Hex, reason?: string, aaError?: string) {
+    emitDropped(userOpHash: Hex, reason?: string, aaError?: string) {
         this.emitEvent({
-            userOperationHash,
+            userOpHash,
             event: {
                 eventType: "dropped",
                 data: {
@@ -198,9 +198,9 @@ export class EventManager {
     }
 
     // emits when the userOperation was added to the internal mempool
-    emitAddedToMempool(userOperationHash: Hex) {
+    emitAddedToMempool(userOpHash: Hex) {
         this.emitEvent({
-            userOperationHash,
+            userOpHash,
             event: {
                 eventType: "added_to_mempool"
             }
@@ -208,11 +208,11 @@ export class EventManager {
     }
 
     private emitEvent({
-        userOperationHash,
+        userOpHash,
         event,
         timestamp
     }: {
-        userOperationHash: Hex
+        userOpHash: Hex
         event: OpEventType
         timestamp?: number
     }) {
@@ -221,7 +221,7 @@ export class EventManager {
         }
 
         const entry = {
-            userOperationHash,
+            userOpHash,
             eventTimestamp: timestamp ?? Date.now(),
             chainId: this.chainId,
             ...event
@@ -249,7 +249,7 @@ export class EventManager {
             .catch((err) => {
                 if (err instanceof AsyncTimeoutError) {
                     this.logger.warn(
-                        { userOpHash: entry.userOperationHash, eventType },
+                        { userOpHash: entry.userOpHash, eventType },
                         "Event emission timed out after 500ms"
                     )
                     this.metrics.emittedOpEvents

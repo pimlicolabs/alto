@@ -28,7 +28,7 @@ import type { Metrics } from "@alto/utils"
 import {
     getAuthorizationStateOverrides,
     getAddressFromInitCodeOrPaymasterAndData,
-    toPackedUserOperation,
+    toPackedUserOp,
     isVersion08,
     jsonStringifyWithBigint
 } from "@alto/utils"
@@ -76,14 +76,9 @@ export class SafeValidator
         this.senderManager = senderManager
     }
 
-    async validateUserOperation({
-        userOperation,
-        queuedUserOperations,
-        entryPoint,
-        referencedContracts
-    }: {
-        userOperation: UserOperation
-        queuedUserOperations: UserOperation[]
+    async validateUserOp(args: {
+        userOp: UserOperation
+        queuedUserOps: UserOperation[]
         entryPoint: Address
         referencedContracts?: ReferencedCodeHashes
     }): Promise<
@@ -92,19 +87,20 @@ export class SafeValidator
             referencedContracts?: ReferencedCodeHashes
         }
     > {
+        const { userOp, queuedUserOps, entryPoint, referencedContracts } = args
         try {
             const validationResult = await this.getValidationResult({
-                userOperation,
-                queuedUserOperations,
+                userOp,
+                queuedUserOps,
                 entryPoint,
                 codeHashes: referencedContracts
             })
 
-            this.metrics.userOperationsValidationSuccess.inc()
+            this.metrics.userOpsValidationSuccess.inc()
 
             return validationResult
         } catch (e) {
-            this.metrics.userOperationsValidationFailure.inc()
+            this.metrics.userOpsValidationFailure.inc()
             throw e
         }
     }
@@ -139,14 +135,9 @@ export class SafeValidator
         }
     }
 
-    async getValidationResultV07({
-        userOperation,
-        queuedUserOperations,
-        entryPoint,
-        codeHashes
-    }: {
-        userOperation: UserOperationV07
-        queuedUserOperations: UserOperation[]
+    async getValidationResultV07(args: {
+        userOp: UserOperationV07
+        queuedUserOps: UserOperation[]
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
     }): Promise<
@@ -155,6 +146,7 @@ export class SafeValidator
             referencedContracts?: ReferencedCodeHashes
         }
     > {
+        const { userOp, queuedUserOps, entryPoint, codeHashes } = args
         if (codeHashes && codeHashes.addresses.length > 0) {
             const { hash } = await this.getCodeHashes(codeHashes.addresses)
             if (hash !== codeHashes.hash) {
@@ -166,13 +158,13 @@ export class SafeValidator
         }
 
         const [res, tracerResult] = await this.getValidationResultWithTracerV07(
-            userOperation,
-            queuedUserOperations as UserOperationV07[],
+            userOp,
+            queuedUserOps as UserOperationV07[],
             entryPoint
         )
 
         const [contractAddresses, storageMap] = tracerResultParserV07(
-            userOperation,
+            userOp,
             tracerResult,
             res,
             entryPoint.toLowerCase() as Address
@@ -209,12 +201,8 @@ export class SafeValidator
         }
     }
 
-    async getValidationResultV06({
-        userOperation,
-        entryPoint,
-        codeHashes
-    }: {
-        userOperation: UserOperationV06
+    async getValidationResultV06(args: {
+        userOp: UserOperationV06
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
     }): Promise<
@@ -223,6 +211,7 @@ export class SafeValidator
             storageMap: StorageMap
         }
     > {
+        const { userOp, entryPoint, codeHashes } = args
         if (codeHashes && codeHashes.addresses.length > 0) {
             const { hash } = await this.getCodeHashes(codeHashes.addresses)
             if (hash !== codeHashes.hash) {
@@ -234,12 +223,12 @@ export class SafeValidator
         }
 
         const [res, tracerResult] = await this.getValidationResultWithTracerV06(
-            userOperation,
+            userOp,
             entryPoint
         )
 
         const [contractAddresses, storageMap] = tracerResultParserV06(
-            userOperation,
+            userOp,
             tracerResult,
             res,
             entryPoint.toLowerCase() as Address
@@ -293,11 +282,11 @@ export class SafeValidator
     }
 
     async getValidationResultWithTracerV06(
-        userOperation: UserOperationV06,
+        userOp: UserOperationV06,
         entryPoint: Address
     ): Promise<[ValidationResultV06, BundlerTracerResult]> {
         const stateOverrides = getAuthorizationStateOverrides({
-            userOperations: [userOperation]
+            userOps: [userOp]
         })
 
         const tracerResult = await debug_traceCall(
@@ -308,7 +297,7 @@ export class SafeValidator
                 data: encodeFunctionData({
                     abi: EntryPointV06Abi,
                     functionName: "simulateValidation",
-                    args: [userOperation]
+                    args: [userOp]
                 })
             },
             {
@@ -335,7 +324,7 @@ export class SafeValidator
             })
 
             const errFullName = `${errorName}(${errorArgs.toString()})`
-            const errorResult = this.parseErrorResultV06(userOperation, {
+            const errorResult = this.parseErrorResultV06(userOp, {
                 errorName,
                 errorArgs
             })
@@ -356,7 +345,7 @@ export class SafeValidator
     }
 
     parseErrorResultV06(
-        userOperation: UserOperationV06,
+        userOp: UserOperationV06,
         // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
         errorResult: { errorName: string; errorArgs: any }
     ): ValidationResult | ValidationResultWithAggregation {
@@ -428,13 +417,10 @@ export class SafeValidator
             returnInfo,
             senderInfo: {
                 ...senderInfo,
-                addr: userOperation.sender
+                addr: userOp.sender
             },
-            factoryInfo: fillEntity(userOperation.initCode, factoryInfo),
-            paymasterInfo: fillEntity(
-                userOperation.paymasterAndData,
-                paymasterInfo
-            ),
+            factoryInfo: fillEntity(userOp.initCode, factoryInfo),
+            paymasterInfo: fillEntity(userOp.paymasterAndData, paymasterInfo),
             aggregatorInfo: fillEntityAggregator(
                 aggregatorInfo?.actualAggregator,
                 aggregatorInfo?.stakeInfo
@@ -443,16 +429,16 @@ export class SafeValidator
     }
 
     async getValidationResultWithTracerV07(
-        userOperation: UserOperationV07,
-        queuedUserOperations: UserOperationV07[],
+        userOp: UserOperationV07,
+        queuedUserOps: UserOperationV07[],
         entryPoint: Address
     ): Promise<[ValidationResultV07, BundlerTracerResult]> {
-        const packedUserOperation = toPackedUserOperation(userOperation)
-        const packedQueuedUserOperations = queuedUserOperations.map((uop) =>
-            toPackedUserOperation(uop)
+        const packedUserOp = toPackedUserOp(userOp)
+        const packedQueuedUserOps = queuedUserOps.map((uop) =>
+            toPackedUserOp(uop)
         )
 
-        const isV8 = isVersion08(userOperation, entryPoint)
+        const isV8 = isVersion08(userOp, entryPoint)
 
         const entryPointSimulationsAddress = isV8
             ? this.config.entrypointSimulationContractV8
@@ -472,13 +458,13 @@ export class SafeValidator
             args: [
                 entryPointSimulationsAddress,
                 entryPoint,
-                packedQueuedUserOperations,
-                packedUserOperation
+                packedQueuedUserOps,
+                packedUserOp
             ]
         })
 
         const stateOverrides = getAuthorizationStateOverrides({
-            userOperations: [userOperation]
+            userOps: [userOp]
         })
 
         const tracerResult = await debug_traceCall(
@@ -542,20 +528,20 @@ export class SafeValidator
             },
             senderInfo: {
                 ...validationResult.senderInfo,
-                addr: userOperation.sender
+                addr: userOp.sender
             },
             factoryInfo:
-                userOperation.factory && validationResult.factoryInfo
+                userOp.factory && validationResult.factoryInfo
                     ? {
                           ...validationResult.factoryInfo,
-                          addr: userOperation.factory
+                          addr: userOp.factory
                       }
                     : undefined,
             paymasterInfo:
-                userOperation.paymaster && validationResult.paymasterInfo
+                userOp.paymaster && validationResult.paymasterInfo
                     ? {
                           ...validationResult.paymasterInfo,
-                          addr: userOperation.paymaster
+                          addr: userOp.paymaster
                       }
                     : undefined,
             aggregatorInfo: validationResult.aggregatorInfo,

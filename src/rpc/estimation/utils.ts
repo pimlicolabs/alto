@@ -54,18 +54,18 @@ export function parseFailedOpWithRevert(data: Hex) {
 }
 
 export function prepareStateOverride({
-    userOperations,
-    queuedUserOperations,
+    userOps,
+    queuedUserOps,
     stateOverrides,
     config
 }: {
-    userOperations: (UserOperationV06 | UserOperationV07)[]
-    queuedUserOperations: (UserOperationV06 | UserOperationV07)[]
+    userOps: (UserOperationV06 | UserOperationV07)[]
+    queuedUserOps: (UserOperationV06 | UserOperationV07)[]
     stateOverrides?: StateOverrides
     config: Pick<AltoConfig, "balanceOverride" | "codeOverrideSupport">
 }): StateOverride | undefined {
     const stateOverride = getAuthorizationStateOverrides({
-        userOperations: [...queuedUserOperations, ...userOperations],
+        userOps: [...queuedUserOps, ...userOps],
         stateOverrides
     })
 

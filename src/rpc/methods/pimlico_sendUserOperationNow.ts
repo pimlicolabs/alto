@@ -1,8 +1,8 @@
 import {
-    getUserOperationHash,
+    getUserOpHash,
     isVersion07,
     isVersion08,
-    parseUserOperationReceipt
+    parseUserOpReceipt
 } from "@alto/utils"
 import { createMethodHandler } from "../createMethodHandler"
 import {
@@ -25,18 +25,18 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             )
         }
 
-        const [userOperation, entryPoint] = params
+        const [userOp, entryPoint] = params
         rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
-        const opHash = await getUserOperationHash({
-            userOperation: userOperation,
+        const opHash = await getUserOpHash({
+            userOp,
             entryPointAddress: entryPoint,
             chainId: rpcHandler.config.chainId,
             publicClient: rpcHandler.config.publicClient
         })
 
         const [preMempoolValid, preMempoolError] =
-            await rpcHandler.preMempoolChecks(userOperation, apiVersion)
+            await rpcHandler.preMempoolChecks(userOp, apiVersion)
 
         if (!preMempoolValid) {
             throw new RpcError(preMempoolError)
@@ -44,9 +44,9 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
 
         // Prepare bundle
         const userOpInfo: UserOpInfo = {
-            userOp: userOperation,
-            userOpHash: await getUserOperationHash({
-                userOperation: userOperation,
+            userOp,
+            userOpHash: await getUserOpHash({
+                userOp,
                 entryPointAddress: entryPoint,
                 chainId: rpcHandler.config.chainId,
                 publicClient: rpcHandler.config.publicClient
@@ -57,9 +57,9 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
 
         // Derive version
         let version: EntryPointVersion
-        if (isVersion08(userOperation, entryPoint)) {
+        if (isVersion08(userOp, entryPoint)) {
             version = "0.8"
-        } else if (isVersion07(userOperation)) {
+        } else if (isVersion07(userOp)) {
             version = "0.7"
         } else {
             version = "0.6"
@@ -89,6 +89,6 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
                 pollingInterval: 100
             })
 
-        return parseUserOperationReceipt(opHash, receipt)
+        return parseUserOpReceipt(opHash, receipt)
     }
 })

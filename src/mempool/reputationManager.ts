@@ -18,33 +18,33 @@ import { ReadonlyDeep } from "type-fest"
 
 export interface InterfaceReputationManager {
     checkReputation(
-        userOperation: UserOperation,
+        userOp: UserOperation,
         entryPoint: Address,
         validationResult: ValidationResult | ValidationResultWithAggregation
     ): void
-    increaseUserOperationSeenStatus(
-        userOperation: UserOperation,
+    increaseUserOpSeenStatus(
+        userOp: UserOperation,
         entryPoint: Address
     ): Promise<void>
-    replaceUserOperationSeenStatus(
-        userOperation: UserOperation,
+    replaceUserOpSeenStatus(
+        userOp: UserOperation,
         entryPoint: Address
     ): Promise<void>
-    decreaseUserOperationSeenStatus(
-        userOperation: UserOperation,
+    decreaseUserOpSeenStatus(
+        userOp: UserOperation,
         entryPoint: Address,
         error: string
     ): Promise<void>
-    increaseUserOperationCount(userOperation: UserOperation): void
-    decreaseUserOperationCount(userOperation: UserOperation): void
+    increaseUserOpCount(userOp: UserOperation): void
+    decreaseUserOpCount(userOp: UserOperation): void
     getStatus(entryPoint: Address, address: Address | null): ReputationStatus
-    updateUserOperationIncludedStatus(
-        userOperation: UserOperation,
+    updateUserOpIncludedStatus(
+        userOp: UserOperation,
         entryPoint: Address,
         accountDeployed: boolean
     ): void
     crashedHandleOps(
-        userOperation: UserOperation,
+        userOp: UserOperation,
         entryPoint: Address,
         reason: string
     ): void
@@ -109,36 +109,36 @@ export const BundlerReputationParams: ReputationParams = {
 
 export class NullReputationManager implements InterfaceReputationManager {
     checkReputation(
-        _userOperation: UserOperation,
+        _userOp: UserOperation,
         _entryPoint: Address,
         _validationResult: ValidationResult | ValidationResultWithAggregation
     ): void {
         return
     }
 
-    increaseUserOperationCount(_: UserOperation): void {
+    increaseUserOpCount(_: UserOperation): void {
         return
     }
 
-    decreaseUserOperationCount(_: UserOperation): void {
+    decreaseUserOpCount(_: UserOperation): void {
         return
     }
 
-    increaseUserOperationSeenStatus(
+    increaseUserOpSeenStatus(
         _: UserOperation,
         _entryPoint: Address
     ): Promise<void> {
         return Promise.resolve()
     }
 
-    replaceUserOperationSeenStatus(
+    replaceUserOpSeenStatus(
         _: UserOperation,
         _entryPoint: Address
     ): Promise<void> {
         return Promise.resolve()
     }
 
-    decreaseUserOperationSeenStatus(
+    decreaseUserOpSeenStatus(
         _: UserOperation,
         _entryPoint: Address,
         _error: string
@@ -146,7 +146,7 @@ export class NullReputationManager implements InterfaceReputationManager {
         return Promise.resolve()
     }
 
-    updateUserOperationIncludedStatus(
+    updateUserOpIncludedStatus(
         _: UserOperation,
         _entryPoint: Address,
         __: boolean
@@ -203,8 +203,8 @@ export class ReputationManager implements InterfaceReputationManager {
     private config: AltoConfig
     private entityCount: { [address: Address]: bigint } = {}
     private throttledEntityMinMempoolCount: bigint
-    private maxMempoolUserOperationsPerSender: bigint
-    private maxMempoolUserOperationsPerNewUnstakedEntity: bigint
+    private maxMempoolUserOpsPerSender: bigint
+    private maxMempoolUserOpsPerNewUnstakedEntity: bigint
     private inclusionRateFactor: bigint
     private entries: {
         [entryPoint: Address]: { [address: Address]: ReputationEntry }
@@ -222,10 +222,10 @@ export class ReputationManager implements InterfaceReputationManager {
                 level: config.reputationManagerLogLevel || config.logLevel
             }
         )
-        this.maxMempoolUserOperationsPerNewUnstakedEntity = 10n
+        this.maxMempoolUserOpsPerNewUnstakedEntity = 10n
         this.inclusionRateFactor = 10n
         this.throttledEntityMinMempoolCount = 4n
-        this.maxMempoolUserOperationsPerSender = 4n
+        this.maxMempoolUserOpsPerSender = 4n
         this.bundlerReputationParams = BundlerReputationParams
 
         // Currently we don't have any args for blacklist and whitelist
@@ -318,17 +318,17 @@ export class ReputationManager implements InterfaceReputationManager {
     }
 
     checkReputation(
-        userOperation: UserOperation,
+        userOp: UserOperation,
         entryPoint: Address,
         validationResult: ValidationResult | ValidationResultWithAggregation
     ): void {
-        this.increaseUserOperationCount(userOperation)
+        this.increaseUserOpCount(userOp)
 
         this.checkReputationStatus(
             entryPoint,
             EntityType.Account,
             validationResult.senderInfo,
-            this.maxMempoolUserOperationsPerSender
+            this.maxMempoolUserOpsPerSender
         )
 
         if (validationResult.paymasterInfo) {
@@ -448,20 +448,18 @@ export class ReputationManager implements InterfaceReputationManager {
         entry.opsIncluded++
     }
 
-    updateUserOperationIncludedStatus(
-        userOperation: UserOperation,
+    updateUserOpIncludedStatus(
+        userOp: UserOperation,
         entryPoint: Address,
         accountDeployed: boolean
     ): void {
-        const sender = userOperation.sender
+        const sender = userOp.sender
         this.updateIncludedStatus(entryPoint, sender)
-        const isUserOpV06 = isVersion06(userOperation)
+        const isUserOpV06 = isVersion06(userOp)
 
         const paymaster = isUserOpV06
-            ? getAddressFromInitCodeOrPaymasterAndData(
-                  userOperation.paymasterAndData
-              )
-            : (userOperation.paymaster as Address | undefined)
+            ? getAddressFromInitCodeOrPaymasterAndData(userOp.paymasterAndData)
+            : (userOp.paymaster as Address | undefined)
         if (paymaster) {
             this.updateIncludedStatus(entryPoint, paymaster)
         }
@@ -469,10 +467,8 @@ export class ReputationManager implements InterfaceReputationManager {
         if (accountDeployed) {
             const factory = (
                 isUserOpV06
-                    ? getAddressFromInitCodeOrPaymasterAndData(
-                          userOperation.initCode
-                      )
-                    : userOperation.factory
+                    ? getAddressFromInitCodeOrPaymasterAndData(userOp.initCode)
+                    : userOp.factory
             ) as Address | undefined
             if (factory) {
                 this.updateIncludedStatus(entryPoint, factory)
@@ -480,11 +476,11 @@ export class ReputationManager implements InterfaceReputationManager {
         }
     }
 
-    async increaseUserOperationSeenStatus(
-        userOperation: UserOperation,
+    async increaseUserOpSeenStatus(
+        userOp: UserOperation,
         entryPoint: Address
     ): Promise<void> {
-        const sender = userOperation.sender
+        const sender = userOp.sender
 
         const stakeInfo = await this.getStakeStatus(entryPoint, sender)
 
@@ -492,28 +488,24 @@ export class ReputationManager implements InterfaceReputationManager {
             this.increaseSeen(entryPoint, sender)
         }
 
-        const isUserOpV06 = isVersion06(userOperation)
+        const isUserOpV06 = isVersion06(userOp)
 
         const paymaster = isUserOpV06
-            ? getAddressFromInitCodeOrPaymasterAndData(
-                  userOperation.paymasterAndData
-              )
-            : (userOperation.paymaster as Address | undefined)
+            ? getAddressFromInitCodeOrPaymasterAndData(userOp.paymasterAndData)
+            : (userOp.paymaster as Address | undefined)
         if (paymaster) {
             this.increaseSeen(entryPoint, paymaster)
         }
 
         const factory = (
             isUserOpV06
-                ? getAddressFromInitCodeOrPaymasterAndData(
-                      userOperation.initCode
-                  )
-                : userOperation.factory
+                ? getAddressFromInitCodeOrPaymasterAndData(userOp.initCode)
+                : userOp.factory
         ) as Address | undefined
 
         this.logger.debug(
-            { userOperation, factory },
-            "increaseUserOperationSeenStatus"
+            { userOp, factory },
+            "increaseUserOpSeenStatus"
         )
 
         if (factory) {
@@ -521,11 +513,11 @@ export class ReputationManager implements InterfaceReputationManager {
         }
     }
 
-    async replaceUserOperationSeenStatus(
-        userOperation: UserOperation,
+    async replaceUserOpSeenStatus(
+        userOp: UserOperation,
         entryPoint: Address
     ): Promise<void> {
-        const sender = userOperation.sender
+        const sender = userOp.sender
 
         const stakeInfo = await this.getStakeStatus(entryPoint, sender)
 
@@ -533,28 +525,24 @@ export class ReputationManager implements InterfaceReputationManager {
             this.decreaseSeen(entryPoint, sender)
         }
 
-        const isUserOpV06 = isVersion06(userOperation)
+        const isUserOpV06 = isVersion06(userOp)
 
         const paymaster = isUserOpV06
-            ? getAddressFromInitCodeOrPaymasterAndData(
-                  userOperation.paymasterAndData
-              )
-            : (userOperation.paymaster as Address | undefined)
+            ? getAddressFromInitCodeOrPaymasterAndData(userOp.paymasterAndData)
+            : (userOp.paymaster as Address | undefined)
         if (paymaster) {
             this.decreaseSeen(entryPoint, paymaster)
         }
 
         const factory = (
             isUserOpV06
-                ? getAddressFromInitCodeOrPaymasterAndData(
-                      userOperation.initCode
-                  )
-                : userOperation.factory
+                ? getAddressFromInitCodeOrPaymasterAndData(userOp.initCode)
+                : userOp.factory
         ) as Address | undefined
 
         this.logger.debug(
-            { userOperation, factory },
-            "increaseUserOperationSeenStatus"
+            { userOp, factory },
+            "increaseUserOpSeenStatus"
         )
 
         if (factory) {
@@ -562,12 +550,12 @@ export class ReputationManager implements InterfaceReputationManager {
         }
     }
 
-    async decreaseUserOperationSeenStatus(
-        userOperation: UserOperation,
+    async decreaseUserOpSeenStatus(
+        userOp: UserOperation,
         entryPoint: Address,
         errorReason: string
     ): Promise<void> {
-        const sender = userOperation.sender
+        const sender = userOp.sender
 
         const senderStakeInfo = await this.getStakeStatus(entryPoint, sender)
 
@@ -575,13 +563,11 @@ export class ReputationManager implements InterfaceReputationManager {
             this.decreaseSeen(entryPoint, sender)
         }
 
-        const isUserOpV06 = isVersion06(userOperation)
+        const isUserOpV06 = isVersion06(userOp)
 
         const paymaster = isUserOpV06
-            ? getAddressFromInitCodeOrPaymasterAndData(
-                  userOperation.paymasterAndData
-              )
-            : (userOperation.paymaster as Address | undefined)
+            ? getAddressFromInitCodeOrPaymasterAndData(userOp.paymasterAndData)
+            : (userOp.paymaster as Address | undefined)
 
         // can decrease if senderStakeInfo.isStaked is true
         // or when error does not include aa3
@@ -595,15 +581,13 @@ export class ReputationManager implements InterfaceReputationManager {
 
         const factory = (
             isUserOpV06
-                ? getAddressFromInitCodeOrPaymasterAndData(
-                      userOperation.initCode
-                  )
-                : userOperation.factory
+                ? getAddressFromInitCodeOrPaymasterAndData(userOp.initCode)
+                : userOp.factory
         ) as Address | undefined
 
         this.logger.debug(
-            { userOperation, factory },
-            "decreaseUserOperationSeenStatus"
+            { userOp, factory },
+            "decreaseUserOpSeenStatus"
         )
 
         if (factory) {
@@ -611,16 +595,14 @@ export class ReputationManager implements InterfaceReputationManager {
         }
     }
 
-    increaseUserOperationCount(userOperation: UserOperation) {
-        const sender = userOperation.sender
+    increaseUserOpCount(userOp: UserOperation) {
+        const sender = userOp.sender
         this.entityCount[sender] = (this.entityCount[sender] ?? 0n) + 1n
-        const isUserOpV06 = isVersion06(userOperation)
+        const isUserOpV06 = isVersion06(userOp)
 
         const paymaster = isUserOpV06
-            ? getAddressFromInitCodeOrPaymasterAndData(
-                  userOperation.paymasterAndData
-              )
-            : (userOperation.paymaster as Address | undefined)
+            ? getAddressFromInitCodeOrPaymasterAndData(userOp.paymasterAndData)
+            : (userOp.paymaster as Address | undefined)
         if (paymaster) {
             this.entityCount[paymaster] =
                 (this.entityCount[paymaster] ?? 0n) + 1n
@@ -628,29 +610,25 @@ export class ReputationManager implements InterfaceReputationManager {
 
         const factory = (
             isUserOpV06
-                ? getAddressFromInitCodeOrPaymasterAndData(
-                      userOperation.initCode
-                  )
-                : userOperation.factory
+                ? getAddressFromInitCodeOrPaymasterAndData(userOp.initCode)
+                : userOp.factory
         ) as Address | undefined
         if (factory) {
             this.entityCount[factory] = (this.entityCount[factory] ?? 0n) + 1n
         }
     }
 
-    decreaseUserOperationCount(userOperation: UserOperation) {
-        const sender = userOperation.sender
+    decreaseUserOpCount(userOp: UserOperation) {
+        const sender = userOp.sender
         this.entityCount[sender] = (this.entityCount[sender] ?? 0n) - 1n
-        const isUserOpV06 = isVersion06(userOperation)
+        const isUserOpV06 = isVersion06(userOp)
 
         this.entityCount[sender] =
             this.entityCount[sender] < 0n ? 0n : this.entityCount[sender]
 
         const paymaster = isUserOpV06
-            ? getAddressFromInitCodeOrPaymasterAndData(
-                  userOperation.paymasterAndData
-              )
-            : (userOperation.paymaster as Address | undefined)
+            ? getAddressFromInitCodeOrPaymasterAndData(userOp.paymasterAndData)
+            : (userOp.paymaster as Address | undefined)
         if (paymaster) {
             this.entityCount[paymaster] =
                 (this.entityCount[paymaster] ?? 0n) - 1n
@@ -663,10 +641,8 @@ export class ReputationManager implements InterfaceReputationManager {
 
         const factory = (
             isUserOpV06
-                ? getAddressFromInitCodeOrPaymasterAndData(
-                      userOperation.initCode
-                  )
-                : userOperation.factory
+                ? getAddressFromInitCodeOrPaymasterAndData(userOp.initCode)
+                : userOp.factory
         ) as Address | undefined
         if (factory) {
             this.entityCount[factory] = (this.entityCount[factory] ?? 0n) - 1n
@@ -680,11 +656,11 @@ export class ReputationManager implements InterfaceReputationManager {
         entryPoint: Address,
         entityType: EntityType,
         stakeInfo: StakeInfo,
-        maxMempoolUserOperationsPerSenderOverride?: bigint
+        maxMempoolUserOpsPerSenderOverride?: bigint
     ) {
         const maxTxMempoolAllowedEntity =
-            maxMempoolUserOperationsPerSenderOverride ??
-            this.calCulateMaxMempoolUserOperationsPerEntity(
+            maxMempoolUserOpsPerSenderOverride ??
+            this.calCulateMaxMempoolUserOpsPerEntity(
                 entryPoint,
                 stakeInfo.addr as Address
             )
@@ -811,13 +787,13 @@ export class ReputationManager implements InterfaceReputationManager {
         }
     }
 
-    calCulateMaxMempoolUserOperationsPerEntity(
+    calCulateMaxMempoolUserOpsPerEntity(
         entryPoint: Address,
         address: Address
     ): bigint {
         const entry = this.entries[entryPoint][address]
         if (!entry) {
-            return this.maxMempoolUserOperationsPerNewUnstakedEntity
+            return this.maxMempoolUserOpsPerNewUnstakedEntity
         }
         let inclusionRate = 0n
         if (entry.opsSeen !== 0n) {
@@ -825,7 +801,7 @@ export class ReputationManager implements InterfaceReputationManager {
             inclusionRate = entry.opsIncluded / entry.opsSeen
         }
         return (
-            this.maxMempoolUserOperationsPerNewUnstakedEntity +
+            this.maxMempoolUserOpsPerNewUnstakedEntity +
             inclusionRate * this.inclusionRateFactor +
             (entry.opsIncluded > 10000n ? 10000n : entry.opsIncluded)
         )
