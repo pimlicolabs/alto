@@ -400,7 +400,7 @@ export class GasEstimatorV07 {
 
         const viemStateOverride = prepareStateOverride({
             userOps: [userOp],
-            queuedUserOps: queuedUserOps,
+            queuedUserOps,
             config: this.config
         })
 
@@ -449,7 +449,7 @@ export class GasEstimatorV07 {
 
         const viemStateOverride = prepareStateOverride({
             userOps: [userOp],
-            queuedUserOps: queuedUserOps,
+            queuedUserOps,
             stateOverrides,
             config: this.config
         })
@@ -501,7 +501,7 @@ export class GasEstimatorV07 {
     }): Promise<SimulateHandleOpResult> {
         const viemStateOverride = prepareStateOverride({
             userOps: [userOp],
-            queuedUserOps: queuedUserOps,
+            queuedUserOps,
             stateOverrides: userStateOverrides,
             config: this.config
         })

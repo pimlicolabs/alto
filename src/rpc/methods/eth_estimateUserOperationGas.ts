@@ -149,7 +149,7 @@ const getGasEstimates = async ({
 
     const executionResult = await rpcHandler.validator.getExecutionResult({
         userOp: simulationUserOp,
-        queuedUserOps: queuedUserOps,
+        queuedUserOps,
         entryPoint,
         stateOverrides: deepHexlify(mutableStateOverrides)
     })

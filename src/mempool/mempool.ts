@@ -562,7 +562,7 @@ export class Mempool {
 
             validationResult = await this.validator.validateUserOp({
                 userOp,
-                queuedUserOps: queuedUserOps,
+                queuedUserOps,
                 entryPoint,
                 referencedContracts
             })
