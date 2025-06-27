@@ -1,7 +1,4 @@
-import {
-    getNonceKeyAndSequence,
-    getUserOpHash
-} from "../../utils/userop"
+import { getNonceKeyAndSequence, getUserOpHash } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import {
     sendUserOperationSchema,
@@ -78,7 +75,7 @@ const getUserOpValidationResult = async (
         })
     const validationResult = await rpcHandler.validator.validateUserOp({
         userOp,
-        queuedUserOps: queuedUserOps,
+        queuedUserOps,
         entryPoint
     })
 
@@ -171,10 +168,7 @@ export async function addToMempoolIfValid({
         throw new RpcError(reason, ValidationErrors.InvalidFields)
     }
 
-    if (
-        userOpNonceSeq >
-        currentNonceSeq + BigInt(queuedUserOps.length)
-    ) {
+    if (userOpNonceSeq > currentNonceSeq + BigInt(queuedUserOps.length)) {
         rpcHandler.mempool.add(userOp, entryPoint)
         rpcHandler.eventManager.emitQueued(userOpHash)
         return { result: "queued", userOpHash }
