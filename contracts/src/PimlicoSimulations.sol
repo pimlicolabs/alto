@@ -12,6 +12,7 @@ import {IEntryPoint as IEntryPoint08} from "account-abstraction-v8/interfaces/IE
 
 import {Exec} from "account-abstraction-v7/utils/Exec.sol";
 import {LibBytes} from "solady/utils/LibBytes.sol";
+import {ERC20} from "solady/tokens/ERC20.sol";
 
 /// @title PimlicoSimulations
 /// @author Pimlico (https://github.com/pimlicolabs/alto)
@@ -44,6 +45,9 @@ contract PimlicoSimulations {
     }
 
     event PimlicoSimulationDeployed();
+
+    // @notice Error wrapper for ERC-20 PostOp validation.
+    error EntryPointError(bytes data);
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                        Variables                           */
@@ -337,5 +341,45 @@ contract PimlicoSimulations {
             balanceChange: totalBalanceChange,
             rejectedUserOps: rejectedUserOps
         });
+    }
+
+    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /*                ERC-20 Paymaster Validation                 */
+    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+
+    function validateErc20PostOp06(
+        UserOperation memory userOperation,
+        address entryPoint,
+        ERC20 token,
+        address treasury
+    ) external returns (uint256) {
+        uint256 balanceBefore = token.balanceOf(treasury);
+
+        (, bytes memory b) = entryPoint.call(
+            abi.encodeWithSelector(
+                IEntryPoint06.simulateHandleOp.selector,
+                userOperation,
+                address(token),
+                abi.encodeWithSignature("balanceOf(address)", treasury)
+            )
+        );
+
+        // Check that we get back the expected error selector.
+        bytes4 returnedSelector = bytes4(b.slice(0, 4));
+        if (returnedSelector != IEntryPoint06.ExecutionResult.selector) {
+            revert EntryPointError(b);
+        }
+
+        // Slice the ExecutionResult to remove the first 4 bytes (selector)
+        bytes memory actualData = b.slice(4, b.length);
+
+        // Decode the remaining data
+        (,,,,, bytes memory targetResult) = abi.decode(actualData, (uint256, uint256, uint48, uint48, bool, bytes));
+        uint256 balanceAfter = abi.decode(targetResult, (uint256));
+
+        // Decode balanceAfter from target call.
+        uint256 balanceChange = balanceAfter - balanceBefore;
+
+        return balanceChange;
     }
 }
