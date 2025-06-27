@@ -503,10 +503,7 @@ export class ReputationManager implements InterfaceReputationManager {
                 : userOp.factory
         ) as Address | undefined
 
-        this.logger.debug(
-            { userOp, factory },
-            "increaseUserOpSeenStatus"
-        )
+        this.logger.debug({ userOp, factory }, "increaseUserOpSeenStatus")
 
         if (factory) {
             this.increaseSeen(entryPoint, factory)
@@ -540,10 +537,7 @@ export class ReputationManager implements InterfaceReputationManager {
                 : userOp.factory
         ) as Address | undefined
 
-        this.logger.debug(
-            { userOp, factory },
-            "increaseUserOpSeenStatus"
-        )
+        this.logger.debug({ userOp, factory }, "increaseUserOpSeenStatus")
 
         if (factory) {
             this.decreaseSeen(entryPoint, factory)
@@ -585,10 +579,7 @@ export class ReputationManager implements InterfaceReputationManager {
                 : userOp.factory
         ) as Address | undefined
 
-        this.logger.debug(
-            { userOp, factory },
-            "decreaseUserOpSeenStatus"
-        )
+        this.logger.debug({ userOp, factory }, "decreaseUserOpSeenStatus")
 
         if (factory) {
             this.decreaseSeen(entryPoint, factory)
@@ -660,7 +651,7 @@ export class ReputationManager implements InterfaceReputationManager {
     ) {
         const maxTxMempoolAllowedEntity =
             maxMempoolUserOpsPerSenderOverride ??
-            this.calCulateMaxMempoolUserOpsPerEntity(
+            this.calculateMaxMempoolUserOpsPerEntity(
                 entryPoint,
                 stakeInfo.addr as Address
             )
@@ -787,7 +778,7 @@ export class ReputationManager implements InterfaceReputationManager {
         }
     }
 
-    calCulateMaxMempoolUserOpsPerEntity(
+    calculateMaxMempoolUserOpsPerEntity(
         entryPoint: Address,
         address: Address
     ): bigint {
