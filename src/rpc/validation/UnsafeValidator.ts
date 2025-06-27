@@ -158,7 +158,7 @@ export class UnsafeValidator implements InterfaceValidator {
         entryPoint: Address
         queuedUserOperations: UserOperation[]
         stateOverrides?: StateOverrides
-    }): Promise<SimulateHandleOpResult<"execution">> {
+    }): Promise<SimulateHandleOpResult> {
         const error = await this.gasEstimationHandler.validateHandleOp({
             userOperation,
             queuedUserOperations,
@@ -181,7 +181,7 @@ export class UnsafeValidator implements InterfaceValidator {
             )
         }
 
-        return error as SimulateHandleOpResult<"execution">
+        return error
     }
 
     async getExecutionResult({
@@ -194,7 +194,7 @@ export class UnsafeValidator implements InterfaceValidator {
         entryPoint: Address
         queuedUserOperations: UserOperation[]
         stateOverrides?: StateOverrides
-    }): Promise<SimulateHandleOpResult<"execution" | "failed">> {
+    }): Promise<SimulateHandleOpResult> {
         const error = await this.gasEstimationHandler.simulateHandleOp({
             userOperation,
             queuedUserOperations,
@@ -224,7 +224,7 @@ export class UnsafeValidator implements InterfaceValidator {
             }
         }
 
-        return error as SimulateHandleOpResult<"execution">
+        return error
     }
 
     async getValidationResultV06({
@@ -419,14 +419,14 @@ export class UnsafeValidator implements InterfaceValidator {
             referencedContracts?: ReferencedCodeHashes
         }
     > {
-        const { simulateValidationResult } =
+        const simulateValidationResult =
             await this.gasEstimationHandler.gasEstimatorV07.simulateValidation({
                 entryPoint,
                 userOperation,
                 queuedUserOperations
             })
 
-        if (simulateValidationResult.status === "failed") {
+        if (simulateValidationResult.result === "failed") {
             throw new RpcError(
                 `UserOperation reverted with reason: ${
                     simulateValidationResult.data as string

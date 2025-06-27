@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
+// Note: Modified version of EntryPoint 0.8 SenderCreator that uses interface from account-abstraction-v7 to avoid conflicts.
 pragma solidity ^0.8.28;
 /* solhint-disable avoid-low-level-calls */
 /* solhint-disable no-inline-assembly */
 
 import "account-abstraction-v8/interfaces/ISenderCreator.sol";
-import "./IEntryPoint.sol";
-import "account-abstraction-v8/utils/Exec.sol";
+import "account-abstraction-v7/interfaces/IEntryPoint.sol";
+import "account-abstraction-v7/utils/Exec.sol";
 
 /**
  * Helper contract for EntryPoint, to call userOp.initCode from a "neutral" address,

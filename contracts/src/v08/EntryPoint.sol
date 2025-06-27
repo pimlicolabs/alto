@@ -3,27 +3,24 @@ pragma solidity ^0.8.28;
 /* solhint-disable avoid-low-level-calls */
 /* solhint-disable no-inline-assembly */
 
-import "account-abstraction-v8/interfaces/IAccount.sol";
-import "account-abstraction-v8/interfaces/IAccountExecute.sol";
-import "./IEntryPoint.sol";
-import "account-abstraction-v8/interfaces/IPaymaster.sol";
+// @note: Versions 0.7 and 0.8 have identical interfaces.
+import "account-abstraction-v7/interfaces/IAccount.sol";
+import "account-abstraction-v7/interfaces/IAccountExecute.sol";
+import "account-abstraction-v7/interfaces/IPaymaster.sol";
+import "account-abstraction-v7/core/NonceManager.sol";
+import "account-abstraction-v7/utils/Exec.sol";
 
-import "account-abstraction-v8/core/UserOperationLib.sol";
-import "account-abstraction-v8/core/StakeManager.sol";
-import "account-abstraction-v8/core/NonceManager.sol";
+import "./overrides/SenderCreator.sol";
+import "./overrides/Eip7702Support.sol";
+import "./overrides/StakeManager.sol";
+import "./overrides/UserOperationLib.sol";
+
 import "account-abstraction-v8/core/Helpers.sol";
-import "./SenderCreator.sol";
-import "./Eip7702Support.sol";
-import "account-abstraction-v8/utils/Exec.sol";
 
 import "@openzeppelin-v5.1.0/contracts/utils/ReentrancyGuardTransient.sol";
 import "@openzeppelin-v5.1.0/contracts/utils/cryptography/EIP712.sol";
 
-/**
- * Account-Abstraction (EIP-4337) singleton EntryPoint v0.8 implementation.
- * Only one instance required on each chain.
- * @custom:security-contact https://bounty.ethereum.org
- */
+/// @custom:notice This EntryPoint closely resembles the actual EntryPoint with some diffs seen at https://www.diffchecker.com/a5ngpwSm/
 contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardTransient, EIP712 {
     // Custom event for bubbling up callphase reverts.
     error CallPhaseReverted(bytes reason);
@@ -52,6 +49,14 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
 
     constructor() EIP712(DOMAIN_NAME, DOMAIN_VERSION) {}
 
+    function handleOps(PackedUserOperation[] calldata, address payable) external nonReentrant {
+        revert("SHOULD NOT BE CALLED DURING SIMULATIONS");
+    }
+
+    function handleAggregatedOps(UserOpsPerAggregator[] calldata, address payable) external nonReentrant {
+        revert("SHOULD NOT BE CALLED DURING SIMULATIONS");
+    }
+
     /// @inheritdoc IEntryPoint
     function getUserOpHash(PackedUserOperation calldata userOp) public view returns (bytes32) {
         bytes32 overrideInitCodeHash = Eip7702Support._getEip7702InitCodeHashOverride(userOp);
@@ -59,6 +64,11 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
     }
 
     /// @inheritdoc IEntryPoint
+    function getSenderAddress(bytes calldata initCode) external {
+        address sender = senderCreator().createSender(initCode);
+        revert SenderAddressResult(sender);
+    }
+
     function senderCreator() public view virtual returns (ISenderCreator) {
         return this.senderCreator();
     }
@@ -318,7 +328,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
 
         outOpInfo.prefund = _getRequiredPrefund(mUserOp);
         if (mUserOp.paymaster != address(0)) {
-            (context, paymasterValidationData) = _validatePaymasterPrepayment(opIndex, userOp, outOpInfo, gasleft());
+            (context, paymasterValidationData) = _validatePaymasterPrepayment(opIndex, userOp, outOpInfo);
         }
     }
 
@@ -374,12 +384,11 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
      * @return context                           - The Paymaster-provided value to be passed to the 'postOp' function later
      * @return validationData                    - The Paymaster's validationData.
      */
-    function _validatePaymasterPrepayment(
-        uint256 opIndex,
-        PackedUserOperation calldata op,
-        UserOpInfo memory opInfo,
-        uint256 pmVerificationGasLimit
-    ) internal virtual returns (bytes memory context, uint256 validationData) {
+    function _validatePaymasterPrepayment(uint256 opIndex, PackedUserOperation calldata op, UserOpInfo memory opInfo)
+        internal
+        virtual
+        returns (bytes memory context, uint256 validationData)
+    {
         unchecked {
             uint256 preGas = gasleft();
             MemoryUserOp memory mUserOp = opInfo.mUserOp;
@@ -557,8 +566,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         bytes memory context;
         uint256 remainingGas = gasleft();
         if (mUserOp.paymaster != address(0) && validatePaymasterPrepayment) {
-            (context, paymasterValidationData) =
-                _validatePaymasterPrepayment(opIndex, userOp, outOpInfo, userOp.unpackPaymasterVerificationGasLimit());
+            (context, paymasterValidationData) = _validatePaymasterPrepayment(opIndex, userOp, outOpInfo);
         }
         paymasterVerificationGasLimit = ((remainingGas - gasleft()) * 115) / 100;
         unchecked {

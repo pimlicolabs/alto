@@ -1,66 +1,16 @@
-## Foundry
+# Alto Contracts
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+This directory contains smart contracts used for simulation and validation in bundler.
 
-Foundry consists of:
+## Purpose
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+The contracts in this directory serve as supporting infrastructure for the bundler's operation, providing:
+- Simulation capabilities for user operations
+- Validation helpers for gas estimation
 
-## Documentation
+## EntryPoint Interface Handling
 
-https://getfoundry.sh/
-
-## Usage
-
-### Build
-
-```shell
-$ forge build
-```
-
-### Test
-
-```shell
-$ forge test
-```
-
-### Format
-
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+For EntryPoint 0.8 support, we leverage the fact that 0.7 and 0.8 share the same interface. To avoid duplication:
+- We use 0.7 interfaces throughout the codebase
+- Where necessary, we override specific files to handle cases where only the interface import has changed
+- This approach prevents Solidity compilation errors while maintaining compatibility with both versions

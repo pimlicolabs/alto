@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
+import {IEntryPointSimulations} from "./IEntryPointSimulations.sol";
+
 import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import {UserOperation} from "account-abstraction-v6/interfaces/UserOperation.sol";
 
@@ -21,15 +23,24 @@ contract PimlicoSimulations {
     /*                          Types                             */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
+    // Return type for filterOps.
     struct RejectedUserOp {
         bytes32 userOpHash;
         bytes revertReason;
     }
 
+    // Return type for filterOps.
     struct FilterOpsResult {
         uint256 gasUsed;
         uint256 balanceChange;
         RejectedUserOp[] rejectedUserOps;
+    }
+
+    // Return type for verifcation ans estimation.
+    struct SimulateAndEstimateGasResult {
+        IEntryPointSimulations.ExecutionResult simulationResult;
+        IEntryPointSimulations.BinarySearchResult verificationGasLimit;
+        IEntryPointSimulations.BinarySearchResult paymasterVerificationGasLimit;
     }
 
     event PimlicoSimulationDeployed();
@@ -50,14 +61,13 @@ contract PimlicoSimulations {
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-    /*                    Estimation Methods                      */
+    /*                      Arbitrary Calls                       */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    function simulateEntryPoint(address entryPointSimulation, address payable entryPoint, bytes[] memory data)
+    function simulateEntryPointBulk(address entryPointSimulation, address payable entryPoint, bytes[] memory data)
         public
         returns (bytes[] memory)
     {
-        uint256 REVERT_REASON_MAX_LEN = type(uint256).max;
         bytes[] memory returnDataArray = new bytes[](data.length);
 
         for (uint256 i = 0; i < data.length; i++) {
@@ -66,12 +76,168 @@ contract PimlicoSimulations {
                 abi.encodeWithSelector(IEntryPoint07.delegateAndRevert.selector, entryPointSimulation, data[i]);
             bool success = Exec.call(entryPoint, 0, callData, gasleft());
             if (!success) {
-                returnData = Exec.getReturnData(REVERT_REASON_MAX_LEN);
+                returnData = Exec.getReturnData(type(uint256).max);
             }
             returnDataArray[i] = returnData;
         }
 
         return returnDataArray;
+    }
+
+    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /*                    Estimation Methods                      */
+    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+
+    function _simulateEntryPoint(address entryPointSimulation, address entryPoint, bytes memory data)
+        private
+        returns (bytes memory)
+    {
+        bytes memory returnData;
+        bytes4 selector = IEntryPoint07.delegateAndRevert.selector;
+        bytes memory callData = abi.encodeWithSelector(selector, entryPointSimulation, data);
+        bool success = Exec.call(entryPoint, 0, callData, gasleft());
+
+        if (!success) {
+            returnData = Exec.getReturnData(type(uint256).max);
+        } else {
+            revert("DelegateAndRevert did not revert as expected");
+        }
+
+        // Check if we have at least 4 bytes for the selector.
+        if (returnData.length < 4) {
+            revert("DelegateAndRevert revert data is too short");
+        }
+
+        // Extract the 4-byte selector using slice.
+        bytes4 revertIdentifier = bytes4(returnData.slice(0, 4));
+        if (revertIdentifier == IEntryPoint07.delegateAndRevert.selector) {
+            revert("DelegateAndRevert did not revert with DelegateAndRevert error");
+        }
+
+        // Extract the revert data using slice.
+        bytes memory revertData = returnData.slice(4, returnData.length);
+        (bool delegateAndRevertSuccess, bytes memory delegateAndRevertData) = abi.decode(revertData, (bool, bytes));
+
+        if (!delegateAndRevertSuccess) {
+            Exec.revertWithData(delegateAndRevertData);
+        }
+
+        return delegateAndRevertData;
+    }
+
+    /// @notice Simulates userOp and estimates verification & paymaster gas limits
+    function simulateAndEstimateGas(
+        address entryPointSimulation,
+        address payable entryPoint,
+        PackedUserOperation[] calldata queuedUserOps,
+        PackedUserOperation calldata targetUserOp,
+        uint256 initialMinGas,
+        uint256 toleranceDelta,
+        uint256 gasAllowance
+    ) external returns (SimulateAndEstimateGasResult memory result) {
+        // Step 1: Simulate the operation to ensure it's valid
+        bytes4 selector = IEntryPointSimulations.simulateHandleOp.selector;
+        bytes memory data = abi.encodeWithSelector(selector, queuedUserOps, targetUserOp);
+        bytes memory returnData = _simulateEntryPoint(entryPointSimulation, entryPoint, data);
+        result.simulationResult = abi.decode(returnData, (IEntryPointSimulations.ExecutionResult));
+
+        // Step 2: Find optimal verification gas limit
+        result.verificationGasLimit = this.binarySearchVerificationGas(
+            entryPointSimulation, entryPoint, queuedUserOps, targetUserOp, initialMinGas, toleranceDelta, gasAllowance
+        );
+
+        // Step 3: If paymaster is present, find optimal paymaster verification gas limit
+        if (targetUserOp.paymasterAndData.length >= 20) {
+            result.paymasterVerificationGasLimit = this.binarySearchPaymasterVerificationGas(
+                entryPointSimulation,
+                entryPoint,
+                queuedUserOps,
+                targetUserOp,
+                initialMinGas,
+                toleranceDelta,
+                gasAllowance
+            );
+        }
+    }
+
+    /// @notice Binary search for optimal verification gas limit
+    function binarySearchVerificationGas(
+        address entryPointSimulation,
+        address payable entryPoint,
+        PackedUserOperation[] calldata queuedUserOps,
+        PackedUserOperation calldata targetUserOp,
+        uint256 initialMinGas,
+        uint256 toleranceDelta,
+        uint256 gasAllowance
+    ) external returns (IEntryPointSimulations.BinarySearchResult memory) {
+        bytes4 selector = IEntryPointSimulations.binarySearchVerificationGas.selector;
+        bytes memory data = abi.encodeWithSelector(
+            selector, queuedUserOps, targetUserOp, entryPoint, initialMinGas, toleranceDelta, gasAllowance
+        );
+        bytes memory returnData = _simulateEntryPoint(entryPointSimulation, entryPoint, data);
+        return abi.decode(returnData, (IEntryPointSimulations.BinarySearchResult));
+    }
+
+    /// @notice Binary search for optimal paymaster verification gas limit
+    function binarySearchPaymasterVerificationGas(
+        address entryPointSimulation,
+        address payable entryPoint,
+        PackedUserOperation[] calldata queuedUserOps,
+        PackedUserOperation calldata targetUserOp,
+        uint256 initialMinGas,
+        uint256 toleranceDelta,
+        uint256 gasAllowance
+    ) external returns (IEntryPointSimulations.BinarySearchResult memory) {
+        bytes4 selector = IEntryPointSimulations.binarySearchPaymasterVerificationGas.selector;
+        bytes memory data = abi.encodeWithSelector(
+            selector, queuedUserOps, targetUserOp, entryPoint, initialMinGas, toleranceDelta, gasAllowance
+        );
+        bytes memory returnData = _simulateEntryPoint(entryPointSimulation, entryPoint, data);
+        return abi.decode(returnData, (IEntryPointSimulations.BinarySearchResult));
+    }
+
+    /// @notice Binary search for optimal call gas limit
+    function binarySearchCallGas(
+        address entryPointSimulation,
+        address entryPoint,
+        PackedUserOperation[] calldata queuedUserOps,
+        PackedUserOperation calldata targetUserOp,
+        uint256 initialMinGas,
+        uint256 toleranceDelta,
+        uint256 gasAllowance
+    ) external returns (IEntryPointSimulations.BinarySearchResult memory) {
+        bytes4 selector = IEntryPointSimulations.binarySearchCallGas.selector;
+        bytes memory data = abi.encodeWithSelector(
+            selector, queuedUserOps, targetUserOp, entryPoint, initialMinGas, toleranceDelta, gasAllowance
+        );
+        bytes memory returnData = _simulateEntryPoint(entryPointSimulation, entryPoint, data);
+        return abi.decode(returnData, (IEntryPointSimulations.BinarySearchResult));
+    }
+
+    /// @notice Simulates validation of a UserOperation
+    function simulateValidation(
+        address entryPointSimulation,
+        address payable entryPoint,
+        PackedUserOperation[] calldata queuedUserOps,
+        PackedUserOperation calldata targetUserOp
+    ) external returns (IEntryPointSimulations.ValidationResult memory) {
+        bytes4 selector = IEntryPointSimulations.simulateValidation.selector;
+        bytes memory data = abi.encodeWithSelector(selector, queuedUserOps, targetUserOp);
+        bytes memory returnData = _simulateEntryPoint(entryPointSimulation, entryPoint, data);
+        return abi.decode(returnData, (IEntryPointSimulations.ValidationResult));
+    }
+
+    /// @notice Simulates handling of a UserOperation
+    function simulateHandleOp(
+        address entryPointSimulation,
+        address payable entryPoint,
+        PackedUserOperation[] calldata queuedUserOps,
+        PackedUserOperation calldata targetUserOp
+    ) external returns (IEntryPointSimulations.ExecutionResult memory) {
+        bytes4 selector = IEntryPointSimulations.simulateHandleOp.selector;
+        bytes memory data = abi.encodeWithSelector(selector, queuedUserOps, targetUserOp);
+        bytes memory returnData = _simulateEntryPoint(entryPointSimulation, entryPoint, data);
+        return abi.decode(returnData, (IEntryPointSimulations.ExecutionResult));
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/

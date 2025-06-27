@@ -14,7 +14,6 @@ import {
     estimateUserOperationGasSchema
 } from "@alto/types"
 import { RpcHandler } from "../rpcHandler"
-import { SimulateHandleOpResult } from "../estimation/types"
 import { parseEther, toHex } from "viem"
 
 type GasEstimateResult =
@@ -153,22 +152,21 @@ const getGasEstimates = async ({
 
     const executionResult = await rpcHandler.validator.getExecutionResult({
         userOperation: simulationUserOp,
-        entryPoint,
         queuedUserOperations,
+        entryPoint,
         stateOverrides: deepHexlify(mutableStateOverrides)
     })
 
     if (executionResult.result === "failed") {
-        const errorResult = executionResult as SimulateHandleOpResult<"failed">
         return {
             status: "failed",
-            error: errorResult.data,
-            code: errorResult.code
+            error: executionResult.data,
+            code: executionResult.code
         }
     }
 
     // type cast as typescript doesn't know the type
-    const successResult = executionResult as SimulateHandleOpResult<"execution">
+    const successResult = executionResult
 
     let { verificationGasLimit, callGasLimit, paymasterVerificationGasLimit } =
         calcVerificationGasAndCallGasLimit(
@@ -351,8 +349,8 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
                 ...gasEstimateResult.estimates, // use actual callGasLimit, verificationGasLimit, paymasterPostOpGasLimit, paymasterVerificationGasLimit
                 preVerificationGas
             },
-            entryPoint,
             queuedUserOperations: gasEstimateResult.queuedUserOperations,
+            entryPoint,
             stateOverrides: deepHexlify(stateOverrides)
         })
 

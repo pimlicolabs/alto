@@ -3,8 +3,8 @@ import type { StateOverrides, UserOperationV07 } from "@alto/types"
 import { isVersion06 } from "@alto/utils"
 import type { Hex } from "viem"
 import type { Address } from "viem"
-import { GasEstimatorV06 } from "./gasEstimationsV06"
-import { GasEstimatorV07 } from "./gasEstimationsV07"
+import { GasEstimatorV06 } from "./gasEstimations06"
+import { GasEstimatorV07 } from "./gasEstimations07"
 import type { SimulateHandleOpResult } from "./types"
 import type { AltoConfig } from "../../createConfig"
 
@@ -39,7 +39,7 @@ export class GasEstimationHandler {
                 entryPoint,
                 targetAddress,
                 targetCallData,
-                stateOverrides
+                userStateOverrides: stateOverrides
             })
         }
 
@@ -72,15 +72,15 @@ export class GasEstimationHandler {
                 entryPoint,
                 targetAddress,
                 targetCallData,
-                stateOverrides
+                userStateOverrides: stateOverrides
             })
         }
 
-        return this.gasEstimatorV07.simulateHandleOpV07({
+        return this.gasEstimatorV07.simulateHandleOp07({
             userOperation: userOperation as UserOperationV07,
             queuedUserOperations: queuedUserOperations as UserOperationV07[],
             entryPoint,
-            stateOverrides
+            userStateOverrides: stateOverrides
         })
     }
 }

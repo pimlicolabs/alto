@@ -15,14 +15,14 @@ export interface InterfaceValidator {
         entryPoint: Address
         queuedUserOperations: UserOperation[]
         stateOverrides?: StateOverrides
-    }): Promise<SimulateHandleOpResult<"execution">>
+    }): Promise<SimulateHandleOpResult>
 
     getExecutionResult(args: {
         userOperation: UserOperation
         entryPoint: Address
         queuedUserOperations: UserOperation[]
         stateOverrides?: StateOverrides
-    }): Promise<SimulateHandleOpResult<"execution" | "failed">>
+    }): Promise<SimulateHandleOpResult>
 
     getValidationResultV06(args: {
         userOperation: UserOperationV06

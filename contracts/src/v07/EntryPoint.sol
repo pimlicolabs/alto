@@ -3,17 +3,18 @@ pragma solidity ^0.8.23;
 /* solhint-disable avoid-low-level-calls */
 /* solhint-disable no-inline-assembly */
 
-import "account-abstraction-v7/interfaces/IAccount.sol";
-import "account-abstraction-v7/interfaces/IAccountExecute.sol";
-import "account-abstraction-v7/interfaces/IPaymaster.sol";
-import "./IEntryPoint.sol";
+import {IEntryPoint} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
+import {IAccount} from "account-abstraction-v7/interfaces/IAccount.sol";
+import {IAccountExecute} from "account-abstraction-v7/interfaces/IAccountExecute.sol";
+import {IPaymaster} from "account-abstraction-v7/interfaces/IPaymaster.sol";
+import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 
-import "account-abstraction-v7/utils/Exec.sol";
-import "account-abstraction-v7/core/StakeManager.sol";
-import "account-abstraction-v7/core/SenderCreator.sol";
-import "account-abstraction-v7/core/Helpers.sol";
-import "account-abstraction-v7/core/NonceManager.sol";
-import "account-abstraction-v7/core/UserOperationLib.sol";
+import {Exec} from "account-abstraction-v7/utils/Exec.sol";
+import {StakeManager} from "account-abstraction-v7/core/StakeManager.sol";
+import {SenderCreator} from "account-abstraction-v7/core/SenderCreator.sol";
+import {NonceManager} from "account-abstraction-v7/core/NonceManager.sol";
+import {UserOperationLib} from "account-abstraction-v7/core/UserOperationLib.sol";
+import {ValidationData, _parseValidationData, min} from "account-abstraction-v7/core/Helpers.sol";
 
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -23,7 +24,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  * Only one instance required on each chain.
  */
 
-/// @custom:notice This EntryPoint closely resembles the actual EntryPoint with some diffs seen at https://www.diffchecker.com/7fqIFrkY
+/// @custom:notice This EntryPoint closely resembles the actual EntryPoint with some diffs seen at https://www.diffchecker.com/cRjVp5sB/
 /// @custom:security-contact https://bounty.ethereum.org
 contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard {
     // Custom event for bubbling up callphase reverts.
@@ -105,6 +106,16 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard 
 
     function emitPrefundTooLow(UserOpInfo memory opInfo) internal virtual {
         emit UserOperationPrefundTooLow(opInfo.userOpHash, opInfo.mUserOp.sender, opInfo.mUserOp.nonce);
+    }
+
+    /// @inheritdoc IEntryPoint
+    function handleOps(PackedUserOperation[] calldata, address payable) external pure {
+        revert("SHOULD NOT BE CALLED DURING SIMULATIONS");
+    }
+
+    /// @inheritdoc IEntryPoint
+    function handleAggregatedOps(UserOpsPerAggregator[] calldata, address payable) external pure {
+        revert("SHOULD NOT BE CALLED DURING SIMULATIONS");
     }
 
     /**
@@ -235,6 +246,12 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard 
             address factory = address(bytes20(initCode[0:20]));
             emit AccountDeployed(opInfo.userOpHash, sender, factory, opInfo.mUserOp.paymaster);
         }
+    }
+
+    /// @inheritdoc IEntryPoint
+    function getSenderAddress(bytes calldata initCode) public {
+        address sender = senderCreator().createSender(initCode);
+        revert SenderAddressResult(sender);
     }
 
     /**
@@ -560,5 +577,10 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard 
         assembly ("memory-safe") {
             data := offset
         }
+    }
+
+    /// @inheritdoc IEntryPoint
+    function delegateAndRevert(address, bytes calldata) external pure {
+        revert("SHOULD NOT BE CALLED DURING SIMULATIONS");
     }
 }

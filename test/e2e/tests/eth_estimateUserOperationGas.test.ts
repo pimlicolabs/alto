@@ -121,7 +121,7 @@ describe.each([
                 })
             } catch (e: any) {
                 expect(e.details).toBe(
-                    "AA23 reverted: UserOperation called non-existant contract, or reverted with 0x"
+                    "UserOperation reverted during simulation with reason: Sender has no code or factory not deployed"
                 )
             }
         })
@@ -150,6 +150,70 @@ describe.each([
 
             expect(estimation.paymasterPostOpGasLimit).toBe(0n)
             expect(estimation.paymasterVerificationGasLimit).toBe(0n)
+        })
+
+        test("No paymaster should result in zero paymaster gas limits", async () => {
+            if (entryPointVersion === "0.6") {
+                return
+            }
+
+            const bundlerClient = createBundlerClient({
+                chain: foundry,
+                transport: http(altoRpc)
+            })
+
+            const smartAccountClient = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const userOp = (await smartAccountClient.prepareUserOperation({
+                calls: [
+                    {
+                        to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
+                        data: "0x",
+                        value: 0n
+                    }
+                ]
+            })) as UserOperation<"0.7">
+
+            const estimation = await bundlerClient.estimateUserOperationGas({
+                ...userOp,
+                paymaster: undefined,
+                paymasterData: undefined,
+                paymasterVerificationGasLimit: 0n,
+                paymasterPostOpGasLimit: 0n,
+                entryPointAddress: entryPoint
+            })
+
+            expect(estimation.paymasterVerificationGasLimit).toBe(0n)
+            expect(estimation.paymasterPostOpGasLimit).toBe(0n)
+        })
+
+        test("Empty calldata should result in zero callGasLimit", async () => {
+            const bundlerClient = createBundlerClient({
+                chain: foundry,
+                transport: http(altoRpc)
+            })
+
+            const smartAccountClient = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const userOp = (await smartAccountClient.prepareUserOperation({
+                callData: "0x"
+            })) as UserOperation<"0.7">
+
+            const estimation = await bundlerClient.estimateUserOperationGas({
+                ...userOp,
+                callData: "0x",
+                entryPointAddress: entryPoint
+            })
+
+            expect(estimation.callGasLimit).toBe(0n)
         })
 
         test("Should throw revert reason if simulation reverted during callphase", async () => {

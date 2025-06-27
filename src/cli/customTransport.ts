@@ -12,10 +12,8 @@ import {
     Hex
 } from "viem"
 import { formatAbiItem, rpc } from "viem/utils"
-import {
-    EntryPointV06Abi,
-    EntryPointV06SimulationsAbi
-} from "../types/contracts"
+import { EntryPointV06Abi } from "../types/contracts"
+import { simulationErrors } from "../rpc/estimation/utils"
 
 export type RpcRequest = {
     jsonrpc?: "2.0" | undefined
@@ -55,7 +53,7 @@ const FAILED_OP_SELECTOR = toFunctionSelector(
 const CALLPHASE_REVERTED_SELECTOR = toFunctionSelector(
     formatAbiItem(
         getAbiItem({
-            abi: EntryPointV06SimulationsAbi,
+            abi: simulationErrors,
             name: "CallPhaseReverted"
         })
     )

@@ -15,8 +15,7 @@ import {
     CodeHashGetterAbi,
     CodeHashGetterBytecode,
     EntryPointV06Abi,
-    EntryPointV07SimulationsAbi,
-    PimlicoSimulationsAbi,
+    pimlicoSimulationsAbi,
     type ReferencedCodeHashes,
     RpcError,
     type StakeInfo,
@@ -41,7 +40,6 @@ import {
     encodeFunctionData,
     zeroAddress
 } from "viem"
-import { getSimulateValidationResult } from "../estimation/gasEstimationsV07"
 import {
     type BundlerTracerResult,
     type ExitInfo,
@@ -145,21 +143,21 @@ export class SafeValidator
         userOperation,
         queuedUserOperations,
         entryPoint,
-        preCodeHashes
+        codeHashes
     }: {
         userOperation: UserOperationV07
-        queuedUserOperations: UserOperationV07[]
+        queuedUserOperations: UserOperation[]
         entryPoint: Address
-        preCodeHashes?: ReferencedCodeHashes
+        codeHashes?: ReferencedCodeHashes
     }): Promise<
         (ValidationResultV07 | ValidationResultWithAggregationV07) & {
             storageMap: StorageMap
             referencedContracts?: ReferencedCodeHashes
         }
     > {
-        if (preCodeHashes && preCodeHashes.addresses.length > 0) {
-            const { hash } = await this.getCodeHashes(preCodeHashes.addresses)
-            if (hash !== preCodeHashes.hash) {
+        if (codeHashes && codeHashes.addresses.length > 0) {
+            const { hash } = await this.getCodeHashes(codeHashes.addresses)
+            if (hash !== codeHashes.hash) {
                 throw new RpcError(
                     "code hashes mismatch",
                     ValidationErrors.OpcodeValidation
@@ -169,7 +167,7 @@ export class SafeValidator
 
         const [res, tracerResult] = await this.getValidationResultWithTracerV07(
             userOperation,
-            queuedUserOperations,
+            queuedUserOperations as UserOperationV07[],
             entryPoint
         )
 
@@ -180,8 +178,8 @@ export class SafeValidator
             entryPoint.toLowerCase() as Address
         )
 
-        const codeHashes: ReferencedCodeHashes =
-            preCodeHashes || (await this.getCodeHashes(contractAddresses))
+        const referencedContracts: ReferencedCodeHashes =
+            codeHashes || (await this.getCodeHashes(contractAddresses))
 
         // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
         if ((res as any) === "0x") {
@@ -206,7 +204,7 @@ export class SafeValidator
 
         return {
             ...res,
-            referencedContracts: codeHashes,
+            referencedContracts,
             storageMap
         }
     }
@@ -214,20 +212,20 @@ export class SafeValidator
     async getValidationResultV06({
         userOperation,
         entryPoint,
-        preCodeHashes
+        codeHashes
     }: {
         userOperation: UserOperationV06
         entryPoint: Address
-        preCodeHashes?: ReferencedCodeHashes
+        codeHashes?: ReferencedCodeHashes
     }): Promise<
         (ValidationResultV06 | ValidationResultWithAggregationV06) & {
             referencedContracts?: ReferencedCodeHashes
             storageMap: StorageMap
         }
     > {
-        if (preCodeHashes && preCodeHashes.addresses.length > 0) {
-            const { hash } = await this.getCodeHashes(preCodeHashes.addresses)
-            if (hash !== preCodeHashes.hash) {
+        if (codeHashes && codeHashes.addresses.length > 0) {
+            const { hash } = await this.getCodeHashes(codeHashes.addresses)
+            if (hash !== codeHashes.hash) {
                 throw new RpcError(
                     "code hashes mismatch",
                     ValidationErrors.OpcodeValidation
@@ -247,8 +245,8 @@ export class SafeValidator
             entryPoint.toLowerCase() as Address
         )
 
-        const codeHashes: ReferencedCodeHashes =
-            preCodeHashes || (await this.getCodeHashes(contractAddresses))
+        const referencedContracts: ReferencedCodeHashes =
+            codeHashes || (await this.getCodeHashes(contractAddresses))
 
         // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
         if ((res as any) === "0x") {
@@ -258,7 +256,7 @@ export class SafeValidator
         }
         const validationResult = {
             ...res,
-            referencedContracts: codeHashes,
+            referencedContracts,
             storageMap
         }
 
@@ -454,12 +452,6 @@ export class SafeValidator
             toPackedUserOperation(uop)
         )
 
-        const entryPointSimulationsCallData = encodeFunctionData({
-            abi: EntryPointV07SimulationsAbi,
-            functionName: "simulateValidationLast",
-            args: [[...packedQueuedUserOperations, packedUserOperation]]
-        })
-
         const isV8 = isVersion08(userOperation, entryPoint)
 
         const entryPointSimulationsAddress = isV8
@@ -474,13 +466,14 @@ export class SafeValidator
             )
         }
 
-        const callData = encodeFunctionData({
-            abi: PimlicoSimulationsAbi,
-            functionName: "simulateEntryPoint",
+        const entryPointSimulationsCallData = encodeFunctionData({
+            abi: pimlicoSimulationsAbi,
+            functionName: "simulateValidation",
             args: [
                 entryPointSimulationsAddress,
                 entryPoint,
-                [entryPointSimulationsCallData]
+                packedQueuedUserOperations,
+                packedUserOperation
             ]
         })
 
@@ -493,7 +486,7 @@ export class SafeValidator
             {
                 from: zeroAddress,
                 to: pimlicoSimulationsAddress,
-                data: callData
+                data: entryPointSimulationsCallData
             },
             {
                 tracer: bundlerCollectorTracer,
@@ -511,11 +504,15 @@ export class SafeValidator
         }
         const resultData = lastResult.data as Hex
 
-        const simulateValidationResult = getSimulateValidationResult(resultData)
+        // Decode the validation result from the revert data
+        const { errorName, args } = decodeErrorResult({
+            abi: pimlicoSimulationsAbi,
+            data: resultData
+        })
 
-        if (simulateValidationResult.status === "failed") {
+        if (errorName !== "ValidationResult") {
             let errorCode = ValidationErrors.SimulateValidation
-            const errorMessage = simulateValidationResult.data as string
+            const errorMessage = errorName || "Unknown validation error"
 
             if (errorMessage.includes("AA24")) {
                 errorCode = ValidationErrors.InvalidSignature
@@ -528,8 +525,7 @@ export class SafeValidator
             throw new RpcError(errorMessage, errorCode)
         }
 
-        const validationResult =
-            simulateValidationResult.data as ValidationResultWithAggregationV07
+        const validationResult = args[0] as ValidationResultWithAggregationV07
 
         const mergedValidation = this.mergeValidationDataValues(
             validationResult.returnInfo.accountValidationData,
@@ -566,7 +562,7 @@ export class SafeValidator
             storageMap: {}
         }
 
-        // this.validateStorageAccessList(userOperation, res, accessList)
+        // this.validateStorageAccessList(userOp, res, accessList)
 
         if (res.returnInfo.accountSigFailed) {
             throw new RpcError(
