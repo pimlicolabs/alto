@@ -10,7 +10,7 @@ import {
     UserOpInfo
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
-import { parseUserOperationReceipt } from "@alto/utils"
+import { parseUserOpReceipt } from "@alto/utils"
 import {
     type Address,
     type Hash,
@@ -117,7 +117,7 @@ export class UserOpMonitor {
             await this.freeSubmittedBundle(submittedBundle)
 
             // Log metric
-            this.metrics.userOperationsOnChain
+            this.metrics.userOpsOnChain
                 .labels({ status: "included" })
                 .inc(userOps.length)
 
@@ -248,7 +248,7 @@ export class UserOpMonitor {
         this.logger.info({ userOpHash, transactionHash }, "user op included")
 
         // Update status
-        await this.monitor.setUserOperationStatus(userOpHash, {
+        await this.monitor.setUserOpStatus(userOpHash, {
             status: "included",
             transactionHash
         })
@@ -270,10 +270,10 @@ export class UserOpMonitor {
         }
 
         // Track metrics
-        this.metrics.userOperationInclusionDuration.observe(
+        this.metrics.userOpInclusionDuration.observe(
             (Date.now() - addedToMempool) / 1000
         )
-        this.metrics.userOperationsSubmissionAttempts.observe(
+        this.metrics.userOpsSubmissionAttempts.observe(
             submissionAttempts
         )
 
@@ -282,7 +282,7 @@ export class UserOpMonitor {
             userOpReceipt,
             userOp.sender
         )
-        this.reputationManager.updateUserOperationIncludedStatus(
+        this.reputationManager.updateUserOpIncludedStatus(
             userOp,
             entryPoint,
             accountDeployed
@@ -308,7 +308,7 @@ export class UserOpMonitor {
                 const transactionHash = userOpReceipt.receipt.transactionHash
                 const blockNumber = userOpReceipt.receipt.blockNumber
 
-                await this.monitor.setUserOperationStatus(userOpHash, {
+                await this.monitor.setUserOpStatus(userOpHash, {
                     status: "included",
                     transactionHash
                 })
@@ -327,11 +327,11 @@ export class UserOpMonitor {
                     "user op frontrun onchain"
                 )
 
-                this.metrics.userOperationsOnChain
+                this.metrics.userOpsOnChain
                     .labels({ status: "frontran" })
                     .inc(1)
             } else {
-                await this.monitor.setUserOperationStatus(userOpHash, {
+                await this.monitor.setUserOpStatus(userOpHash, {
                     status: "failed",
                     transactionHash
                 })
@@ -350,7 +350,7 @@ export class UserOpMonitor {
                     "user op failed onchain"
                 )
 
-                this.metrics.userOperationsOnChain
+                this.metrics.userOpsOnChain
                     .labels({ status: "reverted" })
                     .inc(1)
             }
@@ -365,16 +365,16 @@ export class UserOpMonitor {
             )
 
             // Still mark as failed since we couldn't verify inclusion
-            await this.monitor.setUserOperationStatus(userOpHash, {
+            await this.monitor.setUserOpStatus(userOpHash, {
                 status: "failed",
                 transactionHash
             })
         }
     }
 
-    async getUserOpReceipt(userOperationHash: HexData32) {
+    async getUserOpReceipt(userOpHash: HexData32) {
         // Check cache first
-        const cached = this.getCachedReceipt(userOperationHash)
+        const cached = this.getCachedReceipt(userOpHash)
         if (cached) {
             return cached
         }
@@ -401,7 +401,7 @@ export class UserOpMonitor {
             fromBlock,
             toBlock,
             args: {
-                userOpHash: userOperationHash
+                userOpHash
             }
         })
 
@@ -469,15 +469,15 @@ export class UserOpMonitor {
         }
 
         const receipt = await getTransactionReceipt(txHash)
-        const userOperationReceipt = parseUserOperationReceipt(
-            userOperationHash,
+        const userOpReceipt = parseUserOpReceipt(
+            userOpHash,
             receipt
         )
 
         // Cache the receipt before returning
-        this.cacheReceipt(userOperationHash, userOperationReceipt)
+        this.cacheReceipt(userOpHash, userOpReceipt)
 
-        return userOperationReceipt
+        return userOpReceipt
     }
 
     private checkAccountDeployment(

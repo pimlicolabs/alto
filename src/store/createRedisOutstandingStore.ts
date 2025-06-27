@@ -42,7 +42,7 @@ const deserializeUserOpInfo = (data: string): UserOpInfo => {
     }
 }
 
-const isDeploymentOperation = (userOp: UserOperation): boolean => {
+const isDeployment = (userOp: UserOperation): boolean => {
     const isV6Deployment =
         isVersion06(userOp) && !!userOp.initCode && userOp.initCode !== "0x"
     const isV7Deployment =
@@ -240,7 +240,7 @@ class RedisOutstandingQueue implements OutstandingStore {
         }
 
         // Check for conflicting deployments to the same address
-        if (isDeploymentOperation(userOp)) {
+        if (isDeployment(userOp)) {
             const conflictingUserOpHash = await this.factoryLookup.get(
                 userOp.sender
             )
@@ -327,7 +327,7 @@ class RedisOutstandingQueue implements OutstandingStore {
         })
 
         // Track factory deployments if needed
-        if (isDeploymentOperation(userOp)) {
+        if (isDeployment(userOp)) {
             await this.factoryLookup.set({
                 key: userOp.sender,
                 value: userOpHash,
@@ -384,7 +384,7 @@ class RedisOutstandingQueue implements OutstandingStore {
         const multi = this.redis.multi()
 
         // Clean up factory deployment tracking if needed
-        if (isDeploymentOperation(userOpInfo.userOp)) {
+        if (isDeployment(userOpInfo.userOp)) {
             await this.factoryLookup.delete({
                 key: userOpInfo.userOp.sender,
                 multi

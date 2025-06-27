@@ -7,7 +7,7 @@ import {
     slice,
     getAddress
 } from "viem"
-import { toUnpackedUserOperation } from "../../utils/userop"
+import { toUnpackedUserOp } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import {
     EntryPointV06Abi,
@@ -20,7 +20,7 @@ import {
     getUserOperationByHashSchema
 } from "@alto/types"
 
-const userOperationEventAbiItem = getAbiItem({
+const userOpEventAbiItem = getAbiItem({
     abi: EntryPointV06Abi,
     name: "UserOperationEvent"
 })
@@ -29,7 +29,7 @@ export const ethGetUserOperationByHashHandler = createMethodHandler({
     method: "eth_getUserOperationByHash",
     schema: getUserOperationByHashSchema,
     handler: async ({ rpcHandler, params }) => {
-        const [userOperationHash] = params
+        const [userOpHash] = params
 
         let fromBlock: bigint | undefined
         let toBlock: "latest" | undefined
@@ -45,11 +45,11 @@ export const ethGetUserOperationByHashHandler = createMethodHandler({
 
         const filterResult = await rpcHandler.config.publicClient.getLogs({
             address: rpcHandler.config.entrypoints,
-            event: userOperationEventAbiItem,
+            event: userOpEventAbiItem,
             fromBlock,
             toBlock,
             args: {
-                userOpHash: userOperationHash
+                userOpHash
             }
         })
 
@@ -115,7 +115,7 @@ export const ethGetUserOperationByHashHandler = createMethodHandler({
             const handleOpsV07Selector = toFunctionSelector(handleOpsV07AbiItem)
 
             if (slice(tx.input, 0, 4) === handleOpsV07Selector) {
-                op = toUnpackedUserOperation(foundOp as PackedUserOperation)
+                op = toUnpackedUserOp(foundOp as PackedUserOperation)
             } else {
                 op = foundOp as UserOperationV06
             }

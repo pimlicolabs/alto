@@ -190,7 +190,7 @@ export class ExecutorManager {
 
             // Drop rejected ops
             await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
-            this.metrics.userOperationsSubmitted
+            this.metrics.userOpsSubmitted
                 .labels({ status: "failed" })
                 .inc(rejectedUserOps.length)
 

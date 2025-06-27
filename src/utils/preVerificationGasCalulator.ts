@@ -31,7 +31,7 @@ import {
     randomBigInt,
     unscaleBigIntByPercent
 } from "./bigInt"
-import { isVersion06, isVersion07, toPackedUserOperation } from "./userop"
+import { isVersion06, isVersion07, toPackedUserOp } from "./userop"
 import type { AltoConfig } from "../createConfig"
 import { ArbitrumL1FeeAbi } from "../types/contracts/ArbitrumL1FeeAbi"
 import { encodeHandleOpsCalldata } from "../executor/utils"
@@ -68,7 +68,7 @@ export function encodeUserOp(userOp: UserOperation): Uint8Array {
         )
     } else {
         // For v0.7, we need to pack the user operation
-        const packedOp = toPackedUserOperation(p as UserOperationV07)
+        const packedOp = toPackedUserOp(p as UserOperationV07)
         return toBytes(
             encodeAbiParameters(
                 [
@@ -130,30 +130,28 @@ const defaultOverHeads: GasOverheads = {
     floorPerTokenGasCost: 10n
 }
 
-export function fillUserOpWithDummyData(
-    userOperation: UserOperation
-): UserOperation {
-    if (isVersion06(userOperation)) {
+export function fillUserOpWithDummyData(userOp: UserOperation): UserOperation {
+    if (isVersion06(userOp)) {
         return {
-            ...userOperation,
+            ...userOp,
             callGasLimit: maxUint128,
             verificationGasLimit: maxUint128,
             preVerificationGas: maxUint256,
             maxFeePerGas: maxUint128,
             maxPriorityFeePerGas: maxUint128,
             paymasterAndData: bytesToHex(
-                new Uint8Array(userOperation.paymasterAndData.length).fill(255)
+                new Uint8Array(userOp.paymasterAndData.length).fill(255)
             ),
             signature: bytesToHex(
-                new Uint8Array(userOperation.signature.length).fill(255)
+                new Uint8Array(userOp.signature.length).fill(255)
             )
         }
     }
 
     // For v0.7
-    const hasPaymaster = !!userOperation.paymaster
+    const hasPaymaster = !!userOp.paymaster
     return {
-        ...userOperation,
+        ...userOp,
         callGasLimit: maxUint128,
         verificationGasLimit: maxUint128,
         preVerificationGas: maxUint256,
@@ -163,14 +161,10 @@ export function fillUserOpWithDummyData(
             paymasterVerificationGasLimit: maxUint128,
             paymasterPostOpGasLimit: maxUint128,
             paymasterData: bytesToHex(
-                new Uint8Array(size(userOperation.paymasterData || "0x")).fill(
-                    255
-                )
+                new Uint8Array(size(userOp.paymasterData || "0x")).fill(255)
             )
         }),
-        signature: bytesToHex(
-            new Uint8Array(size(userOperation.signature)).fill(255)
-        )
+        signature: bytesToHex(new Uint8Array(size(userOp.signature)).fill(255))
     }
 }
 
@@ -325,19 +319,19 @@ function serializeTxWithDefaults(txParams: any) {
 // Calculate the L2-specific gas component of preVerificationGas
 export async function calcL2PvgComponent({
     config,
-    userOperation,
+    userOp,
     entryPoint,
     gasPriceManager,
     validate
 }: {
     config: AltoConfig
-    userOperation: UserOperation
+    userOp: UserOperation
     entryPoint: Address
     gasPriceManager: GasPriceManager
     validate: boolean
 }): Promise<bigint> {
     let simulationUserOp = {
-        ...userOperation
+        ...userOp
     }
 
     // Add random gasFields during estimations

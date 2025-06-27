@@ -94,7 +94,7 @@ class RedisUserOperationStatusStore implements UserOperationStatusStore {
 
 export class Monitor {
     private statusStore: UserOperationStatusStore
-    private userOperationTimeouts: Record<HexData32, NodeJS.Timeout>
+    private userOpTimeouts: Record<HexData32, NodeJS.Timeout>
     private timeout: number
 
     constructor({
@@ -102,7 +102,7 @@ export class Monitor {
         timeout = 60 * 60 * 1000
     }: { config: AltoConfig; timeout?: number }) {
         this.timeout = timeout
-        this.userOperationTimeouts = {}
+        this.userOpTimeouts = {}
 
         if (config?.redisMempoolUrl) {
             this.statusStore = new RedisUserOperationStatusStore(
@@ -114,29 +114,29 @@ export class Monitor {
         }
     }
 
-    public async setUserOperationStatus(
-        userOperation: HexData32,
+    public async setUserOpStatus(
+        userOpHash: HexData32,
         status: UserOperationStatus
     ): Promise<void> {
         // Clear existing timer if it exists
-        if (this.userOperationTimeouts[userOperation]) {
-            clearTimeout(this.userOperationTimeouts[userOperation])
+        if (this.userOpTimeouts[userOpHash]) {
+            clearTimeout(this.userOpTimeouts[userOpHash])
         }
 
         // Set the user operation status
-        await this.statusStore.set(userOperation, status)
+        await this.statusStore.set(userOpHash, status)
 
         // Set a new timer and store its identifier
-        this.userOperationTimeouts[userOperation] = setTimeout(async () => {
-            await this.statusStore.delete(userOperation)
-            delete this.userOperationTimeouts[userOperation]
+        this.userOpTimeouts[userOpHash] = setTimeout(async () => {
+            await this.statusStore.delete(userOpHash)
+            delete this.userOpTimeouts[userOpHash]
         }, this.timeout) as NodeJS.Timeout
     }
 
-    public async getUserOperationStatus(
-        userOperation: HexData32
+    public async getUserOpStatus(
+        userOpHash: HexData32
     ): Promise<UserOperationStatus> {
-        const status = await this.statusStore.get(userOperation)
+        const status = await this.statusStore.get(userOpHash)
         if (status === undefined) {
             return {
                 status: "not_found",

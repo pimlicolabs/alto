@@ -2,7 +2,7 @@ import { Logger } from "pino"
 import { Hex, PublicClient } from "viem"
 import { SubmittedBundleInfo } from "../types/mempool"
 import { UserOperationReceipt } from "@alto/types"
-import { parseUserOperationReceipt } from "../utils/userop"
+import { parseUserOpReceipt } from "../utils/userop"
 
 export type BundleIncluded = {
     status: "included"
@@ -54,7 +54,7 @@ export const getBundleStatus = async ({
         const userOpDetails: Record<Hex, UserOperationReceipt> = {}
 
         for (const { userOpHash } of userOps) {
-            userOpDetails[userOpHash] = parseUserOperationReceipt(
+            userOpDetails[userOpHash] = parseUserOpReceipt(
                 userOpHash,
                 included
             )

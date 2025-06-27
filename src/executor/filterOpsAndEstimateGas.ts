@@ -23,7 +23,7 @@ import {
     Logger,
     getSerializedHandleOpsTx,
     scaleBigIntByPercent,
-    toPackedUserOperation
+    toPackedUserOp
 } from "@alto/utils"
 import { pimlicoSimulationsAbi } from "../types/contracts/PimlicoSimulations"
 import * as sentry from "@sentry/node"
@@ -190,7 +190,7 @@ const getFilterOpsResult = async ({
                 functionName: "filterOps08",
                 args: [
                     userOps.map(({ userOp }) =>
-                        toPackedUserOperation(userOp as UserOperationV07)
+                        toPackedUserOp(userOp as UserOperationV07)
                     ),
                     beneficiary,
                     entryPoint
@@ -204,7 +204,7 @@ const getFilterOpsResult = async ({
                 functionName: "filterOps07",
                 args: [
                     userOps.map(({ userOp }) =>
-                        toPackedUserOperation(userOp as UserOperationV07)
+                        toPackedUserOp(userOp as UserOperationV07)
                     ),
                     beneficiary,
                     entryPoint

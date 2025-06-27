@@ -46,7 +46,7 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
-    const userOperationsInMempool = new Gauge({
+    const userOpsInMempool = new Gauge({
         name: "alto_user_operations_in_mempool_count",
         help: "Number of user operations in mempool",
         labelNames: ["status"] as const,
@@ -67,14 +67,14 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
-    const userOperationsOnChain = new Counter({
+    const userOpsOnChain = new Counter({
         name: "alto_user_operations_on_chain_total",
         help: "Number of user operations on-chain by status",
         labelNames: ["status"] as const,
         registers
     })
 
-    const userOperationsSubmitted = new Counter({
+    const userOpsSubmitted = new Counter({
         name: "alto_user_operations_submitted_total",
         help: "Number of user operations bundles submitted on-chain",
         labelNames: ["status"] as const,
@@ -95,28 +95,28 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
-    const userOperationsReceived = new Counter({
+    const userOpsReceived = new Counter({
         name: "alto_user_operations_received_total",
         help: "Number of user operations received",
         labelNames: ["status", "type"] as const,
         registers
     })
 
-    const userOperationsValidationSuccess = new Counter({
+    const userOpsValidationSuccess = new Counter({
         name: "alto_user_operations_validation_success_total",
         help: "Number of user operations successfully validated",
         labelNames: [] as const,
         registers
     })
 
-    const userOperationsValidationFailure = new Counter({
+    const userOpsValidationFailure = new Counter({
         name: "alto_user_operations_validation_failure_total",
         help: "Number of user operations failed to validate",
         labelNames: [] as const,
         registers
     })
 
-    const userOperationInclusionDuration = new Histogram({
+    const userOpInclusionDuration = new Histogram({
         name: "alto_user_operation_inclusion_duration_seconds",
         help: "Duration of user operation inclusion from first submission to inclusion on-chain",
         labelNames: [] as const,
@@ -150,14 +150,14 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
-    const userOperationsResubmitted = new Counter({
+    const userOpsResubmitted = new Counter({
         name: "alto_user_operations_resubmitted_total",
         help: "Number of user operations resubmitted",
         labelNames: [] as const,
         registers
     })
 
-    const userOperationsSubmissionAttempts = new Histogram({
+    const userOpsSubmissionAttempts = new Histogram({
         name: "alto_user_operations_attempts_before_inclusion",
         help: "Number of submission attempts needed before a user operation was included on-chain",
         labelNames: [] as const,
@@ -209,27 +209,27 @@ export function createMetrics(registry: Registry, register = true) {
     return {
         httpRequests,
         httpRequestsDuration,
-        userOperationsInMempool,
+        userOpsInMempool,
         walletsAvailable,
         walletsTotal,
-        userOperationsOnChain,
-        userOperationsSubmitted,
+        userOpsOnChain,
+        userOpsSubmitted,
         bundlesIncluded,
         bundlesSubmitted,
-        userOperationsReceived,
-        userOperationsValidationSuccess,
-        userOperationsValidationFailure,
-        userOperationInclusionDuration,
+        userOpsReceived,
+        userOpsValidationSuccess,
+        userOpsValidationFailure,
+        userOpInclusionDuration,
         verificationGasLimitEstimationTime,
         verificationGasLimitEstimationCount,
         replacedTransactions,
-        userOperationsResubmitted,
+        userOpsResubmitted,
         utilityWalletBalance,
         utilityWalletInsufficientBalance,
         executorWalletsBalances,
         executorWalletsMinBalance,
         emittedOpEvents,
         walletsProcessingTime,
-        userOperationsSubmissionAttempts
+        userOpsSubmissionAttempts
     }
 }

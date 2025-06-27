@@ -6,7 +6,7 @@ import {
     type UserOperationV07,
     ValidationErrors
 } from "@alto/types"
-import { type Logger, isVersion08, toPackedUserOperation } from "@alto/utils"
+import { type Logger, isVersion08, toPackedUserOp } from "@alto/utils"
 import { type Hex } from "viem"
 import { type Address, getContract, type StateOverride } from "viem"
 import {
@@ -51,9 +51,9 @@ export class GasEstimatorV07 {
 
     private getSimulationContracts(
         entryPoint: Address,
-        userOperation: UserOperationV07
+        userOp: UserOperationV07
     ) {
-        const is08 = isVersion08(userOperation, entryPoint)
+        const is08 = isVersion08(userOp, entryPoint)
         const epSimulationsAddress = is08
             ? this.config.entrypointSimulationContractV8
             : this.config.entrypointSimulationContractV7
@@ -122,7 +122,7 @@ export class GasEstimatorV07 {
         }
 
         const packedQueuedOps = packUserOps(queuedUserOps)
-        const packedTargetOp = toPackedUserOperation(targetUserOp)
+        const packedTargetOp = toPackedUserOp(targetUserOp)
 
         try {
             const { result } = await pimlicoSimulation.simulate[methodName](
@@ -204,7 +204,7 @@ export class GasEstimatorV07 {
             this.getSimulationContracts(entryPoint, targetUserOp)
 
         const packedQueuedOps = packUserOps(queuedUserOps)
-        const packedTargetOp = toPackedUserOperation(targetUserOp)
+        const packedTargetOp = toPackedUserOp(targetUserOp)
 
         try {
             const result = await pimlicoSimulation.simulate.simulateHandleOp(
@@ -264,7 +264,7 @@ export class GasEstimatorV07 {
             this.getSimulationContracts(entryPoint, targetUserOp)
 
         const packedQueuedOps = packUserOps(queuedUserOps)
-        const packedTargetOp = toPackedUserOperation(targetUserOp)
+        const packedTargetOp = toPackedUserOp(targetUserOp)
 
         try {
             const { result } =
@@ -388,19 +388,19 @@ export class GasEstimatorV07 {
 
     async simulateValidation({
         entryPoint,
-        userOperation,
-        queuedUserOperations
+        userOp,
+        queuedUserOps
     }: {
         entryPoint: Address
-        userOperation: UserOperationV07
-        queuedUserOperations: UserOperationV07[]
+        userOp: UserOperationV07
+        queuedUserOps: UserOperationV07[]
     }) {
         const { epSimulationsAddress, pimlicoSimulation } =
-            this.getSimulationContracts(entryPoint, userOperation)
+            this.getSimulationContracts(entryPoint, userOp)
 
         const viemStateOverride = prepareStateOverride({
-            userOperations: [userOperation],
-            queuedUserOperations,
+            userOps: [userOp],
+            queuedUserOps,
             config: this.config
         })
 
@@ -410,8 +410,8 @@ export class GasEstimatorV07 {
                     [
                         epSimulationsAddress,
                         entryPoint,
-                        packUserOps(queuedUserOperations),
-                        toPackedUserOperation(userOperation)
+                        packUserOps(queuedUserOps),
+                        toPackedUserOp(userOp)
                     ],
                     {
                         stateOverride: viemStateOverride,
@@ -435,21 +435,21 @@ export class GasEstimatorV07 {
 
     async validateHandleOpV07({
         entryPoint,
-        userOperation,
-        queuedUserOperations,
+        userOp,
+        queuedUserOps,
         stateOverrides = {}
     }: {
         entryPoint: Address
-        userOperation: UserOperationV07
-        queuedUserOperations: UserOperationV07[]
+        userOp: UserOperationV07
+        queuedUserOps: UserOperationV07[]
         stateOverrides?: StateOverrides | undefined
     }): Promise<SimulateHandleOpResult> {
         const { epSimulationsAddress, pimlicoSimulation } =
-            this.getSimulationContracts(entryPoint, userOperation)
+            this.getSimulationContracts(entryPoint, userOp)
 
         const viemStateOverride = prepareStateOverride({
-            userOperations: [userOperation],
-            queuedUserOperations,
+            userOps: [userOp],
+            queuedUserOps,
             stateOverrides,
             config: this.config
         })
@@ -460,8 +460,8 @@ export class GasEstimatorV07 {
                     [
                         epSimulationsAddress,
                         entryPoint,
-                        packUserOps(queuedUserOperations),
-                        toPackedUserOperation(userOperation)
+                        packUserOps(queuedUserOps),
+                        toPackedUserOp(userOp)
                     ],
                     {
                         stateOverride: viemStateOverride,
@@ -490,18 +490,18 @@ export class GasEstimatorV07 {
 
     async simulateHandleOp07({
         entryPoint,
-        userOperation,
-        queuedUserOperations,
+        userOp,
+        queuedUserOps,
         userStateOverrides = {}
     }: {
         entryPoint: Address
-        userOperation: UserOperationV07
-        queuedUserOperations: UserOperationV07[]
+        userOp: UserOperationV07
+        queuedUserOps: UserOperationV07[]
         userStateOverrides?: StateOverrides | undefined
     }): Promise<SimulateHandleOpResult> {
         const viemStateOverride = prepareStateOverride({
-            userOperations: [userOperation],
-            queuedUserOperations,
+            userOps: [userOp],
+            queuedUserOps,
             stateOverrides: userStateOverrides,
             config: this.config
         })
@@ -510,29 +510,29 @@ export class GasEstimatorV07 {
             const [sho, bsvgl, bspvgl, bscgl] = await Promise.all([
                 this.simulateHandleOp({
                     entryPoint,
-                    queuedUserOps: queuedUserOperations,
-                    targetUserOp: userOperation,
+                    queuedUserOps,
+                    targetUserOp: userOp,
                     stateOverride: viemStateOverride
                 }),
                 this.performBinarySearch({
                     entryPoint,
                     methodName: "binarySearchVerificationGas",
-                    queuedUserOps: queuedUserOperations,
-                    targetUserOp: userOperation,
+                    queuedUserOps,
+                    targetUserOp: userOp,
                     stateOverride: viemStateOverride
                 }),
                 this.performBinarySearch({
                     entryPoint,
                     methodName: "binarySearchPaymasterVerificationGas",
-                    queuedUserOps: queuedUserOperations,
-                    targetUserOp: userOperation,
+                    queuedUserOps,
+                    targetUserOp: userOp,
                     stateOverride: viemStateOverride
                 }),
                 this.performBinarySearch({
                     entryPoint,
                     methodName: "binarySearchCallGas",
-                    queuedUserOps: queuedUserOperations,
-                    targetUserOp: userOperation,
+                    queuedUserOps,
+                    targetUserOp: userOp,
                     stateOverride: viemStateOverride
                 })
             ])
@@ -566,15 +566,15 @@ export class GasEstimatorV07 {
             const [saegl, focgl] = await Promise.all([
                 this.simulateAndEstimateGasLimits({
                     entryPoint,
-                    queuedUserOps: queuedUserOperations,
-                    targetUserOp: userOperation,
+                    queuedUserOps,
+                    targetUserOp: userOp,
                     stateOverride: viemStateOverride
                 }),
                 this.performBinarySearch({
                     entryPoint,
                     methodName: "binarySearchCallGas",
-                    queuedUserOps: queuedUserOperations,
-                    targetUserOp: userOperation,
+                    queuedUserOps,
+                    targetUserOp: userOp,
                     stateOverride: viemStateOverride
                 })
             ])

@@ -8,7 +8,7 @@ import {
 } from "@alto/types"
 import {
     isVersion06,
-    toPackedUserOperation,
+    toPackedUserOp,
     type Logger,
     isVersion07
 } from "@alto/utils"
@@ -106,7 +106,7 @@ export const packUserOps = (userOps: UserOperation[]) => {
     const isV06 = isVersion06(userOps[0])
     const packedUserOps = isV06
         ? userOps
-        : userOps.map((op) => toPackedUserOperation(op as UserOperationV07))
+        : userOps.map((op) => toPackedUserOp(op as UserOperationV07))
     return packedUserOps as PackedUserOperation[]
 }
 

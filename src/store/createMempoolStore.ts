@@ -96,7 +96,7 @@ export const createMempoolStore = ({
             { userOpHash, store: storeType },
             `added user op to ${storeType} mempool`
         )
-        metrics.userOperationsInMempool.labels({ status: storeType }).inc()
+        metrics.userOpsInMempool.labels({ status: storeType }).inc()
     }
 
     const logRemoveOperation = (
@@ -117,7 +117,7 @@ export const createMempoolStore = ({
             "removed user op from mempool"
         )
 
-        metrics.userOperationsInMempool.labels({ status: storeType }).dec()
+        metrics.userOpsInMempool.labels({ status: storeType }).dec()
     }
 
     const logDumpOperation = (storeType: StoreType) => {

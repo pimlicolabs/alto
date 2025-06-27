@@ -45,14 +45,12 @@ export class MemoryOutstanding implements OutstandingStore {
     validateQueuedLimit(userOp: UserOperation): boolean {
         const outstandingOps = this.dump()
 
-        const parallelUserOperationsCount = outstandingOps.filter(
-            (userOpInfo) => {
-                const { userOp: mempoolUserOp } = userOpInfo
-                return mempoolUserOp.sender === userOp.sender
-            }
-        ).length
+        const parallelUserOpsCount = outstandingOps.filter((userOpInfo) => {
+            const { userOp: mempoolUserOp } = userOpInfo
+            return mempoolUserOp.sender === userOp.sender
+        }).length
 
-        if (parallelUserOperationsCount > this.config.mempoolMaxParallelOps) {
+        if (parallelUserOpsCount > this.config.mempoolMaxParallelOps) {
             return false
         }
 
@@ -63,19 +61,17 @@ export class MemoryOutstanding implements OutstandingStore {
         const outstandingOps = this.dump()
 
         const [nonceKey] = getNonceKeyAndSequence(userOp.nonce)
-        const queuedUserOperationsCount = outstandingOps.filter(
-            (userOpInfo) => {
-                const { userOp: mempoolUserOp } = userOpInfo
-                const [opNonceKey] = getNonceKeyAndSequence(mempoolUserOp.nonce)
+        const queuedUserOpsCount = outstandingOps.filter((userOpInfo) => {
+            const { userOp: mempoolUserOp } = userOpInfo
+            const [opNonceKey] = getNonceKeyAndSequence(mempoolUserOp.nonce)
 
-                return (
-                    mempoolUserOp.sender === userOp.sender &&
-                    opNonceKey === nonceKey
-                )
-            }
-        ).length
+            return (
+                mempoolUserOp.sender === userOp.sender &&
+                opNonceKey === nonceKey
+            )
+        }).length
 
-        if (queuedUserOperationsCount > this.config.mempoolMaxQueuedOps) {
+        if (queuedUserOpsCount > this.config.mempoolMaxQueuedOps) {
             return false
         }
 
