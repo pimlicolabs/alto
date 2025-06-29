@@ -347,7 +347,7 @@ contract PimlicoSimulations {
     /*                ERC-20 Paymaster Validation                 */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    function validateErc20PostOp06(
+    function getErc20BalanceChange06(
         UserOperation memory userOperation,
         address entryPoint,
         ERC20 token,
@@ -378,6 +378,35 @@ contract PimlicoSimulations {
         uint256 balanceAfter = abi.decode(targetResult, (uint256));
 
         // Decode balanceAfter from target call.
+        uint256 balanceChange = balanceAfter - balanceBefore;
+
+        return balanceChange;
+    }
+
+    function getErc20BalanceChange07(
+        address entryPointSimulation,
+        address payable entryPoint,
+        PackedUserOperation[] calldata queuedUserOps,
+        PackedUserOperation calldata targetUserOp,
+        ERC20 token,
+        address treasury
+    ) external returns (uint256) {
+        uint256 balanceBefore = token.balanceOf(treasury);
+
+        // Create target data for balance check
+        bytes memory targetData = abi.encodeWithSignature("balanceOf(address)", treasury);
+
+        // Use the same pattern as simulateHandleOp
+        bytes4 selector = IEntryPointSimulations.simulateHandleOp.selector;
+        bytes memory data = abi.encodeWithSelector(selector, queuedUserOps, targetUserOp, address(token), targetData);
+        bytes memory returnData = _simulateEntryPoint(entryPointSimulation, entryPoint, data);
+        IEntryPointSimulations.ExecutionResult memory result =
+            abi.decode(returnData, (IEntryPointSimulations.ExecutionResult));
+
+        // Decode the balance from the target result
+        uint256 balanceAfter = abi.decode(result.targetResult, (uint256));
+
+        // Calculate balance change
         uint256 balanceChange = balanceAfter - balanceBefore;
 
         return balanceChange;
