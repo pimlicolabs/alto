@@ -39,7 +39,7 @@ type SimulateHandleOpSuccessResult = {
     targetResult: Hex
 }
 
-export class GasEstimatorV07 {
+export class GasEstimator07 {
     private config: AltoConfig
     private logger: Logger
     private gasPriceManager: GasPriceManager
@@ -441,7 +441,7 @@ export class GasEstimatorV07 {
         }
     }
 
-    async validateHandleOpV07({
+    async validateHandleOp07({
         entryPoint,
         userOp,
         queuedUserOps,

@@ -256,7 +256,7 @@ export class UnsafeValidator implements InterfaceValidator {
             })
 
         const runtimeValidationPromise =
-            this.gasEstimationHandler.gasEstimatorV06.simulateHandleOpV06({
+            this.gasEstimationHandler.gasEstimator06.simulateHandleOp06({
                 entryPoint,
                 userOp,
                 useCodeOverride: false, // disable code override so that call phase reverts aren't caught
@@ -408,7 +408,7 @@ export class UnsafeValidator implements InterfaceValidator {
         const { userOp, queuedUserOps, entryPoint } = args
 
         const simulateValidationResult =
-            await this.gasEstimationHandler.gasEstimatorV07.simulateValidation({
+            await this.gasEstimationHandler.gasEstimator07.simulateValidation({
                 entryPoint,
                 userOp,
                 queuedUserOps
