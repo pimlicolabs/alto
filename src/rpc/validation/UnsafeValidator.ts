@@ -68,7 +68,7 @@ export class UnsafeValidator implements InterfaceValidator {
                 level: config.logLevel
             }
         )
-        this.gasEstimationHandler = new GasEstimationHandler(config)
+        this.gasEstimationHandler = new GasEstimationHandler(config, gasPriceManager)
     }
 
     async getSimulationResult(
@@ -406,6 +406,7 @@ export class UnsafeValidator implements InterfaceValidator {
         }
     > {
         const { userOp, queuedUserOps, entryPoint } = args
+
         const simulateValidationResult =
             await this.gasEstimationHandler.gasEstimatorV07.simulateValidation({
                 entryPoint,

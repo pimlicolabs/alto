@@ -7,15 +7,15 @@ import { GasEstimatorV06 } from "./gasEstimations06"
 import { GasEstimatorV07 } from "./gasEstimations07"
 import type { SimulateHandleOpResult } from "./types"
 import type { AltoConfig } from "../../createConfig"
+import type { GasPriceManager } from "@alto/handlers"
 
 export class GasEstimationHandler {
     gasEstimatorV06: GasEstimatorV06
     gasEstimatorV07: GasEstimatorV07
 
-    constructor(config: AltoConfig) {
+    constructor(config: AltoConfig, gasPriceManager: GasPriceManager) {
         this.gasEstimatorV06 = new GasEstimatorV06(config)
-
-        this.gasEstimatorV07 = new GasEstimatorV07(config)
+        this.gasEstimatorV07 = new GasEstimatorV07(config, gasPriceManager)
     }
 
     validateHandleOp({
