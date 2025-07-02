@@ -15,7 +15,7 @@ import entryPointOverride from "../../contracts/EntryPointGasEstimationOverride.
 }
 import { entryPoint06Abi } from "viem/account-abstraction"
 
-export class GasEstimatorV06 {
+export class GasEstimator06 {
     private config: AltoConfig
     private logger: Logger
 
@@ -31,7 +31,7 @@ export class GasEstimatorV06 {
         )
     }
 
-    async simulateHandleOpV06({
+    async simulateHandleOp06({
         userOp,
         targetAddress,
         targetCallData,

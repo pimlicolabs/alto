@@ -3,19 +3,19 @@ import type { StateOverrides, UserOperationV07 } from "@alto/types"
 import { isVersion06 } from "@alto/utils"
 import type { Hex } from "viem"
 import type { Address } from "viem"
-import { GasEstimatorV06 } from "./gasEstimations06"
-import { GasEstimatorV07 } from "./gasEstimations07"
+import { GasEstimator06 } from "./gasEstimations06"
+import { GasEstimator07 } from "./gasEstimations07"
 import type { SimulateHandleOpResult } from "./types"
 import type { AltoConfig } from "../../createConfig"
+import type { GasPriceManager } from "@alto/handlers"
 
 export class GasEstimationHandler {
-    gasEstimatorV06: GasEstimatorV06
-    gasEstimatorV07: GasEstimatorV07
+    gasEstimator06: GasEstimator06
+    gasEstimator07: GasEstimator07
 
-    constructor(config: AltoConfig) {
-        this.gasEstimatorV06 = new GasEstimatorV06(config)
-
-        this.gasEstimatorV07 = new GasEstimatorV07(config)
+    constructor(config: AltoConfig, gasPriceManager: GasPriceManager) {
+        this.gasEstimator06 = new GasEstimator06(config)
+        this.gasEstimator07 = new GasEstimator07(config, gasPriceManager)
     }
 
     validateHandleOp({
@@ -34,7 +34,7 @@ export class GasEstimationHandler {
         stateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult> {
         if (isVersion06(userOp)) {
-            return this.gasEstimatorV06.simulateHandleOpV06({
+            return this.gasEstimator06.simulateHandleOp06({
                 userOp,
                 entryPoint,
                 targetAddress,
@@ -43,7 +43,7 @@ export class GasEstimationHandler {
             })
         }
 
-        return this.gasEstimatorV07.validateHandleOpV07({
+        return this.gasEstimator07.validateHandleOp07({
             userOp: userOp as UserOperationV07,
             queuedUserOps: queuedUserOps as UserOperationV07[],
             entryPoint,
@@ -67,7 +67,7 @@ export class GasEstimationHandler {
         stateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult> {
         if (isVersion06(userOp)) {
-            return this.gasEstimatorV06.simulateHandleOpV06({
+            return this.gasEstimator06.simulateHandleOp06({
                 userOp,
                 entryPoint,
                 targetAddress,
@@ -76,7 +76,7 @@ export class GasEstimationHandler {
             })
         }
 
-        return this.gasEstimatorV07.simulateHandleOp07({
+        return this.gasEstimator07.simulateHandleOp07({
             userOp: userOp as UserOperationV07,
             queuedUserOps: queuedUserOps as UserOperationV07[],
             entryPoint,

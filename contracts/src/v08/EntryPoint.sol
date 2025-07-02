@@ -19,6 +19,7 @@ import "account-abstraction-v8/core/Helpers.sol";
 
 import "@openzeppelin-v5.1.0/contracts/utils/ReentrancyGuardTransient.sol";
 import "@openzeppelin-v5.1.0/contracts/utils/cryptography/EIP712.sol";
+import "@openzeppelin-v5.1.0/contracts/utils/StorageSlot.sol";
 
 /// @custom:notice This EntryPoint closely resembles the actual EntryPoint with some diffs seen at https://www.diffchecker.com/a5ngpwSm/
 contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardTransient, EIP712 {
@@ -708,7 +709,12 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         unchecked {
             uint256 maxFeePerGas = mUserOp.maxFeePerGas;
             uint256 maxPriorityFeePerGas = mUserOp.maxPriorityFeePerGas;
-            return min(maxFeePerGas, maxPriorityFeePerGas + block.basefee);
+            // Check if baseFee is overridden in storage, otherwise use block.basefee
+            uint256 blockBaseFeePerGas = StorageSlot.getUint256Slot(keccak256("BLOCK_BASE_FEE_PER_GAS")).value;
+            if (blockBaseFeePerGas == 0) {
+                blockBaseFeePerGas = block.basefee;
+            }
+            return min(maxFeePerGas, maxPriorityFeePerGas + blockBaseFeePerGas);
         }
     }
 
