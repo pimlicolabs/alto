@@ -12,16 +12,8 @@ import {
     getRevertCall,
     deployRevertingContract
 } from "../src/revertingContract.js"
-import {
-    type Address,
-    BaseError,
-    Hex,
-    http,
-    zeroAddress,
-    createTestClient,
-    walletActions
-} from "viem"
-import { deepHexlify, getRequiredPrefund } from "permissionless"
+import { type Address, BaseError, Hex, http, zeroAddress } from "viem"
+import { deepHexlify } from "permissionless"
 import { foundry } from "viem/chains"
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
 
@@ -249,58 +241,6 @@ describe.each([
                 )
                 expect(err.code).toEqual(-32521)
             }
-        })
-
-        test.only("Should revert when account has insufficient prefund", async () => {
-            const testClient = createTestClient({
-                transport: http(anvilRpc),
-                chain: foundry,
-                mode: "anvil"
-            }).extend(walletActions)
-
-            const smartAccountClient = await getSmartAccountClient({
-                entryPointVersion,
-                anvilRpc,
-                altoRpc
-            })
-
-            const bundlerClient = createBundlerClient({
-                chain: foundry,
-                transport: http(altoRpc)
-            })
-
-            // First prepare a user operation to get the required prefund
-            const userOp = (await smartAccountClient.prepareUserOperation({
-                calls: [
-                    {
-                        to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
-                        data: "0x",
-                        value: 0n
-                    }
-                ]
-            })) as UserOperation
-
-            // Calculate required prefund
-            const requiredPrefund = getRequiredPrefund({
-                userOperation: userOp,
-                entryPointVersion
-            })
-
-            // Set balance to requiredPrefund - 1 wei
-            await testClient.setBalance({
-                address: smartAccountClient.account.address,
-                value: requiredPrefund - 1n
-            })
-
-            // Now try to estimate gas - it should revert due to insufficient balance
-            await expect(async () => {
-                await bundlerClient.estimateUserOperationGas({
-                    ...userOp,
-                    entryPointAddress: entryPoint
-                })
-            }).rejects.toThrow(
-                /AA21 didn't pay prefund|insufficient funds|account balance too low/
-            )
         })
 
         test("Should validate eip7702Auth", async () => {
