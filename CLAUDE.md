@@ -100,8 +100,17 @@ pnpm run build:contracts-v08
 2. Implement the `GasPriceManager` interface
 3. Register in the appropriate version's handler factory
 
+### Adding a New RPC Endpoint
+1. Add the schema for your new endpoint in `src/types/schemas.ts`:
+   - Define the schema using Zod (e.g., `pimlicoNewEndpointSchema`)
+   - Add it to both `bundlerRequestSchema` and `bundlerRpcSchema` unions
+2. Create a new file in `src/rpc/methods/` following the naming convention (e.g., `pimlico_newEndpoint.ts`)
+3. Implement the endpoint handler following the existing pattern using `createMethodHandler`
+4. Import and register the handler in `src/rpc/methods/index.ts`
+5. The endpoint will be automatically registered with the RPC server
+
 ### Modifying RPC Methods
-1. Update the method in `src/rpc/handlers/`
+1. Update the method in `src/rpc/methods/`
 2. Ensure compatibility across all supported versions
 3. Update validation logic if needed
 

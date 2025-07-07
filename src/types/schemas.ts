@@ -629,6 +629,16 @@ export const pimlicoSendUserOperationNowSchema = z.object({
     result: userOperationReceiptSchema
 })
 
+export const pimlicoGetSimulationContractsSchema = z.object({
+    method: z.literal("pimlico_getSimulationContracts"),
+    params: z.tuple([]),
+    result: z.object({
+        pimlicoSimulations: addressSchema,
+        entrypointSimulations07: addressSchema.optional(),
+        entrypointSimulations08: addressSchema.optional()
+    })
+})
+
 export const altoVersions = z.enum(["v1", "v2"])
 export type AltoVersions = z.infer<typeof altoVersions>
 
@@ -652,7 +662,8 @@ export const bundlerRequestSchema = z.discriminatedUnion("method", [
     debugGetStakeStatusSchema.omit({ result: true }),
     pimlicoGetUserOperationStatusSchema.omit({ result: true }),
     pimlicoGetUserOperationGasPriceSchema.omit({ result: true }),
-    pimlicoSendUserOperationNowSchema.omit({ result: true })
+    pimlicoSendUserOperationNowSchema.omit({ result: true }),
+    pimlicoGetSimulationContractsSchema.omit({ result: true })
 ])
 export type BundlerRequest = z.infer<typeof bundlerRequestSchema>
 
@@ -675,7 +686,8 @@ export const bundlerRpcSchema = z.union([
     debugGetStakeStatusSchema,
     pimlicoGetUserOperationStatusSchema,
     pimlicoGetUserOperationGasPriceSchema,
-    pimlicoSendUserOperationNowSchema
+    pimlicoSendUserOperationNowSchema,
+    pimlicoGetSimulationContractsSchema
 ])
 
 export type BundlingMode = z.infer<
