@@ -87,13 +87,16 @@ contract ERC20PaymasterTest is Test {
         vm.deal(account, 1 ether);
         token.sudoMint(account, 1000 ether);
 
-        // Approve paymaster to spend tokens
-        vm.prank(account);
-        token.approve(address(paymaster06), type(uint256).max);
-
-        // Build UserOperation with ERC20 paymaster data
+        // Build UserOperation with calldata that includes ERC20 approval
+        bytes memory approveCallData = abi.encodeWithSelector(
+            SimpleAccount06.execute.selector, 
+            address(token), 
+            0, 
+            abi.encodeWithSelector(token.approve.selector, address(paymaster06), type(uint256).max)
+        );
+        
         UserOperation06 memory userOp = _createUserOp06WithERC20Paymaster(
-            account, 0, abi.encodeWithSelector(SimpleAccount06.execute.selector, address(0), 0, "")
+            account, 0, approveCallData
         );
 
         // Test balance change
@@ -132,13 +135,16 @@ contract ERC20PaymasterTest is Test {
         vm.deal(account, 1 ether);
         token.sudoMint(account, 1 ether); // Very small amount
 
-        // Approve paymaster to spend tokens
-        vm.prank(account);
-        token.approve(address(paymaster06), type(uint256).max);
-
-        // Build UserOperation with high gas limits
+        // Build UserOperation with calldata that includes ERC20 approval and high gas limits
+        bytes memory approveCallData = abi.encodeWithSelector(
+            SimpleAccount06.execute.selector, 
+            address(token), 
+            0, 
+            abi.encodeWithSelector(token.approve.selector, address(paymaster06), type(uint256).max)
+        );
+        
         UserOperation06 memory userOp = _createUserOp06WithERC20Paymaster(
-            account, 0, abi.encodeWithSelector(SimpleAccount06.execute.selector, address(0), 0, "")
+            account, 0, approveCallData
         );
         userOp.callGasLimit = 1_000_000;
         userOp.verificationGasLimit = 1_000_000;
@@ -164,13 +170,16 @@ contract ERC20PaymasterTest is Test {
         vm.deal(account, 1 ether);
         token.sudoMint(account, 1000 ether);
 
-        // Approve paymaster to spend tokens
-        vm.prank(account);
-        token.approve(address(paymaster07), type(uint256).max);
-
-        // Build PackedUserOperation with ERC20 paymaster data
+        // Build PackedUserOperation with calldata that includes ERC20 approval
+        bytes memory approveCallData = abi.encodeWithSelector(
+            SimpleAccount07.execute.selector, 
+            address(token), 
+            0, 
+            abi.encodeWithSelector(token.approve.selector, address(paymaster07), type(uint256).max)
+        );
+        
         PackedUserOperation07 memory userOp = _createPackedUserOp07WithERC20Paymaster(
-            account, 0, abi.encodeWithSelector(SimpleAccount07.execute.selector, address(0), 0, "")
+            account, 0, approveCallData
         );
 
         // Test balance change
@@ -212,13 +221,16 @@ contract ERC20PaymasterTest is Test {
         vm.deal(account, 1 ether);
         token.sudoMint(account, 1 ether); // Very small amount
 
-        // Approve paymaster to spend tokens
-        vm.prank(account);
-        token.approve(address(paymaster07), type(uint256).max);
-
-        // Build PackedUserOperation with high gas limits
+        // Build PackedUserOperation with calldata that includes ERC20 approval
+        bytes memory approveCallData = abi.encodeWithSelector(
+            SimpleAccount07.execute.selector, 
+            address(token), 
+            0, 
+            abi.encodeWithSelector(token.approve.selector, address(paymaster07), type(uint256).max)
+        );
+        
         PackedUserOperation07 memory userOp = _createPackedUserOp07WithERC20Paymaster(
-            account, 0, abi.encodeWithSelector(SimpleAccount07.execute.selector, address(0), 0, "")
+            account, 0, approveCallData
         );
 
         // Increase gas limits to force higher payment
