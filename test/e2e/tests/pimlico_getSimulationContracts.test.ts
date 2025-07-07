@@ -33,33 +33,24 @@ describe.each([
         })
 
         test("Get simulation contracts", async () => {
-            const response = await fetch(altoRpc, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    jsonrpc: "2.0",
-                    method: "pimlico_getSimulationContracts",
-                    params: [],
-                    id: 4337
-                })
+            const result = await pimlicoBundlerClient.request({
+                // @ts-ignore
+                method: "pimlico_getSimulationContracts",
+                params: []
             })
-
-            const result = await response.json()
             
-            expect(result.result).toBeDefined()
-            expect(result.result.pimlicoSimulations).toBeDefined()
-            expect(result.result.pimlicoSimulations).toMatch(/^0x[a-fA-F0-9]{40}$/)
+            expect(result).toBeDefined()
+            expect(result.pimlicoSimulations).toBeDefined()
+            expect(result.pimlicoSimulations).toMatch(/^0x[a-fA-F0-9]{40}$/)
             
             if (entryPointVersion === "0.7") {
-                expect(result.result.entrypointSimulations07).toBeDefined()
-                expect(result.result.entrypointSimulations07).toMatch(/^0x[a-fA-F0-9]{40}$/)
+                expect(result.entrypointSimulations07).toBeDefined()
+                expect(result.entrypointSimulations07).toMatch(/^0x[a-fA-F0-9]{40}$/)
             }
             
             if (entryPointVersion === "0.8") {
-                expect(result.result.entrypointSimulations08).toBeDefined()
-                expect(result.result.entrypointSimulations08).toMatch(/^0x[a-fA-F0-9]{40}$/)
+                expect(result.entrypointSimulations08).toBeDefined()
+                expect(result.entrypointSimulations08).toMatch(/^0x[a-fA-F0-9]{40}$/)
             }
         })
     }
