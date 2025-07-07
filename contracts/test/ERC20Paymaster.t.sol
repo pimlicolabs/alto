@@ -13,6 +13,7 @@ import {EntryPoint as EntryPoint06} from "@test-aa-utils/v06/core/EntryPoint.sol
 import {SimpleAccountFactory as SimpleAccountFactory06} from "@test-aa-utils/v06/samples/SimpleAccountFactory.sol";
 import {SimpleAccount as SimpleAccount06} from "@test-aa-utils/v06/samples/SimpleAccount.sol";
 
+import {EntryPointSimulations07} from "../src/v07/EntryPointSimulations.sol";
 import {PackedUserOperation as PackedUserOperation07} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import {IEntryPoint as IEntryPoint07} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {EntryPoint as EntryPoint07} from "@test-aa-utils/v07/core/EntryPoint.sol";
@@ -22,8 +23,7 @@ import {SimpleAccount as SimpleAccount07} from "@test-aa-utils/v07/samples/Simpl
 import {ECDSA} from "@openzeppelin-v4.8.3/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 
-import {SingletonPaymasterV6} from "@singleton-paymaster/SingletonPaymasterV6.sol";
-import {SingletonPaymasterV7} from "@singleton-paymaster/SingletonPaymasterV7.sol";
+import {BasicERC20PaymasterV6, BasicERC20PaymasterV7} from "./utils/BasicERC20Paymaster.sol";
 
 contract ERC20PaymasterTest is Test {
     PimlicoSimulations pimlicoSim;
@@ -34,64 +34,53 @@ contract ERC20PaymasterTest is Test {
     IEntryPointSimulations entryPointSimulations07;
 
     TestERC20 token;
-    SingletonPaymasterV6 paymaster06;
-    SingletonPaymasterV7 paymaster07;
+    BasicERC20PaymasterV6 paymaster06;
+    BasicERC20PaymasterV7 paymaster07;
     address treasury;
     address owner;
     uint256 ownerKey;
-    address paymasterOwner;
-    address paymasterSigner;
-    uint256 paymasterSignerKey;
-    address manager;
 
     address payable beneficiary = payable(address(0x1234));
 
-    // ERC20 paymaster mode constants
-    uint8 constant ERC20_MODE = 1;
-    uint8 constant ALLOW_ALL_BUNDLERS = 1;
-    uint256 constant EXCHANGE_RATE = 3000 * 1e18; // 1 ETH = 3000 tokens
-    uint128 constant POSTOP_GAS = 50_000;
+    // Fixed payment amount for testing
+    uint256 constant PAYMENT_AMOUNT = 100 ether;
 
     function setUp() public {
         // Setup accounts
         (owner, ownerKey) = makeAddrAndKey("owner");
         treasury = makeAddr("treasury");
-        paymasterOwner = makeAddr("paymasterOwner");
-        (paymasterSigner, paymasterSignerKey) = makeAddrAndKey("paymasterSigner");
-        manager = makeAddr("manager");
 
-        // Deploy contracts
-        pimlicoSim = new PimlicoSimulations();
+        // Deploy 4337 contracts
         entryPoint06 = new EntryPoint06();
         entryPoint07 = new EntryPoint07();
-        entryPointSimulations07 = IEntryPointSimulations(address(entryPoint07));
-
         accountFactory06 = new SimpleAccountFactory06(entryPoint06);
         accountFactory07 = new SimpleAccountFactory07(entryPoint07);
+
+        // Deploy simulation contracts
+        pimlicoSim = new PimlicoSimulations();
+        entryPointSimulations07 = new EntryPointSimulations07();
 
         // Deploy ERC20 token
         token = new TestERC20(18);
 
-        // Deploy paymasters
-        paymaster06 = new SingletonPaymasterV6(address(entryPoint06), paymasterOwner, manager, new address[](0));
-        paymaster07 = new SingletonPaymasterV7(address(entryPoint07), paymasterOwner, manager, new address[](0));
+        // Deploy basic ERC20 paymasters
+        paymaster06 = new BasicERC20PaymasterV6(entryPoint06);
+        paymaster07 = new BasicERC20PaymasterV7(entryPoint07);
 
         // Fund paymasters with ETH for EntryPoint deposits
-        paymaster06.deposit{value: 100 ether}();
-        paymaster07.deposit{value: 100 ether}();
-
-        // Add signer to paymasters
-        vm.prank(paymasterOwner);
-        paymaster06.addSigner(paymasterSigner);
-        vm.prank(paymasterOwner);
-        paymaster07.addSigner(paymasterSigner);
+        vm.deal(address(paymaster06), 100 ether);
+        vm.deal(address(paymaster07), 100 ether);
+        vm.prank(address(paymaster06));
+        entryPoint06.depositTo{value: 100 ether}(address(paymaster06));
+        vm.prank(address(paymaster07));
+        entryPoint07.depositTo{value: 100 ether}(address(paymaster07));
     }
 
     // ============================================
     // =========== V0.6 TESTS =====================
     // ============================================
 
-    function testGetErc20BalanceChange06_BasicPayment() public {
+    function testGetErc20BalanceChange06_Success() public {
         // Create account and fund with tokens
         address account = accountFactory06.getAddress(owner, 0);
         accountFactory06.createAccount(owner, 0);
@@ -111,30 +100,8 @@ contract ERC20PaymasterTest is Test {
         uint256 balanceChange =
             pimlicoSim.getErc20BalanceChange06(userOp, address(entryPoint06), ERC20(address(token)), treasury);
 
-        // Should show positive balance change for treasury
-        assertGt(balanceChange, 0, "Treasury should receive tokens for gas payment");
-    }
-
-    function testGetErc20BalanceChange06_WithCallData() public {
-        // Create account and fund with tokens
-        address account = accountFactory06.getAddress(owner, 0);
-        accountFactory06.createAccount(owner, 0);
-        vm.deal(account, 1 ether);
-        token.sudoMint(account, 1000 ether);
-
-        // Approve paymaster to spend tokens
-        vm.prank(account);
-        token.approve(address(paymaster06), type(uint256).max);
-
-        // Build UserOperation that makes a call (higher gas usage)
-        bytes memory callData = abi.encodeWithSelector(SimpleAccount06.execute.selector, treasury, 1 wei, "");
-        UserOperation06 memory userOp = _createUserOp06WithERC20Paymaster(account, 0, callData);
-
-        // Test balance change
-        uint256 balanceChange =
-            pimlicoSim.getErc20BalanceChange06(userOp, address(entryPoint06), ERC20(address(token)), treasury);
-
-        assertGt(balanceChange, 0, "Treasury should receive tokens for gas payment");
+        // Should show balance change equal to PAYMENT_AMOUNT
+        assertEq(balanceChange, PAYMENT_AMOUNT, "Treasury should receive exactly PAYMENT_AMOUNT tokens");
     }
 
     function testGetErc20BalanceChange06_InsufficientBalance() public {
@@ -169,7 +136,7 @@ contract ERC20PaymasterTest is Test {
     // =========== V0.7 TESTS =====================
     // ============================================
 
-    function testGetErc20BalanceChange07_BasicPayment() public {
+    function testGetErc20BalanceChange07_Success() public {
         // Create account and fund with tokens
         address account = accountFactory07.getAddress(owner, 0);
         accountFactory07.createAccount(owner, 0);
@@ -190,31 +157,8 @@ contract ERC20PaymasterTest is Test {
             address(entryPointSimulations07), payable(address(entryPoint07)), userOp, ERC20(address(token)), treasury
         );
 
-        // Should show positive balance change for treasury
-        assertGt(balanceChange, 0, "Treasury should receive tokens for gas payment");
-    }
-
-    function testGetErc20BalanceChange07_WithCallData() public {
-        // Create account and fund with tokens
-        address account = accountFactory07.getAddress(owner, 0);
-        accountFactory07.createAccount(owner, 0);
-        vm.deal(account, 1 ether);
-        token.sudoMint(account, 1000 ether);
-
-        // Approve paymaster to spend tokens
-        vm.prank(account);
-        token.approve(address(paymaster07), type(uint256).max);
-
-        // Build PackedUserOperation that makes a call
-        bytes memory callData = abi.encodeWithSelector(SimpleAccount07.execute.selector, treasury, 1 wei, "");
-        PackedUserOperation07 memory userOp = _createPackedUserOp07WithERC20Paymaster(account, 0, callData);
-
-        // Test balance change
-        uint256 balanceChange = pimlicoSim.getErc20BalanceChange07(
-            address(entryPointSimulations07), payable(address(entryPoint07)), userOp, ERC20(address(token)), treasury
-        );
-
-        assertGt(balanceChange, 0, "Treasury should receive tokens for gas payment");
+        // Should show balance change equal to PAYMENT_AMOUNT
+        assertEq(balanceChange, PAYMENT_AMOUNT, "Treasury should receive exactly PAYMENT_AMOUNT tokens");
     }
 
     function testGetErc20BalanceChange07_InsufficientBalance() public {
@@ -321,36 +265,14 @@ contract ERC20PaymasterTest is Test {
     }
 
     function _getERC20PaymasterData06() private view returns (bytes memory) {
-        // Simplified ERC20 paymaster data format for v0.6
-        // Format: paymaster address + mode flags + token address + exchange rate + treasury
-        return abi.encodePacked(
-            address(paymaster06),
-            uint8((ALLOW_ALL_BUNDLERS & 0x01) | (ERC20_MODE << 1)),
-            uint48(0), // validUntil
-            uint48(0), // validAfter
-            address(token),
-            EXCHANGE_RATE,
-            treasury
-        );
+        // Basic ERC20 paymaster data format for v0.6
+        // Format: paymaster address + (token, treasury, amount)
+        return abi.encodePacked(address(paymaster06), abi.encode(address(token), treasury, PAYMENT_AMOUNT));
     }
 
     function _getERC20PaymasterData07() private view returns (bytes memory) {
-        // Simplified ERC20 paymaster data format for v0.7
-        // Format: paymaster address + mode flags + token address + postOpGas + exchange rate + treasury
-        uint8 constantFeePresent = 0;
-        uint8 recipientPresent = 0;
-
-        return abi.encodePacked(
-            address(paymaster07),
-            uint8((ALLOW_ALL_BUNDLERS & 0x01) | (ERC20_MODE << 1)),
-            uint8((constantFeePresent & 0x01) | (recipientPresent << 1)),
-            uint48(0), // validUntil
-            uint48(0), // validAfter
-            address(token),
-            POSTOP_GAS,
-            EXCHANGE_RATE,
-            uint128(0), // paymasterValidationGasLimit
-            treasury
-        );
+        // Basic ERC20 paymaster data format for v0.7
+        // Format: paymaster address + (token, treasury, amount)
+        return abi.encodePacked(address(paymaster07), abi.encode(address(token), treasury, PAYMENT_AMOUNT));
     }
 }
