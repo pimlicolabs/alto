@@ -89,15 +89,13 @@ contract ERC20PaymasterTest is Test {
 
         // Build UserOperation with calldata that includes ERC20 approval
         bytes memory approveCallData = abi.encodeWithSelector(
-            SimpleAccount06.execute.selector, 
-            address(token), 
-            0, 
+            SimpleAccount06.execute.selector,
+            address(token),
+            0,
             abi.encodeWithSelector(token.approve.selector, address(paymaster06), type(uint256).max)
         );
-        
-        UserOperation06 memory userOp = _createUserOp06WithERC20Paymaster(
-            account, 0, approveCallData
-        );
+
+        UserOperation06 memory userOp = _createUserOp06WithERC20Paymaster(account, 0, approveCallData);
 
         // Test balance change
         uint256 balanceChange =
@@ -137,15 +135,13 @@ contract ERC20PaymasterTest is Test {
 
         // Build UserOperation with calldata that includes ERC20 approval and high gas limits
         bytes memory approveCallData = abi.encodeWithSelector(
-            SimpleAccount06.execute.selector, 
-            address(token), 
-            0, 
+            SimpleAccount06.execute.selector,
+            address(token),
+            0,
             abi.encodeWithSelector(token.approve.selector, address(paymaster06), type(uint256).max)
         );
-        
-        UserOperation06 memory userOp = _createUserOp06WithERC20Paymaster(
-            account, 0, approveCallData
-        );
+
+        UserOperation06 memory userOp = _createUserOp06WithERC20Paymaster(account, 0, approveCallData);
         userOp.callGasLimit = 1_000_000;
         userOp.verificationGasLimit = 1_000_000;
 
@@ -172,15 +168,13 @@ contract ERC20PaymasterTest is Test {
 
         // Build PackedUserOperation with calldata that includes ERC20 approval
         bytes memory approveCallData = abi.encodeWithSelector(
-            SimpleAccount07.execute.selector, 
-            address(token), 
-            0, 
+            SimpleAccount07.execute.selector,
+            address(token),
+            0,
             abi.encodeWithSelector(token.approve.selector, address(paymaster07), type(uint256).max)
         );
-        
-        PackedUserOperation07 memory userOp = _createPackedUserOp07WithERC20Paymaster(
-            account, 0, approveCallData
-        );
+
+        PackedUserOperation07 memory userOp = _createPackedUserOp07WithERC20Paymaster(account, 0, approveCallData);
 
         // Test balance change
         uint256 balanceChange = pimlicoSim.getErc20BalanceChange07(
@@ -223,15 +217,13 @@ contract ERC20PaymasterTest is Test {
 
         // Build PackedUserOperation with calldata that includes ERC20 approval
         bytes memory approveCallData = abi.encodeWithSelector(
-            SimpleAccount07.execute.selector, 
-            address(token), 
-            0, 
+            SimpleAccount07.execute.selector,
+            address(token),
+            0,
             abi.encodeWithSelector(token.approve.selector, address(paymaster07), type(uint256).max)
         );
-        
-        PackedUserOperation07 memory userOp = _createPackedUserOp07WithERC20Paymaster(
-            account, 0, approveCallData
-        );
+
+        PackedUserOperation07 memory userOp = _createPackedUserOp07WithERC20Paymaster(account, 0, approveCallData);
 
         // Increase gas limits to force higher payment
         uint256 highGasLimit = (uint256(1_000_000) << 128) | uint256(1_000_000);
