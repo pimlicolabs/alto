@@ -46,7 +46,7 @@ contract PimlicoSimulations {
 
     event PimlicoSimulationDeployed();
 
-    // @notice Error wrapper for ERC-20 PostOp validation.
+    // @notice Error wrapper for ERC-20 balance change function.
     error EntryPointError(bytes data);
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
