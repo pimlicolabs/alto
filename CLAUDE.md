@@ -197,6 +197,12 @@ async function functionName({
 - Proper error handling in try-catch blocks
 - Explicit return types for async functions
 
+### RPC and HTTP Communication
+- **Important**: When making RPC calls for methods that are not natively supported by viem, use the viem client's `request` method
+- The viem `Client` type provides a `request` method for custom RPC calls: `client.request({ method: 'custom_method', params: [...] })`
+- Only use this for non-standard RPC methods (e.g., `debug_traceCall`, custom bundler methods)
+- For standard methods, use viem's built-in functions (e.g., `client.getBalance()` instead of `client.request({ method: 'eth_getBalance' })`)
+
 ### Module Structure
 - Export public API through index files
 - Keep version-specific logic in separate directories
