@@ -159,8 +159,12 @@ const getFilterOpsResult = async ({
         revertReason: Hex
     }[]
 }> => {
-    let { publicClient, pimlicoSimulationContract, codeOverrideSupport } =
-        config
+    let {
+        publicClient,
+        pimlicoSimulationContract,
+        codeOverrideSupport,
+        fixedGasLimitForEstimation
+    } = config
 
     if (!pimlicoSimulationContract) {
         throw new Error("pimlicoSimulationContract not set")
@@ -233,6 +237,7 @@ const getFilterOpsResult = async ({
     let result: Hex
     const callResult = await publicClient.call({
         to: pimlicoSimulationContract,
+        gas: fixedGasLimitForEstimation,
         data,
         ...(stateOverride.length > 0 ? { stateOverride } : {})
     })

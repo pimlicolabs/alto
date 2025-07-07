@@ -377,15 +377,15 @@ contract EntryPointFilterOpsOverride08 is IEntryPoint, StakeManager, NonceManage
         MemoryUserOp memory mUserOp = opInfo.mUserOp;
 
         uint256 callGasLimit = mUserOp.callGasLimit;
-        unchecked {
-            // handleOps was called with gas limit too low. abort entire bundle.
-            if (gasleft() * 63 / 64 < callGasLimit + mUserOp.paymasterPostOpGasLimit + INNER_GAS_OVERHEAD) {
-                assembly ("memory-safe") {
-                    mstore(0, INNER_OUT_OF_GAS)
-                    revert(0, 32)
-                }
-            }
-        }
+        //unchecked { /* Ignore AA95 check during simulations */
+        //    // handleOps was called with gas limit too low. abort entire bundle.
+        //    if (gasleft() * 63 / 64 < callGasLimit + mUserOp.paymasterPostOpGasLimit + INNER_GAS_OVERHEAD) {
+        //        assembly ("memory-safe") {
+        //            mstore(0, INNER_OUT_OF_GAS)
+        //            revert(0, 32)
+        //        }
+        //    }
+        //}
 
         IPaymaster.PostOpMode mode = IPaymaster.PostOpMode.opSucceeded;
         if (callData.length > 0) {

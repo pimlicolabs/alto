@@ -35,16 +35,6 @@ export const getSenderCreatorOverride = (entryPoint: Address) => {
     }
 }
 
-export const getBlockBaseFeeOverride = (baseFee: bigint) => {
-    const slot = keccak256(toHex("BLOCK_BASE_FEE_PER_GAS"))
-    const padded = toHex(baseFee, { size: 32 })
-
-    return {
-        slot,
-        value: padded
-    }
-}
-
 export const getFilterOpsStateOverride = ({
     version,
     entryPoint,
@@ -55,7 +45,8 @@ export const getFilterOpsStateOverride = ({
     baseFeePerGas: bigint
 }): StateOverride => {
     const senderCreatorOverride = getSenderCreatorOverride(entryPoint)
-    const blockBaseFeeOverride = getBlockBaseFeeOverride(baseFeePerGas)
+    const slot = keccak256(toHex("BLOCK_BASE_FEE_PER_GAS"))
+    const value = toHex(baseFeePerGas, { size: 32 })
 
     let code: Hex
     switch (version) {
@@ -82,8 +73,8 @@ export const getFilterOpsStateOverride = ({
                     value: senderCreatorOverride.value
                 },
                 {
-                    slot: blockBaseFeeOverride.slot,
-                    value: blockBaseFeeOverride.value
+                    slot,
+                    value
                 }
             ]
         }

@@ -6,8 +6,13 @@ import {
     type UserOperationV07,
     ValidationErrors
 } from "@alto/types"
-import { type Logger, isVersion08, toPackedUserOp } from "@alto/utils"
-import { type Hex } from "viem"
+import {
+    type Logger,
+    isVersion07,
+    isVersion08,
+    toPackedUserOp
+} from "@alto/utils"
+import { type Hex, keccak256, toHex } from "viem"
 import { type Address, getContract, type StateOverride } from "viem"
 import {
     BinarySearchResultType,
@@ -21,6 +26,7 @@ import {
     decodeSimulateHandleOpError,
     simulationErrors
 } from "./utils"
+import type { GasPriceManager } from "@alto/handlers"
 
 type SimulateHandleOpSuccessResult = {
     preOpGas: bigint
@@ -33,12 +39,14 @@ type SimulateHandleOpSuccessResult = {
     targetResult: Hex
 }
 
-export class GasEstimatorV07 {
+export class GasEstimator07 {
     private config: AltoConfig
     private logger: Logger
+    private gasPriceManager: GasPriceManager
 
-    constructor(config: AltoConfig) {
+    constructor(config: AltoConfig, gasPriceManager: GasPriceManager) {
         this.config = config
+        this.gasPriceManager = gasPriceManager
         this.logger = config.getLogger(
             {
                 module: "gas-estimator-v07"
@@ -433,7 +441,7 @@ export class GasEstimatorV07 {
         }
     }
 
-    async validateHandleOpV07({
+    async validateHandleOp07({
         entryPoint,
         userOp,
         queuedUserOps,
@@ -447,10 +455,28 @@ export class GasEstimatorV07 {
         const { epSimulationsAddress, pimlicoSimulation } =
             this.getSimulationContracts(entryPoint, userOp)
 
+        // Add baseFee override for v0.7 EntryPoint simulations
+        let mergedStateOverrides = { ...stateOverrides }
+        if (isVersion07(userOp) && this.config.codeOverrideSupport) {
+            const baseFee = await this.gasPriceManager
+                .getBaseFee()
+                .catch(() => 0n)
+            if (baseFee > 0n) {
+                const slot = keccak256(toHex("BLOCK_BASE_FEE_PER_GAS"))
+                const value = toHex(baseFee, { size: 32 })
+
+                mergedStateOverrides[epSimulationsAddress] = {
+                    stateDiff: {
+                        [slot]: value
+                    }
+                }
+            }
+        }
+
         const viemStateOverride = prepareStateOverride({
             userOps: [userOp],
             queuedUserOps,
-            stateOverrides,
+            stateOverrides: mergedStateOverrides,
             config: this.config
         })
 

@@ -340,9 +340,7 @@ export class GasPriceManager {
     public async getBaseFee(): Promise<bigint> {
         try {
             if (this.config.legacyTransactions) {
-                throw new RpcError(
-                    "baseFee is not available for legacy transactions"
-                )
+                return 0n
             }
 
             if (this.config.gasPriceRefreshInterval === 0) {
