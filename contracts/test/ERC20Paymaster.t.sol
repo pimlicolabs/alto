@@ -25,7 +25,7 @@ import {PackedUserOperation as PackedUserOperation08} from "account-abstraction-
 import {IEntryPoint as IEntryPoint08} from "account-abstraction-v8/interfaces/IEntryPoint.sol";
 import {EntryPoint as EntryPoint08} from "@test-aa-utils/v08/core/EntryPoint.sol";
 import {SimpleAccountFactory as SimpleAccountFactory08} from "@test-aa-utils/v08/accounts/SimpleAccountFactory.sol";
-import {SimpleAccount as SimpleAccount08} from "@test-aa-utils/v08/accounts/SimpleAccount.sol";
+import {BaseAccount as SimpleAccount08} from "@test-aa-utils/v08/accounts/SimpleAccount.sol";
 
 import {ECDSA} from "@openzeppelin-v4.8.3/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
@@ -266,6 +266,7 @@ contract ERC20PaymasterTest is Test {
     function testGetErc20BalanceChange08_Success() public {
         // Create account and fund with tokens
         address account = accountFactory08.getAddress(owner, 0);
+        vm.prank(address(entryPoint08.senderCreator()));
         accountFactory08.createAccount(owner, 0);
         vm.deal(account, 1 ether);
         token.sudoMint(account, 1000 ether);
@@ -282,7 +283,11 @@ contract ERC20PaymasterTest is Test {
 
         // Test balance change
         uint256 balanceChange = pimlicoSim.getErc20BalanceChange08(
-            address(entryPointSimulations08), payable(address(entryPoint08)), castToVersion07(userOp), ERC20(address(token)), treasury
+            address(entryPointSimulations08),
+            payable(address(entryPoint08)),
+            castToVersion07(userOp),
+            ERC20(address(token)),
+            treasury
         );
 
         // Should show balance change equal to PAYMENT_AMOUNT
@@ -292,6 +297,7 @@ contract ERC20PaymasterTest is Test {
     function testGetErc20BalanceChange08_InsufficientApproval() public {
         // Create account and fund with tokens
         address account = accountFactory08.getAddress(owner, 0);
+        vm.prank(address(entryPoint08.senderCreator()));
         accountFactory08.createAccount(owner, 0);
         vm.deal(account, 1 ether);
         token.sudoMint(account, 1000 ether);
@@ -308,13 +314,18 @@ contract ERC20PaymasterTest is Test {
         // Test should revert due to insufficient approval
         vm.expectRevert();
         pimlicoSim.getErc20BalanceChange08(
-            address(entryPointSimulations08), payable(address(entryPoint08)), castToVersion07(userOp), ERC20(address(token)), treasury
+            address(entryPointSimulations08),
+            payable(address(entryPoint08)),
+            castToVersion07(userOp),
+            ERC20(address(token)),
+            treasury
         );
     }
 
     function testGetErc20BalanceChange08_InsufficientBalance() public {
         // Create account without funding it with enough tokens
         address account = accountFactory08.getAddress(owner, 0);
+        vm.prank(address(entryPoint08.senderCreator()));
         accountFactory08.createAccount(owner, 0);
         vm.deal(account, 1 ether);
         token.sudoMint(account, 1 ether); // Very small amount
@@ -341,7 +352,11 @@ contract ERC20PaymasterTest is Test {
         // Test should revert due to insufficient token balance
         vm.expectRevert();
         pimlicoSim.getErc20BalanceChange08(
-            address(entryPointSimulations08), payable(address(entryPoint08)), castToVersion07(userOp), ERC20(address(token)), treasury
+            address(entryPointSimulations08),
+            payable(address(entryPoint08)),
+            castToVersion07(userOp),
+            ERC20(address(token)),
+            treasury
         );
     }
 
