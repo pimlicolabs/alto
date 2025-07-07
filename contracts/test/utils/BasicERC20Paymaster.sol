@@ -56,9 +56,10 @@ contract BasicERC20PaymasterV7 is IPaymasterV7 {
         pure
         returns (bytes memory context, uint256 validationData)
     {
-        // Decode paymaster data: token address, treasury address, and amount
+        // Decode paymaster data: skip paymaster address (20 bytes) + gas limits (32 bytes)
+        // v0.7 format: paymaster address + verificationGasLimit + postOpGasLimit + custom data
         (address token, address treasury, uint256 amount) =
-            abi.decode(userOp.paymasterAndData[20:], (address, address, uint256));
+            abi.decode(userOp.paymasterAndData[52:], (address, address, uint256));
 
         // Return context with token, treasury, amount, and sender for postOp
         context = abi.encode(token, treasury, amount, userOp.sender);

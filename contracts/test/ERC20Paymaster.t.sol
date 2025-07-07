@@ -272,7 +272,12 @@ contract ERC20PaymasterTest is Test {
 
     function _getERC20PaymasterData07() private view returns (bytes memory) {
         // Basic ERC20 paymaster data format for v0.7
-        // Format: paymaster address + (token, treasury, amount)
-        return abi.encodePacked(address(paymaster07), abi.encode(address(token), treasury, PAYMENT_AMOUNT));
+        // Format: paymaster address + verificationGasLimit + postOpGasLimit + (token, treasury, amount)
+        return abi.encodePacked(
+            address(paymaster07),
+            uint128(100000), // paymasterVerificationGasLimit
+            uint128(50000), // paymasterPostOpGasLimit
+            abi.encode(address(token), treasury, PAYMENT_AMOUNT)
+        );
     }
 }
