@@ -8,6 +8,9 @@ import {IEntryPoint} from "@account-abstraction-v6/interfaces/IEntryPoint.sol";
 import {PackedUserOperation} from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import {IPaymaster as IPaymasterV7} from "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import {IEntryPoint as IEntryPointV7} from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+import {PackedUserOperation as PackedUserOperation08} from "@account-abstraction-v8/interfaces/PackedUserOperation.sol";
+import {IPaymaster as IPaymasterV8} from "@account-abstraction-v8/interfaces/IPaymaster.sol";
+import {IEntryPoint as IEntryPointV8} from "@account-abstraction-v8/interfaces/IEntryPoint.sol";
 
 /// @notice A basic ERC20 paymaster for v0.6 that accepts token payments
 contract BasicERC20PaymasterV6 is IPaymaster {
@@ -39,8 +42,6 @@ contract BasicERC20PaymasterV6 is IPaymaster {
         // Transfer tokens from user to treasury in postOp
         ERC20(token).transferFrom(sender, treasury, amount);
     }
-
-    receive() external payable {}
 }
 
 /// @notice A basic ERC20 paymaster for v0.7 that accepts token payments
@@ -74,6 +75,37 @@ contract BasicERC20PaymasterV7 is IPaymasterV7 {
         // Transfer tokens from user to treasury in postOp
         ERC20(token).transferFrom(sender, treasury, amount);
     }
+}
 
-    receive() external payable {}
+/// @notice A basic ERC20 paymaster for v0.8 that accepts token payments
+contract BasicERC20PaymasterV8 is IPaymasterV8 {
+    IEntryPointV8 public immutable entryPoint;
+
+    constructor(IEntryPointV8 _entryPoint) {
+        entryPoint = _entryPoint;
+    }
+
+    function validatePaymasterUserOp(PackedUserOperation08 calldata userOp, bytes32, uint256)
+        external
+        pure
+        returns (bytes memory context, uint256 validationData)
+    {
+        // Decode paymaster data: skip paymaster address (20 bytes) + gas limits (32 bytes)
+        // v0.8 format: paymaster address + verificationGasLimit + postOpGasLimit + custom data
+        (address token, address treasury, uint256 amount) =
+            abi.decode(userOp.paymasterAndData[52:], (address, address, uint256));
+
+        // Return context with token, treasury, amount, and sender for postOp
+        context = abi.encode(token, treasury, amount, userOp.sender);
+        validationData = 0; // Always valid
+    }
+
+    function postOp(PostOpMode, bytes calldata context, uint256, uint256) external {
+        // Decode context
+        (address token, address treasury, uint256 amount, address sender) =
+            abi.decode(context, (address, address, uint256, address));
+
+        // Transfer tokens from user to treasury in postOp
+        ERC20(token).transferFrom(sender, treasury, amount);
+    }
 }

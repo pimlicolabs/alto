@@ -20,22 +20,33 @@ import {EntryPoint as EntryPoint07} from "@test-aa-utils/v07/core/EntryPoint.sol
 import {SimpleAccountFactory as SimpleAccountFactory07} from "@test-aa-utils/v07/samples/SimpleAccountFactory.sol";
 import {SimpleAccount as SimpleAccount07} from "@test-aa-utils/v07/samples/SimpleAccount.sol";
 
+import {EntryPointSimulations08} from "../src/v08/EntryPointSimulations.sol";
+import {PackedUserOperation as PackedUserOperation08} from "account-abstraction-v8/interfaces/PackedUserOperation.sol";
+import {IEntryPoint as IEntryPoint08} from "account-abstraction-v8/interfaces/IEntryPoint.sol";
+import {EntryPoint as EntryPoint08} from "@test-aa-utils/v08/core/EntryPoint.sol";
+import {SimpleAccountFactory as SimpleAccountFactory08} from "@test-aa-utils/v08/accounts/SimpleAccountFactory.sol";
+import {SimpleAccount as SimpleAccount08} from "@test-aa-utils/v08/accounts/SimpleAccount.sol";
+
 import {ECDSA} from "@openzeppelin-v4.8.3/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 
-import {BasicERC20PaymasterV6, BasicERC20PaymasterV7} from "./utils/BasicERC20Paymaster.sol";
+import {BasicERC20PaymasterV6, BasicERC20PaymasterV7, BasicERC20PaymasterV8} from "./utils/BasicERC20Paymaster.sol";
 
 contract ERC20PaymasterTest is Test {
     PimlicoSimulations pimlicoSim;
     EntryPoint06 entryPoint06;
     EntryPoint07 entryPoint07;
+    EntryPoint08 entryPoint08;
     SimpleAccountFactory06 accountFactory06;
     SimpleAccountFactory07 accountFactory07;
+    SimpleAccountFactory08 accountFactory08;
     IEntryPointSimulations entryPointSimulations07;
+    IEntryPointSimulations entryPointSimulations08;
 
     TestERC20 token;
     BasicERC20PaymasterV6 paymaster06;
     BasicERC20PaymasterV7 paymaster07;
+    BasicERC20PaymasterV8 paymaster08;
     address treasury;
     address owner;
     uint256 ownerKey;
@@ -53,12 +64,15 @@ contract ERC20PaymasterTest is Test {
         // Deploy 4337 contracts
         entryPoint06 = new EntryPoint06();
         entryPoint07 = new EntryPoint07();
+        entryPoint08 = new EntryPoint08();
         accountFactory06 = new SimpleAccountFactory06(entryPoint06);
         accountFactory07 = new SimpleAccountFactory07(entryPoint07);
+        accountFactory08 = new SimpleAccountFactory08(entryPoint08);
 
         // Deploy simulation contracts
         pimlicoSim = new PimlicoSimulations();
         entryPointSimulations07 = new EntryPointSimulations07();
+        entryPointSimulations08 = new EntryPointSimulations08();
 
         // Deploy ERC20 token
         token = new TestERC20(18);
@@ -66,14 +80,18 @@ contract ERC20PaymasterTest is Test {
         // Deploy basic ERC20 paymasters
         paymaster06 = new BasicERC20PaymasterV6(entryPoint06);
         paymaster07 = new BasicERC20PaymasterV7(entryPoint07);
+        paymaster08 = new BasicERC20PaymasterV8(entryPoint08);
 
         // Fund paymasters with ETH for EntryPoint deposits
         vm.deal(address(paymaster06), 100 ether);
         vm.deal(address(paymaster07), 100 ether);
+        vm.deal(address(paymaster08), 100 ether);
         vm.prank(address(paymaster06));
         entryPoint06.depositTo{value: 100 ether}(address(paymaster06));
         vm.prank(address(paymaster07));
         entryPoint07.depositTo{value: 100 ether}(address(paymaster07));
+        vm.prank(address(paymaster08));
+        entryPoint08.depositTo{value: 100 ether}(address(paymaster08));
     }
 
     // ============================================
@@ -242,6 +260,92 @@ contract ERC20PaymasterTest is Test {
     }
 
     // ============================================
+    // =========== V0.8 TESTS =====================
+    // ============================================
+
+    function testGetErc20BalanceChange08_Success() public {
+        // Create account and fund with tokens
+        address account = accountFactory08.getAddress(owner, 0);
+        accountFactory08.createAccount(owner, 0);
+        vm.deal(account, 1 ether);
+        token.sudoMint(account, 1000 ether);
+
+        // Build PackedUserOperation with calldata that includes ERC20 approval
+        bytes memory approveCallData = abi.encodeWithSelector(
+            SimpleAccount08.execute.selector,
+            address(token),
+            0,
+            abi.encodeWithSelector(token.approve.selector, address(paymaster08), type(uint256).max)
+        );
+
+        PackedUserOperation08 memory userOp = _createPackedUserOp08WithERC20Paymaster(account, 0, approveCallData);
+
+        // Test balance change
+        uint256 balanceChange = pimlicoSim.getErc20BalanceChange08(
+            address(entryPointSimulations08), payable(address(entryPoint08)), castToVersion07(userOp), ERC20(address(token)), treasury
+        );
+
+        // Should show balance change equal to PAYMENT_AMOUNT
+        assertEq(balanceChange, PAYMENT_AMOUNT, "Treasury should receive exactly PAYMENT_AMOUNT tokens");
+    }
+
+    function testGetErc20BalanceChange08_InsufficientApproval() public {
+        // Create account and fund with tokens
+        address account = accountFactory08.getAddress(owner, 0);
+        accountFactory08.createAccount(owner, 0);
+        vm.deal(account, 1 ether);
+        token.sudoMint(account, 1000 ether);
+
+        // Skip the approval step - this should cause the transfer to fail
+        // vm.prank(account);
+        // token.approve(address(paymaster08), type(uint256).max);
+
+        // Build PackedUserOperation with ERC20 paymaster data
+        PackedUserOperation08 memory userOp = _createPackedUserOp08WithERC20Paymaster(
+            account, 0, abi.encodeWithSelector(SimpleAccount08.execute.selector, address(0), 0, "")
+        );
+
+        // Test should revert due to insufficient approval
+        vm.expectRevert();
+        pimlicoSim.getErc20BalanceChange08(
+            address(entryPointSimulations08), payable(address(entryPoint08)), castToVersion07(userOp), ERC20(address(token)), treasury
+        );
+    }
+
+    function testGetErc20BalanceChange08_InsufficientBalance() public {
+        // Create account without funding it with enough tokens
+        address account = accountFactory08.getAddress(owner, 0);
+        accountFactory08.createAccount(owner, 0);
+        vm.deal(account, 1 ether);
+        token.sudoMint(account, 1 ether); // Very small amount
+
+        // Build PackedUserOperation with calldata that includes ERC20 approval
+        bytes memory approveCallData = abi.encodeWithSelector(
+            SimpleAccount08.execute.selector,
+            address(token),
+            0,
+            abi.encodeWithSelector(token.approve.selector, address(paymaster08), type(uint256).max)
+        );
+
+        PackedUserOperation08 memory userOp = _createPackedUserOp08WithERC20Paymaster(account, 0, approveCallData);
+
+        // Increase gas limits to force higher payment
+        uint256 highGasLimit = (uint256(1_000_000) << 128) | uint256(1_000_000);
+        userOp.accountGasLimits = bytes32(highGasLimit);
+
+        // Re-sign with updated gas limits
+        bytes32 hash = entryPoint08.getUserOpHash(userOp);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, MessageHashUtils.toEthSignedMessageHash(hash));
+        userOp.signature = abi.encodePacked(r, s, v);
+
+        // Test should revert due to insufficient token balance
+        vm.expectRevert();
+        pimlicoSim.getErc20BalanceChange08(
+            address(entryPointSimulations08), payable(address(entryPoint08)), castToVersion07(userOp), ERC20(address(token)), treasury
+        );
+    }
+
+    // ============================================
     // ================= HELPERS ==================
     // ============================================
 
@@ -327,5 +431,64 @@ contract ERC20PaymasterTest is Test {
             uint128(50000), // paymasterPostOpGasLimit
             abi.encode(address(token), treasury, PAYMENT_AMOUNT)
         );
+    }
+
+    function _createPackedUserOp08WithERC20Paymaster(address sender, uint256 nonce, bytes memory callData)
+        private
+        view
+        returns (PackedUserOperation08 memory)
+    {
+        bytes memory initCode = "";
+        if (sender.code.length == 0) {
+            initCode =
+                abi.encodePacked(address(accountFactory08), abi.encodeCall(accountFactory08.createAccount, (owner, 0)));
+        }
+
+        // Pack gas limits: verificationGasLimit (16 bytes) | callGasLimit (16 bytes)
+        uint256 accountGasLimits = (uint256(150000) << 128) | uint256(200000);
+
+        PackedUserOperation08 memory userOp = PackedUserOperation08({
+            sender: sender,
+            nonce: nonce,
+            initCode: initCode,
+            callData: callData,
+            accountGasLimits: bytes32(accountGasLimits),
+            preVerificationGas: 21000,
+            gasFees: bytes32((uint256(1 gwei) << 128) | uint256(1 gwei)), // maxPriorityFeePerGas | maxFeePerGas
+            paymasterAndData: _getERC20PaymasterData08(),
+            signature: ""
+        });
+
+        // Sign the PackedUserOperation
+        bytes32 hash = entryPoint08.getUserOpHash(userOp);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, MessageHashUtils.toEthSignedMessageHash(hash));
+        userOp.signature = abi.encodePacked(r, s, v);
+
+        return userOp;
+    }
+
+    function _getERC20PaymasterData08() private view returns (bytes memory) {
+        // Basic ERC20 paymaster data format for v0.8
+        // Format: paymaster address + verificationGasLimit + postOpGasLimit + (token, treasury, amount)
+        return abi.encodePacked(
+            address(paymaster08),
+            uint128(100000), // paymasterVerificationGasLimit
+            uint128(50000), // paymasterPostOpGasLimit
+            abi.encode(address(token), treasury, PAYMENT_AMOUNT)
+        );
+    }
+
+    function castToVersion07(PackedUserOperation08 memory op) internal pure returns (PackedUserOperation07 memory) {
+        return PackedUserOperation07({
+            sender: op.sender,
+            nonce: op.nonce,
+            initCode: op.initCode,
+            callData: op.callData,
+            accountGasLimits: op.accountGasLimits,
+            preVerificationGas: op.preVerificationGas,
+            gasFees: op.gasFees,
+            paymasterAndData: op.paymasterAndData,
+            signature: op.signature
+        });
     }
 }

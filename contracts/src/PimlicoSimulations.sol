@@ -411,4 +411,15 @@ contract PimlicoSimulations {
 
         return balanceChange;
     }
+
+    function getErc20BalanceChange08(
+        address entryPointSimulation,
+        address payable entryPoint,
+        PackedUserOperation calldata userOperation,
+        ERC20 token,
+        address treasury
+    ) external returns (uint256) {
+        // v0.8 uses the same PackedUserOperation structure as v0.7
+        return this.getErc20BalanceChange07(entryPointSimulation, entryPoint, userOperation, token, treasury);
+    }
 }
