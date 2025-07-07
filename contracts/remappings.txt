@@ -12,5 +12,3 @@ solady/=lib/solady/src/
 
 @test-utils=lib/singleton-paymaster/test/utils
 @test-aa-utils=lib/singleton-paymaster/test/utils/account-abstraction
-
-@singleton-paymaster/=lib/singleton-paymaster/src
