@@ -30,7 +30,7 @@ import {BaseAccount as SimpleAccount08} from "@test-aa-utils/v08/accounts/Simple
 import {ECDSA} from "@openzeppelin-v4.8.3/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 
-import {BasicERC20PaymasterV6, BasicERC20PaymasterV7, BasicERC20PaymasterV8} from "./utils/BasicERC20Paymaster.sol";
+import {BasicERC20Paymaster06, BasicERC20Paymaster07, BasicERC20Paymaster08} from "./utils/BasicERC20Paymaster.sol";
 
 contract ERC20PaymasterTest is Test {
     PimlicoSimulations pimlicoSim;
@@ -44,9 +44,9 @@ contract ERC20PaymasterTest is Test {
     IEntryPointSimulations entryPointSimulations08;
 
     TestERC20 token;
-    BasicERC20PaymasterV6 paymaster06;
-    BasicERC20PaymasterV7 paymaster07;
-    BasicERC20PaymasterV8 paymaster08;
+    BasicERC20Paymaster06 paymaster06;
+    BasicERC20Paymaster07 paymaster07;
+    BasicERC20Paymaster08 paymaster08;
     address treasury;
     address owner;
     uint256 ownerKey;
@@ -78,9 +78,9 @@ contract ERC20PaymasterTest is Test {
         token = new TestERC20(18);
 
         // Deploy basic ERC20 paymasters
-        paymaster06 = new BasicERC20PaymasterV6(entryPoint06);
-        paymaster07 = new BasicERC20PaymasterV7(entryPoint07);
-        paymaster08 = new BasicERC20PaymasterV8(entryPoint08);
+        paymaster06 = new BasicERC20Paymaster06(entryPoint06);
+        paymaster07 = new BasicERC20Paymaster07(entryPoint07);
+        paymaster08 = new BasicERC20Paymaster08(entryPoint08);
 
         // Fund paymasters with ETH for EntryPoint deposits
         vm.deal(address(paymaster06), 100 ether);

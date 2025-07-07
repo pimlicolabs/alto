@@ -6,14 +6,14 @@ import {UserOperation} from "@account-abstraction-v6/interfaces/UserOperation.so
 import {IPaymaster} from "@account-abstraction-v6/interfaces/IPaymaster.sol";
 import {IEntryPoint} from "@account-abstraction-v6/interfaces/IEntryPoint.sol";
 import {PackedUserOperation} from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
-import {IPaymaster as IPaymasterV7} from "@account-abstraction-v7/interfaces/IPaymaster.sol";
-import {IEntryPoint as IEntryPointV7} from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+import {IPaymaster as IPaymaster07} from "@account-abstraction-v7/interfaces/IPaymaster.sol";
+import {IEntryPoint as IEntryPoint07} from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {PackedUserOperation as PackedUserOperation08} from "@account-abstraction-v8/interfaces/PackedUserOperation.sol";
-import {IPaymaster as IPaymasterV8} from "@account-abstraction-v8/interfaces/IPaymaster.sol";
-import {IEntryPoint as IEntryPointV8} from "@account-abstraction-v8/interfaces/IEntryPoint.sol";
+import {IPaymaster as IPaymaster08} from "@account-abstraction-v8/interfaces/IPaymaster.sol";
+import {IEntryPoint as IEntryPoint08} from "@account-abstraction-v8/interfaces/IEntryPoint.sol";
 
 /// @notice A basic ERC20 paymaster for v0.6 that accepts token payments
-contract BasicERC20PaymasterV6 is IPaymaster {
+contract BasicERC20Paymaster06 is IPaymaster {
     IEntryPoint public immutable entryPoint;
 
     constructor(IEntryPoint _entryPoint) {
@@ -45,10 +45,10 @@ contract BasicERC20PaymasterV6 is IPaymaster {
 }
 
 /// @notice A basic ERC20 paymaster for v0.7 that accepts token payments
-contract BasicERC20PaymasterV7 is IPaymasterV7 {
-    IEntryPointV7 public immutable entryPoint;
+contract BasicERC20Paymaster07 is IPaymaster07 {
+    IEntryPoint07 public immutable entryPoint;
 
-    constructor(IEntryPointV7 _entryPoint) {
+    constructor(IEntryPoint07 _entryPoint) {
         entryPoint = _entryPoint;
     }
 
@@ -78,10 +78,10 @@ contract BasicERC20PaymasterV7 is IPaymasterV7 {
 }
 
 /// @notice A basic ERC20 paymaster for v0.8 that accepts token payments
-contract BasicERC20PaymasterV8 is IPaymasterV8 {
-    IEntryPointV8 public immutable entryPoint;
+contract BasicERC20Paymaster08 is IPaymaster08 {
+    IEntryPoint08 public immutable entryPoint;
 
-    constructor(IEntryPointV8 _entryPoint) {
+    constructor(IEntryPoint08 _entryPoint) {
         entryPoint = _entryPoint;
     }
 
