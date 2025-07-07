@@ -12,7 +12,8 @@ import {PackedUserOperation as PackedUserOperation08} from "@account-abstraction
 import {IPaymaster as IPaymaster08} from "@account-abstraction-v8/interfaces/IPaymaster.sol";
 import {IEntryPoint as IEntryPoint08} from "@account-abstraction-v8/interfaces/IEntryPoint.sol";
 
-/// @notice A basic ERC20 paymaster for v0.6 that accepts token payments
+/// @notice Mock paymaster for v0.6 testing - transfers ERC20 tokens in postOp
+/// @dev paymasterData format: abi.encode(token, treasury, amount)
 contract BasicERC20Paymaster06 is IPaymaster {
     IEntryPoint public immutable entryPoint;
 
@@ -44,7 +45,8 @@ contract BasicERC20Paymaster06 is IPaymaster {
     }
 }
 
-/// @notice A basic ERC20 paymaster for v0.7 that accepts token payments
+/// @notice Mock paymaster for v0.7 testing - transfers ERC20 tokens in postOp
+/// @dev paymasterData format: paymaster address (20) + gas limits (32) + abi.encode(token, treasury, amount)
 contract BasicERC20Paymaster07 is IPaymaster07 {
     IEntryPoint07 public immutable entryPoint;
 
@@ -77,7 +79,8 @@ contract BasicERC20Paymaster07 is IPaymaster07 {
     }
 }
 
-/// @notice A basic ERC20 paymaster for v0.8 that accepts token payments
+/// @notice Mock paymaster for v0.8 testing - transfers ERC20 tokens in postOp
+/// @dev paymasterData format: paymaster address (20) + gas limits (32) + abi.encode(token, treasury, amount)
 contract BasicERC20Paymaster08 is IPaymaster08 {
     IEntryPoint08 public immutable entryPoint;
 
