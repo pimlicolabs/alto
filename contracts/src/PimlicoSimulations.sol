@@ -396,12 +396,9 @@ contract PimlicoSimulations {
         address target = address(token);
         bytes memory targetData = abi.encodeWithSignature("balanceOf(address)", treasury);
 
-        // Create empty array for queuedUserOps since we're only interested in the target operation
-        PackedUserOperation[] memory emptyQueuedOps = new PackedUserOperation[](0);
-
-        // Use the same pattern as simulateHandleOp
-        bytes4 selector = IEntryPointSimulations.simulateHandleOp.selector;
-        bytes memory data = abi.encodeWithSelector(selector, emptyQueuedOps, userOperation, target, targetData);
+        // Use the same pattern as simulateHandleOpSingle
+        bytes4 selector = IEntryPointSimulations.simulateHandleOpSingle.selector;
+        bytes memory data = abi.encodeWithSelector(selector, userOperation, target, targetData);
         bytes memory returnData = _simulateEntryPoint(entryPointSimulation, entryPoint, data);
         IEntryPointSimulations.ExecutionResult memory result =
             abi.decode(returnData, (IEntryPointSimulations.ExecutionResult));

@@ -104,6 +104,27 @@ contract ERC20PaymasterTest is Test {
         assertEq(balanceChange, PAYMENT_AMOUNT, "Treasury should receive exactly PAYMENT_AMOUNT tokens");
     }
 
+    function testGetErc20BalanceChange06_InsufficientApproval() public {
+        // Create account and fund with tokens
+        address account = accountFactory06.getAddress(owner, 0);
+        accountFactory06.createAccount(owner, 0);
+        vm.deal(account, 1 ether);
+        token.sudoMint(account, 1000 ether);
+
+        // Skip the approval step - this should cause the transfer to fail
+        // vm.prank(account);
+        // token.approve(address(paymaster06), type(uint256).max);
+
+        // Build UserOperation with ERC20 paymaster data
+        UserOperation06 memory userOp = _createUserOp06WithERC20Paymaster(
+            account, 0, abi.encodeWithSelector(SimpleAccount06.execute.selector, address(0), 0, "")
+        );
+
+        // Test should revert due to insufficient approval
+        vm.expectRevert();
+        pimlicoSim.getErc20BalanceChange06(userOp, address(entryPoint06), ERC20(address(token)), treasury);
+    }
+
     function testGetErc20BalanceChange06_InsufficientBalance() public {
         // Create account without funding it with enough tokens
         address account = accountFactory06.getAddress(owner, 0);
@@ -159,6 +180,29 @@ contract ERC20PaymasterTest is Test {
 
         // Should show balance change equal to PAYMENT_AMOUNT
         assertEq(balanceChange, PAYMENT_AMOUNT, "Treasury should receive exactly PAYMENT_AMOUNT tokens");
+    }
+
+    function testGetErc20BalanceChange07_InsufficientApproval() public {
+        // Create account and fund with tokens
+        address account = accountFactory07.getAddress(owner, 0);
+        accountFactory07.createAccount(owner, 0);
+        vm.deal(account, 1 ether);
+        token.sudoMint(account, 1000 ether);
+
+        // Skip the approval step - this should cause the transfer to fail
+        // vm.prank(account);
+        // token.approve(address(paymaster07), type(uint256).max);
+
+        // Build PackedUserOperation with ERC20 paymaster data
+        PackedUserOperation07 memory userOp = _createPackedUserOp07WithERC20Paymaster(
+            account, 0, abi.encodeWithSelector(SimpleAccount07.execute.selector, address(0), 0, "")
+        );
+
+        // Test should revert due to insufficient approval
+        vm.expectRevert();
+        pimlicoSim.getErc20BalanceChange07(
+            address(entryPointSimulations07), payable(address(entryPoint07)), userOp, ERC20(address(token)), treasury
+        );
     }
 
     function testGetErc20BalanceChange07_InsufficientBalance() public {
