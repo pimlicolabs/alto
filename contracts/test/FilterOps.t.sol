@@ -26,11 +26,11 @@ import {EntryPoint as EntryPoint08} from "@test-aa-utils/v08/core/EntryPoint.sol
 import {SimpleAccountFactory as SimpleAccountFactory08} from "@test-aa-utils/v08/accounts/SimpleAccountFactory.sol";
 import {BaseAccount as SimpleAccount08} from "@test-aa-utils/v08/core/BaseAccount.sol";
 
-import {ExpiredPaymasterV06, ExpiredPaymasterV07, ExpiredPaymasterV08} from "./utils/ExpiredPaymasters.sol";
+import {ExpiredPaymaster06, ExpiredPaymaster07, ExpiredPaymaster08} from "./utils/ExpiredPaymasters.sol";
 import {
-    PostOpRevertPaymasterV06,
-    PostOpRevertPaymasterV07,
-    PostOpRevertPaymasterV08
+    PostOpRevertPaymaster06,
+    PostOpRevertPaymaster07,
+    PostOpRevertPaymaster08
 } from "./utils/PostOpRevertPaymasters.sol";
 
 contract FilterOpsTest is Test {
@@ -47,12 +47,12 @@ contract FilterOpsTest is Test {
     uint256 ownerKey;
 
     address forceReverter;
-    ExpiredPaymasterV06 expiredPaymaster06;
-    ExpiredPaymasterV07 expiredPaymaster07;
-    ExpiredPaymasterV08 expiredPaymaster08;
-    PostOpRevertPaymasterV06 postOpRevertPaymaster06;
-    PostOpRevertPaymasterV07 postOpRevertPaymaster07;
-    PostOpRevertPaymasterV08 postOpRevertPaymaster08;
+    ExpiredPaymaster06 expiredPaymaster06;
+    ExpiredPaymaster07 expiredPaymaster07;
+    ExpiredPaymaster08 expiredPaymaster08;
+    PostOpRevertPaymaster06 postOpRevertPaymaster06;
+    PostOpRevertPaymaster07 postOpRevertPaymaster07;
+    PostOpRevertPaymaster08 postOpRevertPaymaster08;
 
     function setUp() public {
         (owner, ownerKey) = makeAddrAndKey("alice");
@@ -67,18 +67,18 @@ contract FilterOpsTest is Test {
         forceReverter = address(new ForceReverter());
 
         // Deploy and fund expired paymasters
-        expiredPaymaster06 = new ExpiredPaymasterV06(entryPoint06);
-        expiredPaymaster07 = new ExpiredPaymasterV07(entryPoint07);
-        expiredPaymaster08 = new ExpiredPaymasterV08(entryPoint08);
+        expiredPaymaster06 = new ExpiredPaymaster06(entryPoint06);
+        expiredPaymaster07 = new ExpiredPaymaster07(entryPoint07);
+        expiredPaymaster08 = new ExpiredPaymaster08(entryPoint08);
 
         expiredPaymaster06.deposit{value: 10 ether}();
         expiredPaymaster07.deposit{value: 10 ether}();
         expiredPaymaster08.deposit{value: 10 ether}();
 
         // Deploy and fund postOp revert paymasters
-        postOpRevertPaymaster06 = new PostOpRevertPaymasterV06(entryPoint06);
-        postOpRevertPaymaster07 = new PostOpRevertPaymasterV07(entryPoint07);
-        postOpRevertPaymaster08 = new PostOpRevertPaymasterV08(entryPoint08);
+        postOpRevertPaymaster06 = new PostOpRevertPaymaster06(entryPoint06);
+        postOpRevertPaymaster07 = new PostOpRevertPaymaster07(entryPoint07);
+        postOpRevertPaymaster08 = new PostOpRevertPaymaster08(entryPoint08);
 
         postOpRevertPaymaster06.deposit{value: 10 ether}();
         postOpRevertPaymaster07.deposit{value: 10 ether}();

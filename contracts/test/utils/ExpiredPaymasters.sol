@@ -17,7 +17,7 @@ import {IPaymaster as IPaymaster08} from "account-abstraction-v8/interfaces/IPay
 import {_packValidationData as _packValidationData08} from "account-abstraction-v8/core/Helpers.sol";
 
 // Test paymaster that returns expired validUntil for v0.6
-contract ExpiredPaymasterV06 is IPaymaster06 {
+contract ExpiredPaymaster06 is IPaymaster06 {
     IEntryPoint06 public immutable entryPoint;
 
     constructor(IEntryPoint06 _entryPoint) {
@@ -42,7 +42,7 @@ contract ExpiredPaymasterV06 is IPaymaster06 {
 }
 
 // Test paymaster that returns expired validUntil for v0.7
-contract ExpiredPaymasterV07 is IPaymaster07 {
+contract ExpiredPaymaster07 is IPaymaster07 {
     IEntryPoint07 public immutable entryPoint;
 
     constructor(IEntryPoint07 _entryPoint) {
@@ -67,7 +67,7 @@ contract ExpiredPaymasterV07 is IPaymaster07 {
 }
 
 // Test paymaster that returns expired validUntil for v0.8
-contract ExpiredPaymasterV08 is IPaymaster08 {
+contract ExpiredPaymaster08 is IPaymaster08 {
     IEntryPoint08 public immutable entryPoint;
 
     constructor(IEntryPoint08 _entryPoint) {
