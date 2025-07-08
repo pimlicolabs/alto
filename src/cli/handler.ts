@@ -27,12 +27,14 @@ import { getSenderManager } from "../executor/senderManager/index"
 import { UtilityWalletMonitor } from "../executor/utilityWalletMonitor"
 
 const preFlightChecks = async (config: AltoConfig): Promise<void> => {
+    const logger = config.getLogger({ module: "preflight" })
+
     for (const entrypoint of config.entrypoints) {
         const entryPointCode = await config.publicClient.getCode({
             address: entrypoint
         })
         if (entryPointCode === undefined || entryPointCode === "0x") {
-            throw new Error(`entry point ${entrypoint} does not exist`)
+            logger.warn(`entry point ${entrypoint} does not exist`)
         }
     }
 
@@ -42,9 +44,7 @@ const preFlightChecks = async (config: AltoConfig): Promise<void> => {
             address: address
         })
         if (code === undefined || code === "0x") {
-            throw new Error(
-                `PimlicoSimulations contract ${address} does not exist`
-            )
+            logger.warn(`PimlicoSimulations contract ${address} does not exist`)
         }
     }
 
@@ -54,7 +54,7 @@ const preFlightChecks = async (config: AltoConfig): Promise<void> => {
             address
         })
         if (code === undefined || code === "0x") {
-            throw new Error(
+            logger.warn(
                 `EntryPointSimulationsV7 contract ${address} does not exist`
             )
         }
@@ -66,7 +66,7 @@ const preFlightChecks = async (config: AltoConfig): Promise<void> => {
     //         address: simulations
     //     })
     //     if (simulationsCode === undefined || simulationsCode === "0x") {
-    //         throw new Error(
+    //         logger.warn(
     //             `EntryPointSimulationsV8 contract ${simulations} does not exist`
     //         )
     //     }
@@ -78,9 +78,7 @@ const preFlightChecks = async (config: AltoConfig): Promise<void> => {
             address: refillHelper
         })
         if (refillHelperCode === undefined || refillHelperCode === "0x") {
-            throw new Error(
-                `RefillHelper contract ${refillHelper} does not exist`
-            )
+            logger.warn(`RefillHelper contract ${refillHelper} does not exist`)
         }
     }
 }

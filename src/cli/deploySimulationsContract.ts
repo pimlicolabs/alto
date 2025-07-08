@@ -138,6 +138,8 @@ export const deploySimulationsContract = async ({
             await publicClient.waitForTransactionReceipt({
                 hash: deployHash
             })
+
+            logger.info("Successfully deployed PimlicoSimulations contract")
         } catch {
             logger.error("Failed to deploy PimlicoSimulations contract")
         }
@@ -156,6 +158,8 @@ export const deploySimulationsContract = async ({
         await publicClient.waitForTransactionReceipt({
             hash: deployHash
         })
+
+        logger.info("Successfully deployed EntryPointSimulationsV7 contract")
     }
 
     if (!isDeployedV8) {
@@ -172,6 +176,10 @@ export const deploySimulationsContract = async ({
             await publicClient.waitForTransactionReceipt({
                 hash: deployHash
             })
+
+            logger.info(
+                "Successfully deployed EntryPointSimulationsV8 contract"
+            )
         } catch {
             logger.error("Failed to deploy simulationsContract V8")
         }
