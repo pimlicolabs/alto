@@ -12,6 +12,7 @@ import type { AltoConfig } from "../createConfig"
 import { SenderManager } from "./senderManager"
 import { GasPriceParameters } from "@alto/types"
 import { UserOpMonitor } from "./userOpMonitor"
+import { getUserOpHashes } from "./utils"
 
 const SCALE_FACTOR = 10 // Interval increases by 10ms per task per minute
 const RPM_WINDOW = 60000 // 1 minute window in ms
@@ -363,7 +364,11 @@ export class ExecutorManager {
                 await this.senderManager.markWalletProcessed(executor)
 
                 this.logger.warn(
-                    { oldTxHash, reason },
+                    {
+                        oldTxHash,
+                        reason,
+                        userOps: getUserOpHashes(submittedBundle.bundle.userOps)
+                    },
                     "failed to replace transaction"
                 )
 
