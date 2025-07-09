@@ -135,6 +135,7 @@ export class Mempool {
                     entryPoint
                 )
 
+                // Reject userOp if resubmission failed.
                 if (!success) {
                     this.logger.error(
                         { userOpHash, failureReason },

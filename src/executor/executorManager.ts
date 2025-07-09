@@ -354,14 +354,13 @@ export class ExecutorManager {
             const isPending =
                 await this.userOpMonitor.refreshBundleStatus(submittedBundle)
 
-            // if isPending then this bundle never made it onchain so we need to cleanup.
+            // if isPending then this bundle never made it onchain.
             if (isPending) {
+                const { rejectedUserOps, recoverableOps, reason } = bundleResult
+
                 // Free wallet as no bundle was sent.
                 await this.userOpMonitor.stopTrackingBundle(submittedBundle)
                 await this.senderManager.markWalletProcessed(executor)
-
-                // If no transaction ever landed onchain, we should drop userOps
-                const { rejectedUserOps, recoverableOps, reason } = bundleResult
 
                 this.logger.warn(
                     { oldTxHash, reason },
