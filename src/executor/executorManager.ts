@@ -349,32 +349,39 @@ export class ExecutorManager {
 
         // Handle case where no bundle was sent.
         if (!bundleResult.success) {
-            // Free wallet as no bundle was sent.
-            await this.senderManager.markWalletProcessed(executor)
-            await this.userOpMonitor.stopTrackingBundle(submittedBundle)
+            // Refresh bundleStatus once more as we will no longer be tracking it
+            // If bundle reverted, frontran, or included refreshBundleStatus will free executor
+            const isPending =
+                await this.userOpMonitor.refreshBundleStatus(submittedBundle)
 
-            const { rejectedUserOps, recoverableOps, reason } = bundleResult
+            // if isPending then this bundle never made it onchain so we need to cleanup.
+            if (isPending) {
+                // Free wallet as no bundle was sent.
+                await this.userOpMonitor.stopTrackingBundle(submittedBundle)
+                await this.senderManager.markWalletProcessed(executor)
 
-            this.logger.warn(
-                { oldTxHash, reason },
-                "failed to replace transaction"
-            )
+                // If no transaction ever landed onchain, we should drop userOps
+                const { rejectedUserOps, recoverableOps, reason } = bundleResult
 
-            // Drop rejected ops
-            await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
+                this.logger.warn(
+                    { oldTxHash, reason },
+                    "failed to replace transaction"
+                )
 
-            // Handle recoverable ops
-            if (recoverableOps.length) {
+                // Drop rejected ops
+                await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
+
+                // Handle recoverable ops
                 await this.mempool.resubmitUserOps({
                     userOps: recoverableOps,
                     entryPoint,
                     reason
                 })
-            }
 
-            this.metrics.replacedTransactions
-                .labels({ reason, status: "failed" })
-                .inc()
+                this.metrics.replacedTransactions
+                    .labels({ reason, status: "failed" })
+                    .inc()
+            }
 
             return
         }
