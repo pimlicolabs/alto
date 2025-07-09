@@ -27,6 +27,13 @@ contract UserOpHelper is Test {
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
 
+    // Struct for call parameters
+    struct Call {
+        address to;
+        uint256 value;
+        bytes data;
+    }
+
     // EntryPoint instances
     EntryPoint06 public entryPoint06;
     EntryPoint07 public entryPoint07;
@@ -57,13 +64,11 @@ contract UserOpHelper is Test {
     }
 
     // Create and sign UserOperation for EntryPoint v0.6
-    function createSignedUserOp06(
-        uint256 salt,
-        address target,
-        uint256 value,
-        bytes memory data,
-        bytes memory paymasterAndData
-    ) internal view returns (UserOperation06 memory) {
+    function createSignedUserOp06(uint256 salt, Call memory call, bytes memory paymasterAndData)
+        internal
+        view
+        returns (UserOperation06 memory)
+    {
         // Derive sender address
         address sender = accountFactory06.getAddress(owner, salt);
 
@@ -79,7 +84,7 @@ contract UserOpHelper is Test {
         }
 
         // Encode the execute call
-        bytes memory callData = abi.encodeWithSelector(SimpleAccount06.execute.selector, target, value, data);
+        bytes memory callData = abi.encodeWithSelector(SimpleAccount06.execute.selector, call.to, call.value, call.data);
 
         UserOperation06 memory userOp = UserOperation06({
             sender: sender,
@@ -103,13 +108,11 @@ contract UserOpHelper is Test {
     }
 
     // Create and sign PackedUserOperation for EntryPoint v0.7
-    function createSignedUserOp07(
-        uint256 salt,
-        address target,
-        uint256 value,
-        bytes memory data,
-        bytes memory paymasterAndData
-    ) internal view returns (PackedUserOperation07 memory) {
+    function createSignedUserOp07(uint256 salt, Call memory call, bytes memory paymasterAndData)
+        internal
+        view
+        returns (PackedUserOperation07 memory)
+    {
         // Derive sender address
         address sender = accountFactory07.getAddress(owner, salt);
 
@@ -128,7 +131,7 @@ contract UserOpHelper is Test {
             sender: sender,
             nonce: nonce,
             initCode: initCode,
-            callData: abi.encodeWithSelector(SimpleAccount07.execute.selector, target, value, data),
+            callData: abi.encodeWithSelector(SimpleAccount07.execute.selector, call.to, call.value, call.data),
             accountGasLimits: packGasLimits(300000, 200000),
             preVerificationGas: 21000,
             gasFees: packGasFees(1 gwei, 1 gwei),
@@ -144,13 +147,11 @@ contract UserOpHelper is Test {
     }
 
     // Create and sign PackedUserOperation for EntryPoint v0.8
-    function createSignedUserOp08(
-        uint256 salt,
-        address target,
-        uint256 value,
-        bytes memory data,
-        bytes memory paymasterAndData
-    ) internal view returns (PackedUserOperation08 memory) {
+    function createSignedUserOp08(uint256 salt, Call memory call, bytes memory paymasterAndData)
+        internal
+        view
+        returns (PackedUserOperation08 memory)
+    {
         // Derive sender address
         address sender = accountFactory08.getAddress(owner, salt);
 
@@ -169,7 +170,7 @@ contract UserOpHelper is Test {
             sender: sender,
             nonce: nonce,
             initCode: initCode,
-            callData: abi.encodeWithSelector(SimpleAccount08.execute.selector, target, value, data),
+            callData: abi.encodeWithSelector(SimpleAccount08.execute.selector, call.to, call.value, call.data),
             accountGasLimits: packGasLimits(300000, 200000),
             preVerificationGas: 21000,
             gasFees: packGasFees(1 gwei, 1 gwei),

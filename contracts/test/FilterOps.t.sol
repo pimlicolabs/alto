@@ -80,10 +80,11 @@ contract FilterOpsTest is UserOpHelper {
     function testFilterOps06_AllValid() public {
         UserOperation06[] memory ops = new UserOperation06[](3);
 
-        // Simple execute call with no revert - target: address(0), value: 0, data: ""
-        ops[0] = createSignedUserOp06(0, address(0), 0, "", "");
-        ops[1] = createSignedUserOp06(1, address(0), 0, "", "");
-        ops[2] = createSignedUserOp06(2, address(0), 0, "", "");
+        // Simple execute call with no revert - to: address(0), value: 0, data: ""
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(0), value: 0, data: ""});
+        ops[0] = createSignedUserOp06(0, call, "");
+        ops[1] = createSignedUserOp06(1, call, "");
+        ops[2] = createSignedUserOp06(2, call, "");
 
         // Fund accounts
         vm.deal(ops[0].sender, 1 ether);
@@ -100,9 +101,10 @@ contract FilterOpsTest is UserOpHelper {
     function testFilterOps06_OneFailingOp() public {
         UserOperation06[] memory ops = new UserOperation06[](3);
 
-        ops[0] = createSignedUserOp06(0, address(0), 0, "", ""); // should pass
-        ops[1] = createSignedUserOp06(1, address(0), 0, "", ""); // should fail due to insufficient funds
-        ops[2] = createSignedUserOp06(2, address(0), 0, "", ""); // should pass
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(0), value: 0, data: ""});
+        ops[0] = createSignedUserOp06(0, call, ""); // should pass
+        ops[1] = createSignedUserOp06(1, call, ""); // should fail due to insufficient funds
+        ops[2] = createSignedUserOp06(2, call, ""); // should pass
 
         // Fund only the first and last userOps, middle userOp will fail due to insufficient funds
         vm.deal(ops[0].sender, 1 ether);
@@ -124,7 +126,7 @@ contract FilterOpsTest is UserOpHelper {
     function testFilterOps06_InvalidSignature() public {
         UserOperation06[] memory ops = new UserOperation06[](1);
 
-        ops[0] = createSignedUserOp06(0, address(0), 0, "", "");
+        ops[0] = createSignedUserOp06(0, UserOpHelper.Call({to: address(0), value: 0, data: ""}), "");
 
         // Fund account
         vm.deal(ops[0].sender, 1 ether);
@@ -146,8 +148,9 @@ contract FilterOpsTest is UserOpHelper {
     function testFilterOps06_AllFailingOps() public {
         UserOperation06[] memory ops = new UserOperation06[](2);
 
-        ops[0] = createSignedUserOp06(0, address(0), 0, "", ""); // should fail due to insufficient funds
-        ops[1] = createSignedUserOp06(1, address(0), 0, "", ""); // should fail due to insufficient funds
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(0), value: 0, data: ""});
+        ops[0] = createSignedUserOp06(0, call, ""); // should fail due to insufficient funds
+        ops[1] = createSignedUserOp06(1, call, ""); // should fail due to insufficient funds
 
         // No funding - both userOps will fail due to insufficient funds
 
@@ -168,13 +171,14 @@ contract FilterOpsTest is UserOpHelper {
         UserOperation06[] memory ops = new UserOperation06[](3);
 
         // Normal calls for accounts 0 and 2
-        ops[0] = createSignedUserOp06(0, address(0), 0, "", "");
+        UserOpHelper.Call memory normalCall = UserOpHelper.Call({to: address(0), value: 0, data: ""});
+        ops[0] = createSignedUserOp06(0, normalCall, "");
 
         // Account 1 will revert during call phase
         bytes memory revertData = abi.encodeWithSelector(ForceReverter.forceRevertWithMessage.selector, "foobar");
-        ops[1] = createSignedUserOp06(1, forceReverter, 0, revertData, "");
+        ops[1] = createSignedUserOp06(1, UserOpHelper.Call({to: forceReverter, value: 0, data: revertData}), "");
 
-        ops[2] = createSignedUserOp06(2, address(0), 0, "", "");
+        ops[2] = createSignedUserOp06(2, normalCall, "");
 
         // Fund all accounts
         vm.deal(ops[0].sender, 1 ether);
@@ -191,10 +195,11 @@ contract FilterOpsTest is UserOpHelper {
         UserOperation06[] memory ops = new UserOperation06[](3);
 
         bytes memory revertingPaymasterAndData = abi.encodePacked(address(expiredPaymaster06));
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(0), value: 0, data: ""});
 
-        ops[0] = createSignedUserOp06(0, address(0), 0, "", "");
-        ops[1] = createSignedUserOp06(1, address(0), 0, "", revertingPaymasterAndData);
-        ops[2] = createSignedUserOp06(2, address(0), 0, "", "");
+        ops[0] = createSignedUserOp06(0, call, "");
+        ops[1] = createSignedUserOp06(1, call, revertingPaymasterAndData);
+        ops[2] = createSignedUserOp06(2, call, "");
 
         // Fund all accounts
         vm.deal(ops[0].sender, 1 ether);
@@ -222,10 +227,11 @@ contract FilterOpsTest is UserOpHelper {
         UserOperation06[] memory ops = new UserOperation06[](3);
 
         bytes memory revertingPaymasterAndData = abi.encodePacked(address(postOpRevertPaymaster06));
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(0), value: 0, data: ""});
 
-        ops[0] = createSignedUserOp06(0, address(0), 0, "", "");
-        ops[1] = createSignedUserOp06(1, address(0), 0, "", revertingPaymasterAndData);
-        ops[2] = createSignedUserOp06(2, address(0), 0, "", "");
+        ops[0] = createSignedUserOp06(0, call, "");
+        ops[1] = createSignedUserOp06(1, call, revertingPaymasterAndData);
+        ops[2] = createSignedUserOp06(2, call, "");
 
         // Fund all accounts
         vm.deal(ops[0].sender, 1 ether);
@@ -254,9 +260,10 @@ contract FilterOpsTest is UserOpHelper {
         PackedUserOperation07[] memory ops = new PackedUserOperation07[](3);
 
         // Simple execute call with no revert
-        ops[0] = createSignedUserOp07(0, address(0), 0, "", "");
-        ops[1] = createSignedUserOp07(1, address(0), 0, "", "");
-        ops[2] = createSignedUserOp07(2, address(0), 0, "", "");
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(0), value: 0, data: ""});
+        ops[0] = createSignedUserOp07(0, call, "");
+        ops[1] = createSignedUserOp07(1, call, "");
+        ops[2] = createSignedUserOp07(2, call, "");
 
         // Fund all accounts
         vm.deal(ops[0].sender, 1 ether);
@@ -273,9 +280,10 @@ contract FilterOpsTest is UserOpHelper {
     function testFilterOps07_OneFailingOp() public {
         PackedUserOperation07[] memory ops = new PackedUserOperation07[](3);
 
-        ops[0] = createSignedUserOp07(0, address(0), 0, "", ""); // should pass
-        ops[1] = createSignedUserOp07(1, address(0), 0, "", ""); // should fail due to insufficient funds
-        ops[2] = createSignedUserOp07(2, address(0), 0, "", ""); // should pass
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(0), value: 0, data: ""});
+        ops[0] = createSignedUserOp07(0, call, ""); // should pass
+        ops[1] = createSignedUserOp07(1, call, ""); // should fail due to insufficient funds
+        ops[2] = createSignedUserOp07(2, call, ""); // should pass
 
         // Fund only the first and last userOps, middle userOp will fail due to insufficient funds
         vm.deal(ops[0].sender, 1 ether);
@@ -297,7 +305,7 @@ contract FilterOpsTest is UserOpHelper {
     function testFilterOps07_InvalidSignature() public {
         PackedUserOperation07[] memory ops = new PackedUserOperation07[](1);
 
-        ops[0] = createSignedUserOp07(0, address(0), 0, "", "");
+        ops[0] = createSignedUserOp07(0, UserOpHelper.Call({to: address(0), value: 0, data: ""}), "");
 
         // Fund account
         vm.deal(ops[0].sender, 1 ether);
@@ -326,8 +334,9 @@ contract FilterOpsTest is UserOpHelper {
     function testFilterOps07_AllFailingOps() public {
         PackedUserOperation07[] memory ops = new PackedUserOperation07[](2);
 
-        ops[0] = createSignedUserOp07(0, address(0), 0, "", ""); // should fail due to insufficient funds
-        ops[1] = createSignedUserOp07(1, address(0), 0, "", ""); // should fail due to insufficient funds
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(0), value: 0, data: ""});
+        ops[0] = createSignedUserOp07(0, call, ""); // should fail due to insufficient funds
+        ops[1] = createSignedUserOp07(1, call, ""); // should fail due to insufficient funds
 
         // No funding - both userOps will fail due to insufficient funds
 
@@ -348,13 +357,14 @@ contract FilterOpsTest is UserOpHelper {
         PackedUserOperation07[] memory ops = new PackedUserOperation07[](3);
 
         // Normal calls for accounts 0 and 2
-        ops[0] = createSignedUserOp07(0, address(0), 0, "", "");
+        UserOpHelper.Call memory normalCall = UserOpHelper.Call({to: address(0), value: 0, data: ""});
+        ops[0] = createSignedUserOp07(0, normalCall, "");
 
         // Account 1 will revert during call phase
         bytes memory revertData = abi.encodeWithSelector(ForceReverter.forceRevertWithMessage.selector, "foobar");
-        ops[1] = createSignedUserOp07(1, forceReverter, 0, revertData, "");
+        ops[1] = createSignedUserOp07(1, UserOpHelper.Call({to: forceReverter, value: 0, data: revertData}), "");
 
-        ops[2] = createSignedUserOp07(2, address(0), 0, "", "");
+        ops[2] = createSignedUserOp07(2, normalCall, "");
 
         // Fund all accounts
         vm.deal(ops[0].sender, 1 ether);
@@ -375,10 +385,11 @@ contract FilterOpsTest is UserOpHelper {
             uint128(100000), // paymasterVerificationGasLimit
             uint128(50000) // paymasterPostOpGasLimit
         );
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(0), value: 0, data: ""});
 
-        ops[0] = createSignedUserOp07(0, address(0), 0, "", "");
-        ops[1] = createSignedUserOp07(1, address(0), 0, "", revertingPaymasterAndData);
-        ops[2] = createSignedUserOp07(2, address(0), 0, "", "");
+        ops[0] = createSignedUserOp07(0, call, "");
+        ops[1] = createSignedUserOp07(1, call, revertingPaymasterAndData);
+        ops[2] = createSignedUserOp07(2, call, "");
 
         // Fund all accounts
         vm.deal(ops[0].sender, 1 ether);
@@ -410,10 +421,11 @@ contract FilterOpsTest is UserOpHelper {
             uint128(100000), // paymasterVerificationGasLimit
             uint128(50000) // paymasterPostOpGasLimit
         );
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(0), value: 0, data: ""});
 
-        ops[0] = createSignedUserOp07(0, address(0), 0, "", "");
-        ops[1] = createSignedUserOp07(1, address(0), 0, "", revertingPaymasterAndData);
-        ops[2] = createSignedUserOp07(2, address(0), 0, "", "");
+        ops[0] = createSignedUserOp07(0, call, "");
+        ops[1] = createSignedUserOp07(1, call, revertingPaymasterAndData);
+        ops[2] = createSignedUserOp07(2, call, "");
 
         // Fund accounts
         vm.deal(ops[0].sender, 1 ether);
@@ -436,9 +448,10 @@ contract FilterOpsTest is UserOpHelper {
         PackedUserOperation08[] memory ops = new PackedUserOperation08[](3);
 
         // Simple execute call with no revert
-        ops[0] = createSignedUserOp08(0, address(0), 0, "", "");
-        ops[1] = createSignedUserOp08(1, address(0), 0, "", "");
-        ops[2] = createSignedUserOp08(2, address(0), 0, "", "");
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(0), value: 0, data: ""});
+        ops[0] = createSignedUserOp08(0, call, "");
+        ops[1] = createSignedUserOp08(1, call, "");
+        ops[2] = createSignedUserOp08(2, call, "");
 
         // Fund all accounts
         vm.deal(ops[0].sender, 1 ether);
@@ -456,9 +469,10 @@ contract FilterOpsTest is UserOpHelper {
     function testFilterOps08_OneFailingOp() public {
         PackedUserOperation08[] memory ops = new PackedUserOperation08[](3);
 
-        ops[0] = createSignedUserOp08(0, address(0), 0, "", ""); // should pass
-        ops[1] = createSignedUserOp08(1, address(0), 0, "", ""); // should fail due to insufficient funds
-        ops[2] = createSignedUserOp08(2, address(0), 0, "", ""); // should pass
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(0), value: 0, data: ""});
+        ops[0] = createSignedUserOp08(0, call, ""); // should pass
+        ops[1] = createSignedUserOp08(1, call, ""); // should fail due to insufficient funds
+        ops[2] = createSignedUserOp08(2, call, ""); // should pass
 
         // Fund only the first and last userOps, middle userOp will fail due to insufficient funds
         vm.deal(ops[0].sender, 1 ether);
@@ -477,7 +491,7 @@ contract FilterOpsTest is UserOpHelper {
     function testFilterOps08_InvalidSignature() public {
         PackedUserOperation08[] memory ops = new PackedUserOperation08[](1);
 
-        ops[0] = createSignedUserOp08(0, address(0), 0, "", "");
+        ops[0] = createSignedUserOp08(0, UserOpHelper.Call({to: address(0), value: 0, data: ""}), "");
 
         // Fund account
         vm.deal(ops[0].sender, 1 ether);
@@ -507,8 +521,9 @@ contract FilterOpsTest is UserOpHelper {
     function testFilterOps08_AllFailingOps() public {
         PackedUserOperation08[] memory ops = new PackedUserOperation08[](2);
 
-        ops[0] = createSignedUserOp08(0, address(0), 0, "", ""); // should fail due to insufficient funds
-        ops[1] = createSignedUserOp08(1, address(0), 0, "", ""); // should fail due to insufficient funds
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(0), value: 0, data: ""});
+        ops[0] = createSignedUserOp08(0, call, ""); // should fail due to insufficient funds
+        ops[1] = createSignedUserOp08(1, call, ""); // should fail due to insufficient funds
 
         // No funding - both userOps will fail due to insufficient funds
 
@@ -531,13 +546,14 @@ contract FilterOpsTest is UserOpHelper {
         PackedUserOperation08[] memory ops = new PackedUserOperation08[](3);
 
         // Normal calls for accounts 0 and 2
-        ops[0] = createSignedUserOp08(0, address(0), 0, "", "");
+        UserOpHelper.Call memory normalCall = UserOpHelper.Call({to: address(0), value: 0, data: ""});
+        ops[0] = createSignedUserOp08(0, normalCall, "");
 
         // Account 1 will revert during call phase
         bytes memory revertData = abi.encodeWithSelector(ForceReverter.forceRevertWithMessage.selector, "foobar");
-        ops[1] = createSignedUserOp08(1, forceReverter, 0, revertData, "");
+        ops[1] = createSignedUserOp08(1, UserOpHelper.Call({to: forceReverter, value: 0, data: revertData}), "");
 
-        ops[2] = createSignedUserOp08(2, address(0), 0, "", "");
+        ops[2] = createSignedUserOp08(2, normalCall, "");
 
         // Fund all accounts
         vm.deal(ops[0].sender, 1 ether);
@@ -559,10 +575,11 @@ contract FilterOpsTest is UserOpHelper {
             uint128(100000), // paymasterVerificationGasLimit
             uint128(50000) // paymasterPostOpGasLimit
         );
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(0), value: 0, data: ""});
 
-        ops[0] = createSignedUserOp08(0, address(0), 0, "", "");
-        ops[1] = createSignedUserOp08(1, address(0), 0, "", revertingPaymasterAndData);
-        ops[2] = createSignedUserOp08(2, address(0), 0, "", "");
+        ops[0] = createSignedUserOp08(0, call, "");
+        ops[1] = createSignedUserOp08(1, call, revertingPaymasterAndData);
+        ops[2] = createSignedUserOp08(2, call, "");
 
         // Fund all accounts
         vm.deal(ops[0].sender, 1 ether);
@@ -595,10 +612,11 @@ contract FilterOpsTest is UserOpHelper {
             uint128(100000), // paymasterVerificationGasLimit
             uint128(50000) // paymasterPostOpGasLimit
         );
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(0), value: 0, data: ""});
 
-        ops[0] = createSignedUserOp08(0, address(0), 0, "", "");
-        ops[1] = createSignedUserOp08(1, address(0), 0, "", revertingPaymasterAndData);
-        ops[2] = createSignedUserOp08(2, address(0), 0, "", "");
+        ops[0] = createSignedUserOp08(0, call, "");
+        ops[1] = createSignedUserOp08(1, call, revertingPaymasterAndData);
+        ops[2] = createSignedUserOp08(2, call, "");
 
         // Fund all accounts
         vm.deal(ops[0].sender, 1 ether);
