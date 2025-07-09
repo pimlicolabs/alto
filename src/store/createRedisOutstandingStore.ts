@@ -3,16 +3,16 @@ import {
     isVersion06,
     isVersion07
 } from "../utils/userop"
-import { AltoConfig } from "../createConfig"
+import type { AltoConfig } from "../createConfig"
 import {
-    Address,
-    HexData32,
-    UserOperation,
-    UserOpInfo,
+    type Address,
+    type HexData32,
+    type UserOperation,
+    type UserOpInfo,
     userOpInfoSchema
 } from "@alto/types"
-import { OutstandingStore } from "."
-import { ChainableCommander, Redis } from "ioredis"
+import type { OutstandingStore } from "."
+import { type ChainableCommander, Redis } from "ioredis"
 import { toHex } from "viem/utils"
 
 const serializeUserOpInfo = (userOpInfo: UserOpInfo): string => {

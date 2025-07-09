@@ -4,7 +4,7 @@ import {
     type PackedUserOperation,
     type UserOpInfo,
     type UserOperationV07,
-    UserOperation
+    type UserOperation
 } from "@alto/types"
 import {
     isVersion06,

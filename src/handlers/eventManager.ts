@@ -150,11 +150,7 @@ export class EventManager {
     }
 
     // emits when the userOperation failed to get added to the mempool
-    emitFailedValidation(
-        userOpHash: Hex,
-        reason?: string,
-        aaError?: string
-    ) {
+    emitFailedValidation(userOpHash: Hex, reason?: string, aaError?: string) {
         this.emitEvent({
             userOpHash,
             event: {
@@ -231,8 +227,12 @@ export class EventManager {
     }
 
     private emitWithTimeout(entry: QueueMessage, eventType: string) {
+        if (!this.redisEventManagerQueue) {
+            return
+        }
+
         asyncCallWithTimeout(
-            this.redisEventManagerQueue!.add(entry, {
+            this.redisEventManagerQueue.add(entry, {
                 removeOnComplete: true,
                 removeOnFail: true
             }),

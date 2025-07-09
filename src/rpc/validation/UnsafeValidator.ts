@@ -30,7 +30,7 @@ import * as sentry from "@sentry/node"
 import {
     BaseError,
     ContractFunctionExecutionError,
-    StateOverride,
+    type StateOverride,
     getContract,
     pad,
     slice,

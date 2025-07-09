@@ -41,7 +41,6 @@ export type EntryPointUserOpParam = {
     entryPoint: Address
 }
 
-// biome-ignore lint/complexity/noBannedTypes: <explanation>
 export type MempoolStore = {
     // Methods used for bundling.
     peekOutstanding: (entryPoint: Address) => Promise<UserOpInfo | undefined>

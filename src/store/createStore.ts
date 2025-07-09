@@ -1,6 +1,6 @@
-import { Store } from "."
-import { AltoConfig } from "../createConfig"
-import { HexData32, UserOpInfo, UserOperation } from "../types/schemas"
+import type { Store } from "."
+import type { AltoConfig } from "../createConfig"
+import type { HexData32, UserOpInfo, UserOperation } from "../types/schemas"
 import { isVersion06, isVersion07 } from "../utils/userop"
 
 export const createMemoryStore = ({

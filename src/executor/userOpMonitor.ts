@@ -4,11 +4,7 @@ import type {
     Mempool,
     Monitor
 } from "@alto/mempool"
-import {
-    type HexData32,
-    type SubmittedBundleInfo,
-    UserOpInfo
-} from "@alto/types"
+import type { HexData32, SubmittedBundleInfo, UserOpInfo } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import { parseUserOpReceipt } from "@alto/utils"
 import {
@@ -17,14 +13,14 @@ import {
     type TransactionReceipt,
     TransactionReceiptNotFoundError,
     getAbiItem,
-    Hex,
+    type Hex,
     decodeEventLog,
     getAddress
 } from "viem"
 import type { AltoConfig } from "../createConfig"
-import { SenderManager } from "./senderManager"
+import type { SenderManager } from "./senderManager"
 import { getBundleStatus } from "./getBundleStatus"
-import { UserOperationReceipt } from "@alto/types"
+import type { UserOperationReceipt } from "@alto/types"
 import { entryPoint07Abi } from "viem/account-abstraction"
 
 interface CachedReceipt {
@@ -79,29 +75,48 @@ export class UserOpMonitor {
         )
     }
 
+    finishProcessing(pendingBundles: SubmittedBundleInfo[]) {
+        for (const pendingBundle of pendingBundles) {
+            const bundle = this.pendingBundles.get(
+                pendingBundle.executor.address
+            )
+            if (bundle) {
+                bundle.processingBlock = false
+            }
+        }
+    }
+
     async processBlock(blockNumber: bigint): Promise<SubmittedBundleInfo[]> {
         // Update the cached block number whenever we receive a new block.
         this.cachedLatestBlock = { value: blockNumber, timestamp: Date.now() }
 
         // Refresh the statuses of all pending bundles.
         const pendingBundles = Array.from(this.pendingBundles.values())
-        const refreshResults = await Promise.all(
-            pendingBundles.map(async (bundle) => {
-                const needsProcessing = await this.refreshBundleStatus(bundle)
-                return needsProcessing ? bundle : null
-            })
+        const refreshResults = (
+            await Promise.all(
+                pendingBundles.map(async (bundle) => {
+                    const needsProcessing =
+                        await this.refreshBundleStatus(bundle)
+                    return needsProcessing ? bundle : null
+                })
+            )
+        ).filter(
+            (bundle): bundle is SubmittedBundleInfo =>
+                bundle !== null && bundle.processingBlock !== true
         )
 
+        for (const bundle of refreshResults) {
+            bundle.processingBlock = true
+        }
+
         // Return only bundles that still need processing
-        return refreshResults.filter(
-            (bundle): bundle is SubmittedBundleInfo => bundle !== null
-        )
+        return refreshResults
     }
 
     async refreshBundleStatus(
         submittedBundle: SubmittedBundleInfo
     ): Promise<boolean> {
-        let bundleReceipt = await getBundleStatus({
+        const bundleReceipt = await getBundleStatus({
             submittedBundle,
             publicClient: this.config.publicClient,
             logger: this.logger
@@ -156,7 +171,7 @@ export class UserOpMonitor {
 
             // Fire and forget
             Promise.all(
-                userOps.map(async (userOpInfo) => {
+                userOps.map((userOpInfo) => {
                     this.checkFrontrun({
                         userOpInfo,
                         transactionHash,
@@ -204,7 +219,9 @@ export class UserOpMonitor {
         userOpHash: Hex
     ): UserOperationReceipt | undefined {
         const cached = this.receiptCache.get(userOpHash)
-        if (!cached) return undefined
+        if (!cached) {
+            return undefined
+        }
         return cached.receipt
     }
 
@@ -214,9 +231,9 @@ export class UserOpMonitor {
             ([_, cached]) => now - cached.timestamp > this.receiptTtl
         )
 
-        expiredEntries.forEach(([userOpHash]) =>
+        for (const [userOpHash] of expiredEntries) {
             this.receiptCache.delete(userOpHash)
-        )
+        }
     }
 
     // Free executors and remove userOps from mempool.
@@ -230,7 +247,7 @@ export class UserOpMonitor {
     }
 
     // Stop tracking bundle in event resubmit fails
-    public async stopTrackingBundle(submittedBundle: SubmittedBundleInfo) {
+    public stopTrackingBundle(submittedBundle: SubmittedBundleInfo) {
         const { executor } = submittedBundle
         this.pendingBundles.delete(executor.address)
     }
@@ -273,9 +290,7 @@ export class UserOpMonitor {
         this.metrics.userOpInclusionDuration.observe(
             (Date.now() - addedToMempool) / 1000
         )
-        this.metrics.userOpsSubmissionAttempts.observe(
-            submissionAttempts
-        )
+        this.metrics.userOpsSubmissionAttempts.observe(submissionAttempts)
 
         // Update reputation
         const accountDeployed = this.checkAccountDeployment(
@@ -379,8 +394,8 @@ export class UserOpMonitor {
             return cached
         }
 
-        let fromBlock: bigint | undefined = undefined
-        let toBlock: "latest" | undefined = undefined
+        let fromBlock: bigint | undefined
+        let toBlock: "latest" | undefined
         if (this.config.maxBlockRange !== undefined) {
             const latestBlock = await this.getLatestBlockWithCache()
 
@@ -469,10 +484,7 @@ export class UserOpMonitor {
         }
 
         const receipt = await getTransactionReceipt(txHash)
-        const userOpReceipt = parseUserOpReceipt(
-            userOpHash,
-            receipt
-        )
+        const userOpReceipt = parseUserOpReceipt(userOpHash, receipt)
 
         // Cache the receipt before returning
         this.cacheReceipt(userOpHash, userOpReceipt)

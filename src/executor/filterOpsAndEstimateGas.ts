@@ -1,26 +1,26 @@
 import {
     ArbitrumL1FeeAbi,
-    RejectedUserOp,
-    UserOpInfo,
-    UserOperation,
-    UserOperationBundle,
-    UserOperationV06,
-    UserOperationV07
+    type RejectedUserOp,
+    type UserOpInfo,
+    type UserOperation,
+    type UserOperationBundle,
+    type UserOperationV06,
+    type UserOperationV07
 } from "@alto/types"
 import {
-    Address,
-    StateOverride,
+    type Address,
+    type StateOverride,
     getContract,
     encodeFunctionData,
-    Hex,
+    type Hex,
     decodeAbiParameters,
     decodeErrorResult
 } from "viem"
 import { formatAbiItemWithArgs } from "viem/utils"
 import { entryPoint07Abi } from "viem/account-abstraction"
-import { AltoConfig } from "../createConfig"
+import type { AltoConfig } from "../createConfig"
 import {
-    Logger,
+    type Logger,
     getSerializedHandleOpsTx,
     scaleBigIntByPercent,
     toPackedUserOp
@@ -84,7 +84,7 @@ const getChainSpecificOverhead = async ({
                     serializedTx
                 ])
 
-            let [gasEstimateForL1, ,] = result
+            const [gasEstimateForL1] = result
 
             return {
                 gasUsed: gasEstimateForL1,
@@ -159,7 +159,7 @@ const getFilterOpsResult = async ({
         revertReason: Hex
     }[]
 }> => {
-    let { publicClient, pimlicoSimulationContract, codeOverrideSupport } =
+    const { publicClient, pimlicoSimulationContract, codeOverrideSupport } =
         config
 
     if (!pimlicoSimulationContract) {
@@ -230,7 +230,6 @@ const getFilterOpsResult = async ({
         ...(simulationOverrides ? simulationOverrides : [])
     ]
 
-    let result: Hex
     const callResult = await publicClient.call({
         to: pimlicoSimulationContract,
         data,
@@ -242,7 +241,7 @@ const getFilterOpsResult = async ({
             "No data returned from filterOps simulation during eth_call"
         )
     }
-    result = callResult.data
+    const result = callResult.data
 
     const filterOpsResult = decodeAbiParameters(
         [
@@ -281,11 +280,9 @@ export async function filterOpsAndEstimateGas({
     logger: Logger
     networkBaseFee: bigint
 }): Promise<FilterOpsResult> {
-    let { utilityWalletAddress: beneficiary } = config
+    const { utilityWalletAddress: beneficiary } = config
     const { userOps, entryPoint } = userOpBundle
 
-    let filterOpsResult
-    let offchainOverhead
     try {
         // Create promises for parallel execution
         const filterOpsPromise = getFilterOpsResult({
@@ -306,8 +303,8 @@ export async function filterOpsAndEstimateGas({
             filterOpsPromise,
             chainSpecificOverheadPromise
         ])
-        filterOpsResult = results[0]
-        offchainOverhead = results[1]
+        const filterOpsResult = results[0]
+        const offchainOverhead = results[1]
 
         // Keep track of invalid and valid ops
         const rejectedUserOpHashes = filterOpsResult.rejectedUserOps.map(

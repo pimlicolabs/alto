@@ -4,7 +4,6 @@ import { debugGetStakeStatusSchema, RpcError } from "@alto/types"
 export const debugGetStakeStatusHandler = createMethodHandler({
     schema: debugGetStakeStatusSchema,
     method: "debug_bundler_getStakeStatus",
-    // @ts-ignore
     handler: async ({ rpcHandler, params }) => {
         const [address, entryPoint] = params
         rpcHandler.ensureDebugEndpointsAreEnabled(

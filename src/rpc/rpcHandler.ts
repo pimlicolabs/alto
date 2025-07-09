@@ -27,7 +27,7 @@ import type { MethodHandler } from "./createMethodHandler"
 import { registerHandlers } from "./methods"
 import { recoverAuthorizationAddress } from "viem/utils"
 import { privateKeyToAddress, generatePrivateKey } from "viem/accounts"
-import { UserOpMonitor } from "../executor/userOpMonitor"
+import type { UserOpMonitor } from "../executor/userOpMonitor"
 
 export class RpcHandler {
     public config: AltoConfig
@@ -138,7 +138,7 @@ export class RpcHandler {
     async preMempoolChecks(
         userOp: UserOperation,
         apiVersion: ApiVersion,
-        boost: boolean = false
+        boost = false
     ): Promise<[boolean, string]> {
         if (
             this.config.legacyTransactions &&

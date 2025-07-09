@@ -12,7 +12,7 @@ import {
     ValidationErrors,
     type ValidationResult,
     type Address,
-    RejectedUserOp
+    type RejectedUserOp
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import {
@@ -25,7 +25,7 @@ import {
     jsonStringifyWithBigint,
     scaleBigIntByPercent
 } from "@alto/utils"
-import { Hex, getAddress, getContract } from "viem"
+import { type Hex, getAddress, getContract } from "viem"
 import type { Monitor } from "./monitoring"
 import {
     type InterfaceReputationManager,
@@ -35,7 +35,7 @@ import type { AltoConfig } from "../createConfig"
 import type { MempoolStore } from "@alto/store"
 import { calculateAA95GasFloor } from "../executor/utils"
 import { privateKeyToAddress, generatePrivateKey } from "viem/accounts"
-import { EntryPointVersion } from "viem/account-abstraction"
+import type { EntryPointVersion } from "viem/account-abstraction"
 
 export class Mempool {
     private config: AltoConfig

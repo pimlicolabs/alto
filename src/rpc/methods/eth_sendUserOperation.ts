@@ -7,16 +7,16 @@ import {
     type UserOperation,
     type Address,
     type ApiVersion,
-    ReferencedCodeHashes
+    type ReferencedCodeHashes
 } from "@alto/types"
 import {
     calcExecutionPvgComponent,
     calcL2PvgComponent,
     getAAError
 } from "@alto/utils"
-import { RpcHandler } from "../rpcHandler"
+import type { RpcHandler } from "../rpcHandler"
 import type * as validation from "@alto/types"
-import { Hex } from "viem"
+import type { Hex } from "viem"
 
 const validatePvg = async (
     apiVersion: ApiVersion,

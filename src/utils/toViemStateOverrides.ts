@@ -1,5 +1,9 @@
-import { getAddress, Hex, StateOverride as ViemStateOverride } from "viem"
-import { StateOverrides } from "../types/schemas"
+import {
+    getAddress,
+    type Hex,
+    type StateOverride as ViemStateOverride
+} from "viem"
+import type { StateOverrides } from "../types/schemas"
 
 export function toViemStateOverrides(
     stateOverrides?: StateOverrides
@@ -12,7 +16,9 @@ export function toViemStateOverrides(
 
     for (const [address, override] of Object.entries(stateOverrides)) {
         // Skip if override is undefined
-        if (!override) continue
+        if (!override) {
+            continue
+        }
 
         try {
             const validatedAddress = getAddress(address)

@@ -137,7 +137,7 @@ export class Server {
                         await reply
                             .status(404)
                             .send(
-                                `GET request to /${version}/rpc is not supported, use POST isntead`
+                                `GET request to /${version}/rpc is not supported, use POST instead`
                             )
                     },
                     wsHandler: (socket: WebSocket.WebSocket, request) => {

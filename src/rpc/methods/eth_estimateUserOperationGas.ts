@@ -6,14 +6,14 @@ import {
 } from "../../utils/preVerificationGasCalulator"
 import { createMethodHandler } from "../createMethodHandler"
 import {
-    Address,
+    type Address,
     RpcError,
-    StateOverrides,
-    UserOperation,
+    type StateOverrides,
+    type UserOperation,
     ValidationErrors,
     estimateUserOperationGasSchema
 } from "@alto/types"
-import { RpcHandler } from "../rpcHandler"
+import type { RpcHandler } from "../rpcHandler"
 import { parseEther, toHex } from "viem"
 
 type GasEstimateResult =
@@ -273,7 +273,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         } = rpcHandler.config
 
         // Execute multiple async operations in parallel
-        let [
+        const [
             [validEip7702Auth, validEip7702AuthError],
             gasEstimateResult,
             l2GasComponent
