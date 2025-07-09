@@ -16,7 +16,7 @@ import { debugSetReputationHandler } from "./debug_bundler_setReputation"
 import { pimlicoGetUserOperationGasPriceHandler } from "./pimlico_getUserOperationGasPrice"
 import { pimlicoGetUserOperationStatusHandler } from "./pimlico_getUserOperationStatus"
 import { pimlicoSendUserOperationNowHandler } from "./pimlico_sendUserOperationNow"
-import { pimlicoSimulateUserOperationAssetChangeHandler } from "./pimlico_simulateUserOperationAssetChange"
+import { pimlicoSimulateAssetChangeHandler } from "./pimlico_simulateAssetChange"
 import { boostSendUserOperationHandler } from "./boost_sendUserOperation"
 
 export function registerHandlers(rpcHandler: RpcHandler) {
@@ -42,7 +42,7 @@ export function registerHandlers(rpcHandler: RpcHandler) {
     rpcHandler.registerHandler(pimlicoGetUserOperationGasPriceHandler)
     rpcHandler.registerHandler(pimlicoGetUserOperationStatusHandler)
     rpcHandler.registerHandler(pimlicoSendUserOperationNowHandler)
-    rpcHandler.registerHandler(pimlicoSimulateUserOperationAssetChangeHandler)
+    rpcHandler.registerHandler(pimlicoSimulateAssetChangeHandler)
 
     // boost_* namespace
     rpcHandler.registerHandler(boostSendUserOperationHandler)

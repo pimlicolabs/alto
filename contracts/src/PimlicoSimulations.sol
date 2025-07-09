@@ -383,9 +383,65 @@ contract PimlicoSimulations {
         return balances;
     }
 
+    // @notice Simulate asset changes for EntryPoint 0.8
+    function simulateAssetChange08(
+        PackedUserOperation calldata userOp,
+        IEntryPoint07 entryPoint,
+        address entryPointSimulations,
+        address[] calldata addresses,
+        address[] calldata tokens
+    ) external returns (AssetChange[] memory) {
+        return this.simulateAssetChange07(userOp, entryPoint, entryPointSimulations, addresses, tokens);
+    }
+
+    // @notice Simulate asset changes for EntryPoint 0.7
+    function simulateAssetChange07(
+        PackedUserOperation calldata userOp,
+        IEntryPoint07 entryPoint,
+        address entryPointSimulations,
+        address[] calldata addresses,
+        address[] calldata tokens
+    ) external returns (AssetChange[] memory) {
+        AssetBalance[] memory balancesBefore = this.getBalances(addresses, tokens);
+
+        // Encode the simulateHandleOpSingle call with our target and targetCallData
+        bytes memory simulateCallData = abi.encodeWithSelector(
+            IEntryPointSimulations.simulateHandleOpSingle.selector,
+            userOp,
+            address(this),
+            abi.encodeWithSelector(this.getBalances.selector, addresses, tokens)
+        );
+
+        // Use _simulateEntryPoint to execute through delegateAndRevert
+        bytes memory result = _simulateEntryPoint(entryPointSimulations, address(entryPoint), simulateCallData);
+
+        // Decode the ExecutionResult
+        IEntryPointSimulations.ExecutionResult memory executionResult =
+            abi.decode(result, (IEntryPointSimulations.ExecutionResult));
+
+        // Check if target call succeeded
+        if (!executionResult.targetSuccess) {
+            Exec.revertWithData(executionResult.targetResult);
+        }
+
+        // Decode the balances from the targetResult
+        AssetBalance[] memory balancesAfter = abi.decode(executionResult.targetResult, (AssetBalance[]));
+
+        // Calculate differences
+        AssetChange[] memory assetChanges = new AssetChange[](balancesBefore.length);
+
+        for (uint256 i = 0; i < balancesBefore.length; i++) {
+            assetChanges[i] = AssetChange({
+                owner: balancesBefore[i].owner,
+                token: balancesBefore[i].token,
+                diff: int256(balancesAfter[i].amount) - int256(balancesBefore[i].amount)
+            });
+        }
+
+        return assetChanges;
+    }
+
     // @notice Simulate asset changes for EntryPoint 0.6
-    // @dev Simulates a UserOperation and tracks balance changes for specified addresses and tokens
-    // @dev Use 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE for native token
     function simulateAssetChange06(
         UserOperation calldata userOp,
         IEntryPoint06 entryPoint,
@@ -418,55 +474,6 @@ contract PimlicoSimulations {
             // Decode the balances from the targetResult
             balancesAfter = abi.decode(targetResult, (AssetBalance[]));
         }
-
-        // Calculate differences
-        AssetChange[] memory assetChanges = new AssetChange[](balancesBefore.length);
-
-        for (uint256 i = 0; i < balancesBefore.length; i++) {
-            assetChanges[i] = AssetChange({
-                owner: balancesBefore[i].owner,
-                token: balancesBefore[i].token,
-                diff: int256(balancesAfter[i].amount) - int256(balancesBefore[i].amount)
-            });
-        }
-
-        return assetChanges;
-    }
-
-    // @notice Simulate asset changes for EntryPoint 0.7
-    // @dev Simulates a PackedUserOperation and tracks balance changes for specified addresses and tokens
-    // @dev Use 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE for native token
-    function simulateAssetChange07(
-        PackedUserOperation calldata userOp,
-        IEntryPoint07 entryPoint,
-        address entryPointSimulations,
-        address[] calldata addresses,
-        address[] calldata tokens
-    ) external returns (AssetChange[] memory) {
-        AssetBalance[] memory balancesBefore = this.getBalances(addresses, tokens);
-
-        // Encode the simulateHandleOpSingle call with our target and targetCallData
-        bytes memory simulateCallData = abi.encodeWithSelector(
-            IEntryPointSimulations.simulateHandleOpSingle.selector,
-            userOp,
-            address(this),
-            abi.encodeWithSelector(this.getBalances.selector, addresses, tokens)
-        );
-
-        // Use _simulateEntryPoint to execute through delegateAndRevert
-        bytes memory result = _simulateEntryPoint(entryPointSimulations, address(entryPoint), simulateCallData);
-
-        // Decode the ExecutionResult
-        IEntryPointSimulations.ExecutionResult memory executionResult =
-            abi.decode(result, (IEntryPointSimulations.ExecutionResult));
-
-        // Check if target call succeeded
-        if (!executionResult.targetSuccess) {
-            Exec.revertWithData(executionResult.targetResult);
-        }
-
-        // Decode the balances from the targetResult
-        AssetBalance[] memory balancesAfter = abi.decode(executionResult.targetResult, (AssetBalance[]));
 
         // Calculate differences
         AssetChange[] memory assetChanges = new AssetChange[](balancesBefore.length);
