@@ -629,6 +629,23 @@ export const pimlicoSendUserOperationNowSchema = z.object({
     result: userOperationReceiptSchema
 })
 
+export const pimlicoSimulateUserOperationAssetChangeSchema = z.object({
+    method: z.literal("pimlico_simulateUserOperationAssetChange"),
+    params: z.tuple([
+        userOperationSchema,
+        addressSchema, // entryPoint
+        z.array(addressSchema), // addresses to check asset changes for
+        z.array(addressSchema) // tokens to monitor for asset changes
+    ]),
+    result: z.array(
+        z.object({
+            owner: addressSchema,
+            token: addressSchema,
+            diff: z.bigint()
+        })
+    )
+})
+
 export const altoVersions = z.enum(["v1", "v2"])
 export type AltoVersions = z.infer<typeof altoVersions>
 
@@ -652,7 +669,8 @@ export const bundlerRequestSchema = z.discriminatedUnion("method", [
     debugGetStakeStatusSchema.omit({ result: true }),
     pimlicoGetUserOperationStatusSchema.omit({ result: true }),
     pimlicoGetUserOperationGasPriceSchema.omit({ result: true }),
-    pimlicoSendUserOperationNowSchema.omit({ result: true })
+    pimlicoSendUserOperationNowSchema.omit({ result: true }),
+    pimlicoSimulateUserOperationAssetChangeSchema.omit({ result: true })
 ])
 export type BundlerRequest = z.infer<typeof bundlerRequestSchema>
 
@@ -675,7 +693,8 @@ export const bundlerRpcSchema = z.union([
     debugGetStakeStatusSchema,
     pimlicoGetUserOperationStatusSchema,
     pimlicoGetUserOperationGasPriceSchema,
-    pimlicoSendUserOperationNowSchema
+    pimlicoSendUserOperationNowSchema,
+    pimlicoSimulateUserOperationAssetChangeSchema
 ])
 
 export type BundlingMode = z.infer<

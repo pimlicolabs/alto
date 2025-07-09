@@ -11,6 +11,8 @@ import {IEntryPoint as IEntryPoint07} from "account-abstraction-v7/interfaces/IE
 import {IEntryPoint as IEntryPoint08} from "account-abstraction-v8/interfaces/IEntryPoint.sol";
 
 import {Exec} from "account-abstraction-v7/utils/Exec.sol";
+
+import {ERC20} from "solady/tokens/ERC20.sol";
 import {LibBytes} from "solady/utils/LibBytes.sol";
 
 /// @title PimlicoSimulations
@@ -20,50 +22,20 @@ contract PimlicoSimulations {
     using LibBytes for bytes;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-    /*                          Types                             */
-    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
-
-    // Return type for filterOps.
-    struct RejectedUserOp {
-        bytes32 userOpHash;
-        bytes revertReason;
-    }
-
-    // Return type for filterOps.
-    struct FilterOpsResult {
-        uint256 gasUsed;
-        uint256 balanceChange;
-        RejectedUserOp[] rejectedUserOps;
-    }
-
-    // Return type for verifcation ans estimation.
-    struct SimulateAndEstimateGasResult {
-        IEntryPointSimulations.ExecutionResult simulationResult;
-        IEntryPointSimulations.BinarySearchResult verificationGasLimit;
-        IEntryPointSimulations.BinarySearchResult paymasterVerificationGasLimit;
-    }
-
-    event PimlicoSimulationDeployed();
-
-    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-    /*                        Variables                           */
-    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
-
-    // @notice Used for filterOps, we use a in storage array so that we can use push().
-    RejectedUserOp[] rejectedUserOps;
-
-    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                        Constructor                         */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+
+    event PimlicoSimulationDeployed();
 
     constructor() {
         emit PimlicoSimulationDeployed();
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-    /*                      Arbitrary Calls                       */
+    /*                          Helpers                           */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
+    // @notice Helper method to make a batch of arbitrary calls/simulations offchain.
     function simulateEntryPointBulk(address entryPointSimulation, address payable entryPoint, bytes[] memory data)
         public
         returns (bytes[] memory)
@@ -84,10 +56,7 @@ contract PimlicoSimulations {
         return returnDataArray;
     }
 
-    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-    /*                    Estimation Methods                      */
-    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
-
+    // @notice Internal helper and parse the result of the EntryPoint's delegateAndRevert method.
     function _simulateEntryPoint(address entryPointSimulation, address entryPoint, bytes memory data)
         private
         returns (bytes memory)
@@ -123,6 +92,17 @@ contract PimlicoSimulations {
         }
 
         return delegateAndRevertData;
+    }
+
+    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /*                    Estimation Methods                      */
+    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+
+    // @notice Helper type that returns Aggregate of estimations/simulations.
+    struct SimulateAndEstimateGasResult {
+        IEntryPointSimulations.ExecutionResult simulationResult;
+        IEntryPointSimulations.BinarySearchResult verificationGasLimit;
+        IEntryPointSimulations.BinarySearchResult paymasterVerificationGasLimit;
     }
 
     /// @notice Simulates userOp and estimates verification & paymaster gas limits
@@ -241,8 +221,24 @@ contract PimlicoSimulations {
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-    /*                     Validation Methods                     */
+    /*                     FilterOps Methods                      */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+
+    // @notice We use a in storage array so that we can use push().
+    RejectedUserOp[] rejectedUserOps;
+
+    // @notice Return type for userOps that are rejected by filterOps.
+    struct RejectedUserOp {
+        bytes32 userOpHash;
+        bytes revertReason;
+    }
+
+    // @notice Return type for filterOps.
+    struct FilterOpsResult {
+        uint256 gasUsed;
+        uint256 balanceChange;
+        RejectedUserOp[] rejectedUserOps;
+    }
 
     // @notice Filter ops method for EntryPoint 0.8
     // @dev This method should be called by bundler before sending bundle to EntryPoint.
@@ -337,5 +333,152 @@ contract PimlicoSimulations {
             balanceChange: totalBalanceChange,
             rejectedUserOps: rejectedUserOps
         });
+    }
+
+    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /*                  Asset Change Simulations                  */
+    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+
+    // @notice Result struct for balance queries
+    struct AssetBalance {
+        address owner;
+        address token;
+        uint256 amount;
+    }
+
+    // @notice Result struct for asset change simulations
+    struct AssetChange {
+        address owner;
+        address token;
+        int256 diff;
+    }
+
+    // @notice Get current balances for specified addresses and tokens
+    // @dev Returns an array of Balance structs showing address, token, and amount
+    // @dev Use 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE for native token
+    function getBalances(address[] calldata addresses, address[] calldata tokens)
+        public
+        view
+        returns (AssetBalance[] memory)
+    {
+        uint256 totalBalances = addresses.length * tokens.length;
+        AssetBalance[] memory balances = new AssetBalance[](totalBalances);
+        uint256 index = 0;
+
+        for (uint256 i = 0; i < addresses.length; i++) {
+            address owner = addresses[i];
+
+            for (uint256 j = 0; j < tokens.length; j++) {
+                uint256 amount;
+                if (tokens[j] == address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE)) {
+                    amount = owner.balance;
+                } else {
+                    amount = ERC20(tokens[j]).balanceOf(owner);
+                }
+
+                balances[index++] = AssetBalance({owner: owner, token: tokens[j], amount: amount});
+            }
+        }
+
+        return balances;
+    }
+
+    // @notice Simulate asset changes for EntryPoint 0.6
+    // @dev Simulates a UserOperation and tracks balance changes for specified addresses and tokens
+    // @dev Use 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE for native token
+    function simulateAssetChange06(
+        UserOperation calldata userOp,
+        IEntryPoint06 entryPoint,
+        address[] calldata addresses,
+        address[] calldata tokens
+    ) external returns (AssetChange[] memory) {
+        AssetBalance[] memory balancesBefore = this.getBalances(addresses, tokens);
+        AssetBalance[] memory balancesAfter;
+
+        address target = address(this);
+        bytes memory targetCallData = abi.encodeWithSelector(this.getBalances.selector, addresses, tokens);
+
+        try entryPoint.simulateHandleOp(userOp, target, targetCallData) {
+            revert("simulateHandleOp must revert");
+        } catch (bytes memory revertData) {
+            if (revertData.length <= 4) {
+                revert("Unexpected revert data format");
+            }
+
+            bytes memory executionResultData = revertData.slice(4, revertData.length);
+
+            (,,,,,, bool targetSuccess, bytes memory targetResult) =
+                abi.decode(executionResultData, (uint256, uint256, uint256, uint256, uint256, uint256, bool, bytes));
+
+            // Bubble up error if target call failed.
+            if (!targetSuccess) {
+                Exec.revertWithData(targetResult);
+            }
+
+            // Decode the balances from the targetResult
+            balancesAfter = abi.decode(targetResult, (AssetBalance[]));
+        }
+
+        // Calculate differences
+        AssetChange[] memory assetChanges = new AssetChange[](balancesBefore.length);
+
+        for (uint256 i = 0; i < balancesBefore.length; i++) {
+            assetChanges[i] = AssetChange({
+                owner: balancesBefore[i].owner,
+                token: balancesBefore[i].token,
+                diff: int256(balancesAfter[i].amount) - int256(balancesBefore[i].amount)
+            });
+        }
+
+        return assetChanges;
+    }
+
+    // @notice Simulate asset changes for EntryPoint 0.7
+    // @dev Simulates a PackedUserOperation and tracks balance changes for specified addresses and tokens
+    // @dev Use 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE for native token
+    function simulateAssetChange07(
+        PackedUserOperation calldata userOp,
+        IEntryPoint07 entryPoint,
+        address entryPointSimulations,
+        address[] calldata addresses,
+        address[] calldata tokens
+    ) external returns (AssetChange[] memory) {
+        AssetBalance[] memory balancesBefore = this.getBalances(addresses, tokens);
+
+        // Encode the simulateHandleOpSingle call with our target and targetCallData
+        bytes memory simulateCallData = abi.encodeWithSelector(
+            IEntryPointSimulations.simulateHandleOpSingle.selector,
+            userOp,
+            address(this),
+            abi.encodeWithSelector(this.getBalances.selector, addresses, tokens)
+        );
+
+        // Use _simulateEntryPoint to execute through delegateAndRevert
+        bytes memory result = _simulateEntryPoint(entryPointSimulations, address(entryPoint), simulateCallData);
+
+        // Decode the ExecutionResult
+        IEntryPointSimulations.ExecutionResult memory executionResult =
+            abi.decode(result, (IEntryPointSimulations.ExecutionResult));
+
+        // Check if target call succeeded
+        if (!executionResult.targetSuccess) {
+            Exec.revertWithData(executionResult.targetResult);
+        }
+
+        // Decode the balances from the targetResult
+        AssetBalance[] memory balancesAfter = abi.decode(executionResult.targetResult, (AssetBalance[]));
+
+        // Calculate differences
+        AssetChange[] memory assetChanges = new AssetChange[](balancesBefore.length);
+
+        for (uint256 i = 0; i < balancesBefore.length; i++) {
+            assetChanges[i] = AssetChange({
+                owner: balancesBefore[i].owner,
+                token: balancesBefore[i].token,
+                diff: int256(balancesAfter[i].amount) - int256(balancesBefore[i].amount)
+            });
+        }
+
+        return assetChanges;
     }
 }

@@ -79,6 +79,12 @@ interface IEntryPointSimulations {
         external
         returns (ExecutionResult memory);
 
+    function simulateHandleOpSingle(
+        PackedUserOperation calldata targetUserOp,
+        address target,
+        bytes calldata targetData
+    ) external returns (ExecutionResult memory);
+
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                   Safe Validator Methods                   */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/

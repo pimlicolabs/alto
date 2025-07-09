@@ -379,7 +379,7 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
     }
 
     /// @notice simulates a single userOperation (taken from EntryPoint simulation example)
-    function simulateHandleOp(PackedUserOperation calldata op, address target, bytes memory targetCallData)
+    function simulateHandleOpSingle(PackedUserOperation calldata op, address target, bytes memory targetCallData)
         public
         nonReentrant
         returns (ExecutionResult memory)
@@ -415,11 +415,11 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
     {
         // Execute all queued operations first to set up state
         for (uint256 i = 0; i < queuedUserOps.length; i++) {
-            simulateHandleOp(queuedUserOps[i], address(0), "");
+            simulateHandleOpSingle(queuedUserOps[i], address(0), "");
         }
 
         // Execute and return the result of the target operation
-        return simulateHandleOp(targetUserOp, address(0), "");
+        return simulateHandleOpSingle(targetUserOp, address(0), "");
     }
 
     function _simulationOnlyValidations(PackedUserOperation calldata userOp) internal view {
