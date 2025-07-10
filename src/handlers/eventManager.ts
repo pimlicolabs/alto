@@ -8,7 +8,7 @@ import Queue, { type Queue as QueueType } from "bull"
 import { asyncCallWithTimeout, AsyncTimeoutError } from "../utils/asyncTimeout"
 
 type QueueMessage = OpEventType & {
-    userOpHash: Hex
+    userOperationHash: Hex
     eventTimestamp: number
     chainId: number
 }
@@ -150,11 +150,7 @@ export class EventManager {
     }
 
     // emits when the userOperation failed to get added to the mempool
-    emitFailedValidation(
-        userOpHash: Hex,
-        reason?: string,
-        aaError?: string
-    ) {
+    emitFailedValidation(userOpHash: Hex, reason?: string, aaError?: string) {
         this.emitEvent({
             userOpHash,
             event: {
@@ -221,7 +217,7 @@ export class EventManager {
         }
 
         const entry = {
-            userOpHash,
+            userOperationHash: userOpHash,
             eventTimestamp: timestamp ?? Date.now(),
             chainId: this.chainId,
             ...event
@@ -249,7 +245,7 @@ export class EventManager {
             .catch((err) => {
                 if (err instanceof AsyncTimeoutError) {
                     this.logger.warn(
-                        { userOpHash: entry.userOpHash, eventType },
+                        { userOpHash: entry.userOperationHash, eventType },
                         "Event emission timed out after 500ms"
                     )
                     this.metrics.emittedOpEvents
