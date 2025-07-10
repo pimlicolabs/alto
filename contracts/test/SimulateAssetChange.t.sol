@@ -6,6 +6,7 @@ import "../src/PimlicoSimulations.sol";
 
 import {UserOpHelper} from "./utils/UserOpHelper.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
+import {MessageHashUtils} from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 
 import {UserOperation as UserOperation06} from "account-abstraction-v6/interfaces/UserOperation.sol";
 import {IEntryPoint as IEntryPoint06} from "account-abstraction-v6/interfaces/IEntryPoint.sol";
@@ -21,227 +22,649 @@ import {EntryPointSimulations07} from "../src/v07/EntryPointSimulations.sol";
 import {SimpleAccountFactory as SimpleAccountFactory07} from "@test-aa-utils/v07/samples/SimpleAccountFactory.sol";
 import {SimpleAccount as SimpleAccount07} from "@test-aa-utils/v07/samples/SimpleAccount.sol";
 
+import {PackedUserOperation as PackedUserOperation08} from "account-abstraction-v8/interfaces/PackedUserOperation.sol";
+import {BaseAccount as SimpleAccount08} from "@test-aa-utils/v08/accounts/SimpleAccount.sol";
+import {EntryPointSimulations08} from "../src/v08/EntryPointSimulations.sol";
+
 contract SimulateAssetChangeTest is UserOpHelper {
-//PimlicoSimulations pimlicoSim;
+    PimlicoSimulations pimlicoSim;
 
-//// Accounts
-//SimpleAccount06 account06;
-//SimpleAccount07 account07;
+    EntryPointSimulations07 entryPointSimulations07;
+    EntryPointSimulations08 entryPointSimulations08;
 
-//// EntryPoint v0.7 simulations
-//EntryPointSimulations07 entryPointSimulations07;
+    ERC20Mock token1;
+    ERC20Mock token2;
 
-//// Mock tokens
-//ERC20Mock tokenA;
-//ERC20Mock tokenB;
+    address constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
-//// Test addresses
-//address payable beneficiary = payable(address(0x1234));
-//address owner;
-//address receiver = address(0x5678);
+    function setUp() public {
+        // Setup EntryPoints, factories and owner key from UserOpHelper
+        setupTestEnvironment("alice");
 
-//// Native token address constant
-//address constant NATIVE_TOKEN = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+        // Deploy simulation contracts
+        pimlicoSim = new PimlicoSimulations();
 
-//function setUp() public {
-//    // Setup EntryPoints, factories and owner key from UserOpHelper
-//    setupTestEnvironment("owner");
-//
-//    // Get owner address from the key
-//    (owner, ) = makeAddrAndKey("owner");
+        // Deploy EntryPointSimulations for 0.7 and 0.8
+        entryPointSimulations07 = new EntryPointSimulations07();
+        entryPointSimulations08 = new EntryPointSimulations08();
 
-//    // Deploy PimlicoSimulations
-//    pimlicoSim = new PimlicoSimulations();
+        // Deploy mock ERC20 tokens
+        token1 = new ERC20Mock();
+        token2 = new ERC20Mock();
+    }
 
-//    // Deploy mock tokens
-//    tokenA = new ERC20Mock();
-//    tokenB = new ERC20Mock();
+    // ============================================
+    // =========== ENTRYPOINT 06 TESTS ============
+    // ============================================
 
-//    // Create accounts
-//    account06 = accountFactory06.createAccount(owner, 0);
-//    account07 = accountFactory07.createAccount(owner, 0);
-//
-//    // Setup v0.7 simulations
-//    entryPointSimulations07 = new EntryPointSimulations07();
+    // Test simulateAssetChange06 with ETH transfer
+    function testSimulateAssetChange06_ETHTransfer() public {
+        uint256 salt = 0;
+        address recipient = address(0x1234);
+        uint256 transferAmount = 0.5 ether;
 
-//    // Fund accounts
-//    vm.deal(address(account06), 10 ether);
-//    vm.deal(address(account07), 10 ether);
+        // Create call to transfer ETH
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: recipient, value: transferAmount, data: ""});
+        bytes memory paymasterAndData = "";
+        UserOperation06 memory userOp = createSignedUserOp06(salt, call, paymasterAndData);
 
-//    // Mint tokens to accounts
-//    tokenA.mint(address(account06), 1000e18);
-//    tokenA.mint(address(account07), 1000e18);
-//    tokenB.mint(address(account06), 2000e18);
-//    tokenB.mint(address(account07), 2000e18);
-//}
+        // Fund the account
+        vm.deal(userOp.sender, 1 ether);
 
-//function testGetBalances() public {
-//    address[] memory addresses = new address[](2);
-//    addresses[0] = address(account06);
-//    addresses[1] = receiver;
+        // Track addresses
+        address[] memory addresses = new address[](2);
+        addresses[0] = userOp.sender;
+        addresses[1] = recipient;
 
-//    address[] memory tokens = new address[](3);
-//    tokens[0] = NATIVE_TOKEN;
-//    tokens[1] = address(tokenA);
-//    tokens[2] = address(tokenB);
+        address[] memory tokens = new address[](1);
+        tokens[0] = ETH_ADDRESS;
 
-//    PimlicoSimulations.AssetBalance[] memory balances = pimlicoSim.getBalances(addresses, tokens);
+        // Simulate asset changes
+        PimlicoSimulations.AssetChange[] memory changes =
+            pimlicoSim.simulateAssetChange06(userOp, entryPoint06, addresses, tokens);
 
-//    // Should return 2 addresses * 3 tokens = 6 balances
-//    assertEq(balances.length, 6);
+        // Verify results
+        assertEq(changes.length, 2, "Should have 2 ETH balance changes");
 
-//    // Check account06 balances
-//    assertEq(balances[0].owner, address(account06));
-//    assertEq(balances[0].token, NATIVE_TOKEN);
-//    assertEq(balances[0].amount, 10 ether);
+        // Sender's ETH should decrease
+        assertEq(changes[0].owner, userOp.sender);
+        assertEq(changes[0].token, ETH_ADDRESS);
+        assertLt(changes[0].diff, 0, "Sender ETH should decrease");
 
-//    assertEq(balances[1].owner, address(account06));
-//    assertEq(balances[1].token, address(tokenA));
-//    assertEq(balances[1].amount, 1000e18);
+        // Recipient's ETH should increase
+        assertEq(changes[1].owner, recipient);
+        assertEq(changes[1].token, ETH_ADDRESS);
+        assertEq(changes[1].diff, int256(transferAmount), "Recipient should receive exact transfer amount");
+    }
 
-//    assertEq(balances[2].owner, address(account06));
-//    assertEq(balances[2].token, address(tokenB));
-//    assertEq(balances[2].amount, 2000e18);
+    // Test simulateAssetChange06 with ERC20 token transfer
+    function testSimulateAssetChange06_TokenTransfer() public {
+        uint256 salt = 0;
+        address recipient = address(0x1234);
+        uint256 transferAmount = 100e18;
 
-//    // Check receiver balances (should all be 0)
-//    assertEq(balances[3].owner, receiver);
-//    assertEq(balances[3].token, NATIVE_TOKEN);
-//    assertEq(balances[3].amount, 0);
+        // Mint tokens to the account that will be created
+        address sender = accountFactory06.getAddress(owner, salt);
+        token1.mint(sender, 1000e18);
 
-//    assertEq(balances[4].owner, receiver);
-//    assertEq(balances[4].token, address(tokenA));
-//    assertEq(balances[4].amount, 0);
+        // Create call to transfer tokens
+        bytes memory transferData = abi.encodeWithSelector(token1.transfer.selector, recipient, transferAmount);
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(token1), value: 0, data: transferData});
+        bytes memory paymasterAndData = "";
+        UserOperation06 memory userOp = createSignedUserOp06(salt, call, paymasterAndData);
 
-//    assertEq(balances[5].owner, receiver);
-//    assertEq(balances[5].token, address(tokenB));
-//    assertEq(balances[5].amount, 0);
-//}
+        // Fund the account for gas
+        vm.deal(userOp.sender, 1 ether);
 
-//function testSimulateAssetChange06_NativeTransfer() public {
-//    // Create a simple ETH transfer operation
-//    bytes memory callData = abi.encodeWithSignature("execute(address,uint256,bytes)", receiver, 1 ether, "");
+        // Track addresses and tokens
+        address[] memory addresses = new address[](2);
+        addresses[0] = userOp.sender;
+        addresses[1] = recipient;
 
-//    UserOperation06 memory userOp = _createSignedUserOp06(
-//        address(account06),
-//        0, // nonce
-//        callData
-//    );
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(token1);
 
-//    address[] memory addresses = new address[](2);
-//    addresses[0] = address(account06);
-//    addresses[1] = receiver;
+        // Simulate asset changes
+        PimlicoSimulations.AssetChange[] memory changes =
+            pimlicoSim.simulateAssetChange06(userOp, entryPoint06, addresses, tokens);
 
-//    address[] memory tokens = new address[](1);
-//    tokens[0] = NATIVE_TOKEN;
+        // Verify results - should have 2 token changes
+        assertEq(changes.length, 2, "Should have 2 token changes");
 
-//    PimlicoSimulations.AssetChange[] memory changes =
-//        pimlicoSim.simulateAssetChange06(userOp, entryPoint06, addresses, tokens);
+        // Find and verify token changes
+        bool foundSenderTokenChange = false;
+        bool foundRecipientTokenChange = false;
 
-//    assertEq(changes.length, 2);
+        for (uint256 i = 0; i < changes.length; i++) {
+            if (changes[i].token == address(token1)) {
+                if (changes[i].owner == userOp.sender) {
+                    assertEq(changes[i].diff, -int256(transferAmount), "Sender token balance should decrease");
+                    foundSenderTokenChange = true;
+                } else if (changes[i].owner == recipient) {
+                    assertEq(changes[i].diff, int256(transferAmount), "Recipient token balance should increase");
+                    foundRecipientTokenChange = true;
+                }
+            }
+        }
 
-//    // Account06 should lose 1 ETH + gas
-//    assertEq(changes[0].owner, address(account06));
-//    assertEq(changes[0].token, NATIVE_TOKEN);
-//    assertTrue(changes[0].diff < -1 ether); // Lost more than 1 ETH due to gas
+        assertTrue(foundSenderTokenChange, "Should find sender token change");
+        assertTrue(foundRecipientTokenChange, "Should find recipient token change");
+    }
 
-//    // Receiver should gain 1 ETH
-//    assertEq(changes[1].owner, receiver);
-//    assertEq(changes[1].token, NATIVE_TOKEN);
-//    assertEq(changes[1].diff, 1 ether);
-//}
+    // Test simulateAssetChange06 with multiple asset changes (ETH + tokens)
+    function testSimulateAssetChange06_MultipleAssets() public {
+        uint256 salt = 0;
+        address recipient = address(0x1234);
+        uint256 ethAmount = 0.1 ether;
+        uint256 token1Amount = 50e18;
+        uint256 token2Amount = 75e18;
 
-//function testSimulateAssetChange06_TokenTransfer() public {
-//    // Create an ERC20 transfer operation
-//    bytes memory transferData = abi.encodeWithSignature("transfer(address,uint256)", receiver, 100e18);
-//    bytes memory callData =
-//        abi.encodeWithSignature("execute(address,uint256,bytes)", address(tokenA), 0, transferData);
+        // Mint tokens to the account that will be created
+        address sender = accountFactory06.getAddress(owner, salt);
+        token1.mint(sender, 1000e18);
+        token2.mint(sender, 1000e18);
 
-//    UserOperation06 memory userOp = _createSignedUserOp06(
-//        address(account06),
-//        0, // nonce
-//        callData
-//    );
+        // Create array of calls for batch execution
+        UserOpHelper.Call[] memory calls = new UserOpHelper.Call[](3);
 
-//    address[] memory addresses = new address[](2);
-//    addresses[0] = address(account06);
-//    addresses[1] = receiver;
+        // ETH transfer
+        calls[0] = UserOpHelper.Call({to: recipient, value: ethAmount, data: ""});
 
-//    address[] memory tokens = new address[](2);
-//    tokens[0] = NATIVE_TOKEN;
-//    tokens[1] = address(tokenA);
+        // Token1 transfer
+        calls[1] = UserOpHelper.Call({
+            to: address(token1),
+            value: 0,
+            data: abi.encodeWithSelector(token1.transfer.selector, recipient, token1Amount)
+        });
 
-//    PimlicoSimulations.AssetChange[] memory changes =
-//        pimlicoSim.simulateAssetChange06(userOp, entryPoint06, addresses, tokens);
+        // Token2 transfer
+        calls[2] = UserOpHelper.Call({
+            to: address(token2),
+            value: 0,
+            data: abi.encodeWithSelector(token2.transfer.selector, recipient, token2Amount)
+        });
 
-//    assertEq(changes.length, 4);
+        // Create user operation with the batch calls
+        bytes memory paymasterAndData = "";
+        UserOperation06 memory userOp = createSignedUserOp06(salt, calls, paymasterAndData);
 
-//    // Check ETH changes (only gas for account06)
-//    assertEq(changes[0].owner, address(account06));
-//    assertEq(changes[0].token, NATIVE_TOKEN);
-//    assertTrue(changes[0].diff < 0); // Lost gas
+        // Fund the account for gas and ETH transfer
+        vm.deal(userOp.sender, 1 ether);
 
-//    assertEq(changes[1].owner, receiver);
-//    assertEq(changes[1].token, NATIVE_TOKEN);
-//    assertEq(changes[1].diff, 0); // No ETH change for receiver
+        // Track addresses and tokens
+        address[] memory addresses = new address[](2);
+        addresses[0] = userOp.sender;
+        addresses[1] = recipient;
 
-//    // Check token changes
-//    assertEq(changes[2].owner, address(account06));
-//    assertEq(changes[2].token, address(tokenA));
-//    assertEq(changes[2].diff, -100e18); // Lost 100 tokens
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(token1);
+        tokens[1] = address(token2);
 
-//    assertEq(changes[3].owner, receiver);
-//    assertEq(changes[3].token, address(tokenA));
-//    assertEq(changes[3].diff, 100e18); // Gained 100 tokens
-//}
+        // Simulate asset changes
+        PimlicoSimulations.AssetChange[] memory changes =
+            pimlicoSim.simulateAssetChange06(userOp, entryPoint06, addresses, tokens);
 
-//function testSimulateAssetChange07_TokenTransfer() public {
-//    // Create an ERC20 transfer operation for v0.7
-//    bytes memory transferData = abi.encodeWithSignature("transfer(address,uint256)", receiver, 50e18);
-//    bytes memory callData =
-//        abi.encodeWithSignature("execute(address,uint256,bytes)", address(tokenB), 0, transferData);
+        // Verify we have changes for tracked tokens only
+        assertEq(changes.length, 4, "Should have 4 total changes (2 token1 + 2 token2)");
 
-//    PackedUserOperation07 memory userOp = _createSignedUserOp07(
-//        address(account07),
-//        0, // nonce
-//        callData
-//    );
+        // Count changes by type
+        uint256 token1Changes = 0;
+        uint256 token2Changes = 0;
 
-//    address[] memory addresses = new address[](2);
-//    addresses[0] = address(account07);
-//    addresses[1] = receiver;
+        for (uint256 i = 0; i < changes.length; i++) {
+            if (changes[i].token == address(token1)) {
+                token1Changes++;
+            } else if (changes[i].token == address(token2)) {
+                token2Changes++;
+            }
+        }
 
-//    address[] memory tokens = new address[](1);
-//    tokens[0] = address(tokenB);
+        assertEq(token1Changes, 2, "Should have 2 token1 changes");
+        assertEq(token2Changes, 2, "Should have 2 token2 changes");
+    }
 
-//    PimlicoSimulations.AssetChange[] memory changes =
-//        pimlicoSim.simulateAssetChange07(userOp, entryPoint07, address(entryPointSimulations07), addresses, tokens);
+    // Test simulateAssetChange06 with no changes
+    function testSimulateAssetChange06_NoChanges() public {
+        uint256 salt = 0;
 
-//    assertEq(changes.length, 2);
+        // Create a no-op call
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(0), value: 0, data: ""});
+        bytes memory paymasterAndData = "";
+        UserOperation06 memory userOp = createSignedUserOp06(salt, call, paymasterAndData);
 
-//    // Check token changes
-//    assertEq(changes[0].owner, address(account07));
-//    assertEq(changes[0].token, address(tokenB));
-//    assertEq(changes[0].diff, -50e18); // Lost 50 tokens
+        // Fund the account
+        vm.deal(userOp.sender, 1 ether);
 
-//    assertEq(changes[1].owner, receiver);
-//    assertEq(changes[1].token, address(tokenB));
-//    assertEq(changes[1].diff, 50e18); // Gained 50 tokens
-//}
+        // Track only the sender
+        address[] memory addresses = new address[](1);
+        addresses[0] = userOp.sender;
 
-//// Helper functions
-//function _createSignedUserOp06(address sender, uint256 nonce, bytes memory callData)
-//    internal
-//    view
-//    returns (UserOperation06 memory)
-//{
-//    return createSignedUserOp06Raw(sender, nonce, "", callData, address(0));
-//}
+        address[] memory tokens = new address[](1);
+        tokens[0] = ETH_ADDRESS;
 
-//function _createSignedUserOp07(address sender, uint256 nonce, bytes memory callData)
-//    internal
-//    view
-//    returns (PackedUserOperation07 memory)
-//{
-//    return createSignedUserOp07Raw(sender, nonce, "", callData, "");
-//}
+        // Simulate asset changes
+        PimlicoSimulations.AssetChange[] memory changes =
+            pimlicoSim.simulateAssetChange06(userOp, entryPoint06, addresses, tokens);
+
+        // Should only have gas cost change
+        assertEq(changes.length, 1, "Should only have 1 change for gas");
+        assertEq(changes[0].owner, userOp.sender);
+        assertEq(changes[0].token, ETH_ADDRESS);
+        assertLt(changes[0].diff, 0, "ETH should decrease due to gas");
+    }
+
+    // ============================================
+    // =========== ENTRYPOINT 07 TESTS ============
+    // ============================================
+
+    // Test simulateAssetChange07 with ETH transfer
+    function testSimulateAssetChange07_ETHTransfer() public {
+        uint256 salt = 0;
+        address recipient = address(0x1234);
+        uint256 transferAmount = 0.5 ether;
+
+        // Create call to transfer ETH
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: recipient, value: transferAmount, data: ""});
+        bytes memory paymasterAndData = "";
+        PackedUserOperation07 memory userOp = createSignedUserOp07(salt, call, paymasterAndData);
+
+        // Fund the account
+        vm.deal(userOp.sender, 1 ether);
+
+        // Track addresses
+        address[] memory addresses = new address[](2);
+        addresses[0] = userOp.sender;
+        addresses[1] = recipient;
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = ETH_ADDRESS;
+
+        // Simulate asset changes
+        PimlicoSimulations.AssetChange[] memory changes =
+            pimlicoSim.simulateAssetChange07(userOp, entryPoint07, address(entryPointSimulations07), addresses, tokens);
+
+        // Verify results
+        assertEq(changes.length, 2, "Should have 2 ETH balance changes");
+
+        // Verify ETH changes
+        for (uint256 i = 0; i < changes.length; i++) {
+            assertEq(changes[i].token, ETH_ADDRESS, "All changes should be ETH");
+            if (changes[i].owner == userOp.sender) {
+                assertLt(changes[i].diff, 0, "Sender ETH should decrease");
+            } else if (changes[i].owner == recipient) {
+                assertEq(changes[i].diff, int256(transferAmount), "Recipient should receive exact amount");
+            }
+        }
+    }
+
+    // Test simulateAssetChange07 with token transfer
+    function testSimulateAssetChange07_TokenTransfer() public {
+        uint256 salt = 0;
+        address recipient = address(0x1234);
+        uint256 transferAmount = 100e18;
+
+        // Mint tokens to the account that will be created
+        address sender = accountFactory07.getAddress(owner, salt);
+        token1.mint(sender, 1000e18);
+
+        // Create call to transfer tokens
+        bytes memory transferData = abi.encodeWithSelector(token1.transfer.selector, recipient, transferAmount);
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(token1), value: 0, data: transferData});
+        bytes memory paymasterAndData = "";
+        PackedUserOperation07 memory userOp = createSignedUserOp07(salt, call, paymasterAndData);
+
+        // Fund the account for gas
+        vm.deal(userOp.sender, 1 ether);
+
+        // Track addresses and tokens
+        address[] memory addresses = new address[](2);
+        addresses[0] = userOp.sender;
+        addresses[1] = recipient;
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(token1);
+
+        // Simulate asset changes
+        PimlicoSimulations.AssetChange[] memory changes =
+            pimlicoSim.simulateAssetChange07(userOp, entryPoint07, address(entryPointSimulations07), addresses, tokens);
+
+        // Verify results
+        assertEq(changes.length, 2, "Should have 2 token changes");
+
+        // Verify token changes
+        for (uint256 i = 0; i < changes.length; i++) {
+            assertEq(changes[i].token, address(token1), "All changes should be for token1");
+            if (changes[i].owner == userOp.sender) {
+                assertEq(changes[i].diff, -int256(transferAmount), "Sender tokens should decrease");
+            } else if (changes[i].owner == recipient) {
+                assertEq(changes[i].diff, int256(transferAmount), "Recipient tokens should increase");
+            }
+        }
+    }
+
+    // Test simulateAssetChange07 with multiple asset changes (ETH + tokens)
+    function testSimulateAssetChange07_MultipleAssets() public {
+        uint256 salt = 0;
+        address recipient = address(0x1234);
+        uint256 ethAmount = 0.1 ether;
+        uint256 token1Amount = 50e18;
+        uint256 token2Amount = 75e18;
+
+        // Mint tokens to the account that will be created
+        address sender = accountFactory07.getAddress(owner, salt);
+        token1.mint(sender, 1000e18);
+        token2.mint(sender, 1000e18);
+
+        // Create array of calls for batch execution
+        UserOpHelper.Call[] memory calls = new UserOpHelper.Call[](3);
+
+        // ETH transfer
+        calls[0] = UserOpHelper.Call({to: recipient, value: ethAmount, data: ""});
+
+        // Token1 transfer
+        calls[1] = UserOpHelper.Call({
+            to: address(token1),
+            value: 0,
+            data: abi.encodeWithSelector(token1.transfer.selector, recipient, token1Amount)
+        });
+
+        // Token2 transfer
+        calls[2] = UserOpHelper.Call({
+            to: address(token2),
+            value: 0,
+            data: abi.encodeWithSelector(token2.transfer.selector, recipient, token2Amount)
+        });
+
+        // Create user operation with the batch calls
+        bytes memory paymasterAndData = "";
+        PackedUserOperation07 memory userOp = createSignedUserOp07(salt, calls, paymasterAndData);
+
+        // Fund the account for gas and ETH transfer
+        vm.deal(userOp.sender, 1 ether);
+
+        // Track addresses and tokens
+        address[] memory addresses = new address[](2);
+        addresses[0] = userOp.sender;
+        addresses[1] = recipient;
+
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(token1);
+        tokens[1] = address(token2);
+
+        // Simulate asset changes
+        PimlicoSimulations.AssetChange[] memory changes =
+            pimlicoSim.simulateAssetChange07(userOp, entryPoint07, address(entryPointSimulations07), addresses, tokens);
+
+        // Verify we have changes for tracked tokens only
+        assertEq(changes.length, 4, "Should have 4 total changes (2 token1 + 2 token2)");
+
+        // Count changes by type
+        uint256 token1Changes = 0;
+        uint256 token2Changes = 0;
+
+        for (uint256 i = 0; i < changes.length; i++) {
+            if (changes[i].token == address(token1)) {
+                token1Changes++;
+            } else if (changes[i].token == address(token2)) {
+                token2Changes++;
+            }
+        }
+
+        assertEq(token1Changes, 2, "Should have 2 token1 changes");
+        assertEq(token2Changes, 2, "Should have 2 token2 changes");
+    }
+
+    // Test simulateAssetChange07 with no changes
+    function testSimulateAssetChange07_NoChanges() public {
+        uint256 salt = 0;
+
+        // Create a no-op call
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(0), value: 0, data: ""});
+        bytes memory paymasterAndData = "";
+        PackedUserOperation07 memory userOp = createSignedUserOp07(salt, call, paymasterAndData);
+
+        // Fund the account
+        vm.deal(userOp.sender, 1 ether);
+
+        // Track only the sender
+        address[] memory addresses = new address[](1);
+        addresses[0] = userOp.sender;
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = ETH_ADDRESS;
+
+        // Simulate asset changes
+        PimlicoSimulations.AssetChange[] memory changes =
+            pimlicoSim.simulateAssetChange07(userOp, entryPoint07, address(entryPointSimulations07), addresses, tokens);
+
+        // Should only have gas cost change
+        assertEq(changes.length, 1, "Should only have 1 change for gas");
+        assertEq(changes[0].owner, userOp.sender);
+        assertEq(changes[0].token, ETH_ADDRESS);
+        assertLt(changes[0].diff, 0, "ETH should decrease due to gas");
+    }
+
+    // ============================================
+    // =========== ENTRYPOINT 08 TESTS ============
+    // ============================================
+
+    // Test simulateAssetChange08 with ETH transfer
+    function testSimulateAssetChange08_ETHTransfer() public {
+        uint256 salt = 0;
+        address recipient = address(0x1234);
+        uint256 transferAmount = 0.5 ether;
+
+        // Create call to transfer ETH
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: recipient, value: transferAmount, data: ""});
+        bytes memory paymasterAndData = "";
+        PackedUserOperation08 memory userOp = createSignedUserOp08(salt, call, paymasterAndData);
+
+        // Fund the account
+        vm.deal(userOp.sender, 1 ether);
+
+        // Track addresses
+        address[] memory addresses = new address[](2);
+        addresses[0] = userOp.sender;
+        addresses[1] = recipient;
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = ETH_ADDRESS;
+
+        // Simulate asset changes (v0.8 uses v0.7 format)
+        PimlicoSimulations.AssetChange[] memory changes = pimlicoSim.simulateAssetChange08(
+            castToVersion07(userOp), entryPoint08, address(entryPointSimulations08), addresses, tokens
+        );
+
+        // Verify results
+        assertEq(changes.length, 2, "Should have 2 ETH balance changes");
+
+        // Verify ETH changes
+        for (uint256 i = 0; i < changes.length; i++) {
+            assertEq(changes[i].token, ETH_ADDRESS, "All changes should be ETH");
+            if (changes[i].owner == userOp.sender) {
+                assertLt(changes[i].diff, 0, "Sender ETH should decrease");
+            } else if (changes[i].owner == recipient) {
+                assertEq(changes[i].diff, int256(transferAmount), "Recipient should receive exact amount");
+            }
+        }
+    }
+
+    // Test simulateAssetChange08 with token transfer
+    function testSimulateAssetChange08_TokenTransfer() public {
+        uint256 salt = 0;
+        address recipient = address(0x1234);
+        uint256 transferAmount = 100e18;
+
+        // Mint tokens to the account that will be created
+        address sender = accountFactory08.getAddress(owner, salt);
+        token1.mint(sender, 1000e18);
+
+        // Create call to transfer tokens
+        bytes memory transferData = abi.encodeWithSelector(token1.transfer.selector, recipient, transferAmount);
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(token1), value: 0, data: transferData});
+        bytes memory paymasterAndData = "";
+        PackedUserOperation08 memory userOp = createSignedUserOp08(salt, call, paymasterAndData);
+
+        // Fund the account for gas
+        vm.deal(userOp.sender, 1 ether);
+
+        // Track addresses and tokens
+        address[] memory addresses = new address[](2);
+        addresses[0] = userOp.sender;
+        addresses[1] = recipient;
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(token1);
+
+        // Simulate asset changes
+        PimlicoSimulations.AssetChange[] memory changes = pimlicoSim.simulateAssetChange08(
+            castToVersion07(userOp), entryPoint08, address(entryPointSimulations08), addresses, tokens
+        );
+
+        // Verify results
+        assertEq(changes.length, 2, "Should have 2 token changes");
+
+        // Verify token changes
+        for (uint256 i = 0; i < changes.length; i++) {
+            assertEq(changes[i].token, address(token1), "All changes should be for token1");
+            if (changes[i].owner == userOp.sender) {
+                assertEq(changes[i].diff, -int256(transferAmount), "Sender tokens should decrease");
+            } else if (changes[i].owner == recipient) {
+                assertEq(changes[i].diff, int256(transferAmount), "Recipient tokens should increase");
+            }
+        }
+    }
+
+    // Test simulateAssetChange08 with multiple asset changes (ETH + tokens)
+    function testSimulateAssetChange08_MultipleAssets() public {
+        uint256 salt = 0;
+        address recipient = address(0x1234);
+        uint256 ethAmount = 0.1 ether;
+        uint256 token1Amount = 50e18;
+        uint256 token2Amount = 75e18;
+
+        // Mint tokens to the account that will be created
+        address sender = accountFactory08.getAddress(owner, salt);
+        token1.mint(sender, 1000e18);
+        token2.mint(sender, 1000e18);
+
+        // Create array of calls for batch execution
+        UserOpHelper.Call[] memory calls = new UserOpHelper.Call[](3);
+
+        // ETH transfer
+        calls[0] = UserOpHelper.Call({to: recipient, value: ethAmount, data: ""});
+
+        // Token1 transfer
+        calls[1] = UserOpHelper.Call({
+            to: address(token1),
+            value: 0,
+            data: abi.encodeWithSelector(token1.transfer.selector, recipient, token1Amount)
+        });
+
+        // Token2 transfer
+        calls[2] = UserOpHelper.Call({
+            to: address(token2),
+            value: 0,
+            data: abi.encodeWithSelector(token2.transfer.selector, recipient, token2Amount)
+        });
+
+        // Create user operation with the batch calls
+        bytes memory paymasterAndData = "";
+        PackedUserOperation08 memory userOp = createSignedUserOp08(salt, calls, paymasterAndData);
+
+        // Fund the account for gas and ETH transfer
+        vm.deal(userOp.sender, 1 ether);
+
+        // Track addresses and tokens
+        address[] memory addresses = new address[](2);
+        addresses[0] = userOp.sender;
+        addresses[1] = recipient;
+
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(token1);
+        tokens[1] = address(token2);
+
+        // Simulate asset changes
+        PimlicoSimulations.AssetChange[] memory changes = pimlicoSim.simulateAssetChange08(
+            castToVersion07(userOp), entryPoint08, address(entryPointSimulations08), addresses, tokens
+        );
+
+        // Verify we have changes for tracked tokens only
+        assertEq(changes.length, 4, "Should have 4 total changes (2 token1 + 2 token2)");
+
+        // Count changes by type
+        uint256 token1Changes = 0;
+        uint256 token2Changes = 0;
+
+        for (uint256 i = 0; i < changes.length; i++) {
+            if (changes[i].token == address(token1)) {
+                token1Changes++;
+            } else if (changes[i].token == address(token2)) {
+                token2Changes++;
+            }
+        }
+
+        assertEq(token1Changes, 2, "Should have 2 token1 changes");
+        assertEq(token2Changes, 2, "Should have 2 token2 changes");
+    }
+
+    // Test simulateAssetChange08 with no changes
+    function testSimulateAssetChange08_NoChanges() public {
+        uint256 salt = 0;
+
+        // Create a no-op call
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(0), value: 0, data: ""});
+        bytes memory paymasterAndData = "";
+        PackedUserOperation08 memory userOp = createSignedUserOp08(salt, call, paymasterAndData);
+
+        // Fund the account
+        vm.deal(userOp.sender, 1 ether);
+
+        // Track only the sender
+        address[] memory addresses = new address[](1);
+        addresses[0] = userOp.sender;
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = ETH_ADDRESS;
+
+        // Simulate asset changes
+        PimlicoSimulations.AssetChange[] memory changes = pimlicoSim.simulateAssetChange08(
+            castToVersion07(userOp), entryPoint08, address(entryPointSimulations08), addresses, tokens
+        );
+
+        // Should only have gas cost change
+        assertEq(changes.length, 1, "Should only have 1 change for gas");
+        assertEq(changes[0].owner, userOp.sender);
+        assertEq(changes[0].token, ETH_ADDRESS);
+        assertLt(changes[0].diff, 0, "ETH should decrease due to gas");
+    }
+
+    // ============================================
+    // ============== TEST HELPERS ================
+    // ============================================
+
+    function _assertAssetChange(
+        PimlicoSimulations.AssetChange memory change,
+        address expectedOwner,
+        address expectedToken,
+        int256 expectedDiff,
+        string memory message
+    ) private {
+        assertEq(change.owner, expectedOwner, string.concat(message, ": owner mismatch"));
+        assertEq(change.token, expectedToken, string.concat(message, ": token mismatch"));
+        assertEq(change.diff, expectedDiff, string.concat(message, ": diff mismatch"));
+    }
+
+    function _findAssetChange(PimlicoSimulations.AssetChange[] memory changes, address owner, address token)
+        private
+        pure
+        returns (bool found, uint256 index)
+    {
+        for (uint256 i = 0; i < changes.length; i++) {
+            if (changes[i].owner == owner && changes[i].token == token) {
+                return (true, i);
+            }
+        }
+        return (false, 0);
+    }
 }

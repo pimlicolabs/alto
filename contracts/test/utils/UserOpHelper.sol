@@ -107,6 +107,67 @@ contract UserOpHelper is Test {
         return userOp;
     }
 
+    // Create and sign UserOperation for EntryPoint v0.6 with batch calls
+    function createSignedUserOp06(uint256 salt, Call[] memory calls, bytes memory paymasterAndData)
+        internal
+        view
+        returns (UserOperation06 memory)
+    {
+        // Derive sender address
+        address sender = accountFactory06.getAddress(owner, salt);
+
+        // Get nonce from EntryPoint
+        uint256 nonce = entryPoint06.getNonce(sender, 0);
+
+        // Check if account needs to be deployed
+        bytes memory initCode = "";
+        if (sender.code.length == 0) {
+            initCode = abi.encodePacked(
+                address(accountFactory06), abi.encodeCall(accountFactory06.createAccount, (owner, salt))
+            );
+        }
+
+        // Prepare arrays for batch execution
+        address[] memory targets = new address[](calls.length);
+        bytes[] memory datas = new bytes[](calls.length);
+
+        for (uint256 i = 0; i < calls.length; i++) {
+            targets[i] = calls[i].to;
+            // For v0.6, we need to encode value into the calldata if needed
+            if (calls[i].value > 0) {
+                // If there's a value, we need to use the execute function instead
+                datas[i] =
+                    abi.encodeWithSelector(SimpleAccount06.execute.selector, calls[i].to, calls[i].value, calls[i].data);
+                targets[i] = sender; // Call back to the account itself
+            } else {
+                datas[i] = calls[i].data;
+            }
+        }
+
+        // Encode the executeBatch call (v0.6 only takes dest and func arrays)
+        bytes memory callData = abi.encodeWithSelector(SimpleAccount06.executeBatch.selector, targets, datas);
+
+        UserOperation06 memory userOp = UserOperation06({
+            sender: sender,
+            nonce: nonce,
+            initCode: initCode,
+            callData: callData,
+            callGasLimit: 200000,
+            verificationGasLimit: 300000,
+            preVerificationGas: 21000,
+            maxFeePerGas: 1 gwei,
+            maxPriorityFeePerGas: 1 gwei,
+            paymasterAndData: paymasterAndData,
+            signature: ""
+        });
+
+        bytes32 hash = entryPoint06.getUserOpHash(userOp);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, MessageHashUtils.toEthSignedMessageHash(hash));
+        userOp.signature = abi.encodePacked(r, s, v);
+
+        return userOp;
+    }
+
     // Create and sign PackedUserOperation for EntryPoint v0.7
     function createSignedUserOp07(uint256 salt, Call memory call, bytes memory paymasterAndData)
         internal
@@ -146,6 +207,59 @@ contract UserOpHelper is Test {
         return userOp;
     }
 
+    // Create and sign PackedUserOperation for EntryPoint v0.7 with batch calls
+    function createSignedUserOp07(uint256 salt, Call[] memory calls, bytes memory paymasterAndData)
+        internal
+        view
+        returns (PackedUserOperation07 memory)
+    {
+        // Derive sender address
+        address sender = accountFactory07.getAddress(owner, salt);
+
+        // Get nonce from EntryPoint
+        uint256 nonce = entryPoint07.getNonce(sender, 0);
+
+        // Check if account needs to be deployed
+        bytes memory initCode = "";
+        if (sender.code.length == 0) {
+            initCode = abi.encodePacked(
+                address(accountFactory07), abi.encodeCall(accountFactory07.createAccount, (owner, salt))
+            );
+        }
+
+        // Prepare arrays for batch execution
+        address[] memory targets = new address[](calls.length);
+        uint256[] memory values = new uint256[](calls.length);
+        bytes[] memory datas = new bytes[](calls.length);
+
+        for (uint256 i = 0; i < calls.length; i++) {
+            targets[i] = calls[i].to;
+            values[i] = calls[i].value;
+            datas[i] = calls[i].data;
+        }
+
+        // Encode the executeBatch call
+        bytes memory callData = abi.encodeWithSelector(SimpleAccount07.executeBatch.selector, targets, values, datas);
+
+        PackedUserOperation07 memory userOp = PackedUserOperation07({
+            sender: sender,
+            nonce: nonce,
+            initCode: initCode,
+            callData: callData,
+            accountGasLimits: packGasLimits(300000, 200000),
+            preVerificationGas: 21000,
+            gasFees: packGasFees(1 gwei, 1 gwei),
+            paymasterAndData: paymasterAndData,
+            signature: ""
+        });
+
+        bytes32 hash = entryPoint07.getUserOpHash(userOp);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, MessageHashUtils.toEthSignedMessageHash(hash));
+        userOp.signature = abi.encodePacked(r, s, v);
+
+        return userOp;
+    }
+
     // Create and sign PackedUserOperation for EntryPoint v0.8
     function createSignedUserOp08(uint256 salt, Call memory call, bytes memory paymasterAndData)
         internal
@@ -171,6 +285,60 @@ contract UserOpHelper is Test {
             nonce: nonce,
             initCode: initCode,
             callData: abi.encodeWithSelector(SimpleAccount08.execute.selector, call.to, call.value, call.data),
+            accountGasLimits: packGasLimits(300000, 200000),
+            preVerificationGas: 21000,
+            gasFees: packGasFees(1 gwei, 1 gwei),
+            paymasterAndData: paymasterAndData,
+            signature: ""
+        });
+
+        bytes32 hash = entryPoint08.getUserOpHash(userOp);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, hash);
+        userOp.signature = abi.encodePacked(r, s, v);
+
+        return userOp;
+    }
+
+    // Create and sign PackedUserOperation for EntryPoint v0.8 with batch calls
+    function createSignedUserOp08(uint256 salt, Call[] memory calls, bytes memory paymasterAndData)
+        internal
+        view
+        returns (PackedUserOperation08 memory)
+    {
+        // Derive sender address
+        address sender = accountFactory08.getAddress(owner, salt);
+
+        // Get nonce from EntryPoint
+        uint256 nonce = entryPoint08.getNonce(sender, 0);
+
+        // Check if account needs to be deployed
+        bytes memory initCode = "";
+        if (sender.code.length == 0) {
+            initCode = abi.encodePacked(
+                address(accountFactory08), abi.encodeCall(accountFactory08.createAccount, (owner, salt))
+            );
+        }
+
+        // For v0.8, executeBatch takes an array of Call structs
+        // We need to convert our Call structs to BaseAccount.Call structs
+        SimpleAccount08.Call[] memory baseCalls = new SimpleAccount08.Call[](calls.length);
+        
+        for (uint256 i = 0; i < calls.length; i++) {
+            baseCalls[i] = SimpleAccount08.Call({
+                target: calls[i].to,
+                value: calls[i].value,
+                data: calls[i].data
+            });
+        }
+
+        // Encode the executeBatch call with the Call struct array
+        bytes memory callData = abi.encodeWithSelector(SimpleAccount08.executeBatch.selector, baseCalls);
+
+        PackedUserOperation08 memory userOp = PackedUserOperation08({
+            sender: sender,
+            nonce: nonce,
+            initCode: initCode,
+            callData: callData,
             accountGasLimits: packGasLimits(300000, 200000),
             preVerificationGas: 21000,
             gasFees: packGasFees(1 gwei, 1 gwei),

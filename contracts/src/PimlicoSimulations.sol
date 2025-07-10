@@ -386,12 +386,14 @@ contract PimlicoSimulations {
     // @notice Simulate asset changes for EntryPoint 0.8
     function simulateAssetChange08(
         PackedUserOperation calldata userOp,
-        IEntryPoint07 entryPoint,
+        IEntryPoint08 entryPoint,
         address entryPointSimulations,
         address[] calldata addresses,
         address[] calldata tokens
     ) external returns (AssetChange[] memory) {
-        return this.simulateAssetChange07(userOp, entryPoint, entryPointSimulations, addresses, tokens);
+        return this.simulateAssetChange07(
+            userOp, IEntryPoint07(address(entryPoint)), entryPointSimulations, addresses, tokens
+        );
     }
 
     // @notice Simulate asset changes for EntryPoint 0.7
@@ -463,8 +465,17 @@ contract PimlicoSimulations {
 
             bytes memory executionResultData = revertData.slice(4, revertData.length);
 
-            (,,,,,, bool targetSuccess, bytes memory targetResult) =
-                abi.decode(executionResultData, (uint256, uint256, uint256, uint256, uint256, uint256, bool, bytes));
+            (,,,, bool targetSuccess, bytes memory targetResult) = abi.decode(
+                executionResultData,
+                (
+                    uint256, /*preOpGas*/
+                    uint256, /*paid*/
+                    uint48, /*validAfter*/
+                    uint48, /*validUntil*/
+                    bool, /*targetSuccess*/
+                    bytes /*targetResult*/
+                )
+            );
 
             // Bubble up error if target call failed.
             if (!targetSuccess) {
