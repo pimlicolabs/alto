@@ -29,6 +29,8 @@ export class ExecutorManager {
     private userOpMonitor: UserOpMonitor
     private unWatch: WatchBlocksReturnType | undefined
 
+    private currentlyHandlingBlock = false
+
     constructor({
         config,
         executor,
@@ -223,7 +225,6 @@ export class ExecutorManager {
         }))
 
         const submittedBundle: SubmittedBundleInfo = {
-            uid: transactionHash,
             executor: wallet,
             transactionHash,
             transactionRequest,
@@ -260,12 +261,18 @@ export class ExecutorManager {
     }
 
     private async handleBlock(blockNumber: bigint) {
+        if (this.currentlyHandlingBlock) {
+            return
+        }
+        this.currentlyHandlingBlock = true
+
         // Process the block and get the results
         const pendingBundles =
             await this.userOpMonitor.processBlock(blockNumber)
 
         if (pendingBundles.length === 0) {
             this.stopWatchingBlocks()
+            this.currentlyHandlingBlock = false
             return
         }
 
@@ -309,7 +316,7 @@ export class ExecutorManager {
             })
         )
 
-        this.userOpMonitor.finishProcessing(pendingBundles)
+        this.currentlyHandlingBlock = false
     }
 
     async replaceTransaction({
