@@ -92,18 +92,21 @@ export class UserOpMonitor {
 
         // Refresh the statuses of all pending bundles.
         const pendingBundles = Array.from(this.pendingBundles.values())
+
         const refreshResults = (
             await Promise.all(
-                pendingBundles.map(async (bundle) => {
-                    const needsProcessing =
-                        await this.refreshBundleStatus(bundle)
-                    return needsProcessing ? bundle : null
-                })
+                pendingBundles
+                    .filter(
+                        (bundle): bundle is SubmittedBundleInfo =>
+                            bundle.processingBlock !== true
+                    )
+                    .map(async (bundle) => {
+                        const needsProcessing =
+                            await this.refreshBundleStatus(bundle)
+                        return needsProcessing ? bundle : null
+                    })
             )
-        ).filter(
-            (bundle): bundle is SubmittedBundleInfo =>
-                bundle !== null && bundle.processingBlock !== true
-        )
+        ).filter((bundle) => bundle !== null)
 
         for (const bundle of refreshResults) {
             bundle.processingBlock = true
