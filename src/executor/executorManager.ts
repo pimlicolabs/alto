@@ -6,7 +6,7 @@ import {
     UserOperationBundle
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
-import { Hex, type WatchBlocksReturnType } from "viem"
+import { Block, Hex, type WatchBlocksReturnType } from "viem"
 import type { Executor } from "./executor"
 import type { AltoConfig } from "../createConfig"
 import { SenderManager } from "./senderManager"
@@ -122,13 +122,14 @@ export class ExecutorManager {
             return
         }
 
-        this.unWatch = this.config.publicClient.watchBlockNumber({
-            onBlockNumber: async (blockNumber) => {
-                await this.handleBlock(blockNumber)
+        this.unWatch = this.config.publicClient.watchBlocks({
+            onBlock: async (block) => {
+                await this.handleBlock(block)
             },
             onError: (error) => {
                 this.logger.error({ error }, "error while watching blocks")
             },
+            includeTransactions: false,
             emitMissed: false,
             pollingInterval: this.config.pollingInterval
         })
@@ -260,15 +261,14 @@ export class ExecutorManager {
         }
     }
 
-    private async handleBlock(blockNumber: bigint) {
+    private async handleBlock(block: Block) {
         if (this.currentlyHandlingBlock) {
             return
         }
         this.currentlyHandlingBlock = true
 
         // Process the block and get the results
-        const pendingBundles =
-            await this.userOpMonitor.processBlock(blockNumber)
+        const pendingBundles = await this.userOpMonitor.processBlock(block)
 
         if (pendingBundles.length === 0) {
             this.stopWatchingBlocks()

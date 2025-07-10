@@ -19,13 +19,15 @@ import {
     getAbiItem,
     Hex,
     decodeEventLog,
-    getAddress
+    getAddress,
+    Block
 } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { SenderManager } from "./senderManager"
 import { getBundleStatus } from "./getBundleStatus"
 import { UserOperationReceipt } from "@alto/types"
 import { entryPoint07Abi } from "viem/account-abstraction"
+import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
 
 interface CachedReceipt {
     receipt: UserOperationReceipt
@@ -79,15 +81,19 @@ export class UserOpMonitor {
         )
     }
 
-    async processBlock(blockNumber: bigint): Promise<SubmittedBundleInfo[]> {
+    async processBlock(block: Block): Promise<SubmittedBundleInfo[]> {
         // Update the cached block number whenever we receive a new block.
-        this.cachedLatestBlock = { value: blockNumber, timestamp: Date.now() }
+        // block.number! as number is always defined due to coming from publicClient.watchBlocks
+        this.cachedLatestBlock = { value: block.number!, timestamp: Date.now() }
 
         // Refresh the statuses of all pending bundles.
         const pendingBundles = Array.from(this.pendingBundles.values())
         const refreshResults = await Promise.all(
             pendingBundles.map(async (bundle) => {
-                const needsProcessing = await this.refreshBundleStatus(bundle)
+                const needsProcessing = await this.refreshBundleStatus(
+                    bundle,
+                    block
+                )
                 return needsProcessing ? bundle : null
             })
         )
@@ -99,7 +105,8 @@ export class UserOpMonitor {
     }
 
     async refreshBundleStatus(
-        submittedBundle: SubmittedBundleInfo
+        submittedBundle: SubmittedBundleInfo,
+        block: Block
     ): Promise<boolean> {
         let bundleReceipt = await getBundleStatus({
             submittedBundle,
@@ -148,15 +155,36 @@ export class UserOpMonitor {
 
         if (bundleReceipt.status === "reverted") {
             const { bundle } = submittedBundle
-            const { userOps } = bundle
             const { blockNumber, transactionHash } = bundleReceipt
 
-            // Cleanup bundle
+            // Cleanup bundle and free executor
             await this.freeSubmittedBundle(submittedBundle)
 
+            const filterOpsResult = await filterOpsAndEstimateGas({
+                userOpBundle: bundle,
+                config: this.config,
+                logger: this.logger,
+                networkBaseFee: block.baseFeePerGas || 0n
+            })
+
+            // Resubmit any userOps that we can recover
+            if (filterOpsResult.status === "success") {
+                const { userOpsToBundle } = filterOpsResult
+
+                await this.mempool.resubmitUserOps({
+                    userOps: userOpsToBundle,
+                    entryPoint: bundle.entryPoint,
+                    reason: "sibling_op_reverted"
+                })
+            }
+
+            // Extract rejectedUserOps which exists in all cases
+            const { rejectedUserOps } = filterOpsResult
+
             // Fire and forget
+            // Check for frontrun on all rejected userOps, default to marking as failed onchain
             Promise.all(
-                userOps.map(async (userOpInfo) => {
+                rejectedUserOps.map(async (userOpInfo) => {
                     this.checkFrontrun({
                         userOpInfo,
                         transactionHash,
@@ -273,9 +301,7 @@ export class UserOpMonitor {
         this.metrics.userOpInclusionDuration.observe(
             (Date.now() - addedToMempool) / 1000
         )
-        this.metrics.userOpsSubmissionAttempts.observe(
-            submissionAttempts
-        )
+        this.metrics.userOpsSubmissionAttempts.observe(submissionAttempts)
 
         // Update reputation
         const accountDeployed = this.checkAccountDeployment(
@@ -469,10 +495,7 @@ export class UserOpMonitor {
         }
 
         const receipt = await getTransactionReceipt(txHash)
-        const userOpReceipt = parseUserOpReceipt(
-            userOpHash,
-            receipt
-        )
+        const userOpReceipt = parseUserOpReceipt(userOpHash, receipt)
 
         // Cache the receipt before returning
         this.cacheReceipt(userOpHash, userOpReceipt)
