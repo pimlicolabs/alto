@@ -306,8 +306,7 @@ export class ExecutorManager {
                     maxPriorityFeePerGas: scaleBigIntByPercent(
                         transactionRequest.maxPriorityFeePerGas,
                         gasMultiplier
-                    ),
-                    gas: 21000n
+                    )
                 })
 
                 logger.info(
@@ -474,15 +473,15 @@ export class ExecutorManager {
                 )
 
                 await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
-
-                this.metrics.replacedTransactions
-                    .labels({ reason, status: "failed" })
-                    .inc()
             }
 
             // Free wallet as no bundle was sent.
             await this.senderManager.markWalletProcessed(executor)
             await this.userOpMonitor.stopTrackingBundle(submittedBundle)
+
+            this.metrics.replacedTransactions
+                .labels({ reason, status: "failed" })
+                .inc()
 
             return
         }

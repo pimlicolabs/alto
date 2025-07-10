@@ -153,6 +153,11 @@ export class UserOpMonitor {
             return false
         }
 
+        // Bundle should only occur in rare cases
+        // 1. The bundle was frontran
+        // 2. A userOp in the bundle failed a EntryPoint check (AA revert)
+        //
+        // In these cases, we need to find which userOps can be resubmitted
         if (bundleReceipt.status === "reverted") {
             const { bundle } = submittedBundle
             const { blockNumber, transactionHash } = bundleReceipt
@@ -160,6 +165,7 @@ export class UserOpMonitor {
             // Cleanup bundle and free executor
             await this.freeSubmittedBundle(submittedBundle)
 
+            // Find userOps that can be resubmitted
             const filterOpsResult = await filterOpsAndEstimateGas({
                 userOpBundle: bundle,
                 config: this.config,
@@ -178,11 +184,10 @@ export class UserOpMonitor {
                 })
             }
 
-            // Extract rejectedUserOps which exists in all cases
             const { rejectedUserOps } = filterOpsResult
 
             // Fire and forget
-            // Check for frontrun on all rejected userOps, default to marking as failed onchain
+            // Check if any rejected userOps were frontruns, if not mark as failed onchain.
             Promise.all(
                 rejectedUserOps.map(async (userOpInfo) => {
                     const wasFrontrun = await this.checkFrontrun(userOpInfo)
