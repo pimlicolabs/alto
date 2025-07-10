@@ -4,6 +4,7 @@ import { EntryPointVersion } from "viem/account-abstraction"
 import type { Account } from "viem/accounts"
 
 export type SubmittedBundleInfo = {
+    uid: string
     transactionHash: HexData32
     previousTransactionHashes: HexData32[]
     transactionRequest: {
@@ -14,6 +15,7 @@ export type SubmittedBundleInfo = {
     bundle: UserOperationBundle
     executor: Account
     lastReplaced: number
+    processingBlock?: boolean
 }
 
 export type UserOperationBundle = {
