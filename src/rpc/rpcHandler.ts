@@ -1,7 +1,7 @@
 import {
-    calculateAA95GasFloor,
     type Executor,
-    type ExecutorManager
+    type ExecutorManager,
+    calculateAA95GasFloor
 } from "@alto/executor"
 import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
@@ -22,12 +22,12 @@ import {
 import type { Logger, Metrics } from "@alto/utils"
 import { getNonceKeyAndSequence, isVersion06, isVersion07 } from "@alto/utils"
 import { getContract, zeroAddress } from "viem"
+import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
+import { recoverAuthorizationAddress } from "viem/utils"
 import type { AltoConfig } from "../createConfig"
+import type { UserOpMonitor } from "../executor/userOpMonitor"
 import type { MethodHandler } from "./createMethodHandler"
 import { registerHandlers } from "./methods"
-import { recoverAuthorizationAddress } from "viem/utils"
-import { privateKeyToAddress, generatePrivateKey } from "viem/accounts"
-import type { UserOpMonitor } from "../executor/userOpMonitor"
 
 export class RpcHandler {
     public config: AltoConfig

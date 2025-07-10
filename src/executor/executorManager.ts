@@ -5,12 +5,12 @@ import type {
     SubmittedBundleInfo,
     UserOperationBundle
 } from "@alto/types"
+import type { GasPriceParameters } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import type { Hex, WatchBlocksReturnType } from "viem"
-import type { Executor } from "./executor"
 import type { AltoConfig } from "../createConfig"
+import type { Executor } from "./executor"
 import type { SenderManager } from "./senderManager"
-import type { GasPriceParameters } from "@alto/types"
 import type { UserOpMonitor } from "./userOpMonitor"
 
 const SCALE_FACTOR = 10 // Interval increases by 10ms per task per minute

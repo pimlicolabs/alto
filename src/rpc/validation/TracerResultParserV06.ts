@@ -47,7 +47,7 @@ const abi = [...SenderCreatorAbi, ...EntryPointV06Abi, ...PaymasterAbi] as Abi
 
 // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
 const functionSignatureToMethodName = (hash: any) => {
-    let functionName: string | undefined = undefined
+    let functionName: string | undefined
     for (const item of abi) {
         const signature = getFunctionSelector(item as AbiFunction)
         if (signature === hash) {
@@ -679,8 +679,8 @@ export function tracerResultParserV06(
         function isStaked(entStake?: StakeInfo): boolean {
             return Boolean(
                 entStake &&
-                    1n <= entStake.stake &&
-                    1n <= entStake.unstakeDelaySec
+                    entStake.stake >= 1n &&
+                    entStake.unstakeDelaySec >= 1n
             )
         }
 
@@ -737,7 +737,7 @@ export function tracerResultParserV06(
             )
         }
 
-        let illegalEntryPointCodeAccess: string | undefined = undefined
+        let illegalEntryPointCodeAccess: string | undefined
         for (const addr of Object.keys(currentNumLevel.extCodeAccessInfo)) {
             if (addr === entryPointAddress) {
                 illegalEntryPointCodeAccess =

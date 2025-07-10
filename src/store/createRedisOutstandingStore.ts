@@ -1,19 +1,19 @@
 import {
+    type Address,
+    type HexData32,
+    type UserOpInfo,
+    type UserOperation,
+    userOpInfoSchema
+} from "@alto/types"
+import { type ChainableCommander, Redis } from "ioredis"
+import { toHex } from "viem/utils"
+import type { OutstandingStore } from "."
+import type { AltoConfig } from "../createConfig"
+import {
     getNonceKeyAndSequence,
     isVersion06,
     isVersion07
 } from "../utils/userop"
-import type { AltoConfig } from "../createConfig"
-import {
-    type Address,
-    type HexData32,
-    type UserOperation,
-    type UserOpInfo,
-    userOpInfoSchema
-} from "@alto/types"
-import type { OutstandingStore } from "."
-import { type ChainableCommander, Redis } from "ioredis"
-import { toHex } from "viem/utils"
 
 const serializeUserOpInfo = (userOpInfo: UserOpInfo): string => {
     return JSON.stringify(userOpInfo, (_, value) =>
@@ -373,7 +373,7 @@ class RedisOutstandingQueue implements OutstandingStore {
         const isLowestNonce = userOps[0].userOpHash === userOpHash
 
         // If this is the lowest nonce, check if there's a next operation before starting the transaction
-        let nextOp: UserOpInfo | undefined = undefined
+        let nextOp: UserOpInfo | undefined
         if (isLowestNonce && userOps.length > 1) {
             // userOps is already sorted by nonce sequence because it comes from the sorted set
             // So we can simply take the second operation as the next one

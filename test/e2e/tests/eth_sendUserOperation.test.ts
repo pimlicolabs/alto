@@ -5,24 +5,22 @@ import {
 } from "permissionless/utils"
 import {
     http,
+    type Address,
     type Hex,
+    concat,
     createPublicClient,
     createTestClient,
     getContract,
     parseEther,
     parseGwei,
-    type Address,
-    concat,
-    encodeFunctionData,
-    parseAbi,
     zeroAddress
 } from "viem"
 import {
+    type EntryPointVersion,
+    type UserOperation,
     UserOperationReceiptNotFoundError,
     entryPoint06Address,
     entryPoint07Address,
-    type UserOperation,
-    EntryPointVersion,
     entryPoint08Address
 } from "viem/account-abstraction"
 import {
@@ -32,6 +30,8 @@ import {
 } from "viem/accounts"
 import { foundry } from "viem/chains"
 import { beforeEach, describe, expect, inject, test } from "vitest"
+import { deployPaymaster } from "../src/testPaymaster.js"
+import { getEntryPointAbi } from "../src/utils/entrypoint.js"
 import {
     beforeEachCleanUp,
     getSimple7702AccountImplementationAddress,
@@ -39,8 +39,6 @@ import {
     sendBundleNow,
     setBundlingMode
 } from "../src/utils/index.js"
-import { deployPaymaster } from "../src/testPaymaster.js"
-import { getEntryPointAbi } from "../src/utils/entrypoint.js"
 
 describe.each([
     {

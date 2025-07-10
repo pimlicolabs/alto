@@ -1,4 +1,3 @@
-import type { EntryPointVersion } from "viem/account-abstraction"
 import {
     type Address,
     type Hex,
@@ -8,6 +7,7 @@ import {
     pad,
     toHex
 } from "viem"
+import type { EntryPointVersion } from "viem/account-abstraction"
 
 import entryPointOverride06 from "../contracts/EntryPointFilterOpsOverride.sol/EntryPointFilterOpsOverride06.json" with {
     type: "json"

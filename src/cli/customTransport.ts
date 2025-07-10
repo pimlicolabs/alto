@@ -1,19 +1,19 @@
 import type { Logger } from "@alto/utils"
 import {
+    type Hex,
     type HttpTransport,
     type HttpTransportConfig,
     RpcRequestError,
     UrlRequiredError,
     createTransport,
-    toFunctionSelector,
     getAbiItem,
     isHex,
     slice,
-    Hex
+    toFunctionSelector
 } from "viem"
 import { formatAbiItem, rpc } from "viem/utils"
-import { EntryPointV06Abi } from "../types/contracts"
 import { simulationErrors } from "../rpc/estimation/utils"
+import { EntryPointV06Abi } from "../types/contracts"
 
 export type RpcRequest = {
     jsonrpc?: "2.0" | undefined

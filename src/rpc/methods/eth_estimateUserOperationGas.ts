@@ -1,10 +1,3 @@
-import { scaleBigIntByPercent, maxBigInt } from "../../utils/bigInt"
-import { isVersion06, isVersion07, deepHexlify } from "../../utils/userop"
-import {
-    calcExecutionPvgComponent,
-    calcL2PvgComponent
-} from "../../utils/preVerificationGasCalulator"
-import { createMethodHandler } from "../createMethodHandler"
 import {
     type Address,
     RpcError,
@@ -13,8 +6,15 @@ import {
     ValidationErrors,
     estimateUserOperationGasSchema
 } from "@alto/types"
-import type { RpcHandler } from "../rpcHandler"
 import { parseEther, toHex } from "viem"
+import { maxBigInt, scaleBigIntByPercent } from "../../utils/bigInt"
+import {
+    calcExecutionPvgComponent,
+    calcL2PvgComponent
+} from "../../utils/preVerificationGasCalulator"
+import { deepHexlify, isVersion06, isVersion07 } from "../../utils/userop"
+import { createMethodHandler } from "../createMethodHandler"
+import type { RpcHandler } from "../rpcHandler"
 
 type GasEstimateResult =
     | {

@@ -1,7 +1,7 @@
-import type { z } from "zod"
-import type { RpcHandler } from "./rpcHandler"
 import type { ApiVersion } from "@alto/types"
 import type { ReadonlyDeep } from "type-fest"
+import type { z } from "zod"
+import type { RpcHandler } from "./rpcHandler"
 
 export type MethodHandler<T extends z.ZodType = z.ZodType> = {
     schema: T

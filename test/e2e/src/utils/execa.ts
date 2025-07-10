@@ -1,6 +1,6 @@
-import { EventEmitter } from "eventemitter3"
+import type { EventEmitter } from "eventemitter3"
 import { type ResultPromise, execa as exec } from "execa"
-import { Instance } from "prool"
+import type { Instance } from "prool"
 
 export type Process_internal = ResultPromise<{ cleanup: true; reject: false }>
 

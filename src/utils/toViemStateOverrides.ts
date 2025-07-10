@@ -1,7 +1,7 @@
 import {
-    getAddress,
     type Hex,
-    type StateOverride as ViemStateOverride
+    type StateOverride as ViemStateOverride,
+    getAddress
 } from "viem"
 import type { StateOverrides } from "../types/schemas"
 

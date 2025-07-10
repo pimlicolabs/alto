@@ -1,7 +1,7 @@
+import type { UserOperationReceipt } from "@alto/types"
 import type { Logger } from "pino"
 import type { Hex, PublicClient } from "viem"
 import type { SubmittedBundleInfo } from "../types/mempool"
-import type { UserOperationReceipt } from "@alto/types"
 import { parseUserOpReceipt } from "../utils/userop"
 
 export type BundleIncluded = {

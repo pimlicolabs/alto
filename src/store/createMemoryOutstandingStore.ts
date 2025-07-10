@@ -1,12 +1,12 @@
+import type { HexData32, UserOpInfo, UserOperation } from "@alto/types"
+import type { Logger } from "@alto/utils"
+import type { ConflictingOutstandingType, OutstandingStore } from "."
+import type { AltoConfig } from "../createConfig"
 import {
     getNonceKeyAndSequence,
     isVersion06,
     isVersion07
 } from "../utils/userop"
-import type { AltoConfig } from "../createConfig"
-import type { HexData32, UserOpInfo, UserOperation } from "@alto/types"
-import type { ConflictingOutstandingType, OutstandingStore } from "."
-import type { Logger } from "@alto/utils"
 
 const senderNonceSlot = (userOp: UserOperation) => {
     const sender = userOp.sender
@@ -81,7 +81,7 @@ export class MemoryOutstanding implements OutstandingStore {
     popConflicting(userOp: UserOperation): Promise<ConflictingOutstandingType> {
         const outstandingOps = this.dump()
 
-        let conflictingReason: ConflictingOutstandingType = undefined
+        let conflictingReason: ConflictingOutstandingType
 
         for (const userOpInfo of outstandingOps) {
             const { userOp: mempoolUserOp } = userOpInfo

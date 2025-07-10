@@ -9,6 +9,7 @@ import {
     ValidationErrors,
     type ValidationResultV07
 } from "@alto/types"
+import { areAddressesEqual, isVersion08 } from "@alto/utils"
 import type { Abi, AbiFunction } from "abitype"
 // This file contains references to validation rules, in the format [xxx-###]
 // where xxx is OP/STO/COD/EP/SREP/EREP/UREP/ALT, and ### is a number
@@ -24,7 +25,6 @@ import {
     toFunctionSelector
 } from "viem"
 import type { BundlerTracerResult } from "./BundlerCollectorTracerV07"
-import { areAddressesEqual, isVersion08 } from "@alto/utils"
 
 interface CallEntry {
     to: string
@@ -48,7 +48,7 @@ const abi = [...SenderCreatorAbi, ...EntryPointV07Abi, ...PaymasterAbi] as Abi
 
 // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
 const functionSignatureToMethodName = (hash: any) => {
-    let functionName: string | undefined = undefined
+    let functionName: string | undefined
     for (const item of abi) {
         const signature = toFunctionSelector(item as AbiFunction)
         if (signature === hash) {
@@ -65,7 +65,7 @@ const functionSignatureToMethodName = (hash: any) => {
 
 export function isStaked(entStake?: StakeInfo): boolean {
     return Boolean(
-        entStake && 1n <= entStake.stake && 1n <= entStake.unstakeDelaySec
+        entStake && entStake.stake >= 1n && entStake.unstakeDelaySec >= 1n
     )
 }
 
@@ -776,7 +776,7 @@ export function tracerResultParserV07(
             )
         }
 
-        let illegalEntryPointCodeAccess: string | undefined = undefined
+        let illegalEntryPointCodeAccess: string | undefined
         for (const addr of Object.keys(currentNumLevel.extCodeAccessInfo)) {
             if (addr === entryPointAddress) {
                 illegalEntryPointCodeAccess =

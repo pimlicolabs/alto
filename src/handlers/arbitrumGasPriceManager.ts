@@ -1,6 +1,6 @@
 import { maxUint128 } from "viem"
-import { type MinMaxQueue, createMinMaxQueue } from "../utils/minMaxQueue"
 import type { AltoConfig } from "../createConfig"
+import { type MinMaxQueue, createMinMaxQueue } from "../utils/minMaxQueue"
 
 export class ArbitrumManager {
     private l1BaseFeeQueue: MinMaxQueue

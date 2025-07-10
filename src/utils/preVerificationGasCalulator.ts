@@ -1,30 +1,34 @@
+import crypto from "crypto"
 import type { GasPriceManager } from "@alto/handlers"
 import {
     type Address,
+    MantleBvmGasPriceOracleAbi,
+    OpL1FeeAbi,
     type UserOperation,
     type UserOperationV06,
-    type UserOperationV07,
-    MantleBvmGasPriceOracleAbi,
-    OpL1FeeAbi
+    type UserOperationV07
 } from "@alto/types"
 import {
     type Chain,
     type PublicClient,
     type Transport,
     bytesToHex,
+    concat,
     encodeAbiParameters,
     getContract,
-    serializeTransaction,
     maxUint64,
-    parseEther,
+    maxUint128,
     maxUint256,
-    toHex,
+    parseEther,
+    serializeTransaction,
     size,
-    concat,
     slice,
     toBytes,
-    maxUint128
+    toHex
 } from "viem"
+import type { AltoConfig } from "../createConfig"
+import { encodeHandleOpsCalldata } from "../executor/utils"
+import { ArbitrumL1FeeAbi } from "../types/contracts/ArbitrumL1FeeAbi"
 import {
     maxBigInt,
     minBigInt,
@@ -32,10 +36,6 @@ import {
     unscaleBigIntByPercent
 } from "./bigInt"
 import { isVersion06, isVersion07, toPackedUserOp } from "./userop"
-import type { AltoConfig } from "../createConfig"
-import { ArbitrumL1FeeAbi } from "../types/contracts/ArbitrumL1FeeAbi"
-import { encodeHandleOpsCalldata } from "../executor/utils"
-import crypto from "crypto"
 
 // Encodes a user operation into bytes for gas calculation
 export function encodeUserOp(userOp: UserOperation): Uint8Array {

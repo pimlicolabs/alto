@@ -1,8 +1,8 @@
-import { Metrics } from "@alto/utils"
-import { SenderManager, getAvailableWallets } from "."
-import { AltoConfig } from "../../createConfig"
+import type { Metrics } from "@alto/utils"
 import { Semaphore } from "async-mutex"
-import { Account } from "viem"
+import type { Account } from "viem"
+import { type SenderManager, getAvailableWallets } from "."
+import type { AltoConfig } from "../../createConfig"
 
 export const createMemorySenderManager = ({
     config,
