@@ -42,7 +42,7 @@ export class UserOpMonitor {
     private eventManager: EventManager
     private senderManager: SenderManager
     private cachedLatestBlock: { value: bigint; timestamp: number } | null
-    private pendingBundles: Map<string, SubmittedBundleInfo> = new Map()
+    private pendingBundles: Map<Address, SubmittedBundleInfo> = new Map()
     private receiptCache: Map<HexData32, CachedReceipt> = new Map()
     private readonly receiptTtl = 5 * 60 * 1000 // 5 minutes
 
@@ -79,39 +79,23 @@ export class UserOpMonitor {
         )
     }
 
-    finishProcessing(pendingBundles: SubmittedBundleInfo[]) {
-        for (const pendingBundle of pendingBundles) {
-            const bundle = this.pendingBundles.get(pendingBundle.uid)
-            if (bundle) {
-                bundle.processingBlock = false
-            }
-        }
-    }
-
     async processBlock(blockNumber: bigint): Promise<SubmittedBundleInfo[]> {
         // Update the cached block number whenever we receive a new block.
         this.cachedLatestBlock = { value: blockNumber, timestamp: Date.now() }
 
         // Refresh the statuses of all pending bundles.
-        const pendingBundles = Array.from(this.pendingBundles.values()).filter(
-            (bundle) => bundle.processingBlock !== true
+        const pendingBundles = Array.from(this.pendingBundles.values())
+        const refreshResults = await Promise.all(
+            pendingBundles.map(async (bundle) => {
+                const needsProcessing = await this.refreshBundleStatus(bundle)
+                return needsProcessing ? bundle : null
+            })
         )
-        const refreshResults = (
-            await Promise.all(
-                pendingBundles.map(async (bundle) => {
-                    const needsProcessing =
-                        await this.refreshBundleStatus(bundle)
-                    return needsProcessing ? bundle : null
-                })
-            )
-        ).filter((bundle): bundle is SubmittedBundleInfo => bundle !== null)
-
-        for (const bundle of refreshResults) {
-            bundle.processingBlock = true
-        }
 
         // Return only bundles that still need processing
-        return refreshResults
+        return refreshResults.filter(
+            (bundle): bundle is SubmittedBundleInfo => bundle !== null
+        )
     }
 
     async refreshBundleStatus(
@@ -190,7 +174,8 @@ export class UserOpMonitor {
     }
 
     public trackBundle(submittedBundle: SubmittedBundleInfo) {
-        this.pendingBundles.set(submittedBundle.uid, submittedBundle)
+        const executor = submittedBundle.executor.address
+        this.pendingBundles.set(executor, submittedBundle)
     }
 
     // Helpers //
@@ -236,18 +221,18 @@ export class UserOpMonitor {
 
     // Free executors and remove userOps from mempool.
     private async freeSubmittedBundle(submittedBundle: SubmittedBundleInfo) {
-        const { executor, bundle, uid } = submittedBundle
+        const { executor, bundle } = submittedBundle
         const { userOps, entryPoint } = bundle
 
-        this.pendingBundles.delete(uid)
+        this.pendingBundles.delete(executor.address)
         await this.senderManager.markWalletProcessed(executor)
         await this.mempool.removeSubmittedUserOps({ entryPoint, userOps })
     }
 
     // Stop tracking bundle in event resubmit fails
     public async stopTrackingBundle(submittedBundle: SubmittedBundleInfo) {
-        const { uid } = submittedBundle
-        this.pendingBundles.delete(uid)
+        const { executor } = submittedBundle
+        this.pendingBundles.delete(executor.address)
     }
 
     private async processIncludedUserOp(
@@ -288,7 +273,9 @@ export class UserOpMonitor {
         this.metrics.userOpInclusionDuration.observe(
             (Date.now() - addedToMempool) / 1000
         )
-        this.metrics.userOpsSubmissionAttempts.observe(submissionAttempts)
+        this.metrics.userOpsSubmissionAttempts.observe(
+            submissionAttempts
+        )
 
         // Update reputation
         const accountDeployed = this.checkAccountDeployment(
@@ -482,7 +469,10 @@ export class UserOpMonitor {
         }
 
         const receipt = await getTransactionReceipt(txHash)
-        const userOpReceipt = parseUserOpReceipt(userOpHash, receipt)
+        const userOpReceipt = parseUserOpReceipt(
+            userOpHash,
+            receipt
+        )
 
         // Cache the receipt before returning
         this.cacheReceipt(userOpHash, userOpReceipt)
