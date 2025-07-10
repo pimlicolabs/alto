@@ -459,8 +459,7 @@ export class ExecutorManager {
                     await this.cancelBundle(submittedBundle)
                 }
 
-                // Drop userOps that were not frontrun as they never made it onchain
-                // and can't be bundled due to failing filterOps simulation
+                // Drop userOps that were rejected but not frontrun
                 const nonFrontrunUserOps = frontrunResults
                     .filter(({ wasFrontrun }) => !wasFrontrun)
                     .map(({ userOpInfo }) => userOpInfo)
