@@ -223,6 +223,7 @@ export class ExecutorManager {
         }))
 
         const submittedBundle: SubmittedBundleInfo = {
+            uid: transactionHash,
             executor: wallet,
             transactionHash,
             transactionRequest,

@@ -42,7 +42,7 @@ export class UserOpMonitor {
     private eventManager: EventManager
     private senderManager: SenderManager
     private cachedLatestBlock: { value: bigint; timestamp: number } | null
-    private pendingBundles: Map<Address, SubmittedBundleInfo> = new Map()
+    private pendingBundles: Map<string, SubmittedBundleInfo> = new Map()
     private receiptCache: Map<HexData32, CachedReceipt> = new Map()
     private readonly receiptTtl = 5 * 60 * 1000 // 5 minutes
 
@@ -81,9 +81,7 @@ export class UserOpMonitor {
 
     finishProcessing(pendingBundles: SubmittedBundleInfo[]) {
         for (const pendingBundle of pendingBundles) {
-            const bundle = this.pendingBundles.get(
-                pendingBundle.executor.address
-            )
+            const bundle = this.pendingBundles.get(pendingBundle.uid)
             if (bundle) {
                 bundle.processingBlock = false
             }
@@ -192,8 +190,7 @@ export class UserOpMonitor {
     }
 
     public trackBundle(submittedBundle: SubmittedBundleInfo) {
-        const executor = submittedBundle.executor.address
-        this.pendingBundles.set(executor, submittedBundle)
+        this.pendingBundles.set(submittedBundle.uid, submittedBundle)
     }
 
     // Helpers //
@@ -239,18 +236,18 @@ export class UserOpMonitor {
 
     // Free executors and remove userOps from mempool.
     private async freeSubmittedBundle(submittedBundle: SubmittedBundleInfo) {
-        const { executor, bundle } = submittedBundle
+        const { executor, bundle, uid } = submittedBundle
         const { userOps, entryPoint } = bundle
 
-        this.pendingBundles.delete(executor.address)
+        this.pendingBundles.delete(uid)
         await this.senderManager.markWalletProcessed(executor)
         await this.mempool.removeSubmittedUserOps({ entryPoint, userOps })
     }
 
     // Stop tracking bundle in event resubmit fails
     public async stopTrackingBundle(submittedBundle: SubmittedBundleInfo) {
-        const { executor } = submittedBundle
-        this.pendingBundles.delete(executor.address)
+        const { uid } = submittedBundle
+        this.pendingBundles.delete(uid)
     }
 
     private async processIncludedUserOp(
