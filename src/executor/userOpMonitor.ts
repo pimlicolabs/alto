@@ -185,11 +185,34 @@ export class UserOpMonitor {
             // Check for frontrun on all rejected userOps, default to marking as failed onchain
             Promise.all(
                 rejectedUserOps.map(async (userOpInfo) => {
-                    this.checkFrontrun({
-                        userOpInfo,
-                        transactionHash,
-                        blockNumber
-                    })
+                    const wasFrontrun = await this.checkFrontrun(userOpInfo)
+
+                    if (!wasFrontrun) {
+                        const { userOpHash } = userOpInfo
+
+                        await this.monitor.setUserOpStatus(userOpHash, {
+                            status: "failed",
+                            transactionHash
+                        })
+
+                        this.eventManager.emitFailedOnChain(
+                            userOpHash,
+                            transactionHash,
+                            blockNumber
+                        )
+
+                        this.logger.info(
+                            {
+                                userOpHash,
+                                transactionHash
+                            },
+                            "user op failed onchain"
+                        )
+
+                        this.metrics.userOpsOnChain
+                            .labels({ status: "reverted" })
+                            .inc(1)
+                    }
                 })
             )
 
@@ -315,15 +338,7 @@ export class UserOpMonitor {
         )
     }
 
-    async checkFrontrun({
-        userOpInfo,
-        transactionHash,
-        blockNumber
-    }: {
-        userOpInfo: UserOpInfo
-        transactionHash: Hash
-        blockNumber: bigint
-    }) {
+    async checkFrontrun(userOpInfo: UserOpInfo): Promise<boolean> {
         const { userOpHash } = userOpInfo
 
         // Try to find userOp onchain
@@ -347,8 +362,7 @@ export class UserOpMonitor {
 
                 this.logger.info(
                     {
-                        userOpHash,
-                        transactionHash
+                        userOpHash
                     },
                     "user op frontrun onchain"
                 )
@@ -356,45 +370,21 @@ export class UserOpMonitor {
                 this.metrics.userOpsOnChain
                     .labels({ status: "frontran" })
                     .inc(1)
+
+                return true
             } else {
-                await this.monitor.setUserOpStatus(userOpHash, {
-                    status: "failed",
-                    transactionHash
-                })
-
-                this.eventManager.emitFailedOnChain(
-                    userOpHash,
-                    transactionHash,
-                    blockNumber
-                )
-
-                this.logger.info(
-                    {
-                        userOpHash,
-                        transactionHash
-                    },
-                    "user op failed onchain"
-                )
-
-                this.metrics.userOpsOnChain
-                    .labels({ status: "reverted" })
-                    .inc(1)
+                return false
             }
         } catch (error) {
             this.logger.error(
                 {
                     userOpHash,
-                    transactionHash,
                     error
                 },
                 "Error checking frontrun status"
             )
 
-            // Still mark as failed since we couldn't verify inclusion
-            await this.monitor.setUserOpStatus(userOpHash, {
-                status: "failed",
-                transactionHash
-            })
+            return false
         }
     }
 
