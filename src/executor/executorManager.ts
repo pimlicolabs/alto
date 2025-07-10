@@ -426,14 +426,12 @@ export class ExecutorManager {
         if (!bundleResult.success) {
             const { rejectedUserOps, recoverableOps, reason } = bundleResult
 
-            // Handle recoverable ops
-            if (recoverableOps.length) {
-                await this.mempool.resubmitUserOps({
-                    userOps: recoverableOps,
-                    entryPoint,
-                    reason
-                })
-            }
+            // Recover any userOps that can be resubmitted.
+            await this.mempool.resubmitUserOps({
+                userOps: recoverableOps,
+                entryPoint,
+                reason
+            })
 
             // For rejected userOps, we need to check for frontruns
             const shouldCheckFrontrun = rejectedUserOps.some(
@@ -470,7 +468,6 @@ export class ExecutorManager {
 
                 await this.mempool.dropUserOps(entryPoint, nonFrontrunUserOps)
             } else {
-                // Generic unhandled error case, reject all userOps.
                 this.logger.warn(
                     { oldTxHash, reason },
                     "failed to replace transaction"
