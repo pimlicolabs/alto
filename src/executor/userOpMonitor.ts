@@ -5,23 +5,23 @@ import type {
     Monitor
 } from "@alto/mempool"
 import type { HexData32, SubmittedBundleInfo, UserOpInfo } from "@alto/types"
-import type { UserOperationReceipt } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import { parseUserOpReceipt } from "@alto/utils"
 import {
     type Address,
     type Hash,
-    type Hex,
     type TransactionReceipt,
     TransactionReceiptNotFoundError,
-    decodeEventLog,
     getAbiItem,
+    type Hex,
+    decodeEventLog,
     getAddress
 } from "viem"
-import { entryPoint07Abi } from "viem/account-abstraction"
 import type { AltoConfig } from "../createConfig"
-import { getBundleStatus } from "./getBundleStatus"
 import type { SenderManager } from "./senderManager"
+import { getBundleStatus } from "./getBundleStatus"
+import type { UserOperationReceipt } from "@alto/types"
+import { entryPoint07Abi } from "viem/account-abstraction"
 
 interface CachedReceipt {
     receipt: UserOperationReceipt
@@ -106,7 +106,7 @@ export class UserOpMonitor {
                         return needsProcessing ? bundle : null
                     })
             )
-        ).filter((bundle) => bundle !== null)
+        ).filter((bundle): bundle is SubmittedBundleInfo => bundle !== null)
 
         for (const bundle of refreshResults) {
             bundle.processingBlock = true
