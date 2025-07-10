@@ -264,21 +264,21 @@ export class ExecutorManager {
     }
 
     async cancelBundle(submittedBundle: SubmittedBundleInfo): Promise<void> {
-        const { bundle, executor, transactionRequest, transactionHash } =
-            submittedBundle
-        const { userOps } = bundle
+        const {
+            bundle: { userOps },
+            executor,
+            transactionRequest,
+            transactionHash
+        } = submittedBundle
 
-        const maxRetries = 5
-        let attempt = 0
-        let gasMultiplier = 150n // Start with 50% increase
-
-        const walletClient = this.config.walletClient
-        const publicClient = this.config.publicClient
+        const { walletClient, publicClient, pollingInterval } = this.config
         const logger = this.logger.child({
             userOps: getUserOpHashes(userOps)
         })
 
-        while (attempt < maxRetries) {
+        let gasMultiplier = 150n // Start with 50% increase
+
+        for (let attempt = 0; attempt < 5; attempt++) {
             try {
                 // Check if transaction is still pending
                 const currentNonce = await publicClient.getTransactionCount({
@@ -287,11 +287,11 @@ export class ExecutorManager {
                 })
 
                 if (currentNonce > transactionRequest.nonce) {
-                    logger.info("Nonce already used, skipping cancel")
+                    logger.info("Transaction already mined or cancelled")
                     return
                 }
 
-                logger.info(`Trying to cancel bundle, attempt ${attempt}`)
+                logger.info(`Trying to cancel bundle, attempt ${attempt + 1}`)
 
                 // Send cancel transaction with increasing gas price
                 const cancelTxHash = await walletClient.sendTransaction({
@@ -311,22 +311,29 @@ export class ExecutorManager {
                 })
 
                 logger.info(
-                    { originalTxHash: transactionHash, cancelTxHash, attempt },
-                    "cancelled bundle"
+                    {
+                        originalTxHash: transactionHash,
+                        cancelTxHash,
+                        attempt: attempt + 1
+                    },
+                    "cancel transaction sent"
                 )
-                return
-            } catch (error) {
-                attempt++
-                gasMultiplier += 20n // Increase gas by additional 20% each retry
 
-                if (attempt >= maxRetries) {
-                    this.logger.error(
-                        { transactionHash, error, attempts: attempt },
-                        "failed to cancel bundle after max retries"
-                    )
-                }
+                // Wait for transaction to potentially be mined
+                await new Promise((resolve) =>
+                    setTimeout(resolve, pollingInterval)
+                )
+            } catch (err) {
+                logger.warn({ error: err }, "failed to cancel bundle")
+                gasMultiplier += 20n // Increase gas by additional 20% each retry
             }
         }
+
+        // All retries exhausted
+        logger.error(
+            { transactionHash },
+            "failed to cancel bundle after max retries"
+        )
     }
 
     private async handleBlock(block: Block) {
@@ -457,11 +464,11 @@ export class ExecutorManager {
 
                 // Drop userOps that were not frontrun as they never made it onchain
                 // and can't be bundled due to failing filterOps simulation
-                const userOpsToReDrop = frontrunResults
+                const nonFrontrunUserOps = frontrunResults
                     .filter(({ wasFrontrun }) => !wasFrontrun)
                     .map(({ userOpInfo }) => userOpInfo)
 
-                await this.mempool.dropUserOps(entryPoint, userOpsToReDrop)
+                await this.mempool.dropUserOps(entryPoint, nonFrontrunUserOps)
             } else {
                 // Generic unhandled error case, reject all userOps.
                 this.logger.warn(
@@ -469,7 +476,6 @@ export class ExecutorManager {
                     "failed to replace transaction"
                 )
 
-                // Drop rejected ops
                 await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
 
                 this.metrics.replacedTransactions
