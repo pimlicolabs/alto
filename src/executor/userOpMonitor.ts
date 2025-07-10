@@ -79,23 +79,41 @@ export class UserOpMonitor {
         )
     }
 
+    finishProcessing(pendingBundles: SubmittedBundleInfo[]) {
+        for (const pendingBundle of pendingBundles) {
+            const bundle = this.pendingBundles.get(
+                pendingBundle.executor.address
+            )
+            if (bundle) {
+                bundle.processingBlock = false
+            }
+        }
+    }
+
     async processBlock(blockNumber: bigint): Promise<SubmittedBundleInfo[]> {
         // Update the cached block number whenever we receive a new block.
         this.cachedLatestBlock = { value: blockNumber, timestamp: Date.now() }
 
         // Refresh the statuses of all pending bundles.
-        const pendingBundles = Array.from(this.pendingBundles.values())
-        const refreshResults = await Promise.all(
-            pendingBundles.map(async (bundle) => {
-                const needsProcessing = await this.refreshBundleStatus(bundle)
-                return needsProcessing ? bundle : null
-            })
+        const pendingBundles = Array.from(this.pendingBundles.values()).filter(
+            (bundle) => bundle.processingBlock !== true
         )
+        const refreshResults = (
+            await Promise.all(
+                pendingBundles.map(async (bundle) => {
+                    const needsProcessing =
+                        await this.refreshBundleStatus(bundle)
+                    return needsProcessing ? bundle : null
+                })
+            )
+        ).filter((bundle): bundle is SubmittedBundleInfo => bundle !== null)
+
+        for (const bundle of refreshResults) {
+            bundle.processingBlock = true
+        }
 
         // Return only bundles that still need processing
-        return refreshResults.filter(
-            (bundle): bundle is SubmittedBundleInfo => bundle !== null
-        )
+        return refreshResults
     }
 
     async refreshBundleStatus(
@@ -273,9 +291,7 @@ export class UserOpMonitor {
         this.metrics.userOpInclusionDuration.observe(
             (Date.now() - addedToMempool) / 1000
         )
-        this.metrics.userOpsSubmissionAttempts.observe(
-            submissionAttempts
-        )
+        this.metrics.userOpsSubmissionAttempts.observe(submissionAttempts)
 
         // Update reputation
         const accountDeployed = this.checkAccountDeployment(
@@ -469,10 +485,7 @@ export class UserOpMonitor {
         }
 
         const receipt = await getTransactionReceipt(txHash)
-        const userOpReceipt = parseUserOpReceipt(
-            userOpHash,
-            receipt
-        )
+        const userOpReceipt = parseUserOpReceipt(userOpHash, receipt)
 
         // Cache the receipt before returning
         this.cacheReceipt(userOpHash, userOpReceipt)

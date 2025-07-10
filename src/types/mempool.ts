@@ -14,6 +14,7 @@ export type SubmittedBundleInfo = {
     bundle: UserOperationBundle
     executor: Account
     lastReplaced: number
+    processingBlock?: boolean
 }
 
 export type UserOperationBundle = {
