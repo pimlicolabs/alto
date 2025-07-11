@@ -2,42 +2,42 @@ import type { EventManager } from "@alto/handlers"
 import type {
     Address,
     BundleResult,
-    HexData32,
     GasPriceParameters,
-    UserOperationBundle,
-    UserOpInfo
+    HexData32,
+    UserOpInfo,
+    UserOperationBundle
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
-    roundUpBigInt,
+    jsonStringifyWithBigint,
     maxBigInt,
-    scaleBigIntByPercent,
     minBigInt,
-    jsonStringifyWithBigint
+    roundUpBigInt,
+    scaleBigIntByPercent
 } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
-    IntrinsicGasTooLowError,
-    NonceTooLowError,
-    TransactionExecutionError,
     type Account,
-    type Hex,
-    NonceTooHighError,
     BaseError,
+    ContractFunctionExecutionError,
     FeeCapTooLowError,
+    type Hex,
     InsufficientFundsError,
-    ContractFunctionExecutionError
+    IntrinsicGasTooLowError,
+    NonceTooHighError,
+    NonceTooLowError,
+    TransactionExecutionError
 } from "viem"
+import type { SendTransactionErrorType } from "viem"
+import type { SignedAuthorizationList } from "viem"
+import type { AltoConfig } from "../createConfig"
+import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
 import {
     encodeHandleOpsCalldata,
     getAuthorizationList,
     getUserOpHashes,
     isTransactionUnderpricedError
 } from "./utils"
-import type { SendTransactionErrorType } from "viem"
-import type { AltoConfig } from "../createConfig"
-import type { SignedAuthorizationList } from "viem"
-import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
 
 type HandleOpsTxParams = {
     gas: bigint
@@ -360,7 +360,7 @@ export class Executor {
             entryPoint
         })
 
-        let filterOpsResult = await filterOpsAndEstimateGas({
+        const filterOpsResult = await filterOpsAndEstimateGas({
             networkBaseFee,
             userOpBundle,
             config: this.config,
@@ -389,7 +389,7 @@ export class Executor {
             }
         }
 
-        let {
+        const {
             userOpsToBundle,
             rejectedUserOps,
             bundleGasUsed,

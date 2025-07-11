@@ -1,10 +1,11 @@
+import type { GasPriceManager } from "@alto/handlers"
 import {
     ExecutionErrors,
-    pimlicoSimulationsAbi,
     RpcError,
     type StateOverrides,
     type UserOperationV07,
-    ValidationErrors
+    ValidationErrors,
+    pimlicoSimulationsAbi
 } from "@alto/types"
 import {
     type Logger,
@@ -13,20 +14,19 @@ import {
     toPackedUserOp
 } from "@alto/utils"
 import { type Hex, keccak256, toHex } from "viem"
-import { type Address, getContract, type StateOverride } from "viem"
-import {
-    BinarySearchResultType,
-    SimulateBinarySearchResult,
-    type SimulateHandleOpResult
-} from "./types"
+import { type Address, type StateOverride, getContract } from "viem"
 import type { AltoConfig } from "../../createConfig"
 import { packUserOps } from "../../executor/utils"
 import {
-    prepareStateOverride,
+    BinarySearchResultType,
+    type SimulateBinarySearchResult,
+    type SimulateHandleOpResult
+} from "./types"
+import {
     decodeSimulateHandleOpError,
+    prepareStateOverride,
     simulationErrors
 } from "./utils"
-import type { GasPriceManager } from "@alto/handlers"
 
 type SimulateHandleOpSuccessResult = {
     preOpGas: bigint
@@ -456,7 +456,7 @@ export class GasEstimator07 {
             this.getSimulationContracts(entryPoint, userOp)
 
         // Add baseFee override for v0.7 EntryPoint simulations
-        let mergedStateOverrides = { ...stateOverrides }
+        const mergedStateOverrides = { ...stateOverrides }
         if (isVersion07(userOp) && this.config.codeOverrideSupport) {
             const baseFee = await this.gasPriceManager
                 .getBaseFee()

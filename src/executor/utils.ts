@@ -3,26 +3,26 @@ import {
     EntryPointV07Abi,
     type PackedUserOperation,
     type UserOpInfo,
-    type UserOperationV07,
-    UserOperation
+    type UserOperation,
+    type UserOperationV07
 } from "@alto/types"
 import {
-    isVersion06,
-    toPackedUserOp,
     type Logger,
-    isVersion07
+    isVersion06,
+    isVersion07,
+    toPackedUserOp
 } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
     type Account,
-    type BaseError,
-    encodeFunctionData,
     type Address,
+    type BaseError,
     type Hex,
+    encodeFunctionData,
     toBytes
 } from "viem"
-import type { AltoConfig } from "../createConfig"
 import type { SignedAuthorizationList } from "viem"
+import type { AltoConfig } from "../createConfig"
 
 export const isTransactionUnderpricedError = (e: BaseError) => {
     const transactionUnderPriceError = e.walk((e: any) =>

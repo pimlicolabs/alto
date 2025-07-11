@@ -1,26 +1,26 @@
-import { UserOperation, type HexData32 } from "@alto/types"
-import { type Metrics } from "@alto/utils"
+import type { HexData32, UserOperation } from "@alto/types"
+import type { Metrics } from "@alto/utils"
 import type { Logger } from "@alto/utils"
-import {
-    Store,
+import type { Address } from "viem"
+import type {
+    EntryPointUserOpHashParam,
+    EntryPointUserOpInfoParam,
     MempoolStore,
     OutstandingStore,
-    StoreType,
-    EntryPointUserOpHashParam,
-    EntryPointUserOpInfoParam
+    Store,
+    StoreType
 } from "."
-import { AltoConfig } from "../createConfig"
+import type { AltoConfig } from "../createConfig"
 import { createMemoryOutstandingQueue } from "./createMemoryOutstandingStore"
-import { createMemoryStore } from "./createStore"
-import { Address } from "viem"
 import { createRedisOutstandingQueue } from "./createRedisOutstandingStore"
 import { createRedisStore } from "./createRedisStore"
+import { createMemoryStore } from "./createStore"
 
 export const createMempoolStore = ({
     config,
     metrics
 }: { config: AltoConfig; metrics: Metrics }): MempoolStore => {
-    let logger: Logger = config.getLogger(
+    const logger: Logger = config.getLogger(
         { module: "mempool-store" },
         {
             level: config.logLevel

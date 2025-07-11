@@ -1,17 +1,17 @@
 import type { GasPriceManager } from "@alto/handlers"
 import type { Mempool } from "@alto/mempool"
-import {
-    type BundlingMode,
-    type SubmittedBundleInfo,
+import type {
+    BundlingMode,
+    SubmittedBundleInfo,
     UserOperationBundle
 } from "@alto/types"
+import type { GasPriceParameters } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
-import { Hex, type WatchBlocksReturnType } from "viem"
-import type { Executor } from "./executor"
+import type { Hex, WatchBlocksReturnType } from "viem"
 import type { AltoConfig } from "../createConfig"
-import { SenderManager } from "./senderManager"
-import { GasPriceParameters } from "@alto/types"
-import { UserOpMonitor } from "./userOpMonitor"
+import type { Executor } from "./executor"
+import type { SenderManager } from "./senderManager"
+import type { UserOpMonitor } from "./userOpMonitor"
 
 const SCALE_FACTOR = 10 // Interval increases by 10ms per task per minute
 const RPM_WINDOW = 60000 // 1 minute window in ms

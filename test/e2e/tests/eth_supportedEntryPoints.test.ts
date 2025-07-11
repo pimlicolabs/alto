@@ -5,7 +5,7 @@ import {
     entryPoint07Address,
     entryPoint08Address
 } from "viem/account-abstraction"
-import { expect, inject, beforeEach, test } from "vitest"
+import { beforeEach, expect, inject, test } from "vitest"
 import { beforeEachCleanUp } from "../src/utils/index.js"
 
 const anvilRpc = inject("anvilRpc")

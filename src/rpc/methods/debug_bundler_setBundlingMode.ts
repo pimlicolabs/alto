@@ -1,5 +1,5 @@
-import { createMethodHandler } from "../createMethodHandler"
 import { debugSetBundlingModeSchema } from "@alto/types"
+import { createMethodHandler } from "../createMethodHandler"
 
 export const debugBundlerSetBundlingModeHandler = createMethodHandler({
     method: "debug_bundler_setBundlingMode",

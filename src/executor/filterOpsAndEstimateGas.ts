@@ -1,35 +1,35 @@
 import {
     ArbitrumL1FeeAbi,
-    RejectedUserOp,
-    UserOpInfo,
-    UserOperation,
-    UserOperationBundle,
-    UserOperationV06,
-    UserOperationV07
+    type RejectedUserOp,
+    type UserOpInfo,
+    type UserOperation,
+    type UserOperationBundle,
+    type UserOperationV06,
+    type UserOperationV07
 } from "@alto/types"
 import {
-    Address,
-    StateOverride,
-    getContract,
-    encodeFunctionData,
-    Hex,
-    decodeAbiParameters,
-    decodeErrorResult
-} from "viem"
-import { formatAbiItemWithArgs } from "viem/utils"
-import { entryPoint07Abi } from "viem/account-abstraction"
-import { AltoConfig } from "../createConfig"
-import {
-    Logger,
+    type Logger,
     getSerializedHandleOpsTx,
     scaleBigIntByPercent,
     toPackedUserOp
 } from "@alto/utils"
-import { pimlicoSimulationsAbi } from "../types/contracts/PimlicoSimulations"
 import * as sentry from "@sentry/node"
+import {
+    type Address,
+    type Hex,
+    type StateOverride,
+    decodeAbiParameters,
+    decodeErrorResult,
+    encodeFunctionData,
+    getContract
+} from "viem"
+import { entryPoint07Abi } from "viem/account-abstraction"
+import { formatAbiItemWithArgs } from "viem/utils"
+import type { AltoConfig } from "../createConfig"
+import { pimlicoSimulationsAbi } from "../types/contracts/PimlicoSimulations"
 import { getEip7702DelegationOverrides } from "../utils/eip7702"
-import { encodeHandleOpsCalldata, calculateAA95GasFloor } from "./utils"
 import { getFilterOpsStateOverride } from "../utils/entryPointOverrides"
+import { calculateAA95GasFloor, encodeHandleOpsCalldata } from "./utils"
 
 export type FilterOpsResult =
     | {
@@ -84,7 +84,7 @@ const getChainSpecificOverhead = async ({
                     serializedTx
                 ])
 
-            let [gasEstimateForL1, ,] = result
+            const [gasEstimateForL1, ,] = result
 
             return {
                 gasUsed: gasEstimateForL1,
@@ -159,7 +159,7 @@ const getFilterOpsResult = async ({
         revertReason: Hex
     }[]
 }> => {
-    let {
+    const {
         publicClient,
         pimlicoSimulationContract,
         codeOverrideSupport,
@@ -286,7 +286,7 @@ export async function filterOpsAndEstimateGas({
     logger: Logger
     networkBaseFee: bigint
 }): Promise<FilterOpsResult> {
-    let { utilityWalletAddress: beneficiary } = config
+    const { utilityWalletAddress: beneficiary } = config
     const { userOps, entryPoint } = userOpBundle
 
     let filterOpsResult

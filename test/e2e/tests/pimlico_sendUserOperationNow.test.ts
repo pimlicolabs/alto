@@ -1,11 +1,11 @@
 import { deepHexlify } from "permissionless"
 import { http, createClient, parseEther } from "viem"
 import {
+    type EntryPointVersion,
     type UserOperation,
     type UserOperationReceipt,
     entryPoint06Address,
     entryPoint07Address,
-    EntryPointVersion,
     entryPoint08Address
 } from "viem/account-abstraction"
 import { beforeEach, describe, expect, inject, test } from "vitest"

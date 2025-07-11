@@ -1,10 +1,10 @@
-import { StateOverride, concat } from "viem"
-import { UserOperation } from "../types/schemas"
+import { type StateOverride, concat } from "viem"
+import type { UserOperation } from "../types/schemas"
 
 export const getEip7702DelegationOverrides = (
     userOps: UserOperation[]
 ): StateOverride | undefined => {
-    let stateOverride: StateOverride = []
+    const stateOverride: StateOverride = []
 
     for (const userOp of userOps) {
         if (userOp.eip7702Auth) {

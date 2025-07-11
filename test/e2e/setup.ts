@@ -1,10 +1,10 @@
-import { anvil } from "prool/instances"
 import { resolve } from "node:path"
-import { foundry } from "viem/chains"
-import { setupContracts } from "./deploy-contracts/index.js"
 import { defineInstance } from "prool"
-import { execa } from "./src/utils/execa.js"
+import { anvil } from "prool/instances"
+import { foundry } from "viem/chains"
 import altoConfig from "./alto-config.json" with { type: "json" }
+import { setupContracts } from "./deploy-contracts/index.js"
+import { execa } from "./src/utils/execa.js"
 
 export const alto = defineInstance(
     (args: { anvilRpc: string; port: number }) => {

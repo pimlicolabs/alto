@@ -4,28 +4,24 @@ import type {
     Mempool,
     Monitor
 } from "@alto/mempool"
-import {
-    type HexData32,
-    type SubmittedBundleInfo,
-    UserOpInfo
-} from "@alto/types"
+import type { HexData32, SubmittedBundleInfo, UserOpInfo } from "@alto/types"
+import type { UserOperationReceipt } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import { parseUserOpReceipt } from "@alto/utils"
 import {
     type Address,
     type Hash,
+    type Hex,
     type TransactionReceipt,
     TransactionReceiptNotFoundError,
-    getAbiItem,
-    Hex,
     decodeEventLog,
+    getAbiItem,
     getAddress
 } from "viem"
-import type { AltoConfig } from "../createConfig"
-import { SenderManager } from "./senderManager"
-import { getBundleStatus } from "./getBundleStatus"
-import { UserOperationReceipt } from "@alto/types"
 import { entryPoint07Abi } from "viem/account-abstraction"
+import type { AltoConfig } from "../createConfig"
+import { getBundleStatus } from "./getBundleStatus"
+import type { SenderManager } from "./senderManager"
 
 interface CachedReceipt {
     receipt: UserOperationReceipt
@@ -101,7 +97,7 @@ export class UserOpMonitor {
     async refreshBundleStatus(
         submittedBundle: SubmittedBundleInfo
     ): Promise<boolean> {
-        let bundleReceipt = await getBundleStatus({
+        const bundleReceipt = await getBundleStatus({
             submittedBundle,
             publicClient: this.config.publicClient,
             logger: this.logger
@@ -273,9 +269,7 @@ export class UserOpMonitor {
         this.metrics.userOpInclusionDuration.observe(
             (Date.now() - addedToMempool) / 1000
         )
-        this.metrics.userOpsSubmissionAttempts.observe(
-            submissionAttempts
-        )
+        this.metrics.userOpsSubmissionAttempts.observe(submissionAttempts)
 
         // Update reputation
         const accountDeployed = this.checkAccountDeployment(
@@ -379,8 +373,8 @@ export class UserOpMonitor {
             return cached
         }
 
-        let fromBlock: bigint | undefined = undefined
-        let toBlock: "latest" | undefined = undefined
+        let fromBlock: bigint | undefined
+        let toBlock: "latest" | undefined
         if (this.config.maxBlockRange !== undefined) {
             const latestBlock = await this.getLatestBlockWithCache()
 
@@ -469,10 +463,7 @@ export class UserOpMonitor {
         }
 
         const receipt = await getTransactionReceipt(txHash)
-        const userOpReceipt = parseUserOpReceipt(
-            userOpHash,
-            receipt
-        )
+        const userOpReceipt = parseUserOpReceipt(userOpHash, receipt)
 
         // Cache the receipt before returning
         this.cacheReceipt(userOpHash, userOpReceipt)
