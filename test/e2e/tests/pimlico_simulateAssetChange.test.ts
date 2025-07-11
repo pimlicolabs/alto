@@ -428,5 +428,58 @@ describe.each([
             expect(ethChanges.length).toBe(1)
             expect(BigInt(ethChanges[0]!.diff)).toBeLessThan(0n) // Only gas fees
         })
+
+        test("should simulate asset changes with state overrides", async () => {
+            const recipient = "0x1234567890123456789012345678901234567890"
+            const transferAmount = parseEther("0.1")
+            
+            // State override to give the recipient some ETH balance
+            const recipientInitialBalance = parseEther("5")
+            const stateOverrides = {
+                [recipient]: {
+                    balance: recipientInitialBalance
+                }
+            }
+
+            // Create a user operation that transfers ETH
+            const userOp = await smartAccountClient.prepareUserOperation({
+                calls: [
+                    {
+                        to: recipient,
+                        value: transferAmount,
+                        data: "0x"
+                    }
+                ]
+            })
+
+            // Call pimlico_simulateAssetChange with state overrides
+            const result = (await bundlerClient.request({
+                method: "pimlico_simulateAssetChange",
+                params: [
+                    userOp,
+                    entryPoint,
+                    [smartAccountClient.account.address, recipient],
+                    [],
+                    stateOverrides
+                ]
+            })) as AssetChange[]
+
+            expect(result).toBeDefined()
+            expect(Array.isArray(result)).toBe(true)
+
+            // Find the changes for sender and recipient
+            const recipientChange = result.find(
+                (r) => r.owner.toLowerCase() === recipient.toLowerCase()
+            )
+
+            expect(recipientChange).toBeDefined()
+            expect(recipientChange!.token).toBe(
+                "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
+            )
+            
+            // Recipient should receive the transfer amount
+            // (state override balance doesn't affect the diff calculation)
+            expect(BigInt(recipientChange!.diff)).toBe(transferAmount)
+        })
     }
 )

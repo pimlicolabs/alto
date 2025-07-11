@@ -631,17 +631,26 @@ export const pimlicoSendUserOperationNowSchema = z.object({
 
 export const pimlicoSimulateAssetChangeSchema = z.object({
     method: z.literal("pimlico_simulateAssetChange"),
-    params: z.tuple([
-        userOperationSchema,
-        addressSchema, // entryPoint
-        z.array(addressSchema), // addresses to check asset changes for
-        z.array(addressSchema) // tokens to monitor for asset changes
+    params: z.union([
+        z.tuple([
+            userOperationSchema,
+            addressSchema, // entryPoint
+            z.array(addressSchema), // addresses to check asset changes for
+            z.array(addressSchema) // tokens to monitor for asset changes
+        ]),
+        z.tuple([
+            userOperationSchema,
+            addressSchema, // entryPoint
+            z.array(addressSchema), // addresses to check asset changes for
+            z.array(addressSchema), // tokens to monitor for asset changes
+            stateOverridesSchema.optional() // optional state overrides
+        ])
     ]),
     result: z.array(
         z.object({
             owner: addressSchema,
             token: addressSchema,
-            diff: z.bigint()
+            diff: hexDataSchema
         })
     )
 })
