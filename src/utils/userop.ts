@@ -514,7 +514,7 @@ export function parseUserOpReceipt(
     receipt: TransactionReceipt
 ) {
     let entryPoint: Address = zeroAddress
-    let revertReason
+    let revertReason: Hex | undefined
     let userOpEventArgs:
         | {
               userOpHash: Hex
@@ -571,10 +571,9 @@ export function parseUserOpReceipt(
                     entryPoint = log.address
                     userOpEventArgs = args
                     break
-                } else {
-                    // Update startIndex to this UserOpEvent for the next UserOp's logs
-                    startIndex = index
                 }
+                // Update startIndex to this UserOpEvent for the next UserOp's logs
+                startIndex = index
             }
         } catch (e) {}
     }

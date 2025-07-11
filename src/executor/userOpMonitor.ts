@@ -152,7 +152,7 @@ export class UserOpMonitor {
 
             // Fire and forget
             Promise.all(
-                userOps.map(async (userOpInfo) => {
+                userOps.map((userOpInfo) => {
                     this.checkFrontrun({
                         userOpInfo,
                         transactionHash,
@@ -200,7 +200,9 @@ export class UserOpMonitor {
         userOpHash: Hex
     ): UserOperationReceipt | undefined {
         const cached = this.receiptCache.get(userOpHash)
-        if (!cached) return undefined
+        if (!cached) {
+            return undefined
+        }
         return cached.receipt
     }
 
@@ -210,9 +212,9 @@ export class UserOpMonitor {
             ([_, cached]) => now - cached.timestamp > this.receiptTtl
         )
 
-        expiredEntries.forEach(([userOpHash]) =>
+        for (const [userOpHash] of expiredEntries) {
             this.receiptCache.delete(userOpHash)
-        )
+        }
     }
 
     // Free executors and remove userOps from mempool.
@@ -226,7 +228,7 @@ export class UserOpMonitor {
     }
 
     // Stop tracking bundle in event resubmit fails
-    public async stopTrackingBundle(submittedBundle: SubmittedBundleInfo) {
+    public stopTrackingBundle(submittedBundle: SubmittedBundleInfo) {
         const { executor } = submittedBundle
         this.pendingBundles.delete(executor.address)
     }

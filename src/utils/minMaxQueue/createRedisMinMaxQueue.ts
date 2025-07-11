@@ -70,7 +70,7 @@ class SortedTtlSet {
             `(${cutoffTime}` // exclusive upper bound
         )
 
-        if (expiredMembers.length) {
+        if (expiredMembers.length > 0) {
             const multi = this.redis.multi()
 
             // Remove expired entries from both sets
@@ -86,7 +86,9 @@ class SortedTtlSet {
 
         // Get the smallest value from the value set
         const values = await this.redis.zrange(this.valueKey, 0, 0)
-        if (!values.length) return null
+        if (values.length === 0) {
+            return null
+        }
 
         return BigInt(values[0])
     }
@@ -97,7 +99,9 @@ class SortedTtlSet {
 
         // Get the largest value from the value set (using reverse range)
         const values = await this.redis.zrange(this.valueKey, -1, -1)
-        if (!values.length) return null
+        if (values.length === 0) {
+            return null
+        }
 
         return BigInt(values[0])
     }
@@ -108,8 +112,9 @@ class SortedTtlSet {
 
         // Get the member with highest TTL (most recent timestamp)
         const values = await this.redis.zrange(this.timestampKey, -1, -1)
-        if (!values.length) return null
-
+        if (values.length === 0) {
+            return null
+        }
         return BigInt(values[0])
     }
 }

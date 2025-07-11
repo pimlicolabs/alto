@@ -588,45 +588,42 @@ export class GasEstimator07 {
                     executionResult: sho.data.executionResult
                 }
             }
-        } else {
-            const [saegl, focgl] = await Promise.all([
-                this.simulateAndEstimateGasLimits({
-                    entryPoint,
-                    queuedUserOps,
-                    targetUserOp: userOp,
-                    stateOverride: viemStateOverride
-                }),
-                this.performBinarySearch({
-                    entryPoint,
-                    methodName: "binarySearchCallGas",
-                    queuedUserOps,
-                    targetUserOp: userOp,
-                    stateOverride: viemStateOverride
-                })
-            ])
+        }
 
-            if (saegl.result === "failed") {
-                return saegl
-            }
+        const [saegl, focgl] = await Promise.all([
+            this.simulateAndEstimateGasLimits({
+                entryPoint,
+                queuedUserOps,
+                targetUserOp: userOp,
+                stateOverride: viemStateOverride
+            }),
+            this.performBinarySearch({
+                entryPoint,
+                methodName: "binarySearchCallGas",
+                queuedUserOps,
+                targetUserOp: userOp,
+                stateOverride: viemStateOverride
+            })
+        ])
 
-            if (focgl.result === "failed") {
-                return focgl
-            }
+        if (saegl.result === "failed") {
+            return saegl
+        }
 
-            const {
-                verificationGas,
-                paymasterVerificationGas,
-                executionResult
-            } = saegl
+        if (focgl.result === "failed") {
+            return focgl
+        }
 
-            return {
-                result: "execution",
-                data: {
-                    callGasLimit: focgl.data.gasUsed,
-                    verificationGasLimit: verificationGas,
-                    paymasterVerificationGasLimit: paymasterVerificationGas,
-                    executionResult: executionResult
-                }
+        const { verificationGas, paymasterVerificationGas, executionResult } =
+            saegl
+
+        return {
+            result: "execution",
+            data: {
+                callGasLimit: focgl.data.gasUsed,
+                verificationGasLimit: verificationGas,
+                paymasterVerificationGasLimit: paymasterVerificationGas,
+                executionResult: executionResult
             }
         }
     }

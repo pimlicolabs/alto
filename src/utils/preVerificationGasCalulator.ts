@@ -66,32 +66,31 @@ export function encodeUserOp(userOp: UserOperation): Uint8Array {
                 [p as UserOperationV06]
             )
         )
-    } else {
-        // For v0.7, we need to pack the user operation
-        const packedOp = toPackedUserOp(p as UserOperationV07)
-        return toBytes(
-            encodeAbiParameters(
-                [
-                    {
-                        components: [
-                            { name: "sender", type: "address" },
-                            { name: "nonce", type: "uint256" },
-                            { name: "initCode", type: "bytes" },
-                            { name: "callData", type: "bytes" },
-                            { name: "accountGasLimits", type: "bytes32" },
-                            { name: "preVerificationGas", type: "uint256" },
-                            { name: "gasFees", type: "bytes32" },
-                            { name: "paymasterAndData", type: "bytes" },
-                            { name: "signature", type: "bytes" }
-                        ],
-                        name: "userOperation",
-                        type: "tuple"
-                    }
-                ],
-                [packedOp]
-            )
-        )
     }
+    // For v0.7, we need to pack the user operation
+    const packedOp = toPackedUserOp(p as UserOperationV07)
+    return toBytes(
+        encodeAbiParameters(
+            [
+                {
+                    components: [
+                        { name: "sender", type: "address" },
+                        { name: "nonce", type: "uint256" },
+                        { name: "initCode", type: "bytes" },
+                        { name: "callData", type: "bytes" },
+                        { name: "accountGasLimits", type: "bytes32" },
+                        { name: "preVerificationGas", type: "uint256" },
+                        { name: "gasFees", type: "bytes32" },
+                        { name: "paymasterAndData", type: "bytes" },
+                        { name: "signature", type: "bytes" }
+                    ],
+                    name: "userOperation",
+                    type: "tuple"
+                }
+            ],
+            [packedOp]
+        )
+    )
 }
 
 export interface GasOverheads {
@@ -230,15 +229,14 @@ export function calcExecutionPvgComponent({
             }) - calculatedGasUsed
 
         return preVerificationGas
-    } else {
-        // Not using EIP-7623.
-        return (
-            oh.standardTokenGasCost * tokenCount +
-            userOpShareOfStipend +
-            userOpShareOfBundleCost +
-            userOpSpecificOverhead
-        )
     }
+    // Not using EIP-7623.
+    return (
+        oh.standardTokenGasCost * tokenCount +
+        userOpShareOfStipend +
+        userOpShareOfBundleCost +
+        userOpSpecificOverhead
+    )
 }
 
 // Based on the formula in https://eips.ethereum.org/EIPS/eip-7623#specification
@@ -284,7 +282,9 @@ function getUserOpGasUsed({
         )
 
         return (realCallGasLimit + realVerificationGasLimit) / 10n
-    } else if (isVersion07(userOp)) {
+    }
+
+    if (isVersion07(userOp)) {
         const realCallGasLimit = unscaleBigIntByPercent(
             userOp.callGasLimit,
             BigInt(v7CallGasLimitMultiplier)

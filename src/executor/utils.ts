@@ -150,7 +150,7 @@ export const getAuthorizationList = (
         )
         .filter(Boolean) as SignedAuthorizationList
 
-    return authList.length ? authList : undefined
+    return authList.length > 0 ? authList : undefined
 }
 
 export async function flushStuckTransaction({

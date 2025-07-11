@@ -234,7 +234,6 @@ const getFilterOpsResult = async ({
         ...(simulationOverrides ? simulationOverrides : [])
     ]
 
-    let result: Hex
     const callResult = await publicClient.call({
         to: pimlicoSimulationContract,
         gas: fixedGasLimitForEstimation,
@@ -247,7 +246,7 @@ const getFilterOpsResult = async ({
             "No data returned from filterOps simulation during eth_call"
         )
     }
-    result = callResult.data
+    const result = callResult.data
 
     const filterOpsResult = decodeAbiParameters(
         [
@@ -289,8 +288,6 @@ export async function filterOpsAndEstimateGas({
     const { utilityWalletAddress: beneficiary } = config
     const { userOps, entryPoint } = userOpBundle
 
-    let filterOpsResult
-    let offchainOverhead
     try {
         // Create promises for parallel execution
         const filterOpsPromise = getFilterOpsResult({
@@ -311,8 +308,8 @@ export async function filterOpsAndEstimateGas({
             filterOpsPromise,
             chainSpecificOverheadPromise
         ])
-        filterOpsResult = results[0]
-        offchainOverhead = results[1]
+        const filterOpsResult = results[0]
+        const offChainOverhead = results[1]
 
         // Keep track of invalid and valid ops
         const rejectedUserOpHashes = filterOpsResult.rejectedUserOps.map(
@@ -374,7 +371,7 @@ export async function filterOpsAndEstimateGas({
 
         // find overhead that can't be calculated onchain
         const bundleGasUsed =
-            filterOpsResult.gasUsed + 21_000n + offchainOverhead.gasUsed
+            filterOpsResult.gasUsed + 21_000n + offChainOverhead.gasUsed
 
         // Find gasLimit needed for this bundle
         const bundleGasLimit = await getBundleGasLimit({
@@ -389,7 +386,7 @@ export async function filterOpsAndEstimateGas({
             userOpsToBundle,
             rejectedUserOps,
             bundleGasUsed,
-            bundleGasLimit: bundleGasLimit + offchainOverhead.gasLimit,
+            bundleGasLimit: bundleGasLimit + offChainOverhead.gasLimit,
             totalBeneficiaryFees: filterOpsResult.balanceChange
         }
     } catch (err) {

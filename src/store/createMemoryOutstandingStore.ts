@@ -78,9 +78,7 @@ export class MemoryOutstanding implements OutstandingStore {
         return true
     }
 
-    async popConflicting(
-        userOp: UserOperation
-    ): Promise<ConflictingOutstandingType> {
+    popConflicting(userOp: UserOperation): Promise<ConflictingOutstandingType> {
         const outstandingOps = this.dump()
 
         let conflictingReason: ConflictingOutstandingType
@@ -129,7 +127,7 @@ export class MemoryOutstanding implements OutstandingStore {
             }
         }
 
-        return conflictingReason
+        return Promise.resolve(conflictingReason)
     }
 
     async contains(userOpHash: HexData32): Promise<boolean> {
@@ -141,19 +139,19 @@ export class MemoryOutstanding implements OutstandingStore {
         return false
     }
 
-    async peek(): Promise<UserOpInfo | undefined> {
+    peek(): Promise<UserOpInfo | undefined> {
         if (this.priorityQueue.length === 0) {
-            return undefined
+            return Promise.resolve(undefined)
         }
 
-        return this.priorityQueue[0]
+        return Promise.resolve(this.priorityQueue[0])
     }
 
-    async pop(): Promise<UserOpInfo | undefined> {
+    pop(): Promise<UserOpInfo | undefined> {
         const userOpInfo = this.priorityQueue.shift()
 
         if (!userOpInfo) {
-            return undefined
+            return Promise.resolve(undefined)
         }
 
         const pendingOpsSlot = senderNonceSlot(userOpInfo.userOp)
@@ -174,7 +172,7 @@ export class MemoryOutstanding implements OutstandingStore {
             this.pendingOps.delete(pendingOpsSlot)
         }
 
-        return userOpInfo
+        return Promise.resolve(userOpInfo)
     }
 
     async add(userOpInfo: UserOpInfo): Promise<void> {
@@ -307,20 +305,21 @@ export class MemoryOutstanding implements OutstandingStore {
         return true
     }
 
-    async dumpLocal(): Promise<UserOpInfo[]> {
-        return this.dump()
+    dumpLocal(): Promise<UserOpInfo[]> {
+        return Promise.resolve(this.dump())
     }
 
-    async clear(): Promise<void> {
+    clear(): Promise<void> {
         this.priorityQueue = []
         this.pendingOps.clear()
+        return Promise.resolve()
     }
 
     // Adding findConflicting method to maintain compatibility with Store interface
-    async findConflicting(
+    findConflicting(
         userOp: UserOperation
     ): Promise<ConflictingOutstandingType> {
-        return this.popConflicting(userOp)
+        return Promise.resolve(this.popConflicting(userOp))
     }
 }
 

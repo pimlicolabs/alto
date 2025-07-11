@@ -217,7 +217,7 @@ export function decodeSimulateHandleOpError(
             }
 
         // 0.6 handleOp reverts with ExecutionResult if successful
-        case "ExecutionResult":
+        case "ExecutionResult": {
             const parsedExecutionResult = executionResultSchema.parse(args)
             return {
                 result: "execution",
@@ -225,8 +225,9 @@ export function decodeSimulateHandleOpError(
                     executionResult: parsedExecutionResult
                 }
             }
+        }
 
-        default:
+        default: {
             logger.warn(
                 { errorName },
                 "Unknown ContractFunctionRevertedError name"
@@ -236,5 +237,6 @@ export function decodeSimulateHandleOpError(
                 data: "Unknown error, could not parse simulate validation result.",
                 code: ValidationErrors.SimulateValidation
             }
+        }
     }
 }

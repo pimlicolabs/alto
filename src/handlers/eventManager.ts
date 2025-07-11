@@ -227,8 +227,12 @@ export class EventManager {
     }
 
     private emitWithTimeout(entry: QueueMessage, eventType: string) {
+        if (!this.redisEventManagerQueue) {
+            return
+        }
+
         asyncCallWithTimeout(
-            this.redisEventManagerQueue!.add(entry, {
+            this.redisEventManagerQueue.add(entry, {
                 removeOnComplete: true,
                 removeOnFail: true
             }),

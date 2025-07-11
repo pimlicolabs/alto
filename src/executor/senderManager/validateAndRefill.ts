@@ -97,7 +97,11 @@ export const validateAndRefillWallets = async ({
         }
 
         if (config.refillHelperContract) {
-            const instructions = []
+            const instructions: {
+                to: Address
+                value: bigint
+                data: HexData
+            }[] = []
             for (const [address, missingBalance] of Object.entries(
                 balancesMissing
             )) {

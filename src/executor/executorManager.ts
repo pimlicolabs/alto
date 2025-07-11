@@ -351,7 +351,7 @@ export class ExecutorManager {
         if (!bundleResult.success) {
             // Free wallet as no bundle was sent.
             await this.senderManager.markWalletProcessed(executor)
-            await this.userOpMonitor.stopTrackingBundle(submittedBundle)
+            this.userOpMonitor.stopTrackingBundle(submittedBundle)
 
             const { rejectedUserOps, recoverableOps, reason } = bundleResult
 

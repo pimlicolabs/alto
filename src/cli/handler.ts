@@ -155,24 +155,24 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
                 async getBalance(args: GetBalanceParameters) {
                     if (args.blockNumber !== undefined) {
                         return await client.getBalance(args)
-                    } else {
-                        return await client.getBalance({
-                            address: args.address,
-                            blockNumber: undefined,
-                            blockTag: "pending"
-                        })
                     }
+
+                    return await client.getBalance({
+                        address: args.address,
+                        blockNumber: undefined,
+                        blockTag: "pending"
+                    })
                 },
                 async getTransactionCount(args: GetTransactionCountParameters) {
                     if (args.blockNumber !== undefined) {
                         return await client.getTransactionCount(args)
-                    } else {
-                        return await client.getTransactionCount({
-                            address: args.address,
-                            blockNumber: undefined,
-                            blockTag: "pending"
-                        })
                     }
+
+                    return await client.getTransactionCount({
+                        address: args.address,
+                        blockNumber: undefined,
+                        blockTag: "pending"
+                    })
                 }
             }))
             // @ts-ignore

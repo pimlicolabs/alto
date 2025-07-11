@@ -4,11 +4,11 @@ import { createMethodHandler } from "../createMethodHandler"
 export const debugBundlerClearStateHandler = createMethodHandler({
     schema: debugClearStateSchema,
     method: "debug_bundler_clearState",
-    handler: async ({ rpcHandler }) => {
+    handler: ({ rpcHandler }) => {
         rpcHandler.ensureDebugEndpointsAreEnabled("debug_bundler_clearState")
         rpcHandler.mempool.clear()
         rpcHandler.reputationManager.clearEntityCount()
 
-        return "ok" as const
+        return Promise.resolve("ok" as const)
     }
 })

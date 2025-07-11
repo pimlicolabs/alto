@@ -90,7 +90,7 @@ export class Executor {
         this.eventManager = eventManager
     }
 
-    async getBundleGasPrice({
+    getBundleGasPrice({
         bundle,
         networkGasPrice,
         networkBaseFee,
@@ -102,7 +102,7 @@ export class Executor {
         networkBaseFee: bigint
         totalBeneficiaryFees: bigint
         bundleGasUsed: bigint
-    }): Promise<GasPriceParameters> {
+    }): GasPriceParameters {
         const {
             bundlerInitialCommission,
             resubmitMultiplierCeiling,
@@ -404,14 +404,13 @@ export class Executor {
             entryPoint
         })
 
-        const { maxFeePerGas, maxPriorityFeePerGas } =
-            await this.getBundleGasPrice({
-                bundle: userOpBundle,
-                networkGasPrice,
-                networkBaseFee,
-                totalBeneficiaryFees,
-                bundleGasUsed
-            })
+        const { maxFeePerGas, maxPriorityFeePerGas } = this.getBundleGasPrice({
+            bundle: userOpBundle,
+            networkGasPrice,
+            networkBaseFee,
+            totalBeneficiaryFees,
+            bundleGasUsed
+        })
 
         let transactionHash: HexData32
         try {
