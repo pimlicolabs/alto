@@ -1,5 +1,5 @@
-import { createMethodHandler } from "../createMethodHandler"
 import { RpcError, getUserOperationReceiptSchema } from "@alto/types"
+import { createMethodHandler } from "../createMethodHandler"
 
 export const ethGetUserOperationReceiptHandler = createMethodHandler({
     method: "eth_getUserOperationReceipt",
@@ -7,9 +7,7 @@ export const ethGetUserOperationReceiptHandler = createMethodHandler({
     handler: async ({ rpcHandler, params }) => {
         const [userOpHash] = params
         try {
-            return await rpcHandler.userOpMonitor.getUserOpReceipt(
-                userOpHash
-            )
+            return await rpcHandler.userOpMonitor.getUserOpReceipt(userOpHash)
         } catch (err) {
             rpcHandler.logger.error(
                 { err, userOpHash },

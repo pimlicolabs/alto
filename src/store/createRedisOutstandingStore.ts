@@ -1,19 +1,19 @@
 import {
+    type Address,
+    type HexData32,
+    type UserOpInfo,
+    type UserOperation,
+    userOpInfoSchema
+} from "@alto/types"
+import { type ChainableCommander, Redis } from "ioredis"
+import { toHex } from "viem/utils"
+import type { OutstandingStore } from "."
+import type { AltoConfig } from "../createConfig"
+import {
     getNonceKeyAndSequence,
     isVersion06,
     isVersion07
 } from "../utils/userop"
-import { AltoConfig } from "../createConfig"
-import {
-    Address,
-    HexData32,
-    UserOperation,
-    UserOpInfo,
-    userOpInfoSchema
-} from "@alto/types"
-import { OutstandingStore } from "."
-import { ChainableCommander, Redis } from "ioredis"
-import { toHex } from "viem/utils"
 
 const serializeUserOpInfo = (userOpInfo: UserOpInfo): string => {
     return JSON.stringify(userOpInfo, (_, value) =>
@@ -82,12 +82,12 @@ class RedisSortedSet {
         await multi.zrem(this.keyPath, member)
     }
 
-    async getByScoreRange(min: number, max: number): Promise<string[]> {
-        return this.redis.zrangebyscore(this.keyPath, min, max)
+    getByScoreRange(min: number, max: number): Promise<string[]> {
+        return Promise.resolve(this.redis.zrangebyscore(this.keyPath, min, max))
     }
 
-    async getByRankRange(start: number, stop: number): Promise<string[]> {
-        return this.redis.zrange(this.keyPath, start, stop)
+    getByRankRange(start: number, stop: number): Promise<string[]> {
+        return Promise.resolve(this.redis.zrange(this.keyPath, start, stop))
     }
 
     async popMax(): Promise<string | undefined> {
@@ -149,8 +149,8 @@ export class RedisHash {
         await multi.hset(this.keyPath, key, value)
     }
 
-    async get(field: string): Promise<string | null> {
-        return this.redis.hget(this.keyPath, field)
+    get(field: string): Promise<string | null> {
+        return Promise.resolve(this.redis.hget(this.keyPath, field))
     }
 
     async delete({
@@ -167,8 +167,8 @@ export class RedisHash {
         return (await this.redis.hexists(this.keyPath, field)) === 1
     }
 
-    async getAll(): Promise<Record<string, string>> {
-        return this.redis.hgetall(this.keyPath)
+    getAll(): Promise<Record<string, string>> {
+        return Promise.resolve(this.redis.hgetall(this.keyPath))
     }
 }
 
@@ -216,8 +216,8 @@ class RedisOutstandingQueue implements OutstandingStore {
     }
 
     // OutstandingStore methods
-    async contains(userOpHash: HexData32): Promise<boolean> {
-        return this.userOpHashLookup.exists(userOpHash)
+    contains(userOpHash: HexData32): Promise<boolean> {
+        return Promise.resolve(this.userOpHashLookup.exists(userOpHash))
     }
 
     async popConflicting(userOp: UserOperation) {
@@ -230,7 +230,7 @@ class RedisOutstandingQueue implements OutstandingStore {
             Number(nonceSeq)
         )
 
-        if (conflictingNonce.length) {
+        if (conflictingNonce.length > 0) {
             const conflicting = deserializeUserOpInfo(conflictingNonce[0])
             await this.remove(conflicting.userOpHash)
             return {
@@ -283,7 +283,7 @@ class RedisOutstandingQueue implements OutstandingStore {
         // Get highest gas price operation's key
         const pendingOpsKeys = await this.readyOpsQueue.getByRankRange(0, 0)
 
-        if (!pendingOpsKeys.length) {
+        if (pendingOpsKeys.length === 0) {
             return undefined
         }
 
@@ -291,7 +291,7 @@ class RedisOutstandingQueue implements OutstandingStore {
         const pendingOpsSet = new RedisSortedSet(this.redis, pendingOpsKeys[0])
         const userOpInfoStrings = await pendingOpsSet.getByRankRange(0, 0)
 
-        if (!userOpInfoStrings.length) {
+        if (userOpInfoStrings.length === 0) {
             return undefined
         }
 
@@ -358,7 +358,7 @@ class RedisOutstandingQueue implements OutstandingStore {
         const pendingOpsSet = new RedisSortedSet(this.redis, pendingOpsKey)
         const ops = await pendingOpsSet.getByRankRange(0, -1)
 
-        if (!ops.length) {
+        if (ops.length === 0) {
             return false
         }
 
@@ -373,7 +373,7 @@ class RedisOutstandingQueue implements OutstandingStore {
         const isLowestNonce = userOps[0].userOpHash === userOpHash
 
         // If this is the lowest nonce, check if there's a next operation before starting the transaction
-        let nextOp: UserOpInfo | undefined = undefined
+        let nextOp: UserOpInfo | undefined
         if (isLowestNonce && userOps.length > 1) {
             // userOps is already sorted by nonce sequence because it comes from the sorted set
             // So we can simply take the second operation as the next one
@@ -436,7 +436,7 @@ class RedisOutstandingQueue implements OutstandingStore {
         // Get the operations from the set (limited to 2 for efficiency)
         const ops = await pendingOpsSet.getByRankRange(0, 1)
 
-        if (!ops.length) {
+        if (ops.length === 0) {
             return undefined
         }
 
@@ -490,11 +490,11 @@ class RedisOutstandingQueue implements OutstandingStore {
     }
 
     // These methods aren't implemented
-    async dumpLocal(): Promise<any> {
-        return [] // We can't dump from redis as the latency is too high
+    dumpLocal() {
+        return Promise.resolve([]) // We can't dump from redis as the latency is too high
     }
 
-    async clear(): Promise<void> {
+    clear(): Promise<void> {
         throw new Error("Not implemented: clear")
     }
 

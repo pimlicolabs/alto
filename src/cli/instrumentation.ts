@@ -1,10 +1,10 @@
+import module from "node:module"
 import { type Attributes, type Context, SpanKind } from "@opentelemetry/api"
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto"
 import { FastifyInstrumentation } from "@opentelemetry/instrumentation-fastify"
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http"
 import { PinoInstrumentation } from "@opentelemetry/instrumentation-pino"
 import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici"
-import { ViemInstrumentation } from "@pimlico/opentelemetry-instrumentation-viem"
 import { NodeSDK } from "@opentelemetry/sdk-node"
 import {
     ParentBasedSampler,
@@ -12,7 +12,7 @@ import {
     SamplingDecision
 } from "@opentelemetry/sdk-trace-base"
 import { SemanticAttributes } from "@opentelemetry/semantic-conventions"
-import module from "node:module"
+import { ViemInstrumentation } from "@pimlico/opentelemetry-instrumentation-viem"
 import { createAddHookMessageChannel } from "import-in-the-middle"
 
 const { registerOptions, waitForAllMessagesAcknowledged } =

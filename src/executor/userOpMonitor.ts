@@ -1,33 +1,29 @@
+import type { SenderManager } from "@alto/executor"
 import type { EventManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
     Mempool,
     Monitor
 } from "@alto/mempool"
-import {
-    type HexData32,
-    type SubmittedBundleInfo,
-    UserOpInfo
-} from "@alto/types"
+import type { HexData32, SubmittedBundleInfo, UserOpInfo } from "@alto/types"
+import type { UserOperationReceipt } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import { parseUserOpReceipt } from "@alto/utils"
 import {
     type Address,
+    type Block,
     type Hash,
+    type Hex,
     type TransactionReceipt,
     TransactionReceiptNotFoundError,
-    getAbiItem,
-    Hex,
     decodeEventLog,
-    getAddress,
-    Block
+    getAbiItem,
+    getAddress
 } from "viem"
-import type { AltoConfig } from "../createConfig"
-import { SenderManager } from "./senderManager"
-import { getBundleStatus } from "./getBundleStatus"
-import { UserOperationReceipt } from "@alto/types"
 import { entryPoint07Abi } from "viem/account-abstraction"
+import type { AltoConfig } from "../createConfig"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
+import { getBundleStatus } from "./getBundleStatus"
 
 interface CachedReceipt {
     receipt: UserOperationReceipt
@@ -84,7 +80,11 @@ export class UserOpMonitor {
     async processBlock(block: Block): Promise<SubmittedBundleInfo[]> {
         // Update the cached block number whenever we receive a new block.
         // block.number! as number is always defined due to coming from publicClient.watchBlocks
-        this.cachedLatestBlock = { value: block.number!, timestamp: Date.now() }
+
+        this.cachedLatestBlock = {
+            value: block.number ?? 0n,
+            timestamp: Date.now()
+        }
 
         // Refresh the statuses of all pending bundles.
         const pendingBundles = Array.from(this.pendingBundles.values())
@@ -108,7 +108,7 @@ export class UserOpMonitor {
         submittedBundle: SubmittedBundleInfo,
         block: Block
     ): Promise<boolean> {
-        let bundleReceipt = await getBundleStatus({
+        const bundleReceipt = await getBundleStatus({
             submittedBundle,
             publicClient: this.config.publicClient,
             logger: this.logger
@@ -261,7 +261,9 @@ export class UserOpMonitor {
         userOpHash: Hex
     ): UserOperationReceipt | undefined {
         const cached = this.receiptCache.get(userOpHash)
-        if (!cached) return undefined
+        if (!cached) {
+            return undefined
+        }
         return cached.receipt
     }
 
@@ -271,9 +273,9 @@ export class UserOpMonitor {
             ([_, cached]) => now - cached.timestamp > this.receiptTtl
         )
 
-        expiredEntries.forEach(([userOpHash]) =>
+        for (const [userOpHash] of expiredEntries) {
             this.receiptCache.delete(userOpHash)
-        )
+        }
     }
 
     // Free executors and remove userOps from mempool.
@@ -287,7 +289,7 @@ export class UserOpMonitor {
     }
 
     // Stop tracking bundle in event resubmit fails
-    public async stopTrackingBundle(submittedBundle: SubmittedBundleInfo) {
+    public stopTrackingBundle(submittedBundle: SubmittedBundleInfo) {
         const { executor } = submittedBundle
         this.pendingBundles.delete(executor.address)
     }
@@ -378,9 +380,8 @@ export class UserOpMonitor {
                     .inc(1)
 
                 return true
-            } else {
-                return false
             }
+            return false
         } catch (error) {
             this.logger.error(
                 {
@@ -401,8 +402,8 @@ export class UserOpMonitor {
             return cached
         }
 
-        let fromBlock: bigint | undefined = undefined
-        let toBlock: "latest" | undefined = undefined
+        let fromBlock: bigint | undefined
+        let toBlock: "latest" | undefined
         if (this.config.maxBlockRange !== undefined) {
             const latestBlock = await this.getLatestBlockWithCache()
 

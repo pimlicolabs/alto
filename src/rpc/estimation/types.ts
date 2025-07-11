@@ -1,5 +1,5 @@
-import type { Hex } from "viem"
 import type { ExecutionResult } from "@alto/types"
+import type { Hex } from "viem"
 
 export enum BinarySearchResultType {
     Success = 0,

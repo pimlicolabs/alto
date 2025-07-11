@@ -1,14 +1,14 @@
 import Redis from "ioredis"
-import { Store } from "."
-import { AltoConfig } from "../createConfig"
+import { type Address, toHex } from "viem"
+import type { Store } from "."
+import type { AltoConfig } from "../createConfig"
 import {
-    HexData32,
-    UserOpInfo,
-    UserOperation,
+    type HexData32,
+    type UserOpInfo,
+    type UserOperation,
     userOperationSchema
 } from "../types/schemas"
 import { isVersion06, isVersion07 } from "../utils/userop"
-import { Address, toHex } from "viem"
 import { RedisHash } from "./createRedisOutstandingStore"
 import { createMemoryStore } from "./createStore"
 

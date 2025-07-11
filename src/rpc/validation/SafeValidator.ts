@@ -15,22 +15,22 @@ import {
     CodeHashGetterAbi,
     CodeHashGetterBytecode,
     EntryPointV06Abi,
-    pimlicoSimulationsAbi,
     type ReferencedCodeHashes,
     RpcError,
     type StakeInfo,
     type StorageMap,
     type UserOperation,
     ValidationErrors,
-    type ValidationResultWithAggregation
+    type ValidationResultWithAggregation,
+    pimlicoSimulationsAbi
 } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import {
-    getAuthorizationStateOverrides,
     getAddressFromInitCodeOrPaymasterAndData,
-    toPackedUserOp,
+    getAuthorizationStateOverrides,
     isVersion08,
-    jsonStringifyWithBigint
+    jsonStringifyWithBigint,
+    toPackedUserOp
 } from "@alto/utils"
 import {
     type ExecutionRevertedError,
@@ -40,6 +40,7 @@ import {
     encodeFunctionData,
     zeroAddress
 } from "viem"
+import type { AltoConfig } from "../../createConfig"
 import {
     type BundlerTracerResult,
     type ExitInfo,
@@ -49,7 +50,6 @@ import { tracerResultParserV06 } from "./TracerResultParserV06"
 import { tracerResultParserV07 } from "./TracerResultParserV07"
 import { UnsafeValidator } from "./UnsafeValidator"
 import { debug_traceCall } from "./tracer"
-import type { AltoConfig } from "../../createConfig"
 
 export class SafeValidator
     extends UnsafeValidator

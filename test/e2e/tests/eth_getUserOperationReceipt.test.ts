@@ -1,25 +1,30 @@
+import { deepHexlify } from "permissionless"
 import {
-    parseGwei,
     type Address,
     type Hex,
     concat,
-    encodeFunctionData,
     decodeEventLog,
-    parseAbiItem,
-    getAddress,
-    Log
+    encodeFunctionData,
+    parseGwei
 } from "viem"
 import {
+    type EntryPointVersion,
     type UserOperation,
-    getUserOperationHash,
-    entryPoint07Abi,
-    toPackedUserOperation,
     entryPoint06Address,
+    entryPoint07Abi,
     entryPoint07Address,
-    EntryPointVersion,
-    entryPoint08Address
+    entryPoint08Address,
+    getUserOperationHash,
+    toPackedUserOperation
 } from "viem/account-abstraction"
+import { foundry } from "viem/chains"
 import { beforeAll, beforeEach, describe, expect, inject, test } from "vitest"
+import {
+    deployEventHelper,
+    eventHelperAbi,
+    getEmitMessageCall,
+    getEmitMultipleDataCall
+} from "../src/eventHelper.js"
 import {
     decodeRevert,
     deployRevertingContract,
@@ -27,20 +32,12 @@ import {
 } from "../src/revertingContract.js"
 import { deployPaymaster } from "../src/testPaymaster.js"
 import {
-    deployEventHelper,
-    getEmitMessageCall,
-    getEmitMultipleDataCall,
-    eventHelperAbi
-} from "../src/eventHelper.js"
-import {
     beforeEachCleanUp,
     getPublicClient,
     getSmartAccountClient,
-    setBundlingMode,
-    sendBundleNow
+    sendBundleNow,
+    setBundlingMode
 } from "../src/utils/index.js"
-import { deepHexlify } from "permissionless"
-import { foundry } from "viem/chains"
 
 describe.each([
     {

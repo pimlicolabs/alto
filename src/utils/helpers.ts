@@ -1,5 +1,5 @@
 import type { StateOverrides, UserOperation } from "@alto/types"
-import { BaseError, type RawContractError, getAddress, concat } from "viem"
+import { BaseError, type RawContractError, concat, getAddress } from "viem"
 import type { SignedAuthorization } from "viem"
 
 /// Convert an object to JSON string, handling bigint values

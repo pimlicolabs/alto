@@ -1,9 +1,9 @@
-import { Metrics } from "@alto/utils"
-import { AltoConfig } from "../../createConfig"
-import { SenderManager } from "../senderManager"
-import { getAvailableWallets } from "."
-import { Account } from "viem"
+import type { Metrics } from "@alto/utils"
 import Redis from "ioredis"
+import type { Account } from "viem"
+import { getAvailableWallets } from "."
+import type { AltoConfig } from "../../createConfig"
+import type { SenderManager } from "../senderManager"
 
 async function createRedisQueue({
     redis,

@@ -1,15 +1,15 @@
-import { createMethodHandler } from "../createMethodHandler"
 import { debugClearReputationSchema } from "@alto/types"
+import { createMethodHandler } from "../createMethodHandler"
 
 export const debugClearReputationHandler = createMethodHandler({
     schema: debugClearReputationSchema,
     method: "debug_bundler_clearReputation",
-    handler: async ({ rpcHandler }) => {
+    handler: ({ rpcHandler }) => {
         rpcHandler.ensureDebugEndpointsAreEnabled(
             "debug_bundler_clearReputation"
         )
         rpcHandler.reputationManager.clear()
 
-        return "ok" as const
+        return Promise.resolve("ok" as const)
     }
 })

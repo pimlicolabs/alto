@@ -1,6 +1,6 @@
 import type { HexData32, UserOperationStatus } from "@alto/types"
-import { AltoConfig } from "../createConfig"
 import { Redis } from "ioredis"
+import type { AltoConfig } from "../createConfig"
 import { userOperationStatusSchema } from "../types/schemas"
 
 interface UserOperationStatusStore {
@@ -12,19 +12,18 @@ interface UserOperationStatusStore {
 class InMemoryUserOperationStatusStore implements UserOperationStatusStore {
     private store: Record<HexData32, UserOperationStatus> = {}
 
-    async set(
-        userOpHash: HexData32,
-        status: UserOperationStatus
-    ): Promise<void> {
+    set(userOpHash: HexData32, status: UserOperationStatus) {
         this.store[userOpHash] = status
+        return Promise.resolve()
     }
 
-    async get(userOpHash: HexData32): Promise<UserOperationStatus | undefined> {
-        return this.store[userOpHash]
+    get(userOpHash: HexData32) {
+        return Promise.resolve(this.store[userOpHash])
     }
 
-    async delete(userOpHash: HexData32): Promise<void> {
+    delete(userOpHash: HexData32) {
         delete this.store[userOpHash]
+        return Promise.resolve()
     }
 }
 
@@ -83,7 +82,9 @@ class RedisUserOperationStatusStore implements UserOperationStatusStore {
 
     async get(userOpHash: HexData32): Promise<UserOperationStatus | undefined> {
         const data = await this.redis.get(this.getKey(userOpHash))
-        if (!data) return undefined
+        if (!data) {
+            return undefined
+        }
         return this.deserialize(data)
     }
 

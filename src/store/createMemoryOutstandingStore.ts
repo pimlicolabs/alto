@@ -1,12 +1,12 @@
+import type { HexData32, UserOpInfo, UserOperation } from "@alto/types"
+import type { Logger } from "@alto/utils"
+import type { ConflictingOutstandingType, OutstandingStore } from "."
+import type { AltoConfig } from "../createConfig"
 import {
     getNonceKeyAndSequence,
     isVersion06,
     isVersion07
 } from "../utils/userop"
-import { AltoConfig } from "../createConfig"
-import { HexData32, UserOpInfo, UserOperation } from "@alto/types"
-import { ConflictingOutstandingType, OutstandingStore } from "."
-import { Logger } from "@alto/utils"
 
 const senderNonceSlot = (userOp: UserOperation) => {
     const sender = userOp.sender
@@ -78,12 +78,10 @@ export class MemoryOutstanding implements OutstandingStore {
         return true
     }
 
-    async popConflicting(
-        userOp: UserOperation
-    ): Promise<ConflictingOutstandingType> {
+    popConflicting(userOp: UserOperation): Promise<ConflictingOutstandingType> {
         const outstandingOps = this.dump()
 
-        let conflictingReason: ConflictingOutstandingType = undefined
+        let conflictingReason: ConflictingOutstandingType
 
         for (const userOpInfo of outstandingOps) {
             const { userOp: mempoolUserOp } = userOpInfo
@@ -129,7 +127,7 @@ export class MemoryOutstanding implements OutstandingStore {
             }
         }
 
-        return conflictingReason
+        return Promise.resolve(conflictingReason)
     }
 
     async contains(userOpHash: HexData32): Promise<boolean> {
@@ -141,19 +139,19 @@ export class MemoryOutstanding implements OutstandingStore {
         return false
     }
 
-    async peek(): Promise<UserOpInfo | undefined> {
+    peek(): Promise<UserOpInfo | undefined> {
         if (this.priorityQueue.length === 0) {
-            return undefined
+            return Promise.resolve(undefined)
         }
 
-        return this.priorityQueue[0]
+        return Promise.resolve(this.priorityQueue[0])
     }
 
-    async pop(): Promise<UserOpInfo | undefined> {
+    pop(): Promise<UserOpInfo | undefined> {
         const userOpInfo = this.priorityQueue.shift()
 
         if (!userOpInfo) {
-            return undefined
+            return Promise.resolve(undefined)
         }
 
         const pendingOpsSlot = senderNonceSlot(userOpInfo.userOp)
@@ -174,7 +172,7 @@ export class MemoryOutstanding implements OutstandingStore {
             this.pendingOps.delete(pendingOpsSlot)
         }
 
-        return userOpInfo
+        return Promise.resolve(userOpInfo)
     }
 
     async add(userOpInfo: UserOpInfo): Promise<void> {
@@ -182,9 +180,18 @@ export class MemoryOutstanding implements OutstandingStore {
         const [nonceKey] = getNonceKeyAndSequence(userOp.nonce)
         const pendingOpsSlot = senderNonceSlot(userOp)
 
-        const backlogOps =
-            this.pendingOps.get(pendingOpsSlot) ||
-            this.pendingOps.set(pendingOpsSlot, []).get(pendingOpsSlot)!
+        const backlogOps = (() => {
+            if (this.pendingOps.has(pendingOpsSlot)) {
+                return this.pendingOps.get(pendingOpsSlot)
+            }
+
+            this.pendingOps.set(pendingOpsSlot, [])
+            return this.pendingOps.get(pendingOpsSlot)
+        })()
+
+        if (!backlogOps) {
+            throw new Error("FATAL: No pending operations found for userOpHash")
+        }
 
         // Note: the userOpInfo is always added to backlogOps, because we are pushing to a reference
         backlogOps.push(userOpInfo)
@@ -307,20 +314,21 @@ export class MemoryOutstanding implements OutstandingStore {
         return true
     }
 
-    async dumpLocal(): Promise<UserOpInfo[]> {
-        return this.dump()
+    dumpLocal(): Promise<UserOpInfo[]> {
+        return Promise.resolve(this.dump())
     }
 
-    async clear(): Promise<void> {
+    clear(): Promise<void> {
         this.priorityQueue = []
         this.pendingOps.clear()
+        return Promise.resolve()
     }
 
     // Adding findConflicting method to maintain compatibility with Store interface
-    async findConflicting(
+    findConflicting(
         userOp: UserOperation
     ): Promise<ConflictingOutstandingType> {
-        return this.popConflicting(userOp)
+        return Promise.resolve(this.popConflicting(userOp))
     }
 }
 

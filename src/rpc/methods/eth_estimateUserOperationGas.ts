@@ -1,20 +1,20 @@
-import { scaleBigIntByPercent, maxBigInt } from "../../utils/bigInt"
-import { isVersion06, isVersion07, deepHexlify } from "../../utils/userop"
+import {
+    type Address,
+    RpcError,
+    type StateOverrides,
+    type UserOperation,
+    ValidationErrors,
+    estimateUserOperationGasSchema
+} from "@alto/types"
+import { parseEther, toHex } from "viem"
+import { maxBigInt, scaleBigIntByPercent } from "../../utils/bigInt"
 import {
     calcExecutionPvgComponent,
     calcL2PvgComponent
 } from "../../utils/preVerificationGasCalulator"
+import { deepHexlify, isVersion06, isVersion07 } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
-import {
-    Address,
-    RpcError,
-    StateOverrides,
-    UserOperation,
-    ValidationErrors,
-    estimateUserOperationGasSchema
-} from "@alto/types"
-import { RpcHandler } from "../rpcHandler"
-import { parseEther, toHex } from "viem"
+import type { RpcHandler } from "../rpcHandler"
 
 type GasEstimateResult =
     | {
@@ -273,7 +273,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         } = rpcHandler.config
 
         // Execute multiple async operations in parallel
-        let [
+        const [
             [validEip7702Auth, validEip7702AuthError],
             gasEstimateResult,
             l2GasComponent

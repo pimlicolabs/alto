@@ -4,11 +4,11 @@ import {
     http,
     type Address,
     type Hex,
+    concat,
     createPublicClient,
     encodeFunctionData,
     getCreate2Address,
-    parseAbi,
-    concat
+    parseAbi
 } from "viem"
 import { foundry } from "viem/chains"
 import { getAnvilWalletClient } from "./utils/index.js"

@@ -1,5 +1,4 @@
 import type { IOptions } from "@alto/cli"
-import type { CamelCasedProperties } from "./cli/parseArgs"
 import type { Bindings, ChildLoggerOptions, Logger } from "pino"
 import type {
     Address,
@@ -8,6 +7,7 @@ import type {
     Transport,
     WalletClient
 } from "viem"
+import type { CamelCasedProperties } from "./cli/parseArgs"
 
 export type AltoConfig = Readonly<CamelCasedProperties<IOptions>> & {
     getLogger: <ChildCustomLevels extends string = never>(

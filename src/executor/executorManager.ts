@@ -1,18 +1,18 @@
 import type { GasPriceManager } from "@alto/handlers"
 import type { Mempool } from "@alto/mempool"
-import {
-    type BundlingMode,
-    type SubmittedBundleInfo,
+import type {
+    BundlingMode,
+    SubmittedBundleInfo,
     UserOperationBundle
 } from "@alto/types"
+import type { GasPriceParameters } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import { scaleBigIntByPercent } from "@alto/utils"
-import { Block, Hex, type WatchBlocksReturnType } from "viem"
-import type { Executor } from "./executor"
+import type { Block, Hex, WatchBlocksReturnType } from "viem"
 import type { AltoConfig } from "../createConfig"
-import { SenderManager } from "./senderManager"
-import { GasPriceParameters } from "@alto/types"
-import { UserOpMonitor } from "./userOpMonitor"
+import type { Executor } from "./executor"
+import type { SenderManager } from "./senderManager"
+import type { UserOpMonitor } from "./userOpMonitor"
 import { getUserOpHashes } from "./utils"
 
 const SCALE_FACTOR = 10 // Interval increases by 10ms per task per minute
@@ -476,7 +476,7 @@ export class ExecutorManager {
 
             // Free wallet as no bundle was sent.
             await this.senderManager.markWalletProcessed(executor)
-            await this.userOpMonitor.stopTrackingBundle(submittedBundle)
+            this.userOpMonitor.stopTrackingBundle(submittedBundle)
 
             this.metrics.replacedTransactions
                 .labels({ reason, status: "failed" })

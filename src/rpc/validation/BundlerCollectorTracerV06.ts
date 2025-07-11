@@ -403,7 +403,7 @@ export function bundlerCollectorTracer(): BundlerCollectorTracer {
                 const topics = []
                 for (let i = 0; i < count; i++) {
                     // eslint-disable-next-line @typescript-eslint/restrict-plus-operands
-                    topics.push("0x" + log.stack.peek(2 + i).toString(16))
+                    topics.push(`0x${log.stack.peek(2 + i).toString(16)}`)
                 }
                 const data = toHex(log.memory.slice(ofs, ofs + len))
                 this.logs.push({

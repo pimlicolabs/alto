@@ -12,9 +12,9 @@ import {
     getAddressFromInitCodeOrPaymasterAndData,
     isVersion06
 } from "@alto/utils"
+import type { ReadonlyDeep } from "type-fest"
 import { type Address, getAddress, getContract } from "viem"
 import type { AltoConfig } from "../createConfig"
-import { ReadonlyDeep } from "type-fest"
 
 export interface InterfaceReputationManager {
     checkReputation(

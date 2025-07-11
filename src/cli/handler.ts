@@ -6,25 +6,25 @@ import {
 } from "@alto/utils"
 import { Registry } from "prom-client"
 import {
+    type CallParameters,
     type Chain,
+    type GetBalanceParameters,
+    type GetBlockParameters,
+    type GetTransactionCountParameters,
     createPublicClient,
     createWalletClient,
-    formatEther,
     fallback,
-    type CallParameters,
-    publicActions,
-    GetBlockParameters,
-    GetBalanceParameters,
-    GetTransactionCountParameters
+    formatEther,
+    publicActions
 } from "viem"
-import type { IOptionsInput } from "./config"
-import { customTransport } from "./customTransport"
-import { setupServer } from "./setupServer"
 import { type AltoConfig, createConfig } from "../createConfig"
-import { parseArgs } from "./parseArgs"
-import { deploySimulationsContract } from "./deploySimulationsContract"
 import { getSenderManager } from "../executor/senderManager/index"
 import { UtilityWalletMonitor } from "../executor/utilityWalletMonitor"
+import type { IOptionsInput } from "./config"
+import { customTransport } from "./customTransport"
+import { deploySimulationsContract } from "./deploySimulationsContract"
+import { parseArgs } from "./parseArgs"
+import { setupServer } from "./setupServer"
 
 const preFlightChecks = async (config: AltoConfig): Promise<void> => {
     for (const entrypoint of config.entrypoints) {
@@ -155,24 +155,24 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
                 async getBalance(args: GetBalanceParameters) {
                     if (args.blockNumber !== undefined) {
                         return await client.getBalance(args)
-                    } else {
-                        return await client.getBalance({
-                            address: args.address,
-                            blockNumber: undefined,
-                            blockTag: "pending"
-                        })
                     }
+
+                    return await client.getBalance({
+                        address: args.address,
+                        blockNumber: undefined,
+                        blockTag: "pending"
+                    })
                 },
                 async getTransactionCount(args: GetTransactionCountParameters) {
                     if (args.blockNumber !== undefined) {
                         return await client.getTransactionCount(args)
-                    } else {
-                        return await client.getTransactionCount({
-                            address: args.address,
-                            blockNumber: undefined,
-                            blockTag: "pending"
-                        })
                     }
+
+                    return await client.getTransactionCount({
+                        address: args.address,
+                        blockNumber: undefined,
+                        blockTag: "pending"
+                    })
                 }
             }))
             // @ts-ignore
