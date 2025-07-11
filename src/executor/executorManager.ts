@@ -98,7 +98,7 @@ export class ExecutorManager {
                 (sum, bundle) => sum + bundle.userOps.length,
                 0
             )
-            this.opsCount.push(...Array(totalOps).fill(Date.now()))
+            this.opsCount.push(...new Array(totalOps).fill(Date.now()))
         }
 
         // Send bundles to executor
@@ -198,7 +198,7 @@ export class ExecutorManager {
                 .inc(rejectedUserOps.length)
 
             // Handle recoverable ops
-            if (recoverableOps.length) {
+            if (recoverableOps.length > 0) {
                 await this.mempool.resubmitUserOps({
                     userOps: recoverableOps,
                     entryPoint,

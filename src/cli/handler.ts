@@ -25,6 +25,7 @@ import { customTransport } from "./customTransport"
 import { deploySimulationsContract } from "./deploySimulationsContract"
 import { parseArgs } from "./parseArgs"
 import { setupServer } from "./setupServer"
+import * as chains from "viem/chains"
 
 const preFlightChecks = async (config: AltoConfig): Promise<void> => {
     for (const entrypoint of config.entrypoints) {
@@ -85,6 +86,18 @@ const preFlightChecks = async (config: AltoConfig): Promise<void> => {
     }
 }
 
+const getViemChain = (chainId: number) => {
+    for (const chain of Object.values(chains)) {
+        if (chain.id === chainId) {
+            return {
+                ...chain,
+                blockTime: chain.blockTime ?? 2_000 // let's assume 2 second block time for now
+            }
+        }
+    }
+    return null
+}
+
 export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     const args = parseArgs(args_)
     const logger = args.json
@@ -107,7 +120,9 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
 
     const chainId = await getChainId()
 
-    const chain: Chain = {
+    const viemChain = getViemChain(chainId)
+
+    const chain: Chain = viemChain ?? {
         id: chainId,
         name: "chain-name", // isn't important, never used
         nativeCurrency: {
@@ -115,6 +130,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
             symbol: "ETH",
             decimals: 18
         },
+        blockTime: 1_000, // let's assume 1 second block time for now for non standard chains
         rpcUrls: {
             default: { http: [args.rpcUrl] },
             public: { http: [args.rpcUrl] }
