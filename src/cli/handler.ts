@@ -17,6 +17,7 @@ import {
     formatEther,
     publicActions
 } from "viem"
+import * as chains from "viem/chains"
 import { type AltoConfig, createConfig } from "../createConfig"
 import { getSenderManager } from "../executor/senderManager/index"
 import { UtilityWalletMonitor } from "../executor/utilityWalletMonitor"
@@ -25,7 +26,6 @@ import { customTransport } from "./customTransport"
 import { deploySimulationsContract } from "./deploySimulationsContract"
 import { parseArgs } from "./parseArgs"
 import { setupServer } from "./setupServer"
-import * as chains from "viem/chains"
 
 const preFlightChecks = async (config: AltoConfig): Promise<void> => {
     for (const entrypoint of config.entrypoints) {
