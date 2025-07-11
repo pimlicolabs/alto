@@ -20,10 +20,10 @@ import {
     getAbiItem,
     getAddress
 } from "viem"
+import { getBundleStatus } from "./getBundleStatus"
 import { entryPoint07Abi } from "viem/account-abstraction"
 import type { AltoConfig } from "../createConfig"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
-import { getBundleStatus } from "./getBundleStatus"
 
 interface CachedReceipt {
     receipt: UserOperationReceipt
