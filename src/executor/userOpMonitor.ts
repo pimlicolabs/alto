@@ -19,13 +19,15 @@ import {
     getAbiItem,
     Hex,
     decodeEventLog,
-    getAddress
+    getAddress,
+    Block
 } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { SenderManager } from "./senderManager"
 import { getBundleStatus } from "./getBundleStatus"
 import { UserOperationReceipt } from "@alto/types"
 import { entryPoint07Abi } from "viem/account-abstraction"
+import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
 
 interface CachedReceipt {
     receipt: UserOperationReceipt
@@ -79,15 +81,19 @@ export class UserOpMonitor {
         )
     }
 
-    async processBlock(blockNumber: bigint): Promise<SubmittedBundleInfo[]> {
+    async processBlock(block: Block): Promise<SubmittedBundleInfo[]> {
         // Update the cached block number whenever we receive a new block.
-        this.cachedLatestBlock = { value: blockNumber, timestamp: Date.now() }
+        // block.number! as number is always defined due to coming from publicClient.watchBlocks
+        this.cachedLatestBlock = { value: block.number!, timestamp: Date.now() }
 
         // Refresh the statuses of all pending bundles.
         const pendingBundles = Array.from(this.pendingBundles.values())
         const refreshResults = await Promise.all(
             pendingBundles.map(async (bundle) => {
-                const needsProcessing = await this.refreshBundleStatus(bundle)
+                const needsProcessing = await this.refreshBundleStatus(
+                    bundle,
+                    block
+                )
                 return needsProcessing ? bundle : null
             })
         )
@@ -99,7 +105,8 @@ export class UserOpMonitor {
     }
 
     async refreshBundleStatus(
-        submittedBundle: SubmittedBundleInfo
+        submittedBundle: SubmittedBundleInfo,
+        block: Block
     ): Promise<boolean> {
         let bundleReceipt = await getBundleStatus({
             submittedBundle,
@@ -146,22 +153,72 @@ export class UserOpMonitor {
             return false
         }
 
+        // Onchain Bundle reverts should only occur in rare cases:
+        // 1. The bundle was frontran
+        // 2. A userOp in the bundle failed a EntryPoint check (AA revert)
+        //
+        // In these cases, we need to find which userOps can be resubmitted
+        // and mark all failed userOps as frontran or reverted onchain.
         if (bundleReceipt.status === "reverted") {
             const { bundle } = submittedBundle
-            const { userOps } = bundle
             const { blockNumber, transactionHash } = bundleReceipt
 
-            // Cleanup bundle
+            // Cleanup bundle and free executor
             await this.freeSubmittedBundle(submittedBundle)
 
+            // Find userOps that can be resubmitted
+            const filterOpsResult = await filterOpsAndEstimateGas({
+                userOpBundle: bundle,
+                config: this.config,
+                logger: this.logger,
+                networkBaseFee: block.baseFeePerGas || 0n
+            })
+
+            // Resubmit any userOps that we can recover
+            if (filterOpsResult.status === "success") {
+                const { userOpsToBundle } = filterOpsResult
+
+                await this.mempool.resubmitUserOps({
+                    userOps: userOpsToBundle,
+                    entryPoint: bundle.entryPoint,
+                    reason: "sibling_op_reverted"
+                })
+            }
+
+            const { rejectedUserOps } = filterOpsResult
+
             // Fire and forget
+            // Check if any rejected userOps were frontruns, if not mark as reverted onchain.
             Promise.all(
-                userOps.map(async (userOpInfo) => {
-                    this.checkFrontrun({
-                        userOpInfo,
-                        transactionHash,
-                        blockNumber
-                    })
+                rejectedUserOps.map(async (userOpInfo) => {
+                    const wasFrontrun = await this.checkFrontrun(userOpInfo)
+
+                    if (!wasFrontrun) {
+                        const { userOpHash } = userOpInfo
+
+                        await this.monitor.setUserOpStatus(userOpHash, {
+                            status: "failed",
+                            transactionHash
+                        })
+
+                        this.eventManager.emitFailedOnChain(
+                            userOpHash,
+                            transactionHash,
+                            blockNumber
+                        )
+
+                        this.logger.info(
+                            {
+                                userOpHash,
+                                transactionHash
+                            },
+                            "user op failed onchain"
+                        )
+
+                        this.metrics.userOpsOnChain
+                            .labels({ status: "reverted" })
+                            .inc(1)
+                    }
                 })
             )
 
@@ -273,9 +330,7 @@ export class UserOpMonitor {
         this.metrics.userOpInclusionDuration.observe(
             (Date.now() - addedToMempool) / 1000
         )
-        this.metrics.userOpsSubmissionAttempts.observe(
-            submissionAttempts
-        )
+        this.metrics.userOpsSubmissionAttempts.observe(submissionAttempts)
 
         // Update reputation
         const accountDeployed = this.checkAccountDeployment(
@@ -289,15 +344,7 @@ export class UserOpMonitor {
         )
     }
 
-    async checkFrontrun({
-        userOpInfo,
-        transactionHash,
-        blockNumber
-    }: {
-        userOpInfo: UserOpInfo
-        transactionHash: Hash
-        blockNumber: bigint
-    }) {
+    async checkFrontrun(userOpInfo: UserOpInfo): Promise<boolean> {
         const { userOpHash } = userOpInfo
 
         // Try to find userOp onchain
@@ -321,8 +368,7 @@ export class UserOpMonitor {
 
                 this.logger.info(
                     {
-                        userOpHash,
-                        transactionHash
+                        userOpHash
                     },
                     "user op frontrun onchain"
                 )
@@ -330,45 +376,21 @@ export class UserOpMonitor {
                 this.metrics.userOpsOnChain
                     .labels({ status: "frontran" })
                     .inc(1)
+
+                return true
             } else {
-                await this.monitor.setUserOpStatus(userOpHash, {
-                    status: "failed",
-                    transactionHash
-                })
-
-                this.eventManager.emitFailedOnChain(
-                    userOpHash,
-                    transactionHash,
-                    blockNumber
-                )
-
-                this.logger.info(
-                    {
-                        userOpHash,
-                        transactionHash
-                    },
-                    "user op failed onchain"
-                )
-
-                this.metrics.userOpsOnChain
-                    .labels({ status: "reverted" })
-                    .inc(1)
+                return false
             }
         } catch (error) {
             this.logger.error(
                 {
                     userOpHash,
-                    transactionHash,
                     error
                 },
                 "Error checking frontrun status"
             )
 
-            // Still mark as failed since we couldn't verify inclusion
-            await this.monitor.setUserOpStatus(userOpHash, {
-                status: "failed",
-                transactionHash
-            })
+            return false
         }
     }
 
@@ -469,10 +491,7 @@ export class UserOpMonitor {
         }
 
         const receipt = await getTransactionReceipt(txHash)
-        const userOpReceipt = parseUserOpReceipt(
-            userOpHash,
-            receipt
-        )
+        const userOpReceipt = parseUserOpReceipt(userOpHash, receipt)
 
         // Cache the receipt before returning
         this.cacheReceipt(userOpHash, userOpReceipt)
