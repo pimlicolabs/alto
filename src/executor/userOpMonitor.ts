@@ -81,11 +81,10 @@ export class UserOpMonitor {
         // Update the cached block number whenever we receive a new block.
         // block.number! as number is always defined due to coming from publicClient.watchBlocks
 
-        if (block.number !== undefined) {
-            throw new Error("block.number is undefined")
+        this.cachedLatestBlock = {
+            value: block.number ?? 0n,
+            timestamp: Date.now()
         }
-
-        this.cachedLatestBlock = { value: block.number, timestamp: Date.now() }
 
         // Refresh the statuses of all pending bundles.
         const pendingBundles = Array.from(this.pendingBundles.values())
