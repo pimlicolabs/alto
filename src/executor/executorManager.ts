@@ -7,11 +7,13 @@ import type {
 } from "@alto/types"
 import type { GasPriceParameters } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
-import type { Hex, WatchBlocksReturnType } from "viem"
+import { scaleBigIntByPercent } from "@alto/utils"
+import type { Block, Hex, WatchBlocksReturnType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { Executor } from "./executor"
 import type { SenderManager } from "./senderManager"
 import type { UserOpMonitor } from "./userOpMonitor"
+import { getUserOpHashes } from "./utils"
 
 const SCALE_FACTOR = 10 // Interval increases by 10ms per task per minute
 const RPM_WINDOW = 60000 // 1 minute window in ms
@@ -122,13 +124,14 @@ export class ExecutorManager {
             return
         }
 
-        this.unWatch = this.config.publicClient.watchBlockNumber({
-            onBlockNumber: async (blockNumber) => {
-                await this.handleBlock(blockNumber)
+        this.unWatch = this.config.publicClient.watchBlocks({
+            onBlock: async (block) => {
+                await this.handleBlock(block)
             },
             onError: (error) => {
                 this.logger.error({ error }, "error while watching blocks")
             },
+            includeTransactions: false,
             emitMissed: false,
             pollingInterval: this.config.pollingInterval
         })
@@ -260,15 +263,86 @@ export class ExecutorManager {
         }
     }
 
-    private async handleBlock(blockNumber: bigint) {
+    async cancelBundle(submittedBundle: SubmittedBundleInfo): Promise<void> {
+        const {
+            bundle: { userOps },
+            executor,
+            transactionRequest,
+            transactionHash
+        } = submittedBundle
+
+        const { walletClient, publicClient, pollingInterval } = this.config
+        const logger = this.logger.child({
+            userOps: getUserOpHashes(userOps)
+        })
+
+        let gasMultiplier = 150n // Start with 50% increase
+
+        for (let attempt = 0; attempt < 5; attempt++) {
+            try {
+                // Check if transaction is still pending
+                const currentNonce = await publicClient.getTransactionCount({
+                    address: executor.address,
+                    blockTag: "latest"
+                })
+
+                if (currentNonce > transactionRequest.nonce) {
+                    logger.info("Transaction already mined or cancelled")
+                    return
+                }
+
+                logger.info(`Trying to cancel bundle, attempt ${attempt + 1}`)
+
+                // Send cancel transaction with increasing gas price
+                const cancelTxHash = await walletClient.sendTransaction({
+                    account: executor,
+                    to: executor.address,
+                    value: 0n,
+                    nonce: transactionRequest.nonce,
+                    maxFeePerGas: scaleBigIntByPercent(
+                        transactionRequest.maxFeePerGas,
+                        gasMultiplier
+                    ),
+                    maxPriorityFeePerGas: scaleBigIntByPercent(
+                        transactionRequest.maxPriorityFeePerGas,
+                        gasMultiplier
+                    )
+                })
+
+                logger.info(
+                    {
+                        originalTxHash: transactionHash,
+                        cancelTxHash,
+                        attempt: attempt + 1
+                    },
+                    "cancel transaction sent"
+                )
+
+                // Wait for transaction to potentially be mined
+                await new Promise((resolve) =>
+                    setTimeout(resolve, pollingInterval)
+                )
+            } catch (err) {
+                logger.warn({ error: err }, "failed to cancel bundle")
+                gasMultiplier += 20n // Increase gas by additional 20% each retry
+            }
+        }
+
+        // All retries exhausted
+        logger.error(
+            { transactionHash },
+            "failed to cancel bundle after max retries"
+        )
+    }
+
+    private async handleBlock(block: Block) {
         if (this.currentlyHandlingBlock) {
             return
         }
         this.currentlyHandlingBlock = true
 
         // Process the block and get the results
-        const pendingBundles =
-            await this.userOpMonitor.processBlock(blockNumber)
+        const pendingBundles = await this.userOpMonitor.processBlock(block)
 
         if (pendingBundles.length === 0) {
             this.stopWatchingBlocks()
@@ -349,28 +423,60 @@ export class ExecutorManager {
 
         // Handle case where no bundle was sent.
         if (!bundleResult.success) {
+            const { rejectedUserOps, recoverableOps, reason } = bundleResult
+
+            // Recover any userOps that can be resubmitted.
+            await this.mempool.resubmitUserOps({
+                userOps: recoverableOps,
+                entryPoint,
+                reason
+            })
+
+            // For rejected userOps, we need to check for frontruns
+            const shouldCheckFrontrun = rejectedUserOps.some(
+                ({ reason }) =>
+                    reason.includes("AA25 invalid account nonce") ||
+                    reason.includes("AA10 sender already constructed")
+            )
+
+            if (shouldCheckFrontrun) {
+                // Check each rejected userOp for frontrun
+                const frontrunResults = await Promise.all(
+                    rejectedUserOps.map(async (userOpInfo) => ({
+                        userOpInfo,
+                        wasFrontrun:
+                            await this.userOpMonitor.checkFrontrun(userOpInfo)
+                    }))
+                )
+
+                const hasFrontrun = frontrunResults.some(
+                    ({ wasFrontrun }) => wasFrontrun
+                )
+
+                // If one userOp in the bundle was frontrun, we need to cancel the entire bundle
+                // as it will fail onchain
+                if (hasFrontrun) {
+                    await this.cancelBundle(submittedBundle)
+                }
+
+                // Drop userOps that were rejected but not frontrun
+                const nonFrontrunUserOps = frontrunResults
+                    .filter(({ wasFrontrun }) => !wasFrontrun)
+                    .map(({ userOpInfo }) => userOpInfo)
+
+                await this.mempool.dropUserOps(entryPoint, nonFrontrunUserOps)
+            } else {
+                this.logger.warn(
+                    { oldTxHash, reason },
+                    "failed to replace transaction"
+                )
+
+                await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
+            }
+
             // Free wallet as no bundle was sent.
             await this.senderManager.markWalletProcessed(executor)
             this.userOpMonitor.stopTrackingBundle(submittedBundle)
-
-            const { rejectedUserOps, recoverableOps, reason } = bundleResult
-
-            this.logger.warn(
-                { oldTxHash, reason },
-                "failed to replace transaction"
-            )
-
-            // Drop rejected ops
-            await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
-
-            // Handle recoverable ops
-            if (recoverableOps.length) {
-                await this.mempool.resubmitUserOps({
-                    userOps: recoverableOps,
-                    entryPoint,
-                    reason
-                })
-            }
 
             this.metrics.replacedTransactions
                 .labels({ reason, status: "failed" })
