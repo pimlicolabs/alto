@@ -66,7 +66,7 @@ export const boostSendUserOperationHandler = createMethodHandler({
             rpcHandler.metrics.userOpsReceived
                 .labels({
                     status,
-                    type: !!userOp.eip7702Auth ? "7702" : "boost"
+                    type: userOp.eip7702Auth ? "7702" : "boost"
                 })
                 .inc()
         }

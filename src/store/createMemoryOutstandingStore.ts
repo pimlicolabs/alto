@@ -180,9 +180,18 @@ export class MemoryOutstanding implements OutstandingStore {
         const [nonceKey] = getNonceKeyAndSequence(userOp.nonce)
         const pendingOpsSlot = senderNonceSlot(userOp)
 
-        const backlogOps =
-            this.pendingOps.get(pendingOpsSlot) ||
-            this.pendingOps.set(pendingOpsSlot, []).get(pendingOpsSlot)!
+        const backlogOps = (() => {
+            if (this.pendingOps.has(pendingOpsSlot)) {
+                return this.pendingOps.get(pendingOpsSlot)
+            }
+
+            this.pendingOps.set(pendingOpsSlot, [])
+            return this.pendingOps.get(pendingOpsSlot)
+        })()
+
+        if (!backlogOps) {
+            throw new Error("FATAL: No pending operations found for userOpHash")
+        }
 
         // Note: the userOpInfo is always added to backlogOps, because we are pushing to a reference
         backlogOps.push(userOpInfo)

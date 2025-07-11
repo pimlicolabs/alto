@@ -1,4 +1,4 @@
-import crypto from "crypto"
+import crypto from "node:crypto"
 import type { GasPriceManager } from "@alto/handlers"
 import {
     type Address,

@@ -1,3 +1,4 @@
+import type { SenderManager } from "@alto/executor"
 import type { EventManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
@@ -20,9 +21,8 @@ import {
     getAddress
 } from "viem"
 import { entryPoint07Abi } from "viem/account-abstraction"
-import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
 import type { AltoConfig } from "../createConfig"
-import type { SenderManager } from "@alto/executor"
+import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
 import { getBundleStatus } from "./getBundleStatus"
 
 interface CachedReceipt {
@@ -80,7 +80,12 @@ export class UserOpMonitor {
     async processBlock(block: Block): Promise<SubmittedBundleInfo[]> {
         // Update the cached block number whenever we receive a new block.
         // block.number! as number is always defined due to coming from publicClient.watchBlocks
-        this.cachedLatestBlock = { value: block.number!, timestamp: Date.now() }
+
+        if (block.number !== undefined) {
+            throw new Error("block.number is undefined")
+        }
+
+        this.cachedLatestBlock = { value: block.number, timestamp: Date.now() }
 
         // Refresh the statuses of all pending bundles.
         const pendingBundles = Array.from(this.pendingBundles.values())
