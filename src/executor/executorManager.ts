@@ -285,31 +285,33 @@ export class ExecutorManager {
             this.getBaseFee().catch(() => 0n)
         ])
 
-        for (const [index, receipt] of receipts.entries()) {
-            if (receipt.status === "included") {
-                await this.userOpMonitor.processIncludedBundle({
-                    submittedBundle: pendingBundles[index],
-                    bundleReceipt: receipt
-                })
-            }
+        await Promise.all(
+            receipts.map(async (receipt, index) => {
+                if (receipt.status === "included") {
+                    await this.userOpMonitor.processIncludedBundle({
+                        submittedBundle: pendingBundles[index],
+                        bundleReceipt: receipt
+                    })
+                }
 
-            if (receipt.status === "reverted") {
-                await this.userOpMonitor.processRevertedBundle({
-                    submittedBundle: pendingBundles[index],
-                    bundleReceipt: receipt,
-                    block
-                })
-            }
+                if (receipt.status === "reverted") {
+                    await this.userOpMonitor.processRevertedBundle({
+                        submittedBundle: pendingBundles[index],
+                        bundleReceipt: receipt,
+                        block
+                    })
+                }
 
-            // can be potentially resubmitted - so we first submit it again to optimize for the speed
-            if (receipt.status === "not_found") {
-                this.potentiallyResubmitBundle({
-                    submittedBundle: pendingBundles[index],
-                    networkGasPrice,
-                    networkBaseFee
-                })
-            }
-        }
+                // can be potentially resubmitted - so we first submit it again to optimize for the speed
+                if (receipt.status === "not_found") {
+                    this.potentiallyResubmitBundle({
+                        submittedBundle: pendingBundles[index],
+                        networkGasPrice,
+                        networkBaseFee
+                    })
+                }
+            })
+        )
 
         this.currentlyHandlingBlock = false
     }
