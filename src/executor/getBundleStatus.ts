@@ -21,13 +21,20 @@ export type BundleNotFound = {
     status: "not_found"
 }
 
-export type BundleStatus = BundleIncluded | BundleReverted | BundleNotFound
+export type BundleStatus<
+    status extends "included" | "reverted" | "not_found" =
+        | "included"
+        | "reverted"
+        | "not_found"
+> =
+    | (status extends "included" ? BundleIncluded : never)
+    | (status extends "reverted" ? BundleReverted : never)
+    | (status extends "not_found" ? BundleNotFound : never)
 
 // Return the status of the bundling transaction.
 export const getBundleStatus = async ({
     publicClient,
-    submittedBundle,
-    logger
+    submittedBundle
 }: {
     submittedBundle: SubmittedBundleInfo
     publicClient: PublicClient

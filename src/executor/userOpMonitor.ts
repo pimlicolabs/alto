@@ -23,7 +23,7 @@ import {
 import { entryPoint07Abi } from "viem/account-abstraction"
 import type { AltoConfig } from "../createConfig"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
-import { getBundleStatus } from "./getBundleStatus"
+import { type BundleStatus, getBundleStatus } from "./getBundleStatus"
 
 interface CachedReceipt {
     receipt: UserOperationReceipt
@@ -40,7 +40,7 @@ export class UserOpMonitor {
     private eventManager: EventManager
     private senderManager: SenderManager
     private cachedLatestBlock: { value: bigint; timestamp: number } | null
-    private pendingBundles: Map<Address, SubmittedBundleInfo> = new Map()
+    private pendingBundles: Map<string, SubmittedBundleInfo> = new Map()
     private receiptCache: Map<HexData32, CachedReceipt> = new Map()
     private readonly receiptTtl = 5 * 60 * 1000 // 5 minutes
 
@@ -77,95 +77,88 @@ export class UserOpMonitor {
         )
     }
 
-    async processBlock(block: Block): Promise<SubmittedBundleInfo[]> {
-        // Update the cached block number whenever we receive a new block.
-        // block.number! as number is always defined due to coming from publicClient.watchBlocks
+    getPendingBundles(): SubmittedBundleInfo[] {
+        return Array.from(this.pendingBundles.values())
+    }
 
-        this.cachedLatestBlock = {
-            value: block.number ?? 0n,
-            timestamp: Date.now()
-        }
-
-        // Refresh the statuses of all pending bundles.
-        const pendingBundles = Array.from(this.pendingBundles.values())
-        const refreshResults = await Promise.all(
-            pendingBundles.map(async (bundle) => {
-                const needsProcessing = await this.refreshBundleStatus(
-                    bundle,
-                    block
-                )
-                return needsProcessing ? bundle : null
+    getReceipts(
+        pendingBundles: SubmittedBundleInfo[]
+    ): Promise<BundleStatus[]> {
+        return Promise.all(
+            pendingBundles.map((bundle) => {
+                return getBundleStatus({
+                    submittedBundle: bundle,
+                    publicClient: this.config.publicClient,
+                    logger: this.logger
+                })
             })
-        )
-
-        // Return only bundles that still need processing
-        return refreshResults.filter(
-            (bundle): bundle is SubmittedBundleInfo => bundle !== null
         )
     }
 
-    async refreshBundleStatus(
-        submittedBundle: SubmittedBundleInfo,
+    async processIncludedBundle({
+        submittedBundle,
+        bundleReceipt
+    }: {
+        submittedBundle: SubmittedBundleInfo
+        bundleReceipt: BundleStatus<"included">
+    }) {
+        const { bundle } = submittedBundle
+        const { userOps, entryPoint } = bundle
+        const { transactionHash, blockNumber, userOpReceipts } = bundleReceipt
+
+        // Cleanup bundle
+        await this.freeSubmittedBundle(submittedBundle)
+
+        // Log metric
+        this.metrics.userOpsOnChain
+            .labels({ status: "included" })
+            .inc(userOps.length)
+
+        // Process each userOp
+        await Promise.all(
+            userOps.map(async (userOpInfo) => {
+                const userOpReceipt = userOpReceipts[userOpInfo.userOpHash]
+                if (!userOpReceipt) {
+                    throw new Error("userOpReceipt is undefined")
+                }
+
+                // Cache the receipt
+                this.cacheReceipt(userOpInfo.userOpHash, userOpReceipt)
+
+                await this.processIncludedUserOp(
+                    userOpInfo,
+                    userOpReceipt,
+                    transactionHash,
+                    blockNumber,
+                    entryPoint
+                )
+            })
+        )
+    }
+
+    /**
+     * The reasons for reverted bundles are:
+     * 1. complete bundle was frontrun -> cancel bundle -> need to wait for one more block to see if the userOp was frontrun
+     * 2. partial bundle was frontrun -> filter out non-frontrun userOps and resubmit -> need to wait for one more block to see if the userOp was frontrun
+     * 3. partial bundle was reverted -> filter out reverted userOps and resubmit
+     * 4. full bundle was reverted -> cancel bundle -> need to wait for one more block to see if the userOp was frontrun
+     */
+    async processRevertedBundle({
+        submittedBundle,
+        bundleReceipt,
+        block
+    }: {
+        submittedBundle: SubmittedBundleInfo
+        bundleReceipt: BundleStatus<"reverted">
         block: Block
-    ): Promise<boolean> {
-        const bundleReceipt = await getBundleStatus({
-            submittedBundle,
-            publicClient: this.config.publicClient,
-            logger: this.logger
-        })
+    }) {
+        const { bundle } = submittedBundle
+        const { blockNumber, transactionHash } = bundleReceipt
 
-        if (bundleReceipt.status === "included") {
-            const { bundle } = submittedBundle
-            const { userOps, entryPoint } = bundle
-            const { transactionHash, blockNumber, userOpReceipts } =
-                bundleReceipt
+        await this.freeSubmittedBundle(submittedBundle)
 
-            // Cleanup bundle
-            await this.freeSubmittedBundle(submittedBundle)
-
-            // Log metric
-            this.metrics.userOpsOnChain
-                .labels({ status: "included" })
-                .inc(userOps.length)
-
-            // Process each userOp
-            await Promise.all(
-                userOps.map(async (userOpInfo) => {
-                    const userOpReceipt = userOpReceipts[userOpInfo.userOpHash]
-                    if (!userOpReceipt) {
-                        throw new Error("userOpReceipt is undefined")
-                    }
-
-                    // Cache the receipt
-                    this.cacheReceipt(userOpInfo.userOpHash, userOpReceipt)
-
-                    await this.processIncludedUserOp(
-                        userOpInfo,
-                        userOpReceipt,
-                        transactionHash,
-                        blockNumber,
-                        entryPoint
-                    )
-                })
-            )
-
-            // Bundle was included, no further processing needed
-            return false
-        }
-
-        // Onchain Bundle reverts should only occur in rare cases:
-        // 1. The bundle was frontran
-        // 2. A userOp in the bundle failed a EntryPoint check (AA revert)
-        //
-        // In these cases, we need to find which userOps can be resubmitted
-        // and mark all failed userOps as frontran or reverted onchain.
-        if (bundleReceipt.status === "reverted") {
-            const { bundle } = submittedBundle
-            const { blockNumber, transactionHash } = bundleReceipt
-
-            // Cleanup bundle and free executor
-            await this.freeSubmittedBundle(submittedBundle)
-
+        // make rest of the code non-blocking
+        return (async () => {
             // Find userOps that can be resubmitted
             const filterOpsResult = await filterOpsAndEstimateGas({
                 userOpBundle: bundle,
@@ -189,50 +182,41 @@ export class UserOpMonitor {
 
             // Fire and forget
             // Check if any rejected userOps were frontruns, if not mark as reverted onchain.
-            Promise.all(
-                rejectedUserOps.map(async (userOpInfo) => {
-                    const wasFrontrun = await this.checkFrontrun(userOpInfo)
+            rejectedUserOps.map(async (userOpInfo) => {
+                const wasFrontrun = await this.checkFrontrun(userOpInfo)
 
-                    if (!wasFrontrun) {
-                        const { userOpHash } = userOpInfo
+                if (!wasFrontrun) {
+                    const { userOpHash } = userOpInfo
 
-                        await this.monitor.setUserOpStatus(userOpHash, {
-                            status: "failed",
-                            transactionHash
-                        })
+                    await this.monitor.setUserOpStatus(userOpHash, {
+                        status: "failed",
+                        transactionHash
+                    })
 
-                        this.eventManager.emitFailedOnChain(
+                    this.eventManager.emitFailedOnChain(
+                        userOpHash,
+                        transactionHash,
+                        blockNumber
+                    )
+
+                    this.logger.info(
+                        {
                             userOpHash,
-                            transactionHash,
-                            blockNumber
-                        )
+                            transactionHash
+                        },
+                        "user op failed onchain"
+                    )
 
-                        this.logger.info(
-                            {
-                                userOpHash,
-                                transactionHash
-                            },
-                            "user op failed onchain"
-                        )
-
-                        this.metrics.userOpsOnChain
-                            .labels({ status: "reverted" })
-                            .inc(1)
-                    }
-                })
-            )
-
-            // Bundle was reverted, no further processing needed
-            return false
-        }
-
-        // Bundle is still pending, needs further processing
-        return true
+                    this.metrics.userOpsOnChain
+                        .labels({ status: "reverted" })
+                        .inc(1)
+                }
+            })
+        })()
     }
 
     public trackBundle(submittedBundle: SubmittedBundleInfo) {
-        const executor = submittedBundle.executor.address
-        this.pendingBundles.set(executor, submittedBundle)
+        this.pendingBundles.set(submittedBundle.uid, submittedBundle)
     }
 
     // Helpers //
@@ -283,7 +267,7 @@ export class UserOpMonitor {
         const { executor, bundle } = submittedBundle
         const { userOps, entryPoint } = bundle
 
-        this.pendingBundles.delete(executor.address)
+        this.stopTrackingBundle(submittedBundle)
         await this.senderManager.markWalletProcessed(executor)
         await this.mempool.removeSubmittedUserOps({ entryPoint, userOps })
     }
@@ -346,7 +330,10 @@ export class UserOpMonitor {
         )
     }
 
-    async checkFrontrun(userOpInfo: UserOpInfo): Promise<boolean> {
+    async checkFrontrun(
+        userOpInfo: UserOpInfo,
+        checkCount = 0
+    ): Promise<boolean> {
         const { userOpHash } = userOpInfo
 
         // Try to find userOp onchain
@@ -381,7 +368,16 @@ export class UserOpMonitor {
 
                 return true
             }
-            return false
+
+            if (checkCount !== 0) {
+                return false
+            }
+
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    resolve(this.checkFrontrun(userOpInfo, checkCount + 1))
+                }, this.config.publicClient.chain.blockTime ?? 1_000)
+            })
         } catch (error) {
             this.logger.error(
                 {

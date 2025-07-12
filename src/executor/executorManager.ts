@@ -132,8 +132,7 @@ export class ExecutorManager {
                 this.logger.error({ error }, "error while watching blocks")
             },
             includeTransactions: false,
-            emitMissed: false,
-            pollingInterval: this.config.pollingInterval
+            emitMissed: false
         })
 
         this.logger.debug("started watching blocks")
@@ -228,6 +227,7 @@ export class ExecutorManager {
         }))
 
         const submittedBundle: SubmittedBundleInfo = {
+            uid: transactionHash,
             executor: wallet,
             transactionHash,
             transactionRequest,
@@ -263,86 +263,13 @@ export class ExecutorManager {
         }
     }
 
-    async cancelBundle(submittedBundle: SubmittedBundleInfo): Promise<void> {
-        const {
-            bundle: { userOps },
-            executor,
-            transactionRequest,
-            transactionHash
-        } = submittedBundle
-
-        const { walletClient, publicClient, pollingInterval } = this.config
-        const logger = this.logger.child({
-            userOps: getUserOpHashes(userOps)
-        })
-
-        let gasMultiplier = 150n // Start with 50% increase
-
-        for (let attempt = 0; attempt < 5; attempt++) {
-            try {
-                // Check if transaction is still pending
-                const currentNonce = await publicClient.getTransactionCount({
-                    address: executor.address,
-                    blockTag: "latest"
-                })
-
-                if (currentNonce > transactionRequest.nonce) {
-                    logger.info("Transaction already mined or cancelled")
-                    return
-                }
-
-                logger.info(`Trying to cancel bundle, attempt ${attempt + 1}`)
-
-                // Send cancel transaction with increasing gas price
-                const cancelTxHash = await walletClient.sendTransaction({
-                    account: executor,
-                    to: executor.address,
-                    value: 0n,
-                    nonce: transactionRequest.nonce,
-                    maxFeePerGas: scaleBigIntByPercent(
-                        transactionRequest.maxFeePerGas,
-                        gasMultiplier
-                    ),
-                    maxPriorityFeePerGas: scaleBigIntByPercent(
-                        transactionRequest.maxPriorityFeePerGas,
-                        gasMultiplier
-                    )
-                })
-
-                logger.info(
-                    {
-                        originalTxHash: transactionHash,
-                        cancelTxHash,
-                        attempt: attempt + 1
-                    },
-                    "cancel transaction sent"
-                )
-
-                // Wait for transaction to potentially be mined
-                await new Promise((resolve) =>
-                    setTimeout(resolve, pollingInterval)
-                )
-            } catch (err) {
-                logger.warn({ error: err }, "failed to cancel bundle")
-                gasMultiplier += 20n // Increase gas by additional 20% each retry
-            }
-        }
-
-        // All retries exhausted
-        logger.error(
-            { transactionHash },
-            "failed to cancel bundle after max retries"
-        )
-    }
-
     private async handleBlock(block: Block) {
         if (this.currentlyHandlingBlock) {
             return
         }
         this.currentlyHandlingBlock = true
 
-        // Process the block and get the results
-        const pendingBundles = await this.userOpMonitor.processBlock(block)
+        const pendingBundles = this.userOpMonitor.getPendingBundles()
 
         if (pendingBundles.length === 0) {
             this.stopWatchingBlocks()
@@ -350,8 +277,8 @@ export class ExecutorManager {
             return
         }
 
-        // for all still not included check if needs to be replaced (based on gas price)
-        const [networkGasPrice, networkBaseFee] = await Promise.all([
+        const [receipts, networkGasPrice, networkBaseFee] = await Promise.all([
+            this.userOpMonitor.getReceipts(pendingBundles),
             this.gasPriceManager.tryGetNetworkGasPrice().catch(() => ({
                 maxFeePerGas: 0n,
                 maxPriorityFeePerGas: 0n
@@ -359,38 +286,74 @@ export class ExecutorManager {
             this.getBaseFee().catch(() => 0n)
         ])
 
-        await Promise.all(
-            pendingBundles.map(async (submittedBundle) => {
-                const { transactionRequest, lastReplaced } = submittedBundle
-                const { maxFeePerGas, maxPriorityFeePerGas } =
-                    transactionRequest
+        for (const [index, receipt] of receipts.entries()) {
+            if (receipt.status === "included") {
+                await this.userOpMonitor.processIncludedBundle({
+                    submittedBundle: pendingBundles[index],
+                    bundleReceipt: receipt
+                })
+            }
 
-                const isGasPriceTooLow =
-                    maxFeePerGas < networkGasPrice.maxFeePerGas ||
-                    maxPriorityFeePerGas < networkGasPrice.maxPriorityFeePerGas
+            if (receipt.status === "reverted") {
+                await this.userOpMonitor.processRevertedBundle({
+                    submittedBundle: pendingBundles[index],
+                    bundleReceipt: receipt,
+                    block
+                })
+            }
 
-                const isStuck =
-                    Date.now() - lastReplaced > this.config.resubmitStuckTimeout
-
-                if (isGasPriceTooLow) {
-                    await this.replaceTransaction({
-                        submittedBundle,
-                        networkGasPrice,
-                        networkBaseFee,
-                        reason: "gas_price"
-                    })
-                } else if (isStuck) {
-                    await this.replaceTransaction({
-                        submittedBundle,
-                        networkGasPrice,
-                        networkBaseFee,
-                        reason: "stuck"
-                    })
-                }
-            })
-        )
+            // can be potentially resubmitted - so we first submit it again to optimize for the speed
+            if (receipt.status === "not_found") {
+                this.potentiallyResubmitBundle({
+                    submittedBundle: pendingBundles[index],
+                    networkGasPrice,
+                    networkBaseFee
+                })
+            }
+        }
 
         this.currentlyHandlingBlock = false
+    }
+
+    potentiallyResubmitBundle({
+        submittedBundle,
+        networkGasPrice,
+        networkBaseFee
+    }: {
+        submittedBundle: SubmittedBundleInfo
+        networkGasPrice: {
+            maxFeePerGas: bigint
+            maxPriorityFeePerGas: bigint
+        }
+        networkBaseFee: bigint
+    }) {
+        const { transactionRequest, lastReplaced } = submittedBundle
+        const { maxFeePerGas, maxPriorityFeePerGas } = transactionRequest
+
+        const isGasPriceTooLow =
+            maxFeePerGas < networkGasPrice.maxFeePerGas ||
+            maxPriorityFeePerGas < networkGasPrice.maxPriorityFeePerGas
+
+        const isStuck =
+            Date.now() - lastReplaced > this.config.resubmitStuckTimeout
+
+        if (isGasPriceTooLow) {
+            this.userOpMonitor.stopTrackingBundle(submittedBundle)
+            this.replaceTransaction({
+                submittedBundle,
+                networkGasPrice,
+                networkBaseFee,
+                reason: "gas_price"
+            })
+        } else if (isStuck) {
+            this.userOpMonitor.stopTrackingBundle(submittedBundle)
+            this.replaceTransaction({
+                submittedBundle,
+                networkGasPrice,
+                networkBaseFee,
+                reason: "stuck"
+            })
+        }
     }
 
     async replaceTransaction({
@@ -449,16 +412,6 @@ export class ExecutorManager {
                     }))
                 )
 
-                const hasFrontrun = frontrunResults.some(
-                    ({ wasFrontrun }) => wasFrontrun
-                )
-
-                // If one userOp in the bundle was frontrun, we need to cancel the entire bundle
-                // as it will fail onchain
-                if (hasFrontrun) {
-                    await this.cancelBundle(submittedBundle)
-                }
-
                 // Drop userOps that were rejected but not frontrun
                 const nonFrontrunUserOps = frontrunResults
                     .filter(({ wasFrontrun }) => !wasFrontrun)
@@ -476,7 +429,6 @@ export class ExecutorManager {
 
             // Free wallet as no bundle was sent.
             await this.senderManager.markWalletProcessed(executor)
-            this.userOpMonitor.stopTrackingBundle(submittedBundle)
 
             this.metrics.replacedTransactions
                 .labels({ reason, status: "failed" })
@@ -515,7 +467,6 @@ export class ExecutorManager {
             }
         }
 
-        // Replace existing submitted bundle with new one
         this.userOpMonitor.trackBundle(newTxInfo)
 
         // Drop all userOperations that were rejected during simulation.
