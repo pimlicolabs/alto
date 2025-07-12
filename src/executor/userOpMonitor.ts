@@ -115,8 +115,9 @@ export class UserOpMonitor {
             .inc(userOps.length)
 
         // Process each userOp
-        await Promise.all(
-            userOps.map(async (userOpInfo) => {
+        // rest of the code is non-blocking
+        return (async () => {
+            for (const userOpInfo of userOps) {
                 const userOpReceipt = userOpReceipts[userOpInfo.userOpHash]
                 if (!userOpReceipt) {
                     throw new Error("userOpReceipt is undefined")
@@ -132,8 +133,8 @@ export class UserOpMonitor {
                     blockNumber,
                     entryPoint
                 )
-            })
-        )
+            }
+        })()
     }
 
     /**

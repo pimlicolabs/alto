@@ -6,12 +6,13 @@ import type {
     UserOperationBundle
 } from "@alto/types"
 import type { GasPriceParameters } from "@alto/types"
-import type { Logger, Metrics } from "@alto/utils"
+import { type Logger, type Metrics, scaleBigIntByPercent } from "@alto/utils"
 import type { Block, Hex, WatchBlocksReturnType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { Executor } from "./executor"
 import type { SenderManager } from "./senderManager"
 import type { UserOpMonitor } from "./userOpMonitor"
+import { getUserOpHashes } from "./utils"
 
 const SCALE_FACTOR = 10 // Interval increases by 10ms per task per minute
 const RPM_WINDOW = 60000 // 1 minute window in ms
@@ -354,6 +355,78 @@ export class ExecutorManager {
         }
     }
 
+    async cancelBundle(submittedBundle: SubmittedBundleInfo): Promise<void> {
+        const {
+            bundle: { userOps },
+            executor,
+            transactionRequest,
+            transactionHash
+        } = submittedBundle
+
+        const { walletClient, publicClient, blockTime } = this.config
+        const logger = this.logger.child({
+            userOps: getUserOpHashes(userOps)
+        })
+
+        let gasMultiplier = 150n // Start with 50% increase
+
+        for (let attempt = 0; attempt < 5; attempt++) {
+            try {
+                // Check if transaction is still pending
+                const currentNonce = await publicClient.getTransactionCount({
+                    address: executor.address,
+                    blockTag: "latest"
+                })
+
+                if (currentNonce > transactionRequest.nonce) {
+                    logger.info("Transaction already mined or cancelled")
+                    return
+                }
+
+                logger.info(`Trying to cancel bundle, attempt ${attempt + 1}`)
+
+                // Send cancel transaction with increasing gas price
+                const cancelTxHash = await walletClient.sendTransaction({
+                    account: executor,
+                    to: executor.address,
+                    value: 0n,
+                    nonce: transactionRequest.nonce,
+                    maxFeePerGas: scaleBigIntByPercent(
+                        transactionRequest.maxFeePerGas,
+                        gasMultiplier
+                    ),
+                    maxPriorityFeePerGas: scaleBigIntByPercent(
+                        transactionRequest.maxPriorityFeePerGas,
+                        gasMultiplier
+                    )
+                })
+
+                logger.info(
+                    {
+                        originalTxHash: transactionHash,
+                        cancelTxHash,
+                        attempt: attempt + 1
+                    },
+                    "cancel transaction sent"
+                )
+
+                // Wait for transaction to potentially be mined
+                await new Promise((resolve) =>
+                    setTimeout(resolve, blockTime / 2)
+                )
+            } catch (err) {
+                logger.warn({ error: err }, "failed to cancel bundle")
+                gasMultiplier += 20n // Increase gas by additional 20% each retry
+            }
+        }
+
+        // All retries exhausted
+        logger.error(
+            { transactionHash },
+            "failed to cancel bundle after max retries"
+        )
+    }
+
     async replaceTransaction({
         submittedBundle,
         networkGasPrice,
@@ -409,6 +482,16 @@ export class ExecutorManager {
                             await this.userOpMonitor.checkFrontrun(userOpInfo)
                     }))
                 )
+
+                const hasFrontrun = frontrunResults.some(
+                    ({ wasFrontrun }) => wasFrontrun
+                )
+
+                // If one userOp in the bundle was frontrun, we need to cancel the entire bundle
+                // as it will fail onchain
+                if (hasFrontrun) {
+                    await this.cancelBundle(submittedBundle)
+                }
 
                 // Drop userOps that were rejected but not frontrun
                 const nonFrontrunUserOps = frontrunResults
