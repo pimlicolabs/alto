@@ -568,8 +568,8 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         type: "string",
         require: false
     },
-    "polling-interval": {
-        description: "Polling interval for querying for new blocks (ms)",
+    "block-time": {
+        description: "Block time for the chain (ms)",
         type: "number",
         require: true,
         default: 1000

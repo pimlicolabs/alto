@@ -6,8 +6,7 @@ import type {
     UserOperationBundle
 } from "@alto/types"
 import type { GasPriceParameters } from "@alto/types"
-import type { Logger, Metrics } from "@alto/utils"
-import { scaleBigIntByPercent } from "@alto/utils"
+import { type Logger, type Metrics, scaleBigIntByPercent } from "@alto/utils"
 import type { Block, Hex, WatchBlocksReturnType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { Executor } from "./executor"
@@ -98,7 +97,7 @@ export class ExecutorManager {
                 (sum, bundle) => sum + bundle.userOps.length,
                 0
             )
-            this.opsCount.push(...Array(totalOps).fill(Date.now()))
+            this.opsCount.push(...new Array(totalOps).fill(Date.now()))
         }
 
         // Send bundles to executor
@@ -132,8 +131,7 @@ export class ExecutorManager {
                 this.logger.error({ error }, "error while watching blocks")
             },
             includeTransactions: false,
-            emitMissed: false,
-            pollingInterval: this.config.pollingInterval
+            emitMissed: false
         })
 
         this.logger.debug("started watching blocks")
@@ -198,7 +196,7 @@ export class ExecutorManager {
                 .inc(rejectedUserOps.length)
 
             // Handle recoverable ops
-            if (recoverableOps.length) {
+            if (recoverableOps.length > 0) {
                 await this.mempool.resubmitUserOps({
                     userOps: recoverableOps,
                     entryPoint,
@@ -228,6 +226,7 @@ export class ExecutorManager {
         }))
 
         const submittedBundle: SubmittedBundleInfo = {
+            uid: transactionHash,
             executor: wallet,
             transactionHash,
             transactionRequest,
@@ -263,6 +262,101 @@ export class ExecutorManager {
         }
     }
 
+    private async handleBlock(block: Block) {
+        if (this.currentlyHandlingBlock) {
+            return
+        }
+        this.currentlyHandlingBlock = true
+
+        const pendingBundles = this.userOpMonitor.getPendingBundles()
+
+        if (pendingBundles.length === 0) {
+            this.stopWatchingBlocks()
+            this.currentlyHandlingBlock = false
+            return
+        }
+
+        const [receipts, networkGasPrice, networkBaseFee] = await Promise.all([
+            this.userOpMonitor.getReceipts(pendingBundles),
+            this.gasPriceManager.tryGetNetworkGasPrice().catch(() => ({
+                maxFeePerGas: 0n,
+                maxPriorityFeePerGas: 0n
+            })),
+            this.getBaseFee().catch(() => 0n)
+        ])
+
+        await Promise.all(
+            receipts.map(async (receipt, index) => {
+                if (receipt.status === "included") {
+                    await this.userOpMonitor.processIncludedBundle({
+                        submittedBundle: pendingBundles[index],
+                        bundleReceipt: receipt
+                    })
+                }
+
+                if (receipt.status === "reverted") {
+                    await this.userOpMonitor.processRevertedBundle({
+                        submittedBundle: pendingBundles[index],
+                        bundleReceipt: receipt,
+                        block
+                    })
+                }
+
+                // can be potentially resubmitted - so we first submit it again to optimize for the speed
+                if (receipt.status === "not_found") {
+                    this.potentiallyResubmitBundle({
+                        submittedBundle: pendingBundles[index],
+                        networkGasPrice,
+                        networkBaseFee
+                    })
+                }
+            })
+        )
+
+        this.currentlyHandlingBlock = false
+    }
+
+    potentiallyResubmitBundle({
+        submittedBundle,
+        networkGasPrice,
+        networkBaseFee
+    }: {
+        submittedBundle: SubmittedBundleInfo
+        networkGasPrice: {
+            maxFeePerGas: bigint
+            maxPriorityFeePerGas: bigint
+        }
+        networkBaseFee: bigint
+    }) {
+        const { transactionRequest, lastReplaced } = submittedBundle
+        const { maxFeePerGas, maxPriorityFeePerGas } = transactionRequest
+
+        const isGasPriceTooLow =
+            maxFeePerGas < networkGasPrice.maxFeePerGas ||
+            maxPriorityFeePerGas < networkGasPrice.maxPriorityFeePerGas
+
+        const isStuck =
+            Date.now() - lastReplaced > this.config.resubmitStuckTimeout
+
+        if (isGasPriceTooLow) {
+            this.userOpMonitor.stopTrackingBundle(submittedBundle)
+            this.replaceTransaction({
+                submittedBundle,
+                networkGasPrice,
+                networkBaseFee,
+                reason: "gas_price"
+            })
+        } else if (isStuck) {
+            this.userOpMonitor.stopTrackingBundle(submittedBundle)
+            this.replaceTransaction({
+                submittedBundle,
+                networkGasPrice,
+                networkBaseFee,
+                reason: "stuck"
+            })
+        }
+    }
+
     async cancelBundle(submittedBundle: SubmittedBundleInfo): Promise<void> {
         const {
             bundle: { userOps },
@@ -271,7 +365,7 @@ export class ExecutorManager {
             transactionHash
         } = submittedBundle
 
-        const { walletClient, publicClient, pollingInterval } = this.config
+        const { walletClient, publicClient, blockTime } = this.config
         const logger = this.logger.child({
             userOps: getUserOpHashes(userOps)
         })
@@ -320,7 +414,7 @@ export class ExecutorManager {
 
                 // Wait for transaction to potentially be mined
                 await new Promise((resolve) =>
-                    setTimeout(resolve, pollingInterval)
+                    setTimeout(resolve, blockTime / 2)
                 )
             } catch (err) {
                 logger.warn({ error: err }, "failed to cancel bundle")
@@ -333,64 +427,6 @@ export class ExecutorManager {
             { transactionHash },
             "failed to cancel bundle after max retries"
         )
-    }
-
-    private async handleBlock(block: Block) {
-        if (this.currentlyHandlingBlock) {
-            return
-        }
-        this.currentlyHandlingBlock = true
-
-        // Process the block and get the results
-        const pendingBundles = await this.userOpMonitor.processBlock(block)
-
-        if (pendingBundles.length === 0) {
-            this.stopWatchingBlocks()
-            this.currentlyHandlingBlock = false
-            return
-        }
-
-        // for all still not included check if needs to be replaced (based on gas price)
-        const [networkGasPrice, networkBaseFee] = await Promise.all([
-            this.gasPriceManager.tryGetNetworkGasPrice().catch(() => ({
-                maxFeePerGas: 0n,
-                maxPriorityFeePerGas: 0n
-            })),
-            this.getBaseFee().catch(() => 0n)
-        ])
-
-        await Promise.all(
-            pendingBundles.map(async (submittedBundle) => {
-                const { transactionRequest, lastReplaced } = submittedBundle
-                const { maxFeePerGas, maxPriorityFeePerGas } =
-                    transactionRequest
-
-                const isGasPriceTooLow =
-                    maxFeePerGas < networkGasPrice.maxFeePerGas ||
-                    maxPriorityFeePerGas < networkGasPrice.maxPriorityFeePerGas
-
-                const isStuck =
-                    Date.now() - lastReplaced > this.config.resubmitStuckTimeout
-
-                if (isGasPriceTooLow) {
-                    await this.replaceTransaction({
-                        submittedBundle,
-                        networkGasPrice,
-                        networkBaseFee,
-                        reason: "gas_price"
-                    })
-                } else if (isStuck) {
-                    await this.replaceTransaction({
-                        submittedBundle,
-                        networkGasPrice,
-                        networkBaseFee,
-                        reason: "stuck"
-                    })
-                }
-            })
-        )
-
-        this.currentlyHandlingBlock = false
     }
 
     async replaceTransaction({
@@ -476,7 +512,6 @@ export class ExecutorManager {
 
             // Free wallet as no bundle was sent.
             await this.senderManager.markWalletProcessed(executor)
-            this.userOpMonitor.stopTrackingBundle(submittedBundle)
 
             this.metrics.replacedTransactions
                 .labels({ reason, status: "failed" })
@@ -515,7 +550,6 @@ export class ExecutorManager {
             }
         }
 
-        // Replace existing submitted bundle with new one
         this.userOpMonitor.trackBundle(newTxInfo)
 
         // Drop all userOperations that were rejected during simulation.
