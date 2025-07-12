@@ -275,8 +275,7 @@ export class UserOpMonitor {
 
     // Stop tracking bundle in event resubmit fails
     public stopTrackingBundle(submittedBundle: SubmittedBundleInfo) {
-        const { executor } = submittedBundle
-        this.pendingBundles.delete(executor.address)
+        this.pendingBundles.delete(submittedBundle.uid)
     }
 
     private async processIncludedUserOp(
