@@ -86,12 +86,19 @@ const preFlightChecks = async (config: AltoConfig): Promise<void> => {
     }
 }
 
-const getViemChain = (chainId: number, blockTime: number) => {
+const getViemChain = ({
+    chainId,
+    args
+}: { chainId: number; args: ReturnType<typeof parseArgs> }) => {
     for (const chain of Object.values(chains)) {
         if (chain.id === chainId) {
             return {
                 ...chain,
-                blockTime: chain.blockTime ?? blockTime
+                blockTime: chain.blockTime ?? args.blockTime,
+                rpcUrls: {
+                    default: { http: [args.rpcUrl] },
+                    public: { http: [args.rpcUrl] }
+                }
             }
         }
     }
@@ -121,7 +128,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     const chainId = await getChainId()
 
     // let us assume that the block time is at least 2x the polling interval
-    const viemChain = getViemChain(chainId, args.blockTime)
+    const viemChain = getViemChain({ chainId, args })
 
     const chain: Chain = viemChain ?? {
         id: chainId,
