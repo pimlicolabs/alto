@@ -131,7 +131,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
             symbol: "ETH",
             decimals: 18
         },
-        blockTime: 1_000, // let's assume 1 second block time for now for non standard chains
+        blockTime: args.blockTime,
         rpcUrls: {
             default: { http: [args.rpcUrl] },
             public: { http: [args.rpcUrl] }
