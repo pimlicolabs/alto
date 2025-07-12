@@ -7,13 +7,11 @@ import type {
 } from "@alto/types"
 import type { GasPriceParameters } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
-import { scaleBigIntByPercent } from "@alto/utils"
 import type { Block, Hex, WatchBlocksReturnType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { Executor } from "./executor"
 import type { SenderManager } from "./senderManager"
 import type { UserOpMonitor } from "./userOpMonitor"
-import { getUserOpHashes } from "./utils"
 
 const SCALE_FACTOR = 10 // Interval increases by 10ms per task per minute
 const RPM_WINDOW = 60000 // 1 minute window in ms
