@@ -375,7 +375,7 @@ describe.each([
             expect(result.length).toBe(0) // No changes reported when no addresses monitored
         })
 
-        test.only("should handle invalid user operation", async () => {
+        test("should handle invalid user operation", async () => {
             // Create an invalid user operation with insufficient gas
             const userOp = await smartAccountClient.prepareUserOperation({
                 calls: [
