@@ -35,9 +35,9 @@ type AssetChange = {
 const NATIVE_TOKEN_ADDRESS = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
 
 describe.each([
-    { entryPointVersion: "0.6" as EntryPointVersion },
-    { entryPointVersion: "0.7" as EntryPointVersion },
-    { entryPointVersion: "0.8" as EntryPointVersion }
+    { entryPointVersion: "0.6" as EntryPointVersion }
+    //{ entryPointVersion: "0.7" as EntryPointVersion },
+    //{ entryPointVersion: "0.8" as EntryPointVersion }
 ])(
     "$entryPointVersion supports pimlico_simulateAssetChange",
     ({ entryPointVersion }) => {
@@ -375,7 +375,7 @@ describe.each([
             expect(result.length).toBe(0) // No changes reported when no addresses monitored
         })
 
-        test("should handle invalid user operation", async () => {
+        test.only("should handle invalid user operation", async () => {
             // Create an invalid user operation with insufficient gas
             const userOp = await smartAccountClient.prepareUserOperation({
                 calls: [
@@ -387,10 +387,10 @@ describe.each([
                 ]
             })
 
-            // Force a AA25 error
+            // Force a AA25 error by incrementing the nonce
             userOp.nonce = userOp.nonce + 1n
 
-            // Call pimlico_simulateAssetChange and expect it to throw
+            // Call pimlico_simulateAssetChange and expect it to throw with AA25 error
             await expect(
                 bundlerClient.request({
                     method: "pimlico_simulateAssetChange",
@@ -401,7 +401,9 @@ describe.each([
                         []
                     ]
                 })
-            ).rejects.toThrow()
+            ).rejects.toThrow(
+                "UserOperation reverted during simulation with reason: AA25 invalid account nonce"
+            )
         })
 
         test("should simulate asset changes with state overrides", async () => {

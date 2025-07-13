@@ -5,7 +5,8 @@ import {
     type UserOperationV07,
     ValidationErrors,
     pimlicoSimulateAssetChangeSchema,
-    pimlicoSimulationsAbi
+    pimlicoSimulationsAbi,
+    ExecutionErrors
 } from "@alto/types"
 import {
     isVersion06,
@@ -13,9 +14,10 @@ import {
     isVersion08,
     toPackedUserOp
 } from "@alto/utils"
-import { type Address, type Hex, getContract, encodeFunctionData } from "viem"
+import { type Address, type Hex, getContract } from "viem"
 import { createMethodHandler } from "../createMethodHandler"
 import {
+    decodeSimulateHandleOpError,
     prepareSimulationOverrides06,
     prepareSimulationOverrides07,
     simulationErrors
@@ -139,21 +141,20 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                 diff: Number(diff)
             }))
         } catch (error) {
-            logger.error({ err: error }, "Error simulating asset changes")
+            const decodedError = decodeSimulateHandleOpError(error, logger)
+
+            if (decodedError.result === "failed") {
+                throw new RpcError(
+                    `UserOperation reverted during simulation with reason: ${decodedError.data}`,
+                    ExecutionErrors.UserOperationReverted
+                )
+            }
+
+            logger.warn("Failed to decode simulation error")
+
             throw new RpcError(
-                `DEBUG Force Throw: ${pimlicoSimulation.address} ${encodeFunctionData(
-                    {
-                        abi: pimlicoSimulationsAbi,
-                        functionName: "simulateAssetChange06",
-                        args: [
-                            userOp as UserOperationV06,
-                            entryPoint,
-                            addresses,
-                            tokens
-                        ]
-                    }
-                )}`,
-                ValidationErrors.SimulateValidation
+                "Failed to decode simulation error",
+                ValidationErrors.InvalidFields
             )
         }
     }
