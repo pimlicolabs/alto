@@ -6,10 +6,11 @@ import type {
 import { ValidationErrors, executionResultSchema } from "@alto/types"
 import {
     type Logger,
-    getAuthorizationStateOverrides,
-    deepHexlify
+    deepHexlify,
+    getAuthorizationStateOverrides
 } from "@alto/utils"
 import {
+    type Address,
     BaseError,
     ContractFunctionExecutionError,
     ContractFunctionRevertedError,
@@ -17,20 +18,19 @@ import {
     type StateOverride,
     decodeErrorResult,
     getAbiItem,
-    parseAbi,
-    Address,
     keccak256,
+    parseAbi,
     toHex
 } from "viem"
 import { entryPoint06Abi } from "viem/account-abstraction"
-import type { AltoConfig } from "../../createConfig"
-import { toViemStateOverrides } from "../../utils/toViemStateOverrides"
-import type { SimulateHandleOpResult } from "../estimation/types"
-import { GasPriceManager } from "../../handlers/gasPriceManager"
-import { getSenderCreatorOverride } from "../../utils/entryPointOverrides"
 import entryPointOverride from "../../contracts/EntryPointGasEstimationOverride.sol/EntryPointGasEstimationOverride06.json" with {
     type: "json"
 }
+import type { AltoConfig } from "../../createConfig"
+import type { GasPriceManager } from "../../handlers/gasPriceManager"
+import { getSenderCreatorOverride } from "../../utils/entryPointOverrides"
+import { toViemStateOverrides } from "../../utils/toViemStateOverrides"
+import type { SimulateHandleOpResult } from "../estimation/types"
 
 export function parseFailedOpWithRevert(data: Hex) {
     try {
@@ -268,7 +268,7 @@ export async function prepareSimulationOverrides06({
     useCodeOverride: boolean
     config: Pick<AltoConfig, "codeOverrideSupport" | "balanceOverride">
 }): Promise<StateOverride | undefined> {
-    let mergedStateOverrides = { ...userStateOverrides }
+    const mergedStateOverrides = { ...userStateOverrides }
 
     // EntryPoint simulation v0.6 code specific overrides
     if (config.codeOverrideSupport && useCodeOverride) {
@@ -308,7 +308,7 @@ export async function prepareSimulationOverrides07({
     userStateOverrides?: StateOverrides
     config: Pick<AltoConfig, "codeOverrideSupport" | "balanceOverride">
 }): Promise<StateOverride | undefined> {
-    let mergedStateOverrides = { ...userStateOverrides }
+    const mergedStateOverrides = { ...userStateOverrides }
 
     // Add baseFee override for v0.7 EntryPoint simulations
     if (config.codeOverrideSupport) {

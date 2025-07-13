@@ -1,32 +1,29 @@
-import { type SmartAccountClient } from "permissionless"
+import type { SmartAccountClient } from "permissionless"
 import {
+    http,
     type Address,
     type Chain,
     type Hex,
     type Transport,
     createClient,
-    http,
-    parseEther,
     encodeFunctionData,
-    erc20Abi
+    erc20Abi,
+    parseEther
 } from "viem"
+import type { EntryPointVersion, SmartAccount } from "viem/account-abstraction"
 import { generatePrivateKey } from "viem/accounts"
-import { beforeAll, beforeEach, describe, expect, test, inject } from "vitest"
+import { beforeAll, beforeEach, describe, expect, inject, test } from "vitest"
+import {
+    deployErc20Token,
+    erc20Address,
+    sudoMintTokens
+} from "../src/utils/erc20-utils.ts"
 import {
     beforeEachCleanUp,
     getAnvilWalletClient,
     getPublicClient,
     getSmartAccountClient
 } from "../src/utils/index.js"
-import {
-    type EntryPointVersion,
-    type SmartAccount
-} from "viem/account-abstraction"
-import {
-    deployErc20Token,
-    sudoMintTokens,
-    erc20Address
-} from "../src/utils/erc20-utils.ts"
 
 type AssetChange = {
     owner: Hex
@@ -432,7 +429,7 @@ describe.each([
         test("should simulate asset changes with state overrides", async () => {
             const recipient = "0x1234567890123456789012345678901234567890"
             const transferAmount = parseEther("0.1")
-            
+
             // State override to give the recipient some ETH balance
             const recipientInitialBalance = parseEther("5")
             const stateOverrides = {
@@ -476,7 +473,7 @@ describe.each([
             expect(recipientChange!.token).toBe(
                 "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
             )
-            
+
             // Recipient should receive the transfer amount
             // (state override balance doesn't affect the diff calculation)
             expect(BigInt(recipientChange!.diff)).toBe(transferAmount)

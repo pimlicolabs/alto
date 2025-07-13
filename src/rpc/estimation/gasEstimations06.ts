@@ -1,5 +1,5 @@
 import type { StateOverrides, UserOperationV06 } from "@alto/types"
-import { type Logger } from "@alto/utils"
+import type { Logger } from "@alto/utils"
 import type { Hex } from "viem"
 import { type Address, getContract } from "viem"
 import { entryPoint06Abi } from "viem/account-abstraction"
