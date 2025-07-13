@@ -14,10 +14,12 @@ import {
     isVersion08,
     toPackedUserOp
 } from "@alto/utils"
-import { type Address, getContract, type Hex, keccak256, toHex } from "viem"
-import { prepareStateOverride } from "../estimation/utils"
-import { simulationErrors } from "../estimation/utils"
-import { toViemStateOverrides } from "../../utils/toViemStateOverrides"
+import { type Address, getContract, type Hex, toHex } from "viem"
+import { 
+    prepareSimulationOverrides06,
+    prepareSimulationOverrides07,
+    simulationErrors 
+} from "../estimation/utils"
 
 export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
     method: "pimlico_simulateAssetChange",
@@ -25,7 +27,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
     handler: async ({ rpcHandler, params }) => {
         const [userOp, entryPoint, addresses, tokens, stateOverrides] = params
 
-        const childLogger = rpcHandler.logger.child({
+        const logger = rpcHandler.logger.child({
             entryPoint,
             addresses,
             tokens
@@ -33,17 +35,21 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
 
         // Check if pimlico simulation contract is configured
         if (!rpcHandler.config.pimlicoSimulationContract) {
-            childLogger.warn("pimlicoSimulation must be provided")
+            logger.warn("pimlicoSimulation must be provided")
             throw new RpcError(
                 "pimlicoSimulation must be provided",
                 ValidationErrors.InvalidFields
             )
         }
 
-        // Determine version and get appropriate entrypoint simulations address
-        const is06 = isVersion06(userOp as UserOperation)
         const is07 = isVersion07(userOp as UserOperation)
         const is08 = isVersion08(userOp as UserOperation, entryPoint)
+
+        const pimlicoSimulation = getContract({
+            abi: [...pimlicoSimulationsAbi, ...simulationErrors],
+            address: rpcHandler.config.pimlicoSimulationContract,
+            client: rpcHandler.config.publicClient
+        })
 
         let epSimulationsAddress: Address | undefined
         if (is08) {
@@ -54,63 +60,25 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                 rpcHandler.config.entrypointSimulationContractV7
         }
 
-        // v0.6 doesn't need entryPointSimulations address
-        if (!is06 && !epSimulationsAddress) {
-            const version = is08 ? "08" : "07"
-            const errorMsg = `Cannot find entryPointSimulations Address for version ${version}`
-            childLogger.warn(errorMsg)
-            throw new Error(errorMsg)
-        }
-
-        // Get pimlico simulation contract
-        const pimlicoSimulation = getContract({
-            abi: [...pimlicoSimulationsAbi, ...simulationErrors],
-            address: rpcHandler.config.pimlicoSimulationContract,
-            client: rpcHandler.config.publicClient
-        })
-
-        // Prepare state override
-        let stateOverride =
-            prepareStateOverride({
-                userOps: [userOp],
-                queuedUserOps: [],
+        // Prepare state override based on version
+        let stateOverride
+        if (isVersion06(userOp)) {
+            stateOverride = await prepareSimulationOverrides06({
+                userOp: userOp as UserOperationV06,
+                entryPoint,
+                userStateOverrides: stateOverrides,
+                useCodeOverride: true,
                 config: rpcHandler.config
-            }) ?? []
-
-        // Merge user-provided state overrides if any
-        if (stateOverrides) {
-            const userStateOverrides = toViemStateOverrides(stateOverrides)
-            stateOverride = {
-                ...stateOverride,
-                ...userStateOverrides
-            }
-        }
-
-        // Add baseFee override for v0.7 EntryPoint simulations
-        if (
-            is07 &&
-            epSimulationsAddress &&
-            rpcHandler.config.codeOverrideSupport
-        ) {
-            const baseFee = await rpcHandler.gasPriceManager
-                .getBaseFee()
-                .catch(() => 0n)
-            if (baseFee > 0n) {
-                const slot = keccak256(toHex("BLOCK_BASE_FEE_PER_GAS"))
-                const value = toHex(baseFee, { size: 32 })
-
-                stateOverride = {
-                    ...stateOverride,
-                    [epSimulationsAddress]: {
-                        ...(stateOverride as any)[epSimulationsAddress],
-                        stateDiff: {
-                            ...(stateOverride as any)[epSimulationsAddress]
-                                ?.stateDiff,
-                            [slot]: value
-                        }
-                    }
-                }
-            }
+            })
+        } else if (is07 || is08) {
+            stateOverride = await prepareSimulationOverrides07({
+                userOp: userOp as UserOperationV07,
+                queuedUserOps: [],
+                epSimulationsAddress: epSimulationsAddress!,
+                gasPriceManager: rpcHandler.gasPriceManager,
+                userStateOverrides: stateOverrides,
+                config: rpcHandler.config
+            })
         }
 
         try {
@@ -175,7 +143,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                 diff: toHex(diff)
             }))
         } catch (error) {
-            childLogger.error({ err: error }, "Error simulating asset changes")
+            logger.error({ err: error }, "Error simulating asset changes")
             throw new RpcError(
                 "Failed to simulate asset changes",
                 ValidationErrors.SimulateValidation
