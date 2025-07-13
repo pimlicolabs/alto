@@ -128,14 +128,14 @@ describe.each([
             expect(senderChange).toBeDefined()
             expect(recipientChange).toBeDefined()
 
-            expect(senderChange!.token).toBe(NATIVE_TOKEN_ADDRESS)
-            expect(recipientChange!.token).toBe(NATIVE_TOKEN_ADDRESS)
+            expect(senderChange?.token).toBe(NATIVE_TOKEN_ADDRESS)
+            expect(recipientChange?.token).toBe(NATIVE_TOKEN_ADDRESS)
 
             // Sender should have negative change (including gas fees)
-            expect(senderChange!.diff).toBeLessThan(-Number(transferAmount))
+            expect(senderChange?.diff).toBeLessThan(-Number(transferAmount))
 
             // Recipient should have positive change
-            expect(recipientChange!.diff).toBe(Number(transferAmount))
+            expect(recipientChange?.diff).toBe(Number(transferAmount))
         })
 
         test("should simulate asset changes for ERC20 transfer", async () => {
@@ -183,10 +183,10 @@ describe.each([
 
             expect(senderErc20Change).toBeDefined()
             expect(recipientErc20Change).toBeDefined()
-            expect(senderErc20Change!.token).toBe(erc20Address)
-            expect(recipientErc20Change!.token).toBe(erc20Address)
-            expect(senderErc20Change!.diff).toBe(-Number(transferAmount))
-            expect(recipientErc20Change!.diff).toBe(Number(transferAmount))
+            expect(senderErc20Change?.token).toBe(erc20Address)
+            expect(recipientErc20Change?.token).toBe(erc20Address)
+            expect(senderErc20Change?.diff).toBe(-Number(transferAmount))
+            expect(recipientErc20Change?.diff).toBe(Number(transferAmount))
         })
 
         test("should simulate asset changes for ETH and ERC20 tranfers", async () => {
@@ -251,14 +251,14 @@ describe.each([
                         r.token === NATIVE_TOKEN_ADDRESS
                 )
                 expect(recipient1EthChange).toBeDefined()
-                expect(recipient1EthChange!.diff).toBe(Number(ethAmount))
+                expect(recipient1EthChange?.diff).toBe(Number(ethAmount))
 
                 // Verify recipient2 received tokens
                 const recipient2TokenChange = result.find(
                     (r) => r.owner === recipient2 && r.token === erc20Address
                 )
                 expect(recipient2TokenChange).toBeDefined()
-                expect(recipient2TokenChange!.diff).toBe(Number(tokenAmount))
+                expect(recipient2TokenChange?.diff).toBe(Number(tokenAmount))
 
                 // Verify sender's ERC20 change (sent tokens)
                 const senderErc20Change = result.find(
@@ -267,7 +267,7 @@ describe.each([
                         r.token === erc20Address
                 )
                 expect(senderErc20Change).toBeDefined()
-                expect(senderErc20Change!.diff).toBe(-Number(tokenAmount))
+                expect(senderErc20Change?.diff).toBe(-Number(tokenAmount))
 
                 // Verify sender's ETH change (sent ETH + gas fees)
                 const senderEthChange = result.find(
@@ -276,7 +276,7 @@ describe.each([
                         r.token === NATIVE_TOKEN_ADDRESS
                 )
                 expect(senderEthChange).toBeDefined()
-                expect(senderEthChange!.diff).toBeLessThan(-Number(ethAmount)) // Should be more negative than just ethAmount due to gas
+                expect(senderEthChange?.diff).toBeLessThan(-Number(ethAmount)) // Should be more negative than just ethAmount due to gas
             } else {
                 // SimpleAccount 0.6 does not support sending ETH when calling executeBatch
                 // Source: https://github.com/eth-infinitism/account-abstraction/blob/fa6129/contracts/samples/SimpleAccount.sol#L62-L71
@@ -292,7 +292,7 @@ describe.each([
                     (r) => r.owner === recipient2 && r.token === erc20Address
                 )
                 expect(recipient2TokenChange).toBeDefined()
-                expect(recipient2TokenChange!.diff).toBe(Number(tokenAmount))
+                expect(recipient2TokenChange?.diff).toBe(Number(tokenAmount))
 
                 // Verify sender's ERC20 change (sent tokens)
                 const senderErc20Change = result.find(
@@ -301,7 +301,7 @@ describe.each([
                         r.token === erc20Address
                 )
                 expect(senderErc20Change).toBeDefined()
-                expect(senderErc20Change!.diff).toBe(-Number(tokenAmount))
+                expect(senderErc20Change?.diff).toBe(-Number(tokenAmount))
 
                 // Verify sender's ETH change (only gas fees, no ETH transfer)
                 const senderEthChange = result.find(
@@ -310,7 +310,7 @@ describe.each([
                         r.token === NATIVE_TOKEN_ADDRESS
                 )
                 expect(senderEthChange).toBeDefined()
-                expect(senderEthChange!.diff).toBeLessThan(0) // Only gas fees
+                expect(senderEthChange?.diff).toBeLessThan(0) // Only gas fees
             }
         })
 
@@ -460,15 +460,15 @@ describe.each([
             )
 
             expect(recipientChange).toBeDefined()
-            expect(recipientChange!.token).toBe(NATIVE_TOKEN_ADDRESS)
+            expect(recipientChange?.token).toBe(NATIVE_TOKEN_ADDRESS)
             expect(senderChange).toBeDefined()
-            expect(senderChange!.token).toBe(NATIVE_TOKEN_ADDRESS)
+            expect(senderChange?.token).toBe(NATIVE_TOKEN_ADDRESS)
 
             // Recipient should receive the transfer amount
             // (state override balance doesn't affect the diff calculation)
-            expect(recipientChange!.diff).toBe(Number(transferAmount))
+            expect(recipientChange?.diff).toBe(Number(transferAmount))
             // Sender should have negative change (transfer + gas)
-            expect(senderChange!.diff).toBeLessThan(-Number(transferAmount))
+            expect(senderChange?.diff).toBeLessThan(-Number(transferAmount))
         })
     }
 )
