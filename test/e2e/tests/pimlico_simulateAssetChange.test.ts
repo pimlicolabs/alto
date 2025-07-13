@@ -8,7 +8,8 @@ import {
     createClient,
     encodeFunctionData,
     erc20Abi,
-    parseEther
+    parseEther,
+    toHex
 } from "viem"
 import type { EntryPointVersion, SmartAccount } from "viem/account-abstraction"
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
@@ -34,7 +35,7 @@ type AssetChange = {
 const NATIVE_TOKEN_ADDRESS = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
 
 describe.each([
-    //{ entryPointVersion: "0.6" as EntryPointVersion },
+    { entryPointVersion: "0.6" as EntryPointVersion },
     { entryPointVersion: "0.7" as EntryPointVersion },
     { entryPointVersion: "0.8" as EntryPointVersion }
 ])(
@@ -75,12 +76,6 @@ describe.each([
             })
 
             await deployErc20Token(anvilClient, publicClient)
-
-            // Fund the smart account with some ETH
-            await anvilClient.sendTransaction({
-                to: smartAccountClient.account.address,
-                value: parseEther("1")
-            })
 
             // Mint some tokens to the smart account
             await sudoMintTokens({
@@ -126,13 +121,9 @@ describe.each([
 
             // Find the changes for sender and recipient
             const senderChange = result.find(
-                (r) =>
-                    r.owner.toLowerCase() ===
-                    smartAccountClient.account.address.toLowerCase()
+                (r) => r.owner === smartAccountClient.account.address
             )
-            const recipientChange = result.find(
-                (r) => r.owner.toLowerCase() === recipient.toLowerCase()
-            )
+            const recipientChange = result.find((r) => r.owner === recipient)
 
             expect(senderChange).toBeDefined()
             expect(recipientChange).toBeDefined()
@@ -184,22 +175,16 @@ describe.each([
             expect(result.length).toBe(2)
 
             const senderErc20Change = result.find(
-                (r) =>
-                    r.owner.toLowerCase() ===
-                    smartAccountClient.account.address.toLowerCase()
+                (r) => r.owner === smartAccountClient.account.address
             )
             const recipientErc20Change = result.find(
-                (r) => r.owner.toLowerCase() === recipient.toLowerCase()
+                (r) => r.owner === recipient
             )
 
             expect(senderErc20Change).toBeDefined()
             expect(recipientErc20Change).toBeDefined()
-            expect(senderErc20Change!.token.toLowerCase()).toBe(
-                erc20Address.toLowerCase()
-            )
-            expect(recipientErc20Change!.token.toLowerCase()).toBe(
-                erc20Address.toLowerCase()
-            )
+            expect(senderErc20Change!.token).toBe(erc20Address)
+            expect(recipientErc20Change!.token).toBe(erc20Address)
             expect(senderErc20Change!.diff).toBe(-Number(transferAmount))
             expect(recipientErc20Change!.diff).toBe(Number(transferAmount))
         })
@@ -256,45 +241,77 @@ describe.each([
             // 2. Recipient1 ETH change (received ETH)
             // 3. Sender ERC20 change (sent tokens)
             // 4. Recipient2 ERC20 change (received tokens)
-            expect(nonZeroChanges.length).toBe(4)
+            if (entryPointVersion !== "0.6") {
+                expect(nonZeroChanges.length).toBe(4)
 
-            // Verify recipient1 received ETH
-            const recipient1EthChange = result.find(
-                (r) =>
-                    r.owner.toLowerCase() === recipient1.toLowerCase() &&
-                    r.token === NATIVE_TOKEN_ADDRESS
-            )
-            expect(recipient1EthChange).toBeDefined()
-            expect(recipient1EthChange!.diff).toBe(Number(ethAmount))
+                // Verify recipient1 received ETH
+                const recipient1EthChange = result.find(
+                    (r) =>
+                        r.owner === recipient1 &&
+                        r.token === NATIVE_TOKEN_ADDRESS
+                )
+                expect(recipient1EthChange).toBeDefined()
+                expect(recipient1EthChange!.diff).toBe(Number(ethAmount))
 
-            // Verify recipient2 received tokens
-            const recipient2TokenChange = result.find(
-                (r) =>
-                    r.owner.toLowerCase() === recipient2.toLowerCase() &&
-                    r.token.toLowerCase() === erc20Address.toLowerCase()
-            )
-            expect(recipient2TokenChange).toBeDefined()
-            expect(recipient2TokenChange!.diff).toBe(Number(tokenAmount))
+                // Verify recipient2 received tokens
+                const recipient2TokenChange = result.find(
+                    (r) => r.owner === recipient2 && r.token === erc20Address
+                )
+                expect(recipient2TokenChange).toBeDefined()
+                expect(recipient2TokenChange!.diff).toBe(Number(tokenAmount))
 
-            // Verify sender's ERC20 change (sent tokens)
-            const senderErc20Change = result.find(
-                (r) =>
-                    r.owner.toLowerCase() ===
-                        smartAccountClient.account.address.toLowerCase() &&
-                    r.token.toLowerCase() === erc20Address.toLowerCase()
-            )
-            expect(senderErc20Change).toBeDefined()
-            expect(senderErc20Change!.diff).toBe(-Number(tokenAmount))
+                // Verify sender's ERC20 change (sent tokens)
+                const senderErc20Change = result.find(
+                    (r) =>
+                        r.owner === smartAccountClient.account.address &&
+                        r.token === erc20Address
+                )
+                expect(senderErc20Change).toBeDefined()
+                expect(senderErc20Change!.diff).toBe(-Number(tokenAmount))
 
-            // Verify sender's ETH change (sent ETH + gas fees)
-            const senderEthChange = result.find(
-                (r) =>
-                    r.owner.toLowerCase() ===
-                        smartAccountClient.account.address.toLowerCase() &&
-                    r.token === NATIVE_TOKEN_ADDRESS
-            )
-            expect(senderEthChange).toBeDefined()
-            expect(senderEthChange!.diff).toBeLessThan(-Number(ethAmount)) // Should be more negative than just ethAmount due to gas
+                // Verify sender's ETH change (sent ETH + gas fees)
+                const senderEthChange = result.find(
+                    (r) =>
+                        r.owner === smartAccountClient.account.address &&
+                        r.token === NATIVE_TOKEN_ADDRESS
+                )
+                expect(senderEthChange).toBeDefined()
+                expect(senderEthChange!.diff).toBeLessThan(-Number(ethAmount)) // Should be more negative than just ethAmount due to gas
+            } else {
+                // SimpleAccount 0.6 does not support sending ETH when calling executeBatch
+                // Source: https://github.com/eth-infinitism/account-abstraction/blob/fa6129/contracts/samples/SimpleAccount.sol#L62-L71
+                //
+                // Should have 3 non-zero changes:
+                // 1. Sender ETH change (gas)
+                // 2. Sender ERC20 change (sent tokens)
+                // 3. Recipient2 ERC20 change (received tokens)
+                expect(nonZeroChanges.length).toBe(3)
+
+                // Verify recipient2 received tokens
+                const recipient2TokenChange = result.find(
+                    (r) => r.owner === recipient2 && r.token === erc20Address
+                )
+                expect(recipient2TokenChange).toBeDefined()
+                expect(recipient2TokenChange!.diff).toBe(Number(tokenAmount))
+
+                // Verify sender's ERC20 change (sent tokens)
+                const senderErc20Change = result.find(
+                    (r) =>
+                        r.owner === smartAccountClient.account.address &&
+                        r.token === erc20Address
+                )
+                expect(senderErc20Change).toBeDefined()
+                expect(senderErc20Change!.diff).toBe(-Number(tokenAmount))
+
+                // Verify sender's ETH change (only gas fees, no ETH transfer)
+                const senderEthChange = result.find(
+                    (r) =>
+                        r.owner === smartAccountClient.account.address &&
+                        r.token === NATIVE_TOKEN_ADDRESS
+                )
+                expect(senderEthChange).toBeDefined()
+                expect(senderEthChange!.diff).toBeLessThan(0) // Only gas fees
+            }
         })
 
         test("should return empty array when tracking no tokens", async () => {
@@ -370,9 +387,8 @@ describe.each([
                 ]
             })
 
-            // Set gas limits to 0 to make it invalid
-            userOp.verificationGasLimit = 0n
-            userOp.callGasLimit = 0n
+            // Force a AA25 error
+            userOp.nonce = userOp.nonce + 1n
 
             // Call pimlico_simulateAssetChange and expect it to throw
             await expect(
@@ -392,8 +408,17 @@ describe.each([
             const recipient = privateKeyToAddress(generatePrivateKey())
             const transferAmount = parseEther("0.1")
 
+            // Create local smart account client with no ETH balance.
+            const smartAccountClient = await getSmartAccountClient({
+                entryPointVersion,
+                privateKey: owner,
+                anvilRpc,
+                altoRpc,
+                fundAccount: false
+            })
+
             // State override to give the recipient some ETH balance
-            const recipientInitialBalance = parseEther("5")
+            const recipientInitialBalance = toHex(parseEther("5"), { size: 32 })
             const stateOverrides = {
                 [recipient]: {
                     balance: recipientInitialBalance
@@ -427,13 +452,9 @@ describe.each([
             expect(Array.isArray(result)).toBe(true)
 
             // Find the changes for sender and recipient
-            const recipientChange = result.find(
-                (r) => r.owner.toLowerCase() === recipient.toLowerCase()
-            )
+            const recipientChange = result.find((r) => r.owner === recipient)
             const senderChange = result.find(
-                (r) =>
-                    r.owner.toLowerCase() ===
-                    smartAccountClient.account.address.toLowerCase()
+                (r) => r.owner === smartAccountClient.account.address
             )
 
             expect(recipientChange).toBeDefined()

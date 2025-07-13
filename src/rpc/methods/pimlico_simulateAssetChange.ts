@@ -13,7 +13,7 @@ import {
     isVersion08,
     toPackedUserOp
 } from "@alto/utils"
-import { type Address, type Hex, getContract, toHex } from "viem"
+import { type Address, type Hex, getContract, encodeFunctionData } from "viem"
 import { createMethodHandler } from "../createMethodHandler"
 import {
     prepareSimulationOverrides06,
@@ -96,8 +96,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                             tokens
                         ],
                         {
-                            stateOverride,
-                            gas: rpcHandler.config.fixedGasLimitForEstimation
+                            stateOverride
                         }
                     )
                 result = [...simResult]
@@ -113,8 +112,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                             tokens
                         ],
                         {
-                            stateOverride,
-                            gas: rpcHandler.config.fixedGasLimitForEstimation
+                            stateOverride
                         }
                     )
                 result = [...simResult]
@@ -129,8 +127,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                             tokens
                         ],
                         {
-                            stateOverride,
-                            gas: rpcHandler.config.fixedGasLimitForEstimation
+                            stateOverride
                         }
                     )
                 result = [...simResult]
@@ -144,7 +141,18 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
         } catch (error) {
             logger.error({ err: error }, "Error simulating asset changes")
             throw new RpcError(
-                `Failed to simulate asset changes due to ${error}`,
+                `DEBUG Force Throw: ${pimlicoSimulation.address} ${encodeFunctionData(
+                    {
+                        abi: pimlicoSimulationsAbi,
+                        functionName: "simulateAssetChange06",
+                        args: [
+                            userOp as UserOperationV06,
+                            entryPoint,
+                            addresses,
+                            tokens
+                        ]
+                    }
+                )}`,
                 ValidationErrors.SimulateValidation
             )
         }

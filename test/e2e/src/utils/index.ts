@@ -78,6 +78,7 @@ export type AAParamType = {
     anvilRpc: string
     altoRpc: string
     use7702?: boolean
+    fundAccount?: boolean
     privateKey?: Hex
 }
 
@@ -86,6 +87,7 @@ export const getSmartAccountClient = async ({
     anvilRpc,
     altoRpc,
     use7702 = false,
+    fundAccount = true,
     privateKey = generatePrivateKey()
 }: AAParamType): Promise<
     SmartAccountClient<Transport, Chain, SmartAccount>
@@ -125,16 +127,18 @@ export const getSmartAccountClient = async ({
         })
     }
 
-    const anvilClient = createTestClient({
-        transport: http(anvilRpc),
-        chain: foundry,
-        mode: "anvil"
-    })
+    if (fundAccount) {
+        const anvilClient = createTestClient({
+            transport: http(anvilRpc),
+            chain: foundry,
+            mode: "anvil"
+        })
 
-    await anvilClient.setBalance({
-        address: account.address,
-        value: parseEther("100")
-    })
+        await anvilClient.setBalance({
+            address: account.address,
+            value: parseEther("100")
+        })
+    }
 
     return createSmartAccountClient({
         pollingInterval: 100,
