@@ -1,28 +1,28 @@
 import { deepHexlify } from "permissionless"
 import {
     http,
+    type Address,
     type Hex,
     createPublicClient,
     parseEther,
-    parseGwei,
-    Address
+    parseGwei
 } from "viem"
 import {
+    type EntryPointVersion,
+    type UserOperation,
     entryPoint06Address,
     entryPoint07Address,
-    type UserOperation,
-    EntryPointVersion,
     entryPoint08Address
 } from "viem/account-abstraction"
 import { foundry } from "viem/chains"
 import { beforeEach, describe, expect, inject, test } from "vitest"
+import { deployPaymaster } from "../src/testPaymaster.js"
 import {
     beforeEachCleanUp,
     getSmartAccountClient,
     sendBundleNow,
     setBundlingMode
 } from "../src/utils/index.js"
-import { deployPaymaster } from "../src/testPaymaster.js"
 
 describe.each([
     {

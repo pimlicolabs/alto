@@ -1,11 +1,11 @@
 import {
     type PackedUserOperation,
     type UserOperation,
+    type UserOperationReceipt,
     type UserOperationV06,
     type UserOperationV07,
     logSchema,
-    receiptSchema,
-    type UserOperationReceipt
+    receiptSchema
 } from "@alto/types"
 import {
     type Address,
@@ -15,18 +15,18 @@ import {
     concat,
     decodeEventLog,
     encodeAbiParameters,
+    getAbiItem,
     getAddress,
     keccak256,
     pad,
     size,
     slice,
     toHex,
-    zeroAddress,
-    getAbiItem
+    zeroAddress
 } from "viem"
+import { entryPoint07Abi } from "viem/account-abstraction"
 import { z } from "zod"
 import { getAuthorizationStateOverrides } from "./helpers"
-import { entryPoint07Abi } from "viem/account-abstraction"
 
 // Type predicate check if the UserOperation is V06.
 export function isVersion06(
@@ -514,7 +514,7 @@ export function parseUserOpReceipt(
     receipt: TransactionReceipt
 ) {
     let entryPoint: Address = zeroAddress
-    let revertReason = undefined
+    let revertReason: Hex | undefined
     let userOpEventArgs:
         | {
               userOpHash: Hex
@@ -525,7 +525,7 @@ export function parseUserOpReceipt(
               actualGasCost: bigint
               actualGasUsed: bigint
           }
-        | undefined = undefined
+        | undefined
 
     let startIndex = -1
     let userOpEventIndex = -1
@@ -571,10 +571,9 @@ export function parseUserOpReceipt(
                     entryPoint = log.address
                     userOpEventArgs = args
                     break
-                } else {
-                    // Update startIndex to this UserOpEvent for the next UserOp's logs
-                    startIndex = index
                 }
+                // Update startIndex to this UserOpEvent for the next UserOp's logs
+                startIndex = index
             }
         } catch (e) {}
     }

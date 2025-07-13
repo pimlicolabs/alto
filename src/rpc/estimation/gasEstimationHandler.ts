@@ -1,13 +1,13 @@
+import type { GasPriceManager } from "@alto/handlers"
 import type { UserOperation } from "@alto/types"
 import type { StateOverrides, UserOperationV07 } from "@alto/types"
 import { isVersion06 } from "@alto/utils"
 import type { Hex } from "viem"
 import type { Address } from "viem"
+import type { AltoConfig } from "../../createConfig"
 import { GasEstimator06 } from "./gasEstimations06"
 import { GasEstimator07 } from "./gasEstimations07"
 import type { SimulateHandleOpResult } from "./types"
-import type { AltoConfig } from "../../createConfig"
-import type { GasPriceManager } from "@alto/handlers"
 
 export class GasEstimationHandler {
     gasEstimator06: GasEstimator06

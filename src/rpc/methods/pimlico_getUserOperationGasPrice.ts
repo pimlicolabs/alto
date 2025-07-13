@@ -1,6 +1,6 @@
+import { pimlicoGetUserOperationGasPriceSchema } from "@alto/types"
 import { scaleBigIntByPercent } from "../../utils/bigInt"
 import { createMethodHandler } from "../createMethodHandler"
-import { pimlicoGetUserOperationGasPriceSchema } from "@alto/types"
 
 export const pimlicoGetUserOperationGasPriceHandler = createMethodHandler({
     method: "pimlico_getUserOperationGasPrice",

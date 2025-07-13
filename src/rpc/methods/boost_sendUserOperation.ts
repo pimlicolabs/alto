@@ -1,11 +1,11 @@
+import { RpcError } from "@alto/types"
 import { isVersion06, isVersion07 } from "@alto/utils"
 import {
-    boostSendUserOperationSchema,
-    type UserOperation
+    type UserOperation,
+    boostSendUserOperationSchema
 } from "../../types/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 import { addToMempoolIfValid } from "./eth_sendUserOperation"
-import { RpcError } from "@alto/types"
 
 const validateUserOp = ({ userOp }: { userOp: UserOperation }) => {
     if (userOp.maxFeePerGas !== 0n || userOp.maxPriorityFeePerGas !== 0n) {
@@ -66,7 +66,7 @@ export const boostSendUserOperationHandler = createMethodHandler({
             rpcHandler.metrics.userOpsReceived
                 .labels({
                     status,
-                    type: !!userOp.eip7702Auth ? "7702" : "boost"
+                    type: userOp.eip7702Auth ? "7702" : "boost"
                 })
                 .inc()
         }

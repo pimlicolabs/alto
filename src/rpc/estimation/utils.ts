@@ -1,24 +1,24 @@
-import {
-    type Hex,
-    decodeErrorResult,
-    parseAbi,
-    type StateOverride,
-    BaseError,
-    ContractFunctionRevertedError,
-    ContractFunctionExecutionError,
-    getAbiItem
-} from "viem"
-import { getAuthorizationStateOverrides, type Logger } from "@alto/utils"
 import type {
     StateOverrides,
     UserOperationV06,
     UserOperationV07
 } from "@alto/types"
-import { toViemStateOverrides } from "../../utils/toViemStateOverrides"
-import type { AltoConfig } from "../../createConfig"
 import { ValidationErrors, executionResultSchema } from "@alto/types"
-import type { SimulateHandleOpResult } from "../estimation/types"
+import { type Logger, getAuthorizationStateOverrides } from "@alto/utils"
+import {
+    BaseError,
+    ContractFunctionExecutionError,
+    ContractFunctionRevertedError,
+    type Hex,
+    type StateOverride,
+    decodeErrorResult,
+    getAbiItem,
+    parseAbi
+} from "viem"
 import { entryPoint06Abi } from "viem/account-abstraction"
+import type { AltoConfig } from "../../createConfig"
+import { toViemStateOverrides } from "../../utils/toViemStateOverrides"
+import type { SimulateHandleOpResult } from "../estimation/types"
 
 export function parseFailedOpWithRevert(data: Hex) {
     try {
@@ -217,7 +217,7 @@ export function decodeSimulateHandleOpError(
             }
 
         // 0.6 handleOp reverts with ExecutionResult if successful
-        case "ExecutionResult":
+        case "ExecutionResult": {
             const parsedExecutionResult = executionResultSchema.parse(args)
             return {
                 result: "execution",
@@ -225,8 +225,9 @@ export function decodeSimulateHandleOpError(
                     executionResult: parsedExecutionResult
                 }
             }
+        }
 
-        default:
+        default: {
             logger.warn(
                 { errorName },
                 "Unknown ContractFunctionRevertedError name"
@@ -236,5 +237,6 @@ export function decodeSimulateHandleOpError(
                 data: "Unknown error, could not parse simulate validation result.",
                 code: ValidationErrors.SimulateValidation
             }
+        }
     }
 }

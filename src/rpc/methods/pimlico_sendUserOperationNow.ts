@@ -1,18 +1,18 @@
 import {
-    getUserOpHash,
-    isVersion07,
-    isVersion08,
-    parseUserOpReceipt
-} from "@alto/utils"
-import { createMethodHandler } from "../createMethodHandler"
-import {
     RpcError,
     type UserOpInfo,
     type UserOperationBundle,
     ValidationErrors,
     pimlicoSendUserOperationNowSchema
 } from "@alto/types"
-import { EntryPointVersion } from "viem/account-abstraction"
+import {
+    getUserOpHash,
+    isVersion07,
+    isVersion08,
+    parseUserOpReceipt
+} from "@alto/utils"
+import type { EntryPointVersion } from "viem/account-abstraction"
+import { createMethodHandler } from "../createMethodHandler"
 
 export const pimlicoSendUserOperationNowHandler = createMethodHandler({
     method: "pimlico_sendUserOperationNow",

@@ -12,10 +12,10 @@ import type { InterfaceValidator } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import type { Registry } from "prom-client"
 import type { AltoConfig } from "../createConfig"
-import { validateAndRefillWallets } from "../executor/senderManager/validateAndRefill"
 import { flushOnStartUp } from "../executor/senderManager/flushOnStartUp"
-import { createMempoolStore } from "../store/createMempoolStore"
+import { validateAndRefillWallets } from "../executor/senderManager/validateAndRefill"
 import { UserOpMonitor } from "../executor/userOpMonitor"
+import { createMempoolStore } from "../store/createMempoolStore"
 
 const getReputationManager = (
     config: AltoConfig
@@ -375,7 +375,7 @@ export const setupServer = async ({
     const signals = ["SIGINT", "SIGTERM"]
 
     // Handle regular termination signals
-    signals.forEach((signal) => {
+    for (const signal of signals) {
         process.on(signal, async () => {
             try {
                 await gracefulShutdown(signal)
@@ -387,7 +387,7 @@ export const setupServer = async ({
                 process.exit(1)
             }
         })
-    })
+    }
 
     // Handle unhandled rejections with the actual rejection reason
     process.on("unhandledRejection", async (err) => {
@@ -395,14 +395,14 @@ export const setupServer = async ({
             {
                 err
             },
-            `Unhandled Promise Rejection`
+            "Unhandled Promise Rejection"
         )
         try {
             await gracefulShutdown("unhandledRejection")
         } catch (err) {
             rootLogger.error(
                 { err },
-                `Error during unhandledRejection shutdown`
+                "Error during unhandledRejection shutdown"
             )
             process.exit(1)
         }
@@ -410,7 +410,7 @@ export const setupServer = async ({
 
     // Handle uncaught exceptions with the actual error
     process.on("uncaughtException", async (err) => {
-        rootLogger.error({ err }, `Uncaught Exception`)
+        rootLogger.error({ err }, "Uncaught Exception")
         try {
             await gracefulShutdown("uncaughtException")
         } catch (err) {
@@ -418,7 +418,7 @@ export const setupServer = async ({
                 {
                     err
                 },
-                `Error during uncaughtException shutdown`
+                "Error during uncaughtException shutdown"
             )
             process.exit(1)
         }

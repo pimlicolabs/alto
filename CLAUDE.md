@@ -215,6 +215,13 @@ async function functionName({
 - **Trailing Commas**: None
 - Run `pnpm run format` before committing
 
+### Utility Functions
+When working with BigInt calculations, use the utility functions from `@alto/utils`:
+- **scaleBigIntByPercent**: Scale a BigInt by a percentage (e.g., `scaleBigIntByPercent(value, 150n)` for 150%)
+- **minBigInt/maxBigInt**: Get min/max of two BigInts
+- **roundUpBigInt**: Round up to nearest multiple
+- Never use manual percentage calculations like `(value * 150n) / 100n`
+
 ### Performance Considerations
 - Batch operations when possible
 - Use efficient data structures

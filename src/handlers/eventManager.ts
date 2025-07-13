@@ -1,14 +1,14 @@
 import type { Logger, Metrics } from "@alto/utils"
 import * as sentry from "@sentry/node"
+import Queue, { type Queue as QueueType } from "bull"
 import Redis from "ioredis"
 import type { Hex } from "viem"
-import type { OpEventType } from "../types/schemas"
 import type { AltoConfig } from "../createConfig"
-import Queue, { type Queue as QueueType } from "bull"
-import { asyncCallWithTimeout, AsyncTimeoutError } from "../utils/asyncTimeout"
+import type { OpEventType } from "../types/schemas"
+import { AsyncTimeoutError, asyncCallWithTimeout } from "../utils/asyncTimeout"
 
 type QueueMessage = OpEventType & {
-    userOpHash: Hex
+    userOperationHash: Hex
     eventTimestamp: number
     chainId: number
 }
@@ -150,11 +150,7 @@ export class EventManager {
     }
 
     // emits when the userOperation failed to get added to the mempool
-    emitFailedValidation(
-        userOpHash: Hex,
-        reason?: string,
-        aaError?: string
-    ) {
+    emitFailedValidation(userOpHash: Hex, reason?: string, aaError?: string) {
         this.emitEvent({
             userOpHash,
             event: {
@@ -221,7 +217,7 @@ export class EventManager {
         }
 
         const entry = {
-            userOpHash,
+            userOperationHash: userOpHash,
             eventTimestamp: timestamp ?? Date.now(),
             chainId: this.chainId,
             ...event
@@ -231,8 +227,12 @@ export class EventManager {
     }
 
     private emitWithTimeout(entry: QueueMessage, eventType: string) {
+        if (!this.redisEventManagerQueue) {
+            return
+        }
+
         asyncCallWithTimeout(
-            this.redisEventManagerQueue!.add(entry, {
+            this.redisEventManagerQueue.add(entry, {
                 removeOnComplete: true,
                 removeOnFail: true
             }),
@@ -249,7 +249,7 @@ export class EventManager {
             .catch((err) => {
                 if (err instanceof AsyncTimeoutError) {
                     this.logger.warn(
-                        { userOpHash: entry.userOpHash, eventType },
+                        { userOpHash: entry.userOperationHash, eventType },
                         "Event emission timed out after 500ms"
                     )
                     this.metrics.emittedOpEvents

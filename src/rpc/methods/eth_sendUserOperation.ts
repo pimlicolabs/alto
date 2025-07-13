@@ -1,22 +1,22 @@
-import { getNonceKeyAndSequence, getUserOpHash } from "../../utils/userop"
-import { createMethodHandler } from "../createMethodHandler"
 import {
-    sendUserOperationSchema,
-    RpcError,
-    ValidationErrors,
-    type UserOperation,
     type Address,
     type ApiVersion,
-    ReferencedCodeHashes
+    type ReferencedCodeHashes,
+    RpcError,
+    type UserOperation,
+    ValidationErrors,
+    sendUserOperationSchema
 } from "@alto/types"
+import type * as validation from "@alto/types"
 import {
     calcExecutionPvgComponent,
     calcL2PvgComponent,
     getAAError
 } from "@alto/utils"
-import { RpcHandler } from "../rpcHandler"
-import type * as validation from "@alto/types"
-import { Hex } from "viem"
+import type { Hex } from "viem"
+import { getNonceKeyAndSequence, getUserOpHash } from "../../utils/userop"
+import { createMethodHandler } from "../createMethodHandler"
+import type { RpcHandler } from "../rpcHandler"
 
 const validatePvg = async (
     apiVersion: ApiVersion,
@@ -26,7 +26,7 @@ const validatePvg = async (
     boost = false
 ): Promise<[boolean, string]> => {
     // PVG validation is skipped for v1
-    if (apiVersion == "v1" || boost) {
+    if (apiVersion === "v1" || boost) {
         return [true, ""]
     }
 
@@ -248,7 +248,7 @@ export const ethSendUserOperationHandler = createMethodHandler({
             rpcHandler.metrics.userOpsReceived
                 .labels({
                     status,
-                    type: !!userOp.eip7702Auth ? "7702" : "regular"
+                    type: userOp.eip7702Auth ? "7702" : "regular"
                 })
                 .inc()
         }

@@ -1,21 +1,21 @@
+import { deepHexlify } from "permissionless"
+import { http, type Address, BaseError, type Hex, zeroAddress } from "viem"
 import {
-    EntryPointVersion,
-    UserOperation,
+    type EntryPointVersion,
+    type UserOperation,
     createBundlerClient,
     entryPoint06Address,
     entryPoint07Address,
     entryPoint08Address
 } from "viem/account-abstraction"
-import { beforeEach, describe, expect, inject, test } from "vitest"
-import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils/index.js"
-import {
-    getRevertCall,
-    deployRevertingContract
-} from "../src/revertingContract.js"
-import { type Address, BaseError, Hex, http, zeroAddress } from "viem"
-import { deepHexlify } from "permissionless"
-import { foundry } from "viem/chains"
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
+import { foundry } from "viem/chains"
+import { beforeEach, describe, expect, inject, test } from "vitest"
+import {
+    deployRevertingContract,
+    getRevertCall
+} from "../src/revertingContract.js"
+import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils/index.js"
 
 describe.each([
     {

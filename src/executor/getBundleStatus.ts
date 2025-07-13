@@ -1,7 +1,7 @@
-import { Logger } from "pino"
-import { Hex, PublicClient } from "viem"
-import { SubmittedBundleInfo } from "../types/mempool"
-import { UserOperationReceipt } from "@alto/types"
+import type { UserOperationReceipt } from "@alto/types"
+import type { Logger } from "pino"
+import type { Hex, PublicClient } from "viem"
+import type { SubmittedBundleInfo } from "../types/mempool"
 import { parseUserOpReceipt } from "../utils/userop"
 
 export type BundleIncluded = {
@@ -21,13 +21,20 @@ export type BundleNotFound = {
     status: "not_found"
 }
 
-export type BundleStatus = BundleIncluded | BundleReverted | BundleNotFound
+export type BundleStatus<
+    status extends "included" | "reverted" | "not_found" =
+        | "included"
+        | "reverted"
+        | "not_found"
+> =
+    | (status extends "included" ? BundleIncluded : never)
+    | (status extends "reverted" ? BundleReverted : never)
+    | (status extends "not_found" ? BundleNotFound : never)
 
 // Return the status of the bundling transaction.
 export const getBundleStatus = async ({
     publicClient,
-    submittedBundle,
-    logger
+    submittedBundle
 }: {
     submittedBundle: SubmittedBundleInfo
     publicClient: PublicClient
@@ -54,10 +61,7 @@ export const getBundleStatus = async ({
         const userOpDetails: Record<Hex, UserOperationReceipt> = {}
 
         for (const { userOpHash } of userOps) {
-            userOpDetails[userOpHash] = parseUserOpReceipt(
-                userOpHash,
-                included
-            )
+            userOpDetails[userOpHash] = parseUserOpReceipt(userOpHash, included)
         }
 
         return {

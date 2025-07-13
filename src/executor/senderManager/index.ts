@@ -1,7 +1,7 @@
-import { Account } from "viem"
-import { AltoConfig } from "../../createConfig"
+import type { Metrics } from "@alto/utils"
+import type { Account } from "viem"
+import type { AltoConfig } from "../../createConfig"
 import { createMemorySenderManager } from "./createMemorySenderManager"
-import { Metrics } from "@alto/utils"
 import { createRedisSenderManager } from "./createRedisSenderManager"
 
 export const getAvailableWallets = (config: AltoConfig) => {

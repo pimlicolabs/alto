@@ -1,13 +1,13 @@
-import { EntryPointVersion } from "viem/account-abstraction"
 import {
-    Address,
-    Hex,
-    StateOverride,
+    type Address,
+    type Hex,
+    type StateOverride,
     getCreateAddress,
     keccak256,
     pad,
     toHex
 } from "viem"
+import type { EntryPointVersion } from "viem/account-abstraction"
 
 import entryPointOverride06 from "../contracts/EntryPointFilterOpsOverride.sol/EntryPointFilterOpsOverride06.json" with {
     type: "json"

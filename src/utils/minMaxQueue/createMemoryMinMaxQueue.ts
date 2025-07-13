@@ -1,5 +1,5 @@
-import { MinMaxQueue } from "."
-import { AltoConfig } from "../../createConfig"
+import type { MinMaxQueue } from "."
+import type { AltoConfig } from "../../createConfig"
 
 type QueueEntry = { timestamp: number; value: bigint }
 
@@ -57,9 +57,9 @@ export const createMemoryMinMaxQueue = ({
     let latestValue: bigint | null = null
 
     return {
-        saveValue: async (value: bigint) => {
+        saveValue: (value: bigint) => {
             if (value === 0n) {
-                return
+                return Promise.resolve()
             }
 
             const result = updateQueues(
@@ -71,15 +71,20 @@ export const createMemoryMinMaxQueue = ({
             minDeque = result.minDeque
             maxDeque = result.maxDeque
             latestValue = value
+            return Promise.resolve()
         },
-        getLatestValue: async () => {
-            return latestValue
+        getLatestValue: () => {
+            return Promise.resolve(latestValue)
         },
-        getMinValue: async () => {
-            return minDeque.length ? minDeque[0].value : null
+        getMinValue: () => {
+            return Promise.resolve(
+                minDeque.length > 0 ? minDeque[0].value : null
+            )
         },
-        getMaxValue: async () => {
-            return maxDeque.length ? maxDeque[0].value : null
+        getMaxValue: () => {
+            return Promise.resolve(
+                maxDeque.length > 0 ? maxDeque[0].value : null
+            )
         }
     }
 }
