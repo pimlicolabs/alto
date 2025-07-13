@@ -136,16 +136,15 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                 result = [...simResult]
             }
 
-            // Convert bigint diffs to hex strings for RPC response
             return result.map(({ owner, token, diff }) => ({
                 owner: owner as Hex,
                 token: token as Hex,
-                diff: toHex(diff)
+                diff: Number(diff)
             }))
         } catch (error) {
             logger.error({ err: error }, "Error simulating asset changes")
             throw new RpcError(
-                "Failed to simulate asset changes",
+                `Failed to simulate asset changes due to ${error}`,
                 ValidationErrors.SimulateValidation
             )
         }

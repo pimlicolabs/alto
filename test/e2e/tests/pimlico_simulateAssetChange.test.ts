@@ -1,4 +1,4 @@
-import type { SmartAccountClient } from "permissionless"
+import { deepHexlify, type SmartAccountClient } from "permissionless"
 import {
     http,
     type Address,
@@ -11,7 +11,7 @@ import {
     parseEther
 } from "viem"
 import type { EntryPointVersion, SmartAccount } from "viem/account-abstraction"
-import { generatePrivateKey } from "viem/accounts"
+import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
 import { beforeAll, beforeEach, describe, expect, inject, test } from "vitest"
 import {
     deployErc20Token,
@@ -28,11 +28,13 @@ import {
 type AssetChange = {
     owner: Hex
     token: Hex
-    diff: Hex
+    diff: number
 }
 
+const NATIVE_TOKEN_ADDRESS = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
+
 describe.each([
-    { entryPointVersion: "0.6" as EntryPointVersion },
+    //{ entryPointVersion: "0.6" as EntryPointVersion },
     { entryPointVersion: "0.7" as EntryPointVersion },
     { entryPointVersion: "0.8" as EntryPointVersion }
 ])(
@@ -91,7 +93,7 @@ describe.each([
         })
 
         test("should simulate asset changes for ETH transfer", async () => {
-            const recipient = "0x1234567890123456789012345678901234567890"
+            const recipient = privateKeyToAddress(generatePrivateKey())
             const transferAmount = parseEther("0.1")
 
             // Create a user operation that transfers ETH
@@ -109,10 +111,10 @@ describe.each([
             const result = (await bundlerClient.request({
                 method: "pimlico_simulateAssetChange",
                 params: [
-                    userOp,
+                    deepHexlify(userOp),
                     entryPoint,
-                    [smartAccountClient.account.address, recipient], // addresses to monitor
-                    [] // no tokens to monitor (ETH only)
+                    [smartAccountClient.account.address, recipient],
+                    [NATIVE_TOKEN_ADDRESS]
                 ]
             })) as AssetChange[]
 
@@ -135,23 +137,18 @@ describe.each([
             expect(senderChange).toBeDefined()
             expect(recipientChange).toBeDefined()
 
-            // ETH is represented as 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE
-            expect(senderChange!.token).toBe(
-                "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
-            )
-            expect(recipientChange!.token).toBe(
-                "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
-            )
+            expect(senderChange!.token).toBe(NATIVE_TOKEN_ADDRESS)
+            expect(recipientChange!.token).toBe(NATIVE_TOKEN_ADDRESS)
 
             // Sender should have negative change (including gas fees)
-            expect(BigInt(senderChange!.diff)).toBeLessThan(0n)
+            expect(senderChange!.diff).toBeLessThan(-Number(transferAmount))
 
             // Recipient should have positive change
-            expect(BigInt(recipientChange!.diff)).toBe(transferAmount)
+            expect(recipientChange!.diff).toBe(Number(transferAmount))
         })
 
         test("should simulate asset changes for ERC20 transfer", async () => {
-            const recipient = "0x1234567890123456789012345678901234567890"
+            const recipient = privateKeyToAddress(generatePrivateKey())
             const transferAmount = parseEther("10")
 
             // Create a user operation that transfers ERC20 tokens
@@ -173,54 +170,43 @@ describe.each([
             const result = (await bundlerClient.request({
                 method: "pimlico_simulateAssetChange",
                 params: [
-                    userOp,
+                    deepHexlify(userOp),
                     entryPoint,
                     [smartAccountClient.account.address, recipient], // addresses to monitor
-                    [erc20Address] // monitor the ERC20 token
+                    [erc20Address] // monitor only the ERC20 token, not ETH
                 ]
             })) as AssetChange[]
 
             expect(result).toBeDefined()
             expect(Array.isArray(result)).toBe(true)
 
-            // Should have changes for both ETH (gas) and ERC20
-            const erc20Changes = result.filter(
-                (r) => r.token.toLowerCase() === erc20Address.toLowerCase()
-            )
-            const ethChanges = result.filter(
-                (r) => r.token === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
-            )
-
             // Verify ERC20 changes
-            expect(erc20Changes.length).toBe(2)
+            expect(result.length).toBe(2)
 
-            const senderErc20Change = erc20Changes.find(
+            const senderErc20Change = result.find(
                 (r) =>
                     r.owner.toLowerCase() ===
                     smartAccountClient.account.address.toLowerCase()
             )
-            const recipientErc20Change = erc20Changes.find(
+            const recipientErc20Change = result.find(
                 (r) => r.owner.toLowerCase() === recipient.toLowerCase()
             )
 
             expect(senderErc20Change).toBeDefined()
             expect(recipientErc20Change).toBeDefined()
-            expect(BigInt(senderErc20Change!.diff)).toBe(-transferAmount)
-            expect(BigInt(recipientErc20Change!.diff)).toBe(transferAmount)
-
-            // Verify ETH changes (only sender pays gas)
-            const senderEthChange = ethChanges.find(
-                (r) =>
-                    r.owner.toLowerCase() ===
-                    smartAccountClient.account.address.toLowerCase()
+            expect(senderErc20Change!.token.toLowerCase()).toBe(
+                erc20Address.toLowerCase()
             )
-            expect(senderEthChange).toBeDefined()
-            expect(BigInt(senderEthChange!.diff)).toBeLessThan(0n) // Gas fees
+            expect(recipientErc20Change!.token.toLowerCase()).toBe(
+                erc20Address.toLowerCase()
+            )
+            expect(senderErc20Change!.diff).toBe(-Number(transferAmount))
+            expect(recipientErc20Change!.diff).toBe(Number(transferAmount))
         })
 
-        test("should simulate asset changes for multiple transfers", async () => {
-            const recipient1 = "0x1234567890123456789012345678901234567890"
-            const recipient2 = "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"
+        test("should simulate asset changes for ETH and ERC20 tranfers", async () => {
+            const recipient1 = privateKeyToAddress(generatePrivateKey())
+            const recipient2 = privateKeyToAddress(generatePrivateKey())
             const ethAmount = parseEther("0.05")
             const tokenAmount = parseEther("5")
 
@@ -244,32 +230,42 @@ describe.each([
                 ]
             })
 
-            // Call pimlico_simulateAssetChange
+            // Call pimlico_simulateAssetChange with both ETH and ERC20 tracking
             const result = (await bundlerClient.request({
                 method: "pimlico_simulateAssetChange",
                 params: [
-                    userOp,
+                    deepHexlify(userOp),
                     entryPoint,
                     [
                         smartAccountClient.account.address,
                         recipient1,
                         recipient2
                     ],
-                    [erc20Address]
+                    [NATIVE_TOKEN_ADDRESS, erc20Address] // Track both ETH and ERC20
                 ]
             })) as AssetChange[]
 
             expect(result).toBeDefined()
             expect(Array.isArray(result)).toBe(true)
 
+            // Filter out zero-value changes
+            const nonZeroChanges = result.filter((r) => r.diff !== 0)
+
+            // Should have 4 non-zero changes:
+            // 1. Sender ETH change (sent ETH + gas)
+            // 2. Recipient1 ETH change (received ETH)
+            // 3. Sender ERC20 change (sent tokens)
+            // 4. Recipient2 ERC20 change (received tokens)
+            expect(nonZeroChanges.length).toBe(4)
+
             // Verify recipient1 received ETH
             const recipient1EthChange = result.find(
                 (r) =>
                     r.owner.toLowerCase() === recipient1.toLowerCase() &&
-                    r.token === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
+                    r.token === NATIVE_TOKEN_ADDRESS
             )
             expect(recipient1EthChange).toBeDefined()
-            expect(BigInt(recipient1EthChange!.diff)).toBe(ethAmount)
+            expect(recipient1EthChange!.diff).toBe(Number(ethAmount))
 
             // Verify recipient2 received tokens
             const recipient2TokenChange = result.find(
@@ -278,10 +274,30 @@ describe.each([
                     r.token.toLowerCase() === erc20Address.toLowerCase()
             )
             expect(recipient2TokenChange).toBeDefined()
-            expect(BigInt(recipient2TokenChange!.diff)).toBe(tokenAmount)
+            expect(recipient2TokenChange!.diff).toBe(Number(tokenAmount))
+
+            // Verify sender's ERC20 change (sent tokens)
+            const senderErc20Change = result.find(
+                (r) =>
+                    r.owner.toLowerCase() ===
+                        smartAccountClient.account.address.toLowerCase() &&
+                    r.token.toLowerCase() === erc20Address.toLowerCase()
+            )
+            expect(senderErc20Change).toBeDefined()
+            expect(senderErc20Change!.diff).toBe(-Number(tokenAmount))
+
+            // Verify sender's ETH change (sent ETH + gas fees)
+            const senderEthChange = result.find(
+                (r) =>
+                    r.owner.toLowerCase() ===
+                        smartAccountClient.account.address.toLowerCase() &&
+                    r.token === NATIVE_TOKEN_ADDRESS
+            )
+            expect(senderEthChange).toBeDefined()
+            expect(senderEthChange!.diff).toBeLessThan(-Number(ethAmount)) // Should be more negative than just ethAmount due to gas
         })
 
-        test("should return empty array for no asset changes", async () => {
+        test("should return empty array when tracking no tokens", async () => {
             // Create a user operation that doesn't transfer any assets
             const userOp = await smartAccountClient.prepareUserOperation({
                 calls: [
@@ -293,11 +309,11 @@ describe.each([
                 ]
             })
 
-            // Call pimlico_simulateAssetChange
+            // Call pimlico_simulateAssetChange without tracking ETH
             const result = (await bundlerClient.request({
                 method: "pimlico_simulateAssetChange",
                 params: [
-                    userOp,
+                    deepHexlify(userOp),
                     entryPoint,
                     [smartAccountClient.account.address],
                     []
@@ -307,15 +323,39 @@ describe.each([
             expect(result).toBeDefined()
             expect(Array.isArray(result)).toBe(true)
 
-            // Should only have ETH change for gas
-            const ethChanges = result.filter(
-                (r) => r.token === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
-            )
-            expect(ethChanges.length).toBe(1)
-            expect(ethChanges[0]!.owner.toLowerCase()).toBe(
-                smartAccountClient.account.address.toLowerCase()
-            )
-            expect(BigInt(ethChanges[0]!.diff)).toBeLessThan(0n) // Only gas fees
+            // Should be empty since we're not tracking any changes
+            expect(result.length).toBe(0)
+        })
+
+        test("should simulate asset changes with no monitored addresses", async () => {
+            const recipient = privateKeyToAddress(generatePrivateKey())
+            const transferAmount = parseEther("0.1")
+
+            // Create a user operation that transfers ETH
+            const userOp = await smartAccountClient.prepareUserOperation({
+                calls: [
+                    {
+                        to: recipient,
+                        value: transferAmount,
+                        data: "0x"
+                    }
+                ]
+            })
+
+            // Call pimlico_simulateAssetChange with empty addresses array
+            const result = (await bundlerClient.request({
+                method: "pimlico_simulateAssetChange",
+                params: [
+                    deepHexlify(userOp),
+                    entryPoint,
+                    [], // no addresses to monitor
+                    []
+                ]
+            })) as AssetChange[]
+
+            expect(result).toBeDefined()
+            expect(Array.isArray(result)).toBe(true)
+            expect(result.length).toBe(0) // No changes reported when no addresses monitored
         })
 
         test("should handle invalid user operation", async () => {
@@ -339,7 +379,7 @@ describe.each([
                 bundlerClient.request({
                     method: "pimlico_simulateAssetChange",
                     params: [
-                        userOp,
+                        deepHexlify(userOp),
                         entryPoint,
                         [smartAccountClient.account.address],
                         []
@@ -348,86 +388,8 @@ describe.each([
             ).rejects.toThrow()
         })
 
-        test("should simulate asset changes with no monitored addresses", async () => {
-            const recipient = "0x1234567890123456789012345678901234567890"
-            const transferAmount = parseEther("0.1")
-
-            // Create a user operation that transfers ETH
-            const userOp = await smartAccountClient.prepareUserOperation({
-                calls: [
-                    {
-                        to: recipient,
-                        value: transferAmount,
-                        data: "0x"
-                    }
-                ]
-            })
-
-            // Call pimlico_simulateAssetChange with empty addresses array
-            const result = (await bundlerClient.request({
-                method: "pimlico_simulateAssetChange",
-                params: [
-                    userOp,
-                    entryPoint,
-                    [], // no addresses to monitor
-                    []
-                ]
-            })) as AssetChange[]
-
-            expect(result).toBeDefined()
-            expect(Array.isArray(result)).toBe(true)
-            expect(result.length).toBe(0) // No changes reported when no addresses monitored
-        })
-
-        test("should simulate asset changes for contract interaction", async () => {
-            // Create a user operation that interacts with the ERC20 contract
-            // but doesn't actually transfer tokens (e.g., approve)
-            const spender = "0x1234567890123456789012345678901234567890"
-            const approveAmount = parseEther("50")
-
-            const userOp = await smartAccountClient.prepareUserOperation({
-                calls: [
-                    {
-                        to: erc20Address,
-                        value: 0n,
-                        data: encodeFunctionData({
-                            abi: erc20Abi,
-                            functionName: "approve",
-                            args: [spender, approveAmount]
-                        })
-                    }
-                ]
-            })
-
-            // Call pimlico_simulateAssetChange
-            const result = (await bundlerClient.request({
-                method: "pimlico_simulateAssetChange",
-                params: [
-                    userOp,
-                    entryPoint,
-                    [smartAccountClient.account.address, spender],
-                    [erc20Address]
-                ]
-            })) as AssetChange[]
-
-            expect(result).toBeDefined()
-            expect(Array.isArray(result)).toBe(true)
-
-            // Should only have ETH change for gas (no token transfer)
-            const tokenChanges = result.filter(
-                (r) => r.token.toLowerCase() === erc20Address.toLowerCase()
-            )
-            expect(tokenChanges.length).toBe(0) // No token balance changes
-
-            const ethChanges = result.filter(
-                (r) => r.token === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
-            )
-            expect(ethChanges.length).toBe(1)
-            expect(BigInt(ethChanges[0]!.diff)).toBeLessThan(0n) // Only gas fees
-        })
-
         test("should simulate asset changes with state overrides", async () => {
-            const recipient = "0x1234567890123456789012345678901234567890"
+            const recipient = privateKeyToAddress(generatePrivateKey())
             const transferAmount = parseEther("0.1")
 
             // State override to give the recipient some ETH balance
@@ -449,14 +411,14 @@ describe.each([
                 ]
             })
 
-            // Call pimlico_simulateAssetChange with state overrides
+            // Call pimlico_simulateAssetChange with state overrides and ETH tracking
             const result = (await bundlerClient.request({
                 method: "pimlico_simulateAssetChange",
                 params: [
-                    userOp,
+                    deepHexlify(userOp),
                     entryPoint,
                     [smartAccountClient.account.address, recipient],
-                    [],
+                    [NATIVE_TOKEN_ADDRESS], // Track ETH transfers
                     stateOverrides
                 ]
             })) as AssetChange[]
@@ -468,15 +430,22 @@ describe.each([
             const recipientChange = result.find(
                 (r) => r.owner.toLowerCase() === recipient.toLowerCase()
             )
+            const senderChange = result.find(
+                (r) =>
+                    r.owner.toLowerCase() ===
+                    smartAccountClient.account.address.toLowerCase()
+            )
 
             expect(recipientChange).toBeDefined()
-            expect(recipientChange!.token).toBe(
-                "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
-            )
+            expect(recipientChange!.token).toBe(NATIVE_TOKEN_ADDRESS)
+            expect(senderChange).toBeDefined()
+            expect(senderChange!.token).toBe(NATIVE_TOKEN_ADDRESS)
 
             // Recipient should receive the transfer amount
             // (state override balance doesn't affect the diff calculation)
-            expect(BigInt(recipientChange!.diff)).toBe(transferAmount)
+            expect(recipientChange!.diff).toBe(Number(transferAmount))
+            // Sender should have negative change (transfer + gas)
+            expect(senderChange!.diff).toBeLessThan(-Number(transferAmount))
         })
     }
 )

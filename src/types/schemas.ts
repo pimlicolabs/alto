@@ -643,14 +643,14 @@ export const pimlicoSimulateAssetChangeSchema = z.object({
             addressSchema, // entryPoint
             z.array(addressSchema), // addresses to check asset changes for
             z.array(addressSchema), // tokens to monitor for asset changes
-            stateOverridesSchema.optional() // optional state overrides
+            stateOverridesSchema // optional state overrides
         ])
     ]),
     result: z.array(
         z.object({
             owner: addressSchema,
             token: addressSchema,
-            diff: hexDataSchema
+            diff: z.number()
         })
     )
 })
