@@ -253,6 +253,36 @@ contract SimulateAssetChangeTest is UserOpHelper {
         assertLt(changes[0].diff, 0, "ETH should decrease due to gas");
     }
 
+    // Test simulateAssetChange06 with invalid nonce (should revert with AA25)
+    function testSimulateAssetChange06_InvalidNonce() public {
+        uint256 salt = 0;
+        address recipient = address(0x1234);
+        uint256 transferAmount = 0.1 ether;
+
+        // Create call to transfer ETH
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: recipient, value: transferAmount, data: ""});
+        bytes memory paymasterAndData = "";
+        UserOperation06 memory userOp = createSignedUserOp06(salt, call, paymasterAndData);
+
+        // Fund the account
+        vm.deal(userOp.sender, 1 ether);
+
+        // Increment nonce to make it invalid
+        userOp.nonce = userOp.nonce + 1;
+
+        // Track addresses
+        address[] memory addresses = new address[](2);
+        addresses[0] = userOp.sender;
+        addresses[1] = recipient;
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = ETH_ADDRESS;
+
+        // Expect revert with AA25 error
+        vm.expectRevert(abi.encodeWithSignature("FailedOp(uint256,string)", 0, "AA25 invalid account nonce"));
+        pimlicoSim.simulateAssetChange06(userOp, entryPoint06, addresses, tokens);
+    }
+
     // ============================================
     // =========== ENTRYPOINT 07 TESTS ============
     // ============================================
@@ -442,6 +472,36 @@ contract SimulateAssetChangeTest is UserOpHelper {
         assertEq(changes[0].owner, userOp.sender);
         assertEq(changes[0].token, ETH_ADDRESS);
         assertLt(changes[0].diff, 0, "ETH should decrease due to gas");
+    }
+
+    // Test simulateAssetChange07 with invalid nonce (should revert with AA25)
+    function testSimulateAssetChange07_InvalidNonce() public {
+        uint256 salt = 0;
+        address recipient = address(0x1234);
+        uint256 transferAmount = 0.1 ether;
+
+        // Create call to transfer ETH
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: recipient, value: transferAmount, data: ""});
+        bytes memory paymasterAndData = "";
+        PackedUserOperation07 memory userOp = createSignedUserOp07(salt, call, paymasterAndData);
+
+        // Fund the account
+        vm.deal(userOp.sender, 1 ether);
+
+        // Increment nonce to make it invalid
+        userOp.nonce = userOp.nonce + 1;
+
+        // Track addresses
+        address[] memory addresses = new address[](2);
+        addresses[0] = userOp.sender;
+        addresses[1] = recipient;
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = ETH_ADDRESS;
+
+        // Expect revert with AA25 error
+        vm.expectRevert(abi.encodeWithSignature("FailedOp(uint256,string)", 0, "AA25 invalid account nonce"));
+        pimlicoSim.simulateAssetChange07(userOp, entryPoint07, address(entryPointSimulations07), addresses, tokens);
     }
 
     // ============================================
@@ -637,6 +697,38 @@ contract SimulateAssetChangeTest is UserOpHelper {
         assertEq(changes[0].owner, userOp.sender);
         assertEq(changes[0].token, ETH_ADDRESS);
         assertLt(changes[0].diff, 0, "ETH should decrease due to gas");
+    }
+
+    // Test simulateAssetChange08 with invalid nonce (should revert with AA25)
+    function testSimulateAssetChange08_InvalidNonce() public {
+        uint256 salt = 0;
+        address recipient = address(0x1234);
+        uint256 transferAmount = 0.1 ether;
+
+        // Create call to transfer ETH
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: recipient, value: transferAmount, data: ""});
+        bytes memory paymasterAndData = "";
+        PackedUserOperation08 memory userOp = createSignedUserOp08(salt, call, paymasterAndData);
+
+        // Fund the account
+        vm.deal(userOp.sender, 1 ether);
+
+        // Increment nonce to make it invalid
+        userOp.nonce = userOp.nonce + 1;
+
+        // Track addresses
+        address[] memory addresses = new address[](2);
+        addresses[0] = userOp.sender;
+        addresses[1] = recipient;
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = ETH_ADDRESS;
+
+        // Expect revert with AA25 error
+        vm.expectRevert(abi.encodeWithSignature("FailedOp(uint256,string)", 0, "AA25 invalid account nonce"));
+        pimlicoSim.simulateAssetChange08(
+            castToVersion07(userOp), entryPoint08, address(entryPointSimulations08), addresses, tokens
+        );
     }
 
     // ============================================
