@@ -119,7 +119,6 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                     )
                 result = [...simResult]
             } else {
-                // For EntryPoint v0.6 (doesn't need entryPointSimulations)
                 const { result: simResult } =
                     await pimlicoSimulation.simulate.simulateAssetChange06(
                         [
