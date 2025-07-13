@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
+import {EntryPointGasEstimationOverride06 as EpGasEstOverride06} from "./v06/EntryPointGasEstimationOverride.sol";
 import {IEntryPointSimulations} from "./IEntryPointSimulations.sol";
 
 import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
@@ -461,6 +462,20 @@ contract PimlicoSimulations {
         } catch (bytes memory revertData) {
             if (revertData.length <= 4) {
                 revert("Unexpected revert data format");
+            }
+
+            bytes4 selector = bytes4(revertData.slice(0, 4));
+
+            // Bubble up any EntryPoint errors
+            if (selector == IEntryPoint06.FailedOp.selector) {
+                Exec.revertWithData(revertData);
+            }
+
+            // Bubble up any EntryPoint errors
+            if (
+                selector == EpGasEstOverride06.CallPhaseReverted.selector || selector == IEntryPoint06.FailedOp.selector
+            ) {
+                Exec.revertWithData(revertData);
             }
 
             bytes memory executionResultData = revertData.slice(4, revertData.length);
