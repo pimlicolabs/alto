@@ -14,7 +14,7 @@ import {
     isVersion08,
     toPackedUserOp
 } from "@alto/utils"
-import { type Address, type Hex, getContract } from "viem"
+import { type Address, type Hex, type StateOverride, getContract } from "viem"
 import { createMethodHandler } from "../createMethodHandler"
 import {
     decodeSimulateHandleOpError,
@@ -63,7 +63,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
         }
 
         // Prepare state override based on version
-        let stateOverride
+        let stateOverride: StateOverride | undefined
         if (isVersion06(userOp)) {
             stateOverride = await prepareSimulationOverrides06({
                 userOp: userOp as UserOperationV06,
@@ -76,7 +76,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
             stateOverride = await prepareSimulationOverrides07({
                 userOp: userOp as UserOperationV07,
                 queuedUserOps: [],
-                epSimulationsAddress: epSimulationsAddress!,
+                epSimulationsAddress: epSimulationsAddress as Address,
                 gasPriceManager: rpcHandler.gasPriceManager,
                 userStateOverrides: stateOverrides,
                 config: rpcHandler.config
@@ -93,7 +93,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                         [
                             toPackedUserOp(userOp as UserOperationV07),
                             entryPoint,
-                            epSimulationsAddress!,
+                            epSimulationsAddress as Address,
                             addresses,
                             tokens
                         ],
@@ -109,7 +109,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                         [
                             toPackedUserOp(userOp as UserOperationV07),
                             entryPoint,
-                            epSimulationsAddress!,
+                            epSimulationsAddress as Address,
                             addresses,
                             tokens
                         ],
