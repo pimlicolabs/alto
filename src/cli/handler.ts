@@ -17,6 +17,7 @@ import {
     formatEther,
     publicActions
 } from "viem"
+import * as chains from "viem/chains"
 import { type AltoConfig, createConfig } from "../createConfig"
 import { getSenderManager } from "../executor/senderManager/index"
 import { UtilityWalletMonitor } from "../executor/utilityWalletMonitor"
@@ -85,6 +86,25 @@ const preFlightChecks = async (config: AltoConfig): Promise<void> => {
     }
 }
 
+const getViemChain = ({
+    chainId,
+    args
+}: { chainId: number; args: ReturnType<typeof parseArgs> }) => {
+    for (const chain of Object.values(chains)) {
+        if (chain.id === chainId) {
+            return {
+                ...chain,
+                blockTime: chain.blockTime ?? args.blockTime,
+                rpcUrls: {
+                    default: { http: [args.rpcUrl] },
+                    public: { http: [args.rpcUrl] }
+                }
+            }
+        }
+    }
+    return null
+}
+
 export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     const args = parseArgs(args_)
     const logger = args.json
@@ -107,7 +127,10 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
 
     const chainId = await getChainId()
 
-    const chain: Chain = {
+    // let us assume that the block time is at least 2x the polling interval
+    const viemChain = getViemChain({ chainId, args })
+
+    const chain: Chain = viemChain ?? {
         id: chainId,
         name: "chain-name", // isn't important, never used
         nativeCurrency: {
@@ -115,6 +138,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
             symbol: "ETH",
             decimals: 18
         },
+        blockTime: args.blockTime,
         rpcUrls: {
             default: { http: [args.rpcUrl] },
             public: { http: [args.rpcUrl] }
