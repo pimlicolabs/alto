@@ -1,4 +1,4 @@
-import { deepHexlify, type SmartAccountClient } from "permissionless"
+import { type SmartAccountClient, deepHexlify } from "permissionless"
 import {
     http,
     type Address,
