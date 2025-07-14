@@ -30,10 +30,22 @@ class InMemoryUserOperationStatusStore implements UserOperationStatusStore {
 class RedisUserOperationStatusStore implements UserOperationStatusStore {
     private redis: Redis
     private keyPrefix: string
+    private ttlSeconds: number
 
-    constructor(redisUrl: string, chainId: number) {
-        this.redis = new Redis(redisUrl)
-        this.keyPrefix = `${chainId}:userop_status`
+    constructor({
+        config,
+        ttlSeconds = 3600 // 1 hour ttl by default
+    }: {
+        config: AltoConfig
+        ttlSeconds?: number
+    }) {
+        if (!config.redisOpStatusUrl) {
+            throw new Error("RedisOpStatusUrl is not configured")
+        }
+
+        this.redis = new Redis(config.redisOpStatusUrl)
+        this.keyPrefix = `${config.chainId}:${config.redisOpStatusQueueName}`
+        this.ttlSeconds = ttlSeconds
     }
 
     private getKey(userOpHash: HexData32): string {
@@ -77,7 +89,10 @@ class RedisUserOperationStatusStore implements UserOperationStatusStore {
         userOpHash: HexData32,
         status: UserOperationStatus
     ): Promise<void> {
-        await this.redis.set(this.getKey(userOpHash), this.serialize(status))
+        const key = this.getKey(userOpHash)
+        const serialized = this.serialize(status)
+
+        await this.redis.set(key, serialized, "EX", this.ttlSeconds)
     }
 
     async get(userOpHash: HexData32): Promise<UserOperationStatus | undefined> {
@@ -97,6 +112,7 @@ export class Monitor {
     private statusStore: UserOperationStatusStore
     private userOpTimeouts: Record<HexData32, NodeJS.Timeout>
     private timeout: number
+    private isUsingRedis: boolean
 
     constructor({
         config,
@@ -104,12 +120,12 @@ export class Monitor {
     }: { config: AltoConfig; timeout?: number }) {
         this.timeout = timeout
         this.userOpTimeouts = {}
+        this.isUsingRedis = Boolean(config.redisOpStatusUrl)
 
-        if (config?.redisMempoolUrl) {
-            this.statusStore = new RedisUserOperationStatusStore(
-                config.redisMempoolUrl,
-                config.chainId
-            )
+        if (this.isUsingRedis) {
+            this.statusStore = new RedisUserOperationStatusStore({
+                config
+            })
         } else {
             this.statusStore = new InMemoryUserOperationStatusStore()
         }
@@ -127,11 +143,18 @@ export class Monitor {
         // Set the user operation status
         await this.statusStore.set(userOpHash, status)
 
-        // Set a new timer and store its identifier
-        this.userOpTimeouts[userOpHash] = setTimeout(async () => {
-            await this.statusStore.delete(userOpHash)
-            delete this.userOpTimeouts[userOpHash]
-        }, this.timeout) as NodeJS.Timeout
+        // For in-memory storage, we need to manually prune statuses
+        if (!this.isUsingRedis) {
+            // Clear existing timer if it exists
+            if (this.userOpTimeouts[userOpHash]) {
+                clearTimeout(this.userOpTimeouts[userOpHash])
+            }
+
+            this.userOpTimeouts[userOpHash] = setTimeout(async () => {
+                await this.statusStore.delete(userOpHash)
+                delete this.userOpTimeouts[userOpHash]
+            }, this.timeout) as NodeJS.Timeout
+        }
     }
 
     public async getUserOpStatus(
