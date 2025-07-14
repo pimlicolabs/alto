@@ -27,12 +27,13 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
     method: "pimlico_simulateAssetChange",
     schema: pimlicoSimulateAssetChangeSchema,
     handler: async ({ rpcHandler, params }) => {
-        const [userOp, entryPoint, addresses, tokens, stateOverrides] = params
+        const [userOp, entryPoint, trackingParams, stateOverrides] = params
+        const { addressesToTrack, tokensToTrack } = trackingParams
 
         const logger = rpcHandler.logger.child({
             entryPoint,
-            addresses,
-            tokens
+            addressesToTrack,
+            tokensToTrack
         })
 
         // Check if pimlico simulation contract is configured
@@ -94,8 +95,8 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                             toPackedUserOp(userOp as UserOperationV07),
                             entryPoint,
                             epSimulationsAddress as Address,
-                            addresses,
-                            tokens
+                            addressesToTrack,
+                            tokensToTrack
                         ],
                         {
                             stateOverride
@@ -110,8 +111,8 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                             toPackedUserOp(userOp as UserOperationV07),
                             entryPoint,
                             epSimulationsAddress as Address,
-                            addresses,
-                            tokens
+                            addressesToTrack,
+                            tokensToTrack
                         ],
                         {
                             stateOverride
@@ -124,8 +125,8 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                         [
                             userOp as UserOperationV06,
                             entryPoint,
-                            addresses,
-                            tokens
+                            addressesToTrack,
+                            tokensToTrack
                         ],
                         {
                             stateOverride

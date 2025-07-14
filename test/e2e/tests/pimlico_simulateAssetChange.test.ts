@@ -108,8 +108,10 @@ describe.each([
                 params: [
                     deepHexlify(userOp),
                     entryPoint,
-                    [smartAccountClient.account.address, recipient],
-                    [NATIVE_TOKEN_ADDRESS]
+                    {
+                        addressesToTrack: [smartAccountClient.account.address, recipient],
+                        tokensToTrack: [NATIVE_TOKEN_ADDRESS]
+                    }
                 ]
             })) as AssetChange[]
 
@@ -163,8 +165,10 @@ describe.each([
                 params: [
                     deepHexlify(userOp),
                     entryPoint,
-                    [smartAccountClient.account.address, recipient], // addresses to monitor
-                    [erc20Address] // monitor only the ERC20 token, not ETH
+                    {
+                        addressesToTrack: [smartAccountClient.account.address, recipient],
+                        tokensToTrack: [erc20Address]
+                    }
                 ]
             })) as AssetChange[]
 
@@ -221,12 +225,14 @@ describe.each([
                 params: [
                     deepHexlify(userOp),
                     entryPoint,
-                    [
-                        smartAccountClient.account.address,
-                        recipient1,
-                        recipient2
-                    ],
-                    [NATIVE_TOKEN_ADDRESS, erc20Address] // Track both ETH and ERC20
+                    {
+                        addressesToTrack: [
+                            smartAccountClient.account.address,
+                            recipient1,
+                            recipient2
+                        ],
+                        tokensToTrack: [NATIVE_TOKEN_ADDRESS, erc20Address]
+                    }
                 ]
             })) as AssetChange[]
 
@@ -332,8 +338,10 @@ describe.each([
                 params: [
                     deepHexlify(userOp),
                     entryPoint,
-                    [smartAccountClient.account.address],
-                    []
+                    {
+                        addressesToTrack: [smartAccountClient.account.address],
+                        tokensToTrack: []
+                    }
                 ]
             })) as AssetChange[]
 
@@ -365,8 +373,10 @@ describe.each([
                 params: [
                     deepHexlify(userOp),
                     entryPoint,
-                    [], // no addresses to monitor
-                    []
+                    {
+                        addressesToTrack: [],
+                        tokensToTrack: []
+                    }
                 ]
             })) as AssetChange[]
 
@@ -397,8 +407,10 @@ describe.each([
                     params: [
                         deepHexlify(userOp),
                         entryPoint,
-                        [smartAccountClient.account.address],
-                        []
+                        {
+                            addressesToTrack: [smartAccountClient.account.address],
+                            tokensToTrack: []
+                        }
                     ]
                 })
             ).rejects.toThrow(
@@ -444,8 +456,10 @@ describe.each([
                 params: [
                     deepHexlify(userOp),
                     entryPoint,
-                    [smartAccountClient.account.address, recipient],
-                    [NATIVE_TOKEN_ADDRESS], // Track ETH transfers
+                    {
+                        addressesToTrack: [smartAccountClient.account.address, recipient],
+                        tokensToTrack: [NATIVE_TOKEN_ADDRESS]
+                    },
                     stateOverrides
                 ]
             })) as AssetChange[]
