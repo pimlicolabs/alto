@@ -332,7 +332,7 @@ export class UserOpMonitor {
 
     async checkFrontrun(
         userOpInfo: UserOpInfo,
-        checkCount = 0
+        blockWaitCount = 0
     ): Promise<boolean> {
         const { userOpHash } = userOpInfo
 
@@ -369,13 +369,13 @@ export class UserOpMonitor {
                 return true
             }
 
-            if (checkCount !== 0) {
+            if (blockWaitCount >= this.config.maxBlockWaitCount) {
                 return false
             }
 
             return new Promise((resolve) => {
                 setTimeout(() => {
-                    resolve(this.checkFrontrun(userOpInfo, checkCount + 1))
+                    resolve(this.checkFrontrun(userOpInfo, blockWaitCount + 1))
                 }, this.config.publicClient.chain.blockTime ?? 1_000)
             })
         } catch (error) {

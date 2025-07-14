@@ -585,6 +585,12 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         require: true,
         default: 1000
     },
+    "max-block-wait-count": {
+        description: "Max block wait count for frontrun check",
+        type: "number",
+        require: false,
+        default: 2
+    },
     "max-block-range": {
         description: "Max block range for getLogs calls",
         type: "number",
