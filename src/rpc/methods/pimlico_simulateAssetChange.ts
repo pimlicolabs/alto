@@ -18,10 +18,10 @@ import { type Address, type Hex, type StateOverride, getContract } from "viem"
 import { createMethodHandler } from "../createMethodHandler"
 import {
     decodeSimulateHandleOpError,
-    prepareSimulationOverrides06,
     prepareSimulationOverrides07,
     simulationErrors
 } from "../estimation/utils"
+import { getFilterOpsStateOverride } from "../../utils/entryPointOverrides"
 
 export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
     method: "pimlico_simulateAssetChange",
@@ -64,13 +64,13 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
 
         // Prepare state override based on version
         let stateOverride: StateOverride | undefined
-        if (isVersion06(userOp)) {
-            stateOverride = await prepareSimulationOverrides06({
-                userOp: userOp as UserOperationV06,
+        if (isVersion06(userOp) && rpcHandler.config.codeOverrideSupport) {
+            stateOverride = getFilterOpsStateOverride({
+                version: "0.6",
                 entryPoint,
-                userStateOverrides: stateOverrides,
-                useCodeOverride: true,
-                config: rpcHandler.config
+                baseFeePerGas: await rpcHandler.gasPriceManager
+                    .getBaseFee()
+                    .catch(() => 0n)
             })
         } else if (is07 || is08) {
             stateOverride = await prepareSimulationOverrides07({
