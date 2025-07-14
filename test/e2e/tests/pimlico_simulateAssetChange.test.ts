@@ -27,9 +27,10 @@ import {
 } from "../src/utils/index.js"
 
 type AssetChange = {
-    owner: Hex
+    address: Hex
     token: Hex
-    diff: number
+    balanceBefore: number
+    balanceAfter: number
 }
 
 const NATIVE_TOKEN_ADDRESS = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
@@ -109,11 +110,8 @@ describe.each([
                     deepHexlify(userOp),
                     entryPoint,
                     {
-                        addressesToTrack: [
-                            smartAccountClient.account.address,
-                            recipient
-                        ],
-                        tokensToTrack: [NATIVE_TOKEN_ADDRESS]
+                        owners: [smartAccountClient.account.address, recipient],
+                        tokens: [NATIVE_TOKEN_ADDRESS]
                     }
                 ]
             })) as AssetChange[]
@@ -126,9 +124,9 @@ describe.each([
 
             // Find the changes for sender and recipient
             const senderChange = result.find(
-                (r) => r.owner === smartAccountClient.account.address
+                (r) => r.address === smartAccountClient.account.address
             )
-            const recipientChange = result.find((r) => r.owner === recipient)
+            const recipientChange = result.find((r) => r.address === recipient)
 
             expect(senderChange).toBeDefined()
             expect(recipientChange).toBeDefined()
@@ -137,10 +135,14 @@ describe.each([
             expect(recipientChange?.token).toBe(NATIVE_TOKEN_ADDRESS)
 
             // Sender should have negative change (including gas fees)
-            expect(senderChange?.diff).toBeLessThan(-Number(transferAmount))
+            expect(
+                senderChange!.balanceAfter - senderChange!.balanceBefore
+            ).toBeLessThan(-Number(transferAmount))
 
             // Recipient should have positive change
-            expect(recipientChange?.diff).toBe(Number(transferAmount))
+            expect(
+                recipientChange!.balanceAfter - recipientChange!.balanceBefore
+            ).toBe(Number(transferAmount))
         })
 
         test("should simulate asset changes for ERC20 transfer", async () => {
@@ -169,11 +171,8 @@ describe.each([
                     deepHexlify(userOp),
                     entryPoint,
                     {
-                        addressesToTrack: [
-                            smartAccountClient.account.address,
-                            recipient
-                        ],
-                        tokensToTrack: [erc20Address]
+                        owners: [smartAccountClient.account.address, recipient],
+                        tokens: [erc20Address]
                     }
                 ]
             })) as AssetChange[]
@@ -185,18 +184,24 @@ describe.each([
             expect(result.length).toBe(2)
 
             const senderErc20Change = result.find(
-                (r) => r.owner === smartAccountClient.account.address
+                (r) => r.address === smartAccountClient.account.address
             )
             const recipientErc20Change = result.find(
-                (r) => r.owner === recipient
+                (r) => r.address === recipient
             )
 
             expect(senderErc20Change).toBeDefined()
             expect(recipientErc20Change).toBeDefined()
             expect(senderErc20Change?.token).toBe(erc20Address)
             expect(recipientErc20Change?.token).toBe(erc20Address)
-            expect(senderErc20Change?.diff).toBe(-Number(transferAmount))
-            expect(recipientErc20Change?.diff).toBe(Number(transferAmount))
+            const senderErc20Diff =
+                senderErc20Change!.balanceAfter -
+                senderErc20Change!.balanceBefore
+            expect(senderErc20Diff).toBe(-Number(transferAmount))
+            const recipientErc20Diff =
+                recipientErc20Change!.balanceAfter -
+                recipientErc20Change!.balanceBefore
+            expect(recipientErc20Diff).toBe(Number(transferAmount))
         })
 
         test("should simulate asset changes for ETH and ERC20 tranfers", async () => {
@@ -232,12 +237,12 @@ describe.each([
                     deepHexlify(userOp),
                     entryPoint,
                     {
-                        addressesToTrack: [
+                        owners: [
                             smartAccountClient.account.address,
                             recipient1,
                             recipient2
                         ],
-                        tokensToTrack: [NATIVE_TOKEN_ADDRESS, erc20Address]
+                        tokens: [NATIVE_TOKEN_ADDRESS, erc20Address]
                     }
                 ]
             })) as AssetChange[]
@@ -246,7 +251,10 @@ describe.each([
             expect(Array.isArray(result)).toBe(true)
 
             // Filter out zero-value changes
-            const nonZeroChanges = result.filter((r) => r.diff !== 0)
+            const nonZeroChanges = result.filter((r) => {
+                const diff = r.balanceAfter - r.balanceBefore
+                return diff !== 0
+            })
 
             // Should have 4 non-zero changes:
             // 1. Sender ETH change (sent ETH + gas)
@@ -259,36 +267,48 @@ describe.each([
                 // Verify recipient1 received ETH
                 const recipient1EthChange = result.find(
                     (r) =>
-                        r.owner === recipient1 &&
+                        r.address === recipient1 &&
                         r.token === NATIVE_TOKEN_ADDRESS
                 )
                 expect(recipient1EthChange).toBeDefined()
-                expect(recipient1EthChange?.diff).toBe(Number(ethAmount))
+                const recipient1Diff =
+                    recipient1EthChange!.balanceAfter -
+                    recipient1EthChange!.balanceBefore
+                expect(recipient1Diff).toBe(Number(ethAmount))
 
                 // Verify recipient2 received tokens
                 const recipient2TokenChange = result.find(
-                    (r) => r.owner === recipient2 && r.token === erc20Address
+                    (r) => r.address === recipient2 && r.token === erc20Address
                 )
                 expect(recipient2TokenChange).toBeDefined()
-                expect(recipient2TokenChange?.diff).toBe(Number(tokenAmount))
+                const recipient2Diff =
+                    recipient2TokenChange!.balanceAfter -
+                    recipient2TokenChange!.balanceBefore
+                expect(recipient2Diff).toBe(Number(tokenAmount))
 
                 // Verify sender's ERC20 change (sent tokens)
                 const senderErc20Change = result.find(
                     (r) =>
-                        r.owner === smartAccountClient.account.address &&
+                        r.address === smartAccountClient.account.address &&
                         r.token === erc20Address
                 )
                 expect(senderErc20Change).toBeDefined()
-                expect(senderErc20Change?.diff).toBe(-Number(tokenAmount))
+                const senderErc20Diff =
+                    senderErc20Change!.balanceAfter -
+                    senderErc20Change!.balanceBefore
+                expect(senderErc20Diff).toBe(-Number(tokenAmount))
 
                 // Verify sender's ETH change (sent ETH + gas fees)
                 const senderEthChange = result.find(
                     (r) =>
-                        r.owner === smartAccountClient.account.address &&
+                        r.address === smartAccountClient.account.address &&
                         r.token === NATIVE_TOKEN_ADDRESS
                 )
                 expect(senderEthChange).toBeDefined()
-                expect(senderEthChange?.diff).toBeLessThan(-Number(ethAmount)) // Should be more negative than just ethAmount due to gas
+                const senderEthDiff =
+                    senderEthChange!.balanceAfter -
+                    senderEthChange!.balanceBefore
+                expect(senderEthDiff).toBeLessThan(-Number(ethAmount)) // Should be more negative than just ethAmount due to gas
             } else {
                 // SimpleAccount 0.6 does not support sending ETH when calling executeBatch
                 // Source: https://github.com/eth-infinitism/account-abstraction/blob/fa6129/contracts/samples/SimpleAccount.sol#L62-L71
@@ -301,28 +321,37 @@ describe.each([
 
                 // Verify recipient2 received tokens
                 const recipient2TokenChange = result.find(
-                    (r) => r.owner === recipient2 && r.token === erc20Address
+                    (r) => r.address === recipient2 && r.token === erc20Address
                 )
                 expect(recipient2TokenChange).toBeDefined()
-                expect(recipient2TokenChange?.diff).toBe(Number(tokenAmount))
+                const recipient2Diff =
+                    recipient2TokenChange!.balanceAfter -
+                    recipient2TokenChange!.balanceBefore
+                expect(recipient2Diff).toBe(Number(tokenAmount))
 
                 // Verify sender's ERC20 change (sent tokens)
                 const senderErc20Change = result.find(
                     (r) =>
-                        r.owner === smartAccountClient.account.address &&
+                        r.address === smartAccountClient.account.address &&
                         r.token === erc20Address
                 )
                 expect(senderErc20Change).toBeDefined()
-                expect(senderErc20Change?.diff).toBe(-Number(tokenAmount))
+                const senderErc20Diff =
+                    senderErc20Change!.balanceAfter -
+                    senderErc20Change!.balanceBefore
+                expect(senderErc20Diff).toBe(-Number(tokenAmount))
 
                 // Verify sender's ETH change (only gas fees, no ETH transfer)
                 const senderEthChange = result.find(
                     (r) =>
-                        r.owner === smartAccountClient.account.address &&
+                        r.address === smartAccountClient.account.address &&
                         r.token === NATIVE_TOKEN_ADDRESS
                 )
                 expect(senderEthChange).toBeDefined()
-                expect(senderEthChange?.diff).toBeLessThan(0) // Only gas fees
+                const senderEthDiff =
+                    senderEthChange!.balanceAfter -
+                    senderEthChange!.balanceBefore
+                expect(senderEthDiff).toBeLessThan(0) // Only gas fees
             }
         })
 
@@ -345,8 +374,8 @@ describe.each([
                     deepHexlify(userOp),
                     entryPoint,
                     {
-                        addressesToTrack: [smartAccountClient.account.address],
-                        tokensToTrack: []
+                        owners: [smartAccountClient.account.address],
+                        tokens: []
                     }
                 ]
             })) as AssetChange[]
@@ -380,8 +409,8 @@ describe.each([
                     deepHexlify(userOp),
                     entryPoint,
                     {
-                        addressesToTrack: [],
-                        tokensToTrack: []
+                        owners: [],
+                        tokens: []
                     }
                 ]
             })) as AssetChange[]
@@ -414,10 +443,8 @@ describe.each([
                         deepHexlify(userOp),
                         entryPoint,
                         {
-                            addressesToTrack: [
-                                smartAccountClient.account.address
-                            ],
-                            tokensToTrack: []
+                            owners: [smartAccountClient.account.address],
+                            tokens: []
                         }
                     ]
                 })
@@ -465,11 +492,8 @@ describe.each([
                     deepHexlify(userOp),
                     entryPoint,
                     {
-                        addressesToTrack: [
-                            smartAccountClient.account.address,
-                            recipient
-                        ],
-                        tokensToTrack: [NATIVE_TOKEN_ADDRESS]
+                        owners: [smartAccountClient.account.address, recipient],
+                        tokens: [NATIVE_TOKEN_ADDRESS]
                     },
                     stateOverrides
                 ]
@@ -479,9 +503,9 @@ describe.each([
             expect(Array.isArray(result)).toBe(true)
 
             // Find the changes for sender and recipient
-            const recipientChange = result.find((r) => r.owner === recipient)
+            const recipientChange = result.find((r) => r.address === recipient)
             const senderChange = result.find(
-                (r) => r.owner === smartAccountClient.account.address
+                (r) => r.address === smartAccountClient.account.address
             )
 
             expect(recipientChange).toBeDefined()
@@ -491,9 +515,13 @@ describe.each([
 
             // Recipient should receive the transfer amount
             // (state override balance doesn't affect the diff calculation)
-            expect(recipientChange?.diff).toBe(Number(transferAmount))
+            expect(
+                recipientChange!.balanceAfter - recipientChange!.balanceBefore
+            ).toBe(Number(transferAmount))
             // Sender should have negative change (transfer + gas)
-            expect(senderChange?.diff).toBeLessThan(-Number(transferAmount))
+            expect(
+                senderChange!.balanceAfter - senderChange!.balanceBefore
+            ).toBeLessThan(-Number(transferAmount))
         })
     }
 )

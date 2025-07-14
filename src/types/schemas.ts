@@ -636,16 +636,16 @@ export const pimlicoSimulateAssetChangeSchema = z.object({
             userOperationSchema,
             addressSchema, // entryPoint
             z.object({
-                addressesToTrack: z.array(addressSchema),
-                tokensToTrack: z.array(addressSchema)
+                owners: z.array(addressSchema),
+                tokens: z.array(addressSchema)
             })
         ]),
         z.tuple([
             userOperationSchema,
             addressSchema, // entryPoint
             z.object({
-                addressesToTrack: z.array(addressSchema),
-                tokensToTrack: z.array(addressSchema)
+                owners: z.array(addressSchema),
+                tokens: z.array(addressSchema)
             }),
             stateOverridesSchema // optional state overrides
         ])
@@ -654,7 +654,8 @@ export const pimlicoSimulateAssetChangeSchema = z.object({
         z.object({
             owner: addressSchema,
             token: addressSchema,
-            diff: z.number()
+            balanceBefore: hexNumberSchema,
+            balanceAfter: hexNumberSchema
         })
     )
 })

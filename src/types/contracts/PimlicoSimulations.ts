@@ -908,6 +908,47 @@ export const pimlicoSimulationsAbi = [
   },
   {
     "type": "function",
+    "name": "getBalances",
+    "inputs": [
+      {
+        "name": "addresses",
+        "type": "address[]",
+        "internalType": "address[]"
+      },
+      {
+        "name": "tokens",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct PimlicoSimulations.AssetBalance[]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "simulateAndEstimateGas",
     "inputs": [
       {
@@ -1309,9 +1350,14 @@ export const pimlicoSimulationsAbi = [
             "internalType": "address"
           },
           {
-            "name": "diff",
-            "type": "int256",
-            "internalType": "int256"
+            "name": "balanceBefore",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "balanceAfter",
+            "type": "uint256",
+            "internalType": "uint256"
           }
         ]
       }
@@ -1412,9 +1458,14 @@ export const pimlicoSimulationsAbi = [
             "internalType": "address"
           },
           {
-            "name": "diff",
-            "type": "int256",
-            "internalType": "int256"
+            "name": "balanceBefore",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "balanceAfter",
+            "type": "uint256",
+            "internalType": "uint256"
           }
         ]
       }
@@ -1515,11 +1566,45 @@ export const pimlicoSimulationsAbi = [
             "internalType": "address"
           },
           {
-            "name": "diff",
-            "type": "int256",
-            "internalType": "int256"
+            "name": "balanceBefore",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "balanceAfter",
+            "type": "uint256",
+            "internalType": "uint256"
           }
         ]
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "simulateEntryPointBulk",
+    "inputs": [
+      {
+        "name": "entryPointSimulation",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "entryPoint",
+        "type": "address",
+        "internalType": "address payable"
+      },
+      {
+        "name": "data",
+        "type": "bytes[]",
+        "internalType": "bytes[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes[]",
+        "internalType": "bytes[]"
       }
     ],
     "stateMutability": "nonpayable"
@@ -1935,5 +2020,5 @@ export const pimlicoSimulationsAbi = [
       }
     ],
     "stateMutability": "nonpayable"
-  }
+  },
 ] as const

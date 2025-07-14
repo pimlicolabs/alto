@@ -14,7 +14,7 @@ import {
     isVersion08,
     toPackedUserOp
 } from "@alto/utils"
-import { type Address, type Hex, type StateOverride, getContract } from "viem"
+import { type Address, type StateOverride, getContract } from "viem"
 import { getFilterOpsStateOverride } from "../../utils/entryPointOverrides"
 import { createMethodHandler } from "../createMethodHandler"
 import {
@@ -28,12 +28,12 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
     schema: pimlicoSimulateAssetChangeSchema,
     handler: async ({ rpcHandler, params }) => {
         const [userOp, entryPoint, trackingParams, stateOverrides] = params
-        const { addressesToTrack, tokensToTrack } = trackingParams
+        const { owners, tokens } = trackingParams
 
         const logger = rpcHandler.logger.child({
             entryPoint,
-            addressesToTrack,
-            tokensToTrack
+            owners,
+            tokens
         })
 
         // Check if pimlico simulation contract is configured
@@ -85,7 +85,12 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
         }
 
         try {
-            let result: { owner: Address; token: Address; diff: bigint }[]
+            let result: {
+                owner: Address
+                token: Address
+                balanceBefore: bigint
+                balanceAfter: bigint
+            }[]
 
             if (is08) {
                 // For EntryPoint v0.8
@@ -95,8 +100,8 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                             toPackedUserOp(userOp as UserOperationV07),
                             entryPoint,
                             epSimulationsAddress as Address,
-                            addressesToTrack,
-                            tokensToTrack
+                            owners,
+                            tokens
                         ],
                         {
                             stateOverride
@@ -111,8 +116,8 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                             toPackedUserOp(userOp as UserOperationV07),
                             entryPoint,
                             epSimulationsAddress as Address,
-                            addressesToTrack,
-                            tokensToTrack
+                            owners,
+                            tokens
                         ],
                         {
                             stateOverride
@@ -125,8 +130,8 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                         [
                             userOp as UserOperationV06,
                             entryPoint,
-                            addressesToTrack,
-                            tokensToTrack
+                            owners,
+                            tokens
                         ],
                         {
                             stateOverride
@@ -135,11 +140,16 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                 result = [...simResult]
             }
 
-            return result.map(({ owner, token, diff }) => ({
-                owner: owner as Hex,
-                token: token as Hex,
-                diff: Number(diff)
-            }))
+            return result.map(
+                ({ owner, token, balanceBefore, balanceAfter }) => {
+                    return {
+                        owner,
+                        token,
+                        balanceBefore,
+                        balanceAfter
+                    }
+                }
+            )
         } catch (error) {
             const decodedError = decodeSimulateHandleOpError(error, logger)
 
