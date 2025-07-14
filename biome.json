@@ -16,7 +16,8 @@
             ".nyc_output",
             "contracts",
             "src/esm",
-            "src/contracts"
+            "src/contracts",
+            "localDeployer"
         ]
     },
     "organizeImports": {
@@ -31,6 +32,9 @@
             },
             "style": {
                 "useNamingConvention": "off"
+            },
+            "correctness": {
+                "noUndeclaredDependencies": "warn"
             }
         }
     },

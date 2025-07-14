@@ -4,8 +4,13 @@ import type {
     UserOperationV07
 } from "@alto/types"
 import { ValidationErrors, executionResultSchema } from "@alto/types"
-import { type Logger, getAuthorizationStateOverrides } from "@alto/utils"
 import {
+    type Logger,
+    deepHexlify,
+    getAuthorizationStateOverrides
+} from "@alto/utils"
+import {
+    type Address,
     BaseError,
     ContractFunctionExecutionError,
     ContractFunctionRevertedError,
@@ -13,10 +18,17 @@ import {
     type StateOverride,
     decodeErrorResult,
     getAbiItem,
-    parseAbi
+    keccak256,
+    parseAbi,
+    toHex
 } from "viem"
 import { entryPoint06Abi } from "viem/account-abstraction"
+import entryPointOverride from "../../contracts/EntryPointGasEstimationOverride.sol/EntryPointGasEstimationOverride06.json" with {
+    type: "json"
+}
 import type { AltoConfig } from "../../createConfig"
+import type { GasPriceManager } from "../../handlers/gasPriceManager"
+import { getSenderCreatorOverride } from "../../utils/entryPointOverrides"
 import { toViemStateOverrides } from "../../utils/toViemStateOverrides"
 import type { SimulateHandleOpResult } from "../estimation/types"
 
@@ -53,6 +65,7 @@ export function parseFailedOpWithRevert(data: Hex) {
     return data
 }
 
+// Helper function that adds EIP-7702 overrides if needed, and converts to viem format.
 export function prepareStateOverride({
     userOps,
     queuedUserOps,
@@ -239,4 +252,83 @@ export function decodeSimulateHandleOpError(
             }
         }
     }
+}
+
+// Helper function to prepare state overrides for v0.6 simulations
+export async function prepareSimulationOverrides06({
+    userOp,
+    entryPoint,
+    userStateOverrides = {},
+    useCodeOverride,
+    config
+}: {
+    userOp: UserOperationV06
+    entryPoint: Address
+    userStateOverrides?: StateOverrides
+    useCodeOverride: boolean
+    config: Pick<AltoConfig, "codeOverrideSupport" | "balanceOverride">
+}): Promise<StateOverride | undefined> {
+    const mergedStateOverrides = { ...userStateOverrides }
+
+    // EntryPoint simulation v0.6 code specific overrides
+    if (config.codeOverrideSupport && useCodeOverride) {
+        const senderCreatorOverride = getSenderCreatorOverride(entryPoint)
+
+        mergedStateOverrides[entryPoint] = {
+            ...deepHexlify(mergedStateOverrides?.[entryPoint] || {}),
+            stateDiff: {
+                ...(mergedStateOverrides[entryPoint]?.stateDiff || {}),
+                [senderCreatorOverride.slot]: senderCreatorOverride.value
+            },
+            code: entryPointOverride.deployedBytecode.object as Hex
+        }
+    }
+
+    return prepareStateOverride({
+        userOps: [userOp],
+        queuedUserOps: [], // Queued operations are not supported for EntryPoint v0.6
+        stateOverrides: mergedStateOverrides,
+        config
+    })
+}
+
+// Helper function to prepare state overrides for v0.7 simulations
+export async function prepareSimulationOverrides07({
+    userOp,
+    queuedUserOps,
+    epSimulationsAddress,
+    gasPriceManager,
+    userStateOverrides = {},
+    config
+}: {
+    userOp: UserOperationV07
+    queuedUserOps: UserOperationV07[]
+    epSimulationsAddress: Address
+    gasPriceManager: GasPriceManager
+    userStateOverrides?: StateOverrides
+    config: Pick<AltoConfig, "codeOverrideSupport" | "balanceOverride">
+}): Promise<StateOverride | undefined> {
+    const mergedStateOverrides = { ...userStateOverrides }
+
+    // Add baseFee override for v0.7 EntryPoint simulations
+    if (config.codeOverrideSupport) {
+        const baseFee = await gasPriceManager.getBaseFee().catch(() => 0n)
+        if (baseFee > 0n) {
+            const slot = keccak256(toHex("BLOCK_BASE_FEE_PER_GAS"))
+            const value = toHex(baseFee, { size: 32 })
+
+            mergedStateOverrides[epSimulationsAddress] = {
+                stateDiff: {
+                    [slot]: value
+                }
+            }
+        }
+    }
+
+    return prepareStateOverride({
+        userOps: [userOp],
+        queuedUserOps,
+        stateOverrides: mergedStateOverrides,
+        config
+    })
 }

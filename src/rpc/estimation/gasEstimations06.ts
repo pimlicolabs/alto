@@ -1,17 +1,13 @@
 import type { StateOverrides, UserOperationV06 } from "@alto/types"
-import { type Logger, deepHexlify } from "@alto/utils"
+import type { Logger } from "@alto/utils"
 import type { Hex } from "viem"
 import { type Address, getContract } from "viem"
 import { entryPoint06Abi } from "viem/account-abstraction"
-import entryPointOverride from "../../contracts/EntryPointGasEstimationOverride.sol/EntryPointGasEstimationOverride06.json" with {
-    type: "json"
-}
 import type { AltoConfig } from "../../createConfig"
-import { getSenderCreatorOverride } from "../../utils/entryPointOverrides"
 import type { SimulateHandleOpResult } from "./types"
 import {
     decodeSimulateHandleOpError,
-    prepareStateOverride,
+    prepareSimulationOverrides06,
     simulationErrors
 } from "./utils"
 
@@ -50,32 +46,14 @@ export class GasEstimator06 {
             publicClient,
             //blockTagSupport,
             utilityWalletAddress,
-            fixedGasLimitForEstimation,
-            codeOverrideSupport
+            fixedGasLimitForEstimation
         } = this.config
 
-        // EntryPoint simulation 06 code specific overrides
-        if (codeOverrideSupport && useCodeOverride) {
-            if (userStateOverrides === undefined) {
-                userStateOverrides = {}
-            }
-
-            const senderCreatorOverride = getSenderCreatorOverride(entryPoint)
-
-            userStateOverrides[entryPoint] = {
-                ...deepHexlify(userStateOverrides?.[entryPoint] || {}),
-                stateDiff: {
-                    ...(userStateOverrides[entryPoint]?.stateDiff || {}),
-                    [senderCreatorOverride.slot]: senderCreatorOverride.value
-                },
-                code: entryPointOverride.deployedBytecode.object as Hex
-            }
-        }
-
-        const viemStateOverride = prepareStateOverride({
-            userOps: [userOp],
-            queuedUserOps: [], // Queued operations are not supported for EntryPoint v0.6
-            stateOverrides: userStateOverrides,
+        const viemStateOverride = await prepareSimulationOverrides06({
+            userOp,
+            entryPoint,
+            userStateOverrides,
+            useCodeOverride,
             config: this.config
         })
 

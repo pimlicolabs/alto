@@ -7,13 +7,8 @@ import {
     ValidationErrors,
     pimlicoSimulationsAbi
 } from "@alto/types"
-import {
-    type Logger,
-    isVersion07,
-    isVersion08,
-    toPackedUserOp
-} from "@alto/utils"
-import { type Hex, keccak256, toHex } from "viem"
+import { type Logger, isVersion08, toPackedUserOp } from "@alto/utils"
+import type { Hex } from "viem"
 import { type Address, type StateOverride, getContract } from "viem"
 import type { AltoConfig } from "../../createConfig"
 import { packUserOps } from "../../executor/utils"
@@ -24,6 +19,7 @@ import {
 } from "./types"
 import {
     decodeSimulateHandleOpError,
+    prepareSimulationOverrides07,
     prepareStateOverride,
     simulationErrors
 } from "./utils"
@@ -455,28 +451,12 @@ export class GasEstimator07 {
         const { epSimulationsAddress, pimlicoSimulation } =
             this.getSimulationContracts(entryPoint, userOp)
 
-        // Add baseFee override for v0.7 EntryPoint simulations
-        const mergedStateOverrides = { ...stateOverrides }
-        if (isVersion07(userOp) && this.config.codeOverrideSupport) {
-            const baseFee = await this.gasPriceManager
-                .getBaseFee()
-                .catch(() => 0n)
-            if (baseFee > 0n) {
-                const slot = keccak256(toHex("BLOCK_BASE_FEE_PER_GAS"))
-                const value = toHex(baseFee, { size: 32 })
-
-                mergedStateOverrides[epSimulationsAddress] = {
-                    stateDiff: {
-                        [slot]: value
-                    }
-                }
-            }
-        }
-
-        const viemStateOverride = prepareStateOverride({
-            userOps: [userOp],
+        const viemStateOverride = await prepareSimulationOverrides07({
+            userOp,
             queuedUserOps,
-            stateOverrides: mergedStateOverrides,
+            epSimulationsAddress,
+            gasPriceManager: this.gasPriceManager,
+            userStateOverrides: stateOverrides,
             config: this.config
         })
 
@@ -525,10 +505,17 @@ export class GasEstimator07 {
         queuedUserOps: UserOperationV07[]
         userStateOverrides?: StateOverrides | undefined
     }): Promise<SimulateHandleOpResult> {
-        const viemStateOverride = prepareStateOverride({
-            userOps: [userOp],
+        const { epSimulationsAddress } = this.getSimulationContracts(
+            entryPoint,
+            userOp
+        )
+
+        const viemStateOverride = await prepareSimulationOverrides07({
+            userOp,
             queuedUserOps,
-            stateOverrides: userStateOverrides,
+            epSimulationsAddress,
+            gasPriceManager: this.gasPriceManager,
+            userStateOverrides: userStateOverrides,
             config: this.config
         })
 
