@@ -109,7 +109,10 @@ describe.each([
                     deepHexlify(userOp),
                     entryPoint,
                     {
-                        addressesToTrack: [smartAccountClient.account.address, recipient],
+                        addressesToTrack: [
+                            smartAccountClient.account.address,
+                            recipient
+                        ],
                         tokensToTrack: [NATIVE_TOKEN_ADDRESS]
                     }
                 ]
@@ -166,7 +169,10 @@ describe.each([
                     deepHexlify(userOp),
                     entryPoint,
                     {
-                        addressesToTrack: [smartAccountClient.account.address, recipient],
+                        addressesToTrack: [
+                            smartAccountClient.account.address,
+                            recipient
+                        ],
                         tokensToTrack: [erc20Address]
                     }
                 ]
@@ -408,7 +414,9 @@ describe.each([
                         deepHexlify(userOp),
                         entryPoint,
                         {
-                            addressesToTrack: [smartAccountClient.account.address],
+                            addressesToTrack: [
+                                smartAccountClient.account.address
+                            ],
                             tokensToTrack: []
                         }
                     ]
@@ -457,7 +465,10 @@ describe.each([
                     deepHexlify(userOp),
                     entryPoint,
                     {
-                        addressesToTrack: [smartAccountClient.account.address, recipient],
+                        addressesToTrack: [
+                            smartAccountClient.account.address,
+                            recipient
+                        ],
                         tokensToTrack: [NATIVE_TOKEN_ADDRESS]
                     },
                     stateOverrides
