@@ -1,6 +1,7 @@
 import type { HexData32, UserOperation } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import type { Logger } from "@alto/utils"
+import * as sentry from "@sentry/node"
 import type { Address } from "viem"
 import type {
     EntryPointUserOpHashParam,
@@ -15,7 +16,6 @@ import { createMemoryOutstandingQueue } from "./createMemoryOutstandingStore"
 import { createRedisOutstandingQueue } from "./createRedisOutstandingStore"
 import { createRedisStore } from "./createRedisStore"
 import { createMemoryStore } from "./createStore"
-import * as sentry from "@sentry/node"
 
 export const createMempoolStore = ({
     config,

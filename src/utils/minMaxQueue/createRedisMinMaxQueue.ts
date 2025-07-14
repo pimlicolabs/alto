@@ -1,9 +1,9 @@
 import Redis from "ioredis"
 
+import type { Logger } from "@alto/utils"
+import * as sentry from "@sentry/node"
 import type { MinMaxQueue } from "."
 import type { AltoConfig } from "../../createConfig"
-import * as sentry from "@sentry/node"
-import { Logger } from "@alto/utils"
 
 // Sorted TTL queue, one queue to keep track of values and other queue to keep track of TTL.
 class SortedTtlSet {
