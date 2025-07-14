@@ -408,7 +408,7 @@ contract PimlicoSimulations {
         AssetBalance[] memory balancesBefore = this.getBalances(addresses, tokens);
 
         // Encode the simulateHandleOpSingle call with our target and targetCallData
-        bytes memory simulateCallData = abi.encodeWithSelector(
+        bytes memory simulateHandleOpCallData = abi.encodeWithSelector(
             IEntryPointSimulations.simulateHandleOpSingle.selector,
             userOp,
             address(this),
@@ -416,7 +416,7 @@ contract PimlicoSimulations {
         );
 
         // Use _simulateEntryPoint to execute through delegateAndRevert
-        bytes memory result = _simulateEntryPoint(entryPointSimulations, address(entryPoint), simulateCallData);
+        bytes memory result = _simulateEntryPoint(entryPointSimulations, address(entryPoint), simulateHandleOpCallData);
 
         // Decode the ExecutionResult
         IEntryPointSimulations.ExecutionResult memory executionResult =
