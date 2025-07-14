@@ -129,7 +129,9 @@ describe.each([
             const senderChange = result.find(
                 (r) => r.address === smartAccountClient.account.address
             ) as AssetChange
-            const recipientChange = result.find((r) => r.address === recipient) as AssetChange
+            const recipientChange = result.find(
+                (r) => r.address === recipient
+            ) as AssetChange
 
             expect(senderChange).toBeDefined()
             expect(recipientChange).toBeDefined()
