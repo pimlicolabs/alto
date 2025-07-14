@@ -110,7 +110,10 @@ describe.each([
                     deepHexlify(userOp),
                     entryPoint,
                     {
-                        owners: [smartAccountClient.account.address, recipient],
+                        addresses: [
+                            smartAccountClient.account.address,
+                            recipient
+                        ],
                         tokens: [NATIVE_TOKEN_ADDRESS]
                     }
                 ]
@@ -171,7 +174,10 @@ describe.each([
                     deepHexlify(userOp),
                     entryPoint,
                     {
-                        owners: [smartAccountClient.account.address, recipient],
+                        addresses: [
+                            smartAccountClient.account.address,
+                            recipient
+                        ],
                         tokens: [erc20Address]
                     }
                 ]
@@ -237,7 +243,7 @@ describe.each([
                     deepHexlify(userOp),
                     entryPoint,
                     {
-                        owners: [
+                        addresses: [
                             smartAccountClient.account.address,
                             recipient1,
                             recipient2
@@ -374,7 +380,7 @@ describe.each([
                     deepHexlify(userOp),
                     entryPoint,
                     {
-                        owners: [smartAccountClient.account.address],
+                        addresses: [smartAccountClient.account.address],
                         tokens: []
                     }
                 ]
@@ -409,7 +415,7 @@ describe.each([
                     deepHexlify(userOp),
                     entryPoint,
                     {
-                        owners: [],
+                        addresses: [],
                         tokens: []
                     }
                 ]
@@ -443,7 +449,7 @@ describe.each([
                         deepHexlify(userOp),
                         entryPoint,
                         {
-                            owners: [smartAccountClient.account.address],
+                            addresses: [smartAccountClient.account.address],
                             tokens: []
                         }
                     ]
@@ -492,7 +498,10 @@ describe.each([
                     deepHexlify(userOp),
                     entryPoint,
                     {
-                        owners: [smartAccountClient.account.address, recipient],
+                        addresses: [
+                            smartAccountClient.account.address,
+                            recipient
+                        ],
                         tokens: [NATIVE_TOKEN_ADDRESS]
                     },
                     stateOverrides

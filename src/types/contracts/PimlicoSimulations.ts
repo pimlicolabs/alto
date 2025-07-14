@@ -1,5 +1,10 @@
 export const pimlicoSimulationsAbi = [
   {
+    "type": "constructor",
+    "inputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
     "type": "function",
     "name": "binarySearchCallGas",
     "inputs": [
@@ -928,7 +933,7 @@ export const pimlicoSimulationsAbi = [
         "internalType": "struct PimlicoSimulations.AssetBalance[]",
         "components": [
           {
-            "name": "owner",
+            "name": "addr",
             "type": "address",
             "internalType": "address"
           },
@@ -1340,7 +1345,7 @@ export const pimlicoSimulationsAbi = [
         "internalType": "struct PimlicoSimulations.AssetChange[]",
         "components": [
           {
-            "name": "owner",
+            "name": "addr",
             "type": "address",
             "internalType": "address"
           },
@@ -1448,7 +1453,7 @@ export const pimlicoSimulationsAbi = [
         "internalType": "struct PimlicoSimulations.AssetChange[]",
         "components": [
           {
-            "name": "owner",
+            "name": "addr",
             "type": "address",
             "internalType": "address"
           },
@@ -1556,7 +1561,7 @@ export const pimlicoSimulationsAbi = [
         "internalType": "struct PimlicoSimulations.AssetChange[]",
         "components": [
           {
-            "name": "owner",
+            "name": "addr",
             "type": "address",
             "internalType": "address"
           },
@@ -2021,4 +2026,10 @@ export const pimlicoSimulationsAbi = [
     ],
     "stateMutability": "nonpayable"
   },
+  {
+    "type": "event",
+    "name": "PimlicoSimulationDeployed",
+    "inputs": [],
+    "anonymous": false
+  }
 ] as const

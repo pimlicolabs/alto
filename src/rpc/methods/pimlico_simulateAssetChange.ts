@@ -28,11 +28,11 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
     schema: pimlicoSimulateAssetChangeSchema,
     handler: async ({ rpcHandler, params }) => {
         const [userOp, entryPoint, trackingParams, stateOverrides] = params
-        const { owners, tokens } = trackingParams
+        const { addresses, tokens } = trackingParams
 
         const logger = rpcHandler.logger.child({
             entryPoint,
-            owners,
+            addresses,
             tokens
         })
 
@@ -86,7 +86,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
 
         try {
             let result: {
-                owner: Address
+                addr: Address
                 token: Address
                 balanceBefore: bigint
                 balanceAfter: bigint
@@ -100,7 +100,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                             toPackedUserOp(userOp as UserOperationV07),
                             entryPoint,
                             epSimulationsAddress as Address,
-                            owners,
+                            addresses,
                             tokens
                         ],
                         {
@@ -116,7 +116,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                             toPackedUserOp(userOp as UserOperationV07),
                             entryPoint,
                             epSimulationsAddress as Address,
-                            owners,
+                            addresses,
                             tokens
                         ],
                         {
@@ -130,7 +130,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                         [
                             userOp as UserOperationV06,
                             entryPoint,
-                            owners,
+                            addresses,
                             tokens
                         ],
                         {
@@ -141,9 +141,9 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
             }
 
             return result.map(
-                ({ owner, token, balanceBefore, balanceAfter }) => {
+                ({ addr: address, token, balanceBefore, balanceAfter }) => {
                     return {
-                        owner,
+                        address,
                         token,
                         balanceBefore,
                         balanceAfter
