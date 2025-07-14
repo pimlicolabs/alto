@@ -91,14 +91,14 @@ contract SimulateAssetChangeTest is UserOpHelper {
         assertEq(changes.length, 2, "Should have 2 ETH balance changes");
 
         // Verify sender's balances
-        assertEq(changes[0].owner, userOp.sender);
+        assertEq(changes[0].addr, userOp.sender);
         assertEq(changes[0].token, ETH_ADDRESS);
         assertEq(changes[0].balanceBefore, senderBalanceBeforeSim, "Sender balanceBefore should match current balance");
         assertLt(changes[0].balanceAfter, changes[0].balanceBefore, "Sender balance should decrease");
         assertLt(changes[0].balanceAfter, senderBalanceBeforeSim - transferAmount, "Sender should pay transfer + gas");
 
         // Verify recipient's balances
-        assertEq(changes[1].owner, recipient);
+        assertEq(changes[1].addr, recipient);
         assertEq(changes[1].token, ETH_ADDRESS);
         assertEq(
             changes[1].balanceBefore, recipientBalanceBeforeSim, "Recipient balanceBefore should match current balance"
@@ -149,7 +149,7 @@ contract SimulateAssetChangeTest is UserOpHelper {
         assertEq(changes.length, 2, "Should have 2 token changes");
 
         // Verify sender's token balances
-        assertEq(changes[0].owner, userOp.sender);
+        assertEq(changes[0].addr, userOp.sender);
         assertEq(changes[0].token, address(token1));
         assertEq(
             changes[0].balanceBefore,
@@ -163,7 +163,7 @@ contract SimulateAssetChangeTest is UserOpHelper {
         );
 
         // Verify recipient's token balances
-        assertEq(changes[1].owner, recipient);
+        assertEq(changes[1].addr, recipient);
         assertEq(changes[1].token, address(token1));
         assertEq(
             changes[1].balanceBefore,
@@ -277,7 +277,7 @@ contract SimulateAssetChangeTest is UserOpHelper {
 
         // Should only have gas cost change
         assertEq(changes.length, 1, "Should only have 1 change for gas");
-        assertEq(changes[0].owner, userOp.sender);
+        assertEq(changes[0].addr, userOp.sender);
         assertEq(changes[0].token, ETH_ADDRESS);
         assertEq(changes[0].balanceBefore, senderBalanceBeforeSim, "balanceBefore should match current balance");
         assertLt(changes[0].balanceAfter, changes[0].balanceBefore, "ETH should decrease due to gas");
@@ -353,11 +353,11 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Verify ETH changes
         for (uint256 i = 0; i < changes.length; i++) {
             assertEq(changes[i].token, ETH_ADDRESS, "All changes should be ETH");
-            if (changes[i].owner == userOp.sender) {
+            if (changes[i].addr == userOp.sender) {
                 assertEq(changes[i].balanceBefore, senderBalanceBeforeSim, "Sender balanceBefore should match");
                 assertLt(changes[i].balanceAfter, changes[i].balanceBefore, "Sender ETH should decrease");
                 assertLt(changes[i].balanceAfter, senderBalanceBeforeSim - transferAmount, "Should include gas");
-            } else if (changes[i].owner == recipient) {
+            } else if (changes[i].addr == recipient) {
                 assertEq(changes[i].balanceBefore, recipientBalanceBeforeSim, "Recipient balanceBefore should match");
                 assertEq(
                     changes[i].balanceAfter,
@@ -409,14 +409,14 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Verify token changes
         for (uint256 i = 0; i < changes.length; i++) {
             assertEq(changes[i].token, address(token1), "All changes should be for token1");
-            if (changes[i].owner == userOp.sender) {
+            if (changes[i].addr == userOp.sender) {
                 assertEq(changes[i].balanceBefore, senderTokenBalanceBeforeSim, "Sender balanceBefore should match");
                 assertEq(
                     changes[i].balanceAfter,
                     senderTokenBalanceBeforeSim - transferAmount,
                     "Sender tokens should decrease"
                 );
-            } else if (changes[i].owner == recipient) {
+            } else if (changes[i].addr == recipient) {
                 assertEq(
                     changes[i].balanceBefore, recipientTokenBalanceBeforeSim, "Recipient balanceBefore should match"
                 );
@@ -529,7 +529,7 @@ contract SimulateAssetChangeTest is UserOpHelper {
 
         // Should only have gas cost change
         assertEq(changes.length, 1, "Should only have 1 change for gas");
-        assertEq(changes[0].owner, userOp.sender);
+        assertEq(changes[0].addr, userOp.sender);
         assertEq(changes[0].token, ETH_ADDRESS);
         assertEq(changes[0].balanceBefore, senderBalanceBeforeSim, "balanceBefore should match current balance");
         assertLt(changes[0].balanceAfter, changes[0].balanceBefore, "ETH should decrease due to gas");
@@ -606,11 +606,11 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Verify ETH changes
         for (uint256 i = 0; i < changes.length; i++) {
             assertEq(changes[i].token, ETH_ADDRESS, "All changes should be ETH");
-            if (changes[i].owner == userOp.sender) {
+            if (changes[i].addr == userOp.sender) {
                 assertEq(changes[i].balanceBefore, senderBalanceBeforeSim, "Sender balanceBefore should match");
                 assertLt(changes[i].balanceAfter, changes[i].balanceBefore, "Sender ETH should decrease");
                 assertLt(changes[i].balanceAfter, senderBalanceBeforeSim - transferAmount, "Should include gas");
-            } else if (changes[i].owner == recipient) {
+            } else if (changes[i].addr == recipient) {
                 assertEq(changes[i].balanceBefore, recipientBalanceBeforeSim, "Recipient balanceBefore should match");
                 assertEq(
                     changes[i].balanceAfter,
@@ -663,14 +663,14 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Verify token changes
         for (uint256 i = 0; i < changes.length; i++) {
             assertEq(changes[i].token, address(token1), "All changes should be for token1");
-            if (changes[i].owner == userOp.sender) {
+            if (changes[i].addr == userOp.sender) {
                 assertEq(changes[i].balanceBefore, senderTokenBalanceBeforeSim, "Sender balanceBefore should match");
                 assertEq(
                     changes[i].balanceAfter,
                     senderTokenBalanceBeforeSim - transferAmount,
                     "Sender tokens should decrease"
                 );
-            } else if (changes[i].owner == recipient) {
+            } else if (changes[i].addr == recipient) {
                 assertEq(
                     changes[i].balanceBefore, recipientTokenBalanceBeforeSim, "Recipient balanceBefore should match"
                 );
@@ -785,7 +785,7 @@ contract SimulateAssetChangeTest is UserOpHelper {
 
         // Should only have gas cost change
         assertEq(changes.length, 1, "Should only have 1 change for gas");
-        assertEq(changes[0].owner, userOp.sender);
+        assertEq(changes[0].addr, userOp.sender);
         assertEq(changes[0].token, ETH_ADDRESS);
         assertEq(changes[0].balanceBefore, senderBalanceBeforeSim, "balanceBefore should match current balance");
         assertLt(changes[0].balanceAfter, changes[0].balanceBefore, "ETH should decrease due to gas");
@@ -835,7 +835,7 @@ contract SimulateAssetChangeTest is UserOpHelper {
         uint256 expectedBalanceAfter,
         string memory message
     ) private {
-        assertEq(change.owner, expectedOwner, string.concat(message, ": owner mismatch"));
+        assertEq(change.addr, expectedOwner, string.concat(message, ": account mismatch"));
         assertEq(change.token, expectedToken, string.concat(message, ": token mismatch"));
         assertEq(change.balanceBefore, expectedBalanceBefore, string.concat(message, ": balanceBefore mismatch"));
         assertEq(change.balanceAfter, expectedBalanceAfter, string.concat(message, ": balanceAfter mismatch"));
@@ -847,7 +847,7 @@ contract SimulateAssetChangeTest is UserOpHelper {
         returns (bool found, uint256 index)
     {
         for (uint256 i = 0; i < changes.length; i++) {
-            if (changes[i].owner == owner && changes[i].token == token) {
+            if (changes[i].addr == owner && changes[i].token == token) {
                 return (true, i);
             }
         }

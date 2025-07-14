@@ -342,14 +342,14 @@ contract PimlicoSimulations {
 
     // @notice Result struct for balance queries
     struct AssetBalance {
-        address owner;
+        address addr;
         address token;
         uint256 amount;
     }
 
     // @notice Result struct for asset change simulations
     struct AssetChange {
-        address owner;
+        address addr;
         address token;
         uint256 balanceBefore;
         uint256 balanceAfter;
@@ -368,17 +368,17 @@ contract PimlicoSimulations {
         uint256 index = 0;
 
         for (uint256 i = 0; i < addresses.length; i++) {
-            address owner = addresses[i];
+            address addr = addresses[i];
 
             for (uint256 j = 0; j < tokens.length; j++) {
                 uint256 amount;
                 if (tokens[j] == address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE)) {
-                    amount = owner.balance;
+                    amount = addr.balance;
                 } else {
-                    amount = ERC20(tokens[j]).balanceOf(owner);
+                    amount = ERC20(tokens[j]).balanceOf(addr);
                 }
 
-                balances[index++] = AssetBalance({owner: owner, token: tokens[j], amount: amount});
+                balances[index++] = AssetBalance({addr: addr, token: tokens[j], amount: amount});
             }
         }
 
@@ -436,7 +436,7 @@ contract PimlicoSimulations {
 
         for (uint256 i = 0; i < balancesBefore.length; i++) {
             assetChanges[i] = AssetChange({
-                owner: balancesBefore[i].owner,
+                addr: balancesBefore[i].addr,
                 token: balancesBefore[i].token,
                 balanceBefore: balancesBefore[i].amount,
                 balanceAfter: balancesAfter[i].amount
@@ -508,7 +508,7 @@ contract PimlicoSimulations {
 
         for (uint256 i = 0; i < balancesBefore.length; i++) {
             assetChanges[i] = AssetChange({
-                owner: balancesBefore[i].owner,
+                addr: balancesBefore[i].addr,
                 token: balancesBefore[i].token,
                 balanceBefore: balancesBefore[i].amount,
                 balanceAfter: balancesAfter[i].amount
