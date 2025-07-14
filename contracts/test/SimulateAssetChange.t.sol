@@ -71,6 +71,10 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Fund the account
         vm.deal(userOp.sender, 1 ether);
 
+        // Record balances before simulation
+        uint256 senderBalanceBeforeSim = userOp.sender.balance;
+        uint256 recipientBalanceBeforeSim = recipient.balance;
+
         // Track addresses
         address[] memory addresses = new address[](2);
         addresses[0] = userOp.sender;
@@ -86,15 +90,24 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Verify results
         assertEq(changes.length, 2, "Should have 2 ETH balance changes");
 
-        // Sender's ETH should decrease
+        // Verify sender's balances
         assertEq(changes[0].owner, userOp.sender);
         assertEq(changes[0].token, ETH_ADDRESS);
-        assertLt(changes[0].diff, 0, "Sender ETH should decrease");
+        assertEq(changes[0].balanceBefore, senderBalanceBeforeSim, "Sender balanceBefore should match current balance");
+        assertLt(changes[0].balanceAfter, changes[0].balanceBefore, "Sender balance should decrease");
+        assertLt(changes[0].balanceAfter, senderBalanceBeforeSim - transferAmount, "Sender should pay transfer + gas");
 
-        // Recipient's ETH should increase
+        // Verify recipient's balances
         assertEq(changes[1].owner, recipient);
         assertEq(changes[1].token, ETH_ADDRESS);
-        assertEq(changes[1].diff, int256(transferAmount), "Recipient should receive exact transfer amount");
+        assertEq(
+            changes[1].balanceBefore, recipientBalanceBeforeSim, "Recipient balanceBefore should match current balance"
+        );
+        assertEq(
+            changes[1].balanceAfter,
+            recipientBalanceBeforeSim + transferAmount,
+            "Recipient should receive exact transfer amount"
+        );
     }
 
     // Test simulateAssetChange06 with ERC20 token transfer
@@ -116,6 +129,10 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Fund the account for gas
         vm.deal(userOp.sender, 1 ether);
 
+        // Record token balances before simulation
+        uint256 senderTokenBalanceBeforeSim = token1.balanceOf(userOp.sender);
+        uint256 recipientTokenBalanceBeforeSim = token1.balanceOf(recipient);
+
         // Track addresses and tokens
         address[] memory addresses = new address[](2);
         addresses[0] = userOp.sender;
@@ -131,24 +148,33 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Verify results - should have 2 token changes
         assertEq(changes.length, 2, "Should have 2 token changes");
 
-        // Find and verify token changes
-        bool foundSenderTokenChange = false;
-        bool foundRecipientTokenChange = false;
+        // Verify sender's token balances
+        assertEq(changes[0].owner, userOp.sender);
+        assertEq(changes[0].token, address(token1));
+        assertEq(
+            changes[0].balanceBefore,
+            senderTokenBalanceBeforeSim,
+            "Sender token balanceBefore should match actual balance"
+        );
+        assertEq(
+            changes[0].balanceAfter,
+            senderTokenBalanceBeforeSim - transferAmount,
+            "Sender should have initial balance minus transfer"
+        );
 
-        for (uint256 i = 0; i < changes.length; i++) {
-            if (changes[i].token == address(token1)) {
-                if (changes[i].owner == userOp.sender) {
-                    assertEq(changes[i].diff, -int256(transferAmount), "Sender token balance should decrease");
-                    foundSenderTokenChange = true;
-                } else if (changes[i].owner == recipient) {
-                    assertEq(changes[i].diff, int256(transferAmount), "Recipient token balance should increase");
-                    foundRecipientTokenChange = true;
-                }
-            }
-        }
-
-        assertTrue(foundSenderTokenChange, "Should find sender token change");
-        assertTrue(foundRecipientTokenChange, "Should find recipient token change");
+        // Verify recipient's token balances
+        assertEq(changes[1].owner, recipient);
+        assertEq(changes[1].token, address(token1));
+        assertEq(
+            changes[1].balanceBefore,
+            recipientTokenBalanceBeforeSim,
+            "Recipient token balanceBefore should match actual balance"
+        );
+        assertEq(
+            changes[1].balanceAfter,
+            recipientTokenBalanceBeforeSim + transferAmount,
+            "Recipient should have initial balance plus transfer"
+        );
     }
 
     // Test simulateAssetChange06 with multiple asset changes (ETH + tokens)
@@ -235,6 +261,9 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Fund the account
         vm.deal(userOp.sender, 1 ether);
 
+        // Record balance before simulation
+        uint256 senderBalanceBeforeSim = userOp.sender.balance;
+
         // Track only the sender
         address[] memory addresses = new address[](1);
         addresses[0] = userOp.sender;
@@ -250,7 +279,8 @@ contract SimulateAssetChangeTest is UserOpHelper {
         assertEq(changes.length, 1, "Should only have 1 change for gas");
         assertEq(changes[0].owner, userOp.sender);
         assertEq(changes[0].token, ETH_ADDRESS);
-        assertLt(changes[0].diff, 0, "ETH should decrease due to gas");
+        assertEq(changes[0].balanceBefore, senderBalanceBeforeSim, "balanceBefore should match current balance");
+        assertLt(changes[0].balanceAfter, changes[0].balanceBefore, "ETH should decrease due to gas");
     }
 
     // Test simulateAssetChange06 with invalid nonce (should revert with AA25)
@@ -301,6 +331,10 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Fund the account
         vm.deal(userOp.sender, 1 ether);
 
+        // Record balances before simulation
+        uint256 senderBalanceBeforeSim = userOp.sender.balance;
+        uint256 recipientBalanceBeforeSim = recipient.balance;
+
         // Track addresses
         address[] memory addresses = new address[](2);
         addresses[0] = userOp.sender;
@@ -320,9 +354,16 @@ contract SimulateAssetChangeTest is UserOpHelper {
         for (uint256 i = 0; i < changes.length; i++) {
             assertEq(changes[i].token, ETH_ADDRESS, "All changes should be ETH");
             if (changes[i].owner == userOp.sender) {
-                assertLt(changes[i].diff, 0, "Sender ETH should decrease");
+                assertEq(changes[i].balanceBefore, senderBalanceBeforeSim, "Sender balanceBefore should match");
+                assertLt(changes[i].balanceAfter, changes[i].balanceBefore, "Sender ETH should decrease");
+                assertLt(changes[i].balanceAfter, senderBalanceBeforeSim - transferAmount, "Should include gas");
             } else if (changes[i].owner == recipient) {
-                assertEq(changes[i].diff, int256(transferAmount), "Recipient should receive exact amount");
+                assertEq(changes[i].balanceBefore, recipientBalanceBeforeSim, "Recipient balanceBefore should match");
+                assertEq(
+                    changes[i].balanceAfter,
+                    recipientBalanceBeforeSim + transferAmount,
+                    "Recipient should receive exact amount"
+                );
             }
         }
     }
@@ -346,6 +387,10 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Fund the account for gas
         vm.deal(userOp.sender, 1 ether);
 
+        // Record token balances before simulation
+        uint256 senderTokenBalanceBeforeSim = token1.balanceOf(userOp.sender);
+        uint256 recipientTokenBalanceBeforeSim = token1.balanceOf(recipient);
+
         // Track addresses and tokens
         address[] memory addresses = new address[](2);
         addresses[0] = userOp.sender;
@@ -365,9 +410,21 @@ contract SimulateAssetChangeTest is UserOpHelper {
         for (uint256 i = 0; i < changes.length; i++) {
             assertEq(changes[i].token, address(token1), "All changes should be for token1");
             if (changes[i].owner == userOp.sender) {
-                assertEq(changes[i].diff, -int256(transferAmount), "Sender tokens should decrease");
+                assertEq(changes[i].balanceBefore, senderTokenBalanceBeforeSim, "Sender balanceBefore should match");
+                assertEq(
+                    changes[i].balanceAfter,
+                    senderTokenBalanceBeforeSim - transferAmount,
+                    "Sender tokens should decrease"
+                );
             } else if (changes[i].owner == recipient) {
-                assertEq(changes[i].diff, int256(transferAmount), "Recipient tokens should increase");
+                assertEq(
+                    changes[i].balanceBefore, recipientTokenBalanceBeforeSim, "Recipient balanceBefore should match"
+                );
+                assertEq(
+                    changes[i].balanceAfter,
+                    recipientTokenBalanceBeforeSim + transferAmount,
+                    "Recipient tokens should increase"
+                );
             }
         }
     }
@@ -456,6 +513,9 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Fund the account
         vm.deal(userOp.sender, 1 ether);
 
+        // Record balance before simulation
+        uint256 senderBalanceBeforeSim = userOp.sender.balance;
+
         // Track only the sender
         address[] memory addresses = new address[](1);
         addresses[0] = userOp.sender;
@@ -471,7 +531,8 @@ contract SimulateAssetChangeTest is UserOpHelper {
         assertEq(changes.length, 1, "Should only have 1 change for gas");
         assertEq(changes[0].owner, userOp.sender);
         assertEq(changes[0].token, ETH_ADDRESS);
-        assertLt(changes[0].diff, 0, "ETH should decrease due to gas");
+        assertEq(changes[0].balanceBefore, senderBalanceBeforeSim, "balanceBefore should match current balance");
+        assertLt(changes[0].balanceAfter, changes[0].balanceBefore, "ETH should decrease due to gas");
     }
 
     // Test simulateAssetChange07 with invalid nonce (should revert with AA25)
@@ -522,6 +583,10 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Fund the account
         vm.deal(userOp.sender, 1 ether);
 
+        // Record balances before simulation
+        uint256 senderBalanceBeforeSim = userOp.sender.balance;
+        uint256 recipientBalanceBeforeSim = recipient.balance;
+
         // Track addresses
         address[] memory addresses = new address[](2);
         addresses[0] = userOp.sender;
@@ -542,9 +607,16 @@ contract SimulateAssetChangeTest is UserOpHelper {
         for (uint256 i = 0; i < changes.length; i++) {
             assertEq(changes[i].token, ETH_ADDRESS, "All changes should be ETH");
             if (changes[i].owner == userOp.sender) {
-                assertLt(changes[i].diff, 0, "Sender ETH should decrease");
+                assertEq(changes[i].balanceBefore, senderBalanceBeforeSim, "Sender balanceBefore should match");
+                assertLt(changes[i].balanceAfter, changes[i].balanceBefore, "Sender ETH should decrease");
+                assertLt(changes[i].balanceAfter, senderBalanceBeforeSim - transferAmount, "Should include gas");
             } else if (changes[i].owner == recipient) {
-                assertEq(changes[i].diff, int256(transferAmount), "Recipient should receive exact amount");
+                assertEq(changes[i].balanceBefore, recipientBalanceBeforeSim, "Recipient balanceBefore should match");
+                assertEq(
+                    changes[i].balanceAfter,
+                    recipientBalanceBeforeSim + transferAmount,
+                    "Recipient should receive exact amount"
+                );
             }
         }
     }
@@ -568,6 +640,10 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Fund the account for gas
         vm.deal(userOp.sender, 1 ether);
 
+        // Record token balances before simulation
+        uint256 senderTokenBalanceBeforeSim = token1.balanceOf(userOp.sender);
+        uint256 recipientTokenBalanceBeforeSim = token1.balanceOf(recipient);
+
         // Track addresses and tokens
         address[] memory addresses = new address[](2);
         addresses[0] = userOp.sender;
@@ -588,9 +664,21 @@ contract SimulateAssetChangeTest is UserOpHelper {
         for (uint256 i = 0; i < changes.length; i++) {
             assertEq(changes[i].token, address(token1), "All changes should be for token1");
             if (changes[i].owner == userOp.sender) {
-                assertEq(changes[i].diff, -int256(transferAmount), "Sender tokens should decrease");
+                assertEq(changes[i].balanceBefore, senderTokenBalanceBeforeSim, "Sender balanceBefore should match");
+                assertEq(
+                    changes[i].balanceAfter,
+                    senderTokenBalanceBeforeSim - transferAmount,
+                    "Sender tokens should decrease"
+                );
             } else if (changes[i].owner == recipient) {
-                assertEq(changes[i].diff, int256(transferAmount), "Recipient tokens should increase");
+                assertEq(
+                    changes[i].balanceBefore, recipientTokenBalanceBeforeSim, "Recipient balanceBefore should match"
+                );
+                assertEq(
+                    changes[i].balanceAfter,
+                    recipientTokenBalanceBeforeSim + transferAmount,
+                    "Recipient tokens should increase"
+                );
             }
         }
     }
@@ -680,6 +768,9 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Fund the account
         vm.deal(userOp.sender, 1 ether);
 
+        // Record balance before simulation
+        uint256 senderBalanceBeforeSim = userOp.sender.balance;
+
         // Track only the sender
         address[] memory addresses = new address[](1);
         addresses[0] = userOp.sender;
@@ -696,7 +787,8 @@ contract SimulateAssetChangeTest is UserOpHelper {
         assertEq(changes.length, 1, "Should only have 1 change for gas");
         assertEq(changes[0].owner, userOp.sender);
         assertEq(changes[0].token, ETH_ADDRESS);
-        assertLt(changes[0].diff, 0, "ETH should decrease due to gas");
+        assertEq(changes[0].balanceBefore, senderBalanceBeforeSim, "balanceBefore should match current balance");
+        assertLt(changes[0].balanceAfter, changes[0].balanceBefore, "ETH should decrease due to gas");
     }
 
     // Test simulateAssetChange08 with invalid nonce (should revert with AA25)
@@ -739,12 +831,14 @@ contract SimulateAssetChangeTest is UserOpHelper {
         PimlicoSimulations.AssetChange memory change,
         address expectedOwner,
         address expectedToken,
-        int256 expectedDiff,
+        uint256 expectedBalanceBefore,
+        uint256 expectedBalanceAfter,
         string memory message
     ) private {
         assertEq(change.owner, expectedOwner, string.concat(message, ": owner mismatch"));
         assertEq(change.token, expectedToken, string.concat(message, ": token mismatch"));
-        assertEq(change.diff, expectedDiff, string.concat(message, ": diff mismatch"));
+        assertEq(change.balanceBefore, expectedBalanceBefore, string.concat(message, ": balanceBefore mismatch"));
+        assertEq(change.balanceAfter, expectedBalanceAfter, string.concat(message, ": balanceAfter mismatch"));
     }
 
     function _findAssetChange(PimlicoSimulations.AssetChange[] memory changes, address owner, address token)

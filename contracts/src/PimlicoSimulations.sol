@@ -351,7 +351,8 @@ contract PimlicoSimulations {
     struct AssetChange {
         address owner;
         address token;
-        int256 diff;
+        uint256 balanceBefore;
+        uint256 balanceAfter;
     }
 
     // @notice Get current balances for specified addresses and tokens
@@ -437,7 +438,8 @@ contract PimlicoSimulations {
             assetChanges[i] = AssetChange({
                 owner: balancesBefore[i].owner,
                 token: balancesBefore[i].token,
-                diff: int256(balancesAfter[i].amount) - int256(balancesBefore[i].amount)
+                balanceBefore: balancesBefore[i].amount,
+                balanceAfter: balancesAfter[i].amount
             });
         }
 
@@ -508,7 +510,8 @@ contract PimlicoSimulations {
             assetChanges[i] = AssetChange({
                 owner: balancesBefore[i].owner,
                 token: balancesBefore[i].token,
-                diff: int256(balancesAfter[i].amount) - int256(balancesBefore[i].amount)
+                balanceBefore: balancesBefore[i].amount,
+                balanceAfter: balancesAfter[i].amount
             });
         }
 
