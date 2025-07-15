@@ -40,26 +40,6 @@ import {
     ReputationStatuses
 } from "./reputationManager"
 
-interface MempoolRestorationData {
-    type: "MEMPOOL_DATA"
-    chainId: number
-    entryPoint: Address
-    data: {
-        outstanding: UserOpInfo[]
-        submitted: UserOpInfo[]
-        processing: UserOpInfo[]
-    }
-    timestamp: number
-}
-
-interface MempoolRestorationEnd {
-    type: "END_RESTORATION"
-    chainId: number
-    timestamp: number
-}
-
-type MempoolRestorationMessage = MempoolRestorationData | MempoolRestorationEnd
-
 export class Mempool {
     private config: AltoConfig
     private metrics: Metrics
