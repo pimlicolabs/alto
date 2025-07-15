@@ -193,6 +193,13 @@ export class Executor {
         txParam: HandleOpsTxParams
         gasOpts: HandleOpsGasParams
     }) {
+        this.logger.info(
+            {
+                txParam: jsonStringifyWithBigint(txParam)
+            },
+            "Sending handleOps transaction"
+        )
+
         const {
             executorGasMultiplier,
             sendHandleOpsRetryCount,

@@ -29,7 +29,11 @@ import type { AltoConfig } from "../createConfig"
 import { pimlicoSimulationsAbi } from "../types/contracts/PimlicoSimulations"
 import { getEip7702DelegationOverrides } from "../utils/eip7702"
 import { getFilterOpsStateOverride } from "../utils/entryPointOverrides"
-import { calculateAA95GasFloor, encodeHandleOpsCalldata } from "./utils"
+import {
+    calculateAA95GasFloor,
+    encodeHandleOpsCalldata,
+    getUserOpHashes
+} from "./utils"
 
 export type FilterOpsResult =
     | {
@@ -381,6 +385,14 @@ export async function filterOpsAndEstimateGas({
             executorAddress: beneficiary
         })
 
+        logger.info(
+            {
+                userOpHashes: getUserOpHashes(userOpsToBundle),
+                bundleGasLimit: bundleGasLimit.toString(),
+                bundleGasUsed: bundleGasUsed.toString()
+            },
+            "Got fitlerOps result"
+        )
         return {
             status: "success",
             userOpsToBundle,
