@@ -159,6 +159,15 @@ export class Mempool {
                         userOpInfo
                     })
                 }
+
+                this.logger.info(
+                    {
+                        outstanding: outstanding.length,
+                        submitted: submitted.length,
+                        processing: processing.length
+                    },
+                    "restored mempool from redis"
+                )
             })
         )
     }
