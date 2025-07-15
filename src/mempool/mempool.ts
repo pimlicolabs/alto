@@ -188,6 +188,10 @@ export class Mempool {
                 )
             })
 
+            if (await restorationQueue.isPaused()) {
+                await restorationQueue.resume()
+            }
+
             // Check if there are existing jobs in the queue
             const waitingCount = await restorationQueue.getWaitingCount()
             const activeCount = await restorationQueue.getActiveCount()
