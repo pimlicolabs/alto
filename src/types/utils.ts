@@ -1,6 +1,7 @@
+// Error codes come from: https://eips.ethereum.org/EIPS/eip-7769
 export enum ValidationErrors {
     InvalidRequest = -32601,
-    InvalidFields = -32602, // Invalid userOp fields
+    InvalidFields = -32602,
     SimulateValidation = -32500,
     SimulatePaymasterValidation = -32501,
     OpcodeValidation = -32502,
