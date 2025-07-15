@@ -22,11 +22,23 @@ export const recoverableJsonStringifyWithBigint = (obj: unknown): string => {
 }
 
 export const recoverableJsonParseWithBigint = (str: string): any => {
-    return JSON.parse(str, (_key, value) =>
-        typeof value === "object" && "type" in value && value.type === "bigint"
-            ? BigInt(value.value)
-            : value
-    )
+    return JSON.parse(str, (_key, value) => {
+        if (
+            value !== null &&
+            typeof value === "object" &&
+            "type" in value &&
+            value.type === "bigint" &&
+            "value" in value &&
+            typeof value.value === "string"
+        ) {
+            try {
+                return BigInt(value.value)
+            } catch {
+                return value
+            }
+        }
+        return value
+    })
 }
 
 /// Ensure proper equality by converting both addresses into their checksum type
