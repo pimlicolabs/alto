@@ -336,33 +336,7 @@ export const setupServer = async ({
         await server.stop()
         rootLogger.info("server stopped")
 
-        for (const entryPoint of config.entrypoints) {
-            const outstanding = [...(await mempool.dumpOutstanding(entryPoint))]
-            const submitted = [...(await mempool.dumpSubmittedOps(entryPoint))]
-            const processing = [...(await mempool.dumpProcessing(entryPoint))]
-            await mempool.dropUserOps(entryPoint, [
-                ...outstanding.map((userOp) => ({
-                    ...userOp,
-                    reason: "shutdown"
-                })),
-                ...submitted.map((userOp) => ({
-                    ...userOp,
-                    reason: "shutdown"
-                })),
-                ...processing.map((userOp) => ({
-                    ...userOp,
-                    reason: "shutdown"
-                }))
-            ])
-            rootLogger.info(
-                {
-                    outstanding: outstanding.length,
-                    submitted: submitted.length,
-                    processing: processing.length
-                },
-                "dumping mempool before shutdown"
-            )
-        }
+        await mempool.shutdown()
 
         // mark all executors as processed
         for (const account of senderManager.getActiveWallets()) {

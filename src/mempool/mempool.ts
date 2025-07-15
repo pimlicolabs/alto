@@ -26,6 +26,7 @@ import {
     jsonStringifyWithBigint,
     scaleBigIntByPercent
 } from "@alto/utils"
+import Redis from "ioredis"
 import { type Hex, getAddress, getContract } from "viem"
 import type { EntryPointVersion } from "viem/account-abstraction"
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
@@ -47,6 +48,7 @@ export class Mempool {
     private logger: Logger
     private validator: InterfaceValidator
     private eventManager: EventManager
+    private shutdownRedis?: Redis
 
     constructor({
         config,
@@ -79,6 +81,84 @@ export class Mempool {
         )
         this.throttledEntityBundleCount = 4 // we don't have any config for this as of now
         this.eventManager = eventManager
+        if (config.redisShutdownMempoolUrl) {
+            this.shutdownRedis = new Redis(config.redisShutdownMempoolUrl)
+            this.restoreMempool()
+        }
+    }
+
+    async restoreMempool() {
+        await Promise.all(
+            this.config.entrypoints.map(async (entryPoint) => {
+                if (!this.shutdownRedis) {
+                    return
+                }
+
+                let mempoolString: string | null = null
+                try {
+                    mempoolString = await this.shutdownRedis.get(
+                        `mempool:${entryPoint}`
+                    )
+                } catch (err) {
+                    this.logger.error(
+                        { err, entryPoint },
+                        "Failed to fetch mempool from shutdownRedis"
+                    )
+                    return
+                }
+
+                if (!mempoolString) {
+                    return
+                }
+
+                let mempool: {
+                    outstanding?: UserOpInfo[]
+                    submitted?: UserOpInfo[]
+                    processing?: UserOpInfo[]
+                } = {}
+
+                try {
+                    mempool = JSON.parse(mempoolString)
+                } catch (err) {
+                    this.logger.error(
+                        { err, entryPoint, mempoolString },
+                        "Failed to parse mempool JSON from shutdownRedis"
+                    )
+                    return
+                }
+
+                const outstanding = Array.isArray(mempool.outstanding)
+                    ? mempool.outstanding
+                    : []
+                const submitted = Array.isArray(mempool.submitted)
+                    ? mempool.submitted
+                    : []
+                const processing = Array.isArray(mempool.processing)
+                    ? mempool.processing
+                    : []
+
+                for (const userOpInfo of outstanding) {
+                    await this.store.addOutstanding({
+                        entryPoint,
+                        userOpInfo
+                    })
+                }
+
+                for (const userOpInfo of submitted) {
+                    await this.store.addSubmitted({
+                        entryPoint,
+                        userOpInfo
+                    })
+                }
+
+                for (const userOpInfo of processing) {
+                    await this.store.addProcessing({
+                        entryPoint,
+                        userOpInfo
+                    })
+                }
+            })
+        )
     }
 
     // === Methods for handling changing userOp state === //
@@ -177,6 +257,77 @@ export class Mempool {
                 )
             })
         )
+    }
+
+    /**
+     * Gracefully shutdown the mempool by either persisting its state to Redis (if configured)
+     * or dropping all user operations with a "shutdown" reason.
+     */
+    async shutdown() {
+        const multi = this.shutdownRedis?.multi()
+
+        await Promise.all(
+            this.config.entrypoints.map(async (entryPoint) => {
+                const [outstanding, submitted, processing] = await Promise.all([
+                    this.dumpOutstanding(entryPoint),
+                    this.dumpSubmittedOps(entryPoint),
+                    this.dumpProcessing(entryPoint)
+                ])
+
+                if (multi) {
+                    multi.set(
+                        `mempool:${entryPoint}`,
+                        JSON.stringify({
+                            outstanding,
+                            submitted,
+                            processing
+                        })
+                    )
+
+                    this.logger.info(
+                        {
+                            outstanding: outstanding.length,
+                            submitted: submitted.length,
+                            processing: processing.length
+                        },
+                        "dumped mempool before shutdown"
+                    )
+                } else {
+                    const rejectedUserOps = [
+                        ...outstanding.map((userOp) => ({
+                            ...userOp,
+                            reason: "shutdown"
+                        })),
+                        ...submitted.map((userOp) => ({
+                            ...userOp,
+                            reason: "shutdown"
+                        })),
+                        ...processing.map((userOp) => ({
+                            ...userOp,
+                            reason: "shutdown"
+                        }))
+                    ]
+
+                    if (rejectedUserOps.length > 0) {
+                        await this.dropUserOps(entryPoint, rejectedUserOps)
+                    }
+
+                    this.logger.info(
+                        {
+                            outstanding: outstanding.length,
+                            submitted: submitted.length,
+                            processing: processing.length
+                        },
+                        "dumping mempool before shutdown"
+                    )
+                }
+            })
+        )
+
+        if (multi) {
+            // Execute all Redis commands atomically
+            await multi.exec()
+        }
     }
 
     async removeSubmittedUserOps({

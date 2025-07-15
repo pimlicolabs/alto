@@ -166,6 +166,12 @@ export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
         require: false,
         default: "gas-price"
     },
+    "redis-shutdown-mempool-url": {
+        description:
+            "Redis connection URL to store the mempool before shutdown",
+        type: "string",
+        require: false
+    },
     "redis-sender-manager-url": {
         description:
             "Redis connection URL (required if redis-sender-manager is enabled)",
