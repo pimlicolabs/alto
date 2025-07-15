@@ -29,6 +29,7 @@ import {
     scaleBigIntByPercent
 } from "@alto/utils"
 import Queue from "bull"
+import Redis from "ioredis"
 import { type Hex, getAddress, getContract } from "viem"
 import type { EntryPointVersion } from "viem/account-abstraction"
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
@@ -99,10 +100,49 @@ export class Mempool {
 
         try {
             const queueName = `alto:mempool:restoration:${this.config.publicClient.chain.id}`
-            const restorationQueue = new Queue(
-                queueName,
-                redisShutdownMempoolUrl
-            )
+
+            let client: Redis
+            let subscriber: Redis
+
+            const restorationQueue = new Queue(queueName, {
+                createClient: (type, redisOpts) => {
+                    switch (type) {
+                        case "client": {
+                            if (!client) {
+                                client = new Redis(redisShutdownMempoolUrl, {
+                                    ...redisOpts,
+                                    enableReadyCheck: false,
+                                    maxRetriesPerRequest: null
+                                })
+                            }
+                            return client
+                        }
+                        case "subscriber": {
+                            if (!subscriber) {
+                                subscriber = new Redis(
+                                    redisShutdownMempoolUrl,
+                                    {
+                                        ...redisOpts,
+                                        enableReadyCheck: false,
+                                        maxRetriesPerRequest: null
+                                    }
+                                )
+                            }
+                            return subscriber
+                        }
+                        case "bclient":
+                            return new Redis(redisShutdownMempoolUrl, {
+                                ...redisOpts,
+                                enableReadyCheck: false,
+                                maxRetriesPerRequest: null
+                            })
+                        default:
+                            throw new Error(
+                                `Unexpected connection type: ${type}`
+                            )
+                    }
+                }
+            })
 
             this.logger.info(
                 {
@@ -168,6 +208,8 @@ export class Mempool {
                     clearTimeout(restorationTimeout)
                 }
                 await restorationQueue.close()
+                await client.quit()
+                await subscriber.quit()
             }, timeoutMs)
 
             this.logger.info("[MEMPOOL-RESTORATION] Setting up queue processor")
@@ -193,6 +235,8 @@ export class Mempool {
                             clearTimeout(restorationTimeout)
                         }
                         await restorationQueue.close()
+                        await client.quit()
+                        await subscriber.quit()
                         return
                     }
 
@@ -287,11 +331,13 @@ export class Mempool {
     async shutdown() {
         if (this.config.redisShutdownMempoolUrl) {
             try {
+                const redis = new Redis(this.config.redisShutdownMempoolUrl)
                 const queueName = `alto:mempool:restoration:${this.config.publicClient.chain.id}`
-                const restorationQueue = new Queue(
-                    queueName,
-                    this.config.redisShutdownMempoolUrl
-                )
+                const restorationQueue = new Queue(queueName, {
+                    createClient: () => {
+                        return redis
+                    }
+                })
 
                 this.logger.info(
                     {
@@ -364,7 +410,7 @@ export class Mempool {
                     "[MEMPOOL-RESTORATION] Published END_RESTORATION message"
                 )
 
-                await restorationQueue.close()
+                await redis.quit()
             } catch (err) {
                 this.logger.error(
                     { err },
