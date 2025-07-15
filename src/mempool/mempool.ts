@@ -24,6 +24,8 @@ import {
     isVersion07,
     isVersion08,
     jsonStringifyWithBigint,
+    recoverableJsonParseWithBigint,
+    recoverableJsonStringifyWithBigint,
     scaleBigIntByPercent
 } from "@alto/utils"
 import Queue from "bull"
@@ -117,7 +119,7 @@ export class Mempool {
 
         try {
             const queueName = `alto:mempool:restoration:${this.config.publicClient.chain.id}`
-            const restorationQueue = new Queue<MempoolRestorationMessage>(
+            const restorationQueue = new Queue(
                 queueName,
                 redisShutdownMempoolUrl
             )
@@ -125,7 +127,6 @@ export class Mempool {
             this.logger.info(
                 {
                     queueName,
-                    redisUrl: redisShutdownMempoolUrl,
                     chainId: this.config.publicClient.chain.id
                 },
                 "[MEMPOOL-RESTORATION] Starting mempool restoration listener"
@@ -216,7 +217,10 @@ export class Mempool {
                     }
 
                     if (message.type === "MEMPOOL_DATA") {
-                        const { entryPoint, data } = message
+                        const { entryPoint } = message
+                        const data = recoverableJsonParseWithBigint(
+                            message.data
+                        )
                         this.logger.info(
                             {
                                 entryPoint,
@@ -304,7 +308,7 @@ export class Mempool {
         if (this.config.redisShutdownMempoolUrl) {
             try {
                 const queueName = `alto:mempool:restoration:${this.config.publicClient.chain.id}`
-                const restorationQueue = new Queue<MempoolRestorationMessage>(
+                const restorationQueue = new Queue(
                     queueName,
                     this.config.redisShutdownMempoolUrl
                 )
@@ -312,7 +316,6 @@ export class Mempool {
                 this.logger.info(
                     {
                         queueName,
-                        redisUrl: this.config.redisShutdownMempoolUrl,
                         chainId: this.config.publicClient.chain.id
                     },
                     "[MEMPOOL-RESTORATION] Publishing to restoration queue during shutdown"
@@ -337,11 +340,11 @@ export class Mempool {
                                     type: "MEMPOOL_DATA",
                                     chainId: this.config.publicClient.chain.id,
                                     entryPoint,
-                                    data: {
+                                    data: recoverableJsonStringifyWithBigint({
                                         outstanding,
                                         submitted,
                                         processing
-                                    },
+                                    }),
                                     timestamp: Date.now()
                                 })
 
