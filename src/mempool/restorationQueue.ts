@@ -50,12 +50,15 @@ export class MempoolRestorationQueue {
         )
 
         this.queue.on("error", (error) => {
-            this.logger.error({ error }, "Mempool restoration queue error")
+            this.logger.error({ error }, "[MEMPOOL-RESTORATION] Queue error")
         })
 
         // Set up connection error handling
         this.queue.on("failed", (job, err) => {
-            this.logger.error({ jobId: job?.id, err }, "Queue job failed")
+            this.logger.error(
+                { jobId: job?.id, err },
+                "[MEMPOOL-RESTORATION] Queue job failed"
+            )
         })
     }
 
@@ -78,7 +81,7 @@ export class MempoolRestorationQueue {
         } catch (err) {
             this.logger.error(
                 { err, entryPoint },
-                "Failed to publish mempool data"
+                "[MEMPOOL-RESTORATION] Failed to publish mempool data"
             )
             throw err
         }
@@ -94,7 +97,7 @@ export class MempoolRestorationQueue {
         } catch (err) {
             this.logger.error(
                 { err },
-                "Failed to publish END_RESTORATION message"
+                "[MEMPOOL-RESTORATION] Failed to publish END_RESTORATION message"
             )
             throw err
         }

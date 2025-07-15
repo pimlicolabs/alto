@@ -94,7 +94,7 @@ export class Mempool {
             } catch (err) {
                 this.logger.warn(
                     { err },
-                    "Failed to initialize mempool restoration queue, continuing without restoration"
+                    "[MEMPOOL-RESTORATION] Failed to initialize mempool restoration queue, continuing without restoration"
                 )
                 // Continue without restoration
             }
@@ -108,7 +108,9 @@ export class Mempool {
 
         try {
             this.isListeningToRestoration = true
-            this.logger.info("Starting mempool restoration listener")
+            this.logger.info(
+                "[MEMPOOL-RESTORATION] Starting mempool restoration listener"
+            )
 
             // Set timeout for restoration (default 30 minutes)
             const timeoutMs =
@@ -116,9 +118,9 @@ export class Mempool {
             this.restorationTimeout = setTimeout(() => {
                 this.logger.warn(
                     { timeoutMs },
-                    "Mempool restoration timeout reached, stopping listener"
+                    "[MEMPOOL-RESTORATION] Mempool restoration timeout reached, stopping listener"
                 )
-                this.stopRestorationListener()
+                this.stopRestorationListener(true) // Close queue on timeout
             }, timeoutMs)
 
             await this.restorationQueue.process(async (job) => {
@@ -127,9 +129,9 @@ export class Mempool {
 
                     if (message.type === "END_RESTORATION") {
                         this.logger.info(
-                            "Received END_RESTORATION message, stopping listener"
+                            "[MEMPOOL-RESTORATION] Received END_RESTORATION message, stopping listener"
                         )
-                        await this.stopRestorationListener()
+                        await this.stopRestorationListener(true) // Close queue when restoration ends
                         return
                     }
 
@@ -142,7 +144,7 @@ export class Mempool {
                                 submitted: data.submitted.length,
                                 processing: data.processing.length
                             },
-                            "Received mempool restoration data"
+                            "[MEMPOOL-RESTORATION] Received mempool restoration data"
                         )
 
                         try {
@@ -177,12 +179,12 @@ export class Mempool {
                                     submitted: data.submitted.length,
                                     processing: data.processing.length
                                 },
-                                "Successfully restored mempool data"
+                                "[MEMPOOL-RESTORATION] Successfully restored mempool data"
                             )
                         } catch (err) {
                             this.logger.error(
                                 { err, entryPoint },
-                                "Failed to restore mempool data, continuing without this batch"
+                                "[MEMPOOL-RESTORATION] Failed to restore mempool data, continuing without this batch"
                             )
                             // Continue processing other messages
                         }
@@ -190,7 +192,7 @@ export class Mempool {
                 } catch (err) {
                     this.logger.error(
                         { err },
-                        "Error processing restoration message, continuing"
+                        "[MEMPOOL-RESTORATION] Error processing restoration message, continuing"
                     )
                     // Continue processing other messages
                 }
@@ -198,7 +200,7 @@ export class Mempool {
         } catch (err) {
             this.logger.warn(
                 { err },
-                "Failed to start restoration listener, continuing without restoration"
+                "[MEMPOOL-RESTORATION] Failed to start restoration listener, continuing without restoration"
             )
             this.isListeningToRestoration = false
             if (this.restorationTimeout) {
@@ -209,7 +211,97 @@ export class Mempool {
         }
     }
 
-    async stopRestorationListener() {
+    /**
+     * Gracefully shutdown the mempool by either persisting its state to a queue (if configured)
+     * or dropping all user operations with a "shutdown" reason.
+     */
+    async shutdown() {
+        // Stop listening to restoration queue if active, but keep queue open for publishing
+        await this.stopRestorationListener(false)
+
+        if (this.restorationQueue) {
+            try {
+                // Publish mempool data to the queue
+                await Promise.all(
+                    this.config.entrypoints.map(async (entryPoint) => {
+                        try {
+                            const [outstanding, submitted, processing] =
+                                await Promise.all([
+                                    this.dumpOutstanding(entryPoint),
+                                    this.dumpSubmittedOps(entryPoint),
+                                    this.dumpProcessing(entryPoint)
+                                ])
+
+                            if (
+                                outstanding.length > 0 ||
+                                submitted.length > 0 ||
+                                processing.length > 0
+                            ) {
+                                await this.restorationQueue?.publishMempoolData(
+                                    entryPoint,
+                                    {
+                                        outstanding,
+                                        submitted,
+                                        processing
+                                    }
+                                )
+                            }
+                            this.logger.info(
+                                {
+                                    entryPoint,
+                                    outstanding: outstanding.length,
+                                    submitted: submitted.length,
+                                    processing: processing.length
+                                },
+                                "[MEMPOOL-RESTORATION] Published mempool data to restoration queue"
+                            )
+                        } catch (err) {
+                            this.logger.error(
+                                { err, entryPoint },
+                                "[MEMPOOL-RESTORATION] Failed to publish mempool data for entrypoint, continuing"
+                            )
+                            // Continue with other entrypoints
+                        }
+                    })
+                )
+
+                // Send END_RESTORATION message
+                try {
+                    await this.restorationQueue.publishEndRestoration()
+                    this.logger.info(
+                        "[MEMPOOL-RESTORATION] Published END_RESTORATION message"
+                    )
+                } catch (err) {
+                    this.logger.warn(
+                        { err },
+                        "[MEMPOOL-RESTORATION] Failed to publish END_RESTORATION message"
+                    )
+                }
+
+                // Close the queue
+                try {
+                    await this.restorationQueue.close()
+                } catch (err) {
+                    this.logger.warn(
+                        { err },
+                        "[MEMPOOL-RESTORATION] Failed to close restoration queue"
+                    )
+                }
+            } catch (err) {
+                this.logger.error(
+                    { err },
+                    "[MEMPOOL-RESTORATION] Unexpected error during queue-based shutdown, falling back to dropping operations"
+                )
+                // Fall back to dropping operations
+                await this.dropAllOperationsOnShutdown()
+            }
+        } else {
+            // No queue configured, drop all operations
+            await this.dropAllOperationsOnShutdown()
+        }
+    }
+
+    async stopRestorationListener(closeQueue = true) {
         if (!this.restorationQueue || !this.isListeningToRestoration) {
             return
         }
@@ -223,12 +315,20 @@ export class Mempool {
 
         try {
             await this.restorationQueue.pause()
-            await this.restorationQueue.close()
-            this.logger.info("Stopped mempool restoration listener")
+            if (closeQueue) {
+                await this.restorationQueue.close()
+                this.logger.info(
+                    "[MEMPOOL-RESTORATION] Stopped mempool restoration listener and closed queue"
+                )
+            } else {
+                this.logger.info(
+                    "[MEMPOOL-RESTORATION] Paused mempool restoration listener"
+                )
+            }
         } catch (err) {
             this.logger.warn(
                 { err },
-                "Error stopping restoration listener, ignoring"
+                "[MEMPOOL-RESTORATION] Error stopping restoration listener, ignoring"
             )
             // Ignore errors when stopping
         }
@@ -332,95 +432,6 @@ export class Mempool {
         )
     }
 
-    /**
-     * Gracefully shutdown the mempool by either persisting its state to a queue (if configured)
-     * or dropping all user operations with a "shutdown" reason.
-     */
-    async shutdown() {
-        // Stop listening to restoration queue if active
-        await this.stopRestorationListener()
-
-        if (this.restorationQueue) {
-            try {
-                // Publish mempool data to the queue
-                await Promise.all(
-                    this.config.entrypoints.map(async (entryPoint) => {
-                        try {
-                            const [outstanding, submitted, processing] =
-                                await Promise.all([
-                                    this.dumpOutstanding(entryPoint),
-                                    this.dumpSubmittedOps(entryPoint),
-                                    this.dumpProcessing(entryPoint)
-                                ])
-
-                            if (
-                                outstanding.length > 0 ||
-                                submitted.length > 0 ||
-                                processing.length > 0
-                            ) {
-                                await this.restorationQueue?.publishMempoolData(
-                                    entryPoint,
-                                    {
-                                        outstanding,
-                                        submitted,
-                                        processing
-                                    }
-                                )
-
-                                this.logger.info(
-                                    {
-                                        entryPoint,
-                                        outstanding: outstanding.length,
-                                        submitted: submitted.length,
-                                        processing: processing.length
-                                    },
-                                    "Published mempool data to restoration queue"
-                                )
-                            }
-                        } catch (err) {
-                            this.logger.error(
-                                { err, entryPoint },
-                                "Failed to publish mempool data for entrypoint, continuing"
-                            )
-                            // Continue with other entrypoints
-                        }
-                    })
-                )
-
-                // Send END_RESTORATION message
-                try {
-                    await this.restorationQueue.publishEndRestoration()
-                    this.logger.info("Published END_RESTORATION message")
-                } catch (err) {
-                    this.logger.warn(
-                        { err },
-                        "Failed to publish END_RESTORATION message"
-                    )
-                }
-
-                // Close the queue
-                try {
-                    await this.restorationQueue.close()
-                } catch (err) {
-                    this.logger.warn(
-                        { err },
-                        "Failed to close restoration queue"
-                    )
-                }
-            } catch (err) {
-                this.logger.error(
-                    { err },
-                    "Unexpected error during queue-based shutdown, falling back to dropping operations"
-                )
-                // Fall back to dropping operations
-                await this.dropAllOperationsOnShutdown()
-            }
-        } else {
-            // No queue configured, drop all operations
-            await this.dropAllOperationsOnShutdown()
-        }
-    }
-
     private async dropAllOperationsOnShutdown() {
         await Promise.all(
             this.config.entrypoints.map(async (entryPoint) => {
@@ -457,12 +468,12 @@ export class Mempool {
                             submitted: submitted.length,
                             processing: processing.length
                         },
-                        "Dropping mempool operations"
+                        "[MEMPOOL-RESTORATION] Dropping mempool operations"
                     )
                 } catch (err) {
                     this.logger.error(
                         { err, entryPoint },
-                        "Failed to drop operations for entrypoint during shutdown"
+                        "[MEMPOOL-RESTORATION] Failed to drop operations for entrypoint during shutdown"
                     )
                     // Continue with other entrypoints
                 }
