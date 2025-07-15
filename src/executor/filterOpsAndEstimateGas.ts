@@ -389,7 +389,8 @@ export async function filterOpsAndEstimateGas({
             {
                 userOpHashes: getUserOpHashes(userOpsToBundle),
                 bundleGasLimit: bundleGasLimit.toString(),
-                bundleGasUsed: bundleGasUsed.toString()
+                bundleGasUsed: bundleGasUsed.toString(),
+                rpcGasEstimate: config.rpcGasEstimate
             },
             "Got fitlerOps result"
         )
