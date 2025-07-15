@@ -114,7 +114,7 @@ export class MempoolRestorationQueue {
     }
 
     async pause(): Promise<void> {
-        await this.queue.pause()
+        await this.queue.pause(true)
     }
 
     async resume(): Promise<void> {
