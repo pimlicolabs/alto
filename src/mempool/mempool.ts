@@ -26,6 +26,7 @@ import {
     jsonStringifyWithBigint,
     scaleBigIntByPercent
 } from "@alto/utils"
+import Queue from "bull"
 import { type Hex, getAddress, getContract } from "viem"
 import type { EntryPointVersion } from "viem/account-abstraction"
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
@@ -36,7 +37,26 @@ import {
     type InterfaceReputationManager,
     ReputationStatuses
 } from "./reputationManager"
-import { MempoolRestorationQueue } from "./restorationQueue"
+
+interface MempoolRestorationData {
+    type: "MEMPOOL_DATA"
+    chainId: number
+    entryPoint: Address
+    data: {
+        outstanding: UserOpInfo[]
+        submitted: UserOpInfo[]
+        processing: UserOpInfo[]
+    }
+    timestamp: number
+}
+
+interface MempoolRestorationEnd {
+    type: "END_RESTORATION"
+    chainId: number
+    timestamp: number
+}
+
+type MempoolRestorationMessage = MempoolRestorationData | MempoolRestorationEnd
 
 export class Mempool {
     private config: AltoConfig
@@ -48,9 +68,6 @@ export class Mempool {
     private logger: Logger
     private validator: InterfaceValidator
     private eventManager: EventManager
-    private restorationQueue?: MempoolRestorationQueue
-    private restorationTimeout?: NodeJS.Timeout
-    private isListeningToRestoration = false
 
     constructor({
         config,
@@ -84,36 +101,26 @@ export class Mempool {
         this.throttledEntityBundleCount = 4 // we don't have any config for this as of now
         this.eventManager = eventManager
         if (config.redisShutdownMempoolUrl) {
-            try {
-                this.restorationQueue = new MempoolRestorationQueue(
-                    config.redisShutdownMempoolUrl,
-                    config.chainId,
-                    this.logger
-                )
-                // Store the promise to ensure it's started but don't block constructor
-                this.startRestorationListener().catch((err) => {
+            this.startRestorationListener(config.redisShutdownMempoolUrl).catch(
+                (err) => {
                     this.logger.error(
                         { err },
                         "[MEMPOOL-RESTORATION] Failed to start restoration listener"
                     )
-                })
-            } catch (err) {
-                this.logger.warn(
-                    { err },
-                    "[MEMPOOL-RESTORATION] Failed to initialize mempool restoration queue, continuing without restoration"
-                )
-                // Continue without restoration
-            }
+                }
+            )
         }
     }
 
-    async startRestorationListener() {
-        if (!this.restorationQueue) {
-            return
-        }
+    async startRestorationListener(redisShutdownMempoolUrl: string) {
+        let restorationTimeout: NodeJS.Timeout | null = null
 
         try {
-            this.isListeningToRestoration = true
+            const restorationQueue = new Queue<MempoolRestorationMessage>(
+                `alto:mempool:restoration:${this.config.publicClient.chain.id}`,
+                redisShutdownMempoolUrl
+            )
+
             this.logger.info(
                 "[MEMPOOL-RESTORATION] Starting mempool restoration listener"
             )
@@ -121,15 +128,18 @@ export class Mempool {
             // Set timeout for restoration (default 30 minutes)
             const timeoutMs =
                 this.config.restorationQueueTimeout || 30 * 60 * 1000
-            this.restorationTimeout = setTimeout(() => {
+            restorationTimeout = setTimeout(async () => {
                 this.logger.warn(
                     { timeoutMs },
                     "[MEMPOOL-RESTORATION] Mempool restoration timeout reached, stopping listener"
                 )
-                this.stopRestorationListener(true) // Close queue on timeout
+                if (restorationTimeout) {
+                    clearTimeout(restorationTimeout)
+                }
+                await restorationQueue.close()
             }, timeoutMs)
 
-            await this.restorationQueue.process(async (job) => {
+            await restorationQueue.process(1, async (job) => {
                 try {
                     this.logger.info(
                         {
@@ -146,7 +156,10 @@ export class Mempool {
                         this.logger.info(
                             "[MEMPOOL-RESTORATION] Received END_RESTORATION message, stopping listener"
                         )
-                        await this.stopRestorationListener(true) // Close queue when restoration ends
+                        if (restorationTimeout) {
+                            clearTimeout(restorationTimeout)
+                        }
+                        await restorationQueue.close()
                         return
                     }
 
@@ -217,10 +230,8 @@ export class Mempool {
                 { err },
                 "[MEMPOOL-RESTORATION] Failed to start restoration listener, continuing without restoration"
             )
-            this.isListeningToRestoration = false
-            if (this.restorationTimeout) {
-                clearTimeout(this.restorationTimeout)
-                this.restorationTimeout = undefined
+            if (restorationTimeout) {
+                clearTimeout(restorationTimeout)
             }
             // Continue without restoration
         }
@@ -231,11 +242,12 @@ export class Mempool {
      * or dropping all user operations with a "shutdown" reason.
      */
     async shutdown() {
-        // Stop listening to restoration queue if active, but keep queue open for publishing
-        await this.stopRestorationListener(false)
-
-        if (this.restorationQueue) {
+        if (this.config.redisShutdownMempoolUrl) {
             try {
+                const restorationQueue = new Queue<MempoolRestorationMessage>(
+                    `alto:mempool:restoration:${this.config.publicClient.chain.id}`,
+                    this.config.redisShutdownMempoolUrl
+                )
                 // Publish mempool data to the queue
                 await Promise.all(
                     this.config.entrypoints.map(async (entryPoint) => {
@@ -252,14 +264,17 @@ export class Mempool {
                                 submitted.length > 0 ||
                                 processing.length > 0
                             ) {
-                                await this.restorationQueue?.publishMempoolData(
+                                await restorationQueue.add({
+                                    type: "MEMPOOL_DATA",
+                                    chainId: this.config.publicClient.chain.id,
                                     entryPoint,
-                                    {
+                                    data: {
                                         outstanding,
                                         submitted,
                                         processing
-                                    }
-                                )
+                                    },
+                                    timestamp: Date.now()
+                                })
                             }
                             this.logger.info(
                                 {
@@ -280,28 +295,16 @@ export class Mempool {
                     })
                 )
 
-                // Send END_RESTORATION message
-                try {
-                    await this.restorationQueue.publishEndRestoration()
-                    this.logger.info(
-                        "[MEMPOOL-RESTORATION] Published END_RESTORATION message"
-                    )
-                } catch (err) {
-                    this.logger.warn(
-                        { err },
-                        "[MEMPOOL-RESTORATION] Failed to publish END_RESTORATION message"
-                    )
-                }
+                await restorationQueue.add({
+                    type: "END_RESTORATION",
+                    chainId: this.config.publicClient.chain.id,
+                    timestamp: Date.now()
+                })
+                this.logger.info(
+                    "[MEMPOOL-RESTORATION] Published END_RESTORATION message"
+                )
 
-                // Close the queue
-                try {
-                    await this.restorationQueue.close()
-                } catch (err) {
-                    this.logger.warn(
-                        { err },
-                        "[MEMPOOL-RESTORATION] Failed to close restoration queue"
-                    )
-                }
+                await restorationQueue.close()
             } catch (err) {
                 this.logger.error(
                     { err },
@@ -313,39 +316,6 @@ export class Mempool {
         } else {
             // No queue configured, drop all operations
             await this.dropAllOperationsOnShutdown()
-        }
-    }
-
-    async stopRestorationListener(closeQueue = true) {
-        if (!this.restorationQueue || !this.isListeningToRestoration) {
-            return
-        }
-
-        this.isListeningToRestoration = false
-
-        if (this.restorationTimeout) {
-            clearTimeout(this.restorationTimeout)
-            this.restorationTimeout = undefined
-        }
-
-        try {
-            await this.restorationQueue.pause()
-            if (closeQueue) {
-                await this.restorationQueue.close()
-                this.logger.info(
-                    "[MEMPOOL-RESTORATION] Stopped mempool restoration listener and closed queue"
-                )
-            } else {
-                this.logger.info(
-                    "[MEMPOOL-RESTORATION] Paused mempool restoration listener"
-                )
-            }
-        } catch (err) {
-            this.logger.warn(
-                { err },
-                "[MEMPOOL-RESTORATION] Error stopping restoration listener, ignoring"
-            )
-            // Ignore errors when stopping
         }
     }
 
