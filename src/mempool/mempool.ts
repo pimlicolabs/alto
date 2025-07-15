@@ -144,63 +144,10 @@ export class Mempool {
                 }
             })
 
-            this.logger.info(
-                {
-                    queueName,
-                    chainId: this.config.publicClient.chain.id
-                },
-                "[MEMPOOL-RESTORATION] Starting mempool restoration listener"
-            )
-
-            // Add event listeners for debugging
-            restorationQueue.on("error", (error) => {
-                this.logger.error(
-                    { error },
-                    "[MEMPOOL-RESTORATION] Queue error"
-                )
-            })
-
-            restorationQueue.on("waiting", (jobId) => {
-                this.logger.info(
-                    { jobId },
-                    "[MEMPOOL-RESTORATION] Job waiting in queue"
-                )
-            })
-
-            restorationQueue.on("active", (job) => {
-                this.logger.info(
-                    { jobId: job.id },
-                    "[MEMPOOL-RESTORATION] Job active"
-                )
-            })
-
-            restorationQueue.on("completed", (job) => {
-                this.logger.info(
-                    { jobId: job.id },
-                    "[MEMPOOL-RESTORATION] Job completed"
-                )
-            })
-
-            restorationQueue.on("failed", (job, err) => {
-                this.logger.error(
-                    { jobId: job.id, error: err },
-                    "[MEMPOOL-RESTORATION] Job failed"
-                )
-            })
-
             if (await restorationQueue.isPaused()) {
                 await restorationQueue.resume()
             }
 
-            // Check if there are existing jobs in the queue
-            const waitingCount = await restorationQueue.getWaitingCount()
-            const activeCount = await restorationQueue.getActiveCount()
-            this.logger.info(
-                { waitingCount, activeCount },
-                "[MEMPOOL-RESTORATION] Queue status on startup"
-            )
-
-            // Set timeout for restoration (default 30 minutes)
             const timeoutMs =
                 this.config.restorationQueueTimeout || 30 * 60 * 1000
             restorationTimeout = setTimeout(async () => {
@@ -215,8 +162,6 @@ export class Mempool {
                 await client.quit()
                 await subscriber.quit()
             }, timeoutMs)
-
-            this.logger.info("[MEMPOOL-RESTORATION] Setting up queue processor")
 
             await restorationQueue.process(1, async (job) => {
                 try {
@@ -259,46 +204,25 @@ export class Mempool {
                             "[MEMPOOL-RESTORATION] Received mempool restoration data"
                         )
 
-                        try {
-                            // Restore outstanding operations
-                            for (const userOpInfo of data.outstanding) {
-                                await this.store.addOutstanding({
-                                    entryPoint,
-                                    userOpInfo
-                                })
-                            }
+                        for (const userOpInfo of data.outstanding) {
+                            await this.store.addOutstanding({
+                                entryPoint,
+                                userOpInfo
+                            })
+                        }
 
-                            // Restore submitted operations
-                            for (const userOpInfo of data.submitted) {
-                                await this.store.addSubmitted({
-                                    entryPoint,
-                                    userOpInfo
-                                })
-                            }
+                        for (const userOpInfo of data.submitted) {
+                            await this.store.addSubmitted({
+                                entryPoint,
+                                userOpInfo
+                            })
+                        }
 
-                            // Restore processing operations
-                            for (const userOpInfo of data.processing) {
-                                await this.store.addProcessing({
-                                    entryPoint,
-                                    userOpInfo
-                                })
-                            }
-
-                            this.logger.info(
-                                {
-                                    entryPoint,
-                                    outstanding: data.outstanding.length,
-                                    submitted: data.submitted.length,
-                                    processing: data.processing.length
-                                },
-                                "[MEMPOOL-RESTORATION] Successfully restored mempool data"
-                            )
-                        } catch (err) {
-                            this.logger.error(
-                                { err, entryPoint },
-                                "[MEMPOOL-RESTORATION] Failed to restore mempool data, continuing without this batch"
-                            )
-                            // Continue processing other messages
+                        for (const userOpInfo of data.processing) {
+                            await this.store.addProcessing({
+                                entryPoint,
+                                userOpInfo
+                            })
                         }
                     }
                 } catch (err) {
@@ -306,16 +230,8 @@ export class Mempool {
                         { err },
                         "[MEMPOOL-RESTORATION] Error processing restoration message, continuing"
                     )
-                    // Continue processing other messages
                 }
             })
-
-            this.logger.info(
-                "[MEMPOOL-RESTORATION] Queue processor setup complete, waiting for jobs"
-            )
-
-            // Keep the restoration listener alive
-            // The process method returns immediately but continues processing in the background
         } catch (err) {
             this.logger.warn(
                 { err },
@@ -324,7 +240,6 @@ export class Mempool {
             if (restorationTimeout) {
                 clearTimeout(restorationTimeout)
             }
-            // Continue without restoration
         }
     }
 
@@ -334,97 +249,95 @@ export class Mempool {
      */
     async shutdown() {
         if (this.config.redisShutdownMempoolUrl) {
-            try {
-                const redis = new Redis(this.config.redisShutdownMempoolUrl)
-                const queueName = `alto:mempool:restoration:${this.config.publicClient.chain.id}`
-                const restorationQueue = new Queue(queueName, {
-                    createClient: () => {
-                        return redis
+            return await this.queueOperationsOnShutdownToRedis(
+                this.config.redisShutdownMempoolUrl
+            )
+        }
+
+        // No queue configured, drop all operations
+        return await this.dropAllOperationsOnShutdown()
+    }
+
+    async queueOperationsOnShutdownToRedis(redisShutdownMempoolUrl: string) {
+        try {
+            const redis = new Redis(redisShutdownMempoolUrl)
+            const queueName = `alto:mempool:restoration:${this.config.publicClient.chain.id}`
+            const restorationQueue = new Queue(queueName, {
+                createClient: () => {
+                    return redis
+                }
+            })
+
+            this.logger.info(
+                {
+                    queueName,
+                    chainId: this.config.publicClient.chain.id
+                },
+                "[MEMPOOL-RESTORATION] Publishing to restoration queue during shutdown"
+            )
+            // Publish mempool data to the queue
+            await Promise.all(
+                this.config.entrypoints.map(async (entryPoint) => {
+                    try {
+                        const [outstanding, submitted, processing] =
+                            await Promise.all([
+                                this.dumpOutstanding(entryPoint),
+                                this.dumpSubmittedOps(entryPoint),
+                                this.dumpProcessing(entryPoint)
+                            ])
+
+                        if (
+                            outstanding.length > 0 ||
+                            submitted.length > 0 ||
+                            processing.length > 0
+                        ) {
+                            await restorationQueue.add({
+                                type: "MEMPOOL_DATA",
+                                chainId: this.config.publicClient.chain.id,
+                                entryPoint,
+                                data: recoverableJsonStringifyWithBigint({
+                                    outstanding,
+                                    submitted,
+                                    processing
+                                }),
+                                timestamp: Date.now()
+                            })
+                        }
+                        this.logger.info(
+                            {
+                                entryPoint,
+                                outstanding: outstanding.length,
+                                submitted: submitted.length,
+                                processing: processing.length
+                            },
+                            "[MEMPOOL-RESTORATION] Published mempool data to restoration queue"
+                        )
+                    } catch (err) {
+                        this.logger.error(
+                            { err, entryPoint },
+                            "[MEMPOOL-RESTORATION] Failed to publish mempool data for entrypoint, continuing"
+                        )
+                        // Continue with other entrypoints
                     }
                 })
+            )
 
-                this.logger.info(
-                    {
-                        queueName,
-                        chainId: this.config.publicClient.chain.id
-                    },
-                    "[MEMPOOL-RESTORATION] Publishing to restoration queue during shutdown"
-                )
-                // Publish mempool data to the queue
-                await Promise.all(
-                    this.config.entrypoints.map(async (entryPoint) => {
-                        try {
-                            const [outstanding, submitted, processing] =
-                                await Promise.all([
-                                    this.dumpOutstanding(entryPoint),
-                                    this.dumpSubmittedOps(entryPoint),
-                                    this.dumpProcessing(entryPoint)
-                                ])
+            await restorationQueue.add({
+                type: "END_RESTORATION",
+                chainId: this.config.publicClient.chain.id,
+                timestamp: Date.now()
+            })
+            this.logger.info(
+                "[MEMPOOL-RESTORATION] Published END_RESTORATION message"
+            )
 
-                            if (
-                                outstanding.length > 0 ||
-                                submitted.length > 0 ||
-                                processing.length > 0
-                            ) {
-                                const job = await restorationQueue.add({
-                                    type: "MEMPOOL_DATA",
-                                    chainId: this.config.publicClient.chain.id,
-                                    entryPoint,
-                                    data: recoverableJsonStringifyWithBigint({
-                                        outstanding,
-                                        submitted,
-                                        processing
-                                    }),
-                                    timestamp: Date.now()
-                                })
-
-                                this.logger.info(
-                                    {
-                                        jobId: job.id,
-                                        jobOpts: job.opts
-                                    },
-                                    "[MEMPOOL-RESTORATION] Job added to queue"
-                                )
-                            }
-                            this.logger.info(
-                                {
-                                    entryPoint,
-                                    outstanding: outstanding.length,
-                                    submitted: submitted.length,
-                                    processing: processing.length
-                                },
-                                "[MEMPOOL-RESTORATION] Published mempool data to restoration queue"
-                            )
-                        } catch (err) {
-                            this.logger.error(
-                                { err, entryPoint },
-                                "[MEMPOOL-RESTORATION] Failed to publish mempool data for entrypoint, continuing"
-                            )
-                            // Continue with other entrypoints
-                        }
-                    })
-                )
-
-                await restorationQueue.add({
-                    type: "END_RESTORATION",
-                    chainId: this.config.publicClient.chain.id,
-                    timestamp: Date.now()
-                })
-                this.logger.info(
-                    "[MEMPOOL-RESTORATION] Published END_RESTORATION message"
-                )
-
-                await redis.quit()
-            } catch (err) {
-                this.logger.error(
-                    { err },
-                    "[MEMPOOL-RESTORATION] Unexpected error during queue-based shutdown, falling back to dropping operations"
-                )
-                // Fall back to dropping operations
-                await this.dropAllOperationsOnShutdown()
-            }
-        } else {
-            // No queue configured, drop all operations
+            await redis.quit()
+        } catch (err) {
+            this.logger.error(
+                { err },
+                "[MEMPOOL-RESTORATION] Unexpected error during queue-based shutdown, falling back to dropping operations"
+            )
+            // Fall back to dropping operations
             await this.dropAllOperationsOnShutdown()
         }
     }
