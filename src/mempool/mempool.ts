@@ -125,6 +125,15 @@ export class Mempool {
 
             await this.restorationQueue.process(async (job) => {
                 try {
+                    this.logger.info(
+                        {
+                            jobId: job.id,
+                            messageType: job.data.type,
+                            timestamp: job.data.timestamp
+                        },
+                        "[MEMPOOL-RESTORATION] Processing restoration message"
+                    )
+
                     const message = job.data
 
                     if (message.type === "END_RESTORATION") {
