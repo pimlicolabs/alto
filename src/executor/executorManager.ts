@@ -267,6 +267,7 @@ export class ExecutorManager {
             return
         }
         this.currentlyHandlingBlock = true
+        const blockReceivedTimestamp = Date.now()
 
         const pendingBundles = this.userOpMonitor.getPendingBundles()
 
@@ -290,7 +291,8 @@ export class ExecutorManager {
                 if (receipt.status === "included") {
                     await this.userOpMonitor.processIncludedBundle({
                         submittedBundle: pendingBundles[index],
-                        bundleReceipt: receipt
+                        bundleReceipt: receipt,
+                        blockReceivedTimestamp
                     })
                 }
 

@@ -97,10 +97,12 @@ export class UserOpMonitor {
 
     async processIncludedBundle({
         submittedBundle,
-        bundleReceipt
+        bundleReceipt,
+        blockReceivedTimestamp
     }: {
         submittedBundle: SubmittedBundleInfo
         bundleReceipt: BundleStatus<"included">
+        blockReceivedTimestamp: number
     }) {
         const { bundle } = submittedBundle
         const { userOps, entryPoint } = bundle
@@ -131,7 +133,8 @@ export class UserOpMonitor {
                     userOpReceipt,
                     transactionHash,
                     blockNumber,
-                    entryPoint
+                    entryPoint,
+                    blockReceivedTimestamp
                 )
             }
         })()
@@ -283,7 +286,8 @@ export class UserOpMonitor {
         userOpReceipt: any,
         transactionHash: Hash,
         blockNumber: bigint,
-        entryPoint: Address
+        entryPoint: Address,
+        blockReceivedTimestamp: number
     ) {
         const { userOpHash, userOp, submissionAttempts, addedToMempool } =
             userOpInfo
@@ -314,7 +318,7 @@ export class UserOpMonitor {
 
         // Track metrics
         this.metrics.userOpInclusionDuration.observe(
-            (Date.now() - addedToMempool) / 1000
+            (blockReceivedTimestamp - addedToMempool) / 1000
         )
         this.metrics.userOpsSubmissionAttempts.observe(submissionAttempts)
 
