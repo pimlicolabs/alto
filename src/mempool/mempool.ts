@@ -90,7 +90,13 @@ export class Mempool {
                     config.chainId,
                     this.logger
                 )
-                this.startRestorationListener()
+                // Store the promise to ensure it's started but don't block constructor
+                this.startRestorationListener().catch((err) => {
+                    this.logger.error(
+                        { err },
+                        "[MEMPOOL-RESTORATION] Failed to start restoration listener"
+                    )
+                })
             } catch (err) {
                 this.logger.warn(
                     { err },

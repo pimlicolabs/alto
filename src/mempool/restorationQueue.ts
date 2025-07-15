@@ -134,7 +134,8 @@ export class MempoolRestorationQueue {
     async process(
         handler: (job: Job<MempoolRestorationMessage>) => Promise<void>
     ): Promise<void> {
-        await this.queue.process(handler)
+        // Process with concurrency of 1 to ensure sequential processing
+        await this.queue.process(1, handler)
     }
 
     async close(): Promise<void> {
