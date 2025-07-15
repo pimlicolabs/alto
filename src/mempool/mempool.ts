@@ -290,7 +290,7 @@ export class Mempool {
                             submitted: submitted.length,
                             processing: processing.length
                         },
-                        "dumped mempool before shutdown"
+                        "dumped mempool before shutdown to redis"
                     )
                 } else {
                     const rejectedUserOps = [
