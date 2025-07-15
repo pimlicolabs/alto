@@ -39,7 +39,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             await rpcHandler.preMempoolChecks(userOp, apiVersion)
 
         if (!preMempoolValid) {
-            throw new RpcError(preMempoolError)
+            throw new RpcError(preMempoolError, ValidationErrors.InvalidFields)
         }
 
         // Prepare bundle

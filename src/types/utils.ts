@@ -1,3 +1,4 @@
+// Error codes come from: https://eips.ethereum.org/EIPS/eip-7769
 export enum ValidationErrors {
     InvalidRequest = -32601,
     InvalidFields = -32602,
