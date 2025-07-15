@@ -106,7 +106,7 @@ const getGasEstimates = async ({
     }
 
     // Get queued userOps.
-    const queuedUserOps = await rpcHandler.mempool.getQueuedOustandingUserOps({
+    const queuedUserOps = await rpcHandler.mempool.getQueuedOutstandingUserOps({
         userOp,
         entryPoint
     })

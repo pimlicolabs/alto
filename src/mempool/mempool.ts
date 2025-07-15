@@ -24,11 +24,8 @@ import {
     isVersion07,
     isVersion08,
     jsonStringifyWithBigint,
-    recoverableJsonParseWithBigint,
-    recoverableJsonStringifyWithBigint,
     scaleBigIntByPercent
 } from "@alto/utils"
-import Redis from "ioredis"
 import { type Hex, getAddress, getContract } from "viem"
 import type { EntryPointVersion } from "viem/account-abstraction"
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
@@ -39,6 +36,7 @@ import {
     type InterfaceReputationManager,
     ReputationStatuses
 } from "./reputationManager"
+import { MempoolRestorationQueue } from "./restorationQueue"
 
 export class Mempool {
     private config: AltoConfig
@@ -50,7 +48,9 @@ export class Mempool {
     private logger: Logger
     private validator: InterfaceValidator
     private eventManager: EventManager
-    private shutdownRedis?: Redis
+    private restorationQueue?: MempoolRestorationQueue
+    private restorationTimeout?: NodeJS.Timeout
+    private isListeningToRestoration = false
 
     constructor({
         config,
@@ -84,92 +84,115 @@ export class Mempool {
         this.throttledEntityBundleCount = 4 // we don't have any config for this as of now
         this.eventManager = eventManager
         if (config.redisShutdownMempoolUrl) {
-            this.shutdownRedis = new Redis(config.redisShutdownMempoolUrl)
-            this.restoreMempool()
+            this.restorationQueue = new MempoolRestorationQueue(
+                config.redisShutdownMempoolUrl,
+                config.chainId,
+                this.logger
+            )
+            this.startRestorationListener()
         }
     }
 
-    async restoreMempool() {
-        await Promise.all(
-            this.config.entrypoints.map(async (entryPoint) => {
-                if (!this.shutdownRedis) {
-                    return
-                }
+    async startRestorationListener() {
+        if (!this.restorationQueue) {
+            return
+        }
 
-                let mempoolString: string | null = null
+        this.isListeningToRestoration = true
+        this.logger.info("Starting mempool restoration listener")
+
+        // Set timeout for restoration (default 30 minutes)
+        const timeoutMs = this.config.restorationQueueTimeout || 30 * 60 * 1000
+        this.restorationTimeout = setTimeout(() => {
+            this.logger.warn(
+                { timeoutMs },
+                "Mempool restoration timeout reached, stopping listener"
+            )
+            this.stopRestorationListener()
+        }, timeoutMs)
+
+        await this.restorationQueue.process(async (job) => {
+            const message = job.data
+
+            if (message.type === "END_RESTORATION") {
+                this.logger.info(
+                    "Received END_RESTORATION message, stopping listener"
+                )
+                await this.stopRestorationListener()
+                return
+            }
+
+            if (message.type === "MEMPOOL_DATA") {
+                const { entryPoint, data } = message
+                this.logger.info(
+                    {
+                        entryPoint,
+                        outstanding: data.outstanding.length,
+                        submitted: data.submitted.length,
+                        processing: data.processing.length
+                    },
+                    "Received mempool restoration data"
+                )
+
                 try {
-                    mempoolString = await this.shutdownRedis.get(
-                        `mempool:${entryPoint}`
+                    // Restore outstanding operations
+                    for (const userOpInfo of data.outstanding) {
+                        await this.store.addOutstanding({
+                            entryPoint,
+                            userOpInfo
+                        })
+                    }
+
+                    // Restore submitted operations
+                    for (const userOpInfo of data.submitted) {
+                        await this.store.addSubmitted({
+                            entryPoint,
+                            userOpInfo
+                        })
+                    }
+
+                    // Restore processing operations
+                    for (const userOpInfo of data.processing) {
+                        await this.store.addProcessing({
+                            entryPoint,
+                            userOpInfo
+                        })
+                    }
+
+                    this.logger.info(
+                        {
+                            entryPoint,
+                            outstanding: data.outstanding.length,
+                            submitted: data.submitted.length,
+                            processing: data.processing.length
+                        },
+                        "Successfully restored mempool data"
                     )
                 } catch (err) {
                     this.logger.error(
                         { err, entryPoint },
-                        "Failed to fetch mempool from shutdownRedis"
+                        "Failed to restore mempool data"
                     )
-                    return
                 }
+            }
+        })
+    }
 
-                if (!mempoolString) {
-                    return
-                }
+    async stopRestorationListener() {
+        if (!this.restorationQueue || !this.isListeningToRestoration) {
+            return
+        }
 
-                let mempool: {
-                    outstanding?: UserOpInfo[]
-                    submitted?: UserOpInfo[]
-                    processing?: UserOpInfo[]
-                } = {}
+        this.isListeningToRestoration = false
 
-                try {
-                    mempool = recoverableJsonParseWithBigint(mempoolString)
-                } catch (err) {
-                    this.logger.error(
-                        { err, entryPoint, mempoolString },
-                        "Failed to parse mempool JSON from shutdownRedis"
-                    )
-                    return
-                }
+        if (this.restorationTimeout) {
+            clearTimeout(this.restorationTimeout)
+            this.restorationTimeout = undefined
+        }
 
-                const outstanding = Array.isArray(mempool.outstanding)
-                    ? mempool.outstanding
-                    : []
-                const submitted = Array.isArray(mempool.submitted)
-                    ? mempool.submitted
-                    : []
-                const processing = Array.isArray(mempool.processing)
-                    ? mempool.processing
-                    : []
-
-                for (const userOpInfo of outstanding) {
-                    await this.store.addOutstanding({
-                        entryPoint,
-                        userOpInfo
-                    })
-                }
-
-                for (const userOpInfo of submitted) {
-                    await this.store.addSubmitted({
-                        entryPoint,
-                        userOpInfo
-                    })
-                }
-
-                for (const userOpInfo of processing) {
-                    await this.store.addProcessing({
-                        entryPoint,
-                        userOpInfo
-                    })
-                }
-
-                this.logger.info(
-                    {
-                        outstanding: outstanding.length,
-                        submitted: submitted.length,
-                        processing: processing.length
-                    },
-                    "restored mempool from redis"
-                )
-            })
-        )
+        await this.restorationQueue.pause()
+        await this.restorationQueue.close()
+        this.logger.info("Stopped mempool restoration listener")
     }
 
     // === Methods for handling changing userOp state === //
@@ -271,39 +294,68 @@ export class Mempool {
     }
 
     /**
-     * Gracefully shutdown the mempool by either persisting its state to Redis (if configured)
+     * Gracefully shutdown the mempool by either persisting its state to a queue (if configured)
      * or dropping all user operations with a "shutdown" reason.
      */
     async shutdown() {
-        const multi = this.shutdownRedis?.multi()
+        // Stop listening to restoration queue if active
+        await this.stopRestorationListener()
 
-        await Promise.all(
-            this.config.entrypoints.map(async (entryPoint) => {
-                const [outstanding, submitted, processing] = await Promise.all([
-                    this.dumpOutstanding(entryPoint),
-                    this.dumpSubmittedOps(entryPoint),
-                    this.dumpProcessing(entryPoint)
-                ])
+        if (this.restorationQueue) {
+            // Publish mempool data to the queue
+            await Promise.all(
+                this.config.entrypoints.map(async (entryPoint) => {
+                    const [outstanding, submitted, processing] =
+                        await Promise.all([
+                            this.dumpOutstanding(entryPoint),
+                            this.dumpSubmittedOps(entryPoint),
+                            this.dumpProcessing(entryPoint)
+                        ])
 
-                if (multi) {
-                    multi.set(
-                        `mempool:${entryPoint}`,
-                        recoverableJsonStringifyWithBigint({
-                            outstanding,
-                            submitted,
-                            processing
-                        })
-                    )
+                    if (
+                        outstanding.length > 0 ||
+                        submitted.length > 0 ||
+                        processing.length > 0
+                    ) {
+                        await this.restorationQueue?.publishMempoolData(
+                            entryPoint,
+                            {
+                                outstanding,
+                                submitted,
+                                processing
+                            }
+                        )
 
-                    this.logger.info(
-                        {
-                            outstanding: outstanding.length,
-                            submitted: submitted.length,
-                            processing: processing.length
-                        },
-                        "dumped mempool before shutdown to redis"
-                    )
-                } else {
+                        this.logger.info(
+                            {
+                                entryPoint,
+                                outstanding: outstanding.length,
+                                submitted: submitted.length,
+                                processing: processing.length
+                            },
+                            "Published mempool data to restoration queue"
+                        )
+                    }
+                })
+            )
+
+            // Send END_RESTORATION message
+            await this.restorationQueue.publishEndRestoration()
+            this.logger.info("Published END_RESTORATION message")
+
+            // Close the queue
+            await this.restorationQueue.close()
+        } else {
+            // No queue configured, drop all operations
+            await Promise.all(
+                this.config.entrypoints.map(async (entryPoint) => {
+                    const [outstanding, submitted, processing] =
+                        await Promise.all([
+                            this.dumpOutstanding(entryPoint),
+                            this.dumpSubmittedOps(entryPoint),
+                            this.dumpProcessing(entryPoint)
+                        ])
+
                     const rejectedUserOps = [
                         ...outstanding.map((userOp) => ({
                             ...userOp,
@@ -329,15 +381,10 @@ export class Mempool {
                             submitted: submitted.length,
                             processing: processing.length
                         },
-                        "dumping mempool before shutdown"
+                        "Dropping mempool operations (no restoration queue configured)"
                     )
-                }
-            })
-        )
-
-        if (multi) {
-            // Execute all Redis commands atomically
-            await multi.exec()
+                })
+            )
         }
     }
 
@@ -716,7 +763,7 @@ export class Mempool {
             let queuedUserOps: UserOperation[] = []
 
             if (!isUserOpV06) {
-                queuedUserOps = await this.getQueuedOustandingUserOps({
+                queuedUserOps = await this.getQueuedOutstandingUserOps({
                     userOp,
                     entryPoint
                 })
@@ -997,7 +1044,7 @@ export class Mempool {
         }
     }
 
-    public async getQueuedOustandingUserOps(args: {
+    public async getQueuedOutstandingUserOps(args: {
         userOp: UserOperation
         entryPoint: Address
     }) {
