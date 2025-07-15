@@ -1,6 +1,7 @@
 import type { Address, UserOpInfo } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import Bull, { type Queue, type Job } from "bull"
+import Redis from "ioredis"
 
 export interface MempoolRestorationData {
     type: "MEMPOOL_DATA"
@@ -33,17 +34,44 @@ export class MempoolRestorationQueue {
         this.chainId = chainId
         this.logger = logger
 
+        let client: Redis
+        let subscriber: Redis
+
         this.queue = new Bull<MempoolRestorationMessage>(
             `alto:mempool:restoration:${chainId}`,
-            redisUrl,
             {
-                defaultJobOptions: {
-                    removeOnComplete: true,
-                    removeOnFail: false,
-                    attempts: 3,
-                    backoff: {
-                        type: "fixed",
-                        delay: 1000
+                createClient: (type, redisOpts) => {
+                    switch (type) {
+                        case "client": {
+                            if (!client) {
+                                client = new Redis(redisUrl, {
+                                    ...redisOpts,
+                                    enableReadyCheck: false,
+                                    maxRetriesPerRequest: null
+                                })
+                            }
+                            return client
+                        }
+                        case "subscriber": {
+                            if (!subscriber) {
+                                subscriber = new Redis(redisUrl, {
+                                    ...redisOpts,
+                                    enableReadyCheck: false,
+                                    maxRetriesPerRequest: null
+                                })
+                            }
+                            return subscriber
+                        }
+                        case "bclient":
+                            return new Redis(redisUrl, {
+                                ...redisOpts,
+                                enableReadyCheck: false,
+                                maxRetriesPerRequest: null
+                            })
+                        default:
+                            throw new Error(
+                                `Unexpected connection type: ${type}`
+                            )
                     }
                 }
             }
