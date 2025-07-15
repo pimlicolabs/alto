@@ -9,6 +9,26 @@ export const jsonStringifyWithBigint = (obj: unknown): string => {
     )
 }
 
+/// Convert an object to JSON string, handling bigint values
+export const recoverableJsonStringifyWithBigint = (obj: unknown): string => {
+    return JSON.stringify(obj, (_key, value) =>
+        typeof value === "bigint"
+            ? {
+                  type: "bigint",
+                  value: value.toString()
+              }
+            : value
+    )
+}
+
+export const recoverableJsonParseWithBigint = (str: string): any => {
+    return JSON.parse(str, (_key, value) =>
+        typeof value === "object" && "type" in value && value.type === "bigint"
+            ? BigInt(value.value)
+            : value
+    )
+}
+
 /// Ensure proper equality by converting both addresses into their checksum type
 export const areAddressesEqual = (a: string, b: string) => {
     try {

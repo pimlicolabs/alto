@@ -24,6 +24,8 @@ import {
     isVersion07,
     isVersion08,
     jsonStringifyWithBigint,
+    recoverableJsonParseWithBigint,
+    recoverableJsonStringifyWithBigint,
     scaleBigIntByPercent
 } from "@alto/utils"
 import Redis from "ioredis"
@@ -118,7 +120,7 @@ export class Mempool {
                 } = {}
 
                 try {
-                    mempool = JSON.parse(mempoolString)
+                    mempool = recoverableJsonParseWithBigint(mempoolString)
                 } catch (err) {
                     this.logger.error(
                         { err, entryPoint, mempoolString },
@@ -277,7 +279,7 @@ export class Mempool {
                 if (multi) {
                     multi.set(
                         `mempool:${entryPoint}`,
-                        JSON.stringify({
+                        recoverableJsonStringifyWithBigint({
                             outstanding,
                             submitted,
                             processing
