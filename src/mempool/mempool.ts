@@ -100,29 +100,79 @@ export class Mempool {
         )
         this.throttledEntityBundleCount = 4 // we don't have any config for this as of now
         this.eventManager = eventManager
-        if (config.redisShutdownMempoolUrl) {
-            this.startRestorationListener(config.redisShutdownMempoolUrl).catch(
-                (err) => {
-                    this.logger.error(
-                        { err },
-                        "[MEMPOOL-RESTORATION] Failed to start restoration listener"
-                    )
-                }
+        this.startRestorationListener().catch((err) => {
+            this.logger.error(
+                { err },
+                "[MEMPOOL-RESTORATION] Failed to start restoration listener"
             )
-        }
+        })
     }
 
-    async startRestorationListener(redisShutdownMempoolUrl: string) {
+    async startRestorationListener() {
+        const redisShutdownMempoolUrl = this.config.redisShutdownMempoolUrl
+        if (!redisShutdownMempoolUrl) {
+            return
+        }
         let restorationTimeout: NodeJS.Timeout | null = null
 
         try {
+            const queueName = `alto:mempool:restoration:${this.config.publicClient.chain.id}`
             const restorationQueue = new Queue<MempoolRestorationMessage>(
-                `alto:mempool:restoration:${this.config.publicClient.chain.id}`,
+                queueName,
                 redisShutdownMempoolUrl
             )
 
             this.logger.info(
+                {
+                    queueName,
+                    redisUrl: redisShutdownMempoolUrl,
+                    chainId: this.config.publicClient.chain.id
+                },
                 "[MEMPOOL-RESTORATION] Starting mempool restoration listener"
+            )
+
+            // Add event listeners for debugging
+            restorationQueue.on("error", (error) => {
+                this.logger.error(
+                    { error },
+                    "[MEMPOOL-RESTORATION] Queue error"
+                )
+            })
+
+            restorationQueue.on("waiting", (jobId) => {
+                this.logger.info(
+                    { jobId },
+                    "[MEMPOOL-RESTORATION] Job waiting in queue"
+                )
+            })
+
+            restorationQueue.on("active", (job) => {
+                this.logger.info(
+                    { jobId: job.id },
+                    "[MEMPOOL-RESTORATION] Job active"
+                )
+            })
+
+            restorationQueue.on("completed", (job) => {
+                this.logger.info(
+                    { jobId: job.id },
+                    "[MEMPOOL-RESTORATION] Job completed"
+                )
+            })
+
+            restorationQueue.on("failed", (job, err) => {
+                this.logger.error(
+                    { jobId: job.id, error: err },
+                    "[MEMPOOL-RESTORATION] Job failed"
+                )
+            })
+
+            // Check if there are existing jobs in the queue
+            const waitingCount = await restorationQueue.getWaitingCount()
+            const activeCount = await restorationQueue.getActiveCount()
+            this.logger.info(
+                { waitingCount, activeCount },
+                "[MEMPOOL-RESTORATION] Queue status on startup"
             )
 
             // Set timeout for restoration (default 30 minutes)
@@ -138,6 +188,8 @@ export class Mempool {
                 }
                 await restorationQueue.close()
             }, timeoutMs)
+
+            this.logger.info("[MEMPOOL-RESTORATION] Setting up queue processor")
 
             await restorationQueue.process(1, async (job) => {
                 try {
@@ -225,6 +277,13 @@ export class Mempool {
                     // Continue processing other messages
                 }
             })
+
+            this.logger.info(
+                "[MEMPOOL-RESTORATION] Queue processor setup complete, waiting for jobs"
+            )
+
+            // Keep the restoration listener alive
+            // The process method returns immediately but continues processing in the background
         } catch (err) {
             this.logger.warn(
                 { err },
@@ -244,9 +303,19 @@ export class Mempool {
     async shutdown() {
         if (this.config.redisShutdownMempoolUrl) {
             try {
+                const queueName = `alto:mempool:restoration:${this.config.publicClient.chain.id}`
                 const restorationQueue = new Queue<MempoolRestorationMessage>(
-                    `alto:mempool:restoration:${this.config.publicClient.chain.id}`,
+                    queueName,
                     this.config.redisShutdownMempoolUrl
+                )
+
+                this.logger.info(
+                    {
+                        queueName,
+                        redisUrl: this.config.redisShutdownMempoolUrl,
+                        chainId: this.config.publicClient.chain.id
+                    },
+                    "[MEMPOOL-RESTORATION] Publishing to restoration queue during shutdown"
                 )
                 // Publish mempool data to the queue
                 await Promise.all(
@@ -264,7 +333,7 @@ export class Mempool {
                                 submitted.length > 0 ||
                                 processing.length > 0
                             ) {
-                                await restorationQueue.add({
+                                const job = await restorationQueue.add({
                                     type: "MEMPOOL_DATA",
                                     chainId: this.config.publicClient.chain.id,
                                     entryPoint,
@@ -275,6 +344,14 @@ export class Mempool {
                                     },
                                     timestamp: Date.now()
                                 })
+
+                                this.logger.info(
+                                    {
+                                        jobId: job.id,
+                                        jobOpts: job.opts
+                                    },
+                                    "[MEMPOOL-RESTORATION] Job added to queue"
+                                )
                             }
                             this.logger.info(
                                 {
