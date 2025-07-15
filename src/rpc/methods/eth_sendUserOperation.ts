@@ -143,7 +143,7 @@ export async function addToMempoolIfValid({
             userOpHash,
             preMempoolError
         )
-        throw new RpcError(preMempoolError)
+        throw new RpcError(preMempoolError, ValidationErrors.InvalidFields)
     }
 
     // PreVerificationGas validation

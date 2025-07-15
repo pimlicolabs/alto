@@ -1,6 +1,6 @@
 export enum ValidationErrors {
     InvalidRequest = -32601,
-    InvalidFields = -32602,
+    InvalidFields = -32602, // Invalid userOp fields
     SimulateValidation = -32500,
     SimulatePaymasterValidation = -32501,
     OpcodeValidation = -32502,
