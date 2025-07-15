@@ -32,6 +32,7 @@ export class MempoolRestorationQueue {
     constructor(redisUrl: string, chainId: number, logger: Logger) {
         this.chainId = chainId
         this.logger = logger
+
         this.queue = new Bull<MempoolRestorationMessage>(
             `alto:mempool:restoration:${chainId}`,
             redisUrl,
@@ -51,6 +52,11 @@ export class MempoolRestorationQueue {
         this.queue.on("error", (error) => {
             this.logger.error({ error }, "Mempool restoration queue error")
         })
+
+        // Set up connection error handling
+        this.queue.on("failed", (job, err) => {
+            this.logger.error({ jobId: job?.id, err }, "Queue job failed")
+        })
     }
 
     async publishMempoolData(
@@ -61,21 +67,37 @@ export class MempoolRestorationQueue {
             processing: UserOpInfo[]
         }
     ): Promise<void> {
-        await this.queue.add({
-            type: "MEMPOOL_DATA",
-            chainId: this.chainId,
-            entryPoint,
-            data,
-            timestamp: Date.now()
-        })
+        try {
+            await this.queue.add({
+                type: "MEMPOOL_DATA",
+                chainId: this.chainId,
+                entryPoint,
+                data,
+                timestamp: Date.now()
+            })
+        } catch (err) {
+            this.logger.error(
+                { err, entryPoint },
+                "Failed to publish mempool data"
+            )
+            throw err
+        }
     }
 
     async publishEndRestoration(): Promise<void> {
-        await this.queue.add({
-            type: "END_RESTORATION",
-            chainId: this.chainId,
-            timestamp: Date.now()
-        })
+        try {
+            await this.queue.add({
+                type: "END_RESTORATION",
+                chainId: this.chainId,
+                timestamp: Date.now()
+            })
+        } catch (err) {
+            this.logger.error(
+                { err },
+                "Failed to publish END_RESTORATION message"
+            )
+            throw err
+        }
     }
 
     async process(
@@ -94,20 +116,5 @@ export class MempoolRestorationQueue {
 
     async resume(): Promise<void> {
         await this.queue.resume()
-    }
-
-    async checkActiveListeners(): Promise<boolean> {
-        const workers = await this.queue.getWorkers()
-        return workers.length > 0
-    }
-
-    async waitForNoActiveListeners(timeoutMs = 30000): Promise<void> {
-        const startTime = Date.now()
-        while (await this.checkActiveListeners()) {
-            if (Date.now() - startTime > timeoutMs) {
-                throw new Error("Timeout waiting for listeners to stop")
-            }
-            await new Promise((resolve) => setTimeout(resolve, 1000))
-        }
     }
 }
