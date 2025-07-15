@@ -106,8 +106,10 @@ const getBundleGasLimit = async ({
     config,
     userOpBundle,
     entryPoint,
-    executorAddress
+    executorAddress,
+    logger
 }: {
+    logger: Logger
     config: AltoConfig
     userOpBundle: UserOpInfo[]
     entryPoint: Address
@@ -128,6 +130,10 @@ const getBundleGasLimit = async ({
             })
         })
     } else {
+        logger.info(
+            { userOps: getUserOpHashes(userOpBundle) },
+            "calculating locally"
+        )
         const aa95GasFloor = calculateAA95GasFloor({
             userOps: userOpBundle.map(({ userOp }) => userOp),
             beneficiary: executorAddress
@@ -137,6 +143,15 @@ const getBundleGasLimit = async ({
             ({ userOp }) => userOp.eip7702Auth
         ).length
         const eip7702Overhead = BigInt(eip7702UserOpCount) * 40_000n
+
+        logger.info(
+            {
+                userOps: getUserOpHashes(userOpBundle),
+                aa95GasFloor: aa95GasFloor.toString(),
+                eip7702Overhead: eip7702Overhead.toString()
+            },
+            "got AA95 gas and 7702 overhead"
+        )
 
         // Add 5% safety margin to local estimates.
         gasLimit = scaleBigIntByPercent(aa95GasFloor + eip7702Overhead, 105n)
@@ -379,6 +394,7 @@ export async function filterOpsAndEstimateGas({
 
         // Find gasLimit needed for this bundle
         const bundleGasLimit = await getBundleGasLimit({
+            logger,
             config,
             userOpBundle: userOpsToBundle,
             entryPoint,

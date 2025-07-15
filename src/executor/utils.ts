@@ -87,7 +87,13 @@ export function calculateAA95GasFloor({
                 .map((x) => (x === 0 ? 4 : 16))
                 .reduce((sum, x) => sum + x)
 
+            console.log(
+                `[DEBUG] handleOpsCalldataCost: ${handleOpsCalldataCost}`
+            )
+
             gasFloor += BigInt(handleOpsCalldataCost)
+
+            console.log(`[DEBUG] gasFloor: ${gasFloor}`)
         }
     }
 
