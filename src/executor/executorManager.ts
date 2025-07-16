@@ -298,6 +298,7 @@ export class ExecutorManager {
 
                 if (receipt.status === "reverted") {
                     await this.userOpMonitor.processRevertedBundle({
+                        blockReceivedTimestamp,
                         submittedBundle: pendingBundles[index],
                         bundleReceipt: receipt,
                         block
@@ -307,6 +308,7 @@ export class ExecutorManager {
                 // can be potentially resubmitted - so we first submit it again to optimize for the speed
                 if (receipt.status === "not_found") {
                     this.potentiallyResubmitBundle({
+                        blockReceivedTimestamp,
                         submittedBundle: pendingBundles[index],
                         networkGasPrice,
                         networkBaseFee
@@ -319,10 +321,12 @@ export class ExecutorManager {
     }
 
     potentiallyResubmitBundle({
+        blockReceivedTimestamp,
         submittedBundle,
         networkGasPrice,
         networkBaseFee
     }: {
+        blockReceivedTimestamp: number
         submittedBundle: SubmittedBundleInfo
         networkGasPrice: {
             maxFeePerGas: bigint
@@ -343,6 +347,7 @@ export class ExecutorManager {
         if (isGasPriceTooLow) {
             this.userOpMonitor.stopTrackingBundle(submittedBundle)
             this.replaceTransaction({
+                blockReceivedTimestamp,
                 submittedBundle,
                 networkGasPrice,
                 networkBaseFee,
@@ -351,6 +356,7 @@ export class ExecutorManager {
         } else if (isStuck) {
             this.userOpMonitor.stopTrackingBundle(submittedBundle)
             this.replaceTransaction({
+                blockReceivedTimestamp,
                 submittedBundle,
                 networkGasPrice,
                 networkBaseFee,
@@ -432,11 +438,13 @@ export class ExecutorManager {
     }
 
     async replaceTransaction({
+        blockReceivedTimestamp,
         submittedBundle,
         networkGasPrice,
         networkBaseFee,
         reason
     }: {
+        blockReceivedTimestamp: number
         submittedBundle: SubmittedBundleInfo
         networkGasPrice: GasPriceParameters
         networkBaseFee: bigint
@@ -478,17 +486,20 @@ export class ExecutorManager {
             )
 
             if (shouldCheckFrontrun) {
-                // Check each rejected userOp for frontrun
-                const frontrunResults = await Promise.all(
+                // Check each rejected userOp for frontrun or included
+                const results = await Promise.all(
                     rejectedUserOps.map(async (userOpInfo) => ({
                         userOpInfo,
-                        wasFrontrun:
-                            await this.userOpMonitor.checkFrontrun(userOpInfo)
+                        status: await this.userOpMonitor.checkUserOpStatus({
+                            userOpInfo,
+                            submittedBundle,
+                            blockReceivedTimestamp
+                        })
                     }))
                 )
 
-                const hasFrontrun = frontrunResults.some(
-                    ({ wasFrontrun }) => wasFrontrun
+                const hasFrontrun = results.some(
+                    ({ status }) => status === "frontran"
                 )
 
                 // If one userOp in the bundle was frontrun, we need to cancel the entire bundle
@@ -497,12 +508,24 @@ export class ExecutorManager {
                     await this.cancelBundle(submittedBundle)
                 }
 
-                // Drop userOps that were rejected but not frontrun
-                const nonFrontrunUserOps = frontrunResults
-                    .filter(({ wasFrontrun }) => !wasFrontrun)
+                // Drop userOps that were rejected but not frontrun or included (still pending)
+                const nonFrontrunUserOps = results
+                    .filter(({ status }) => status === "not_found")
                     .map(({ userOpInfo }) => userOpInfo)
 
                 await this.mempool.dropUserOps(entryPoint, nonFrontrunUserOps)
+
+                // Stop tracking userOps that were included onchain either due to frontrun or included
+                const userOpsIncludedOnchain = results
+                    .filter(({ status }) =>
+                        ["frontran", "included"].includes(status)
+                    )
+                    .map(({ userOpInfo }) => userOpInfo)
+
+                await this.mempool.removeSubmittedUserOps({
+                    entryPoint,
+                    userOps: userOpsIncludedOnchain
+                })
             } else {
                 this.logger.warn(
                     { oldTxHash, reason },
