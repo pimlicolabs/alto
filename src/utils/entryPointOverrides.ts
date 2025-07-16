@@ -45,8 +45,12 @@ export const getFilterOpsStateOverride = ({
     baseFeePerGas: bigint
 }): StateOverride => {
     const senderCreatorOverride = getSenderCreatorOverride(entryPoint)
-    const slot = keccak256(toHex("BLOCK_BASE_FEE_PER_GAS"))
-    const value = toHex(baseFeePerGas, { size: 32 })
+    const baseFeeSlot = keccak256(toHex("BLOCK_BASE_FEE_PER_GAS"))
+    const baseFeeValue = toHex(baseFeePerGas, { size: 32 })
+
+    // Get current timestamp in seconds (block.timestamp is in seconds)
+    const timestampSlot = keccak256(toHex("BLOCK_TIMESTAMP"))
+    const timestampValue = toHex(Math.floor(Date.now() / 1000), { size: 32 })
 
     let code: Hex
     switch (version) {
@@ -73,8 +77,12 @@ export const getFilterOpsStateOverride = ({
                     value: senderCreatorOverride.value
                 },
                 {
-                    slot,
-                    value
+                    slot: baseFeeSlot,
+                    value: baseFeeValue
+                },
+                {
+                    slot: timestampSlot,
+                    value: timestampValue
                 }
             ]
         }
