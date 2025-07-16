@@ -508,7 +508,7 @@ export class ExecutorManager {
                     await this.cancelBundle(submittedBundle)
                 }
 
-                // Drop userOps that were rejected but not frontrun or included (still pending)
+                // Drop userOps that were rejected but not frontrun or included
                 const nonFrontrunUserOps = results
                     .filter(({ status }) => status === "not_found")
                     .map(({ userOpInfo }) => userOpInfo)

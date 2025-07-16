@@ -378,7 +378,7 @@ export class UserOpMonitor {
                     blockReceivedTimestamp
                 )
 
-                // userOp was bundled by this bundler, return false
+                // userOp was bundled by this bundler
                 return "included"
             }
 
@@ -407,7 +407,7 @@ export class UserOpMonitor {
                 // Update metrics
                 this.metrics.userOpsOnChain.labels({ status: "frontran" }).inc()
 
-                // userOp was bundled by another bundler, return true
+                // userOp was bundled by another bundler
                 return "frontran"
             }
 
