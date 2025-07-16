@@ -396,21 +396,19 @@ export const receiptSchema = z.object({
     //type: hexNumberSchema
 })
 
-const userOperationReceiptSchema = z
-    .object({
-        userOpHash: hexData32Schema,
-        entryPoint: addressSchema,
-        sender: addressSchema,
-        nonce: hexNumberSchema,
-        paymaster: addressSchema.optional(),
-        actualGasCost: hexNumberSchema,
-        actualGasUsed: hexNumberSchema,
-        success: z.boolean(),
-        reason: hexDataSchema.optional(), // revert reason
-        logs: z.array(logSchema),
-        receipt: receiptSchema
-    })
-    .or(z.null())
+const userOperationReceiptSchema = z.object({
+    userOpHash: hexData32Schema,
+    entryPoint: addressSchema,
+    sender: addressSchema,
+    nonce: hexNumberSchema,
+    paymaster: addressSchema.optional(),
+    actualGasCost: hexNumberSchema,
+    actualGasUsed: hexNumberSchema,
+    success: z.boolean(),
+    reason: hexDataSchema.optional(), // revert reason
+    logs: z.array(logSchema),
+    receipt: receiptSchema
+})
 
 export type UserOperationReceipt = z.infer<typeof userOperationReceiptSchema>
 
@@ -523,7 +521,7 @@ export const getUserOperationReceiptSchema = z.object({
             .regex(hexData32Pattern, { message: "Missing/invalid userOpHash" })
             .transform((val) => val as Hex)
     ]),
-    result: userOperationReceiptSchema
+    result: userOperationReceiptSchema.or(z.null())
 })
 
 export const debugClearStateSchema = z.object({
@@ -626,7 +624,7 @@ export const pimlicoGetUserOperationGasPriceSchema = z.object({
 export const pimlicoSendUserOperationNowSchema = z.object({
     method: z.literal("pimlico_sendUserOperationNow"),
     params: z.tuple([userOperationSchema, addressSchema]),
-    result: userOperationReceiptSchema
+    result: userOperationReceiptSchema.or(z.null())
 })
 
 export const pimlicoSimulateAssetChangeSchema = z.object({

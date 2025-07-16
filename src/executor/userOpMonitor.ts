@@ -111,19 +111,11 @@ export class UserOpMonitor {
         // Cleanup bundle
         await this.freeSubmittedBundle(submittedBundle)
 
-        // Log metric
-        this.metrics.userOpsOnChain
-            .labels({ status: "included" })
-            .inc(userOps.length)
-
         // Process each userOp
         // rest of the code is non-blocking
         return (async () => {
             for (const userOpInfo of userOps) {
                 const userOpReceipt = userOpReceipts[userOpInfo.userOpHash]
-                if (!userOpReceipt) {
-                    throw new Error("userOpReceipt is undefined")
-                }
 
                 // Cache the receipt
                 this.cacheReceipt(userOpInfo.userOpHash, userOpReceipt)
@@ -149,10 +141,12 @@ export class UserOpMonitor {
      */
     async processRevertedBundle({
         submittedBundle,
+        blockReceivedTimestamp,
         bundleReceipt,
         block
     }: {
         submittedBundle: SubmittedBundleInfo
+        blockReceivedTimestamp: number
         bundleReceipt: BundleStatus<"reverted">
         block: Block
     }) {
@@ -187,9 +181,13 @@ export class UserOpMonitor {
             // Fire and forget
             // Check if any rejected userOps were frontruns, if not mark as reverted onchain.
             rejectedUserOps.map(async (userOpInfo) => {
-                const wasFrontrun = await this.checkFrontrun(userOpInfo)
+                const status = await this.checkUserOpStatus({
+                    userOpInfo,
+                    submittedBundle,
+                    blockReceivedTimestamp
+                })
 
-                if (!wasFrontrun) {
+                if (status === "not_found") {
                     const { userOpHash } = userOpInfo
 
                     await this.monitor.setUserOpStatus(userOpHash, {
@@ -283,7 +281,7 @@ export class UserOpMonitor {
 
     private async processIncludedUserOp(
         userOpInfo: UserOpInfo,
-        userOpReceipt: any,
+        userOpReceipt: UserOperationReceipt,
         transactionHash: Hash,
         blockNumber: bigint,
         entryPoint: Address,
@@ -299,6 +297,9 @@ export class UserOpMonitor {
             status: "included",
             transactionHash
         })
+
+        // Log metric
+        this.metrics.userOpsOnChain.labels({ status: "included" }).inc()
 
         // Emit appropriate event
         if (userOpReceipt.success) {
@@ -334,15 +335,52 @@ export class UserOpMonitor {
         )
     }
 
-    async checkFrontrun(
-        userOpInfo: UserOpInfo,
+    async checkUserOpStatus({
+        userOpInfo,
+        submittedBundle,
+        blockReceivedTimestamp,
         blockWaitCount = 0
-    ): Promise<boolean> {
+    }: {
+        userOpInfo: UserOpInfo
+        submittedBundle: SubmittedBundleInfo
+        blockReceivedTimestamp: number
+        blockWaitCount?: number
+    }): Promise<"not_found" | "included" | "frontran"> {
+        const {
+            bundle: { entryPoint },
+            transactionHash,
+            previousTransactionHashes
+        } = submittedBundle
+        const bundlerTxs = [transactionHash, ...previousTransactionHashes]
+
         const { userOpHash } = userOpInfo
 
         // Try to find userOp onchain
         try {
             const userOpReceipt = await this.getUserOpReceipt(userOpHash)
+
+            if (
+                userOpReceipt &&
+                bundlerTxs.includes(userOpReceipt.receipt.transactionHash)
+            ) {
+                const { receipt } = userOpReceipt
+                const { blockNumber, transactionHash } = receipt
+
+                // Cache the receipt
+                this.cacheReceipt(userOpInfo.userOpHash, userOpReceipt)
+
+                await this.processIncludedUserOp(
+                    userOpInfo,
+                    userOpReceipt,
+                    transactionHash,
+                    blockNumber,
+                    entryPoint,
+                    blockReceivedTimestamp
+                )
+
+                // userOp was bundled by this bundler
+                return "included"
+            }
 
             if (userOpReceipt) {
                 const transactionHash = userOpReceipt.receipt.transactionHash
@@ -366,20 +404,27 @@ export class UserOpMonitor {
                     "user op frontrun onchain"
                 )
 
-                this.metrics.userOpsOnChain
-                    .labels({ status: "frontran" })
-                    .inc(1)
+                // Update metrics
+                this.metrics.userOpsOnChain.labels({ status: "frontran" }).inc()
 
-                return true
+                // userOp was bundled by another bundler
+                return "frontran"
             }
 
             if (blockWaitCount >= this.config.maxBlockWaitCount) {
-                return false
+                return "not_found"
             }
 
             return new Promise((resolve) => {
                 setTimeout(() => {
-                    resolve(this.checkFrontrun(userOpInfo, blockWaitCount + 1))
+                    resolve(
+                        this.checkUserOpStatus({
+                            userOpInfo,
+                            submittedBundle,
+                            blockReceivedTimestamp,
+                            blockWaitCount: blockWaitCount + 1
+                        })
+                    )
                 }, this.config.publicClient.chain.blockTime ?? 1_000)
             })
         } catch (error) {
@@ -391,7 +436,7 @@ export class UserOpMonitor {
                 "Error checking frontrun status"
             )
 
-            return false
+            return "not_found"
         }
     }
 
