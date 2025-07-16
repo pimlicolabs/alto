@@ -17,7 +17,7 @@ import "account-abstraction-v7/core/UserOperationLib.sol";
 
 import "@openzeppelin-v5.0.2/contracts/utils/introspection/ERC165.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin-v5.0.2/contracts/utils/StorageSlot.sol";
+import "../SimulationOverrideHelper.sol";
 
 /*
  * Account-Abstraction (EIP-4337) singleton EntryPoint implementation.
@@ -34,8 +34,7 @@ contract EntryPointFilterOpsOverride07 is IEntryPoint, StakeManager, NonceManage
     using UserOperationLib for PackedUserOperation;
 
     function senderCreator() internal view virtual returns (SenderCreator) {
-        address creator = StorageSlot.getAddressSlot(keccak256("SENDER_CREATOR")).value;
-        if (creator == address(0)) creator = 0xEFC2c1444eBCC4Db75e7613d20C6a62fF67A167C;
+        address creator = SimulationOverrideHelper.getSenderCreator07();
         return SenderCreator(creator);
     }
 
@@ -525,8 +524,8 @@ contract EntryPointFilterOpsOverride07 is IEntryPoint, StakeManager, NonceManage
             return (address(0), false);
         }
         ValidationData memory data = _parseValidationData(validationData);
-        // solhint-disable-next-line not-rely-on-time
-        outOfTimeRange = block.timestamp > data.validUntil || block.timestamp < data.validAfter;
+        uint256 blockTimestamp = SimulationOverrideHelper.getBlockTimestamp();
+        outOfTimeRange = blockTimestamp > data.validUntil || blockTimestamp < data.validAfter;
         aggregator = data.aggregator;
     }
 
@@ -668,7 +667,7 @@ contract EntryPointFilterOpsOverride07 is IEntryPoint, StakeManager, NonceManage
                 //legacy mode (for networks that don't support basefee opcode)
                 return maxFeePerGas;
             }
-            uint256 blockBaseFeePerGas = StorageSlot.getUint256Slot(keccak256("BLOCK_BASE_FEE_PER_GAS")).value;
+            uint256 blockBaseFeePerGas = SimulationOverrideHelper.getBlockBaseFee();
             return min(maxFeePerGas, maxPriorityFeePerGas + blockBaseFeePerGas);
         }
     }

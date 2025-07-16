@@ -19,7 +19,7 @@ import "account-abstraction-v8/utils/Exec.sol";
 import "@openzeppelin-v5.1.0/contracts/utils/ReentrancyGuardTransient.sol";
 import "@openzeppelin-v5.1.0/contracts/utils/introspection/ERC165.sol";
 import "@openzeppelin-v5.1.0/contracts/utils/cryptography/EIP712.sol";
-import "@openzeppelin-v5.1.0/contracts/utils/StorageSlot.sol";
+import "../SimulationOverrideHelper.sol";
 
 /**
  * Account-Abstraction (EIP-4337) singleton EntryPoint v0.8 implementation.
@@ -167,8 +167,7 @@ contract EntryPointFilterOpsOverride08 is IEntryPoint, StakeManager, NonceManage
 
     /// @inheritdoc IEntryPoint
     function senderCreator() public view virtual returns (ISenderCreator) {
-        address creator = StorageSlot.getAddressSlot(keccak256("SENDER_CREATOR")).value;
-        if (creator == address(0)) creator = 0x449ED7C3e6Fee6a97311d4b55475DF59C44AdD33;
+        address creator = SimulationOverrideHelper.getSenderCreator08();
         return ISenderCreator(creator);
     }
 
@@ -696,8 +695,8 @@ contract EntryPointFilterOpsOverride08 is IEntryPoint, StakeManager, NonceManage
             return (address(0), false);
         }
         ValidationData memory data = _parseValidationData(validationData);
-        // solhint-disable-next-line not-rely-on-time
-        outOfTimeRange = block.timestamp > data.validUntil || block.timestamp <= data.validAfter;
+        uint256 blockTimestamp = SimulationOverrideHelper.getBlockTimestamp();
+        outOfTimeRange = blockTimestamp > data.validUntil || blockTimestamp <= data.validAfter;
         aggregator = data.aggregator;
     }
 
@@ -842,7 +841,7 @@ contract EntryPointFilterOpsOverride08 is IEntryPoint, StakeManager, NonceManage
         unchecked {
             uint256 maxFeePerGas = mUserOp.maxFeePerGas;
             uint256 maxPriorityFeePerGas = mUserOp.maxPriorityFeePerGas;
-            uint256 blockBaseFeePerGas = StorageSlot.getUint256Slot(keccak256("BLOCK_BASE_FEE_PER_GAS")).value;
+            uint256 blockBaseFeePerGas = SimulationOverrideHelper.getBlockBaseFee();
             return min(maxFeePerGas, maxPriorityFeePerGas + blockBaseFeePerGas);
         }
     }
