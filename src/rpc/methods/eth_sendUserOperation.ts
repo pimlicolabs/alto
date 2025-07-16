@@ -69,7 +69,7 @@ const getUserOpValidationResult = async (
     }
 }> => {
     const queuedUserOps: UserOperation[] =
-        await rpcHandler.mempool.getQueuedOustandingUserOps({
+        await rpcHandler.mempool.getQueuedOutstandingUserOps({
             userOp,
             entryPoint
         })
