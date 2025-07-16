@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin-v5.1.0/contracts/utils/StorageSlot.sol";
+import "@openzeppelin-v4.8.3/contracts/utils/StorageSlot.sol";
 
 // Helper library for common storage slot overrides used across EntryPoint contracts
 library SimulationOverrideHelper {
