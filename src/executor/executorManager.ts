@@ -509,14 +509,14 @@ export class ExecutorManager {
                 }
 
                 // Drop userOps that were rejected but not frontrun or included
-                const nonFrontrunUserOps = results
+                const notFoundUserOps = results
                     .filter(({ status }) => status === "not_found")
                     .map(({ userOpInfo }) => userOpInfo)
 
-                await this.mempool.dropUserOps(entryPoint, nonFrontrunUserOps)
+                await this.mempool.dropUserOps(entryPoint, notFoundUserOps)
 
                 // Stop tracking userOps that were included onchain either due to frontrun or included
-                const userOpsIncludedOnchain = results
+                const confirmedUserOps = results
                     .filter(({ status }) =>
                         ["frontran", "included"].includes(status)
                     )
@@ -524,7 +524,7 @@ export class ExecutorManager {
 
                 await this.mempool.removeSubmittedUserOps({
                     entryPoint,
-                    userOps: userOpsIncludedOnchain
+                    userOps: confirmedUserOps
                 })
             } else {
                 this.logger.warn(
