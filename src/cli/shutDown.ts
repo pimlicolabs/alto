@@ -1,4 +1,4 @@
-import type { UserOpMonitor } from "@alto/executor"
+import type { SenderManager, UserOpMonitor } from "@alto/executor"
 import type { Mempool } from "@alto/mempool"
 import {
     recoverableJsonParseWithBigint,
@@ -189,12 +189,14 @@ export async function restoreShutdownState({
     mempool,
     userOpMonitor,
     config,
-    logger
+    logger,
+    senderManager
 }: {
     mempool: Mempool
     userOpMonitor: UserOpMonitor
     config: AltoConfig
     logger: Logger
+    senderManager: SenderManager
 }) {
     const redisShutdownMempoolUrl = config.redisShutdownMempoolUrl
     if (!redisShutdownMempoolUrl) {
@@ -324,6 +326,9 @@ export async function restoreShutdownState({
 
                     for (const submittedBundle of data.pendingBundles) {
                         userOpMonitor.trackBundle(submittedBundle)
+                        if (senderManager.lockWallet) {
+                            senderManager.lockWallet(submittedBundle.executor)
+                        }
                     }
                 }
             } catch (err) {
