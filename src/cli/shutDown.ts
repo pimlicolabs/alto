@@ -333,6 +333,7 @@ export async function restoreShutdownState({
                 }
                 return done()
             } catch (err) {
+                done()
                 logger.error(
                     { err },
                     "[MEMPOOL-RESTORATION] Error processing restoration message, continuing"
