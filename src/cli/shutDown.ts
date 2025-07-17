@@ -263,7 +263,7 @@ export async function restoreShutdownState({
             await subscriber.quit()
         }, timeoutMs)
 
-        await restorationQueue.process(1, async (job) => {
+        await restorationQueue.process(1, async (job, done) => {
             try {
                 logger.info(
                     {
@@ -286,7 +286,7 @@ export async function restoreShutdownState({
                     await restorationQueue.close()
                     await client.quit()
                     await subscriber.quit()
-                    return
+                    return done()
                 }
 
                 if (message.type === "MEMPOOL_DATA") {
@@ -331,6 +331,7 @@ export async function restoreShutdownState({
                         }
                     }
                 }
+                return done()
             } catch (err) {
                 logger.error(
                     { err },
