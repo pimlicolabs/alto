@@ -16,6 +16,7 @@ import { flushOnStartUp } from "../executor/senderManager/flushOnStartUp"
 import { validateAndRefillWallets } from "../executor/senderManager/validateAndRefill"
 import { UserOpMonitor } from "../executor/userOpMonitor"
 import { createMempoolStore } from "../store/createMempoolStore"
+import { persistShutdownState, restoreShutdownState } from "./shutDown"
 
 const getReputationManager = (
     config: AltoConfig
@@ -328,6 +329,21 @@ export const setupServer = async ({
         metrics
     })
 
+    const shutdownLogger = rootLogger.child(
+        { module: "shutdown" },
+        {
+            level: config.logLevel
+        }
+    )
+
+    restoreShutdownState({
+        mempool,
+        userOpMonitor,
+        config,
+        logger: shutdownLogger,
+        senderManager
+    })
+
     server.start()
 
     const gracefulShutdown = async (signal: string) => {
@@ -336,7 +352,12 @@ export const setupServer = async ({
         await server.stop()
         rootLogger.info("server stopped")
 
-        await mempool.shutdown()
+        await persistShutdownState({
+            mempool,
+            config,
+            userOpMonitor,
+            logger: shutdownLogger
+        })
 
         // mark all executors as processed
         for (const account of senderManager.getActiveWallets()) {
