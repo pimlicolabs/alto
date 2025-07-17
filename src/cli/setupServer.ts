@@ -336,7 +336,7 @@ export const setupServer = async ({
         }
     )
 
-    await restoreShutdownState({
+    restoreShutdownState({
         mempool,
         userOpMonitor,
         config,
