@@ -209,7 +209,7 @@ export function createMetrics(registry: Registry, register = true) {
     const estimationFallbackTo2xCallGasLimit = new Counter({
         name: "alto_estimation_fallback_to_2x_call_gas_limit_total",
         help: "Number of times estimation failed and we returned 2x callGasLimit",
-        labelNames: ["sender", "nonce"] as const,
+        labelNames: ["sender", "nonce", "data"] as const,
         registers
     })
 

@@ -188,22 +188,30 @@ export class UnsafeValidator implements InterfaceValidator {
 
             this.metrics.estimationFallbackTo2xCallGasLimit.inc({
                 sender: userOp.sender.toLowerCase(),
-                nonce: userOp.nonce.toString()
+                nonce: userOp.nonce.toString(),
+                data
             })
 
-            if (
+            // we always have to double the call gas limits as other gas limits happen
+            // before we even get to callGasLimit
+            callGasLimit *= 2n
+            const isPaymasterError = data.includes("AA33")
+
+            const isVerificationError =
                 data.includes("AA23") ||
+                data.includes("AA13") ||
+                data.includes("AA26") ||
                 data.includes("AA40") ||
                 data.includes("AA41")
-            ) {
+
+            if (isPaymasterError && paymasterVerificationGasLimit) {
+                paymasterVerificationGasLimit *= 2n
+            } else if (isVerificationError) {
                 // verificationGasLimit out of gas errors
                 verificationGasLimit *= 2n
-            } else if (data.includes("AA33") && paymasterVerificationGasLimit) {
-                // paymaster estimation out of gas errors
-                paymasterVerificationGasLimit *= 2n
-            } else {
-                // every thing error should be related to callGasLimit
-                callGasLimit *= 2n
+                if (paymasterVerificationGasLimit) {
+                    paymasterVerificationGasLimit *= 2n
+                }
             }
         }
 
