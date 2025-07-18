@@ -15,7 +15,12 @@ export interface InterfaceValidator {
         entryPoint: Address
         queuedUserOps: UserOperation[]
         stateOverrides?: StateOverrides
-    }): Promise<SimulateHandleOpResult>
+    }): Promise<{
+        callGasLimit: bigint
+        verificationGasLimit: bigint
+        paymasterVerificationGasLimit: bigint | null
+        paymasterPostOpGasLimit: bigint | null
+    }>
 
     getExecutionResult(args: {
         userOp: UserOperation
