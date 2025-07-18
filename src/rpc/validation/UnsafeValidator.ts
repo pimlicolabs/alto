@@ -195,7 +195,8 @@ export class UnsafeValidator implements InterfaceValidator {
             // we always have to double the call gas limits as other gas limits happen
             // before we even get to callGasLimit
             callGasLimit *= 2n
-            const isPaymasterError = data.includes("AA33")
+            const isPaymasterError =
+                data.includes("AA33") || data.includes("AA36")
 
             const isVerificationError =
                 data.includes("AA23") ||
@@ -209,6 +210,8 @@ export class UnsafeValidator implements InterfaceValidator {
             } else if (isVerificationError) {
                 // verificationGasLimit out of gas errors
                 verificationGasLimit *= 2n
+                // we need to increase paymaster fields because they will be
+                // caught after verification gas limit errors
                 if (paymasterVerificationGasLimit) {
                     paymasterVerificationGasLimit *= 2n
                 }
