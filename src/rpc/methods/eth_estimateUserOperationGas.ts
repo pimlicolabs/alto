@@ -339,8 +339,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             )
         }
 
-        // Check if userOperation passes without estimation balance overrides (will throw error if it fails validation)
-        await rpcHandler.validator.validateHandleOp({
+        const finalGasLimits = await rpcHandler.validator.validateHandleOp({
             userOp: {
                 ...userOp,
                 ...gasEstimateResult.estimates, // use actual callGasLimit, verificationGasLimit, paymasterPostOpGasLimit, paymasterVerificationGasLimit
@@ -357,7 +356,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             callGasLimit,
             paymasterVerificationGasLimit,
             paymasterPostOpGasLimit
-        } = gasEstimateResult.estimates
+        } = finalGasLimits
 
         if (isVersion07(userOp)) {
             return {

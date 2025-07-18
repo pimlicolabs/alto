@@ -156,7 +156,7 @@ export class UnsafeValidator implements InterfaceValidator {
         entryPoint: Address
         queuedUserOps: UserOperation[]
         stateOverrides?: StateOverrides
-    }): Promise<SimulateHandleOpResult> {
+    }) {
         const { userOp, entryPoint, queuedUserOps, stateOverrides } = args
         const error = await this.gasEstimationHandler.validateHandleOp({
             userOp,
@@ -167,20 +167,55 @@ export class UnsafeValidator implements InterfaceValidator {
             stateOverrides
         })
 
+        let { callGasLimit, verificationGasLimit } = userOp
+        let paymasterVerificationGasLimit =
+            "paymasterVerificationGasLimit" in userOp
+                ? userOp.paymasterVerificationGasLimit
+                : null
+        // Check if userOperation passes without estimation balance overrides (will throw error if it fails validation)
+        // the errors we are looking for are:
+        // 1. AA31 paymaster deposit too low
+        // 2. AA21 didn't pay prefund
         if (error.result === "failed") {
-            let errorCode: number = ExecutionErrors.UserOperationReverted
+            const data = error.data.toString()
 
-            if (error.data.toString().includes("AA23")) {
-                errorCode = ValidationErrors.SimulateValidation
+            if (data.includes("AA31") || data.includes("AA21")) {
+                throw new RpcError(
+                    `UserOperation reverted during simulation with reason: ${error.data}`,
+                    ExecutionErrors.UserOperationReverted
+                )
             }
 
-            throw new RpcError(
-                `UserOperation reverted during simulation with reason: ${error.data}`,
-                errorCode
-            )
+            this.metrics.estimationFallbackTo2xCallGasLimit.inc({
+                sender: userOp.sender.toLowerCase(),
+                nonce: userOp.nonce.toString()
+            })
+
+            if (
+                data.includes("AA23") ||
+                data.includes("AA40") ||
+                data.includes("AA41")
+            ) {
+                // verificationGasLimit out of gas errors
+                verificationGasLimit *= 2n
+            } else if (data.includes("AA33") && paymasterVerificationGasLimit) {
+                // paymaster estimation out of gas errors
+                paymasterVerificationGasLimit *= 2n
+            } else {
+                // every thing error should be related to callGasLimit
+                callGasLimit *= 2n
+            }
         }
 
-        return error
+        return {
+            callGasLimit: callGasLimit,
+            verificationGasLimit: verificationGasLimit,
+            paymasterVerificationGasLimit: paymasterVerificationGasLimit,
+            paymasterPostOpGasLimit:
+                "paymasterPostOpGasLimit" in userOp
+                    ? userOp.paymasterPostOpGasLimit
+                    : null
+        }
     }
 
     async getExecutionResult(args: {
