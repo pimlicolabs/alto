@@ -58,6 +58,7 @@ export const createMemorySenderManager = ({
                 logger.error(
                     "wallet not found in available wallets or is already been used up"
                 )
+                return
             }
 
             availableWallets.splice(walletIndex, 1)
