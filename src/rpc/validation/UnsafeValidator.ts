@@ -188,9 +188,13 @@ export class UnsafeValidator implements InterfaceValidator {
 
             this.metrics.estimationFallbackTo2xCallGasLimit.inc({
                 sender: userOp.sender.toLowerCase(),
-                nonce: userOp.nonce.toString(),
-                data
+                nonce: userOp.nonce.toString()
             })
+
+            this.logger.warn(
+                { data },
+                "Second validation during eth_estimateUserOperationGas led to a failure"
+            )
 
             // we always have to double the call gas limits as other gas limits happen
             // before we even get to callGasLimit
