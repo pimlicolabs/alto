@@ -207,6 +207,7 @@ export class UnsafeValidator implements InterfaceValidator {
                 data.includes("AA41")
 
             if (isPaymasterError && paymasterVerificationGasLimit) {
+                // paymasterVerificationGasLimit out of gas errors
                 paymasterVerificationGasLimit *= 2n
             } else if (isVerificationError) {
                 // verificationGasLimit out of gas errors
