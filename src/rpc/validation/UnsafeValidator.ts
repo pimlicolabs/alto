@@ -186,10 +186,7 @@ export class UnsafeValidator implements InterfaceValidator {
                 )
             }
 
-            this.metrics.estimationFallbackTo2xCallGasLimit.inc({
-                sender: userOp.sender.toLowerCase(),
-                nonce: userOp.nonce.toString()
-            })
+            this.metrics.estimationFallbackTo2xCallGasLimit.inc()
 
             this.logger.warn(
                 { data },
